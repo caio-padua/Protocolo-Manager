@@ -1,0 +1,80 @@
+import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
+import { db, stockItemsTable, substancesTable } from "@workspace/db";
+import {
+  CreateStockItemBody,
+  UpdateStockItemParams,
+  UpdateStockItemBody,
+} from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+async function formatStockItem(item: typeof stockItemsTable.$inferSelect) {
+  const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
+
+  let status: "ok" | "low" | "critical" | "expired" = "ok";
+  if (item.expirationDate && new Date(item.expirationDate) < new Date()) {
+    status = "expired";
+  } else if (item.quantity <= 0) {
+    status = "critical";
+  } else if (item.quantity <= item.minimumStock) {
+    status = "low";
+  }
+
+  return {
+    id: item.id,
+    substanceId: item.substanceId,
+    substanceName: substance?.name ?? "",
+    substanceColor: substance?.color ?? "#888888",
+    quantity: item.quantity,
+    unit: item.unit,
+    minimumStock: item.minimumStock,
+    lot: item.lot ?? null,
+    expirationDate: item.expirationDate ?? null,
+    supplier: item.supplier ?? null,
+    unitCost: item.unitCost ?? null,
+    status,
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+router.get("/stock", async (_req, res): Promise<void> => {
+  const items = await db.select().from(stockItemsTable);
+  const results = await Promise.all(items.map(formatStockItem));
+  res.json(results);
+});
+
+router.post("/stock", async (req, res): Promise<void> => {
+  const parsed = CreateStockItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [item] = await db.insert(stockItemsTable).values(parsed.data).returning();
+  res.status(201).json(await formatStockItem(item));
+});
+
+router.put("/stock/:id", async (req, res): Promise<void> => {
+  const params = UpdateStockItemParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateStockItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [item] = await db.update(stockItemsTable).set(parsed.data).where(eq(stockItemsTable.id, params.data.id)).returning();
+  if (!item) {
+    res.status(404).json({ error: "Stock item not found" });
+    return;
+  }
+
+  res.json(await formatStockItem(item));
+});
+
+export default router;

@@ -1,22 +1,37 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PADCOM — Sistema de Gestão de Protocolos Injetáveis
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: clients
+    description: Client management
+  - name: substances
+    description: Substance management
+  - name: protocols
+    description: Protocol management
+  - name: sessions
+    description: Session/appointment management
+  - name: ras
+    description: RAS - Registro de Administração de Substâncias
+  - name: stock
+    description: Stock management
+  - name: payments
+    description: Payment management
+  - name: dashboard
+    description: Dashboard and analytics
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +39,690 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # CLIENTS
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List all clients
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get client by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    put:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  # SUBSTANCES
+  /substances:
+    get:
+      operationId: listSubstances
+      tags: [substances]
+      summary: List all substances
+      responses:
+        "200":
+          description: List of substances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Substance"
+    post:
+      operationId: createSubstance
+      tags: [substances]
+      summary: Create a substance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubstanceBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Substance"
+
+  /substances/{id}:
+    put:
+      operationId: updateSubstance
+      tags: [substances]
+      summary: Update substance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubstanceBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Substance"
+
+  # PROTOCOLS
+  /protocols:
+    get:
+      operationId: listProtocols
+      tags: [protocols]
+      summary: List all protocols
+      parameters:
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of protocols
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Protocol"
+    post:
+      operationId: createProtocol
+      tags: [protocols]
+      summary: Create a protocol
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProtocolBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+
+  /protocols/{id}:
+    get:
+      operationId: getProtocol
+      tags: [protocols]
+      summary: Get protocol by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Protocol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+    put:
+      operationId: updateProtocol
+      tags: [protocols]
+      summary: Update protocol
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProtocolBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+
+  /protocols/{id}/validate:
+    post:
+      operationId: validateProtocol
+      tags: [protocols]
+      summary: Validate and generate sessions for a protocol
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Protocol validated and sessions generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+
+  /protocols/{id}/generate-ics:
+    post:
+      operationId: generateProtocolICS
+      tags: [protocols]
+      summary: Generate ICS file for protocol sessions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: ICS content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icsContent:
+                    type: string
+                  filename:
+                    type: string
+                required:
+                  - icsContent
+                  - filename
+
+  # SESSIONS
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List sessions
+      parameters:
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: protocolId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+        - name: professionalId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get session by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+    put:
+      operationId: updateSession
+      tags: [sessions]
+      summary: Update session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}/confirm-substance:
+    post:
+      operationId: confirmSubstanceApplication
+      tags: [sessions]
+      summary: Confirm application of a specific substance in a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                substanceId:
+                  type: integer
+                confirmed:
+                  type: boolean
+                notes:
+                  type: string
+              required:
+                - substanceId
+                - confirmed
+      responses:
+        "200":
+          description: Substance confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  # RAS
+  /ras:
+    get:
+      operationId: listRAS
+      tags: [ras]
+      summary: List RAS records
+      parameters:
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: protocolId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of RAS records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RAS"
+    post:
+      operationId: createRAS
+      tags: [ras]
+      summary: Create a RAS record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRASBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RAS"
+
+  /ras/{id}:
+    get:
+      operationId: getRAS
+      tags: [ras]
+      summary: Get RAS by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: RAS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RAS"
+
+  # STOCK
+  /stock:
+    get:
+      operationId: listStock
+      tags: [stock]
+      summary: List stock items
+      responses:
+        "200":
+          description: List of stock items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockItem"
+    post:
+      operationId: createStockItem
+      tags: [stock]
+      summary: Create stock item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStockItemBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockItem"
+
+  /stock/{id}:
+    put:
+      operationId: updateStockItem
+      tags: [stock]
+      summary: Update stock item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStockItemBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockItem"
+
+  # PAYMENTS
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: List payments
+      parameters:
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+    post:
+      operationId: createPayment
+      tags: [payments]
+      summary: Create a payment record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/{id}:
+    put:
+      operationId: updatePayment
+      tags: [payments]
+      summary: Update payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  # PROFESSIONALS
+  /professionals:
+    get:
+      operationId: listProfessionals
+      tags: [clients]
+      summary: List professionals
+      responses:
+        "200":
+          description: List of professionals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Professional"
+    post:
+      operationId: createProfessional
+      tags: [clients]
+      summary: Create a professional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfessionalBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Professional"
+
+  # DASHBOARD
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/upcoming-sessions:
+    get:
+      operationId: getUpcomingSessions
+      tags: [dashboard]
+      summary: Get upcoming sessions for the next 7 days
+      responses:
+        "200":
+          description: Upcoming sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+
+  /dashboard/alerts:
+    get:
+      operationId: getDashboardAlerts
+      tags: [dashboard]
+      summary: Get operational alerts (stock low, missed sessions, pending payments)
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /dashboard/protocol-stats:
+    get:
+      operationId: getProtocolStats
+      tags: [dashboard]
+      summary: Get protocol status breakdown and revenue stats
+      responses:
+        "200":
+          description: Protocol statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtocolStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +733,928 @@ components:
       required:
         - status
 
+    Client:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cpf:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        birthDate:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, pending]
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - cpf
+        - email
+        - phone
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateClientBody:
+      type: object
+      properties:
+        name:
+          type: string
+        cpf:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        birthDate:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, pending]
+        notes:
+          type: string
+          nullable: true
+      required:
+        - name
+        - cpf
+        - email
+        - phone
+        - status
+
+    Substance:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        color:
+          type: string
+        defaultDose:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        maxSessionsPerWeek:
+          type: integer
+          nullable: true
+        intervalDays:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        stockQuantity:
+          type: number
+        stockUnit:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - category
+        - color
+        - stockQuantity
+        - createdAt
+
+    CreateSubstanceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        color:
+          type: string
+        defaultDose:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        maxSessionsPerWeek:
+          type: integer
+          nullable: true
+        intervalDays:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        stockQuantity:
+          type: number
+        stockUnit:
+          type: string
+          nullable: true
+      required:
+        - name
+        - category
+        - color
+        - stockQuantity
+
+    Protocol:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [suggested, validated, active, completed, cancelled]
+        startDate:
+          type: string
+        endDate:
+          type: string
+          nullable: true
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+          enum: [clinic, homecare]
+        totalSessions:
+          type: integer
+        completedSessions:
+          type: integer
+        totalValue:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProtocolItem"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - clientId
+        - clientName
+        - clientCpf
+        - title
+        - status
+        - startDate
+        - serviceType
+        - totalSessions
+        - completedSessions
+        - totalValue
+        - items
+        - sessions
+        - createdAt
+        - updatedAt
+
+    ProtocolItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        substanceId:
+          type: integer
+        substanceName:
+          type: string
+        substanceColor:
+          type: string
+        dose:
+          type: string
+        totalSessions:
+          type: integer
+        completedSessions:
+          type: integer
+        intervalDays:
+          type: integer
+        startDate:
+          type: string
+        frequency:
+          type: string
+      required:
+        - id
+        - substanceId
+        - substanceName
+        - substanceColor
+        - dose
+        - totalSessions
+        - completedSessions
+        - intervalDays
+        - startDate
+        - frequency
+
+    CreateProtocolBody:
+      type: object
+      properties:
+        clientId:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum: [suggested, validated, active, completed, cancelled]
+        startDate:
+          type: string
+        professionalId:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+          enum: [clinic, homecare]
+        totalValue:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateProtocolItemBody"
+      required:
+        - clientId
+        - title
+        - status
+        - startDate
+        - serviceType
+        - totalValue
+        - items
+
+    CreateProtocolItemBody:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        dose:
+          type: string
+        totalSessions:
+          type: integer
+        intervalDays:
+          type: integer
+        frequency:
+          type: string
+      required:
+        - substanceId
+        - dose
+        - totalSessions
+        - intervalDays
+        - frequency
+
+    UpdateProtocolBody:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [suggested, validated, active, completed, cancelled]
+        startDate:
+          type: string
+        endDate:
+          type: string
+          nullable: true
+        professionalId:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+          enum: [clinic, homecare]
+        totalValue:
+          type: number
+        notes:
+          type: string
+          nullable: true
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+        protocolId:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+        scheduledDate:
+          type: string
+        scheduledTime:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, confirmed, completed, missed, cancelled, rescheduled]
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+          enum: [clinic, homecare]
+        weekNumber:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        substanceApplications:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubstanceApplication"
+        createdAt:
+          type: string
+      required:
+        - id
+        - protocolId
+        - clientId
+        - clientName
+        - clientCpf
+        - scheduledDate
+        - scheduledTime
+        - status
+        - serviceType
+        - weekNumber
+        - substanceApplications
+        - createdAt
+
+    SubstanceApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+        substanceId:
+          type: integer
+        substanceName:
+          type: string
+        substanceColor:
+          type: string
+        dose:
+          type: string
+        sessionNumber:
+          type: integer
+        totalSessions:
+          type: integer
+        status:
+          type: string
+          enum: [pending, applied, missed, skipped]
+        availability:
+          type: string
+          enum: [disp, prox]
+        appliedAt:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - id
+        - substanceId
+        - substanceName
+        - substanceColor
+        - dose
+        - sessionNumber
+        - totalSessions
+        - status
+        - availability
+
+    CreateSessionBody:
+      type: object
+      properties:
+        protocolId:
+          type: integer
+        clientId:
+          type: integer
+        scheduledDate:
+          type: string
+        scheduledTime:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, confirmed, completed, missed, cancelled, rescheduled]
+        professionalId:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+          enum: [clinic, homecare]
+        weekNumber:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+      required:
+        - protocolId
+        - clientId
+        - scheduledDate
+        - scheduledTime
+        - status
+        - serviceType
+        - weekNumber
+
+    UpdateSessionBody:
+      type: object
+      properties:
+        scheduledDate:
+          type: string
+        scheduledTime:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, confirmed, completed, missed, cancelled, rescheduled]
+        professionalId:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    RAS:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        protocolId:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+        professionalName:
+          type: string
+        professionalCrm:
+          type: string
+          nullable: true
+        unit:
+          type: string
+        serviceDate:
+          type: string
+        serviceType:
+          type: string
+        substances:
+          type: array
+          items:
+            $ref: "#/components/schemas/RASSubstanceEntry"
+        observations:
+          type: string
+          nullable: true
+        patientSignature:
+          type: boolean
+        professionalSignature:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - sessionId
+        - protocolId
+        - clientId
+        - clientName
+        - clientCpf
+        - professionalName
+        - unit
+        - serviceDate
+        - serviceType
+        - substances
+        - patientSignature
+        - professionalSignature
+        - createdAt
+
+    RASSubstanceEntry:
+      type: object
+      properties:
+        substanceName:
+          type: string
+        dose:
+          type: string
+        route:
+          type: string
+        sessionNumber:
+          type: integer
+        totalSessions:
+          type: integer
+        lot:
+          type: string
+          nullable: true
+        validity:
+          type: string
+          nullable: true
+        appliedAt:
+          type: string
+          nullable: true
+        status:
+          type: string
+      required:
+        - substanceName
+        - dose
+        - route
+        - sessionNumber
+        - totalSessions
+        - status
+
+    CreateRASBody:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        observations:
+          type: string
+          nullable: true
+      required:
+        - sessionId
+
+    StockItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        substanceId:
+          type: integer
+        substanceName:
+          type: string
+        substanceColor:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        minimumStock:
+          type: number
+        lot:
+          type: string
+          nullable: true
+        expirationDate:
+          type: string
+          nullable: true
+        supplier:
+          type: string
+          nullable: true
+        unitCost:
+          type: number
+          nullable: true
+        status:
+          type: string
+          enum: [ok, low, critical, expired]
+        updatedAt:
+          type: string
+      required:
+        - id
+        - substanceId
+        - substanceName
+        - substanceColor
+        - quantity
+        - unit
+        - minimumStock
+        - status
+        - updatedAt
+
+    CreateStockItemBody:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        quantity:
+          type: number
+        unit:
+          type: string
+        minimumStock:
+          type: number
+        lot:
+          type: string
+          nullable: true
+        expirationDate:
+          type: string
+          nullable: true
+        supplier:
+          type: string
+          nullable: true
+        unitCost:
+          type: number
+          nullable: true
+      required:
+        - substanceId
+        - quantity
+        - unit
+        - minimumStock
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        protocolId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [cash, credit_card, debit_card, pix, transfer, insurance]
+        status:
+          type: string
+          enum: [pending, paid, partial, overdue, refunded]
+        dueDate:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - clientId
+        - clientName
+        - amount
+        - method
+        - status
+        - createdAt
+
+    CreatePaymentBody:
+      type: object
+      properties:
+        clientId:
+          type: integer
+        protocolId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [cash, credit_card, debit_card, pix, transfer, insurance]
+        status:
+          type: string
+          enum: [pending, paid, partial, overdue, refunded]
+        dueDate:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+      required:
+        - clientId
+        - amount
+        - method
+        - status
+
+    Professional:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        crm:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceTypes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - serviceTypes
+        - createdAt
+
+    CreateProfessionalBody:
+      type: object
+      properties:
+        name:
+          type: string
+        crm:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceTypes:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - serviceTypes
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalClients:
+          type: integer
+        activeProtocols:
+          type: integer
+        sessionsTodayCount:
+          type: integer
+        sessionsThisWeekCount:
+          type: integer
+        pendingPaymentsCount:
+          type: integer
+        pendingPaymentsValue:
+          type: number
+        stockAlertsCount:
+          type: integer
+        completionRate:
+          type: number
+        revenueThisMonth:
+          type: number
+        missedSessionsCount:
+          type: integer
+      required:
+        - totalClients
+        - activeProtocols
+        - sessionsTodayCount
+        - sessionsThisWeekCount
+        - pendingPaymentsCount
+        - pendingPaymentsValue
+        - stockAlertsCount
+        - completionRate
+        - revenueThisMonth
+        - missedSessionsCount
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [stock_low, missed_session, pending_payment, protocol_expiring, follow_up_needed]
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        title:
+          type: string
+        message:
+          type: string
+        entityId:
+          type: integer
+          nullable: true
+        entityType:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - severity
+        - title
+        - message
+        - createdAt
+
+    ProtocolStats:
+      type: object
+      properties:
+        byStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+              value:
+                type: number
+            required:
+              - status
+              - count
+              - value
+        byServiceType:
+          type: array
+          items:
+            type: object
+            properties:
+              serviceType:
+                type: string
+              count:
+                type: integer
+            required:
+              - serviceType
+              - count
+        topSubstances:
+          type: array
+          items:
+            type: object
+            properties:
+              substanceName:
+                type: string
+              substanceColor:
+                type: string
+              count:
+                type: integer
+            required:
+              - substanceName
+              - substanceColor
+              - count
+        revenueByMonth:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+              revenue:
+                type: number
+            required:
+              - month
+              - revenue
+      required:
+        - byStatus
+        - byServiceType
+        - topSubstances
+        - revenueByMonth
