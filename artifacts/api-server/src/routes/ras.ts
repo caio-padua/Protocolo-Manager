@@ -6,6 +6,7 @@ import {
   CreateRASBody,
   GetRASParams,
 } from "@workspace/api-zod";
+import { generateSignedRASPdf, getCertInfo } from "../lib/pdf-signer";
 
 const router: IRouter = Router();
 
@@ -103,6 +104,15 @@ router.post("/ras", async (req, res): Promise<void> => {
   res.status(201).json(formatRAS(ras));
 });
 
+router.get("/ras/certificate-info", async (_req, res): Promise<void> => {
+  try {
+    const info = getCertInfo();
+    res.json(info);
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao ler certificado", details: err.message });
+  }
+});
+
 router.get("/ras/:id", async (req, res): Promise<void> => {
   const params = GetRASParams.safeParse(req.params);
   if (!params.success) {
@@ -117,6 +127,49 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
   }
 
   res.json(formatRAS(ras));
+});
+
+router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid RAS id" });
+    return;
+  }
+
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+  if (!ras) {
+    res.status(404).json({ error: "RAS not found" });
+    return;
+  }
+
+  try {
+    const formatted = formatRAS(ras);
+    const { pdfBytes, certInfo } = await generateSignedRASPdf({
+      id: ras.id,
+      sessionId: ras.sessionId,
+      clientName: ras.clientName,
+      clientCpf: ras.clientCpf,
+      professionalName: ras.professionalName,
+      professionalCrm: ras.professionalCrm ?? null,
+      unit: ras.unit,
+      serviceDate: ras.serviceDate,
+      serviceType: ras.serviceType,
+      observations: ras.observations ?? null,
+      substances: formatted.substances,
+    });
+
+    const clientSlug = ras.clientName.replace(/\s+/g, "_");
+    const dateSlug = ras.serviceDate.replace(/-/g, "");
+    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBytes.length);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    console.error("PDF generation error:", err);
+    res.status(500).json({ error: "Erro ao gerar PDF assinado", details: err.message });
+  }
 });
 
 export default router;
