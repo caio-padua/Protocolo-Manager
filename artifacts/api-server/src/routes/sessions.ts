@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable } from "@workspace/db";
+import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -15,6 +15,8 @@ const router: IRouter = Router();
 
 async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
+
   let professionalName: string | null = null;
   if (session.professionalId) {
     const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
@@ -34,9 +36,12 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
   return {
     id: session.id,
     protocolId: session.protocolId,
+    protocolTitle: protocol?.title ?? null,
     clientId: session.clientId,
     clientName: client?.name ?? "",
     clientCpf: client?.cpf ?? "",
+    clientEmail: client?.email ?? null,
+    clientPhone: (client as any)?.phone ?? null,
     scheduledDate: session.scheduledDate,
     scheduledTime: session.scheduledTime,
     status: session.status,
@@ -63,6 +68,49 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
   };
 }
 
+function buildICSEvent(session: Awaited<ReturnType<typeof buildSessionResponse>>): string[] {
+  const lines: string[] = [];
+
+  const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
+  const proxApps = session.substanceApplications.filter(a => a.availability === "prox");
+
+  const dispLines = dispApps
+    .filter(a => a.sessionNumber > 0)
+    .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions} (DISP)`)
+    .join("\\n");
+
+  const proxLines = proxApps
+    .map(a => `${a.substanceName} (PROX)`)
+    .join("\\n");
+
+  const description = [dispLines, proxLines].filter(Boolean).join("\\n---\\n");
+
+  const dateStr = session.scheduledDate.replace(/-/g, "");
+  const [h, m] = session.scheduledTime.split(":").map(Number);
+  const endH = String(h + 1).padStart(2, "0");
+  const dtStart = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
+  const dtEnd = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
+
+  const uid = `padcom-session-${session.id}@padcom.clinic`;
+  const summary = `PADCOM: ${session.clientName} — Semana ${session.weekNumber}`;
+
+  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "Z");
+
+  lines.push("BEGIN:VEVENT");
+  lines.push(`UID:${uid}`);
+  lines.push(`DTSTAMP:${now}`);
+  lines.push(`DTSTART:${dtStart}`);
+  lines.push(`DTEND:${dtEnd}`);
+  lines.push(`SUMMARY:${summary}`);
+  if (description) lines.push(`DESCRIPTION:${description}`);
+  lines.push(`LOCATION:${session.unit ?? "Clínica"}`);
+  if (session.clientEmail) lines.push(`ATTENDEE;CN="${session.clientName}";RSVP=FALSE:mailto:${session.clientEmail}`);
+  lines.push(`STATUS:${session.status === "completed" ? "COMPLETED" : "CONFIRMED"}`);
+  lines.push("END:VEVENT");
+
+  return lines;
+}
+
 router.get("/sessions", async (req, res): Promise<void> => {
   const query = ListSessionsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -81,6 +129,83 @@ router.get("/sessions", async (req, res): Promise<void> => {
 
   const results = await Promise.all(sessions.map(buildSessionResponse));
   res.json(results);
+});
+
+// ICS download for a range of sessions
+router.get("/sessions/ics", async (req, res): Promise<void> => {
+  const { dateFrom, dateTo, professionalId, clientId, protocolId } = req.query as Record<string, string>;
+
+  let sessions = await db.select().from(sessionsTable);
+
+  if (dateFrom) sessions = sessions.filter(s => s.scheduledDate >= dateFrom);
+  if (dateTo) sessions = sessions.filter(s => s.scheduledDate <= dateTo);
+  if (professionalId) sessions = sessions.filter(s => s.professionalId === parseInt(professionalId));
+  if (clientId) sessions = sessions.filter(s => s.clientId === parseInt(clientId));
+  if (protocolId) sessions = sessions.filter(s => s.protocolId === parseInt(protocolId));
+
+  sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime));
+
+  const results = await Promise.all(sessions.map(buildSessionResponse));
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PADCOM Protocolos Injetáveis//BR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:PADCOM Agenda",
+    "X-WR-TIMEZONE:America/Sao_Paulo",
+  ];
+
+  for (const session of results) {
+    lines.push(...buildICSEvent(session));
+  }
+
+  lines.push("END:VCALENDAR");
+
+  const icsContent = lines.join("\r\n");
+  const label = dateFrom && dateTo ? `${dateFrom}_a_${dateTo}` : "agenda";
+  const filename = `padcom_${label}.ics`;
+
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(icsContent);
+});
+
+// Single session ICS
+router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid session id" });
+    return;
+  }
+
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id));
+  if (!session) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  const result = await buildSessionResponse(session);
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PADCOM Protocolos Injetáveis//BR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...buildICSEvent(result),
+    "END:VCALENDAR",
+  ];
+
+  const icsContent = lines.join("\r\n");
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+  const clientSlug = client?.name?.replace(/\s+/g, "_") ?? "cliente";
+  const filename = `padcom_sessao_${id}_${clientSlug}.ics`;
+
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(icsContent);
 });
 
 router.post("/sessions", async (req, res): Promise<void> => {
@@ -171,7 +296,6 @@ router.post("/sessions/:id/confirm-substance", async (req, res): Promise<void> =
     })
     .where(eq(substanceApplicationsTable.id, targetApp.id));
 
-  // Check if all DISP applications are done, update session status accordingly
   const updatedApps = await db.select().from(substanceApplicationsTable)
     .where(eq(substanceApplicationsTable.sessionId, params.data.id));
 

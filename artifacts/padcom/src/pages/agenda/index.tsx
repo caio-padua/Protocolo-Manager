@@ -5,10 +5,63 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import {
+  format, startOfWeek, endOfWeek, addWeeks, subWeeks,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, Home, Building2, User, CheckCheck } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Clock, Home, Building2, User,
+  CheckCheck, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
+} from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+
+// Build a Google Calendar "Add Event" deep link
+function buildGoogleCalendarLink(session: {
+  clientName: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  weekNumber: number;
+  unit: string | null;
+  substanceApplications: { substanceName: string; sessionNumber: number; totalSessions: number; availability: string }[];
+}): string {
+  const [h, m] = session.scheduledTime.split(":").map(Number);
+  const dateStr = session.scheduledDate.replace(/-/g, "");
+  const startDt = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
+  const endH = String(h + 1).padStart(2, "0");
+  const endDt = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
+
+  const title = encodeURIComponent(`PADCOM: ${session.clientName} — Semana ${session.weekNumber}`);
+  const dispNames = session.substanceApplications
+    .filter(a => a.availability === "disp")
+    .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions}`)
+    .join(", ");
+  const details = encodeURIComponent(`Substâncias: ${dispNames}`);
+  const location = encodeURIComponent(session.unit ?? "Clínica PADCOM");
+
+  return `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${startDt}/${endDt}&details=${details}&location=${location}`;
+}
+
+// Build WhatsApp link to send to client
+function buildWhatsAppLink(session: {
+  clientName: string;
+  clientPhone: string | null;
+  scheduledDate: string;
+  scheduledTime: string;
+  unit: string | null;
+  protocolTitle: string | null;
+}): string | null {
+  if (!session.clientPhone) return null;
+  const phone = session.clientPhone.replace(/\D/g, "");
+  const dateFormatted = format(new Date(session.scheduledDate + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR });
+  const msg = encodeURIComponent(
+    `Olá ${session.clientName.split(" ")[0]}! 👋\n\nLembramos que você tem uma sessão agendada:\n\n📅 *${dateFormatted}* às *${session.scheduledTime}*\n📍 ${session.unit ?? "Clínica PADCOM"}\n\nProtocolo: ${session.protocolTitle ?? "Injetáveis"}\n\nQualquer dúvida, estamos à disposição. ✨`
+  );
+  return `https://wa.me/55${phone}?text=${msg}`;
+}
 
 export default function Agenda() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -17,10 +70,10 @@ export default function Agenda() {
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
 
-  const { data: sessions, isLoading, refetch } = useListSessions({
-    dateFrom: format(weekStart, "yyyy-MM-dd"),
-    dateTo: format(weekEnd, "yyyy-MM-dd"),
-  });
+  const dateFrom = format(weekStart, "yyyy-MM-dd");
+  const dateTo = format(weekEnd, "yyyy-MM-dd");
+
+  const { data: sessions, isLoading, refetch } = useListSessions({ dateFrom, dateTo });
 
   const confirmMutation = useConfirmSubstanceApplication({
     mutation: {
@@ -29,7 +82,7 @@ export default function Agenda() {
         refetch();
       },
       onError: () => {
-        toast({ title: "Erro ao confirmar substância", variant: "destructive" });
+        toast({ title: "Erro ao confirmar", variant: "destructive" });
       }
     }
   });
@@ -40,27 +93,57 @@ export default function Agenda() {
     return d;
   });
 
+  function downloadWeekICS() {
+    const url = `/api/sessions/ics?dateFrom=${dateFrom}&dateTo=${dateTo}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `padcom_${dateFrom}_a_${dateTo}.ics`;
+    a.click();
+    toast({ title: "ICS da semana baixado!", description: "Importe no Google Agenda ou Apple Calendar." });
+  }
+
+  function downloadSessionICS(sessionId: number, clientName: string) {
+    const url = `/api/sessions/${sessionId}/ics`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `padcom_sessao_${sessionId}.ics`;
+    a.click();
+    toast({ title: "ICS baixado!", description: `Sessão de ${clientName}.` });
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* HEADER */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Semanal</h1>
-          <p className="text-muted-foreground">Sessões consolidadas por semana — uma visita por semana por paciente.</p>
+          <p className="text-muted-foreground text-sm">Uma visita consolidada por semana por cliente.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium px-3">
+          <span className="text-sm font-medium px-2 min-w-[200px] text-center">
             {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
           </span>
           <Button variant="outline" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setCurrentWeek(new Date())}>Hoje</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadWeekICS}
+            className="gap-1.5 ml-2"
+            disabled={!sessions?.length}
+          >
+            <Download className="h-3.5 w-3.5" />
+            ICS da Semana
+          </Button>
         </div>
       </div>
 
+      {/* BODY */}
       {isLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
@@ -68,97 +151,183 @@ export default function Agenda() {
       ) : !sessions?.length ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium">Nenhuma sessão esta semana</p>
             <p className="text-muted-foreground text-sm">Valide um protocolo para gerar sessões automaticamente.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-0">
           {days.map(day => {
             const daySessions = sessions.filter(s => {
-              const d = new Date(s.scheduledDate);
+              const d = new Date(s.scheduledDate + "T12:00:00");
               return d.toDateString() === day.toDateString();
             });
             const isToday = day.toDateString() === new Date().toDateString();
+            const isPast = day < new Date() && !isToday;
 
             return (
               <div key={day.toISOString()}>
-                <div className={`flex items-center gap-3 py-2 px-1 ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                  <span className={`text-sm font-semibold uppercase w-8`}>
+                {/* Day label */}
+                <div className={`flex items-center gap-3 py-2 px-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
+                  <span className="text-xs font-bold uppercase tracking-widest w-10">
                     {format(day, "EEE", { locale: ptBR })}
                   </span>
-                  <span className={`text-lg font-bold leading-none ${isToday ? "bg-primary text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center text-base" : ""}`}>
+                  <span className={`text-xl font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full ${
+                    isToday ? "bg-primary text-primary-foreground text-base" : ""
+                  }`}>
                     {format(day, "dd")}
                   </span>
                   {daySessions.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">{daySessions.length} sessão{daySessions.length !== 1 ? "s" : ""}</Badge>
+                    <Badge variant="secondary" className="text-xs h-5">
+                      {daySessions.length} {daySessions.length === 1 ? "sessão" : "sessões"}
+                    </Badge>
+                  )}
+                  {daySessions.length === 0 && (
+                    <div className="flex-1 border-b border-dashed border-muted" />
                   )}
                 </div>
-                {daySessions.map(session => (
-                  <Card key={session.id} className="mb-2 ml-14">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0">
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            {session.scheduledTime}
+
+                {/* Sessions for this day */}
+                {daySessions.map(session => {
+                  const googleLink = buildGoogleCalendarLink(session as any);
+                  const whatsappLink = buildWhatsAppLink(session as any);
+                  const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
+                  const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
+
+                  return (
+                    <Card
+                      key={session.id}
+                      className={`mb-2 ml-20 transition-all ${
+                        session.status === "completed"
+                          ? "opacity-60 bg-muted/30"
+                          : isToday
+                          ? "border-primary/30 shadow-sm"
+                          : ""
+                      }`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+
+                          {/* Time column */}
+                          <div className="flex-shrink-0 w-14 text-right">
+                            <div className="flex items-center gap-1 text-sm font-medium">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              {session.scheduledTime}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-semibold">{session.clientName}</span>
-                            <span className="text-xs text-muted-foreground">CPF: {session.clientCpf}</span>
-                            <Badge className={`text-xs border ${getStatusColor(session.status)}`}>{formatStatus(session.status)}</Badge>
-                            {session.serviceType === "homecare"
-                              ? <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Home className="h-3 w-3" />Nurse Care</span>
-                              : <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Building2 className="h-3 w-3" />Clínica</span>
-                            }
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-2">{session.protocolTitle} — Semana {session.weekNumber}</p>
-                          <div className="flex gap-2 flex-wrap">
-                            {session.substanceApplications.map(app => (
-                              <div key={app.id} className="flex items-center gap-1">
-                                <span
-                                  className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${
-                                    app.availability === "prox"
-                                      ? "bg-muted text-muted-foreground"
-                                      : "text-white"
-                                  }`}
-                                  style={app.availability === "disp" ? { backgroundColor: app.substanceColor } : {}}
-                                >
-                                  {app.substanceName}
-                                  {app.availability === "disp" && app.sessionNumber > 0
-                                    ? ` ${app.sessionNumber}/${app.totalSessions} (DISP)`
-                                    : " (PROX)"
-                                  }
+
+                          {/* Main content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Client + badges */}
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <span className="font-semibold">{session.clientName}</span>
+                              <span className="text-xs text-muted-foreground">{session.clientCpf}</span>
+                              <Badge className={`text-xs border ${getStatusColor(session.status)}`}>
+                                {formatStatus(session.status)}
+                              </Badge>
+                              {session.serviceType === "homecare" ? (
+                                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                                  <Home className="h-3 w-3" />Nurse Care
                                 </span>
-                                {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
-                                  <button
-                                    className="text-xs underline text-primary hover:text-primary/80"
-                                    onClick={() => confirmMutation.mutate({ id: session.id, data: { substanceId: app.substanceId, confirmed: true } })}
-                                    disabled={confirmMutation.isPending}
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                                  <Building2 className="h-3 w-3" />{session.unit ?? "Clínica"}
+                                </span>
+                              )}
+                              {allConfirmed && <CheckCheck className="h-4 w-4 text-green-500" />}
+                            </div>
+
+                            {/* Protocol + professional */}
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} · Semana {session.weekNumber}
+                              {session.professionalName && (
+                                <span className="ml-2">
+                                  <User className="h-3 w-3 inline mr-0.5" />{session.professionalName}
+                                </span>
+                              )}
+                            </p>
+
+                            {/* Substance pills + confirm buttons */}
+                            <div className="flex gap-2 flex-wrap items-center">
+                              {session.substanceApplications.map(app => (
+                                <div key={app.id} className="flex items-center gap-1">
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${
+                                      app.availability === "prox"
+                                        ? "bg-muted text-muted-foreground"
+                                        : "text-white"
+                                    }`}
+                                    style={app.availability === "disp" ? { backgroundColor: app.substanceColor } : {}}
                                   >
-                                    confirmar
-                                  </button>
-                                )}
-                                {app.appliedAt && (
-                                  <CheckCheck className="h-3.5 w-3.5 text-green-500" />
-                                )}
-                              </div>
-                            ))}
+                                    {app.substanceName}
+                                    {app.availability === "disp" && app.sessionNumber > 0
+                                      ? ` ${app.sessionNumber}/${app.totalSessions}`
+                                      : ""}
+                                    <span className="opacity-70 text-[10px]">
+                                      {app.availability === "disp" ? " DISP" : " PROX"}
+                                    </span>
+                                    {app.appliedAt && <CheckCheck className="h-3 w-3" />}
+                                  </span>
+                                  {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
+                                    <button
+                                      className="text-xs text-primary underline hover:text-primary/80 transition-colors"
+                                      onClick={() => confirmMutation.mutate({
+                                        id: session.id,
+                                        data: { substanceId: app.substanceId, confirmed: true }
+                                      })}
+                                      disabled={confirmMutation.isPending}
+                                    >
+                                      confirmar
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
+
+                          {/* Actions menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem
+                                onClick={() => window.open(googleLink, "_blank")}
+                                className="gap-2"
+                              >
+                                <CalendarPlus className="h-4 w-4 text-blue-500" />
+                                Adicionar ao Google Agenda
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => downloadSessionICS(session.id, session.clientName)}
+                                className="gap-2"
+                              >
+                                <Download className="h-4 w-4 text-muted-foreground" />
+                                Baixar ICS desta sessão
+                              </DropdownMenuItem>
+                              {whatsappLink && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => window.open(whatsappLink, "_blank")}
+                                    className="gap-2"
+                                  >
+                                    <Send className="h-4 w-4 text-green-500" />
+                                    Enviar lembrete (WhatsApp)
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
                         </div>
-                        {session.professionalName && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-                            <User className="h-3 w-3" />
-                            {session.professionalName}
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             );
           })}
