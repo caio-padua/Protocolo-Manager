@@ -1,6 +1,7 @@
 export * from "./clients";
 export * from "./substances";
 export * from "./professionals";
+export * from "./locations";
 export * from "./protocols";
 export * from "./sessions";
 export * from "./ras";
