@@ -5,7 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatStatus, getStatusColor } from "@/lib/status";
@@ -28,6 +30,23 @@ export default function ClientDetail() {
 
   const { data: payments, isLoading: loadingPayments } = useListPayments({ clientId: id }, {
     query: { enabled: !!id }
+  });
+
+  const { toast } = useToast();
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+
+  const driveSetup = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiBase}/google-drive/setup-client/${id}`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Google Drive", description: data.message || "Pastas criadas com sucesso!" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    },
   });
 
   if (loadingClient) {
@@ -71,6 +90,14 @@ export default function ClientDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => driveSetup.mutate()}
+              disabled={driveSetup.isPending}
+            >
+              {driveSetup.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FolderOpen className="w-4 h-4 mr-2" />}
+              Google Drive
+            </Button>
             <Link href={`/protocols/new?clientId=${client.id}`}>
               <Button><Activity className="w-4 h-4 mr-2" /> Novo Protocolo</Button>
             </Link>

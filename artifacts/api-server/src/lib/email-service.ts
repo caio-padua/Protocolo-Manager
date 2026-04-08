@@ -16,8 +16,18 @@ export interface PreSessionEmailData {
     totalSessions: number;
     description?: string;
     mainFunction?: string;
+    perceivedEffects?: string;
+    timeToEffect?: string;
+    longevityBenefit?: string;
+    sleepBenefit?: string;
+    energyBenefit?: string;
+    physicalPerformance?: string;
+    skinHairNails?: string;
+    categoryType?: string;
+    starRating?: number;
   }>;
   unit: string;
+  isFirstSession?: boolean;
 }
 
 export interface PostSessionEmailData {
@@ -125,6 +135,32 @@ function buildPreSessionHTML(data: PreSessionEmailData): string {
                   ${substanceRows}
                 </tbody>
               </table>
+
+              ${data.isFirstSession ? `
+              <h2 style="color: #1e293b; font-size: 18px; margin: 24px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;">
+                Sobre suas substancias
+              </h2>
+              ${data.substances.map(s => `
+              <div style="background: #f8fafc; border-left: 4px solid ${s.color}; border-radius: 0 8px 8px 0; padding: 16px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <strong style="font-size: 16px; color: #1e293b;">${s.name}</strong>
+                  ${s.categoryType ? `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${s.categoryType}</span>` : ""}
+                  ${s.starRating ? `<span style="color: #f59e0b; font-size: 14px;">${"&#9733;".repeat(s.starRating)}${"&#9734;".repeat(5 - s.starRating)}</span>` : ""}
+                </div>
+                ${s.description ? `<p style="color: #475569; font-size: 13px; margin: 0 0 8px; line-height: 1.5;">${s.description}</p>` : ""}
+                ${s.mainFunction ? `<p style="color: #1e40af; font-size: 13px; margin: 0 0 8px;"><strong>Funcao:</strong> ${s.mainFunction}</p>` : ""}
+                <div style="display: grid; gap: 6px;">
+                  ${s.perceivedEffects ? `<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 12px;"><span style="color: #166534; font-size: 12px;"><strong>Efeitos Percebidos:</strong> ${s.perceivedEffects}</span></div>` : ""}
+                  ${s.timeToEffect ? `<div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 12px;"><span style="color: #92400e; font-size: 12px;"><strong>Tempo para Resultado:</strong> ${s.timeToEffect}</span></div>` : ""}
+                  ${s.energyBenefit ? `<div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 8px 12px;"><span style="color: #92400e; font-size: 12px;"><strong>Energia:</strong> ${s.energyBenefit}</span></div>` : ""}
+                  ${s.sleepBenefit ? `<div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: 8px 12px;"><span style="color: #3730a3; font-size: 12px;"><strong>Sono:</strong> ${s.sleepBenefit}</span></div>` : ""}
+                  ${s.physicalPerformance ? `<div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 8px 12px;"><span style="color: #9a3412; font-size: 12px;"><strong>Performance Fisica:</strong> ${s.physicalPerformance}</span></div>` : ""}
+                  ${s.skinHairNails ? `<div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px 12px;"><span style="color: #9d174d; font-size: 12px;"><strong>Pele, Cabelo e Unhas:</strong> ${s.skinHairNails}</span></div>` : ""}
+                  ${s.longevityBenefit ? `<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 8px 12px;"><span style="color: #065f46; font-size: 12px;"><strong>Longevidade:</strong> ${s.longevityBenefit}</span></div>` : ""}
+                </div>
+              </div>
+              `).join("")}
+              ` : ""}
 
               <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-top: 24px;">
                 <p style="margin: 0; color: #92400e; font-size: 13px;">

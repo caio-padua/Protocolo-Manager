@@ -86,6 +86,8 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     expiresAt: expiresAt.toISOString(),
   });
 
+  const isFirstSession = dispApps.every(a => a.sessionNumber <= 1);
+
   const substances: PreSessionEmailData["substances"] = [];
   for (const app of dispApps) {
     const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -99,6 +101,15 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
         totalSessions: app.totalSessions,
         description: substance.description ?? undefined,
         mainFunction: substance.mainFunction ?? undefined,
+        perceivedEffects: substance.perceivedEffects ?? undefined,
+        timeToEffect: substance.timeToEffect ?? undefined,
+        longevityBenefit: substance.longevityBenefit ?? undefined,
+        sleepBenefit: substance.sleepBenefit ?? undefined,
+        energyBenefit: substance.energyBenefit ?? undefined,
+        physicalPerformance: substance.physicalPerformance ?? undefined,
+        skinHairNails: substance.skinHairNails ?? undefined,
+        categoryType: substance.categoryType ?? undefined,
+        starRating: substance.starRating ?? undefined,
       });
     }
   }
@@ -114,6 +125,7 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     procedureLabel: procedureTypeLabel(primaryProcType),
     substances,
     unit: session.unit ?? "Clinica Padua",
+    isFirstSession,
   });
 
   if (result.success) {
@@ -242,6 +254,8 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       expiresAt: expiresAt.toISOString(),
     });
 
+    const isFirstSession = dispApps.every(a => a.sessionNumber <= 1);
+
     const substances: PreSessionEmailData["substances"] = [];
     for (const app of dispApps) {
       const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -255,6 +269,15 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
           totalSessions: app.totalSessions,
           description: substance.description ?? undefined,
           mainFunction: substance.mainFunction ?? undefined,
+          perceivedEffects: substance.perceivedEffects ?? undefined,
+          timeToEffect: substance.timeToEffect ?? undefined,
+          longevityBenefit: substance.longevityBenefit ?? undefined,
+          sleepBenefit: substance.sleepBenefit ?? undefined,
+          energyBenefit: substance.energyBenefit ?? undefined,
+          physicalPerformance: substance.physicalPerformance ?? undefined,
+          skinHairNails: substance.skinHairNails ?? undefined,
+          categoryType: substance.categoryType ?? undefined,
+          starRating: substance.starRating ?? undefined,
         });
       }
     }
@@ -269,6 +292,7 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       procedureLabel: procedureTypeLabel(primaryProcType),
       substances,
       unit: session.unit ?? "Clinica Padua",
+      isFirstSession,
     });
 
     results.push({

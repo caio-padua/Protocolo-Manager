@@ -60,4 +60,38 @@ router.put("/substances/:id", async (req, res): Promise<void> => {
   res.json(formatSubstance(substance));
 });
 
+const PATCHABLE_FIELDS = [
+  "name", "category", "color", "defaultDose", "unit", "maxSessionsPerWeek", "intervalDays",
+  "notes", "stockQuantity", "stockUnit", "procedureType", "durationMinutes", "description",
+  "mainFunction", "perceivedEffects", "timeToEffect", "starRating", "bodySystemEffects",
+  "longevityBenefit", "qualityOfLifeImpact", "sleepBenefit", "energyBenefit", "libidoBenefit",
+  "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
+  "contraindications", "scientificEvidence", "categoryType",
+] as const;
+
+router.patch("/substances/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const updates: Record<string, any> = {};
+  for (const key of PATCHABLE_FIELDS) {
+    if (key in req.body) updates[key] = req.body[key];
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update" });
+    return;
+  }
+
+  const [substance] = await db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  if (!substance) {
+    res.status(404).json({ error: "Substance not found" });
+    return;
+  }
+
+  res.json(formatSubstance(substance));
+});
+
 export default router;

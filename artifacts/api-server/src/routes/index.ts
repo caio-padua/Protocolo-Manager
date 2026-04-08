@@ -13,6 +13,7 @@ import dashboardRouter from "./dashboard";
 import validationCodesRouter from "./validation-codes";
 import emailRouter from "./email";
 import googleCalendarRouter from "./google-calendar";
+import googleDriveRouter from "./google-drive";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(dashboardRouter);
 router.use(validationCodesRouter);
 router.use(emailRouter);
 router.use(googleCalendarRouter);
+router.use("/google-drive", googleDriveRouter);
 
 export default router;
