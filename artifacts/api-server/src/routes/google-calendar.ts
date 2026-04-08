@@ -94,6 +94,13 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
 
   const location = await findLocationByUnit(session.unit);
 
+  const isDomiciliar = location.address?.toLowerCase().includes("itinerante") ||
+    session.unit?.toLowerCase().includes("domiciliar") ||
+    session.unit?.toLowerCase().includes("nurse care");
+  const resolvedAddress = isDomiciliar && client.address
+    ? client.address
+    : location.address ?? undefined;
+
   const isDoctor = primaryProcType === "implant" || primaryProcType === "consultation";
   let targetCalendarId = location.googleCalendarId ?? undefined;
   if (isDoctor && location.googleCalendarId) {
@@ -114,7 +121,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       durationMinutes: getDurationForProcedureType(primaryProcType),
       weekNumber: session.weekNumber,
       unit: session.unit ?? "Clinica Padua",
-      locationAddress: location.address ?? undefined,
+      locationAddress: resolvedAddress,
       calendarId: targetCalendarId,
       procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
@@ -169,6 +176,13 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
     const location = await findLocationByUnit(session.unit);
 
+    const isDomiciliar2 = location.address?.toLowerCase().includes("itinerante") ||
+      session.unit?.toLowerCase().includes("domiciliar") ||
+      session.unit?.toLowerCase().includes("nurse care");
+    const resolvedAddr = isDomiciliar2 && client.address
+      ? client.address
+      : location.address ?? undefined;
+
     const isDoctor2 = primaryProcType === "implant" || primaryProcType === "consultation";
     let targetCal = location.googleCalendarId ?? undefined;
     if (isDoctor2 && location.googleCalendarId) {
@@ -189,7 +203,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         durationMinutes: getDurationForProcedureType(primaryProcType),
         weekNumber: session.weekNumber,
         unit: session.unit ?? "Clinica Padua",
-        locationAddress: location.address ?? undefined,
+        locationAddress: resolvedAddr,
         calendarId: targetCal,
         procedureType: primaryProcType,
         procedureLabel: procedureTypeLabel(primaryProcType),
