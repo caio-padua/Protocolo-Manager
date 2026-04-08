@@ -45,18 +45,27 @@ Sistema completo para gerenciamento de protocolos injetáveis em clínica de med
 - Digital signature: A1 certificate at `certs/assinatura.pfx` (CPF 293.274.948-06)
 
 ### Database (`lib/db`)
-- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, stock, payments
+- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, stock, payments, validation_codes
 - Locations: Clínica Tatuapé, Clínica Mooca, Nurse Care Domiciliar
 - `location_professionals` junction table
+
+### Substances Schema
+- `procedureType`: "iv" (endovenoso, 30min), "im" (intramuscular, 15min), "implant" (implante, 1h)
+- `durationMinutes`: default duration per procedure type
+- `description`, `mainFunction`, `perceivedEffects`, `timeToEffect`: clinical info displayed on substance cards and included in PDF
+- `starRating`: 1-5 efficacy rating
+- `bodySystemEffects`: JSON with effects per body system (Pele, Cardiovascular, Neurológico, etc.)
 
 ### Key Features
 - **Lançador**: Single-page guided protocol creation with up to 10 substance slots (per-substance start date, frequency, dose)
 - **Weekly consolidation**: Sessions grouped by week (Mon-Sun), one visit per week per client
 - **ICS integration**: Download ICS files per session or per week; Google Calendar deep links
 - **WhatsApp reminders**: Pre-formatted messages sent to client's phone
-- **A1 ICP-Brasil signature**: PDF generation with PKCS#7 digital signature using clinic's A1 certificate
+- **A1 ICP-Brasil signature**: Multi-page PDF with RAS + substance info sheets + consent terms, digitally signed with PKCS#7
 - **Per-substance confirmation**: Each substance in a session confirmed individually (DISP/PROX badges)
 - **Color-coded UI**: TDAH-friendly with substance color pills throughout
+- **Validation codes**: 6-digit alphanumeric codes for client identity verification (generate, verify, WhatsApp delivery)
+- **Procedure types**: IM (15min), IV (30min), Implant (1h) — each substance categorized with default duration
 
 ## Working Language
 - UI and user communication in Portuguese (Brazil)

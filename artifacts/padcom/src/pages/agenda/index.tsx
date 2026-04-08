@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import {
   format, startOfWeek, endOfWeek, addWeeks, subWeeks,
@@ -12,14 +13,17 @@ import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User,
   CheckCheck, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
+  KeyRound, ShieldCheck, Copy, Loader2,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
-// Build a Google Calendar "Add Event" deep link
 function buildGoogleCalendarLink(session: {
   clientName: string;
   scheduledDate: string;
@@ -45,7 +49,6 @@ function buildGoogleCalendarLink(session: {
   return `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${startDt}/${endDt}&details=${details}&location=${location}`;
 }
 
-// Build WhatsApp link to send to client
 function buildWhatsAppLink(session: {
   clientName: string;
   clientPhone: string | null;
@@ -66,6 +69,18 @@ function buildWhatsAppLink(session: {
 export default function Agenda() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const { toast } = useToast();
+
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [codeModalSession, setCodeModalSession] = useState<any>(null);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeExpiry, setCodeExpiry] = useState<string | null>(null);
+
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [verifySession, setVerifySession] = useState<any>(null);
+  const [verifyInput, setVerifyInput] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<"success" | "error" | null>(null);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -111,9 +126,73 @@ export default function Agenda() {
     toast({ title: "ICS baixado!", description: `Sessão de ${clientName}.` });
   }
 
+  async function generateValidationCode(session: any) {
+    setCodeModalSession(session);
+    setCodeModalOpen(true);
+    setGeneratedCode(null);
+    setCodeLoading(true);
+    try {
+      const res = await fetch("/api/validation-codes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: session.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedCode(data.code);
+        setCodeExpiry(data.expiresAt);
+      } else {
+        toast({ title: "Erro ao gerar código", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setCodeLoading(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (!verifySession || !verifyInput) return;
+    setVerifyLoading(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch("/api/validation-codes/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: verifySession.id, code: verifyInput }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setVerifyResult("success");
+        toast({ title: "Cliente validado!", description: `${verifySession.clientName} confirmou presença.` });
+        refetch();
+      } else {
+        setVerifyResult("error");
+      }
+    } catch {
+      setVerifyResult("error");
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
+  function copyCode(code: string) {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Código copiado!" });
+  }
+
+  function getProcedureLabel(session: any): string {
+    const apps = session.substanceApplications?.filter((a: any) => a.availability === "disp") ?? [];
+    if (apps.length === 0) return "Aplicação";
+    const types = new Set(apps.map((a: any) => a.procedureType ?? "iv"));
+    if (types.has("implant")) return "Implante";
+    if (types.has("im") && !types.has("iv")) return "Aplicação Intramuscular";
+    if (types.has("iv")) return "Aplicação Endovenosa";
+    return "Aplicação";
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* HEADER */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Semanal</h1>
@@ -143,7 +222,6 @@ export default function Agenda() {
         </div>
       </div>
 
-      {/* BODY */}
       {isLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
@@ -168,7 +246,6 @@ export default function Agenda() {
 
             return (
               <div key={day.toISOString()}>
-                {/* Day label */}
                 <div className={`flex items-center gap-3 py-2 px-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
                   <span className="text-xs font-bold uppercase tracking-widest w-10">
                     {format(day, "EEE", { locale: ptBR })}
@@ -188,7 +265,6 @@ export default function Agenda() {
                   )}
                 </div>
 
-                {/* Sessions for this day */}
                 {daySessions.map(session => {
                   const googleLink = buildGoogleCalendarLink(session as any);
                   const whatsappLink = buildWhatsAppLink(session as any);
@@ -209,7 +285,6 @@ export default function Agenda() {
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
 
-                          {/* Time column */}
                           <div className="flex-shrink-0 w-14 text-right">
                             <div className="flex items-center gap-1 text-sm font-medium">
                               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -217,9 +292,7 @@ export default function Agenda() {
                             </div>
                           </div>
 
-                          {/* Main content */}
                           <div className="flex-1 min-w-0">
-                            {/* Client + badges */}
                             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                               <span className="font-semibold">{session.clientName}</span>
                               <span className="text-xs text-muted-foreground">{session.clientCpf}</span>
@@ -235,12 +308,13 @@ export default function Agenda() {
                                   <Building2 className="h-3 w-3" />{session.unit ?? "Clínica"}
                                 </span>
                               )}
-                              {allConfirmed && <CheckCheck className="h-4 w-4 text-green-500" />}
+                              {allConfirmed && <ShieldCheck className="h-4 w-4 text-green-500" />}
                             </div>
 
-                            {/* Protocol + professional */}
                             <p className="text-xs text-muted-foreground mb-2">
                               {(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} · Semana {session.weekNumber}
+                              {" · "}
+                              <span className="font-medium text-primary/80">{getProcedureLabel(session)}</span>
                               {session.professionalName && (
                                 <span className="ml-2">
                                   <User className="h-3 w-3 inline mr-0.5" />{session.professionalName}
@@ -248,7 +322,6 @@ export default function Agenda() {
                               )}
                             </p>
 
-                            {/* Substance pills + confirm buttons */}
                             <div className="flex gap-2 flex-wrap items-center">
                               {session.substanceApplications.map(app => (
                                 <div key={app.id} className="flex items-center gap-1">
@@ -286,14 +359,28 @@ export default function Agenda() {
                             </div>
                           </div>
 
-                          {/* Actions menu */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem
+                                onClick={() => generateValidationCode(session)}
+                                className="gap-2"
+                              >
+                                <KeyRound className="h-4 w-4 text-amber-500" />
+                                Gerar Código de Validação
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => { setVerifySession(session); setVerifyInput(""); setVerifyResult(null); setVerifyModalOpen(true); }}
+                                className="gap-2"
+                              >
+                                <ShieldCheck className="h-4 w-4 text-green-500" />
+                                Verificar Código do Cliente
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => window.open(googleLink, "_blank")}
                                 className="gap-2"
@@ -333,6 +420,110 @@ export default function Agenda() {
           })}
         </div>
       )}
+
+      <Dialog open={codeModalOpen} onOpenChange={setCodeModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-amber-500" />
+              Código de Validação
+            </DialogTitle>
+            <DialogDescription>
+              Código de 6 dígitos para validação de presença do cliente.
+            </DialogDescription>
+          </DialogHeader>
+          {codeLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : generatedCode ? (
+            <div className="space-y-4">
+              <div className="bg-slate-900 rounded-xl p-6 text-center">
+                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wider">Código do Cliente</p>
+                <p className="text-4xl font-mono font-bold text-white tracking-[0.5em]">{generatedCode}</p>
+                <p className="text-xs text-slate-400 mt-3">
+                  Válido até {codeExpiry ? format(new Date(codeExpiry), "HH:mm", { locale: ptBR }) : "—"}
+                </p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                <p><span className="font-medium">Cliente:</span> {codeModalSession?.clientName}</p>
+                <p><span className="font-medium">Sessão:</span> {codeModalSession?.scheduledDate && format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy")} às {codeModalSession?.scheduledTime}</p>
+                <p><span className="font-medium">Procedimento:</span> {getProcedureLabel(codeModalSession)}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 gap-2" onClick={() => copyCode(generatedCode)}>
+                  <Copy className="h-4 w-4" /> Copiar Código
+                </Button>
+                <Button variant="outline" className="flex-1 gap-2"
+                  onClick={() => {
+                    const phone = codeModalSession?.clientPhone?.replace(/\D/g, "");
+                    if (!phone) { toast({ title: "Cliente sem telefone", variant: "destructive" }); return; }
+                    const dateStr = codeModalSession?.scheduledDate ? format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy") : "";
+                    const proc = getProcedureLabel(codeModalSession);
+                    const msg = encodeURIComponent(
+                      `Clínica Pádua | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.\n\nClínica Pádua — Protocolos Injetáveis`
+                    );
+                    window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
+                  }}
+                >
+                  <Send className="h-4 w-4 text-green-500" /> WhatsApp
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={verifyModalOpen} onOpenChange={setVerifyModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-500" />
+              Verificar Código
+            </DialogTitle>
+            <DialogDescription>
+              Digite o código de 6 dígitos informado pelo cliente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {verifySession && (
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <p><span className="font-medium">Cliente:</span> {verifySession.clientName}</p>
+                <p><span className="font-medium">Sessão:</span> {verifySession.scheduledDate && format(new Date(verifySession.scheduledDate + "T12:00:00"), "dd/MM/yyyy")} às {verifySession.scheduledTime}</p>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                value={verifyInput}
+                onChange={e => setVerifyInput(e.target.value.toUpperCase().slice(0, 6))}
+                placeholder="EX: A7K3M2"
+                className="text-center text-2xl font-mono tracking-[0.3em] h-14"
+                maxLength={6}
+                onKeyDown={e => e.key === "Enter" && verifyCode()}
+              />
+            </div>
+            {verifyResult === "success" && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-800 text-sm font-medium flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" />
+                Cliente validado com sucesso!
+              </div>
+            )}
+            {verifyResult === "error" && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800 text-sm font-medium">
+                Código inválido ou expirado. Peça ao cliente para verificar.
+              </div>
+            )}
+            <Button
+              className="w-full gap-2"
+              onClick={verifyCode}
+              disabled={verifyLoading || verifyInput.length < 6}
+            >
+              {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Verificar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

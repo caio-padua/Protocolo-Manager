@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,14 @@ export const substancesTable = pgTable("substances", {
   notes: text("notes"),
   stockQuantity: real("stock_quantity").notNull().default(0),
   stockUnit: text("stock_unit"),
+  procedureType: text("procedure_type").notNull().default("iv"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  description: text("description"),
+  mainFunction: text("main_function"),
+  perceivedEffects: text("perceived_effects"),
+  timeToEffect: text("time_to_effect"),
+  starRating: integer("star_rating").notNull().default(5),
+  bodySystemEffects: jsonb("body_system_effects").default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

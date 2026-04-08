@@ -144,6 +144,24 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
 
   try {
     const formatted = formatRAS(ras);
+
+    const allSubstances = await db.select().from(substancesTable);
+    const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
+
+    const enrichedSubstances = formatted.substances.map(sub => {
+      const dbSub = substanceMap.get(sub.substanceName);
+      return {
+        ...sub,
+        description: dbSub?.description ?? undefined,
+        mainFunction: dbSub?.mainFunction ?? undefined,
+        perceivedEffects: dbSub?.perceivedEffects ?? undefined,
+        timeToEffect: dbSub?.timeToEffect ?? undefined,
+        starRating: dbSub?.starRating ?? undefined,
+        bodySystemEffects: (dbSub?.bodySystemEffects as Record<string, string>) ?? undefined,
+        procedureType: dbSub?.procedureType ?? undefined,
+      };
+    });
+
     const { pdfBytes, certInfo } = await generateSignedRASPdf({
       id: ras.id,
       sessionId: ras.sessionId,
@@ -155,7 +173,7 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
       serviceDate: ras.serviceDate,
       serviceType: ras.serviceType,
       observations: ras.observations ?? null,
-      substances: formatted.substances,
+      substances: enrichedSubstances,
     });
 
     const clientSlug = ras.clientName.replace(/\s+/g, "_");

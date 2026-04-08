@@ -10,6 +10,7 @@ import rasRouter from "./ras";
 import stockRouter from "./stock";
 import paymentsRouter from "./payments";
 import dashboardRouter from "./dashboard";
+import validationCodesRouter from "./validation-codes";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(rasRouter);
 router.use(stockRouter);
 router.use(paymentsRouter);
 router.use(dashboardRouter);
+router.use(validationCodesRouter);
 
 export default router;
