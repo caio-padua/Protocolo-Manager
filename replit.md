@@ -66,12 +66,18 @@ Sistema completo para gerenciamento de protocolos injetáveis em clínica de med
 - **Color-coded UI**: TDAH-friendly with substance color pills throughout
 - **Validation codes**: 6-digit alphanumeric codes for client identity verification (generate, verify, WhatsApp delivery)
 - **Procedure types**: IM (15min), IV (30min), Implant (1h) — each substance categorized with default duration
-- **Automated emails**: Pre-session (code + substances) and post-session (signed RAS PDF) via Gmail SMTP (nodemailer)
+- **Automated emails via Gmail API** (Replit Google Integration — OAuth, no app password needed):
   - Subject format: `Clinica Padua | Aplicacao Endovenosa | A7K3M2`
-  - Pre-session: validation code, substance list, schedule info
-  - Post-session: completed substances + signed RAS PDF attachment
+  - Pre-session: validation code, substance list, schedule info (HTML template)
+  - Post-session: completed substances + signed RAS PDF attachment via MIME multipart
   - Weekly batch: `/api/email/send-weekly-reminders` sends to all upcoming sessions
-  - Gmail account: `clinica.padua.agenda@gmail.com` with app password (GMAIL_APP_PASSWORD secret)
+  - Uses `google-gmail` connector via Replit integrations
+- **Google Calendar sync** (Replit Google Integration — OAuth):
+  - Per-session: `/api/google-calendar/sync-session/:id` creates event with substances, duration, reminders
+  - Per-week: `/api/google-calendar/sync-week` batch creates all sessions of the week
+  - Duration auto-set: IV=30min, IM=15min, Implant=60min
+  - Connected calendars include: AGENDA GERAL, AGENDA MEDICO, AGENDA ENFERMAGEM
+  - Uses `google-calendar` connector via Replit integrations
 
 ## Working Language
 - UI and user communication in Portuguese (Brazil)

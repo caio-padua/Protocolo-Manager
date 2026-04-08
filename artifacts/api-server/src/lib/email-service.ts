@@ -1,17 +1,4 @@
-import nodemailer from "nodemailer";
-
-const GMAIL_USER = "clinica.padua.agenda@gmail.com";
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD ?? "";
-
-function getTransporter() {
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
-}
+import { sendGmailMessage, isGmailConnected } from "./google-gmail";
 
 export interface PreSessionEmailData {
   clientName: string;
@@ -248,60 +235,36 @@ function buildPostSessionHTML(data: PostSessionEmailData): string {
 }
 
 export async function sendPreSessionEmail(data: PreSessionEmailData): Promise<{ success: boolean; error?: string }> {
-  if (!GMAIL_APP_PASSWORD) {
-    return { success: false, error: "GMAIL_APP_PASSWORD not configured" };
-  }
-
   const procType = data.substances[0]?.procedureType ?? "iv";
   const subject = `Clinica Padua | ${procedureTypeLabel(procType)} | ${data.validationCode}`;
 
-  try {
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: `"Clinica Padua" <${GMAIL_USER}>`,
-      to: data.clientEmail,
-      subject,
-      html: buildPreSessionHTML(data),
-    });
-    return { success: true };
-  } catch (err: any) {
-    console.error("Failed to send pre-session email:", err);
-    return { success: false, error: err.message ?? String(err) };
-  }
+  return sendGmailMessage({
+    to: data.clientEmail,
+    subject,
+    html: buildPreSessionHTML(data),
+  });
 }
 
 export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<{ success: boolean; error?: string }> {
-  if (!GMAIL_APP_PASSWORD) {
-    return { success: false, error: "GMAIL_APP_PASSWORD not configured" };
-  }
-
   const subject = `Clinica Padua | Sessao Concluida | ${formatDateBR(data.scheduledDate)}`;
 
-  try {
-    const transporter = getTransporter();
-    const attachments: any[] = [];
-    if (data.rasPdfBuffer && data.rasId) {
-      attachments.push({
-        filename: `RAS_${data.rasId}_${data.clientName.replace(/\s+/g, "_")}.pdf`,
-        content: data.rasPdfBuffer,
-        contentType: "application/pdf",
-      });
-    }
-
-    await transporter.sendMail({
-      from: `"Clinica Padua" <${GMAIL_USER}>`,
-      to: data.clientEmail,
-      subject,
-      html: buildPostSessionHTML(data),
-      attachments,
+  const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+  if (data.rasPdfBuffer && data.rasId) {
+    attachments.push({
+      filename: `RAS_${data.rasId}_${data.clientName.replace(/\s+/g, "_")}.pdf`,
+      content: data.rasPdfBuffer,
+      contentType: "application/pdf",
     });
-    return { success: true };
-  } catch (err: any) {
-    console.error("Failed to send post-session email:", err);
-    return { success: false, error: err.message ?? String(err) };
   }
+
+  return sendGmailMessage({
+    to: data.clientEmail,
+    subject,
+    html: buildPostSessionHTML(data),
+    attachments,
+  });
 }
 
-export function isEmailConfigured(): boolean {
-  return !!GMAIL_APP_PASSWORD;
+export async function isEmailConfigured(): Promise<boolean> {
+  return isGmailConnected();
 }

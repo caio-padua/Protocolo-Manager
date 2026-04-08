@@ -38,7 +38,8 @@ function procedureTypeLabel(type: string): string {
 }
 
 router.get("/email/status", async (_req, res): Promise<void> => {
-  res.json({ configured: isEmailConfigured() });
+  const configured = await isEmailConfigured();
+  res.json({ configured });
 });
 
 router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void> => {
@@ -48,8 +49,8 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     return;
   }
 
-  if (!isEmailConfigured()) {
-    res.status(503).json({ error: "Email not configured. Set GMAIL_APP_PASSWORD." });
+  if (!(await isEmailConfigured())) {
+    res.status(503).json({ error: "Gmail not connected via Replit integration." });
     return;
   }
 
@@ -129,8 +130,8 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
     return;
   }
 
-  if (!isEmailConfigured()) {
-    res.status(503).json({ error: "Email not configured. Set GMAIL_APP_PASSWORD." });
+  if (!(await isEmailConfigured())) {
+    res.status(503).json({ error: "Gmail not connected via Replit integration." });
     return;
   }
 
@@ -198,8 +199,8 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
 });
 
 router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => {
-  if (!isEmailConfigured()) {
-    res.status(503).json({ error: "Email not configured" });
+  if (!(await isEmailConfigured())) {
+    res.status(503).json({ error: "Gmail not connected" });
     return;
   }
 

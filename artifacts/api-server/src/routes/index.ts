@@ -12,6 +12,7 @@ import paymentsRouter from "./payments";
 import dashboardRouter from "./dashboard";
 import validationCodesRouter from "./validation-codes";
 import emailRouter from "./email";
+import googleCalendarRouter from "./google-calendar";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(paymentsRouter);
 router.use(dashboardRouter);
 router.use(validationCodesRouter);
 router.use(emailRouter);
+router.use(googleCalendarRouter);
 
 export default router;

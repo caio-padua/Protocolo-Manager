@@ -182,6 +182,45 @@ export default function Agenda() {
   }
 
   const [emailSending, setEmailSending] = useState<number | null>(null);
+  const [calSyncing, setCalSyncing] = useState<number | null>(null);
+
+  async function syncToGoogleCalendar(session: any) {
+    setCalSyncing(session.id);
+    try {
+      const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} adicionada ao Google Agenda.` });
+      } else {
+        toast({ title: "Erro ao sincronizar", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setCalSyncing(null);
+    }
+  }
+
+  async function syncWeekToGoogleCalendar() {
+    setCalSyncing(-1);
+    try {
+      const res = await fetch("/api/google-calendar/sync-week", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dateFrom, dateTo }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Semana sincronizada!", description: `${data.synced} sessões adicionadas ao Google Agenda.` });
+      } else {
+        toast({ title: "Erro", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setCalSyncing(null);
+    }
+  }
 
   async function sendPreSessionEmail(session: any) {
     setEmailSending(session.id);
@@ -254,6 +293,20 @@ export default function Agenda() {
           >
             <Download className="h-3.5 w-3.5" />
             ICS da Semana
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncWeekToGoogleCalendar}
+            className="gap-1.5"
+            disabled={!sessions?.length || calSyncing === -1}
+          >
+            {calSyncing === -1 ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CalendarPlus className="h-3.5 w-3.5" />
+            )}
+            Sync Google Agenda
           </Button>
         </div>
       </div>
@@ -445,11 +498,16 @@ export default function Agenda() {
                               )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => window.open(googleLink, "_blank")}
+                                onClick={() => syncToGoogleCalendar(session)}
+                                disabled={calSyncing === session.id}
                                 className="gap-2"
                               >
-                                <CalendarPlus className="h-4 w-4 text-blue-500" />
-                                Adicionar ao Google Agenda
+                                {calSyncing === session.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CalendarPlus className="h-4 w-4 text-blue-500" />
+                                )}
+                                Sincronizar Google Agenda
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => downloadSessionICS(session.id, session.clientName)}
