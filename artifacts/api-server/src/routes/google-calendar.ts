@@ -33,8 +33,18 @@ function getDurationForProcedureType(type: string): number {
     case "iv": return 30;
     case "im": return 15;
     case "implant": return 60;
+    case "consultation": return 60;
     default: return 30;
   }
+}
+
+function calculateTotalDuration(dispProcedureTypes: Set<string>): number {
+  if (dispProcedureTypes.size === 0) return 60;
+  let total = 0;
+  for (const t of dispProcedureTypes) {
+    total += getDurationForProcedureType(t);
+  }
+  return total;
 }
 
 async function findLocationByUnit(unitName: string | null): Promise<{ address: string | null; googleCalendarId: string | null }> {
@@ -81,6 +91,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
   const substances: CalendarSubstance[] = [];
   let primaryProcType = "iv";
   const activeProcTypes = new Set<string>();
+  const dispProcTypes = new Set<string>();
   let hasDisp = false;
 
   for (const app of applications) {
@@ -100,6 +111,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       if (app.availability === "disp") {
         hasDisp = true;
         primaryProcType = substance.procedureType ?? "iv";
+        dispProcTypes.add(substance.procedureType ?? "iv");
       }
     }
   }
@@ -109,13 +121,17 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
       if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
         primaryProcType = "consultation";
+        dispProcTypes.add("consultation");
       }
     }
     if (substances.length === 0) {
       primaryProcType = "consultation";
+      dispProcTypes.add("consultation");
     }
   }
   activeProcTypes.add(primaryProcType);
+
+  const totalDuration = calculateTotalDuration(dispProcTypes);
 
   const location = await findLocationByUnit(session.unit);
 
@@ -143,7 +159,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       clientCpf: client.cpf,
       scheduledDate: session.scheduledDate,
       scheduledTime: session.scheduledTime,
-      durationMinutes: getDurationForProcedureType(primaryProcType),
+      durationMinutes: totalDuration,
       weekNumber: session.weekNumber,
       unit: session.unit ?? "Clinica Padua",
       locationAddress: resolvedAddress,
@@ -186,6 +202,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
     const substances: CalendarSubstance[] = [];
     let primaryProcType = "iv";
     const activeProcTypes2 = new Set<string>();
+    const dispProcTypes2 = new Set<string>();
     let hasDisp2 = false;
 
     for (const app of applications) {
@@ -205,6 +222,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         if (app.availability === "disp") {
           hasDisp2 = true;
           primaryProcType = substance.procedureType ?? "iv";
+          dispProcTypes2.add(substance.procedureType ?? "iv");
         }
       }
     }
@@ -214,13 +232,17 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
         if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
           primaryProcType = "consultation";
+          dispProcTypes2.add("consultation");
         }
       }
       if (substances.length === 0) {
         primaryProcType = "consultation";
+        dispProcTypes2.add("consultation");
       }
     }
     activeProcTypes2.add(primaryProcType);
+
+    const totalDuration2 = calculateTotalDuration(dispProcTypes2);
 
     const location = await findLocationByUnit(session.unit);
 
@@ -248,7 +270,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         clientCpf: client.cpf,
         scheduledDate: session.scheduledDate,
         scheduledTime: session.scheduledTime,
-        durationMinutes: getDurationForProcedureType(primaryProcType),
+        durationMinutes: totalDuration2,
         weekNumber: session.weekNumber,
         unit: session.unit ?? "Clinica Padua",
         locationAddress: resolvedAddr,
