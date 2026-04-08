@@ -130,19 +130,45 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
-function buildProcedureChecklist(activeProcTypes: string[]): string {
+function getDurationLabel(procKey: string): string {
+  switch (procKey) {
+    case "iv": return "DURACAO: 30 MINUTOS";
+    case "im": return "DURACAO: 15 MINUTOS";
+    case "implant": return "DURACAO: 60 MINUTOS";
+    case "consultation": return "DURACAO: 60 MINUTOS";
+    default: return "DURACAO: 30 MINUTOS";
+  }
+}
+
+function buildProcedureChecklist(activeProcTypes: string[], totalDurationMinutes: number): string {
   const allProcedures = [
     { key: "consultation", label: "CONSULTA" },
     { key: "iv", label: "APLICACAO ENDOVENOSA" },
     { key: "im", label: "APLICACAO INTRAMUSCULAR" },
     { key: "implant", label: "IMPLANTE" },
   ];
-  return allProcedures
+  const lines = allProcedures
     .map(p => {
       const isActive = activeProcTypes.includes(p.key);
-      return isActive ? `\u2705 ${p.label}` : `\u274C ${p.label}`;
+      if (isActive) {
+        return `\u2705 ${p.label} - ${getDurationLabel(p.key)}`;
+      }
+      return `\u274C ${p.label}`;
     })
     .join("\n");
+
+  const horas = Math.floor(totalDurationMinutes / 60);
+  const minutos = totalDurationMinutes % 60;
+  let totalLabel: string;
+  if (horas > 0 && minutos > 0) {
+    totalLabel = `${horas}H${String(minutos).padStart(2, '0')}MIN`;
+  } else if (horas > 0) {
+    totalLabel = `${horas}H00`;
+  } else {
+    totalLabel = `${totalDurationMinutes} MINUTOS`;
+  }
+
+  return `${lines}\n\nDURACAO TOTAL: ${totalLabel}`;
 }
 
 function buildDescriptionBody(
@@ -152,7 +178,7 @@ function buildDescriptionBody(
   substanceList: string,
   legend: string,
 ): string {
-  const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
+  const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes, data.durationMinutes);
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
   const mapsLink = data.locationAddress
