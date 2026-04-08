@@ -71,6 +71,7 @@ export interface CalendarEventData {
   calendarId?: string;
   procedureType?: string;
   procedureLabel: string;
+  activeProcedureTypes: string[];
   substances: CalendarSubstance[];
   clientEmail?: string;
 }
@@ -129,6 +130,55 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
+function buildProcedureChecklist(activeProcTypes: string[]): string {
+  const allProcedures = [
+    { key: "consultation", label: "CONSULTA" },
+    { key: "iv", label: "APLICACAO ENDOVENOSA" },
+    { key: "im", label: "APLICACAO INTRAMUSCULAR" },
+    { key: "implant", label: "IMPLANTE" },
+  ];
+  return allProcedures
+    .map(p => {
+      const isActive = activeProcTypes.includes(p.key);
+      return isActive ? `\u2705 ${p.label}` : `\u274C ${p.label}`;
+    })
+    .join("\n");
+}
+
+function buildDescriptionBody(
+  data: CalendarEventData,
+  clientNameUpper: string,
+  cpfPart: string,
+  substanceList: string,
+  legend: string,
+): string {
+  const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
+
+  const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
+  const mapsLink = data.locationAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.locationAddress)}`
+    : null;
+  const wazeLink = data.locationAddress
+    ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
+    : null;
+
+  let desc = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nPROCEDIMENTO:\n${procedureChecklist}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
+
+  if (addressBlock) {
+    desc += `\n\n${addressBlock}`;
+  }
+
+  if (mapsLink) {
+    desc += `\n\nNAVEGACAO:`;
+    desc += `\nGoogle Maps: ${mapsLink}`;
+    if (wazeLink) {
+      desc += `\nWaze: ${wazeLink}`;
+    }
+  }
+
+  return desc;
+}
+
 export async function createCalendarEvent(data: CalendarEventData): Promise<string | null> {
   try {
     const calendar = await getUncachableGoogleCalendarClient();
@@ -159,33 +209,13 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
 
-    const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
-    const mapsLink = data.locationAddress
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.locationAddress)}`
-      : null;
-    const wazeLink = data.locationAddress
-      ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
-      : null;
-
-    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
-
-    if (addressBlock) {
-      description += `\n\n${addressBlock}`;
-    }
-
-    if (mapsLink) {
-      description += `\n\nNAVEGACAO:`;
-      description += `\nGoogle Maps: ${mapsLink}`;
-      if (wazeLink) {
-        description += `\nWaze: ${wazeLink}`;
-      }
-    }
+    const descriptionBody = buildDescriptionBody(data, clientNameUpper, cpfPart, substanceList, legend);
 
     const locationField = data.locationAddress || data.unit;
 
     const event: any = {
       summary: `${clientNameUpper}${cpfPart} - Sem ${data.weekNumber} - ${data.procedureLabel}`,
-      description,
+      description: descriptionBody,
       location: locationField,
       start: {
         dateTime: startDate.toISOString(),
@@ -250,27 +280,7 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
 
     const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
 
-    const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
-    const mapsLink = data.locationAddress
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.locationAddress)}`
-      : null;
-    const wazeLink = data.locationAddress
-      ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
-      : null;
-
-    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
-
-    if (addressBlock) {
-      description += `\n\n${addressBlock}`;
-    }
-
-    if (mapsLink) {
-      description += `\n\nNAVEGACAO:`;
-      description += `\nGoogle Maps: ${mapsLink}`;
-      if (wazeLink) {
-        description += `\nWaze: ${wazeLink}`;
-      }
-    }
+    const description = buildDescriptionBody(data, clientNameUpper, cpfPart, substanceList, legend);
 
     await calendar.events.patch({
       calendarId: calendarId || 'primary',

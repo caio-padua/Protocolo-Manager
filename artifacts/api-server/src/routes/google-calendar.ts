@@ -79,6 +79,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
 
   const substances: CalendarSubstance[] = [];
   let primaryProcType = "iv";
+  const activeProcTypes = new Set<string>();
 
   for (const app of applications) {
     const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -91,6 +92,9 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
         totalSessions: app.totalSessions,
         status,
       });
+      if (substance.procedureType) {
+        activeProcTypes.add(substance.procedureType);
+      }
       if (app.availability === "disp") {
         primaryProcType = substance.procedureType ?? "iv";
       }
@@ -130,6 +134,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       calendarId: targetCalendarId,
       procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
+      activeProcedureTypes: Array.from(activeProcTypes),
       substances,
       clientEmail: client.email || undefined,
     });
@@ -164,6 +169,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
     const substances: CalendarSubstance[] = [];
     let primaryProcType = "iv";
+    const activeProcTypes2 = new Set<string>();
 
     for (const app of applications) {
       const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -176,6 +182,9 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
           totalSessions: app.totalSessions,
           status,
         });
+        if (substance.procedureType) {
+          activeProcTypes2.add(substance.procedureType);
+        }
         if (app.availability === "disp") {
           primaryProcType = substance.procedureType ?? "iv";
         }
@@ -215,6 +224,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         calendarId: targetCal,
         procedureType: primaryProcType,
         procedureLabel: procedureTypeLabel(primaryProcType),
+        activeProcedureTypes: Array.from(activeProcTypes2),
         substances,
         clientEmail: client.email || undefined,
       });
