@@ -359,24 +359,35 @@ export default function Agenda() {
                   const whatsappLink = buildWhatsAppLink(session as any);
                   const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
                   const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
+                  const someConfirmed = dispApps.some(a => a.appliedAt) && !allConfirmed;
+
+                  const cardStyle = session.status === "completed"
+                    ? "border-l-4 border-l-green-500 bg-green-50/50 dark:bg-green-950/20"
+                    : session.status === "missed"
+                    ? "border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20 opacity-70"
+                    : session.status === "cancelled"
+                    ? "border-l-4 border-l-gray-400 bg-gray-50/50 dark:bg-gray-900/20 opacity-50"
+                    : someConfirmed
+                    ? "border-l-4 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10"
+                    : isToday
+                    ? "border-l-4 border-l-blue-500 border-blue-200 shadow-md bg-blue-50/30 dark:bg-blue-950/10"
+                    : "border-l-4 border-l-slate-300";
 
                   return (
                     <Card
                       key={session.id}
-                      className={`mb-2 ml-20 transition-all ${
-                        session.status === "completed"
-                          ? "opacity-60 bg-muted/30"
-                          : isToday
-                          ? "border-primary/30 shadow-sm"
-                          : ""
-                      }`}
+                      className={`mb-2 ml-20 transition-all ${cardStyle}`}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
 
                           <div className="flex-shrink-0 w-14 text-right">
-                            <div className="flex items-center gap-1 text-sm font-medium">
-                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <div className={`flex items-center gap-1 text-sm font-medium ${
+                              session.status === "completed" ? "text-green-700 dark:text-green-400" : ""
+                            }`}>
+                              <Clock className={`h-3.5 w-3.5 ${
+                                session.status === "completed" ? "text-green-500" : "text-muted-foreground"
+                              }`} />
                               {session.scheduledTime}
                             </div>
                           </div>
@@ -415,21 +426,29 @@ export default function Agenda() {
                               {session.substanceApplications.map(app => (
                                 <div key={app.id} className="flex items-center gap-1">
                                   <span
-                                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${
+                                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
                                       app.availability === "prox"
                                         ? "bg-muted text-muted-foreground"
+                                        : app.appliedAt
+                                        ? "text-white ring-2 ring-green-400 ring-offset-1"
                                         : "text-white"
                                     }`}
-                                    style={app.availability === "disp" ? { backgroundColor: app.substanceColor } : {}}
+                                    style={app.availability === "disp" ? {
+                                      backgroundColor: app.appliedAt
+                                        ? app.substanceColor
+                                        : app.substanceColor + "CC"
+                                    } : {}}
                                   >
+                                    {app.appliedAt && <CheckCheck className="h-3 w-3 text-green-200" />}
                                     {app.substanceName}
                                     {app.availability === "disp" && app.sessionNumber > 0
                                       ? ` ${app.sessionNumber}/${app.totalSessions}`
                                       : ""}
-                                    <span className="opacity-70 text-[10px]">
-                                      {app.availability === "disp" ? " DISP" : " PROX"}
-                                    </span>
-                                    {app.appliedAt && <CheckCheck className="h-3 w-3" />}
+                                    {!app.appliedAt && (
+                                      <span className="opacity-70 text-[10px]">
+                                        {app.availability === "disp" ? " DISP" : " PROX"}
+                                      </span>
+                                    )}
                                   </span>
                                   {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
                                     <button
