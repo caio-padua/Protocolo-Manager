@@ -59,6 +59,7 @@ export interface CalendarEventData {
   unit: string;
   locationAddress?: string;
   calendarId?: string;
+  procedureType?: string;
   procedureLabel: string;
   substances: Array<{
     name: string;
@@ -67,6 +68,16 @@ export interface CalendarEventData {
     totalSessions: number;
   }>;
   clientEmail?: string;
+}
+
+function getColorIdForProcedure(procType: string): string {
+  switch (procType) {
+    case "iv": return "5";
+    case "im": return "5";
+    case "implant": return "3";
+    case "consultation": return "9";
+    default: return "5";
+  }
 }
 
 function removeAccents(str: string): string {
@@ -106,7 +117,7 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
         dateTime: endDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
       },
-      colorId: '9',
+      colorId: getColorIdForProcedure(data.procedureType || "iv"),
       reminders: {
         useDefault: false,
         overrides: [

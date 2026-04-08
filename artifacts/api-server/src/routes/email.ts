@@ -8,6 +8,7 @@ import {
   substanceApplicationsTable,
   validationCodesTable,
   rasTable,
+  locationsTable,
 } from "@workspace/db";
 import {
   sendPreSessionEmail,
@@ -110,8 +111,16 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
         skinHairNails: substance.skinHairNails ?? undefined,
         categoryType: substance.categoryType ?? undefined,
         starRating: substance.starRating ?? undefined,
+        bodySystemEffects: (substance.bodySystemEffects as Record<string, number>) ?? undefined,
       });
     }
+  }
+
+  let locationAddress: string | undefined;
+  if (session.unit) {
+    const locations = await db.select().from(locationsTable);
+    const loc = locations.find(l => l.name.toLowerCase().includes(session.unit!.toLowerCase()) || session.unit!.toLowerCase().includes(l.name.toLowerCase()));
+    if (loc?.address) locationAddress = loc.address;
   }
 
   const primaryProcType = substances[0]?.procedureType ?? "iv";
@@ -125,6 +134,7 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     procedureLabel: procedureTypeLabel(primaryProcType),
     substances,
     unit: session.unit ?? "Clinica Padua",
+    locationAddress,
     isFirstSession,
   });
 
@@ -278,8 +288,16 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
           skinHairNails: substance.skinHairNails ?? undefined,
           categoryType: substance.categoryType ?? undefined,
           starRating: substance.starRating ?? undefined,
+          bodySystemEffects: (substance.bodySystemEffects as Record<string, number>) ?? undefined,
         });
       }
+    }
+
+    let locationAddress: string | undefined;
+    if (session.unit) {
+      const allLocations = await db.select().from(locationsTable);
+      const loc = allLocations.find(l => l.name.toLowerCase().includes(session.unit!.toLowerCase()) || session.unit!.toLowerCase().includes(l.name.toLowerCase()));
+      if (loc?.address) locationAddress = loc.address;
     }
 
     const primaryProcType = substances[0]?.procedureType ?? "iv";
@@ -292,6 +310,7 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       procedureLabel: procedureTypeLabel(primaryProcType),
       substances,
       unit: session.unit ?? "Clinica Padua",
+      locationAddress,
       isFirstSession,
     });
 

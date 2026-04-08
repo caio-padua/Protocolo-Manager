@@ -36,19 +36,25 @@ function getCategoryStyle(cat: string | null): { bg: string; text: string; icon:
 
 const BODY_SYSTEM_LABELS: Record<string, { label: string; icon: typeof Heart; color: string }> = {
   cardiovascular: { label: "Cardiovascular", icon: Heart, color: "text-red-500" },
+  respiratorio: { label: "Respiratório", icon: Activity, color: "text-cyan-500" },
+  muscular_hipertrofia: { label: "Muscular / Hipertrofia", icon: Dumbbell, color: "text-orange-500" },
+  emagrecimento: { label: "Emagrecimento / Sobrepeso", icon: TrendingUp, color: "text-lime-600" },
+  neurocognicao: { label: "Neurocognição", icon: Brain, color: "text-purple-500" },
+  metabolismo_tireoide: { label: "Metabolismo / Tireoide", icon: Activity, color: "text-amber-500" },
+  libido_sexual: { label: "Libido / Sexual", icon: Heart, color: "text-pink-500" },
+  performance_fisica: { label: "Performance Física", icon: Zap, color: "text-teal-500" },
+  imunologico: { label: "Imunológico", icon: Shield, color: "text-blue-500" },
+  dermatologico: { label: "Pele / Cabelo / Unhas", icon: Sparkles, color: "text-pink-400" },
+  hepatico: { label: "Hepático / Detox", icon: Shield, color: "text-green-600" },
+  longevidade: { label: "Longevidade", icon: Leaf, color: "text-emerald-500" },
   neurologico: { label: "Neurológico", icon: Brain, color: "text-purple-500" },
   metabolismo: { label: "Metabolismo", icon: Activity, color: "text-orange-500" },
-  hepatico: { label: "Hepático", icon: Shield, color: "text-green-600" },
-  imunologico: { label: "Imunológico", icon: Shield, color: "text-blue-500" },
-  dermatologico: { label: "Dermatológico", icon: Sparkles, color: "text-pink-500" },
   muscular: { label: "Muscular", icon: Dumbbell, color: "text-amber-600" },
   endocrino: { label: "Endócrino", icon: Zap, color: "text-violet-500" },
-  longevidade: { label: "Longevidade", icon: Leaf, color: "text-emerald-500" },
   osteoarticular: { label: "Osteoarticular", icon: Dumbbell, color: "text-sky-600" },
   articular: { label: "Articular", icon: Dumbbell, color: "text-teal-500" },
   hematologico: { label: "Hematológico", icon: Heart, color: "text-rose-600" },
-  emagrecimento: { label: "Emagrecimento", icon: TrendingUp, color: "text-lime-600" },
-  reprodutivo: { label: "Reprodutivo", icon: Heart, color: "text-fuchsia-500" },
+  reprodutivo: { label: "Reprodutivo", icon: Heart, color: "text-pink-600" },
 };
 
 function BodySystemBar({ system, score }: { system: string; score: number }) {

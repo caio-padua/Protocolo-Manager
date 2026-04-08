@@ -94,6 +94,16 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
 
   const location = await findLocationByUnit(session.unit);
 
+  const isDoctor = primaryProcType === "implant" || primaryProcType === "consultation";
+  let targetCalendarId = location.googleCalendarId ?? undefined;
+  if (isDoctor && location.googleCalendarId) {
+    const allLocations = await db.select().from(locationsTable);
+    const doctorCal = allLocations.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
+    if (doctorCal?.googleCalendarId) {
+      targetCalendarId = doctorCal.googleCalendarId;
+    }
+  }
+
   try {
     const eventId = await createCalendarEvent({
       sessionId: session.id,
@@ -105,7 +115,8 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       weekNumber: session.weekNumber,
       unit: session.unit ?? "Clinica Padua",
       locationAddress: location.address ?? undefined,
-      calendarId: location.googleCalendarId ?? undefined,
+      calendarId: targetCalendarId,
+      procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
       substances,
       clientEmail: client.email || undefined,
@@ -158,6 +169,16 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
     const location = await findLocationByUnit(session.unit);
 
+    const isDoctor2 = primaryProcType === "implant" || primaryProcType === "consultation";
+    let targetCal = location.googleCalendarId ?? undefined;
+    if (isDoctor2 && location.googleCalendarId) {
+      const allLocs = await db.select().from(locationsTable);
+      const doctorCal = allLocs.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
+      if (doctorCal?.googleCalendarId) {
+        targetCal = doctorCal.googleCalendarId;
+      }
+    }
+
     try {
       const eventId = await createCalendarEvent({
         sessionId: session.id,
@@ -169,7 +190,8 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         weekNumber: session.weekNumber,
         unit: session.unit ?? "Clinica Padua",
         locationAddress: location.address ?? undefined,
-        calendarId: location.googleCalendarId ?? undefined,
+        calendarId: targetCal,
+        procedureType: primaryProcType,
         procedureLabel: procedureTypeLabel(primaryProcType),
         substances,
         clientEmail: client.email || undefined,
