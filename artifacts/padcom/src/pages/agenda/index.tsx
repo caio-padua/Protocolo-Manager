@@ -426,27 +426,40 @@ export default function Agenda() {
                               {session.substanceApplications.map(app => (
                                 <div key={app.id} className="flex items-center gap-1">
                                   <span
-                                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
-                                      app.availability === "prox"
-                                        ? "bg-muted text-muted-foreground"
-                                        : app.appliedAt
+                                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
+                                      app.appliedAt
                                         ? "text-white ring-2 ring-green-400 ring-offset-1"
+                                        : app.availability === "prox"
+                                        ? "bg-muted text-muted-foreground"
+                                        : app.status === "missed"
+                                        ? "text-white bg-red-400/80"
                                         : "text-white"
                                     }`}
-                                    style={app.availability === "disp" ? {
-                                      backgroundColor: app.appliedAt
-                                        ? app.substanceColor
-                                        : app.substanceColor + "CC"
-                                    } : {}}
+                                    style={
+                                      app.appliedAt
+                                        ? { backgroundColor: app.substanceColor }
+                                        : app.availability === "disp" && app.status !== "missed"
+                                        ? { backgroundColor: app.substanceColor + "CC" }
+                                        : {}
+                                    }
                                   >
+                                    <span className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/40 ${
+                                      app.appliedAt
+                                        ? "bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.6)]"
+                                        : app.status === "missed"
+                                        ? "bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]"
+                                        : app.availability === "disp"
+                                        ? "bg-yellow-400 shadow-[0_0_4px_rgba(250,204,21,0.5)]"
+                                        : "bg-amber-700 shadow-[0_0_4px_rgba(180,83,9,0.5)]"
+                                    }`} />
                                     {app.appliedAt && <CheckCheck className="h-3 w-3 text-green-200" />}
                                     {app.substanceName}
-                                    {app.availability === "disp" && app.sessionNumber > 0
+                                    {app.sessionNumber > 0
                                       ? ` ${app.sessionNumber}/${app.totalSessions}`
                                       : ""}
                                     {!app.appliedAt && (
-                                      <span className="opacity-70 text-[10px]">
-                                        {app.availability === "disp" ? " DISP" : " PROX"}
+                                      <span className="opacity-80 text-[10px] font-semibold">
+                                        {app.availability === "disp" ? "DISP" : "PROX"}
                                       </span>
                                     )}
                                   </span>

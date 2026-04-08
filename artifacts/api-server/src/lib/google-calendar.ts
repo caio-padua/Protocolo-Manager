@@ -51,11 +51,14 @@ export async function getUncachableGoogleCalendarClient() {
 export interface CalendarEventData {
   sessionId: number;
   clientName: string;
+  clientCpf?: string;
   scheduledDate: string;
   scheduledTime: string;
   durationMinutes: number;
   weekNumber: number;
   unit: string;
+  locationAddress?: string;
+  calendarId?: string;
   procedureLabel: string;
   substances: Array<{
     name: string;
@@ -66,6 +69,10 @@ export interface CalendarEventData {
   clientEmail?: string;
 }
 
+function removeAccents(str: string): string {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 export async function createCalendarEvent(data: CalendarEventData): Promise<string | null> {
   try {
     const calendar = await getUncachableGoogleCalendarClient();
@@ -74,16 +81,23 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
     const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
     const endDate = new Date(startDate.getTime() + data.durationMinutes * 60 * 1000);
 
+    const clientNameUpper = removeAccents(data.clientName).toUpperCase();
+    const cpfPart = data.clientCpf ? ` ${data.clientCpf}` : "";
+
     const substanceList = data.substances
       .map(s => `- ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions})`)
       .join("\n");
 
-    const description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${data.clientName}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSubstancias:\n${substanceList}`;
+    const addressLine = data.locationAddress ? `\nEndereco: ${data.locationAddress}` : "";
+
+    const description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}${addressLine}\n\nSubstancias:\n${substanceList}${addressLine ? `\n\n---\nLocal: ${data.unit}\n${data.locationAddress}` : ""}`;
+
+    const locationField = data.locationAddress || data.unit;
 
     const event: any = {
-      summary: `PADCOM: ${data.clientName} - Sem ${data.weekNumber} - ${data.procedureLabel}`,
+      summary: `${clientNameUpper}${cpfPart} - Sem ${data.weekNumber} - ${data.procedureLabel}`,
       description,
-      location: data.unit,
+      location: locationField,
       start: {
         dateTime: startDate.toISOString(),
         timeZone: 'America/Sao_Paulo',
@@ -106,8 +120,10 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
       event.attendees = [{ email: data.clientEmail, displayName: data.clientName }];
     }
 
+    const targetCalendarId = data.calendarId || 'primary';
+
     const result = await calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: targetCalendarId,
       requestBody: event,
       sendUpdates: data.clientEmail ? 'all' : 'none',
     });

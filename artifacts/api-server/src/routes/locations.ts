@@ -50,6 +50,34 @@ router.post("/locations", async (req, res): Promise<void> => {
   res.status(201).json({ ...loc, active: loc.active === "true", createdAt: loc.createdAt.toISOString() });
 });
 
+router.put("/locations/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const { name, address, type, color, googleCalendarId, active } = req.body;
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = name;
+  if (address !== undefined) updates.address = address;
+  if (type !== undefined) updates.type = type;
+  if (color !== undefined) updates.color = color;
+  if (googleCalendarId !== undefined) updates.googleCalendarId = googleCalendarId;
+  if (active !== undefined) updates.active = String(active);
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
+  const [updated] = await db.update(locationsTable).set(updates).where(eq(locationsTable.id, id)).returning();
+  if (!updated) {
+    res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  res.json({ ...updated, active: updated.active === "true", createdAt: updated.createdAt.toISOString() });
+});
+
 router.post("/locations/:id/professionals", async (req, res): Promise<void> => {
   const locationId = parseInt(req.params.id);
   const { professionalId, role } = req.body;

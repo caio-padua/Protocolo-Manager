@@ -6,6 +6,7 @@ import {
   clientsTable,
   substancesTable,
   substanceApplicationsTable,
+  locationsTable,
 } from "@workspace/db";
 import {
   createCalendarEvent,
@@ -31,6 +32,16 @@ function getDurationForProcedureType(type: string): number {
     case "implant": return 60;
     default: return 30;
   }
+}
+
+async function findLocationByUnit(unitName: string | null): Promise<{ address: string | null; googleCalendarId: string | null }> {
+  if (!unitName) return { address: null, googleCalendarId: null };
+  const locations = await db.select().from(locationsTable);
+  const match = locations.find(l => l.name.toLowerCase().includes(unitName.toLowerCase()) || unitName.toLowerCase().includes(l.name.toLowerCase()));
+  return {
+    address: match?.address ?? null,
+    googleCalendarId: match?.googleCalendarId ?? null,
+  };
 }
 
 router.get("/google-calendar/status", async (_req, res): Promise<void> => {
@@ -81,15 +92,20 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
     }
   }
 
+  const location = await findLocationByUnit(session.unit);
+
   try {
     const eventId = await createCalendarEvent({
       sessionId: session.id,
       clientName: client.name,
+      clientCpf: client.cpf,
       scheduledDate: session.scheduledDate,
       scheduledTime: session.scheduledTime,
       durationMinutes: getDurationForProcedureType(primaryProcType),
       weekNumber: session.weekNumber,
       unit: session.unit ?? "Clinica Padua",
+      locationAddress: location.address ?? undefined,
+      calendarId: location.googleCalendarId ?? undefined,
       procedureLabel: procedureTypeLabel(primaryProcType),
       substances,
       clientEmail: client.email || undefined,
@@ -140,15 +156,20 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
       }
     }
 
+    const location = await findLocationByUnit(session.unit);
+
     try {
       const eventId = await createCalendarEvent({
         sessionId: session.id,
         clientName: client.name,
+        clientCpf: client.cpf,
         scheduledDate: session.scheduledDate,
         scheduledTime: session.scheduledTime,
         durationMinutes: getDurationForProcedureType(primaryProcType),
         weekNumber: session.weekNumber,
         unit: session.unit ?? "Clinica Padua",
+        locationAddress: location.address ?? undefined,
+        calendarId: location.googleCalendarId ?? undefined,
         procedureLabel: procedureTypeLabel(primaryProcType),
         substances,
         clientEmail: client.email || undefined,
