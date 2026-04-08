@@ -11,6 +11,7 @@ import stockRouter from "./stock";
 import paymentsRouter from "./payments";
 import dashboardRouter from "./dashboard";
 import validationCodesRouter from "./validation-codes";
+import emailRouter from "./email";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(stockRouter);
 router.use(paymentsRouter);
 router.use(dashboardRouter);
 router.use(validationCodesRouter);
+router.use(emailRouter);
 
 export default router;

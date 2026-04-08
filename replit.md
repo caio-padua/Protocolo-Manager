@@ -66,6 +66,12 @@ Sistema completo para gerenciamento de protocolos injetáveis em clínica de med
 - **Color-coded UI**: TDAH-friendly with substance color pills throughout
 - **Validation codes**: 6-digit alphanumeric codes for client identity verification (generate, verify, WhatsApp delivery)
 - **Procedure types**: IM (15min), IV (30min), Implant (1h) — each substance categorized with default duration
+- **Automated emails**: Pre-session (code + substances) and post-session (signed RAS PDF) via Gmail SMTP (nodemailer)
+  - Subject format: `Clinica Padua | Aplicacao Endovenosa | A7K3M2`
+  - Pre-session: validation code, substance list, schedule info
+  - Post-session: completed substances + signed RAS PDF attachment
+  - Weekly batch: `/api/email/send-weekly-reminders` sends to all upcoming sessions
+  - Gmail account: `clinica.padua.agenda@gmail.com` with app password (GMAIL_APP_PASSWORD secret)
 
 ## Working Language
 - UI and user communication in Portuguese (Brazil)

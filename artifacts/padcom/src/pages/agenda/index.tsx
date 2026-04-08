@@ -13,7 +13,7 @@ import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User,
   CheckCheck, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
-  KeyRound, ShieldCheck, Copy, Loader2,
+  KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -179,6 +179,42 @@ export default function Agenda() {
   function copyCode(code: string) {
     navigator.clipboard.writeText(code);
     toast({ title: "Código copiado!" });
+  }
+
+  const [emailSending, setEmailSending] = useState<number | null>(null);
+
+  async function sendPreSessionEmail(session: any) {
+    setEmailSending(session.id);
+    try {
+      const res = await fetch(`/api/email/send-pre-session/${session.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "E-mail enviado!", description: `Pré-aplicação enviado para ${session.clientName}. Código: ${data.code}` });
+      } else {
+        toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setEmailSending(null);
+    }
+  }
+
+  async function sendPostSessionEmail(session: any) {
+    setEmailSending(session.id);
+    try {
+      const res = await fetch(`/api/email/send-post-session/${session.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "E-mail enviado!", description: `RAS pós-aplicação enviado para ${session.clientName}.` });
+      } else {
+        toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de conexão", variant: "destructive" });
+    } finally {
+      setEmailSending(null);
+    }
   }
 
   function getProcedureLabel(session: any): string {
@@ -380,6 +416,33 @@ export default function Agenda() {
                                 <ShieldCheck className="h-4 w-4 text-green-500" />
                                 Verificar Código do Cliente
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => sendPreSessionEmail(session)}
+                                disabled={emailSending === session.id}
+                                className="gap-2"
+                              >
+                                {emailSending === session.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="h-4 w-4 text-blue-500" />
+                                )}
+                                Enviar E-mail Pré-Aplicação
+                              </DropdownMenuItem>
+                              {session.status === "completed" && (
+                                <DropdownMenuItem
+                                  onClick={() => sendPostSessionEmail(session)}
+                                  disabled={emailSending === session.id}
+                                  className="gap-2"
+                                >
+                                  {emailSending === session.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MailCheck className="h-4 w-4 text-green-500" />
+                                  )}
+                                  Enviar E-mail Pós-Aplicação (RAS)
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => window.open(googleLink, "_blank")}
