@@ -17,9 +17,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Visão geral operacional da clínica.</p>
+      <div className="flex items-end justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight">Painel de Controle</h1>
+          <p className="text-sm text-muted-foreground">Visao geral operacional — Padcon Conect</p>
+        </div>
+        <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground border border-border px-3 py-1.5" style={{ borderRadius: '4px' }}>
+          <CalendarIcon className="w-3.5 h-3.5" />
+          {format(new Date(), "dd 'de' MMMM, yyyy", { locale: ptBR })}
+        </div>
       </div>
 
       {loadingSummary ? (
@@ -30,56 +36,52 @@ export default function Dashboard() {
         </div>
       ) : summary ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sessões Hoje</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.sessionsTodayCount}</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.sessionsThisWeekCount} esta semana
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Protocolos Ativos</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.activeProtocols}</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.totalClients} clientes no total
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receita do Mês</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summary.revenueThisMonth)}
+          {[
+            {
+              label: "Sessoes Hoje",
+              value: summary.sessionsTodayCount,
+              sub: `${summary.sessionsThisWeekCount} esta semana`,
+              icon: CalendarIcon,
+              color: "hsl(187, 72%, 48%)",
+            },
+            {
+              label: "Protocolos Ativos",
+              value: summary.activeProtocols,
+              sub: `${summary.totalClients} clientes no total`,
+              icon: Activity,
+              color: "hsl(180, 30%, 28%)",
+            },
+            {
+              label: "Receita do Mes",
+              value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summary.revenueThisMonth),
+              sub: `${summary.pendingPaymentsCount} pagamentos pendentes`,
+              icon: TrendingUp,
+              color: "hsl(38, 92%, 50%)",
+            },
+            {
+              label: "Taxa de Conclusao",
+              value: `${summary.completionRate.toFixed(1)}%`,
+              sub: `${summary.missedSessionsCount} faltas recentes`,
+              icon: CheckCircle2,
+              color: summary.completionRate >= 70 ? "hsl(142, 71%, 45%)" : "hsl(0, 72%, 51%)",
+            },
+          ].map((kpi, i) => (
+            <Card key={i} className="overflow-hidden">
+              <div className="flex h-full">
+                <div className="w-1 shrink-0" style={{ backgroundColor: kpi.color }} />
+                <div className="flex-1">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{kpi.label}</CardTitle>
+                    <kpi.icon className="h-4 w-4" style={{ color: kpi.color }} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{kpi.value}</div>
+                    <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
+                  </CardContent>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {summary.pendingPaymentsCount} pagamentos pendentes
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Conclusão</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.completionRate.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.missedSessionsCount} faltas recentes
-              </p>
-            </CardContent>
-          </Card>
+            </Card>
+          ))}
         </div>
       ) : null}
 

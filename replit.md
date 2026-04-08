@@ -1,8 +1,17 @@
-# PADCOM — Protocolos Injetáveis
+# Padcon Conect — Motor Clinico | Protocolos Injetaveis
 
 ## Overview
 
-Sistema completo para gerenciamento de protocolos injetáveis em clínica de medicina estética (Brasil). Monorepo pnpm com TypeScript.
+Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca: **Padcon Conect** (com 1 N). Tagline: "Motor Clinico | Protocolos Injetaveis".
+
+## Branding
+
+- **Nome**: Padcon Conect (1 N — decisao de marca)
+- **Paleta principal**: Verde-petroleo (#3D7A7A / hsl(180,30%,28%)), Ciano (#45B8CC / hsl(187,72%,48%)), Branco
+- **Estilo visual**: Bordas quadradas (radius 6px), cards com borda lateral colorida, MAIUSCULO nos labels KPI, elegante/empirico, sem infantilidades
+- **Logo**: SVG no sidebar (PadconLogo component) — "Pad" branco + "con" ciano + "CONECT" subtitulo
+- **Sidebar**: Verde-petroleo escuro, menu com bordas finas, item ativo com destaque ciano
+- **TDAH-friendly**: Cores fortes e contrastantes, labels em uppercase com tracking expandido, hierarquia visual clara
 
 ## Stack
 
