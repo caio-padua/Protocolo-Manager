@@ -84,6 +84,46 @@ function removeAccents(str: string): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+function buildAddressBlock(address: string | undefined, unitName: string): string | null {
+  if (!address) return null;
+
+  const parts = address.split(",").map(p => p.trim());
+
+  let rua = "";
+  let numero = "";
+  let bairro = "";
+  let cidadeEstado = "";
+  let cep = "";
+
+  const cepMatch = address.match(/CEP\s*([\d\-\.]+)/i) || address.match(/(\d{5}[\-\.]?\d{3})/);
+  if (cepMatch) {
+    cep = cepMatch[1].replace(/\./g, "").replace(/(\d{5})(\d{3})/, "$1-$2");
+  }
+
+  if (parts.length >= 4) {
+    rua = parts[0];
+    numero = parts[1];
+    bairro = parts[2];
+    cidadeEstado = parts.slice(3).join(", ").replace(/CEP\s*[\d\-\.]+/i, "").trim().replace(/,\s*$/, "");
+  } else if (parts.length === 3) {
+    rua = parts[0];
+    numero = parts[1];
+    bairro = parts[2].replace(/CEP\s*[\d\-\.]+/i, "").trim();
+  } else if (parts.length === 2) {
+    rua = parts[0];
+    numero = parts[1].replace(/CEP\s*[\d\-\.]+/i, "").trim();
+  } else {
+    rua = parts[0].replace(/CEP\s*[\d\-\.]+/i, "").trim();
+  }
+
+  let block = `\uD83D\uDCCD ENDERECO\n${(rua + (numero ? ", " + numero : "")).toUpperCase()}`;
+  if (bairro) block += `\n${bairro.toUpperCase()}`;
+  if (cidadeEstado) block += `\n${cidadeEstado.toUpperCase()}`;
+  if (cep) block += `\nCEP ${cep}`;
+
+  return block;
+}
+
 export async function createCalendarEvent(data: CalendarEventData): Promise<string | null> {
   try {
     const calendar = await getUncachableGoogleCalendarClient();
@@ -99,9 +139,27 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
       .map(s => `- ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions})`)
       .join("\n");
 
-    const addressLine = data.locationAddress ? `\nEndereco: ${data.locationAddress}` : "";
+    const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
+    const mapsLink = data.locationAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.locationAddress)}`
+      : null;
+    const wazeLink = data.locationAddress
+      ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
+      : null;
 
-    const description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}${addressLine}\n\nSubstancias:\n${substanceList}${addressLine ? `\n\n---\nLocal: ${data.unit}\n${data.locationAddress}` : ""}`;
+    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSubstancias:\n${substanceList}`;
+
+    if (addressBlock) {
+      description += `\n\n${addressBlock}`;
+    }
+
+    if (mapsLink) {
+      description += `\n\nNavegacao:`;
+      description += `\nGoogle Maps: ${mapsLink}`;
+      if (wazeLink) {
+        description += `\nWaze: ${wazeLink}`;
+      }
+    }
 
     const locationField = data.locationAddress || data.unit;
 
