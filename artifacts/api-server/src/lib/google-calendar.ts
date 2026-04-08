@@ -48,6 +48,16 @@ export async function getUncachableGoogleCalendarClient() {
   return google.calendar({ version: 'v3', auth: oauth2Client });
 }
 
+export type SubstanceStatus = "disp" | "prox" | "applied" | "missed";
+
+export interface CalendarSubstance {
+  name: string;
+  dose: string;
+  sessionNumber: number;
+  totalSessions: number;
+  status: SubstanceStatus;
+}
+
 export interface CalendarEventData {
   sessionId: number;
   clientName: string;
@@ -61,12 +71,7 @@ export interface CalendarEventData {
   calendarId?: string;
   procedureType?: string;
   procedureLabel: string;
-  substances: Array<{
-    name: string;
-    dose: string;
-    sessionNumber: number;
-    totalSessions: number;
-  }>;
+  substances: CalendarSubstance[];
   clientEmail?: string;
 }
 
@@ -135,9 +140,24 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
     const clientNameUpper = removeAccents(data.clientName).toUpperCase();
     const cpfPart = data.clientCpf ? ` ${data.clientCpf}` : "";
 
+    const statusDot: Record<SubstanceStatus, string> = {
+      disp: "\uD83D\uDFE2",
+      applied: "\uD83D\uDD35",
+      prox: "\uD83D\uDFE4",
+      missed: "\u26AB",
+    };
+    const statusTag: Record<SubstanceStatus, string> = {
+      disp: "(DISP)",
+      applied: "(APLICADA)",
+      prox: "(PROX)",
+      missed: "(N/A)",
+    };
+
     const substanceList = data.substances
-      .map(s => `- ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions})`)
+      .map(s => `${statusDot[s.status]} ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions}) ${statusTag[s.status]}`)
       .join("\n");
+
+    const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
 
     const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
     const mapsLink = data.locationAddress
@@ -147,14 +167,14 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
       ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
       : null;
 
-    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSubstancias:\n${substanceList}`;
+    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
 
     if (addressBlock) {
       description += `\n\n${addressBlock}`;
     }
 
     if (mapsLink) {
-      description += `\n\nNavegacao:`;
+      description += `\n\nNAVEGACAO:`;
       description += `\nGoogle Maps: ${mapsLink}`;
       if (wazeLink) {
         description += `\nWaze: ${wazeLink}`;
@@ -200,6 +220,65 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
     return result.data.id ?? null;
   } catch (err: any) {
     console.error("Failed to create calendar event:", err.message);
+    throw err;
+  }
+}
+
+export async function updateCalendarEventDescription(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {
+  try {
+    const calendar = await getUncachableGoogleCalendarClient();
+
+    const clientNameUpper = removeAccents(data.clientName).toUpperCase();
+    const cpfPart = data.clientCpf ? ` ${data.clientCpf}` : "";
+
+    const statusDot: Record<SubstanceStatus, string> = {
+      disp: "\uD83D\uDFE2",
+      applied: "\uD83D\uDD35",
+      prox: "\uD83D\uDFE4",
+      missed: "\u26AB",
+    };
+    const statusTag: Record<SubstanceStatus, string> = {
+      disp: "(DISP)",
+      applied: "(APLICADA)",
+      prox: "(PROX)",
+      missed: "(N/A)",
+    };
+
+    const substanceList = data.substances
+      .map(s => `${statusDot[s.status]} ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions}) ${statusTag[s.status]}`)
+      .join("\n");
+
+    const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
+
+    const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
+    const mapsLink = data.locationAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.locationAddress)}`
+      : null;
+    const wazeLink = data.locationAddress
+      ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
+      : null;
+
+    let description = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nProcedimento: ${data.procedureLabel}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
+
+    if (addressBlock) {
+      description += `\n\n${addressBlock}`;
+    }
+
+    if (mapsLink) {
+      description += `\n\nNAVEGACAO:`;
+      description += `\nGoogle Maps: ${mapsLink}`;
+      if (wazeLink) {
+        description += `\nWaze: ${wazeLink}`;
+      }
+    }
+
+    await calendar.events.patch({
+      calendarId: calendarId || 'primary',
+      eventId,
+      requestBody: { description },
+    });
+  } catch (err: any) {
+    console.error("Failed to update calendar event:", err.message);
     throw err;
   }
 }

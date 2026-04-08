@@ -10,8 +10,10 @@ import {
 } from "@workspace/db";
 import {
   createCalendarEvent,
+  updateCalendarEventDescription,
   listCalendars,
   type CalendarEventData,
+  type CalendarSubstance,
 } from "../lib/google-calendar";
 
 const router: IRouter = Router();
@@ -74,21 +76,24 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
 
   const applications = await db.select().from(substanceApplicationsTable)
     .where(eq(substanceApplicationsTable.sessionId, sessionId));
-  const dispApps = applications.filter(a => a.availability === "disp");
 
-  const substances: CalendarEventData["substances"] = [];
+  const substances: CalendarSubstance[] = [];
   let primaryProcType = "iv";
 
-  for (const app of dispApps) {
+  for (const app of applications) {
     const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
     if (substance) {
+      const status = app.appliedAt ? "applied" : (app.availability as "disp" | "prox" | "missed") || "prox";
       substances.push({
         name: substance.name,
         dose: app.dose,
         sessionNumber: app.sessionNumber,
         totalSessions: app.totalSessions,
+        status,
       });
-      primaryProcType = substance.procedureType ?? "iv";
+      if (app.availability === "disp") {
+        primaryProcType = substance.procedureType ?? "iv";
+      }
     }
   }
 
@@ -156,21 +161,24 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
     const applications = await db.select().from(substanceApplicationsTable)
       .where(eq(substanceApplicationsTable.sessionId, session.id));
-    const dispApps = applications.filter(a => a.availability === "disp");
 
-    const substances: CalendarEventData["substances"] = [];
+    const substances: CalendarSubstance[] = [];
     let primaryProcType = "iv";
 
-    for (const app of dispApps) {
+    for (const app of applications) {
       const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
       if (substance) {
+        const status = app.appliedAt ? "applied" : (app.availability as "disp" | "prox" | "missed") || "prox";
         substances.push({
           name: substance.name,
           dose: app.dose,
           sessionNumber: app.sessionNumber,
           totalSessions: app.totalSessions,
+          status,
         });
-        primaryProcType = substance.procedureType ?? "iv";
+        if (app.availability === "disp") {
+          primaryProcType = substance.procedureType ?? "iv";
+        }
       }
     }
 
