@@ -7,6 +7,7 @@ import {
   substancesTable,
   substanceApplicationsTable,
   locationsTable,
+  professionalsTable,
 } from "@workspace/db";
 import {
   createCalendarEvent,
@@ -80,6 +81,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
   const substances: CalendarSubstance[] = [];
   let primaryProcType = "iv";
   const activeProcTypes = new Set<string>();
+  let hasDisp = false;
 
   for (const app of applications) {
     const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -96,10 +98,24 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
         activeProcTypes.add(substance.procedureType);
       }
       if (app.availability === "disp") {
+        hasDisp = true;
         primaryProcType = substance.procedureType ?? "iv";
       }
     }
   }
+
+  if (!hasDisp) {
+    if (session.professionalId) {
+      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
+      if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
+        primaryProcType = "consultation";
+      }
+    }
+    if (substances.length === 0) {
+      primaryProcType = "consultation";
+    }
+  }
+  activeProcTypes.add(primaryProcType);
 
   const location = await findLocationByUnit(session.unit);
 
@@ -170,6 +186,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
     const substances: CalendarSubstance[] = [];
     let primaryProcType = "iv";
     const activeProcTypes2 = new Set<string>();
+    let hasDisp2 = false;
 
     for (const app of applications) {
       const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -186,10 +203,24 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
           activeProcTypes2.add(substance.procedureType);
         }
         if (app.availability === "disp") {
+          hasDisp2 = true;
           primaryProcType = substance.procedureType ?? "iv";
         }
       }
     }
+
+    if (!hasDisp2) {
+      if (session.professionalId) {
+        const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
+        if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
+          primaryProcType = "consultation";
+        }
+      }
+      if (substances.length === 0) {
+        primaryProcType = "consultation";
+      }
+    }
+    activeProcTypes2.add(primaryProcType);
 
     const location = await findLocationByUnit(session.unit);
 
