@@ -610,4 +610,339 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   };
 }
 
+interface PhysicalRASSubstance {
+  name: string;
+  color: string;
+  totalSessions: number;
+  frequencyDays: number;
+  startDate: string;
+  procedureType?: string;
+}
+
+interface PhysicalRASSession {
+  number: number;
+  scheduledDate: string;
+  effectiveDate?: string | null;
+  nurseName?: string | null;
+  substanceStatuses: Array<{
+    substanceName: string;
+    sessionNumber: number;
+    totalSessions: number;
+    status: string;
+  }>;
+}
+
+interface PhysicalRASData {
+  clientName: string;
+  clientCpf: string;
+  clientPhone?: string;
+  clientAge?: number;
+  clientHeight?: string;
+  clientWeight?: string;
+  professionalName: string;
+  nurseName?: string;
+  unit: string;
+  startDate: string;
+  substances: PhysicalRASSubstance[];
+  sessions: PhysicalRASSession[];
+  todayDate?: string;
+}
+
+const SUBSTANCE_COLORS: Record<string, ReturnType<typeof rgb>> = {
+  yellow: rgb(1, 0.85, 0.3),
+  orange: rgb(1, 0.6, 0.2),
+  red: rgb(0.9, 0.25, 0.25),
+  green: rgb(0.2, 0.7, 0.3),
+  blue: rgb(0.3, 0.5, 0.9),
+  purple: rgb(0.6, 0.3, 0.8),
+  pink: rgb(0.9, 0.4, 0.6),
+  teal: rgb(0.2, 0.6, 0.6),
+  brown: rgb(0.6, 0.4, 0.2),
+  gray: rgb(0.5, 0.5, 0.5),
+};
+
+function getSubstanceColor(color: string): ReturnType<typeof rgb> {
+  return SUBSTANCE_COLORS[color.toLowerCase()] ?? rgb(0.8, 0.7, 0.2);
+}
+
+export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uint8Array> {
+  const PAGE_W_L = 841.89;
+  const PAGE_H_L = 595.28;
+  const M = 30;
+
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(`RAS Fisico — ${data.clientName}`);
+  pdfDoc.setAuthor("PADCOM — Protocolos Injetaveis");
+
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const substCount = data.substances.length;
+  const maxSessions = Math.max(data.sessions.length, 20);
+
+  const fixedColWidths = {
+    agendamento: 40,
+    assinatura: 90,
+    enf: 35,
+    dataPrevista: 65,
+    dataEfetiva: 65,
+  };
+  const fixedTotal = fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf + fixedColWidths.dataPrevista + fixedColWidths.dataEfetiva;
+  const availableForSubstances = PAGE_W_L - 2 * M - fixedTotal;
+  const substColW = Math.max(50, Math.min(80, Math.floor(availableForSubstances / Math.max(substCount, 1))));
+
+  const substancesPerPage = Math.floor(availableForSubstances / substColW);
+  const substancePages = Math.ceil(substCount / substancesPerPage);
+
+  const ROW_H = 22;
+  const HEADER_H = 85;
+  const PROTO_H = 50;
+  const COL_HEADER_H = 30;
+  const FOOTER_H = 60;
+
+  const availableBodyH = PAGE_H_L - M - HEADER_H - PROTO_H - COL_HEADER_H - FOOTER_H - M;
+  const sessionsPerPage = Math.floor(availableBodyH / ROW_H);
+
+  const today = data.todayDate || new Date().toISOString().slice(0, 10);
+
+  for (let sPage = 0; sPage < substancePages; sPage++) {
+    const startSubIdx = sPage * substancesPerPage;
+    const endSubIdx = Math.min(startSubIdx + substancesPerPage, substCount);
+    const pageSubstances = data.substances.slice(startSubIdx, endSubIdx);
+    const pageSubstCount = pageSubstances.length;
+
+    const sessionPages = Math.ceil(maxSessions / sessionsPerPage);
+
+    for (let sessPage = 0; sessPage < sessionPages; sessPage++) {
+      const page = pdfDoc.addPage([PAGE_W_L, PAGE_H_L]);
+      let y = PAGE_H_L - M;
+
+      page.drawRectangle({ x: M, y: y - 12, width: PAGE_W_L - 2 * M, height: 16, color: rgb(0.92, 0.92, 0.92) });
+      page.drawText("RAS - REGISTRO ADMINISTRACAO DE SUBSTANCIAS", {
+        x: M + 5, y: y - 8, size: 9, font: bold, color: BLACK,
+      });
+      if (sPage > 0 || sessPage > 0) {
+        const contText = `(cont. pag ${sPage * sessionPages + sessPage + 1})`;
+        page.drawText(contText, { x: PAGE_W_L - M - regular.widthOfTextAtSize(contText, 7) - 5, y: y - 7, size: 7, font: regular, color: GRAY });
+      }
+      y -= 18;
+
+      const fieldH = 11;
+      const labelX = M + 5;
+      const valueX = M + 130;
+      const col2LabelX = M + 340;
+      const col2ValueX = M + 440;
+
+      const fields = [
+        { label: "NOME", value: data.clientName },
+        { label: "CPF", value: data.clientCpf },
+        { label: "CELULAR", value: data.clientPhone ?? "" },
+        { label: "MEDICO RESPONSAVEL", value: data.professionalName },
+        { label: "ENFERMEIRA", value: data.nurseName ?? "" },
+        { label: "UNIDADE", value: data.unit },
+        { label: "DATA ATENDIMENTO", value: data.startDate.split("-").reverse().join("/") },
+      ];
+
+      for (let fi = 0; fi < fields.length; fi++) {
+        const fy = y - fi * fieldH;
+        page.drawText(fields[fi].label, { x: labelX, y: fy, size: 7, font: bold, color: BLACK });
+        page.drawText(fields[fi].value, { x: valueX, y: fy, size: 7, font: regular, color: BLACK });
+        page.drawLine({ start: { x: M, y: fy - 3 }, end: { x: M + 320, y: fy - 3 }, thickness: 0.3, color: LIGHT_GRAY });
+        page.drawLine({ start: { x: valueX - 2, y: fy + 8 }, end: { x: valueX - 2, y: fy - 3 }, thickness: 0.3, color: LIGHT_GRAY });
+      }
+
+      if (data.clientAge || data.clientHeight || data.clientWeight) {
+        const extras: string[] = [];
+        if (data.clientAge) extras.push(`IDADE: ${data.clientAge}`);
+        if (data.clientHeight) extras.push(`ALT.: ${data.clientHeight}`);
+        if (data.clientWeight) extras.push(`PESO: ${data.clientWeight}`);
+        page.drawText(extras.join("   "), { x: col2LabelX, y: y, size: 7, font: regular, color: BLACK });
+      }
+
+      y -= fields.length * fieldH + 8;
+
+      page.drawRectangle({ x: M, y: y - 12, width: PAGE_W_L - 2 * M, height: 14, color: rgb(0.92, 0.92, 0.92) });
+      page.drawText("Protocolo Medicamento", { x: M + 5, y: y - 8, size: 8, font: bold, color: BLACK });
+
+      const protoSubX = fixedTotal + M;
+      for (let si = 0; si < pageSubstCount; si++) {
+        const sub = pageSubstances[si];
+        const sx = protoSubX + si * substColW;
+        page.drawText(sub.name.length > 10 ? sub.name.slice(0, 9) + "." : sub.name, {
+          x: sx + 2, y: y - 8, size: 7, font: bold, color: BLACK,
+        });
+      }
+      y -= 16;
+
+      const protoRows = [
+        { label: "Numero de Aplicacoes", key: "total" as const },
+        { label: "Frequencia de Aplicacoes", key: "freq" as const },
+        { label: "Data Inicio por Substancia", key: "start" as const },
+      ];
+
+      for (const pr of protoRows) {
+        page.drawText(pr.label, { x: M + 5, y: y - 3, size: 6.5, font: regular, color: BLACK });
+        for (let si = 0; si < pageSubstCount; si++) {
+          const sub = pageSubstances[si];
+          const sx = protoSubX + si * substColW;
+          let val = "";
+          if (pr.key === "total") val = `Qtde ${sub.totalSessions}`;
+          else if (pr.key === "freq") val = `Dias ${sub.frequencyDays}`;
+          else val = sub.startDate.split("-").reverse().join("/");
+          page.drawText(val, { x: sx + 2, y: y - 3, size: 6.5, font: regular, color: BLACK });
+        }
+        y -= 11;
+      }
+      y -= 5;
+
+      const colHeaderY = y;
+      page.drawRectangle({ x: M, y: colHeaderY - COL_HEADER_H + 5, width: PAGE_W_L - 2 * M, height: COL_HEADER_H, color: rgb(0.92, 0.92, 0.92) });
+
+      let cx = M;
+      const drawColHeader = (text: string, w: number) => {
+        page.drawText(text, { x: cx + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+        page.drawLine({ start: { x: cx + w, y: colHeaderY + 5 }, end: { x: cx + w, y: colHeaderY - COL_HEADER_H + 5 }, thickness: 0.3, color: BLACK });
+        cx += w;
+      };
+
+      drawColHeader("AGENDA\nMENTO", fixedColWidths.agendamento);
+      drawColHeader("CIENCIA E\nASSINATURA", fixedColWidths.assinatura);
+      drawColHeader("ENF", fixedColWidths.enf);
+      drawColHeader("DATA\nPREVISTA", fixedColWidths.dataPrevista);
+      drawColHeader("DATA\nEFETIVA", fixedColWidths.dataEfetiva);
+
+      page.drawText("AGENDA\nMENTO", { x: M + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+      page.drawText("MENTO", { x: M + 2, y: colHeaderY - 16, size: 6, font: bold, color: BLACK });
+
+      page.drawText("CIENCIA E", { x: M + fixedColWidths.agendamento + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+      page.drawText("ASSINATURA", { x: M + fixedColWidths.agendamento + 2, y: colHeaderY - 16, size: 6, font: bold, color: BLACK });
+
+      page.drawText("ENF", { x: M + fixedColWidths.agendamento + fixedColWidths.assinatura + 2, y: colHeaderY - 12, size: 6, font: bold, color: BLACK });
+
+      page.drawText("DATA", { x: M + fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+      page.drawText("PREVISTA", { x: M + fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf + 2, y: colHeaderY - 16, size: 6, font: bold, color: BLACK });
+
+      page.drawText("DATA", { x: M + fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf + fixedColWidths.dataPrevista + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+      page.drawText("EFETIVA", { x: M + fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf + fixedColWidths.dataPrevista + 2, y: colHeaderY - 16, size: 6, font: bold, color: BLACK });
+
+      for (let si = 0; si < pageSubstCount; si++) {
+        const sub = pageSubstances[si];
+        const sx = protoSubX + si * substColW;
+        const subColor = getSubstanceColor(sub.color);
+
+        page.drawRectangle({
+          x: sx, y: colHeaderY - COL_HEADER_H + 5,
+          width: substColW, height: 4,
+          color: subColor,
+        });
+
+        page.drawText("STATUS", { x: sx + 2, y: colHeaderY - 8, size: 6, font: bold, color: BLACK });
+        page.drawText("SESSAO", { x: sx + 2, y: colHeaderY - 16, size: 6, font: bold, color: BLACK });
+
+        page.drawLine({ start: { x: sx + substColW, y: colHeaderY + 5 }, end: { x: sx + substColW, y: colHeaderY - COL_HEADER_H + 5 }, thickness: 0.3, color: BLACK });
+      }
+
+      page.drawLine({ start: { x: M, y: colHeaderY + 5 }, end: { x: PAGE_W_L - M, y: colHeaderY + 5 }, thickness: 0.5, color: BLACK });
+      page.drawLine({ start: { x: M, y: colHeaderY - COL_HEADER_H + 5 }, end: { x: PAGE_W_L - M, y: colHeaderY - COL_HEADER_H + 5 }, thickness: 0.5, color: BLACK });
+
+      y = colHeaderY - COL_HEADER_H + 5;
+
+      const startSessIdx = sessPage * sessionsPerPage;
+      const endSessIdx = Math.min(startSessIdx + sessionsPerPage, maxSessions);
+
+      for (let si = startSessIdx; si < endSessIdx; si++) {
+        const sess = si < data.sessions.length ? data.sessions[si] : null;
+        const rowY = y - ROW_H;
+
+        const isToday = sess?.scheduledDate === today;
+        if (isToday) {
+          page.drawRectangle({ x: M, y: rowY, width: PAGE_W_L - 2 * M, height: ROW_H, color: rgb(0.95, 0.98, 0.90) });
+        }
+
+        page.drawText(String(si + 1), { x: M + 12, y: rowY + 7, size: 8, font: bold, color: BLACK });
+
+        if (sess?.nurseName) {
+          const enfX = M + fixedColWidths.agendamento + fixedColWidths.assinatura;
+          page.drawText(sess.nurseName.split(" ").map(w => w[0]).join("."), { x: enfX + 2, y: rowY + 7, size: 7, font: regular, color: BLACK });
+        }
+
+        if (sess) {
+          const dpX = M + fixedColWidths.agendamento + fixedColWidths.assinatura + fixedColWidths.enf;
+          page.drawText(sess.scheduledDate.split("-").reverse().join("/"), { x: dpX + 2, y: rowY + 7, size: 7, font: regular, color: BLACK });
+
+          if (sess.effectiveDate) {
+            const deX = dpX + fixedColWidths.dataPrevista;
+            page.drawText(sess.effectiveDate.split("-").reverse().join("/"), { x: deX + 2, y: rowY + 7, size: 7, font: regular, color: BLACK });
+          }
+        }
+
+        for (let ssi = 0; ssi < pageSubstCount; ssi++) {
+          const sub = pageSubstances[ssi];
+          const substGlobalIdx = startSubIdx + ssi;
+          const sx = protoSubX + ssi * substColW;
+
+          if (sess) {
+            const substStatus = sess.substanceStatuses.find(ss => ss.substanceName === sub.name);
+            if (substStatus) {
+              const statusText = `${substStatus.sessionNumber} / ${substStatus.totalSessions}`;
+              const subColor = getSubstanceColor(sub.color);
+
+              if (substStatus.status === "applied") {
+                page.drawRectangle({ x: sx + 1, y: rowY + 1, width: substColW - 2, height: ROW_H - 2, color: subColor, opacity: 0.7 });
+              } else if (substStatus.status === "disp" && isToday) {
+                page.drawRectangle({ x: sx + 1, y: rowY + 1, width: substColW - 2, height: ROW_H - 2, color: subColor, opacity: 0.3 });
+              }
+
+              page.drawText(statusText, { x: sx + 4, y: rowY + 7, size: 7, font: regular, color: substStatus.status === "applied" ? rgb(1, 1, 1) : BLACK });
+            }
+          }
+        }
+
+        page.drawLine({ start: { x: M, y: rowY }, end: { x: PAGE_W_L - M, y: rowY }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+
+        let lx = M;
+        page.drawLine({ start: { x: lx + fixedColWidths.agendamento, y: rowY }, end: { x: lx + fixedColWidths.agendamento, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+        lx += fixedColWidths.agendamento;
+        page.drawLine({ start: { x: lx + fixedColWidths.assinatura, y: rowY }, end: { x: lx + fixedColWidths.assinatura, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+        lx += fixedColWidths.assinatura;
+        page.drawLine({ start: { x: lx + fixedColWidths.enf, y: rowY }, end: { x: lx + fixedColWidths.enf, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+        lx += fixedColWidths.enf;
+        page.drawLine({ start: { x: lx + fixedColWidths.dataPrevista, y: rowY }, end: { x: lx + fixedColWidths.dataPrevista, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+        lx += fixedColWidths.dataPrevista;
+        page.drawLine({ start: { x: lx + fixedColWidths.dataEfetiva, y: rowY }, end: { x: lx + fixedColWidths.dataEfetiva, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+
+        for (let ssi = 0; ssi < pageSubstCount; ssi++) {
+          const sx = protoSubX + ssi * substColW;
+          page.drawLine({ start: { x: sx + substColW, y: rowY }, end: { x: sx + substColW, y: rowY + ROW_H }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+        }
+
+        y = rowY;
+      }
+
+      page.drawLine({ start: { x: M, y }, end: { x: PAGE_W_L - M, y }, thickness: 0.5, color: BLACK });
+      page.drawLine({ start: { x: M, y: colHeaderY + 5 }, end: { x: M, y }, thickness: 0.5, color: BLACK });
+      page.drawLine({ start: { x: PAGE_W_L - M, y: colHeaderY + 5 }, end: { x: PAGE_W_L - M, y }, thickness: 0.5, color: BLACK });
+
+      y -= 15;
+      const sigW = (PAGE_W_L - 2 * M) / 3 - 20;
+      const sigs = [
+        { label: "Paciente", name: data.clientName },
+        { label: "Medico Resp.", name: data.professionalName },
+        { label: "Enfermeiro Resp.", name: data.nurseName ?? "" },
+      ];
+      for (let i = 0; i < sigs.length; i++) {
+        const sigX = M + i * (sigW + 20);
+        page.drawLine({ start: { x: sigX, y: y }, end: { x: sigX + sigW, y: y }, thickness: 0.5, color: BLACK });
+        page.drawText(sigs[i].label + ":", { x: sigX, y: y - 10, size: 7, font: bold, color: BLACK });
+        page.drawText(sigs[i].name, { x: sigX, y: y - 20, size: 7, font: regular, color: GRAY });
+      }
+
+      const footerText = `PADCOM — Protocolos Injetaveis · RAS Fisico · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+      page.drawText(footerText, { x: M, y: M - 10, size: 6, font: regular, color: GRAY });
+    }
+  }
+
+  return await pdfDoc.save();
+}
+
 export { getCertInfo, loadCertificate };

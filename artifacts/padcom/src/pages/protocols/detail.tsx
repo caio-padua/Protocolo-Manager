@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ProtocolDetail() {
@@ -15,6 +16,7 @@ export default function ProtocolDetail() {
   const [, setLocation] = useLocation();
   const id = params ? parseInt(params.id) : 0;
   const { toast } = useToast();
+  const [physicalRasLoading, setPhysicalRasLoading] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
     query: { enabled: !!id }
@@ -86,10 +88,43 @@ export default function ProtocolDetail() {
             </Button>
           )}
           {protocol.sessions.length > 0 && (
-            <Button variant="outline" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
-              <Download className="h-4 w-4 mr-1" />
-              Baixar ICS (Agendamento)
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
+                <Download className="h-4 w-4 mr-1" />
+                Baixar ICS
+              </Button>
+              <Button
+                variant="outline"
+                disabled={physicalRasLoading}
+                onClick={async () => {
+                  setPhysicalRasLoading(true);
+                  try {
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}`);
+                    if (!resp.ok) {
+                      const err = await resp.json().catch(() => null);
+                      throw new Error(err?.details || "Erro ao gerar RAS fisico");
+                    }
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const cd = resp.headers.get("Content-Disposition");
+                    const m = cd?.match(/filename="(.+)"/);
+                    a.download = m?.[1] ?? `RAS_FISICO_${id}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "RAS Fisico baixado!", description: "Documento para impressao e controle manual." });
+                  } catch (err: any) {
+                    toast({ title: "Erro", description: err.message, variant: "destructive" });
+                  } finally {
+                    setPhysicalRasLoading(false);
+                  }
+                }}
+              >
+                {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+                {physicalRasLoading ? "Gerando..." : "RAS Fisico (Imprimir)"}
+              </Button>
+            </>
           )}
         </div>
       </div>

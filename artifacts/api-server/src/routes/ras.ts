@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable } from "@workspace/db";
+import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable } from "@workspace/db";
 import {
   ListRASQueryParams,
   CreateRASBody,
   GetRASParams,
 } from "@workspace/api-zod";
-import { generateSignedRASPdf, getCertInfo } from "../lib/pdf-signer";
+import { generateSignedRASPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
@@ -290,6 +290,122 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("RAS Drive upload error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.protocolId);
+  if (isNaN(protocolId)) {
+    res.status(400).json({ error: "Invalid protocol id" });
+    return;
+  }
+
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  if (!client) {
+    res.status(404).json({ error: "Client not found" });
+    return;
+  }
+
+  let professionalName = "Profissional";
+  let nurseName = "";
+  if (protocol.professionalId) {
+    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+    if (prof) professionalName = prof.name;
+  }
+
+  const allProfs = await db.select().from(professionalsTable);
+  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  if (nurseProf) nurseName = nurseProf.name;
+
+  const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
+  const allSubstances = await db.select().from(substancesTable);
+  const substMap = new Map(allSubstances.map(s => [s.id, s]));
+
+  const substances = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    return {
+      name: sub?.name ?? `Substancia ${item.substanceId}`,
+      color: sub?.color ?? "yellow",
+      totalSessions: item.totalSessions,
+      frequencyDays: item.intervalDays,
+      startDate: item.startDate,
+      procedureType: sub?.procedureType ?? "iv",
+    };
+  });
+
+  const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
+  sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+
+  const physicalSessions = [];
+  for (const sess of sessions) {
+    const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
+    const substanceStatuses = apps
+      .filter(a => a.availability === "disp")
+      .map(a => {
+        const sub = substMap.get(a.substanceId);
+        return {
+          substanceName: sub?.name ?? "",
+          sessionNumber: a.sessionNumber,
+          totalSessions: a.totalSessions,
+          status: a.status,
+        };
+      });
+
+    let sessNurse: string | null = null;
+    if (sess.professionalId) {
+      const sp = allProfs.find(p => p.id === sess.professionalId);
+      if (sp && (sp.specialty ?? "").toLowerCase().includes("enf")) {
+        sessNurse = sp.name.split(" ").map(w => w[0]?.toUpperCase()).join(".");
+      }
+    }
+
+    physicalSessions.push({
+      number: sess.weekNumber,
+      scheduledDate: sess.scheduledDate,
+      effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
+      nurseName: sessNurse,
+      substanceStatuses,
+    });
+  }
+
+  let clientAge: number | undefined;
+  if (client.birthDate) {
+    const birth = new Date(client.birthDate);
+    const now = new Date();
+    clientAge = now.getFullYear() - birth.getFullYear();
+    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
+  }
+
+  try {
+    const pdfBytes = await generatePhysicalRASPdf({
+      clientName: client.name,
+      clientCpf: client.cpf,
+      clientPhone: client.phone ?? undefined,
+      clientAge,
+      professionalName,
+      nurseName: nurseName || undefined,
+      unit: protocol.unit ?? "Clinica Padua",
+      startDate: protocol.startDate,
+      substances,
+      sessions: physicalSessions,
+    });
+
+    const clientSlug = client.name.replace(/\s+/g, "_");
+    const filename = `RAS_FISICO_${clientSlug}_PROTOCOLO_${protocolId}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBytes.length);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    console.error("Physical RAS PDF error:", err);
+    res.status(500).json({ error: "Erro ao gerar RAS fisico", details: err.message });
   }
 });
 

@@ -42,7 +42,8 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado
 - **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
 - **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
-- **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download
+- **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download, auto-upload to Google Drive (PROTOCOLOS folder), manual "Enviar ao Drive" button
+- **RAS Físico** — Printable landscape PDF (spreadsheet format) for nurse manual control: substance columns with colored headers, numbered session rows with date/signature/ENF/status fields, cells colored for applied/today sessions. Accessed from protocol detail page
 - **Estoque** — stock management with critical/low alerts
 - **Financeiro** — payments tracking with PIX/credit/debit/boleto/cash methods, installments for credit cards, card identification labels, running balance with total pago/pendente
 - **Profissionais** — staff management
