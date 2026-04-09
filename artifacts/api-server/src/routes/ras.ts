@@ -7,6 +7,13 @@ import {
   GetRASParams,
 } from "@workspace/api-zod";
 import { generateSignedRASPdf, getCertInfo } from "../lib/pdf-signer";
+import {
+  ensureClientFolderStructure,
+  uploadFileToDrive,
+  shareWithClient,
+  isDriveConnected,
+  formatRASFileName,
+} from "../lib/google-drive";
 
 const router: IRouter = Router();
 
@@ -180,6 +187,25 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
     const dateSlug = ras.serviceDate.replace(/-/g, "");
     const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
 
+    (async () => {
+      try {
+        if (await isDriveConnected()) {
+          const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
+          if (client) {
+            const folders = await ensureClientFolderStructure(client.name, client.cpf);
+            const driveFileName = formatRASFileName(ras.serviceDate, client.name, client.cpf);
+            const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"], driveFileName, "application/pdf", Buffer.from(pdfBytes));
+            if (client.email) {
+              await shareWithClient(result.fileId, client.email);
+            }
+            console.log(`RAS ${ras.id} uploaded to Drive: ${result.webViewLink}`);
+          }
+        }
+      } catch (driveErr: any) {
+        console.error("Auto-upload RAS to Drive failed (non-blocking):", driveErr.message);
+      }
+    })();
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBytes.length);
@@ -187,6 +213,83 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("PDF generation error:", err);
     res.status(500).json({ error: "Erro ao gerar PDF assinado", details: err.message });
+  }
+});
+
+router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid RAS id" });
+    return;
+  }
+
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+  if (!ras) {
+    res.status(404).json({ error: "RAS not found" });
+    return;
+  }
+
+  if (!(await isDriveConnected())) {
+    res.status(503).json({ error: "Google Drive nao conectado" });
+    return;
+  }
+
+  try {
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
+    if (!client) {
+      res.status(404).json({ error: "Cliente nao encontrado" });
+      return;
+    }
+
+    const formatted = formatRAS(ras);
+    const allSubstances = await db.select().from(substancesTable);
+    const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
+    const enrichedSubstances = formatted.substances.map(sub => {
+      const dbSub = substanceMap.get(sub.substanceName);
+      return {
+        ...sub,
+        description: dbSub?.description ?? undefined,
+        mainFunction: dbSub?.mainFunction ?? undefined,
+        perceivedEffects: dbSub?.perceivedEffects ?? undefined,
+        timeToEffect: dbSub?.timeToEffect ?? undefined,
+        starRating: dbSub?.starRating ?? undefined,
+        bodySystemEffects: (dbSub?.bodySystemEffects as Record<string, string>) ?? undefined,
+        procedureType: dbSub?.procedureType ?? undefined,
+      };
+    });
+
+    const { pdfBytes } = await generateSignedRASPdf({
+      id: ras.id,
+      sessionId: ras.sessionId,
+      clientName: ras.clientName,
+      clientCpf: ras.clientCpf,
+      professionalName: ras.professionalName,
+      professionalCrm: ras.professionalCrm ?? null,
+      unit: ras.unit,
+      serviceDate: ras.serviceDate,
+      serviceType: ras.serviceType,
+      observations: ras.observations ?? null,
+      substances: enrichedSubstances,
+    });
+
+    const folders = await ensureClientFolderStructure(client.name, client.cpf);
+    const driveFileName = formatRASFileName(ras.serviceDate, client.name, client.cpf);
+    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"], driveFileName, "application/pdf", Buffer.from(pdfBytes));
+
+    if (client.email) {
+      await shareWithClient(result.fileId, client.email);
+    }
+
+    res.json({
+      success: true,
+      fileId: result.fileId,
+      webViewLink: result.webViewLink,
+      fileName: driveFileName,
+      message: `RAS enviado para Google Drive na pasta PROTOCOLOS de ${client.name}`,
+    });
+  } catch (err: any) {
+    console.error("RAS Drive upload error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

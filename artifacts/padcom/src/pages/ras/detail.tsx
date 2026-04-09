@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2, FolderUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CertInfo {
@@ -24,6 +24,7 @@ export default function RASDetail() {
   const id = params ? parseInt(params.id) : 0;
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [certInfo, setCertInfo] = useState<CertInfo | null>(null);
 
   const { data: ras, isLoading } = useGetRAS(id, {
@@ -36,6 +37,23 @@ export default function RASDetail() {
       .then(setCertInfo)
       .catch(() => {});
   }, []);
+
+  async function uploadToDrive() {
+    setUploading(true);
+    try {
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/${id}/upload-drive`, { method: "POST" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null);
+        throw new Error(err?.error || "Erro ao enviar ao Drive");
+      }
+      const data = await resp.json();
+      toast({ title: "RAS enviado ao Google Drive!", description: data.message });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function downloadPdf() {
     setDownloading(true);
@@ -89,6 +107,15 @@ export default function RASDetail() {
         >
           {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           {downloading ? "Gerando..." : "Baixar PDF Assinado"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={uploadToDrive}
+          disabled={uploading}
+          className="gap-2"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderUp className="h-4 w-4" />}
+          {uploading ? "Enviando..." : "Enviar ao Drive"}
         </Button>
         <Button variant="outline" onClick={() => window.print()}>
           <Printer className="h-4 w-4 mr-1" />
