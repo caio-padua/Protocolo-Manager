@@ -39,12 +39,12 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 
 ### Frontend (`artifacts/padcom`)
 - **Dashboard** — overview
-- **Clientes** — CRUD de clientes with Google Drive folder setup button
+- **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado
 - **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
 - **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
 - **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download
 - **Estoque** — stock management with critical/low alerts
-- **Financeiro** — payments tracking
+- **Financeiro** — payments tracking with PIX/credit/debit/boleto/cash methods, installments for credit cards, card identification labels, running balance with total pago/pendente
 - **Profissionais** — staff management
 - **Substâncias** — comprehensive substance catalog with expandable detail cards showing health benefits, body system impact bars, longevity/sleep/energy/performance info
 

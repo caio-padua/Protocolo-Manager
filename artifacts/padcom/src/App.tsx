@@ -8,6 +8,7 @@ import { Layout } from "@/components/layout/Layout";
 import Dashboard from "@/pages/dashboard";
 import Clients from "@/pages/clients";
 import ClientDetail from "@/pages/clients/detail";
+import EditClient from "@/pages/clients/edit";
 import NewClient from "@/pages/clients/new";
 import Substances from "@/pages/substances";
 import Protocols from "@/pages/protocols";
@@ -37,6 +38,7 @@ function Router() {
         
         <Route path="/clients" component={Clients} />
         <Route path="/clients/new" component={NewClient} />
+        <Route path="/clients/:id/edit" component={EditClient} />
         <Route path="/clients/:id" component={ClientDetail} />
         
         <Route path="/substances" component={Substances} />

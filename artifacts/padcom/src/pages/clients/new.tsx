@@ -9,27 +9,56 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useCallback } from "react";
 
 const formSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
-  cpf: z.string().min(11, "CPF inválido"),
-  email: z.string().email("Email inválido"),
-  phone: z.string().min(10, "Telefone inválido"),
+  cpf: z.string().min(11, "CPF invalido"),
+  email: z.string().email("Email invalido"),
+  phone: z.string().min(10, "Telefone invalido"),
   birthDate: z.string().optional(),
-  address: z.string().optional(),
+  cep: z.string().optional(),
+  logradouro: z.string().optional(),
+  numero: z.string().optional(),
+  complemento: z.string().optional(),
+  bairro: z.string().optional(),
+  cidade: z.string().optional(),
+  estado: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
   notes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
+function formatCPF(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatCEP(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 export default function NewClient() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const createClient = useCreateClient();
+  const [loadingCep, setLoadingCep] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -39,15 +68,69 @@ export default function NewClient() {
       email: "",
       phone: "",
       birthDate: "",
-      address: "",
+      cep: "",
+      logradouro: "",
+      numero: "",
+      complemento: "",
+      bairro: "",
+      cidade: "",
+      estado: "",
       status: "active",
       notes: "",
     },
   });
 
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+
+  const lookupCep = useCallback(async () => {
+    const cep = form.getValues("cep")?.replace(/\D/g, "");
+    if (!cep || cep.length !== 8) {
+      toast.error("CEP deve ter 8 digitos");
+      return;
+    }
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`${apiBase}/cep/${cep}`);
+      if (!res.ok) {
+        toast.error("CEP nao encontrado");
+        return;
+      }
+      const data = await res.json();
+      form.setValue("logradouro", data.logradouro || "");
+      form.setValue("bairro", data.bairro || "");
+      form.setValue("cidade", data.localidade || "");
+      form.setValue("estado", data.uf || "");
+      if (data.complemento) form.setValue("complemento", data.complemento);
+      toast.success("Endereco preenchido automaticamente!");
+    } catch {
+      toast.error("Erro ao buscar CEP");
+    } finally {
+      setLoadingCep(false);
+    }
+  }, [form, apiBase]);
+
   const onSubmit = (values: FormValues) => {
+    const addressParts = [
+      values.logradouro,
+      values.numero,
+      values.complemento,
+      values.bairro,
+      values.cidade ? `${values.cidade} - ${values.estado || ""}` : values.estado,
+      values.cep ? `CEP ${values.cep}` : "",
+    ].filter(Boolean);
+    const address = addressParts.join(", ");
+
     createClient.mutate(
-      { data: values },
+      { data: {
+        name: values.name,
+        cpf: values.cpf,
+        email: values.email,
+        phone: values.phone,
+        birthDate: values.birthDate || undefined,
+        address: address || undefined,
+        status: values.status,
+        notes: values.notes || undefined,
+      }},
       {
         onSuccess: (client) => {
           queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
@@ -68,14 +151,14 @@ export default function NewClient() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Novo Cliente</h1>
-          <p className="text-muted-foreground">Cadastre um novo paciente no sistema.</p>
+          <h1 className="text-2xl font-bold tracking-tight">NOVO CLIENTE</h1>
+          <p className="text-muted-foreground">Cadastre um novo cliente no sistema.</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Informações Pessoais</CardTitle>
+          <CardTitle className="uppercase tracking-wider text-sm">Informacoes Pessoais</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -86,9 +169,9 @@ export default function NewClient() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome Completo *</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">Nome Completo *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: João da Silva" {...field} />
+                        <Input placeholder="Ex: Joao da Silva" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -100,9 +183,13 @@ export default function NewClient() {
                   name="cpf"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>CPF *</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">CPF *</FormLabel>
                       <FormControl>
-                        <Input placeholder="000.000.000-00" {...field} />
+                        <Input
+                          placeholder="000.000.000-00"
+                          value={field.value}
+                          onChange={(e) => field.onChange(formatCPF(e.target.value))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -114,7 +201,7 @@ export default function NewClient() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email *</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">Email *</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="joao@exemplo.com" {...field} />
                       </FormControl>
@@ -128,9 +215,13 @@ export default function NewClient() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Telefone *</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">Celular *</FormLabel>
                       <FormControl>
-                        <Input placeholder="(00) 00000-0000" {...field} />
+                        <Input
+                          placeholder="(00) 00000-0000"
+                          value={field.value}
+                          onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -142,7 +233,7 @@ export default function NewClient() {
                   name="birthDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Data de Nascimento</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">Data de Nascimento</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -156,7 +247,7 @@ export default function NewClient() {
                   name="status"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status *</FormLabel>
+                      <FormLabel className="uppercase tracking-wider text-xs">Status *</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -175,29 +266,137 @@ export default function NewClient() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Endereço Completo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Rua, Número, Bairro, Cidade - Estado" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="border-t pt-6">
+                <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">Endereco</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cep"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">CEP</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder="00000-000"
+                              value={field.value}
+                              onChange={(e) => {
+                                const formatted = formatCEP(e.target.value);
+                                field.onChange(formatted);
+                                if (formatted.replace(/\D/g, "").length === 8) {
+                                  setTimeout(() => lookupCep(), 100);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={lookupCep}
+                            disabled={loadingCep}
+                          >
+                            {loadingCep ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="logradouro"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="uppercase tracking-wider text-xs">Logradouro</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Rua, Avenida..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="numero"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Numero</FormLabel>
+                        <FormControl>
+                          <Input placeholder="123" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="complemento"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Complemento</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Apto, Sala..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="bairro"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Bairro</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Bairro" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="cidade"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Cidade</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Sao Paulo" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name="estado"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Estado</FormLabel>
+                        <FormControl>
+                          <Input placeholder="SP" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
               <FormField
                 control={form.control}
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observações Clínicas</FormLabel>
+                    <FormLabel className="uppercase tracking-wider text-xs">Observacoes Clinicas</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="Alergias, condições pré-existentes, etc." 
+                        placeholder="Alergias, condicoes pre-existentes, etc." 
                         className="min-h-[100px]"
                         {...field} 
                       />
@@ -217,7 +416,7 @@ export default function NewClient() {
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
                   )}
-                  Salvar Cliente
+                  SALVAR CLIENTE
                 </Button>
               </div>
             </form>

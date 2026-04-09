@@ -173,8 +173,12 @@ export default function ProtocolDetail() {
                     </div>
                     <div className="flex gap-1.5 flex-wrap">
                       {session.substanceApplications.filter(a => a.availability === "disp" && a.sessionNumber > 0).map(app => (
-                        <span key={app.id} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: app.substanceColor }}>
-                          {app.substanceName} {app.sessionNumber}/{app.totalSessions} (DISP)
+                        <span
+                          key={app.id}
+                          className="inline-flex items-center text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                          style={{ backgroundColor: app.status === "applied" ? "#2563eb" : app.substanceColor }}
+                        >
+                          {app.substanceName} {app.sessionNumber}/{app.totalSessions} {app.status === "applied" ? "(APLICADA)" : "(DISP)"}
                         </span>
                       ))}
                       {session.substanceApplications.filter(a => a.availability === "prox").map(app => (

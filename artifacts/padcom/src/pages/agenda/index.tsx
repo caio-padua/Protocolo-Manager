@@ -428,7 +428,7 @@ export default function Agenda() {
                                   <span
                                     className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
                                       app.appliedAt
-                                        ? "text-white ring-2 ring-green-400 ring-offset-1"
+                                        ? "text-white ring-2 ring-blue-400 ring-offset-1"
                                         : app.availability === "prox"
                                         ? "bg-muted text-muted-foreground"
                                         : app.status === "missed"
@@ -445,14 +445,14 @@ export default function Agenda() {
                                   >
                                     <span className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/40 ${
                                       app.appliedAt
-                                        ? "bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.6)]"
+                                        ? "bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.6)]"
                                         : app.status === "missed"
                                         ? "bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]"
                                         : app.availability === "disp"
                                         ? "bg-yellow-400 shadow-[0_0_4px_rgba(250,204,21,0.5)]"
                                         : "bg-amber-700 shadow-[0_0_4px_rgba(180,83,9,0.5)]"
                                     }`} />
-                                    {app.appliedAt && <CheckCheck className="h-3 w-3 text-green-200" />}
+                                    {app.appliedAt && <CheckCheck className="h-3 w-3 text-blue-200" />}
                                     {app.substanceName}
                                     {app.sessionNumber > 0
                                       ? ` ${app.sessionNumber}/${app.totalSessions}`

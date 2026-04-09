@@ -14,6 +14,8 @@ export const sessionsTable = pgTable("sessions", {
   serviceType: text("service_type").notNull().default("clinic"),
   weekNumber: integer("week_number").notNull().default(1),
   notes: text("notes"),
+  googleEventId: text("google_event_id"),
+  googleCalendarId: text("google_calendar_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,4 +1,3 @@
-// Replit Integration: Google Calendar (connector: google-calendar)
 import { google } from 'googleapis';
 
 let connectionSettings: any;
@@ -74,6 +73,7 @@ export interface CalendarEventData {
   activeProcedureTypes: string[];
   substances: CalendarSubstance[];
   clientEmail?: string;
+  sessionStatus?: string;
 }
 
 function getColorIdForProcedure(procType: string): string {
@@ -132,11 +132,11 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
 
 function getDurationLabel(procKey: string): string {
   switch (procKey) {
-    case "iv": return "DURACAO: 30 MINUTOS";
-    case "im": return "DURACAO: 15 MINUTOS";
-    case "implant": return "DURACAO: 60 MINUTOS";
-    case "consultation": return "DURACAO: 60 MINUTOS";
-    default: return "DURACAO: 30 MINUTOS";
+    case "iv": return "30 MIN";
+    case "im": return "15 MIN";
+    case "implant": return "60 MIN";
+    case "consultation": return "60 MIN";
+    default: return "30 MIN";
   }
 }
 
@@ -151,9 +151,9 @@ function buildProcedureChecklist(activeProcTypes: string[], totalDurationMinutes
     .map(p => {
       const isActive = activeProcTypes.includes(p.key);
       if (isActive) {
-        return `\u2705 ${p.label} - ${getDurationLabel(p.key)}`;
+        return `${p.label} ${getDurationLabel(p.key)} \u2705`;
       }
-      return `\u274C ${p.label}`;
+      return `${p.label} \u274C`;
     })
     .join("\n");
 
@@ -171,14 +171,24 @@ function buildProcedureChecklist(activeProcTypes: string[], totalDurationMinutes
   return `${lines}\n\nDURACAO TOTAL: ${totalLabel}`;
 }
 
+function getSessionStatusLine(sessionStatus?: string): string {
+  if (sessionStatus === "completed") {
+    return "STATUS: REALIZADO \uD83D\uDD35";
+  } else if (sessionStatus === "missed" || sessionStatus === "cancelled") {
+    return "STATUS: NAO REALIZADO \u26AB";
+  }
+  return "STATUS: A REALIZAR \uD83D\uDFE1";
+}
+
 function buildDescriptionBody(
   data: CalendarEventData,
   clientNameUpper: string,
-  cpfPart: string,
+  cpfFormatted: string,
   substanceList: string,
   legend: string,
 ): string {
   const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes, data.durationMinutes);
+  const statusLine = getSessionStatusLine(data.sessionStatus);
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
   const mapsLink = data.locationAddress
@@ -188,7 +198,7 @@ function buildDescriptionBody(
     ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
     : null;
 
-  let desc = `PADCOM - Protocolos Injetaveis\n\nCliente: ${clientNameUpper}${cpfPart}\nSemana: ${data.weekNumber}\nUnidade: ${data.unit}\n\nPROCEDIMENTO:\n${procedureChecklist}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
+  let desc = `PADCON CONECT - Protocolos Injetaveis\n\nCLIENTE ${clientNameUpper}\nCPF ${cpfFormatted}\nATENDIMENTO ${data.weekNumber}\nUNIDADE ${data.unit}\n\nPROCEDIMENTOS:\n${procedureChecklist}\n\n${statusLine}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
 
   if (addressBlock) {
     desc += `\n\n${addressBlock}`;
@@ -214,7 +224,7 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
     const endDate = new Date(startDate.getTime() + data.durationMinutes * 60 * 1000);
 
     const clientNameUpper = removeAccents(data.clientName).toUpperCase();
-    const cpfPart = data.clientCpf ? ` ${data.clientCpf}` : "";
+    const cpfFormatted = data.clientCpf || "";
 
     const statusDot: Record<SubstanceStatus, string> = {
       disp: "\uD83D\uDFE2",
@@ -235,12 +245,12 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
 
-    const descriptionBody = buildDescriptionBody(data, clientNameUpper, cpfPart, substanceList, legend);
+    const descriptionBody = buildDescriptionBody(data, clientNameUpper, cpfFormatted, substanceList, legend);
 
     const locationField = data.locationAddress || data.unit;
 
     const event: any = {
-      summary: `${clientNameUpper}${cpfPart} - Sem ${data.weekNumber} - ${data.procedureLabel}`,
+      summary: `${clientNameUpper} ${cpfFormatted} - Atend ${data.weekNumber} - ${data.procedureLabel}`,
       description: descriptionBody,
       location: locationField,
       start: {
@@ -285,7 +295,7 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
     const calendar = await getUncachableGoogleCalendarClient();
 
     const clientNameUpper = removeAccents(data.clientName).toUpperCase();
-    const cpfPart = data.clientCpf ? ` ${data.clientCpf}` : "";
+    const cpfFormatted = data.clientCpf || "";
 
     const statusDot: Record<SubstanceStatus, string> = {
       disp: "\uD83D\uDFE2",
@@ -306,7 +316,7 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
 
     const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
 
-    const description = buildDescriptionBody(data, clientNameUpper, cpfPart, substanceList, legend);
+    const description = buildDescriptionBody(data, clientNameUpper, cpfFormatted, substanceList, legend);
 
     await calendar.events.patch({
       calendarId: calendarId || 'primary',
@@ -319,10 +329,10 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
   }
 }
 
-export async function deleteCalendarEvent(eventId: string): Promise<void> {
+export async function deleteCalendarEvent(eventId: string, calendarId?: string): Promise<void> {
   const calendar = await getUncachableGoogleCalendarClient();
   await calendar.events.delete({
-    calendarId: 'primary',
+    calendarId: calendarId || 'primary',
     eventId,
   });
 }

@@ -1,16 +1,19 @@
 import { useRoute, Link } from "wouter";
-import { useGetClient, getGetClientQueryKey, useListProtocols, useListSessions, useListPayments } from "@workspace/api-client-react";
+import { useGetClient, getGetClientQueryKey, useListProtocols, useListSessions, useListPayments, getListPaymentsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatStatus, getStatusColor } from "@/lib/status";
+import { useState } from "react";
 
 export default function ClientDetail() {
   const [, params] = useRoute("/clients/:id");
@@ -33,7 +36,49 @@ export default function ClientDetail() {
   });
 
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const apiBase = import.meta.env.VITE_API_URL || "/api";
+
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [payMethod, setPayMethod] = useState("pix");
+  const [payAmount, setPayAmount] = useState("");
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payInstallments, setPayInstallments] = useState("1");
+  const [payCardLabel, setPayCardLabel] = useState("");
+  const [payDescription, setPayDescription] = useState("");
+
+  const createPayment = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiBase}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: id,
+          amount: parseFloat(payAmount),
+          method: payMethod,
+          status: "paid",
+          paidAt: payDate,
+          description: payDescription || `${payMethod.toUpperCase()} - ${payDate}`,
+          installments: payMethod === "credit" ? parseInt(payInstallments) : null,
+          cardLabel: payMethod === "credit" ? payCardLabel : null,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Pagamento registrado!" });
+      queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey({ clientId: id }) });
+      setShowPaymentForm(false);
+      setPayAmount("");
+      setPayDescription("");
+      setPayCardLabel("");
+      setPayInstallments("1");
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    },
+  });
 
   const driveSetup = useMutation({
     mutationFn: async () => {
@@ -90,6 +135,11 @@ export default function ClientDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Link href={`/clients/${client.id}/edit`}>
+              <Button variant="outline">
+                <Pencil className="w-4 h-4 mr-2" /> Editar
+              </Button>
+            </Link>
             <Button
               variant="outline"
               onClick={() => driveSetup.mutate()}
@@ -293,6 +343,91 @@ export default function ClientDetail() {
             </TabsContent>
 
             <TabsContent value="financial" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold uppercase tracking-wider text-sm">Lancamentos</h3>
+                <Button size="sm" onClick={() => setShowPaymentForm(!showPaymentForm)}>
+                  <Plus className="w-4 h-4 mr-1" /> Novo Pagamento
+                </Button>
+              </div>
+
+              {showPaymentForm && (
+                <Card className="border-primary/30">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Modalidade</label>
+                        <Select value={payMethod} onValueChange={setPayMethod}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="credit">Credito</SelectItem>
+                            <SelectItem value="debit">Debito</SelectItem>
+                            <SelectItem value="boleto">Boleto</SelectItem>
+                            <SelectItem value="cash">Dinheiro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Valor (R$)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={payAmount}
+                          onChange={e => setPayAmount(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Data</label>
+                        <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+                      </div>
+                      {payMethod === "credit" && (
+                        <div>
+                          <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Parcelas</label>
+                          <Select value={payInstallments} onValueChange={setPayInstallments}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                                <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    {payMethod === "credit" && (
+                      <div>
+                        <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Cartao (identificacao)</label>
+                        <Input
+                          placeholder="Ex: Nubank, Itau Mastercard..."
+                          value={payCardLabel}
+                          onChange={e => setPayCardLabel(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs uppercase tracking-wider font-medium mb-1 block">Descricao</label>
+                      <Input
+                        placeholder="Opcional - ex: Parcela 1/3, PIX ref..."
+                        value={payDescription}
+                        onChange={e => setPayDescription(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setShowPaymentForm(false)}>Cancelar</Button>
+                      <Button
+                        size="sm"
+                        onClick={() => createPayment.mutate()}
+                        disabled={!payAmount || createPayment.isPending}
+                      >
+                        {createPayment.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <DollarSign className="w-4 h-4 mr-1" />}
+                        Registrar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {loadingPayments ? (
                 <Skeleton className="h-64 rounded-xl" />
               ) : payments?.length === 0 ? (
@@ -303,29 +438,56 @@ export default function ClientDetail() {
                 <Card>
                   <CardContent className="p-0">
                     <div className="divide-y">
-                      {payments?.map(payment => (
-                        <div key={payment.id} className="p-4 flex items-center justify-between hover:bg-muted/30">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-full ${payment.status === 'paid' ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'}`}>
-                              <CreditCard className="w-4 h-4" />
+                      {payments?.map(payment => {
+                        const methodIcon = {
+                          pix: <QrCode className="w-4 h-4" />,
+                          credit: <CreditCard className="w-4 h-4" />,
+                          debit: <CreditCard className="w-4 h-4" />,
+                          boleto: <Receipt className="w-4 h-4" />,
+                          cash: <Banknote className="w-4 h-4" />,
+                        }[payment.method] || <DollarSign className="w-4 h-4" />;
+
+                        const methodLabel = {
+                          pix: "PIX",
+                          credit: "CREDITO",
+                          debit: "DEBITO",
+                          boleto: "BOLETO",
+                          cash: "DINHEIRO",
+                        }[payment.method] || payment.method.toUpperCase();
+
+                        return (
+                          <div key={payment.id} className="p-4 flex items-center justify-between hover:bg-muted/30">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-full ${payment.status === 'paid' ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30'}`}>
+                                {methodIcon}
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm flex items-center gap-2">
+                                  {methodLabel}
+                                  {(payment as any).installments && (
+                                    <span className="text-xs text-muted-foreground">{(payment as any).installments}x</span>
+                                  )}
+                                  {(payment as any).cardLabel && (
+                                    <span className="text-xs text-muted-foreground">({(payment as any).cardLabel})</span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {payment.paidAt ? format(new Date(payment.paidAt), "dd/MM/yyyy") : payment.dueDate ? `Venc: ${format(new Date(payment.dueDate), "dd/MM/yyyy")}` : "-"}
+                                  {payment.description && ` · ${payment.description}`}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-sm">{payment.description || "Pagamento"}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Vencimento: {payment.dueDate ? format(new Date(payment.dueDate), "dd/MM/yyyy") : "-"}
+                            <div className="text-right">
+                              <p className="font-medium">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payment.amount)}
                               </p>
+                              <Badge variant="outline" className={`text-[10px] ${payment.status === 'paid' ? 'border-green-200 text-green-700' : 'border-amber-200 text-amber-700'}`}>
+                                {formatStatus(payment.status)}
+                              </Badge>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-medium">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payment.amount)}
-                            </p>
-                            <Badge variant="outline" className={`text-[10px] ${payment.status === 'paid' ? 'border-green-200 text-green-700' : 'border-amber-200 text-amber-700'}`}>
-                              {formatStatus(payment.status)}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

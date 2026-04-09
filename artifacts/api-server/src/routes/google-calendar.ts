@@ -12,6 +12,7 @@ import {
 import {
   createCalendarEvent,
   updateCalendarEventDescription,
+  deleteCalendarEvent,
   listCalendars,
   type CalendarEventData,
   type CalendarSubstance,
@@ -153,6 +154,14 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
   }
 
   try {
+    if (session.googleEventId) {
+      try {
+        await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || targetCalendarId);
+      } catch (delErr: any) {
+        console.warn("Could not delete old calendar event:", delErr.message);
+      }
+    }
+
     const eventId = await createCalendarEvent({
       sessionId: session.id,
       clientName: client.name,
@@ -169,7 +178,15 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       activeProcedureTypes: Array.from(activeProcTypes),
       substances,
       clientEmail: client.email || undefined,
+      sessionStatus: session.status,
     });
+
+    if (eventId) {
+      await db.update(sessionsTable).set({
+        googleEventId: eventId,
+        googleCalendarId: targetCalendarId || null,
+      }).where(eq(sessionsTable.id, session.id));
+    }
 
     res.json({ success: true, eventId });
   } catch (err: any) {
@@ -264,6 +281,12 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
     }
 
     try {
+      if (session.googleEventId) {
+        try {
+          await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || targetCal);
+        } catch (_delErr: any) {}
+      }
+
       const eventId = await createCalendarEvent({
         sessionId: session.id,
         clientName: client.name,
@@ -280,7 +303,16 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         activeProcedureTypes: Array.from(activeProcTypes2),
         substances,
         clientEmail: client.email || undefined,
+        sessionStatus: session.status,
       });
+
+      if (eventId) {
+        await db.update(sessionsTable).set({
+          googleEventId: eventId,
+          googleCalendarId: targetCal || null,
+        }).where(eq(sessionsTable.id, session.id));
+      }
+
       results.push({ sessionId: session.id, clientName: client.name, success: true, eventId: eventId ?? undefined });
     } catch (err: any) {
       results.push({ sessionId: session.id, clientName: client.name, success: false, error: err.message });

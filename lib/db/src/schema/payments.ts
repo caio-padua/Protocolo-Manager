@@ -12,6 +12,8 @@ export const paymentsTable = pgTable("payments", {
   dueDate: text("due_date"),
   paidAt: text("paid_at"),
   description: text("description"),
+  installments: integer("installments"),
+  cardLabel: text("card_label"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
