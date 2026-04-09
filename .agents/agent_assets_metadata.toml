@@ -12,3 +12,9 @@ id = "mr_vXrs5kzJohZNLndLSJ"
 uri = "file://PADCOM_HANDOFF.md"
 type = "text"
 title = "PADCOM - Handoff para Projeto Paralelo"
+
+[[outputs]]
+id = "kMgEqWr3pQgeBlKIa-hZK"
+uri = "file://screenshots/ras_fisico_exemplo.pdf"
+type = "pdf"
+title = "RAS Físico — Exemplo (Protocolo Anti-Aging Ricardo Almeida Ferreira)"
