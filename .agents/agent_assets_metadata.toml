@@ -18,3 +18,9 @@ id = "kMgEqWr3pQgeBlKIa-hZK"
 uri = "file://screenshots/ras_fisico_exemplo.pdf"
 type = "pdf"
 title = "RAS Físico — Exemplo (Protocolo Anti-Aging Ricardo Almeida Ferreira)"
+
+[[outputs]]
+id = "vaWiA_l1GiD5JaAdsBX61"
+uri = "file://screenshots/ras_fisico_v2.pdf"
+type = "pdf"
+title = "RAS Físico v2 — Células coloridas + Rubrica Paciente/ENF + Datas dd/mm/yy"

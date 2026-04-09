@@ -10,10 +10,14 @@ import { generateSignedRASPdf, generatePhysicalRASPdf, getCertInfo } from "../li
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
+  uploadToFolderById,
   shareWithClient,
   isDriveConnected,
   formatRASFileName,
+  formatPhysicalRASFileName,
 } from "../lib/google-drive";
+import { sendProtocolEmail } from "../lib/email-service";
+import { isGmailConnected } from "../lib/google-gmail";
 
 const router: IRouter = Router();
 
@@ -396,13 +400,76 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       sessions: physicalSessions,
     });
 
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const driveFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
     const clientSlug = client.name.replace(/\s+/g, "_");
     const filename = `RAS_FISICO_${clientSlug}_PROTOCOLO_${protocolId}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBytes.length);
-    res.send(Buffer.from(pdfBytes));
+    res.send(pdfBuffer);
+
+    const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+
+    (async () => {
+      try {
+        if (await isDriveConnected()) {
+          const uploadPromises: Promise<any>[] = [];
+
+          uploadPromises.push(
+            uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
+              .then(() => console.log(`Physical RAS uploaded to shared folder: ${driveFileName}`))
+              .catch(err => console.error("Shared folder upload error:", err.message))
+          );
+
+          uploadPromises.push(
+            ensureClientFolderStructure(client.name, client.cpf)
+              .then(async ({ subfolders }) => {
+                const protocolosFolderId = subfolders["PROTOCOLOS"];
+                if (protocolosFolderId) {
+                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
+                  if (client.email) {
+                    await shareWithClient(result.fileId, client.email);
+                  }
+                  console.log(`Physical RAS uploaded to client PROTOCOLOS: ${driveFileName}`);
+                }
+              })
+              .catch(err => console.error("Client folder upload error:", err.message))
+          );
+
+          await Promise.all(uploadPromises);
+        }
+      } catch (err: any) {
+        console.error("Physical RAS Drive upload error:", err.message);
+      }
+
+      try {
+        if (client.email && await isGmailConnected()) {
+          const emailResult = await sendProtocolEmail({
+            clientName: client.name,
+            clientEmail: client.email,
+            protocolTitle: protocol.title,
+            professionalName,
+            startDate: protocol.startDate,
+            substances: substances.map(s => ({
+              name: s.name,
+              color: s.color,
+              totalSessions: s.totalSessions,
+            })),
+            pdfBuffer,
+            pdfFileName: driveFileName,
+          });
+          if (emailResult.success) {
+            console.log(`Protocol email sent to ${client.email}`);
+          } else {
+            console.error("Protocol email failed:", emailResult.error);
+          }
+        }
+      } catch (err: any) {
+        console.error("Protocol email error:", err.message);
+      }
+    })();
   } catch (err: any) {
     console.error("Physical RAS PDF error:", err);
     res.status(500).json({ error: "Erro ao gerar RAS fisico", details: err.message });

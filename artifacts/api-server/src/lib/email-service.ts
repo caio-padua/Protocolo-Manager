@@ -422,6 +422,114 @@ export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<
   });
 }
 
+export interface ProtocolEmailData {
+  clientName: string;
+  clientEmail: string;
+  protocolTitle: string;
+  professionalName: string;
+  startDate: string;
+  substances: Array<{ name: string; color: string; totalSessions: number }>;
+  pdfBuffer: Buffer;
+  pdfFileName: string;
+}
+
+function buildProtocolEmailHTML(data: ProtocolEmailData): string {
+  const substList = data.substances
+    .map(s => `<li style="padding: 6px 0; color: #334155; font-size: 14px;">
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${s.color}; margin-right: 8px;"></span>
+      <strong>${s.name}</strong> — ${s.totalSessions} sessoes
+    </li>`)
+    .join("");
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin: 0; padding: 0; background: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background: #f1f5f9; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="640" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+
+          <tr>
+            <td style="background: linear-gradient(135deg, #1e3a3a, #3d7a7a); padding: 32px 40px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 2px;">INSTITUTO PADUA</h1>
+              <p style="margin: 8px 0 0; color: #a7f3d0; font-size: 14px; letter-spacing: 1px;">Protocolo Medico Personalizado</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 32px 40px;">
+              <p style="color: #475569; font-size: 16px; margin: 0 0 20px; line-height: 1.7;">
+                Prezado(a) Sr(a).: <strong style="color: #1e293b;">${data.clientName}</strong>,
+              </p>
+
+              <p style="color: #475569; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">
+                Este e-mail tem o objetivo de informar que o seu protocolo medico personalizado
+                <strong style="color: #1e3a3a;">${data.protocolTitle}</strong> foi elaborado pelo
+                Dr(a). <strong>${data.professionalName}</strong>, com inicio previsto para
+                <strong style="color: #1e40af;">${formatDateBR(data.startDate)}</strong>.
+              </p>
+
+              <p style="color: #475569; font-size: 15px; margin: 0 0 24px; line-height: 1.7;">
+                Segue em anexo o documento <strong>RAS Fisico</strong> (Registro de Administracao de Substancias)
+                contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle
+                presencial de cada aplicacao.
+              </p>
+
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <h3 style="margin: 0 0 12px; color: #166534; font-size: 15px;">Substancias do seu protocolo:</h3>
+                <ul style="margin: 0; padding: 0 0 0 4px; list-style: none;">
+                  ${substList}
+                </ul>
+              </div>
+
+              <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.6;">
+                  <strong>Importante:</strong> Este documento deve ser apresentado em todas as sessoes presenciais
+                  para controle e rubrica da enfermeira responsavel. Em caso de duvidas, entre em contato
+                  com a clinica.
+                </p>
+              </div>
+
+              <p style="color: #64748b; font-size: 14px; margin: 0; line-height: 1.6;">
+                Atenciosamente,<br>
+                <strong style="color: #1e3a3a;">Instituto Padua</strong><br>
+                <span style="font-size: 12px; color: #94a3b8;">Protocolos Injetaveis — Medicina Estetica</span>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                Instituto Padua -- Protocolos Injetaveis<br>
+                Este e-mail foi enviado automaticamente pelo sistema PADCOM.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ success: boolean; error?: string }> {
+  return sendGmailMessage({
+    to: data.clientEmail,
+    subject: "INSTITUTO PADUA - PROTOCOLO MEDICO PERSONALIZADO",
+    html: buildProtocolEmailHTML(data),
+    attachments: [{
+      filename: data.pdfFileName,
+      content: data.pdfBuffer,
+      contentType: "application/pdf",
+    }],
+  });
+}
+
 export async function isEmailConfigured(): Promise<boolean> {
   return isGmailConnected();
 }

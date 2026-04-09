@@ -200,3 +200,20 @@ export function formatRASFileName(date: string, clientName: string, cpf: string)
   const [y, m, d] = date.split("-");
   return `${d}.${m}.${y.slice(-2)} RAS ${removeDiacritics(clientName).toUpperCase()} ${cpf}.pdf`;
 }
+
+export function formatPhysicalRASFileName(date: string, clientName: string, protocolTitle: string): string {
+  const [y, m, d] = date.split("-");
+  const yy = y.slice(-2);
+  const cleanName = removeDiacritics(clientName).toUpperCase();
+  const cleanTitle = removeDiacritics(protocolTitle).toUpperCase();
+  return `${yy}.${m}.${d} PROTOCOLO ${cleanName} (${cleanTitle}).pdf`;
+}
+
+export async function uploadToFolderById(
+  folderId: string,
+  fileName: string,
+  mimeType: string,
+  fileBuffer: Buffer
+): Promise<{ fileId: string; webViewLink: string }> {
+  return uploadFileToDrive(folderId, fileName, mimeType, fileBuffer);
+}
