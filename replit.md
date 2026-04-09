@@ -73,6 +73,7 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - **ICS integration**: Download ICS files per session or per week; Google Calendar deep links
 - **WhatsApp reminders**: Pre-formatted messages sent to client's phone
 - **A1 ICP-Brasil signature**: Multi-page PDF with RAS + substance info sheets + consent terms, digitally signed with PKCS#7
+- **Protocolo Completo PDF**: 8-10 page comprehensive protocol document with: cover page (PADCOM branding, client/doctor info, protocol value), benefits matrix (star ratings + 8 benefit categories per substance), substance fact sheets (description, function, body system effects, contraindications), TCLE per procedure type (IV/IM/SC/Implant), LGPD clause, session timeline grid, financial summary (payments, installments, balance), ICP-Brasil digital signature. Auto-uploads to Google Drive + emails to client. Route: `GET /api/protocols/:id/document-pdf`
 - **Per-substance confirmation**: Each substance in a session confirmed individually (DISP/PROX badges)
 - **Color-coded session cards**: Green=completed, Amber=partially confirmed, Blue=today, Red=missed, Gray=cancelled
 - **Substance pills with visual state**: Applied substances show green ring + checkmark; pending show DISP/PROX badge

@@ -949,4 +949,819 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
   return await pdfDoc.save();
 }
 
+interface ProtocolDocSubstance {
+  name: string;
+  dose: string;
+  color: string;
+  totalSessions: number;
+  intervalDays: number;
+  startDate: string;
+  procedureType: string;
+  description?: string;
+  mainFunction?: string;
+  perceivedEffects?: string;
+  timeToEffect?: string;
+  starRating?: number;
+  bodySystemEffects?: Record<string, string>;
+  contraindications?: string;
+  scientificEvidence?: string;
+  longevityBenefit?: string;
+  qualityOfLifeImpact?: string;
+  sleepBenefit?: string;
+  energyBenefit?: string;
+  libidoBenefit?: string;
+  physicalPerformance?: string;
+  muscleStrength?: string;
+  mentalClarity?: string;
+  skinHairNails?: string;
+  immuneSupport?: string;
+}
+
+interface ProtocolDocSession {
+  number: number;
+  scheduledDate: string;
+  status: string;
+  substanceStatuses: Array<{
+    substanceName: string;
+    sessionNumber: number;
+    totalSessions: number;
+    status: string;
+  }>;
+}
+
+interface ProtocolDocPayment {
+  amount: number;
+  method: string;
+  status: string;
+  dueDate?: string | null;
+  paidAt?: string | null;
+  description?: string | null;
+  installments?: number | null;
+  cardLabel?: string | null;
+}
+
+interface ProtocolDocumentData {
+  protocolId: number;
+  protocolTitle: string;
+  clientName: string;
+  clientCpf: string;
+  clientEmail: string;
+  clientPhone?: string;
+  clientBirthDate?: string;
+  professionalName: string;
+  professionalCrm?: string | null;
+  nurseName?: string;
+  unit: string;
+  serviceType: string;
+  startDate: string;
+  endDate?: string | null;
+  totalValue: number;
+  notes?: string | null;
+  substances: ProtocolDocSubstance[];
+  sessions: ProtocolDocSession[];
+  payments: ProtocolDocPayment[];
+}
+
+const PETROL = rgb(0.12, 0.33, 0.33);
+const PETROL_LIGHT = rgb(0.85, 0.93, 0.93);
+const PETROL_MID = rgb(0.18, 0.45, 0.45);
+const COVER_BG = rgb(0.08, 0.22, 0.22);
+const WHITE = rgb(1, 1, 1);
+const GOLD_ACCENT = rgb(0.82, 0.68, 0.21);
+
+function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
+  const rY = 38;
+  page.drawLine({ start: { x: PAGE_W - MARGIN - 140, y: rY }, end: { x: PAGE_W - MARGIN, y: rY }, thickness: 0.5, color: PETROL });
+  page.drawText("RUBRICA CLIENTE", { x: PAGE_W - MARGIN - 140, y: rY - 10, size: 6, font: fonts.regular, color: GRAY });
+  page.drawText(clientName.split(" ")[0], { x: PAGE_W - MARGIN - 80, y: rY - 10, size: 6, font: fonts.regular, color: GRAY });
+}
+
+function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
+  const footerText = `PADCOM - Protocolos Injetaveis | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
+  drawRubricLine(page, fonts, clientName);
+}
+
+function newDocPage(pdfDoc: PDFDocument, allPages: PDFPage[]): PDFPage {
+  const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  allPages.push(page);
+  return page;
+}
+
+function drawSectionHeader(page: PDFPage, fonts: Fonts, y: number, title: string): number {
+  page.drawRectangle({ x: MARGIN, y: y - 2, width: CONTENT_W, height: 20, color: PETROL });
+  page.drawText(title, { x: MARGIN + 10, y: y + 3, size: 9, font: fonts.bold, color: WHITE });
+  return y - 28;
+}
+
+function safeTxt(text: string | number | undefined | null): string {
+  if (text === undefined || text === null) return "";
+  const str = String(text);
+  return str
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, "")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2014/g, "--")
+    .replace(/\u2013/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00B2/g, "2")
+    .replace(/\u00B3/g, "3");
+}
+
+function toDateBR(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function benefitLabel(val: string | undefined): string {
+  if (!val) return "-";
+  const t = safeTxt(val).trim();
+  return t.length > 40 ? t.slice(0, 38) + ".." : t;
+}
+
+function methodLabel(m: string): string {
+  const map: Record<string, string> = {
+    pix: "PIX", credit: "Cartao Credito", debit: "Cartao Debito",
+    boleto: "Boleto", cash: "Dinheiro",
+  };
+  return map[m] ?? m;
+}
+
+function procTypeLabel(t: string): string {
+  const map: Record<string, string> = {
+    iv: "ENDOVENOSO (IV)", im: "INTRAMUSCULAR (IM)",
+    sc: "SUBCUTANEO (SC)", implant: "IMPLANTE",
+  };
+  return map[t] ?? t.toUpperCase();
+}
+
+export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): Promise<{ pdfBytes: Uint8Array; certInfo: any }> {
+  const certInfo = getCertInfo();
+  const { key, cert } = loadCertificate();
+
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(`Protocolo ${data.protocolTitle} - ${data.clientName}`);
+  pdfDoc.setAuthor("PADCOM - Protocolos Injetaveis");
+  pdfDoc.setSubject("Protocolo Medico Personalizado");
+  pdfDoc.setCreator("Sistema PADCOM");
+
+  const fonts: Fonts = {
+    regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+    bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+  };
+
+  const allPages: PDFPage[] = [];
+
+  // ============================================================
+  // PAGE 1: COVER PAGE
+  // ============================================================
+  {
+    const page = newDocPage(pdfDoc, allPages);
+
+    page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: COVER_BG });
+
+    page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 160, width: CONTENT_W + 20, height: 3, color: GOLD_ACCENT });
+
+    page.drawText("PADCOM", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
+    page.drawText("PROTOCOLOS INJETAVEIS", { x: MARGIN, y: PAGE_H - 125, size: 14, font: fonts.regular, color: GOLD_ACCENT });
+
+    page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 175, width: CONTENT_W + 20, height: 1, color: rgb(1, 1, 1, 0.2) });
+
+    let y = PAGE_H - 230;
+    page.drawText("PROTOCOLO MEDICO PERSONALIZADO", { x: MARGIN, y, size: 18, font: fonts.bold, color: WHITE });
+    y -= 35;
+
+    page.drawText(safeTxt(data.protocolTitle).toUpperCase(), { x: MARGIN, y, size: 22, font: fonts.bold, color: GOLD_ACCENT });
+    y -= 50;
+
+    page.drawRectangle({ x: MARGIN, y: y - 5, width: CONTENT_W, height: 1, color: rgb(1, 1, 1, 0.15) });
+    y -= 30;
+
+    const coverFields = [
+      { label: "CLIENTE", value: data.clientName },
+      { label: "CPF", value: data.clientCpf },
+      { label: "E-MAIL", value: data.clientEmail },
+      { label: "TELEFONE", value: data.clientPhone ?? "-" },
+      { label: "MEDICO RESPONSAVEL", value: `${data.professionalName}${data.professionalCrm ? ` (${data.professionalCrm})` : ""}` },
+      { label: "UNIDADE", value: data.unit },
+      { label: "ATENDIMENTO", value: data.serviceType === "homecare" ? "NURSE CARE DOMICILIAR" : "CLINICA" },
+      { label: "INICIO DO PROTOCOLO", value: toDateBR(data.startDate) },
+      { label: "TOTAL DE SESSOES", value: `${data.sessions.length} sessoes` },
+      { label: "SUBSTANCIAS", value: `${data.substances.length} substancias` },
+    ];
+
+    for (const f of coverFields) {
+      page.drawText(f.label, { x: MARGIN, y, size: 7, font: fonts.regular, color: rgb(0.6, 0.7, 0.7) });
+      page.drawText(safeTxt(f.value), { x: MARGIN + 160, y, size: 9, font: fonts.bold, color: WHITE });
+      y -= 18;
+    }
+
+    y -= 30;
+    page.drawRectangle({ x: MARGIN, y: y - 5, width: CONTENT_W, height: 1, color: rgb(1, 1, 1, 0.15) });
+    y -= 25;
+
+    const totalFormatted = `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    page.drawText("VALOR DO PROTOCOLO", { x: MARGIN, y, size: 8, font: fonts.regular, color: rgb(0.6, 0.7, 0.7) });
+    page.drawText(totalFormatted, { x: MARGIN + 160, y, size: 14, font: fonts.bold, color: GOLD_ACCENT });
+
+    page.drawText("Documento gerado pelo sistema PADCOM", { x: MARGIN, y: 50, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
+    page.drawText(`${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: MARGIN, y: 38, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
+  }
+
+  // ============================================================
+  // PAGE 2: BENEFITS MATRIX
+  // ============================================================
+  {
+    let currentPage = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
+
+    const benefitCols = [
+      { key: "longevityBenefit", label: "LONGEVIDADE" },
+      { key: "sleepBenefit", label: "SONO" },
+      { key: "energyBenefit", label: "ENERGIA" },
+      { key: "libidoBenefit", label: "LIBIDO" },
+      { key: "mentalClarity", label: "CLAREZA MENTAL" },
+      { key: "immuneSupport", label: "IMUNIDADE" },
+      { key: "skinHairNails", label: "PELE/CABELO" },
+      { key: "muscleStrength", label: "MUSCULO" },
+    ];
+
+    const nameColW = 90;
+    const starsColW = 40;
+    const benefitColW = Math.min(50, (CONTENT_W - nameColW - starsColW) / benefitCols.length);
+    const rowH = 22;
+
+    function drawBenefitHeader(pg: PDFPage, yPos: number, isFirst: boolean): number {
+      yPos = drawSectionHeader(pg, fonts, yPos, isFirst ? "MATRIZ DE BENEFICIOS POR SUBSTANCIA" : "MATRIZ DE BENEFICIOS (CONT.)");
+      yPos -= 5;
+      pg.drawRectangle({ x: MARGIN, y: yPos - rowH + 5, width: CONTENT_W, height: rowH, color: PETROL_LIGHT });
+      pg.drawText("SUBSTANCIA", { x: MARGIN + 4, y: yPos - 8, size: 6, font: fonts.bold, color: PETROL });
+      pg.drawText("NOTA", { x: MARGIN + nameColW + 2, y: yPos - 8, size: 6, font: fonts.bold, color: PETROL });
+      for (let c = 0; c < benefitCols.length; c++) {
+        const bx = MARGIN + nameColW + starsColW + c * benefitColW;
+        const lines = benefitCols[c].label.length > 8
+          ? [benefitCols[c].label.slice(0, 8), benefitCols[c].label.slice(8)]
+          : [benefitCols[c].label];
+        for (let l = 0; l < lines.length; l++) {
+          pg.drawText(lines[l], { x: bx + 2, y: yPos - 5 - l * 7, size: 5.5, font: fonts.bold, color: PETROL });
+        }
+      }
+      return yPos - rowH;
+    }
+
+    y = drawBenefitHeader(currentPage, y, true);
+
+    for (const sub of data.substances) {
+      if (y < MARGIN + 60) {
+        currentPage = newDocPage(pdfDoc, allPages);
+        y = PAGE_H - MARGIN;
+        y = drawBenefitHeader(currentPage, y, false);
+      }
+
+      const subColor = getSubstanceColor(sub.color);
+      currentPage.drawCircle({ x: MARGIN + 6, y: y - 6, size: 4, color: subColor });
+      const nm = safeTxt(sub.name).length > 12 ? safeTxt(sub.name).slice(0, 11) + "." : safeTxt(sub.name);
+      currentPage.drawText(nm, { x: MARGIN + 14, y: y - 8, size: 7, font: fonts.bold, color: BLACK });
+
+      if (sub.starRating !== undefined) {
+        drawStars(currentPage, MARGIN + nameColW + 2, y - 10, sub.starRating, 5);
+      }
+
+      for (let c = 0; c < benefitCols.length; c++) {
+        const bx = MARGIN + nameColW + starsColW + c * benefitColW;
+        const val = (sub as any)[benefitCols[c].key] as string | undefined;
+        const label = benefitLabel(val);
+        const truncLabel = label.length > 7 ? label.slice(0, 6) + "." : label;
+        currentPage.drawText(truncLabel, { x: bx + 2, y: y - 8, size: 5.5, font: fonts.regular, color: BLACK });
+      }
+
+      currentPage.drawLine({ start: { x: MARGIN, y: y - rowH + 5 }, end: { x: MARGIN + CONTENT_W, y: y - rowH + 5 }, thickness: 0.3, color: LIGHT_GRAY });
+      y -= rowH;
+    }
+
+    y -= 15;
+    currentPage.drawText("Legenda: Os circulos de cor representam a substancia. Estrelas indicam avaliacao geral (1-5).", {
+      x: MARGIN, y, size: 6.5, font: fonts.regular, color: GRAY,
+    });
+  }
+
+  // ============================================================
+  // PAGES: SUBSTANCE FACT SHEETS
+  // ============================================================
+  for (let si = 0; si < data.substances.length; si++) {
+    const sub = data.substances[si];
+    if (!sub.description && !sub.mainFunction) continue;
+
+    const page = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
+
+    const subColor = getSubstanceColor(sub.color);
+    page.drawRectangle({ x: MARGIN, y: y - 40, width: CONTENT_W, height: 50, color: PETROL });
+    page.drawText(safeTxt(sub.name).toUpperCase(), { x: MARGIN + 15, y: y - 10, size: 16, font: fonts.bold, color: WHITE });
+    page.drawText(procTypeLabel(sub.procedureType), { x: MARGIN + 15, y: y - 28, size: 8, font: fonts.regular, color: GOLD_ACCENT });
+
+    const doseInfo = `Dose: ${safeTxt(sub.dose)} | ${sub.totalSessions} sessoes | Intervalo: ${sub.intervalDays} dias`;
+    const diW = fonts.regular.widthOfTextAtSize(doseInfo, 7.5);
+    page.drawText(doseInfo, { x: PAGE_W - MARGIN - 15 - diW, y: y - 20, size: 7.5, font: fonts.regular, color: rgb(0.7, 0.85, 0.85) });
+
+    page.drawRectangle({ x: MARGIN, y: y - 42, width: CONTENT_W, height: 3, color: subColor });
+    y -= 55;
+
+    if (sub.description) {
+      page.drawText("O QUE E", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+      y -= 4;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
+      y -= 14;
+      const lines = wrapText(safeTxt(sub.description), fonts.regular, 8.5, CONTENT_W);
+      for (const line of lines) {
+        if (y < MARGIN + 60) break;
+        page.drawText(line, { x: MARGIN, y, size: 8.5, font: fonts.regular, color: BLACK });
+        y -= 12;
+      }
+      y -= 8;
+    }
+
+    if (sub.mainFunction) {
+      page.drawText("FUNCAO PRINCIPAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+      y -= 4;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
+      y -= 16;
+      page.drawRectangle({ x: MARGIN, y: y - 15, width: CONTENT_W, height: 28, color: PETROL_LIGHT, borderColor: PETROL, borderWidth: 0.5 });
+      page.drawText(safeTxt(sub.mainFunction), { x: MARGIN + 10, y: y - 5, size: 9, font: fonts.bold, color: PETROL });
+      if (sub.starRating !== undefined) {
+        drawStars(page, PAGE_W - MARGIN - 85, y - 5, sub.starRating);
+      }
+      y -= 30;
+    }
+
+    if (sub.bodySystemEffects && typeof sub.bodySystemEffects === "object") {
+      y -= 5;
+      page.drawText("EFEITOS POR SISTEMA CORPORAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+      y -= 4;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
+      y -= 16;
+
+      const systemColors: Record<string, ReturnType<typeof rgb>> = {
+        "Pele": rgb(0.9, 0.55, 0.35), "Figado": rgb(0.55, 0.35, 0.2),
+        "Sistema Imunologico": rgb(0.2, 0.6, 0.35), "Neurologico": rgb(0.4, 0.3, 0.7),
+        "Cardiovascular": rgb(0.8, 0.2, 0.2), "Muscular": rgb(0.2, 0.5, 0.6),
+        "Endocrino": rgb(0.6, 0.5, 0.15), "Muscular/Esqueletico": rgb(0.3, 0.5, 0.5),
+      };
+
+      const systems = Object.entries(sub.bodySystemEffects);
+      const colW = CONTENT_W / 2 - 5;
+
+      for (let row = 0; row < systems.length; row += 2) {
+        if (y < MARGIN + 70) break;
+        for (let col = 0; col < 2 && row + col < systems.length; col++) {
+          const [system, effect] = systems[row + col];
+          const xPos = MARGIN + col * (colW + 10);
+          page.drawRectangle({ x: xPos, y: y - 35, width: colW, height: 45, color: PETROL_LIGHT, borderColor: LIGHT_GRAY, borderWidth: 0.5 });
+          const dotColor = systemColors[system] ?? PETROL_MID;
+          page.drawCircle({ x: xPos + 12, y: y - 2, size: 4, color: dotColor });
+          page.drawText(safeTxt(system).toUpperCase(), { x: xPos + 22, y: y - 5, size: 7, font: fonts.bold, color: PETROL });
+          const effectLines = wrapText(safeTxt(effect), fonts.regular, 7, colW - 20);
+          for (let el = 0; el < Math.min(effectLines.length, 3); el++) {
+            page.drawText(effectLines[el], { x: xPos + 10, y: y - 18 - el * 9, size: 7, font: fonts.regular, color: GRAY });
+          }
+        }
+        y -= 50;
+      }
+    }
+
+    if (sub.perceivedEffects && y > MARGIN + 80) {
+      y -= 5;
+      page.drawText("EFEITOS PERCEBIDOS PELO CLIENTE", { x: MARGIN, y, size: 8, font: fonts.bold, color: GREEN });
+      y -= 14;
+      const lines = wrapText(safeTxt(sub.perceivedEffects), fonts.regular, 8.5, CONTENT_W - 10);
+      for (const line of lines) {
+        if (y < MARGIN + 60) break;
+        page.drawText(`> ${line}`, { x: MARGIN + 5, y, size: 8.5, font: fonts.regular, color: BLACK });
+        y -= 12;
+      }
+      y -= 5;
+    }
+
+    if (sub.contraindications && y > MARGIN + 80) {
+      page.drawText("CONTRAINDICACOES", { x: MARGIN, y, size: 8, font: fonts.bold, color: rgb(0.8, 0.2, 0.2) });
+      y -= 14;
+      const lines = wrapText(safeTxt(sub.contraindications), fonts.regular, 8, CONTENT_W - 10);
+      for (const line of lines) {
+        if (y < MARGIN + 60) break;
+        page.drawText(line, { x: MARGIN + 5, y, size: 8, font: fonts.regular, color: BLACK });
+        y -= 11;
+      }
+    }
+  }
+
+  // ============================================================
+  // TCLE: CONSENT FORMS PER PROCEDURE TYPE
+  // ============================================================
+  {
+    const procTypes = [...new Set(data.substances.map(s => s.procedureType))];
+
+    const page = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
+
+    y = drawSectionHeader(page, fonts, y, "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)");
+    y -= 5;
+
+    const substNames = data.substances.map(s => safeTxt(s.name)).join(", ");
+    const formattedDate = toDateBR(data.startDate);
+
+    const baseSections = [
+      {
+        title: "1. IDENTIFICACAO DO CLIENTE",
+        text: `Eu, ${safeTxt(data.clientName)}, portador(a) do CPF ${data.clientCpf}, declaro que fui devidamente informado(a) pelo(a) profissional ${safeTxt(data.professionalName)}${data.professionalCrm ? ` (${data.professionalCrm})` : ""} sobre os procedimentos a serem realizados na unidade ${safeTxt(data.unit)} com inicio em ${formattedDate}.`,
+      },
+      {
+        title: "2. PROCEDIMENTOS AUTORIZADOS",
+        text: `Autorizo a administracao das seguintes substancias: ${substNames}. Estou ciente de que os procedimentos injetaveis podem incluir aplicacoes por via endovenosa (IV), intramuscular (IM), subcutanea (SC) e/ou implante, conforme indicacao clinica individualizada.`,
+      },
+      {
+        title: "3. FINALIDADE TERAPEUTICA",
+        text: "Os procedimentos descritos tem por finalidade a suplementacao de micronutrientes, modulacao bioquimica, terapia antioxidante e/ou outra indicacao clinica conforme avaliacao profissional. Entendo que os resultados podem variar de pessoa para pessoa e dependem de fatores individuais como metabolismo, estilo de vida e adesao ao protocolo.",
+      },
+      {
+        title: "4. RISCOS E EFEITOS ADVERSOS GERAIS",
+        text: "Fui informado(a) sobre possiveis efeitos adversos, incluindo mas nao limitados a: dor e/ou hematoma no local da aplicacao, reacoes alergicas, rubor facial, cefaleia, nausea, hipotensao transitoria e, em casos raros, reacoes anafilaticas. Declaro ter informado sobre alergias, medicamentos em uso, condicoes de saude pre-existentes e gestacao/amamentacao.",
+      },
+      {
+        title: "5. CONTRAINDICACOES",
+        text: "Declaro ter sido questionado(a) e ter respondido com veracidade sobre: gestacao ou suspeita de gravidez; amamentacao; uso de anticoagulantes; doencas renais, hepaticas ou cardiacas; alergias conhecidas; uso de suplementos e fitoterapicos; e quaisquer condicoes que possam afetar a seguranca do procedimento.",
+      },
+    ];
+
+    const procSections: Array<{ title: string; text: string }> = [];
+
+    if (procTypes.includes("iv")) {
+      procSections.push({
+        title: "6. CONSENTIMENTO ESPECIFICO - VIA ENDOVENOSA (IV)",
+        text: "Autorizo procedimentos por via endovenosa. Fui informado(a) que infusoes IV requerem acesso venoso periferico, podendo ocorrer dor no local da puncao, hematoma, flebite e, raramente, infiltracao. No caso de Vitamina C endovenosa em alta dose (acima de 10g), declaro ciencia da necessidade de dosagem previa de G6PD (glicose-6-fosfato desidrogenase). No caso de NAD+, fui orientado(a) sobre a velocidade de infusao adequada e possiveis desconfortos.",
+      });
+    }
+
+    if (procTypes.includes("im")) {
+      procSections.push({
+        title: `${procSections.length + 6}. CONSENTIMENTO ESPECIFICO - VIA INTRAMUSCULAR (IM)`,
+        text: "Autorizo procedimentos por via intramuscular. Estou ciente de que aplicacoes IM podem causar dor local, hematoma, nodulacao transitoria e, em raros casos, lesao nervosa periferica. A tecnica de aplicacao segue protocolos de seguranca e sera realizada por profissional habilitado.",
+      });
+    }
+
+    if (procTypes.includes("sc")) {
+      procSections.push({
+        title: `${procSections.length + 6}. CONSENTIMENTO ESPECIFICO - VIA SUBCUTANEA (SC)`,
+        text: "Autorizo procedimentos por via subcutanea. Fui informado(a) que aplicacoes SC podem resultar em nodulos locais, eritema, prurido e dor no ponto de aplicacao. A absorcao e gradual e a tecnica sera realizada conforme boas praticas clinicas.",
+      });
+    }
+
+    if (procTypes.includes("implant")) {
+      procSections.push({
+        title: `${procSections.length + 6}. CONSENTIMENTO ESPECIFICO - IMPLANTE`,
+        text: "Autorizo a realizacao de implante subcutaneo. Estou ciente dos riscos especificos incluindo: necessidade de pequeno procedimento cirurgico, possibilidade de infeccao local, extrusao do implante, formacao de cicatriz, e necessidade de retorno para remocao ao final do periodo terapeutico. Fui orientado(a) sobre os cuidados pos-procedimento.",
+      });
+    }
+
+    const lgpdSection = {
+      title: `${baseSections.length + procSections.length + 1}. LEI GERAL DE PROTECAO DE DADOS (LGPD)`,
+      text: "Em conformidade com a Lei n. 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensiveis de saude para fins exclusivos de: execucao do protocolo terapeutico; emissao de documentos clinicos (RAS, receituarios); acompanhamento da evolucao clinica; comunicacao sobre agendamentos e resultados. Autorizo o armazenamento digital no sistema PADCOM e em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado em modo somente leitura. Tenho ciencia do meu direito de solicitar a exclusao, correcao ou portabilidade dos meus dados a qualquer momento.",
+    };
+
+    const finalSection = {
+      title: `${baseSections.length + procSections.length + 2}. DECLARACAO FINAL`,
+      text: "Declaro ter lido e compreendido integralmente o presente termo. Tive a oportunidade de fazer perguntas e esclarecer todas as minhas duvidas antes de assinar. Autorizo livremente a realizacao dos procedimentos descritos neste protocolo.",
+    };
+
+    const allSections = [...baseSections, ...procSections, lgpdSection, finalSection];
+
+    let currentPage = page;
+
+    for (const section of allSections) {
+      if (y < MARGIN + 100) {
+        currentPage = newDocPage(pdfDoc, allPages);
+        y = PAGE_H - MARGIN;
+        currentPage.drawText("TCLE (CONTINUACAO)", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+        y -= 18;
+      }
+
+      currentPage.drawText(section.title, { x: MARGIN, y, size: 8.5, font: fonts.bold, color: PETROL });
+      y -= 14;
+
+      const lines = wrapText(section.text, fonts.regular, 8, CONTENT_W);
+      for (const line of lines) {
+        if (y < MARGIN + 60) {
+          currentPage = newDocPage(pdfDoc, allPages);
+          y = PAGE_H - MARGIN;
+          currentPage.drawText("TCLE (CONTINUACAO)", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+          y -= 18;
+        }
+        currentPage.drawText(line, { x: MARGIN, y, size: 8, font: fonts.regular, color: BLACK });
+        y -= 11;
+      }
+      y -= 8;
+    }
+
+    if (y > MARGIN + 80) {
+      y -= 15;
+      const sigW = CONTENT_W / 2 - 20;
+      currentPage.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + sigW, y }, thickness: 0.8, color: PETROL });
+      currentPage.drawText("Assinatura do Cliente", { x: MARGIN + 5, y: y - 11, size: 7, font: fonts.regular, color: GRAY });
+      currentPage.drawText(safeTxt(data.clientName), { x: MARGIN + 5, y: y - 22, size: 8, font: fonts.bold, color: BLACK });
+      currentPage.drawText(`CPF: ${data.clientCpf}`, { x: MARGIN + 5, y: y - 32, size: 7, font: fonts.regular, color: GRAY });
+
+      currentPage.drawLine({ start: { x: MARGIN + sigW + 40, y }, end: { x: MARGIN + 2 * sigW + 40, y }, thickness: 0.8, color: PETROL });
+      currentPage.drawText("Data", { x: MARGIN + sigW + 45, y: y - 11, size: 7, font: fonts.regular, color: GRAY });
+    }
+  }
+
+  // ============================================================
+  // PAGE(S): RAS GRID (COMPACT SESSION x SUBSTANCE)
+  // ============================================================
+  {
+    const sessColW = 28;
+    const nameW = 100;
+    const maxSessPerPage = Math.max(1, Math.floor((CONTENT_W - nameW) / sessColW));
+    const totalSessions = data.sessions.length;
+    const gridRowH = 16;
+    const gridPages = Math.max(1, Math.ceil(totalSessions / maxSessPerPage));
+
+    for (let gp = 0; gp < gridPages; gp++) {
+      let currentPage = newDocPage(pdfDoc, allPages);
+      let y = PAGE_H - MARGIN;
+
+      const startSess = gp * maxSessPerPage;
+      const endSess = Math.min(startSess + maxSessPerPage, totalSessions);
+      const sessCount = endSess - startSess;
+      const headerLabel = gp === 0 ? "CRONOGRAMA DE SESSOES" : `CRONOGRAMA DE SESSOES (S${startSess + 1}-S${endSess})`;
+
+      y = drawSectionHeader(currentPage, fonts, y, headerLabel);
+      y -= 5;
+
+      function drawGridHeader(pg: PDFPage, yPos: number): number {
+        pg.drawRectangle({ x: MARGIN, y: yPos - gridRowH + 4, width: nameW + sessCount * sessColW, height: gridRowH, color: PETROL_LIGHT });
+        pg.drawText("SUBSTANCIA", { x: MARGIN + 4, y: yPos - 7, size: 6, font: fonts.bold, color: PETROL });
+        for (let s = 0; s < sessCount; s++) {
+          const sx = MARGIN + nameW + s * sessColW;
+          pg.drawText(`S${startSess + s + 1}`, { x: sx + 2, y: yPos - 7, size: 6, font: fonts.bold, color: PETROL });
+        }
+        return yPos - gridRowH;
+      }
+
+      y = drawGridHeader(currentPage, y);
+
+      for (const sub of data.substances) {
+        if (y < MARGIN + 60) {
+          currentPage = newDocPage(pdfDoc, allPages);
+          y = PAGE_H - MARGIN;
+          y = drawSectionHeader(currentPage, fonts, y, `CRONOGRAMA (CONT. S${startSess + 1}-S${endSess})`);
+          y -= 5;
+          y = drawGridHeader(currentPage, y);
+        }
+
+        const subColor = getSubstanceColor(sub.color);
+        currentPage.drawCircle({ x: MARGIN + 6, y: y - 5, size: 3, color: subColor });
+        const nm = safeTxt(sub.name).length > 14 ? safeTxt(sub.name).slice(0, 13) + "." : safeTxt(sub.name);
+        currentPage.drawText(nm, { x: MARGIN + 14, y: y - 8, size: 6.5, font: fonts.regular, color: BLACK });
+
+        for (let s = 0; s < sessCount; s++) {
+          const sess = data.sessions[startSess + s];
+          const sx = MARGIN + nameW + s * sessColW;
+          const substStatus = sess.substanceStatuses.find(ss => ss.substanceName === sub.name);
+
+          if (substStatus) {
+            if (substStatus.status === "applied") {
+              currentPage.drawRectangle({ x: sx + 1, y: y - gridRowH + 5, width: sessColW - 2, height: gridRowH - 2, color: subColor, opacity: 0.75 });
+              currentPage.drawText(`${substStatus.sessionNumber}`, { x: sx + 3, y: y - 8, size: 6, font: fonts.bold, color: WHITE });
+            } else {
+              currentPage.drawRectangle({ x: sx + 1, y: y - gridRowH + 5, width: sessColW - 2, height: gridRowH - 2, color: subColor, opacity: 0.2 });
+              currentPage.drawText(`${substStatus.sessionNumber}`, { x: sx + 3, y: y - 8, size: 6, font: fonts.regular, color: BLACK });
+            }
+          }
+        }
+
+        currentPage.drawLine({ start: { x: MARGIN, y: y - gridRowH + 4 }, end: { x: MARGIN + nameW + sessCount * sessColW, y: y - gridRowH + 4 }, thickness: 0.2, color: LIGHT_GRAY });
+        y -= gridRowH;
+      }
+
+      y -= 15;
+      currentPage.drawText("Legenda: Celula preenchida forte = aplicado | Celula preenchida leve = agendado | Numeros = sessao da substancia", {
+        x: MARGIN, y, size: 6, font: fonts.regular, color: GRAY,
+      });
+      y -= 12;
+
+      if (data.sessions.length > 0) {
+        const firstDate = toDateBR(data.sessions[0].scheduledDate);
+        const lastDate = toDateBR(data.sessions[data.sessions.length - 1].scheduledDate);
+        currentPage.drawText(`Periodo: ${firstDate} a ${lastDate} | Total: ${data.sessions.length} sessoes`, {
+          x: MARGIN, y, size: 6.5, font: fonts.regular, color: GRAY,
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // PAGE: FINANCIAL SUMMARY
+  // ============================================================
+  {
+    const page = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
+
+    y = drawSectionHeader(page, fonts, y, "RESUMO FINANCEIRO");
+    y -= 10;
+
+    page.drawText("VALOR TOTAL DO PROTOCOLO", { x: MARGIN, y, size: 9, font: fonts.bold, color: PETROL });
+    y -= 18;
+
+    const totalStr = `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    page.drawText(totalStr, { x: MARGIN, y, size: 22, font: fonts.bold, color: PETROL });
+    y -= 30;
+
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL, opacity: 0.3 });
+    y -= 15;
+
+    page.drawText("COMPOSICAO POR SUBSTANCIA", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+    y -= 16;
+
+    const subTableCols = ["Substancia", "Dose", "Sessoes", "Via", "Intervalo", "Inicio"];
+    const subTableW = [140, 80, 60, 70, 60, 80];
+    const subRowH = 16;
+
+    page.drawRectangle({ x: MARGIN, y: y - subRowH + 4, width: CONTENT_W, height: subRowH, color: PETROL_LIGHT });
+    let tx = MARGIN;
+    for (let c = 0; c < subTableCols.length; c++) {
+      page.drawText(subTableCols[c], { x: tx + 4, y: y - 7, size: 6.5, font: fonts.bold, color: PETROL });
+      tx += subTableW[c];
+    }
+    y -= subRowH;
+
+    for (const sub of data.substances) {
+      const vals = [
+        safeTxt(sub.name), safeTxt(sub.dose), `${sub.totalSessions}`,
+        procTypeLabel(sub.procedureType).split("(")[0].trim(),
+        `${sub.intervalDays} dias`, toDateBR(sub.startDate),
+      ];
+      tx = MARGIN;
+      for (let c = 0; c < vals.length; c++) {
+        const trunc = vals[c].length > 20 ? vals[c].slice(0, 18) + ".." : vals[c];
+        page.drawText(trunc, { x: tx + 4, y: y - 7, size: 7, font: fonts.regular, color: BLACK });
+        tx += subTableW[c];
+      }
+      page.drawLine({ start: { x: MARGIN, y: y - subRowH + 4 }, end: { x: MARGIN + CONTENT_W, y: y - subRowH + 4 }, thickness: 0.2, color: LIGHT_GRAY });
+      y -= subRowH;
+    }
+
+    y -= 20;
+
+    if (data.payments.length > 0) {
+      page.drawText("HISTORICO DE PAGAMENTOS", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+      y -= 16;
+
+      const payH = ["Valor", "Forma", "Status", "Vencimento", "Pago em", "Parcelas", "Cartao"];
+      const payW = [80, 80, 60, 70, 70, 50, 80];
+
+      page.drawRectangle({ x: MARGIN, y: y - subRowH + 4, width: CONTENT_W, height: subRowH, color: PETROL_LIGHT });
+      tx = MARGIN;
+      for (let c = 0; c < payH.length; c++) {
+        page.drawText(payH[c], { x: tx + 4, y: y - 7, size: 6.5, font: fonts.bold, color: PETROL });
+        tx += payW[c];
+      }
+      y -= subRowH;
+
+      for (const pay of data.payments) {
+        const statusLbl = pay.status === "paid" ? "Pago" : pay.status === "pending" ? "Pendente" : pay.status;
+        const vals = [
+          `R$ ${pay.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          methodLabel(pay.method),
+          statusLbl,
+          pay.dueDate ? toDateBR(pay.dueDate) : "-",
+          pay.paidAt ? toDateBR(pay.paidAt) : "-",
+          pay.installments ? `${pay.installments}x` : "-",
+          safeTxt(pay.cardLabel) || "-",
+        ];
+        tx = MARGIN;
+        for (let c = 0; c < vals.length; c++) {
+          const trunc = vals[c].length > 12 ? vals[c].slice(0, 10) + ".." : vals[c];
+          page.drawText(trunc, { x: tx + 4, y: y - 7, size: 7, font: fonts.regular, color: BLACK });
+          tx += payW[c];
+        }
+        page.drawLine({ start: { x: MARGIN, y: y - subRowH + 4 }, end: { x: MARGIN + CONTENT_W, y: y - subRowH + 4 }, thickness: 0.2, color: LIGHT_GRAY });
+        y -= subRowH;
+      }
+
+      const totalPaid = data.payments.filter(p => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+      const totalPending = data.payments.filter(p => p.status === "pending").reduce((s, p) => s + p.amount, 0);
+
+      y -= 10;
+      page.drawText(`Total Pago: R$ ${totalPaid.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, {
+        x: MARGIN, y, size: 9, font: fonts.bold, color: GREEN,
+      });
+      y -= 15;
+      if (totalPending > 0) {
+        page.drawText(`Saldo Pendente: R$ ${totalPending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, {
+          x: MARGIN, y, size: 9, font: fonts.bold, color: rgb(0.8, 0.4, 0.1),
+        });
+      }
+    } else {
+      page.drawText("Nenhum pagamento registrado para este protocolo.", {
+        x: MARGIN, y, size: 9, font: fonts.regular, color: GRAY,
+      });
+    }
+  }
+
+  // ============================================================
+  // LAST PAGE: DIGITAL SIGNATURE
+  // ============================================================
+  {
+    const page = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
+
+    y = drawSectionHeader(page, fonts, y, "ASSINATURA DIGITAL ICP-BRASIL");
+    y -= 10;
+
+    page.drawRectangle({ x: MARGIN, y: y - 85, width: CONTENT_W, height: 95, borderColor: PETROL, borderWidth: 1.5, color: PETROL_LIGHT, opacity: 0.5 });
+
+    page.drawText("DOCUMENTO ASSINADO DIGITALMENTE", { x: MARGIN + 12, y: y - 2, size: 9, font: fonts.bold, color: PETROL });
+
+    const cnAttr = cert.subject.getField("CN");
+    const signerName = cnAttr?.value ? String(cnAttr.value) : data.professionalName;
+
+    const signDetails = [
+      `Assinante: ${safeTxt(signerName)}`,
+      `CPF: ${certInfo.cpf ?? "-"}`,
+      `Emissor: ${safeTxt(String(cert.issuer.getField("CN")?.value ?? "ICP-Brasil"))}`,
+      `Serial: ${cert.serialNumber.toUpperCase().slice(0, 40)}`,
+      `Valido: ${new Date(certInfo.validFrom).toLocaleDateString("pt-BR")} a ${new Date(certInfo.validTo).toLocaleDateString("pt-BR")}`,
+      `Assinado em: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+    ];
+
+    for (let i = 0; i < signDetails.length; i++) {
+      page.drawText(signDetails[i], { x: MARGIN + 12, y: y - 18 - i * 12, size: 8, font: fonts.regular, color: PETROL });
+    }
+    y -= 110;
+
+    y -= 20;
+    const sigW = CONTENT_W / 3 - 10;
+    const sigs = [
+      { label: "Assinatura do Profissional", name: safeTxt(data.professionalName), extra: data.professionalCrm },
+      { label: "Assinatura do Cliente", name: safeTxt(data.clientName), extra: `CPF: ${data.clientCpf}` },
+      { label: "Data", name: toDateBR(data.startDate), extra: null },
+    ];
+
+    for (let i = 0; i < sigs.length; i++) {
+      const bx = MARGIN + i * (sigW + 15);
+      page.drawLine({ start: { x: bx, y }, end: { x: bx + sigW, y }, thickness: 0.8, color: PETROL });
+      page.drawText(sigs[i].label, { x: bx + (sigW - fonts.regular.widthOfTextAtSize(sigs[i].label, 7)) / 2, y: y - 12, size: 7, font: fonts.regular, color: GRAY });
+      page.drawText(sigs[i].name, { x: bx + (sigW - fonts.bold.widthOfTextAtSize(sigs[i].name, 8)) / 2, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
+      if (sigs[i].extra) {
+        page.drawText(sigs[i].extra!, { x: bx + (sigW - fonts.regular.widthOfTextAtSize(sigs[i].extra!, 7)) / 2, y: y - 33, size: 7, font: fonts.regular, color: GRAY });
+      }
+    }
+
+    y -= 60;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL, opacity: 0.3 });
+    y -= 15;
+    page.drawText("Este documento foi gerado e assinado digitalmente pelo sistema PADCOM.", {
+      x: MARGIN, y, size: 7.5, font: fonts.regular, color: GRAY,
+    });
+    y -= 12;
+    page.drawText("A assinatura digital ICP-Brasil confere validade juridica ao documento (MP 2.200-2/2001).", {
+      x: MARGIN, y, size: 7.5, font: fonts.regular, color: GRAY,
+    });
+  }
+
+  // Add footer with rubric line to all pages (skip cover)
+  for (let i = 0; i < allPages.length; i++) {
+    if (i === 0) continue;
+    drawDocFooter(allPages[i], fonts, i + 1, allPages.length, data.clientName);
+  }
+
+  // === SIGN THE PDF ===
+  const pdfBytes = await pdfDoc.save();
+
+  const p7 = forge.pkcs7.createSignedData();
+  p7.content = forge.util.createBuffer(pdfBytes);
+  p7.addCertificate(cert);
+  p7.addSigner({
+    key,
+    certificate: cert,
+    digestAlgorithm: forge.pki.oids.sha256,
+    authenticatedAttributes: [
+      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+      { type: forge.pki.oids.messageDigest },
+      { type: forge.pki.oids.signingTime, value: new Date() },
+    ],
+  });
+  p7.sign({ detached: false });
+
+  const signatureDer = forge.asn1.toDer(p7.toAsn1()).getBytes();
+  const signatureB64 = forge.util.encode64(signatureDer);
+  const cnAttrInfo = cert.subject.getField("CN");
+  const sName = cnAttrInfo?.value ? String(cnAttrInfo.value) : data.professionalName;
+
+  return {
+    pdfBytes,
+    certInfo: { ...certInfo, signatureB64, signerName: sName },
+  };
+}
+
 export { getCertInfo, loadCertificate };

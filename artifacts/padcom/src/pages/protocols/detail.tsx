@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,6 +17,7 @@ export default function ProtocolDetail() {
   const id = params ? parseInt(params.id) : 0;
   const { toast } = useToast();
   const [physicalRasLoading, setPhysicalRasLoading] = useState(false);
+  const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
     query: { enabled: !!id }
@@ -123,6 +124,37 @@ export default function ProtocolDetail() {
               >
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
                 {physicalRasLoading ? "Gerando..." : "RAS Fisico (Imprimir)"}
+              </Button>
+              <Button
+                variant="default"
+                disabled={documentPdfLoading}
+                onClick={async () => {
+                  setDocumentPdfLoading(true);
+                  try {
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/document-pdf`);
+                    if (!resp.ok) {
+                      const err = await resp.json().catch(() => null);
+                      throw new Error(err?.details || "Erro ao gerar documento");
+                    }
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const cd = resp.headers.get("Content-Disposition");
+                    const m = cd?.match(/filename="(.+)"/);
+                    a.download = m?.[1] ?? `PROTOCOLO_${id}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "Protocolo completo gerado!", description: "PDF com capa, beneficios, TCLE, cronograma e financeiro." });
+                  } catch (err: any) {
+                    toast({ title: "Erro", description: err.message, variant: "destructive" });
+                  } finally {
+                    setDocumentPdfLoading(false);
+                  }
+                }}
+              >
+                {documentPdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+                {documentPdfLoading ? "Gerando..." : "Protocolo Completo (PDF)"}
               </Button>
             </>
           )}
