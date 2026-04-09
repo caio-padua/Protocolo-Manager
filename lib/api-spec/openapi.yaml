@@ -752,6 +752,15 @@ components:
         address:
           type: string
           nullable: true
+        pais:
+          type: string
+          nullable: true
+        instagram:
+          type: string
+          nullable: true
+        comoConheceu:
+          type: string
+          nullable: true
         status:
           type: string
           enum: [active, inactive, pending]
@@ -787,6 +796,15 @@ components:
           type: string
           nullable: true
         address:
+          type: string
+          nullable: true
+        pais:
+          type: string
+          nullable: true
+        instagram:
+          type: string
+          nullable: true
+        comoConheceu:
           type: string
           nullable: true
         status:

@@ -39,7 +39,7 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 
 ### Frontend (`artifacts/padcom`)
 - **Dashboard** — overview
-- **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado
+- **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado/pais. New fields: instagram, comoConheceu. Google Drive setup creates: folder structure (CLIENTES root → NOME CPF: xxx.xxx.xxx-xx → 15 subpastas), Google Sheet (CADASTRO + METADADOS tabs with folder IDs)
 - **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
 - **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
 - **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download, auto-upload to Google Drive (PROTOCOLOS folder), manual "Enviar ao Drive" button

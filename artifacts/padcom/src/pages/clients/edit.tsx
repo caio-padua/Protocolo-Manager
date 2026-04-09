@@ -28,6 +28,9 @@ const formSchema = z.object({
   bairro: z.string().optional(),
   cidade: z.string().optional(),
   estado: z.string().optional(),
+  pais: z.string().optional(),
+  instagram: z.string().optional(),
+  comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
   notes: z.string().optional(),
 });
@@ -107,6 +110,9 @@ export default function EditClient() {
       bairro: "",
       cidade: "",
       estado: "",
+      pais: "BRASIL",
+      instagram: "",
+      comoConheceu: "",
       status: "active",
       notes: "",
     },
@@ -128,6 +134,9 @@ export default function EditClient() {
         bairro: addrFields.bairro,
         cidade: addrFields.cidade,
         estado: addrFields.estado,
+        pais: (client as any).pais || "BRASIL",
+        instagram: (client as any).instagram || "",
+        comoConheceu: (client as any).comoConheceu || "",
         status: (client.status as "active" | "inactive" | "pending") || "active",
         notes: client.notes || "",
       });
@@ -182,6 +191,9 @@ export default function EditClient() {
         phone: values.phone,
         birthDate: values.birthDate || undefined,
         address: address || undefined,
+        pais: values.pais || "BRASIL",
+        instagram: values.instagram || undefined,
+        comoConheceu: values.comoConheceu || undefined,
         status: values.status,
         notes: values.notes || undefined,
       }},
@@ -445,6 +457,63 @@ export default function EditClient() {
                         <FormControl>
                           <Input placeholder="SP" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pais"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Pais</FormLabel>
+                        <FormControl>
+                          <Input placeholder="BRASIL" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">Informacoes Adicionais</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="instagram"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-wider text-xs">Instagram</FormLabel>
+                        <FormControl>
+                          <Input placeholder="@usuario" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="comoConheceu"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="uppercase tracking-wider text-xs">Como nos Conheceu ?</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="INDICACAO">Indicacao</SelectItem>
+                            <SelectItem value="INSTAGRAM">Instagram</SelectItem>
+                            <SelectItem value="GOOGLE">Google</SelectItem>
+                            <SelectItem value="FACEBOOK">Facebook</SelectItem>
+                            <SelectItem value="FORM">Formulario</SelectItem>
+                            <SelectItem value="OUTROS">Outros</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -4,6 +4,7 @@ import { clientsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import {
   ensureClientFolderStructure,
+  createClientSpreadsheet,
   uploadFileToDrive,
   shareWithClient,
   isDriveConnected,
@@ -32,6 +33,27 @@ router.post("/setup-client/:clientId", async (req: Request, res: Response) => {
 
     const result = await ensureClientFolderStructure(client.name, client.cpf);
 
+    let spreadsheetUrl = "";
+    try {
+      const sheetResult = await createClientSpreadsheet(
+        client.name,
+        client.cpf,
+        {
+          birthDate: client.birthDate,
+          phone: client.phone,
+          address: client.address,
+          email: client.email,
+          pais: client.pais,
+          instagram: client.instagram,
+          comoConheceu: client.comoConheceu,
+        },
+        result
+      );
+      spreadsheetUrl = sheetResult.spreadsheetUrl;
+    } catch (sheetErr: any) {
+      console.error("Erro ao criar planilha:", sheetErr.message);
+    }
+
     if (client.email) {
       await shareWithClient(result.clientFolderId, client.email);
     }
@@ -40,6 +62,7 @@ router.post("/setup-client/:clientId", async (req: Request, res: Response) => {
       success: true,
       clientFolderId: result.clientFolderId,
       subfolders: result.subfolders,
+      spreadsheetUrl,
       message: `Pastas criadas para ${client.name}`,
     });
   } catch (err: any) {
@@ -56,10 +79,32 @@ router.post("/setup-all-clients", async (_req: Request, res: Response) => {
     for (const client of allClients) {
       try {
         const result = await ensureClientFolderStructure(client.name, client.cpf);
+
+        let spreadsheetUrl = "";
+        try {
+          const sheetResult = await createClientSpreadsheet(
+            client.name,
+            client.cpf,
+            {
+              birthDate: client.birthDate,
+              phone: client.phone,
+              address: client.address,
+              email: client.email,
+              pais: client.pais,
+              instagram: client.instagram,
+              comoConheceu: client.comoConheceu,
+            },
+            result
+          );
+          spreadsheetUrl = sheetResult.spreadsheetUrl;
+        } catch (sheetErr: any) {
+          console.error(`Erro planilha ${client.name}:`, sheetErr.message);
+        }
+
         if (client.email) {
           await shareWithClient(result.clientFolderId, client.email);
         }
-        results.push({ clientId: client.id, name: client.name, success: true });
+        results.push({ clientId: client.id, name: client.name, success: true, spreadsheetUrl });
       } catch (err: any) {
         results.push({ clientId: client.id, name: client.name, success: false, error: err.message });
       }

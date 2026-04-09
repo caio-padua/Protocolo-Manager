@@ -25,6 +25,9 @@ export interface Client {
   phone: string;
   birthDate?: string | null;
   address?: string | null;
+  pais?: string | null;
+  instagram?: string | null;
+  comoConheceu?: string | null;
   status: ClientStatus;
   notes?: string | null;
   createdAt: string;
@@ -47,6 +50,9 @@ export interface CreateClientBody {
   phone: string;
   birthDate?: string | null;
   address?: string | null;
+  pais?: string | null;
+  instagram?: string | null;
+  comoConheceu?: string | null;
   status: CreateClientBodyStatus;
   notes?: string | null;
 }

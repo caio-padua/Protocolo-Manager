@@ -14,6 +14,9 @@ export interface CreateClientBody {
   phone: string;
   birthDate?: string | null;
   address?: string | null;
+  pais?: string | null;
+  instagram?: string | null;
+  comoConheceu?: string | null;
   status: CreateClientBodyStatus;
   notes?: string | null;
 }
