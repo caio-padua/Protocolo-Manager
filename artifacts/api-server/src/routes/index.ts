@@ -14,6 +14,7 @@ import validationCodesRouter from "./validation-codes";
 import emailRouter from "./email";
 import googleCalendarRouter from "./google-calendar";
 import googleDriveRouter from "./google-drive";
+import clientPortalRouter from "./client-portal";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(validationCodesRouter);
 router.use(emailRouter);
 router.use(googleCalendarRouter);
 router.use("/google-drive", googleDriveRouter);
+router.use(clientPortalRouter);
 
 export default router;

@@ -104,6 +104,17 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
   - Setup per-client: `/api/google-drive/setup-client/:clientId`
   - Upload protocol/RAS to Drive: `/api/google-drive/upload-protocol/:clientId`, `/api/google-drive/upload-ras/:clientId`
 
+### Client Upload Portal (`/portal`)
+- **Public-facing** responsive mobile-first page (no admin sidebar)
+- **Identification**: CPF + data de nascimento → HMAC token (30min TTL, signed with SESSION_SECRET)
+- **Security**: Generic error messages (no CPF enumeration), token-bound uploads (prevents IDOR)
+- **Upload types**: Exame de Sangue, Ultrassom, Tomografia, Ressonância, Densitometria, Laudo, Comprovante de Pagamento, Foto/Imagem, Receita, Atestado, Outro
+- **Body region dropdown**: Shown only for imaging exams (USG, TC, RMN, Densitometria)
+- **File naming**: `YY.MM.DD TIPO [REGION] NOME_CLIENTE.ext`
+- **Folder routing**: Type maps to Drive subfolder (exames→EXAMES, laudo→LAUDOS, comprovante→FINANCEIRO, foto→IMAGENS, etc.)
+- **API endpoints**: `POST /api/client-portal/identify`, `POST /api/client-portal/upload` (multipart, requires token)
+- **Link distribution**: Via WhatsApp to each client
+
 ## Working Language
 - UI and user communication in Portuguese (Brazil)
 - Term: "cliente" (not "paciente")

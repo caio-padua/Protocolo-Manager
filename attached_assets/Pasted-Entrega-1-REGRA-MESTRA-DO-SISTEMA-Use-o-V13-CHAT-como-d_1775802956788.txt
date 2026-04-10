@@ -1,0 +1,328 @@
+Entrega.
+
+1) REGRA-MESTRA DO SISTEMA
+
+Use o V13 (CHAT) como documento principal, porque ele já está mais equilibrado entre elegância, clareza e robustez documental, com:
+	•	capa premium e acolhedora  ￼
+	•	RAS documental claro  ￼
+	•	RAS operacional por sessões  ￼
+	•	matriz com estrelas e percentuais  ￼
+	•	matriz de expectativas clínicas  ￼
+	•	fichas de substâncias com profundidade clínica  ￼
+	•	bloco jurídico forte  ￼
+
+O V2 (REPLIT) fica como apoio de lógica operacional e grade bruta de aplicações  ￼.
+
+⸻
+
+2) DOIS PDFs OFICIAIS
+
+PDF 1 — PDF DOCUMENTAL COMPLETO
+
+Gerar:
+	•	no fechamento do protocolo
+	•	ou na primeira sessão
+
+Conteúdo:
+	•	apresentação do Dr. Caio + Instituto Pádua
+	•	resumo executivo
+	•	RAS documental
+	•	RAS operacional inicial
+	•	matriz de impacto
+	•	matriz de expectativas
+	•	fichas das substâncias
+	•	termo geral
+	•	LGPD
+	•	termos EV / IM / fórmulas / implantes
+	•	termo de uso de imagem
+	•	orientação de nota fiscal
+	•	política de desistência e uso interno
+
+PDF 2 — PDF RAS EVOLUTIVO
+
+Gerar:
+	•	após cada aplicação
+
+Conteúdo:
+	•	identificação do paciente
+	•	sessão atual
+	•	substâncias aplicadas
+	•	observação da enfermagem
+	•	pergunta da semana
+	•	cor do alerta
+	•	adesão percebida
+	•	mini histórico
+	•	progresso %
+	•	próxima etapa
+
+⸻
+
+3) GATILHOS DO SISTEMA
+
+Evento: fechamento do protocolo
+
+Ações:
+	•	criar paciente
+	•	gerar PDF DOCUMENTAL COMPLETO
+	•	disparar assinatura digital
+	•	criar card mestre no Trello
+	•	criar tarefa de confirmação fiscal futura
+
+Evento: aplicação concluída
+
+Ações:
+	•	salvar sessão
+	•	salvar observação da enfermagem
+	•	gerar PDF RAS EVOLUTIVO
+	•	atualizar histórico do paciente
+	•	verificar alerta
+
+Evento: alerta amarelo
+
+Ações:
+	•	criar card Trello em “acompanhar”
+	•	atribuir a consultor/assistente
+
+Evento: alerta vermelho
+
+Ações:
+	•	criar card Trello em “alerta”
+	•	prioridade alta
+	•	atribuir imediatamente
+
+Evento: pagamento concluído
+
+Ações:
+	•	criar card em “financeiro / nota fiscal”
+	•	aguardar confirmação cadastral do paciente
+	•	só depois liberar emissão da NF
+
+Evento: 24–48h sem assinatura
+
+Ações:
+	•	criar card de pendência
+	•	atribuir ao administrativo 02
+
+Evento: antepenúltima sessão
+
+Ações:
+	•	enviar lembrete de exames
+
+Evento: penúltima sessão
+
+Ações:
+	•	enviar PDF de exames + retorno
+	•	compartilhar pedido por pasta / e-mail / WhatsApp
+
+Evento: última sessão
+
+Ações:
+	•	enviar PDF de conclusão do ciclo
+
+⸻
+
+4) FORMULÁRIO DA ENFERMAGEM
+
+Campos obrigatórios em cada sessão:
+	•	Como foi sua última semana?
+	•	Classificação:
+	•	verde
+	•	amarelo
+	•	vermelho
+	•	Observação livre
+	•	Adesão percebida:
+	•	alta
+	•	média
+	•	baixa
+	•	Sintomas relatados
+	•	Necessita contato da equipe?
+	•	sim / não
+
+⸻
+
+5) REGRA DAS CORES
+
+Verde
+	•	sem card
+	•	grava no histórico
+	•	entra no RAS evolutivo
+
+Amarelo
+	•	grava histórico
+	•	entra no RAS evolutivo
+	•	cria card em acompanhar
+
+Vermelho
+	•	grava histórico
+	•	entra no RAS evolutivo
+	•	cria card em alerta
+	•	prioridade alta
+
+⸻
+
+6) TRELLO — ESTRUTURA INICIAL
+
+Listas sugeridas:
+	•	cadastro de clientes
+	•	acompanhar
+	•	alerta
+	•	financeiro / nota fiscal
+	•	assinatura pendente
+	•	exames / retorno
+	•	concluídos
+
+Conteúdo mínimo do card
+	•	nome do paciente
+	•	objetivo do protocolo
+	•	fase
+	•	sessão
+	•	substâncias em uso
+	•	observação
+	•	cor do alerta
+	•	responsável
+	•	prazo
+	•	mini histórico
+
+⸻
+
+7) DOCUMENTO EXTRA — USO DE IMAGEM
+
+Criar:
+
+TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM E RELATO
+
+Campos:
+	•	autorizo / não autorizo
+	•	uso de imagem
+	•	uso de relato
+	•	benefício padrão: 5% no próximo protocolo
+	•	condição maior: de comum acordo
+
+Entra no pacote inicial.
+
+⸻
+
+8) DOCUMENTO EXTRA — NOTA FISCAL
+
+Criar:
+
+ORIENTAÇÃO SOBRE EMISSÃO DE NOTA FISCAL
+
+Texto-base:
+	•	a nota fiscal somente poderá ser emitida após a conclusão total do pagamento
+	•	a emissão dependerá da confirmação de todos os dados cadastrais pelo paciente
+	•	essa confirmação poderá ocorrer presencialmente ou por telefone com a assistente financeira
+	•	a medida existe para segurança da empresa e do cliente
+
+Fluxo:
+	•	pagamento concluído → card financeiro
+	•	confirmação de dados → emissão
+
+⸻
+
+9) PERFIS / SLOTS DA EQUIPE
+
+Estrutura lógica:
+	•	padua.enfermeiro01 até 10
+	•	padua.administrativo01 até 10
+	•	padua.medico01 até 10
+	•	padua.gerente01 até 10
+	•	padua.ouvidoria01 até 10
+	•	padua.financeiro01 até 10
+	•	padua.consultor01 até 10
+
+Cada slot com:
+	•	categoria
+	•	número
+	•	nome real
+	•	e-mail real
+	•	status: vazio / ocupado
+	•	unidade
+	•	permissões
+
+⸻
+
+10) CADASTROS MESTRES EDITÁVEIS
+
+O sistema precisa ter cadastro mestre para alimentar os PDFs:
+	•	substâncias EV
+	•	substâncias IM
+	•	implantes
+	•	fórmulas/manipulados
+	•	exames
+	•	textos jurídicos
+	•	observações padrão
+	•	impactos por sistema
+	•	tempos para efeito
+	•	expectativas clínicas
+	•	contraindicações/alertas
+
+Tudo editável.
+
+⸻
+
+11) AJUSTE VISUAL QUE VOCÊ PEDIU
+
+Padronizar no Replit:
+	•	manter a elegância do V13
+	•	remover bolinhas
+	•	usar estrelas
+	•	deixar o percentual mais evidente
+
+Exemplo:
+	•	Energia: ★★★★☆ (82%)
+	•	Performance: ★★★★★ (91%)
+
+⸻
+
+12) LINHA DO TEMPO DOS PDFs
+
+Sessão 1
+	•	PDF DOCUMENTAL COMPLETO
+	•	termo de imagem
+	•	orientação nota fiscal
+
+Sessões 2+
+	•	PDF RAS EVOLUTIVO
+
+A cada 30 dias
+	•	avaliação remota
+	•	card para consultor / assistente
+
+Antepenúltima
+	•	lembrete de exames
+
+Penúltima
+	•	PDF de exames + retorno
+
+Última
+	•	PDF de conclusão
+
+⸻
+
+13) O QUE O REPLIT TEM QUE FAZER AGORA
+
+Prioridade imediata:
+	1.	criar tipos de documento
+	2.	criar evento “fechar protocolo”
+	3.	criar evento “finalizar aplicação”
+	4.	criar formulário da enfermagem
+	5.	criar lógica de cor do alerta
+	6.	criar estrutura de cards
+	7.	criar bloco de nota fiscal
+	8.	criar slots de equipe
+	9.	usar o V13 como referência visual principal
+
+⸻
+
+14) DECISÃO FINAL
+
+Sim, a arquitetura certa é:
+	•	documental completo no início
+	•	RAS evolutivo nas sessões
+	•	Trello como primeira camada operacional
+	•	Replit como motor principal
+	•	V13 (CHAT) como referência premium oficial
+
+Se você quiser, no próximo passo eu transformo isso em:
+especificação técnica pronta para colar no Replit.

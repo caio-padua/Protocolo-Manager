@@ -1,0 +1,228 @@
+Entendi — e eu vou te entregar agora a entrega conceitual final, pronta para o Replit implementar, usando como principal o V13 (CHAT) e aproveitando a base operacional do V2 (REPLIT).
+
+O V13 já está no ponto certo de elegância e equilíbrio: tem capa premium e acolhedora  ￼, RAS documental claro  ￼, RAS operacional por sessões  ￼, matriz por sistemas com estrelas e percentuais  ￼, matriz de expectativas/tolerabilidade  ￼, fichas das substâncias com descrição clínica, efeitos, tempo para efeito e alertas  ￼, e um bloco jurídico robusto que já deixa claro que o protocolo é um serviço integrado, que as substâncias são de uso exclusivo interno e que não há reembolso integral automático na desistência  ￼. O V2, por sua vez, é útil como referência de grade operacional crua, com datas previstas/efetivas, status de sessão por substância e a lógica de ficha prática de aplicação  ￼  ￼.
+
+Entrega final: arquitetura documental e lógica do sistema
+
+1) Documento principal na entrada
+
+Na primeira sessão, ou no fechamento do protocolo, o paciente recebe o:
+
+PDF DOCUMENTAL COMPLETO
+
+Ele reúne:
+	•	apresentação sua e do Instituto Pádua, no tom premium do Gamma
+	•	resumo executivo do tratamento
+	•	RAS documental
+	•	RAS operacional inicial
+	•	matriz de impacto por sistema
+	•	matriz de expectativas clínicas
+	•	fichas das substâncias
+	•	termo de consentimento geral
+	•	termo LGPD
+	•	termos específicos: EV, IM, fórmulas/manipulados, implantes
+	•	política de desistência e reembolso proporcional
+	•	política de uso interno das substâncias
+	•	novo documento de uso de imagem
+	•	novo documento de orientação sobre nota fiscal
+
+2) Documento enviado após cada aplicação
+
+A partir da segunda entrega em diante, o paciente recebe somente o:
+
+PDF RAS EVOLUTIVO
+
+Ele é menor, mais direto e mais útil no acompanhamento. Deve ter:
+	•	identificação do paciente
+	•	sessão atual
+	•	substâncias aplicadas
+	•	observação da enfermagem
+	•	resposta à pergunta “Como foi sua última semana?”
+	•	classificação do alerta
+	•	adesão percebida
+	•	mini histórico acumulado
+	•	progresso do protocolo
+	•	próxima etapa
+
+3) Regra de geração automática
+
+No Replit, o gatilho fica assim:
+	•	ao fechar protocolo / confirmar primeira sessão → gerar PDF DOCUMENTAL COMPLETO
+	•	ao concluir cada aplicação → gerar PDF RAS EVOLUTIVO
+	•	a cada 30 dias → gerar tarefa de acompanhamento remoto
+	•	na antepenúltima sessão → gerar lembrete de exames
+	•	na penúltima sessão → gerar PDF de exames e retorno
+	•	na última sessão → gerar PDF de conclusão do ciclo
+
+Campo obrigatório da enfermagem em cada sessão
+
+No fluxo da aplicação, a enfermagem precisa registrar:
+	•	“Como foi sua última semana?”
+	•	classificação:
+	•	verde = sem queixas / evolução adequada
+	•	amarelo = alerta moderado
+	•	vermelho = alerta importante
+	•	observação em texto livre
+	•	adesão percebida: alta, média, baixa
+
+Isso precisa ser salvo em:
+	•	histórico do paciente
+	•	aba/protocolo do paciente
+	•	RAS evolutivo
+	•	fluxo operacional
+
+Integração com Trello
+
+A sua lógica de Trello está correta e eu manteria Trello primeiro.
+
+Quando criar card
+	•	Amarelo → card de acompanhamento
+	•	Vermelho → card prioritário
+
+Card deve conter
+	•	nome do paciente
+	•	fase do protocolo
+	•	sessão atual
+	•	objetivo terapêutico
+	•	substâncias em uso
+	•	alerta (amarelo/vermelho)
+	•	observação da enfermagem
+	•	mini histórico
+	•	responsável atribuído
+
+Listas recomendadas
+	•	cadastro de clientes
+	•	acompanhar
+	•	alerta
+	•	financeiro / nota fiscal
+
+E a regra que você pediu faz sentido:
+	•	o paciente entra primeiro no cadastro de clientes
+	•	nem todos veem todas as informações
+	•	só quando houver demanda o card é movido/atribuído para a fila adequada
+	•	telefone, endereço e outros dados sensíveis podem ser limitados por perfil
+
+Perfis/slots de equipe
+
+Sua lógica semântica pode ser usada como estrutura interna do sistema.
+Eu padronizaria como slots, não como e-mails reais obrigatórios:
+	•	padua.enfermeiro01 até padua.enfermeiro10
+	•	padua.administrativo01 até padua.administrativo10
+	•	padua.medico01 até padua.medico10
+	•	padua.gerente01 até padua.gerente10
+	•	padua.ouvidoria01 até padua.ouvidoria10
+	•	padua.financeiro01 até padua.financeiro10
+	•	padua.consultor01 até padua.consultor10
+
+Cada slot pode ter:
+	•	status: vazio / ocupado
+	•	nome da pessoa
+	•	e-mail real
+	•	função
+	•	permissões
+	•	unidade
+
+Novo documento: autorização de uso de imagem
+
+Eu concordo com sua decisão.
+
+Documento
+
+TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM E RELATO
+
+Campos:
+	•	sim / não
+	•	autorização para imagem
+	•	autorização para relato
+	•	benefício padrão: 5% no próximo protocolo
+	•	possibilidade de condição maior por comum acordo
+
+Esse documento entra no pacote inicial.
+
+Novo documento: orientação sobre nota fiscal
+
+Também concordo totalmente.
+
+Documento
+
+ORIENTAÇÃO SOBRE EMISSÃO DE NOTA FISCAL
+
+Deve deixar muito claro:
+	•	a nota fiscal só poderá ser emitida após a conclusão total do pagamento
+	•	a emissão depende da confirmação de todos os dados cadastrais pelo paciente
+	•	essa confirmação poderá ocorrer presencialmente ou por telefone
+	•	a emissão só segue com o aval/confirm ação do paciente, para segurança da empresa e do cliente
+
+No sistema
+
+Quando o pagamento for concluído:
+	•	abrir card no Trello em financeiro
+	•	responsável: financeiro / administrativo financeiro
+	•	tarefa: confirmar dados cadastrais antes da emissão
+
+Prazo e assinatura
+
+Faz sentido que o sistema dispare:
+	•	o documento para assinatura eletrônica
+	•	com janela de 24–48 horas
+	•	e, se não assinado, abra card/tarefa para cobrança ativa do administrativo 02
+
+Visual: o que muda no V13
+
+Você pediu um ajuste importante e eu concordo:
+	•	tirar bolinhas
+	•	manter estrelas
+	•	deixar percentuais mais nítidos
+	•	preservar a elegância do V13
+
+Então, a matriz por sistemas deve ficar em padrão:
+	•	estrelas grandes
+	•	percentual mais evidente
+	•	rótulo de impacto geral no fim da linha
+
+Cadastros mestres que o Replit precisa ter
+
+Você também acertou em cheio aqui. O sistema precisa de um cadastro mestre editável para alimentar todos os PDFs.
+
+Cadastros
+	•	substâncias EV
+	•	substâncias IM
+	•	implantes
+	•	fórmulas/manipulados
+	•	exames
+	•	textos jurídicos
+	•	observações padrão
+	•	impactos por sistema
+	•	tempos para efeito
+	•	expectativas clínicas
+	•	alertas / contraindicações
+
+Tudo isso com edição completa depois.
+
+Resumo final do que você me pediu e eu confirmo
+
+Sim, o documento principal agora deve usar o V13 (CHAT) como referência central.
+Sim, o paciente recebe o PDF DOCUMENTAL COMPLETO só no início.
+Sim, depois ele recebe apenas o PDF RAS EVOLUTIVO.
+Sim, a enfermagem registra evolução semanal e cor de alerta.
+Sim, amarelo/vermelho precisam ir para Trello.
+Sim, a nota fiscal precisa de um documento próprio e de confirmação após pagamento total.
+Sim, isso tem que abrir card financeiro.
+Sim, a estrutura de perfis/slots da equipe pode entrar na lógica de programação.
+Sim, tudo deve ser editável.
+
+Próximo passo prático
+
+O que eu te entrego em seguida, se você confirmar, é o pacote em formato de especificação funcional para o Replit:
+	•	nomes exatos dos PDFs
+	•	gatilhos de geração
+	•	campos obrigatórios
+	•	regras de Trello
+	•	regras de nota fiscal
+	•	estrutura de perfis
+	•	estrutura dos cadastros mestres
+	•	fluxo sessão a sessão
+
+Escreva apenas:
+
+gerar especificação final do sistema
