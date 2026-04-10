@@ -997,3 +997,522 @@ export async function uploadToFolderById(
 ): Promise<{ fileId: string; webViewLink: string }> {
   return uploadFileToDrive(folderId, fileName, mimeType, fileBuffer);
 }
+
+const NEW_HEADER_COLUMNS = [
+  "CARIMBO DE DATA/HORA", "PONTUACAO", "NOME", "CPF", "DATA NASCIMENTO",
+  "CELULAR", "CEP", "ENDERECO", "NUMERO", "COMPLEMENTO", "BAIRRO",
+  "CIDADE", "ESTADO", "PAIS", "EMAIL", "INSTAGRAM", "COMO NOS CONHECEU ?"
+];
+
+const COLUMN_ALIASES: Record<string, string[]> = {
+  "CARIMBO DE DATA/HORA": ["CARIMBO", "CARIMBO DE DATA/HORA", "TIMESTAMP", "DATA/HORA", "DATA HORA"],
+  "PONTUACAO": ["PONTUACAO", "SCORE", "NOTA"],
+  "NOME": ["NOME", "NOME COMPLETO", "NOME DO PACIENTE", "NOME DO CLIENTE"],
+  "CPF": ["CPF", "CPF DO PACIENTE", "CPF DO CLIENTE"],
+  "DATA NASCIMENTO": ["DATA NASCIMENTO", "DATA DE NASCIMENTO", "NASCIMENTO", "DT NASCIMENTO"],
+  "CELULAR": ["CELULAR", "TELEFONE", "TELEFONE CELULAR", "TEL", "PHONE", "WHATSAPP"],
+  "CEP": ["CEP"],
+  "ENDERECO": ["ENDERECO", "ENDEREÇO", "LOGRADOURO", "RUA"],
+  "NUMERO": ["NUMERO", "NÚMERO", "NUM", "Nº", "N"],
+  "COMPLEMENTO": ["COMPLEMENTO", "COMPL"],
+  "BAIRRO": ["BAIRRO"],
+  "CIDADE": ["CIDADE", "MUNICIPIO"],
+  "ESTADO": ["ESTADO", "UF"],
+  "PAIS": ["PAIS", "PAÍS"],
+  "EMAIL": ["EMAIL", "E-MAIL"],
+  "INSTAGRAM": ["INSTAGRAM", "INSTA", "@"],
+  "COMO NOS CONHECEU ?": ["COMO NOS CONHECEU ?", "COMO NOS CONHECEU", "COMO CONHECEU", "INDICACAO"],
+};
+
+function matchColumnToNew(oldHeader: string): string | null {
+  const normalized = removeDiacritics(oldHeader).toUpperCase().trim();
+  for (const [newCol, aliases] of Object.entries(COLUMN_ALIASES)) {
+    for (const alias of aliases) {
+      if (normalized === removeDiacritics(alias).toUpperCase()) return newCol;
+    }
+  }
+  if (normalized.includes("NOME")) return "NOME";
+  if (normalized.includes("CPF")) return "CPF";
+  if (normalized.includes("NASC")) return "DATA NASCIMENTO";
+  if (normalized.includes("CEL") || normalized.includes("PHONE") || normalized.includes("WHATS")) return "CELULAR";
+  if (normalized.includes("MAIL")) return "EMAIL";
+  if (normalized.includes("INSTA")) return "INSTAGRAM";
+  if (normalized.includes("BAIRRO")) return "BAIRRO";
+  if (normalized.includes("CIDADE") || normalized.includes("MUNIC")) return "CIDADE";
+  if (normalized.includes("ESTADO") || normalized === "UF") return "ESTADO";
+  if (normalized.includes("CEP")) return "CEP";
+  if (normalized.includes("ENDER") || normalized.includes("LOGRA") || normalized.includes("RUA")) return "ENDERECO";
+  if (normalized.includes("NUMER") || normalized === "NUM") return "NUMERO";
+  if (normalized.includes("COMPL")) return "COMPLEMENTO";
+  if (normalized.includes("PAIS")) return "PAIS";
+  if (normalized.includes("CONHEC")) return "COMO NOS CONHECEU ?";
+  return null;
+}
+
+export async function migrateExistingCadastros(): Promise<{
+  migrated: number;
+  skipped: number;
+  alreadyNew: number;
+  noData: number;
+  errors: string[];
+  details: Array<{ folder: string; status: string; fieldsRecovered?: string[] }>;
+}> {
+  const drive = await getUncachableDriveClient();
+  const sheets = await getSheetsClient();
+  const rootId = await findOrCreateFolder(drive, "CLIENTES");
+  const allFolders = await findAllFolders(drive, rootId);
+
+  let migrated = 0;
+  let skipped = 0;
+  let alreadyNew = 0;
+  let noData = 0;
+  const errors: string[] = [];
+  const details: Array<{ folder: string; status: string; fieldsRecovered?: string[] }> = [];
+
+  for (const folder of allFolders) {
+    try {
+      const existingSubs = await findAllFolders(drive, folder.id);
+      const cadastroSub = existingSubs.find(s => s.name.toUpperCase() === "CADASTRO");
+      if (!cadastroSub) {
+        skipped++;
+        continue;
+      }
+
+      const allSpreadsheets = await drive.files.list({
+        q: `'${cadastroSub.id}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+        fields: "files(id, name, createdTime)",
+        orderBy: "createdTime desc",
+      });
+
+      const spreadsheetFiles = allSpreadsheets.data.files || [];
+      if (spreadsheetFiles.length === 0) {
+        noData++;
+        details.push({ folder: folder.name, status: "SEM_PLANILHA" });
+        continue;
+      }
+
+      if (spreadsheetFiles.length === 1) {
+        const sheet = spreadsheetFiles[0];
+        const data = await sheets.spreadsheets.values.get({
+          spreadsheetId: sheet.id!,
+          range: "A1:Z10",
+        });
+        const rows = data.data.values || [];
+        if (rows.length < 2) {
+          noData++;
+          details.push({ folder: folder.name, status: "PLANILHA_VAZIA" });
+          continue;
+        }
+
+        const headers = rows[0].map((h: string) => (h || "").toUpperCase().trim());
+        const isNewLayout = headers.includes("CARIMBO DE DATA/HORA") && headers.includes("PONTUACAO") && headers.includes("PAIS");
+        
+        if (isNewLayout) {
+          const dataRow = rows[1] || [];
+          const hasData = dataRow.some((v: string, i: number) => i > 1 && v && v.trim() !== "");
+          if (hasData) {
+            alreadyNew++;
+            details.push({ folder: folder.name, status: "JA_LAYOUT_NOVO_COM_DADOS" });
+          } else {
+            noData++;
+            details.push({ folder: folder.name, status: "LAYOUT_NOVO_SEM_DADOS" });
+          }
+          continue;
+        }
+
+        const dataRow = rows[1] || [];
+        const hasAnyData = dataRow.some((v: string) => v && v.trim() !== "");
+        if (!hasAnyData) {
+          noData++;
+          details.push({ folder: folder.name, status: "PLANILHA_ANTIGA_VAZIA" });
+          continue;
+        }
+
+        const columnMap: Record<string, number> = {};
+        for (let i = 0; i < headers.length; i++) {
+          const newCol = matchColumnToNew(headers[i]);
+          if (newCol) columnMap[newCol] = i;
+        }
+
+        const recoveredValues: Record<string, string> = {};
+        const fieldsRecovered: string[] = [];
+        for (const col of NEW_HEADER_COLUMNS) {
+          const idx = columnMap[col];
+          if (idx !== undefined && dataRow[idx] && dataRow[idx].trim() !== "") {
+            recoveredValues[col] = removeDiacritics(dataRow[idx].trim()).toUpperCase();
+            fieldsRecovered.push(col);
+          }
+        }
+
+        if (fieldsRecovered.length === 0) {
+          noData++;
+          details.push({ folder: folder.name, status: "NENHUM_CAMPO_MAPEAVEL" });
+          continue;
+        }
+
+        const cpfFromName = extractCpfFromFolderName(folder.name);
+        const nameWithoutCpf = folder.name.replace(/\s*CPF\s+\d{3}\.\d{3}\.\d{3}-\d{2}\s*$/, "").trim();
+        const formattedCpf = cpfFromName ? formatCpfDisplay(cpfFromName) : "";
+        const sheetTitle = cpfFromName
+          ? `CADASTRO - ${nameWithoutCpf} CPF ${formattedCpf}`
+          : `CADASTRO - ${nameWithoutCpf}`;
+
+        const clientFolderUrl = `https://drive.google.com/drive/folders/${folder.id}`;
+        const subfolderMap: Record<string, string> = {};
+        for (const s of existingSubs) {
+          subfolderMap[s.name.toUpperCase()] = s.id;
+        }
+
+        const now = new Date();
+        const carimbo = recoveredValues["CARIMBO DE DATA/HORA"] || `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
+
+        const newRow = NEW_HEADER_COLUMNS.map(col => {
+          if (col === "CARIMBO DE DATA/HORA") return carimbo;
+          if (col === "NOME") return recoveredValues["NOME"] || nameWithoutCpf;
+          if (col === "CPF") return recoveredValues["CPF"] || formattedCpf;
+          if (col === "PAIS") return recoveredValues["PAIS"] || "BRASIL";
+          return recoveredValues[col] || "";
+        });
+
+        const metadataHeaders = [
+          "NOME", "CPF", "URL PASTA", "ID PASTA", "ID CADASTRO", "ID PATOLOGIAS",
+          "ID EXAMES", "ID AVALIACOES", "ID RECEITAS", "ID PROTOCOLOS", "ID FINANCEIRO",
+          "ID CONTRATOS", "ID ATESTADOS", "ID LAUDOS", "ID TERMOS", "ID FOTO PERFIL",
+          "ID IMAGENS", "ID PESQUISA", "ID OUVIDORIA"
+        ];
+        const metadataRow = [
+          recoveredValues["NOME"] || nameWithoutCpf, formattedCpf, clientFolderUrl, folder.id,
+          subfolderMap["CADASTRO"] || "", subfolderMap["PATOLOGIAS"] || "",
+          subfolderMap["EXAMES"] || "", subfolderMap["AVALIACOES"] || "",
+          subfolderMap["RECEITAS"] || "", subfolderMap["PROTOCOLOS"] || "",
+          subfolderMap["FINANCEIRO"] || "", subfolderMap["CONTRATOS"] || "",
+          subfolderMap["ATESTADOS"] || "", subfolderMap["LAUDOS"] || "",
+          subfolderMap["TERMOS"] || "", subfolderMap["FOTO PERFIL"] || "",
+          subfolderMap["IMAGENS"] || "", subfolderMap["PESQUISA"] || "",
+          subfolderMap["OUVIDORIA"] || "",
+        ];
+
+        const spreadsheetRes = await sheets.spreadsheets.create({
+          requestBody: {
+            properties: { title: sheetTitle },
+            sheets: [
+              {
+                properties: { title: "CADASTRO", sheetId: 0, index: 0 },
+                data: [{
+                  startRow: 0, startColumn: 0,
+                  rowData: [
+                    { values: NEW_HEADER_COLUMNS.map(h => ({ userEnteredValue: { stringValue: h } })) },
+                    { values: newRow.map(v => ({ userEnteredValue: { stringValue: v } })) },
+                  ],
+                }],
+              },
+              {
+                properties: { title: "METADADOS", sheetId: 1, index: 1 },
+                data: [{
+                  startRow: 0, startColumn: 0,
+                  rowData: [
+                    { values: metadataHeaders.map(h => ({ userEnteredValue: { stringValue: h } })) },
+                    { values: metadataRow.map(v => ({ userEnteredValue: { stringValue: v } })) },
+                  ],
+                }],
+              },
+            ],
+          },
+        });
+
+        const newSheetId = spreadsheetRes.data.spreadsheetId!;
+
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: newSheetId,
+          requestBody: {
+            requests: [
+              {
+                repeatCell: {
+                  range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                      horizontalAlignment: "CENTER",
+                    },
+                  },
+                  fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                },
+              },
+              {
+                repeatCell: {
+                  range: { sheetId: 1, startRowIndex: 0, endRowIndex: 1 },
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                      horizontalAlignment: "CENTER",
+                    },
+                  },
+                  fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                },
+              },
+              { autoResizeDimensions: { dimensions: { sheetId: 0, dimension: "COLUMNS", startIndex: 0, endIndex: 17 } } },
+              { autoResizeDimensions: { dimensions: { sheetId: 1, dimension: "COLUMNS", startIndex: 0, endIndex: 19 } } },
+            ],
+          },
+        });
+
+        await drive.files.update({
+          fileId: newSheetId,
+          addParents: cadastroSub.id,
+          fields: "id, parents",
+        });
+
+        const cadastrosAntigosId = await findOrCreateFolder(drive, "CADASTROS ANTIGOS", cadastroSub.id);
+        const oldName = sheet.name || "CADASTRO_ANTIGO";
+        await drive.files.update({
+          fileId: sheet.id!,
+          requestBody: { name: `[ANTIGO] ${oldName}` },
+          addParents: cadastrosAntigosId,
+          removeParents: cadastroSub.id,
+          fields: "id, parents",
+        });
+
+        migrated++;
+        details.push({ folder: folder.name, status: "MIGRADO", fieldsRecovered });
+        console.log(`[Migrate] ${folder.name}: migrado com ${fieldsRecovered.length} campos (${fieldsRecovered.join(", ")})`);
+
+      } else {
+        let oldSheet: { id: string; name: string } | null = null;
+        let oldData: string[][] | null = null;
+
+        for (const sf of spreadsheetFiles) {
+          const data = await sheets.spreadsheets.values.get({
+            spreadsheetId: sf.id!,
+            range: "A1:Z10",
+          });
+          const rows = data.data.values || [];
+          if (rows.length >= 2) {
+            const headers = rows[0].map((h: string) => (h || "").toUpperCase().trim());
+            const isNewLayout = headers.includes("CARIMBO DE DATA/HORA") && headers.includes("PONTUACAO") && headers.includes("PAIS");
+            if (!isNewLayout) {
+              const dataRow = rows[1] || [];
+              const hasData = dataRow.some((v: string) => v && v.trim() !== "");
+              if (hasData) {
+                oldSheet = { id: sf.id!, name: sf.name || "" };
+                oldData = rows;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!oldSheet || !oldData) {
+          skipped++;
+          details.push({ folder: folder.name, status: "MULTIPLAS_PLANILHAS_SEM_DADOS_ANTIGOS" });
+          continue;
+        }
+
+        const headers = oldData[0].map((h: string) => (h || "").toUpperCase().trim());
+        const dataRow = oldData[1] || [];
+
+        const columnMap: Record<string, number> = {};
+        for (let i = 0; i < headers.length; i++) {
+          const newCol = matchColumnToNew(headers[i]);
+          if (newCol) columnMap[newCol] = i;
+        }
+
+        const recoveredValues: Record<string, string> = {};
+        const fieldsRecovered: string[] = [];
+        for (const col of NEW_HEADER_COLUMNS) {
+          const idx = columnMap[col];
+          if (idx !== undefined && dataRow[idx] && dataRow[idx].trim() !== "") {
+            recoveredValues[col] = removeDiacritics(dataRow[idx].trim()).toUpperCase();
+            fieldsRecovered.push(col);
+          }
+        }
+
+        let newLayoutSheet: { id: string } | null = null;
+        for (const sf of spreadsheetFiles) {
+          if (sf.id === oldSheet.id) continue;
+          const data = await sheets.spreadsheets.values.get({
+            spreadsheetId: sf.id!,
+            range: "A1:Z2",
+          });
+          const rows = data.data.values || [];
+          if (rows.length >= 1) {
+            const hdrs = rows[0].map((h: string) => (h || "").toUpperCase().trim());
+            if (hdrs.includes("CARIMBO DE DATA/HORA") && hdrs.includes("PONTUACAO")) {
+              newLayoutSheet = { id: sf.id! };
+              break;
+            }
+          }
+        }
+
+        if (newLayoutSheet && fieldsRecovered.length > 0) {
+          const now = new Date();
+          const carimbo = recoveredValues["CARIMBO DE DATA/HORA"] || `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
+          const cpfFromName = extractCpfFromFolderName(folder.name);
+          const nameWithoutCpf = folder.name.replace(/\s*CPF\s+\d{3}\.\d{3}\.\d{3}-\d{2}\s*$/, "").trim();
+          const formattedCpf = cpfFromName ? formatCpfDisplay(cpfFromName) : "";
+
+          const newRow = NEW_HEADER_COLUMNS.map(col => {
+            if (col === "CARIMBO DE DATA/HORA") return carimbo;
+            if (col === "NOME") return recoveredValues["NOME"] || nameWithoutCpf;
+            if (col === "CPF") return recoveredValues["CPF"] || formattedCpf;
+            if (col === "PAIS") return recoveredValues["PAIS"] || "BRASIL";
+            return recoveredValues[col] || "";
+          });
+
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: newLayoutSheet.id,
+            range: "CADASTRO!A2:Q2",
+            valueInputOption: "RAW",
+            requestBody: { values: [newRow] },
+          });
+
+          const cadastrosAntigosId = await findOrCreateFolder(drive, "CADASTROS ANTIGOS", cadastroSub.id);
+          await drive.files.update({
+            fileId: oldSheet.id,
+            requestBody: { name: `[ANTIGO] ${oldSheet.name}` },
+            addParents: cadastrosAntigosId,
+            removeParents: cadastroSub.id,
+            fields: "id, parents",
+          });
+
+          migrated++;
+          details.push({ folder: folder.name, status: "MIGRADO_MULTI", fieldsRecovered });
+          console.log(`[Migrate] ${folder.name}: migrado (multi) com ${fieldsRecovered.length} campos`);
+        } else if (fieldsRecovered.length > 0) {
+          const cpfFromName = extractCpfFromFolderName(folder.name);
+          const nameWithoutCpf = folder.name.replace(/\s*CPF\s+\d{3}\.\d{3}\.\d{3}-\d{2}\s*$/, "").trim();
+          const formattedCpf = cpfFromName ? formatCpfDisplay(cpfFromName) : "";
+          const sheetTitle = cpfFromName
+            ? `CADASTRO - ${nameWithoutCpf} CPF ${formattedCpf}`
+            : `CADASTRO - ${nameWithoutCpf}`;
+
+          const clientFolderUrl = `https://drive.google.com/drive/folders/${folder.id}`;
+          const subfolderMap: Record<string, string> = {};
+          for (const s of existingSubs) { subfolderMap[s.name.toUpperCase()] = s.id; }
+
+          const now = new Date();
+          const carimbo = recoveredValues["CARIMBO DE DATA/HORA"] || `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
+          const newRow = NEW_HEADER_COLUMNS.map(col => {
+            if (col === "CARIMBO DE DATA/HORA") return carimbo;
+            if (col === "NOME") return recoveredValues["NOME"] || nameWithoutCpf;
+            if (col === "CPF") return recoveredValues["CPF"] || formattedCpf;
+            if (col === "PAIS") return recoveredValues["PAIS"] || "BRASIL";
+            return recoveredValues[col] || "";
+          });
+
+          const metadataHeaders = [
+            "NOME", "CPF", "URL PASTA", "ID PASTA", "ID CADASTRO", "ID PATOLOGIAS",
+            "ID EXAMES", "ID AVALIACOES", "ID RECEITAS", "ID PROTOCOLOS", "ID FINANCEIRO",
+            "ID CONTRATOS", "ID ATESTADOS", "ID LAUDOS", "ID TERMOS", "ID FOTO PERFIL",
+            "ID IMAGENS", "ID PESQUISA", "ID OUVIDORIA"
+          ];
+          const metadataRow = [
+            recoveredValues["NOME"] || nameWithoutCpf, formattedCpf, clientFolderUrl, folder.id,
+            subfolderMap["CADASTRO"] || "", subfolderMap["PATOLOGIAS"] || "",
+            subfolderMap["EXAMES"] || "", subfolderMap["AVALIACOES"] || "",
+            subfolderMap["RECEITAS"] || "", subfolderMap["PROTOCOLOS"] || "",
+            subfolderMap["FINANCEIRO"] || "", subfolderMap["CONTRATOS"] || "",
+            subfolderMap["ATESTADOS"] || "", subfolderMap["LAUDOS"] || "",
+            subfolderMap["TERMOS"] || "", subfolderMap["FOTO PERFIL"] || "",
+            subfolderMap["IMAGENS"] || "", subfolderMap["PESQUISA"] || "",
+            subfolderMap["OUVIDORIA"] || "",
+          ];
+
+          const spreadsheetRes = await sheets.spreadsheets.create({
+            requestBody: {
+              properties: { title: sheetTitle },
+              sheets: [
+                {
+                  properties: { title: "CADASTRO", sheetId: 0, index: 0 },
+                  data: [{
+                    startRow: 0, startColumn: 0,
+                    rowData: [
+                      { values: NEW_HEADER_COLUMNS.map(h => ({ userEnteredValue: { stringValue: h } })) },
+                      { values: newRow.map(v => ({ userEnteredValue: { stringValue: v } })) },
+                    ],
+                  }],
+                },
+                {
+                  properties: { title: "METADADOS", sheetId: 1, index: 1 },
+                  data: [{
+                    startRow: 0, startColumn: 0,
+                    rowData: [
+                      { values: metadataHeaders.map(h => ({ userEnteredValue: { stringValue: h } })) },
+                      { values: metadataRow.map(v => ({ userEnteredValue: { stringValue: v } })) },
+                    ],
+                  }],
+                },
+              ],
+            },
+          });
+
+          const newSheetId = spreadsheetRes.data.spreadsheetId!;
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: newSheetId,
+            requestBody: {
+              requests: [
+                {
+                  repeatCell: {
+                    range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+                    cell: {
+                      userEnteredFormat: {
+                        backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                        horizontalAlignment: "CENTER",
+                      },
+                    },
+                    fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                  },
+                },
+                {
+                  repeatCell: {
+                    range: { sheetId: 1, startRowIndex: 0, endRowIndex: 1 },
+                    cell: {
+                      userEnteredFormat: {
+                        backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                        horizontalAlignment: "CENTER",
+                      },
+                    },
+                    fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                  },
+                },
+                { autoResizeDimensions: { dimensions: { sheetId: 0, dimension: "COLUMNS", startIndex: 0, endIndex: 17 } } },
+                { autoResizeDimensions: { dimensions: { sheetId: 1, dimension: "COLUMNS", startIndex: 0, endIndex: 19 } } },
+              ],
+            },
+          });
+
+          await drive.files.update({
+            fileId: newSheetId,
+            addParents: cadastroSub.id,
+            fields: "id, parents",
+          });
+
+          const cadastrosAntigosId = await findOrCreateFolder(drive, "CADASTROS ANTIGOS", cadastroSub.id);
+          await drive.files.update({
+            fileId: oldSheet.id,
+            requestBody: { name: `[ANTIGO] ${oldSheet.name}` },
+            addParents: cadastrosAntigosId,
+            removeParents: cadastroSub.id,
+            fields: "id, parents",
+          });
+
+          migrated++;
+          details.push({ folder: folder.name, status: "MIGRADO_CRIADO_NOVO", fieldsRecovered });
+          console.log(`[Migrate] ${folder.name}: criado novo + migrado com ${fieldsRecovered.length} campos`);
+        } else {
+          skipped++;
+          details.push({ folder: folder.name, status: "MULTIPLAS_SEM_DADOS_MAPEAVEIS" });
+        }
+      }
+    } catch (err: any) {
+      errors.push(`${folder.name}: ${err.message}`);
+      console.error(`[Migrate] Erro em "${folder.name}":`, err.message);
+    }
+  }
+
+  console.log(`[Drive] Migracao concluida: ${migrated} migrados, ${alreadyNew} ja no layout novo, ${noData} sem dados, ${skipped} ignorados, ${errors.length} erros`);
+  return { migrated, skipped, alreadyNew, noData, errors, details };
+}

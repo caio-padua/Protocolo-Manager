@@ -12,6 +12,7 @@ import {
   formatRASFileName,
   deduplicateClientFolders,
   normalizeAllClientFolders,
+  migrateExistingCadastros,
 } from "../lib/google-drive";
 import { renameAllClientFiles } from "../lib/drive-file-renamer";
 
@@ -220,6 +221,28 @@ router.post("/normalize-folders", async (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Normalize error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/migrate-cadastros", async (_req: Request, res: Response) => {
+  try {
+    console.log("[Drive] Iniciando migracao de cadastros existentes...");
+    res.json({ success: true, message: "Migracao iniciada em background. Acompanhe pelos logs do servidor." });
+
+    migrateExistingCadastros().then(result => {
+      console.log(`[Drive] Migracao finalizada:`, JSON.stringify({
+        migrated: result.migrated,
+        alreadyNew: result.alreadyNew,
+        noData: result.noData,
+        skipped: result.skipped,
+        errors: result.errors.length,
+      }));
+    }).catch(err => {
+      console.error("[Drive] Erro na migracao:", err.message);
+    });
+  } catch (err: any) {
+    console.error("Migrate cadastros error:", err);
     res.status(500).json({ error: err.message });
   }
 });
