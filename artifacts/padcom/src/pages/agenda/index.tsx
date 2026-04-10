@@ -13,7 +13,7 @@ import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User,
   CheckCheck, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
-  KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck,
+  KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -23,6 +23,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 
 function buildGoogleCalendarLink(session: {
   clientName: string;
@@ -180,6 +181,9 @@ export default function Agenda() {
     navigator.clipboard.writeText(code);
     toast({ title: "Código copiado!" });
   }
+
+  const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
+  const [assessmentSession, setAssessmentSession] = useState<any>(null);
 
   const [emailSending, setEmailSending] = useState<number | null>(null);
   const [calSyncing, setCalSyncing] = useState<number | null>(null);
@@ -488,6 +492,14 @@ export default function Agenda() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
                               <DropdownMenuItem
+                                onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }}
+                                className="gap-2"
+                              >
+                                <ClipboardList className="h-4 w-4 text-teal-600" />
+                                Avaliação de Enfermagem
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
                                 onClick={() => generateValidationCode(session)}
                                 className="gap-2"
                               >
@@ -626,6 +638,13 @@ export default function Agenda() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <NursingAssessmentForm
+        open={assessmentModalOpen}
+        onOpenChange={setAssessmentModalOpen}
+        session={assessmentSession}
+        onSuccess={() => refetch()}
+      />
 
       <Dialog open={verifyModalOpen} onOpenChange={setVerifyModalOpen}>
         <DialogContent className="sm:max-w-md">

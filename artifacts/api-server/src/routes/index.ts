@@ -15,6 +15,8 @@ import emailRouter from "./email";
 import googleCalendarRouter from "./google-calendar";
 import googleDriveRouter from "./google-drive";
 import clientPortalRouter from "./client-portal";
+import nursingAssessmentsRouter from "./nursing-assessments";
+import taskCardsRouter from "./task-cards";
 
 const router: IRouter = Router();
 
@@ -34,5 +36,7 @@ router.use(emailRouter);
 router.use(googleCalendarRouter);
 router.use("/google-drive", googleDriveRouter);
 router.use(clientPortalRouter);
+router.use(nursingAssessmentsRouter);
+router.use(taskCardsRouter);
 
 export default router;
