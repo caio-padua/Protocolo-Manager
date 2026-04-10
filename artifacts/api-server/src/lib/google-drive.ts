@@ -723,6 +723,7 @@ function buildNormalizedFolderName(currentName: string): string {
   }
   namePart = namePart.replace(/\s*-\s*DEDUPLICADO\s*/gi, "");
   namePart = namePart.replace(/\s*-\s*$/g, "");
+  namePart = namePart.replace(/^\s*-\s*/g, "");
   namePart = namePart.replace(/\s+/g, " ").trim();
   namePart = removeDiacritics(namePart).toUpperCase();
 

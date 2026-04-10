@@ -13,6 +13,7 @@ import {
   deduplicateClientFolders,
   normalizeAllClientFolders,
 } from "../lib/google-drive";
+import { renameAllClientFiles } from "../lib/drive-file-renamer";
 
 const router = Router();
 
@@ -219,6 +220,24 @@ router.post("/normalize-folders", async (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Normalize error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/rename-files", async (_req: Request, res: Response) => {
+  try {
+    console.log("[Drive] Iniciando renomeacao inteligente de arquivos...");
+    const result = await renameAllClientFiles();
+    console.log(`[Drive] Renomeacao concluida: ${result.totalRenamed} renomeados, ${result.skipped} ignorados, ${result.errors.length} erros`);
+    res.json({
+      success: true,
+      totalRenamed: result.totalRenamed,
+      skipped: result.skipped,
+      results: result.results,
+      errors: result.errors,
+    });
+  } catch (err: any) {
+    console.error("Rename files error:", err);
     res.status(500).json({ error: err.message });
   }
 });
