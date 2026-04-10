@@ -250,14 +250,12 @@ router.post("/migrate-cadastros", async (_req: Request, res: Response) => {
 router.post("/rename-files", async (_req: Request, res: Response) => {
   try {
     console.log("[Drive] Iniciando renomeacao inteligente de arquivos...");
-    const result = await renameAllClientFiles();
-    console.log(`[Drive] Renomeacao concluida: ${result.totalRenamed} renomeados, ${result.skipped} ignorados, ${result.errors.length} erros`);
-    res.json({
-      success: true,
-      totalRenamed: result.totalRenamed,
-      skipped: result.skipped,
-      results: result.results,
-      errors: result.errors,
+    res.json({ success: true, message: "Renomeacao iniciada em background. Acompanhe pelos logs do servidor." });
+
+    renameAllClientFiles().then(result => {
+      console.log(`[Drive] Renomeacao concluida: ${result.totalRenamed} renomeados, ${result.skipped} ignorados, ${result.errors.length} erros`);
+    }).catch(err => {
+      console.error("[Drive] Erro na renomeacao:", err.message);
     });
   } catch (err: any) {
     console.error("Rename files error:", err);
