@@ -79,7 +79,8 @@ export function removeDiacritics(str: string): string {
 }
 
 export function formatCpfDisplay(cpf: string): string {
-  return cpf.replace(/\D/g, "").padStart(11, "0").slice(0, 11);
+  const digits = cpf.replace(/\D/g, "").padStart(11, "0").slice(0, 11);
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
 export function buildClientFolderName(clientName: string, cpf: string): string {
@@ -150,12 +151,13 @@ async function findOldClientFolder(drive: any, rootId: string, cpf: string, _cli
 
   const allFolders = await findAllFolders(drive, rootId);
 
-  const oldFormattedCpf = `${cpfDigits.slice(0, 3)}.${cpfDigits.slice(3, 6)}.${cpfDigits.slice(6, 9)}-${cpfDigits.slice(9)}`;
+  const dotCpf = `${cpfDigits.slice(0, 3)}.${cpfDigits.slice(3, 6)}.${cpfDigits.slice(6, 9)}-${cpfDigits.slice(9)}`;
   const cpfPatterns = [
     cpfDigits,
-    oldFormattedCpf,
-    `CPF: ${oldFormattedCpf}`,
+    dotCpf,
+    `CPF: ${dotCpf}`,
     `CPF ${cpfDigits}`,
+    `CPF ${dotCpf}`,
   ];
 
   for (const folder of allFolders) {
