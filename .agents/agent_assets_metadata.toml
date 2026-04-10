@@ -24,3 +24,9 @@ id = "vaWiA_l1GiD5JaAdsBX61"
 uri = "file://screenshots/ras_fisico_v2.pdf"
 type = "pdf"
 title = "RAS Físico v2 — Células coloridas + Rubrica Paciente/ENF + Datas dd/mm/yy"
+
+[[outputs]]
+id = "c3YYBAy4YEyAoJ0DQqD0h"
+uri = "file://PADCOM_FULL_TECHNICAL_DOC.md"
+type = "text"
+title = "PADCOM - Documentacao Tecnica Completa"
