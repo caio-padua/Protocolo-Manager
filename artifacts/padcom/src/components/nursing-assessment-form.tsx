@@ -93,6 +93,8 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
   const [needsTeamContact, setNeedsTeamContact] = useState(false);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [bloodPressure, setBloodPressure] = useState("");
+  const [heartRate, setHeartRate] = useState("");
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [bodyFatPercent, setBodyFatPercent] = useState("");
@@ -119,6 +121,8 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
             setNeedsTeamContact(data.needsTeamContact);
             setStartTime(data.startTime ?? "");
             setEndTime(data.endTime ?? "");
+            setBloodPressure(data.bloodPressure ?? "");
+            setHeartRate(data.heartRate ? String(data.heartRate) : "");
             setWeight(data.weight ? String(data.weight) : "");
             setHeight(data.height ? String(data.height) : "");
             setBodyFatPercent(data.bodyFatPercent ? String(data.bodyFatPercent) : "");
@@ -154,6 +158,8 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
     setNeedsTeamContact(false);
     setStartTime("");
     setEndTime("");
+    setBloodPressure("");
+    setHeartRate("");
     setWeight("");
     setHeight("");
     setBodyFatPercent("");
@@ -190,6 +196,8 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
           needsTeamContact,
           startTime: startTime || null,
           endTime: endTime || null,
+          bloodPressure: bloodPressure || null,
+          heartRate: heartRate ? parseInt(heartRate) : null,
           weight: weight ? parseFloat(weight) : null,
           height: height ? parseFloat(height) : null,
           bodyFatPercent: bodyFatPercent ? parseFloat(bodyFatPercent) : null,
@@ -264,11 +272,20 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
                 <p><span className="font-medium">Tolerância:</span> {existingAssessment.tolerance?.toUpperCase()}</p>
                 {existingAssessment.symptoms && <p><span className="font-medium">Sintomas:</span> {existingAssessment.symptoms}</p>}
                 {existingAssessment.startTime && <p><span className="font-medium">Horário:</span> {existingAssessment.startTime} — {existingAssessment.endTime}</p>}
-                {(existingAssessment.weight || existingAssessment.height || existingAssessment.bodyFatPercent) && (
+                {(existingAssessment.bloodPressure || existingAssessment.heartRate || existingAssessment.weight) && (
                   <div className="mt-2 pt-2 border-t border-current/10">
-                    <p className="font-medium text-xs uppercase tracking-wider mb-1">Medidas Corporais</p>
+                    <p className="font-medium text-xs uppercase tracking-wider mb-1">Sinais Vitais + Peso</p>
                     <div className="flex flex-wrap gap-3 text-xs">
+                      {existingAssessment.bloodPressure && <span>PA: <strong>{existingAssessment.bloodPressure} mmHg</strong></span>}
+                      {existingAssessment.heartRate && <span>FC: <strong>{existingAssessment.heartRate} bpm</strong></span>}
                       {existingAssessment.weight && <span>Peso: <strong>{existingAssessment.weight} kg</strong></span>}
+                    </div>
+                  </div>
+                )}
+                {(existingAssessment.height || existingAssessment.bodyFatPercent) && (
+                  <div className="mt-2 pt-2 border-t border-current/10">
+                    <p className="font-medium text-xs uppercase tracking-wider mb-1">Avaliação Corporal</p>
+                    <div className="flex flex-wrap gap-3 text-xs">
                       {existingAssessment.height && <span>Altura: <strong>{existingAssessment.height} cm</strong></span>}
                       {existingAssessment.bodyFatPercent && <span>% Gordura: <strong>{existingAssessment.bodyFatPercent}%</strong></span>}
                       {existingAssessment.fatMass && <span>M. Gorda: <strong>{existingAssessment.fatMass} kg</strong></span>}
@@ -428,10 +445,28 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
 
             <div>
               <Label className="text-xs font-bold uppercase tracking-wider mb-3 block">
-                MEDIDAS CORPORAIS
+                SINAIS VITAIS + PESO
               </Label>
-              <p className="text-xs text-muted-foreground mb-2">Opcional — alimenta o acompanhamento no Sheet</p>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">PA (mmHg)</Label>
+                  <Input
+                    value={bloodPressure}
+                    onChange={e => setBloodPressure(e.target.value)}
+                    placeholder="120/80"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">FC (bpm)</Label>
+                  <Input
+                    type="number"
+                    value={heartRate}
+                    onChange={e => setHeartRate(e.target.value)}
+                    placeholder="72"
+                    className="h-9 text-sm"
+                  />
+                </div>
                 <div>
                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Peso (kg)</Label>
                   <Input
@@ -440,50 +475,6 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
                     value={weight}
                     onChange={e => setWeight(e.target.value)}
                     placeholder="72.5"
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Altura (cm)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={height}
-                    onChange={e => setHeight(e.target.value)}
-                    placeholder="168"
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">% Gordura</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={bodyFatPercent}
-                    onChange={e => setBodyFatPercent(e.target.value)}
-                    placeholder="22.3"
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">M. Gorda</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={fatMass}
-                    onChange={e => setFatMass(e.target.value)}
-                    placeholder="16.1"
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">M. Muscular</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={muscleMass}
-                    onChange={e => setMuscleMass(e.target.value)}
-                    placeholder="28.4"
                     className="h-9 text-sm"
                   />
                 </div>
@@ -498,13 +489,64 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
                 >
                   <div className="flex items-center gap-2">
                     <Ruler className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Adipômetro e Circunferências</span>
-                    <span className="text-[10px] text-muted-foreground">(atletas / avaliação metabólica)</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">Avaliação Corporal Completa</span>
+                    <span className="text-[10px] text-muted-foreground">(adm / consultor / biomédico)</span>
                   </div>
                   <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${skinfoldsOpen ? "rotate-180" : ""}`} />
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3 space-y-4">
+                <div>
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
+                    COMPOSIÇÃO CORPORAL
+                  </Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Altura (cm)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={height}
+                        onChange={e => setHeight(e.target.value)}
+                        placeholder="168"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">% Gordura</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={bodyFatPercent}
+                        onChange={e => setBodyFatPercent(e.target.value)}
+                        placeholder="22.3"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">M. Gorda (kg)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={fatMass}
+                        onChange={e => setFatMass(e.target.value)}
+                        placeholder="16.1"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">M. Muscular (kg)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={muscleMass}
+                        onChange={e => setMuscleMass(e.target.value)}
+                        placeholder="28.4"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div>
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
                     DOBRAS CUTÂNEAS (mm)

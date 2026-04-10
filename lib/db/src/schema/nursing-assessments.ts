@@ -17,6 +17,8 @@ export const nursingAssessmentsTable = pgTable("nursing_assessments", {
   needsTeamContact: boolean("needs_team_contact").notNull().default(false),
   startTime: text("start_time"),
   endTime: text("end_time"),
+  bloodPressure: text("blood_pressure"),
+  heartRate: integer("heart_rate"),
   weight: real("weight"),
   height: real("height"),
   bodyFatPercent: real("body_fat_percent"),
