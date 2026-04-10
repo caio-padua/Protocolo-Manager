@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,6 +17,13 @@ export const nursingAssessmentsTable = pgTable("nursing_assessments", {
   needsTeamContact: boolean("needs_team_contact").notNull().default(false),
   startTime: text("start_time"),
   endTime: text("end_time"),
+  weight: real("weight"),
+  height: real("height"),
+  bodyFatPercent: real("body_fat_percent"),
+  fatMass: real("fat_mass"),
+  muscleMass: real("muscle_mass"),
+  skinfolds: jsonb("skinfolds"),
+  circumferences: jsonb("circumferences"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

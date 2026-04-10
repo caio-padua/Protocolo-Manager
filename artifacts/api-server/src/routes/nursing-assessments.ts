@@ -49,6 +49,8 @@ router.post("/nursing-assessments", async (req, res): Promise<void> => {
     sessionId, clientId, protocolId, professionalId,
     weeklyQuestion, alertColor, observation, adherenceLevel,
     tolerance, symptoms, needsTeamContact, startTime, endTime,
+    weight, height, bodyFatPercent, fatMass, muscleMass,
+    skinfolds, circumferences,
   } = req.body;
 
   if (!sessionId || !clientId || !protocolId || !professionalId || !weeklyQuestion) {
@@ -80,6 +82,13 @@ router.post("/nursing-assessments", async (req, res): Promise<void> => {
     needsTeamContact: needsTeamContact ?? false,
     startTime: startTime ?? null,
     endTime: endTime ?? null,
+    weight: weight ?? null,
+    height: height ?? null,
+    bodyFatPercent: bodyFatPercent ?? null,
+    fatMass: fatMass ?? null,
+    muscleMass: muscleMass ?? null,
+    skinfolds: skinfolds ?? null,
+    circumferences: circumferences ?? null,
   }).returning();
 
   const color = alertColor ?? "green";
