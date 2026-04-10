@@ -79,14 +79,13 @@ export function removeDiacritics(str: string): string {
 }
 
 export function formatCpfDisplay(cpf: string): string {
-  const digits = cpf.replace(/\D/g, "").padStart(11, "0").slice(0, 11);
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  return cpf.replace(/\D/g, "").padStart(11, "0").slice(0, 11);
 }
 
 export function buildClientFolderName(clientName: string, cpf: string): string {
   const cleanName = removeDiacritics(clientName).toUpperCase().trim();
   const formattedCpf = formatCpfDisplay(cpf);
-  return `${cleanName} CPF: ${formattedCpf}`;
+  return `${cleanName} CPF ${formattedCpf}`;
 }
 
 async function findFolder(drive: any, name: string, parentId?: string): Promise<string | null> {
@@ -151,10 +150,12 @@ async function findOldClientFolder(drive: any, rootId: string, cpf: string, _cli
 
   const allFolders = await findAllFolders(drive, rootId);
 
+  const oldFormattedCpf = `${cpfDigits.slice(0, 3)}.${cpfDigits.slice(3, 6)}.${cpfDigits.slice(6, 9)}-${cpfDigits.slice(9)}`;
   const cpfPatterns = [
     cpfDigits,
-    formattedCpf,
-    `CPF: ${formattedCpf}`,
+    oldFormattedCpf,
+    `CPF: ${oldFormattedCpf}`,
+    `CPF ${cpfDigits}`,
   ];
 
   for (const folder of allFolders) {
@@ -267,7 +268,7 @@ export async function createClientSpreadsheet(
 
   const cleanName = removeDiacritics(clientName).toUpperCase().trim();
   const formattedCpf = formatCpfDisplay(cpf);
-  const sheetTitle = `CADASTRO - ${cleanName} CPF: ${formattedCpf}`;
+  const sheetTitle = `CADASTRO - ${cleanName} CPF ${formattedCpf}`;
 
   const existingFiles = await drive.files.list({
     q: `name='${sheetTitle.replace(/'/g, "\\'")}' and '${folderStructure.subfolders["CADASTRO"]}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
