@@ -55,9 +55,21 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - Digital signature: A1 certificate at `certs/assinatura.pfx` (CPF 293.274.948-06)
 
 ### Database (`lib/db`)
-- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, stock, payments, validation_codes
+- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, ras_evolutivo, stock, payments, validation_codes, nursing_assessments, task_cards, client_ratings
 - Locations: Clínica Tatuapé, Clínica Mooca, Nurse Care Domiciliar
 - `location_professionals` junction table
+
+### RAS Evolutivo System (Phase 1 — Schema)
+- **Professionals roles**: `role` field — medico_01, medico_02, enfermeira_01, enfermeira_02, adm_01, adm_02, financeiro_01, financeiro_02
+- **Client validation**: `validationPassword` (permanent password set at protocol closing) + existing `validation_codes` (daily codes). Client validates with either.
+- **Client Drive**: `driveFolderId`, `examRequestsFolderId` (subfolder "Exames Solicitados" ID)
+- **`nursing_assessments`**: Enfermeira 01 fills after each application — weeklyQuestion, alertColor (green/yellow/red), observation, adherenceLevel (alta/media/baixa), tolerance (excelente/boa/regular/ruim), symptoms, needsTeamContact, startTime/endTime
+- **`task_cards`**: Internal cards + Trello sync — types: welcome_adm, welcome_enf, followup, alert, payment_nf, monthly_review, exam_reminder, final_session. assignedRole maps to professional role. trelloCardId/trelloListId for sync.
+- **`client_ratings`**: Client rates nurse 0-5 stars, selects nurse from dropdown, ratingSource (post_application / post_contact). Rating ≤3 triggers management alert.
+- **`ras_evolutivo`**: Per-session PDF data — sessionNumber, totalSessions, progressPercent, substances (jsonb), alertColor, adherence, tolerance, weeklyObservation, sessionHistory (last 3 sessions), designatedDoctor, isAntepenultimate/isUltimate flags, examReminderSent, consultationReminder, validationCode, validatedByClient/validatedAt, pdfUrl/drivePdfId
+- **Alert color rules**: Green → history only. Yellow → card for enfermeira_02. Red → card for enfermeira_02 AND medico_02.
+- **Automated triggers**: Payment done → card financeiro_02. Every 30 days → card enf_02 + medico_02. Antepenúltima sessão → exam reminder to client (email+WhatsApp, "Exames Solicitados" subfolder). Última sessão → card enf_02 + adm_02 (consultation with designated doctor).
+- **Trello**: API integration (not Replit connector — none available). Cards sync bidirectionally via trelloCardId.
 
 ### Substances Schema
 - `procedureType`: "iv" (endovenoso, 30min), "im" (intramuscular, 15min), "implant" (implante, 1h)

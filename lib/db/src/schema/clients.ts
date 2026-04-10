@@ -15,6 +15,9 @@ export const clientsTable = pgTable("clients", {
   comoConheceu: text("como_conheceu"),
   status: text("status").notNull().default("active"),
   notes: text("notes"),
+  validationPassword: text("validation_password"),
+  examRequestsFolderId: text("exam_requests_folder_id"),
+  driveFolderId: text("drive_folder_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
