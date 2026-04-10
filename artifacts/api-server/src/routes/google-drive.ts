@@ -11,6 +11,7 @@ import {
   formatProtocolFileName,
   formatRASFileName,
   deduplicateClientFolders,
+  normalizeAllClientFolders,
 } from "../lib/google-drive";
 
 const router = Router();
@@ -199,6 +200,25 @@ router.post("/deduplicate-folders", async (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Dedup error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/normalize-folders", async (_req: Request, res: Response) => {
+  try {
+    console.log("[Drive] Iniciando normalizacao de todas as pastas de clientes...");
+    const result = await normalizeAllClientFolders();
+    console.log(`[Drive] Normalizacao concluida: ${result.renamed.length} renomeadas, ${result.subfoldersCreated} subpastas criadas, ${result.spreadsheetsCreated} planilhas criadas, ${result.errors.length} erros`);
+    res.json({
+      success: true,
+      totalRenamed: result.renamed.length,
+      subfoldersCreated: result.subfoldersCreated,
+      spreadsheetsCreated: result.spreadsheetsCreated,
+      renamed: result.renamed,
+      errors: result.errors,
+    });
+  } catch (err: any) {
+    console.error("Normalize error:", err);
     res.status(500).json({ error: err.message });
   }
 });

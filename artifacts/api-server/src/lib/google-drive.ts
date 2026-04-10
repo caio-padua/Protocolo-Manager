@@ -704,6 +704,270 @@ export async function deduplicateClientFolders(): Promise<{
   return { merged, errors };
 }
 
+function buildNormalizedFolderName(currentName: string): string {
+  const cpfMatch = currentName.match(/(\d{3})[.\s]?(\d{3})[.\s]?(\d{3})[-.\s]?(\d{2})/);
+  let cpfDigits: string | null = null;
+  if (cpfMatch) {
+    cpfDigits = cpfMatch[1] + cpfMatch[2] + cpfMatch[3] + cpfMatch[4];
+  } else {
+    const raw11 = currentName.match(/(\d{11})/);
+    if (raw11) cpfDigits = raw11[1];
+  }
+
+  let namePart = currentName;
+  if (cpfDigits) {
+    namePart = namePart
+      .replace(/\s*-?\s*CPF\s*:?\s*/i, " ")
+      .replace(/(\d{3})[.\s]?(\d{3})[.\s]?(\d{3})[-.\s]?(\d{2})/, "")
+      .replace(/\d{11}/, "");
+  }
+  namePart = namePart.replace(/\s*-\s*DEDUPLICADO\s*/gi, "");
+  namePart = namePart.replace(/\s*-\s*$/g, "");
+  namePart = namePart.replace(/\s+/g, " ").trim();
+  namePart = removeDiacritics(namePart).toUpperCase();
+
+  if (cpfDigits) {
+    const formatted = formatCpfDisplay(cpfDigits);
+    return `${namePart} CPF ${formatted}`;
+  }
+  return namePart;
+}
+
+export async function normalizeAllClientFolders(): Promise<{
+  renamed: Array<{ from: string; to: string }>;
+  subfoldersCreated: number;
+  spreadsheetsCreated: number;
+  errors: string[];
+}> {
+  const drive = await getUncachableDriveClient();
+  const sheets = await getSheetsClient();
+  const rootId = await findOrCreateFolder(drive, "CLIENTES");
+
+  const allFolders = await findAllFolders(drive, rootId);
+
+  const renamed: Array<{ from: string; to: string }> = [];
+  let subfoldersCreated = 0;
+  let spreadsheetsCreated = 0;
+  const errors: string[] = [];
+
+  for (const folder of allFolders) {
+    try {
+      const normalizedName = buildNormalizedFolderName(folder.name);
+
+      if (normalizedName !== folder.name) {
+        await renameFolder(drive, folder.id, normalizedName);
+        renamed.push({ from: folder.name, to: normalizedName });
+        console.log(`[Normalize] Renomeada: "${folder.name}" -> "${normalizedName}"`);
+      }
+
+      const existingSubs = await findAllFolders(drive, folder.id);
+      const existingSubNames = new Set(existingSubs.map(s => s.name.toUpperCase()));
+
+      for (const subName of CLIENT_SUBFOLDERS) {
+        if (!existingSubNames.has(subName.toUpperCase())) {
+          await createFolder(drive, subName, folder.id);
+          subfoldersCreated++;
+        }
+      }
+
+      const cadastroId = (existingSubs.find(s => s.name.toUpperCase() === "CADASTRO") || 
+        { id: await findFolder(drive, "CADASTRO", folder.id) }).id;
+      
+      if (cadastroId) {
+        await findOrCreateFolder(drive, "CADASTROS ANTIGOS", cadastroId);
+      }
+
+      const cpfFromName = extractCpfFromFolderName(normalizedName);
+      const nameWithoutCpf = normalizedName.replace(/\s*CPF\s+\d{3}\.\d{3}\.\d{3}-\d{2}\s*$/, "").trim();
+      const formattedCpf = cpfFromName ? formatCpfDisplay(cpfFromName) : "";
+      const sheetTitle = cpfFromName
+        ? `CADASTRO - ${nameWithoutCpf} CPF ${formattedCpf}`
+        : `CADASTRO - ${nameWithoutCpf}`;
+
+      if (cadastroId) {
+        const existingSheets = await drive.files.list({
+          q: `'${cadastroId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+          fields: "files(id, name)",
+        });
+
+        if (!existingSheets.data.files?.length) {
+          const clientFolderUrl = `https://drive.google.com/drive/folders/${folder.id}`;
+          const subfolderMap: Record<string, string> = {};
+          const allSubsNow = await findAllFolders(drive, folder.id);
+          for (const s of allSubsNow) {
+            subfolderMap[s.name.toUpperCase()] = s.id;
+          }
+
+          const now = new Date();
+          const carimbo = `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
+
+          const spreadsheetRes = await sheets.spreadsheets.create({
+            requestBody: {
+              properties: { title: sheetTitle },
+              sheets: [
+                {
+                  properties: { title: "CADASTRO", sheetId: 0, index: 0 },
+                  data: [{
+                    startRow: 0, startColumn: 0,
+                    rowData: [
+                      {
+                        values: [
+                          { userEnteredValue: { stringValue: "CARIMBO DE DATA/HORA" } },
+                          { userEnteredValue: { stringValue: "PONTUACAO" } },
+                          { userEnteredValue: { stringValue: "NOME" } },
+                          { userEnteredValue: { stringValue: "CPF" } },
+                          { userEnteredValue: { stringValue: "DATA NASCIMENTO" } },
+                          { userEnteredValue: { stringValue: "CELULAR" } },
+                          { userEnteredValue: { stringValue: "CEP" } },
+                          { userEnteredValue: { stringValue: "ENDERECO" } },
+                          { userEnteredValue: { stringValue: "NUMERO" } },
+                          { userEnteredValue: { stringValue: "COMPLEMENTO" } },
+                          { userEnteredValue: { stringValue: "BAIRRO" } },
+                          { userEnteredValue: { stringValue: "CIDADE" } },
+                          { userEnteredValue: { stringValue: "ESTADO" } },
+                          { userEnteredValue: { stringValue: "PAIS" } },
+                          { userEnteredValue: { stringValue: "EMAIL" } },
+                          { userEnteredValue: { stringValue: "INSTAGRAM" } },
+                          { userEnteredValue: { stringValue: "COMO NOS CONHECEU ?" } },
+                        ],
+                      },
+                      {
+                        values: [
+                          { userEnteredValue: { stringValue: carimbo } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: nameWithoutCpf } },
+                          { userEnteredValue: { stringValue: formattedCpf } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "BRASIL" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                          { userEnteredValue: { stringValue: "" } },
+                        ],
+                      },
+                    ],
+                  }],
+                },
+                {
+                  properties: { title: "METADADOS", sheetId: 1, index: 1 },
+                  data: [{
+                    startRow: 0, startColumn: 0,
+                    rowData: [
+                      {
+                        values: [
+                          { userEnteredValue: { stringValue: "NOME" } },
+                          { userEnteredValue: { stringValue: "CPF" } },
+                          { userEnteredValue: { stringValue: "URL PASTA" } },
+                          { userEnteredValue: { stringValue: "ID PASTA" } },
+                          { userEnteredValue: { stringValue: "ID CADASTRO" } },
+                          { userEnteredValue: { stringValue: "ID PATOLOGIAS" } },
+                          { userEnteredValue: { stringValue: "ID EXAMES" } },
+                          { userEnteredValue: { stringValue: "ID AVALIACOES" } },
+                          { userEnteredValue: { stringValue: "ID RECEITAS" } },
+                          { userEnteredValue: { stringValue: "ID PROTOCOLOS" } },
+                          { userEnteredValue: { stringValue: "ID FINANCEIRO" } },
+                          { userEnteredValue: { stringValue: "ID CONTRATOS" } },
+                          { userEnteredValue: { stringValue: "ID ATESTADOS" } },
+                          { userEnteredValue: { stringValue: "ID LAUDOS" } },
+                          { userEnteredValue: { stringValue: "ID TERMOS" } },
+                          { userEnteredValue: { stringValue: "ID FOTO PERFIL" } },
+                          { userEnteredValue: { stringValue: "ID IMAGENS" } },
+                          { userEnteredValue: { stringValue: "ID PESQUISA" } },
+                          { userEnteredValue: { stringValue: "ID OUVIDORIA" } },
+                        ],
+                      },
+                      {
+                        values: [
+                          { userEnteredValue: { stringValue: nameWithoutCpf } },
+                          { userEnteredValue: { stringValue: formattedCpf } },
+                          { userEnteredValue: { stringValue: clientFolderUrl } },
+                          { userEnteredValue: { stringValue: folder.id } },
+                          { userEnteredValue: { stringValue: subfolderMap["CADASTRO"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["PATOLOGIAS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["EXAMES"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["AVALIACOES"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["RECEITAS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["PROTOCOLOS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["FINANCEIRO"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["CONTRATOS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["ATESTADOS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["LAUDOS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["TERMOS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["FOTO PERFIL"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["IMAGENS"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["PESQUISA"] || "" } },
+                          { userEnteredValue: { stringValue: subfolderMap["OUVIDORIA"] || "" } },
+                        ],
+                      },
+                    ],
+                  }],
+                },
+              ],
+            },
+          });
+
+          const newSheetId = spreadsheetRes.data.spreadsheetId!;
+
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: newSheetId,
+            requestBody: {
+              requests: [
+                {
+                  repeatCell: {
+                    range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 17 },
+                    cell: {
+                      userEnteredFormat: {
+                        backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                        horizontalAlignment: "CENTER",
+                      },
+                    },
+                    fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                  },
+                },
+                {
+                  repeatCell: {
+                    range: { sheetId: 1, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 19 },
+                    cell: {
+                      userEnteredFormat: {
+                        backgroundColor: { red: 0.12, green: 0.33, blue: 0.33 },
+                        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 10 },
+                        horizontalAlignment: "CENTER",
+                      },
+                    },
+                    fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+                  },
+                },
+              ],
+            },
+          });
+
+          await drive.files.update({
+            fileId: newSheetId,
+            addParents: cadastroId,
+            fields: "id, parents",
+          });
+
+          spreadsheetsCreated++;
+          console.log(`[Normalize] Planilha criada: "${sheetTitle}"`);
+        }
+      }
+    } catch (err: any) {
+      errors.push(`${folder.name}: ${err.message}`);
+      console.error(`[Normalize] Erro em "${folder.name}":`, err.message);
+    }
+  }
+
+  return { renamed, subfoldersCreated, spreadsheetsCreated, errors };
+}
+
 export function formatProtocolFileName(date: string, clientName: string): string {
   const [y, m, d] = date.split("-");
   const yy = y.slice(-2);
