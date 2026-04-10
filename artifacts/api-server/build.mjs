@@ -100,6 +100,9 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
+      "pdf-parse",
+      "tesseract.js",
+      "@napi-rs/canvas",
     ],
     sourcemap: "linked",
     plugins: [

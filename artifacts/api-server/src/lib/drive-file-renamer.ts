@@ -1,5 +1,8 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
+import { execSync } from "child_process";
+import { writeFileSync, readFileSync, unlinkSync, readdirSync, mkdirSync, existsSync, rmSync } from "fs";
+import { join } from "path";
 
 function getOAuth2Client() {
   return getAccessTokenInternal().then(accessToken => {
@@ -38,37 +41,59 @@ function removeDiacritics(str: string): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-const EXAM_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /hemogl|hemograma/i, label: "HEMOGRAMA" },
-  { pattern: /bioqu[ií]mica|bioquimi/i, label: "BIOQUIMICA" },
-  { pattern: /colesterol|lipidograma|triglicerid/i, label: "PERFIL LIPIDICO" },
-  { pattern: /glicemia|glicose|hba1c|hemoglobina glicada/i, label: "GLICEMIA" },
-  { pattern: /tsh|t3|t4|tireoide|tireoid/i, label: "TIREOIDE" },
-  { pattern: /hepatite|hbsag|anti.?hcv/i, label: "SOROLOGIA HEPATITE" },
-  { pattern: /hiv|anti.?hiv/i, label: "SOROLOGIA HIV" },
-  { pattern: /vdrl|sifilis/i, label: "SOROLOGIA SIFILIS" },
-  { pattern: /urina|eas|elementos anormais/i, label: "URINA" },
-  { pattern: /proteinuria|proteina.*urina/i, label: "PROTEINURIA" },
-  { pattern: /creatinina|ureia|funcao renal/i, label: "FUNCAO RENAL" },
-  { pattern: /tgo|tgp|transaminase|funcao hepatica|hepatica/i, label: "FUNCAO HEPATICA" },
-  { pattern: /coagulograma|tp\b|inr\b|ttpa|coagula/i, label: "COAGULOGRAMA" },
-  { pattern: /ferro|ferritina|transferrina/i, label: "PERFIL FERRO" },
-  { pattern: /vitamina\s*d|25.?oh/i, label: "VITAMINA D" },
-  { pattern: /vitamina\s*b12|cianocobalamina/i, label: "VITAMINA B12" },
-  { pattern: /psa|prostata/i, label: "PSA" },
-  { pattern: /eletrocardiograma|ecg|ekg/i, label: "ECG" },
-  { pattern: /eletroencefalograma|eeg/i, label: "EEG" },
-  { pattern: /densitometria|dexa|dmo/i, label: "DENSITOMETRIA" },
+const LAB_EXAM_PATTERNS: RegExp[] = [
+  /hemogl|hemograma/i,
+  /bioqu[ií]mica|bioquimi/i,
+  /colesterol|lipidograma|triglicerid/i,
+  /glicemia|glicose|hba1c|hemoglobina glicada/i,
+  /hepatite|hbsag|anti.?hcv/i,
+  /hiv|anti.?hiv/i,
+  /vdrl|sifilis/i,
+  /urina|eas|elementos anormais/i,
+  /proteinuria|proteina.*urina/i,
+  /creatinina|ureia|funcao renal/i,
+  /tgo|tgp|transaminase|funcao hepatica|hepatica/i,
+  /coagulograma|tp\b|inr\b|ttpa|coagula/i,
+  /ferro|ferritina|transferrina/i,
+  /vitamina\s*d|25.?oh/i,
+  /vitamina\s*b12|cianocobalamina/i,
+  /psa|prostata/i,
+  /testosterona|estradiol|progesterona|fsh\b|lh\b|prolactina|hormon/i,
+  /tsh|t3\b|t4\b/i,
+  /acido\s*urico/i,
+  /pcr|vhs|proteina.*reativa/i,
+  /calcio|magnesio|fosforo|potassio|sodio|eletrolit/i,
+  /albumina|proteinas?\s*totais/i,
+  /bilirrubina/i,
+  /amilase|lipase/i,
+  /leucograma|plaqueta/i,
+  /sangue|laborat|lab\b|resultado.*exame/i,
+];
+
+const COMPLEX_EXAM_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /eletrocardiograma|ecg\b|ekg\b/i, label: "ECG" },
+  { pattern: /eletroencefalograma|eeg\b/i, label: "EEG" },
+  { pattern: /densitometria|dexa\b|dmo\b/i, label: "DENSITOMETRIA" },
   { pattern: /mamografia|mamogra/i, label: "MAMOGRAFIA" },
   { pattern: /papanicolau|citolog.*cervic/i, label: "PAPANICOLAU" },
+  { pattern: /arteriografia|angiografia/i, label: "ANGIOGRAFIA" },
+  { pattern: /holter/i, label: "HOLTER" },
+  { pattern: /mapa\b.*press|monit.*ambulat.*press/i, label: "MAPA" },
+  { pattern: /espirometria|prova.*func.*pulm/i, label: "ESPIROMETRIA" },
+  { pattern: /audiometria/i, label: "AUDIOMETRIA" },
+  { pattern: /polissonografia/i, label: "POLISSONOGRAFIA" },
+  { pattern: /biopsia/i, label: "BIOPSIA" },
+  { pattern: /cintilografia/i, label: "CINTILOGRAFIA" },
+  { pattern: /ergometri|teste.*esforco/i, label: "TESTE ERGOMETRICO" },
+  { pattern: /tireoide|tireoid/i, label: "TIREOIDE" },
 ];
 
 const IMAGING_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /ultra.?som|ultrassonograf|usg\b|us\b/i, label: "USG" },
-  { pattern: /resson[aâ]ncia|rmn?\b|rm\b/i, label: "RMN" },
+  { pattern: /ultra.?som|ultrassonograf|usg\b/i, label: "USG" },
+  { pattern: /angioresson[aâ]ncia|angio.?rm/i, label: "ANGIORESSONANCIA" },
+  { pattern: /resson[aâ]ncia\s*magn|rmn\b/i, label: "RMN" },
   { pattern: /tomografia|tc\b|ct\b/i, label: "TC" },
   { pattern: /raio.?x|rx\b|radiograf/i, label: "RX" },
-  { pattern: /cintilografia/i, label: "CINTILOGRAFIA" },
   { pattern: /endoscopia|eda\b/i, label: "ENDOSCOPIA" },
   { pattern: /colonoscopia/i, label: "COLONOSCOPIA" },
   { pattern: /ecocardiograma|eco.*cardio/i, label: "ECOCARDIOGRAMA" },
@@ -135,30 +160,32 @@ const PROTOCOL_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /gluteo|nadeg/i, label: "GLUTEO" },
 ];
 
+function findBodyPart(text: string): string | undefined {
+  for (const bp of BODY_PARTS) {
+    if (bp.pattern.test(text)) return bp.label;
+  }
+  return undefined;
+}
+
 function classifyExamFromText(text: string, fileName: string): { type: string; bodyPart?: string } {
   const combined = removeDiacritics(`${fileName} ${text}`).toUpperCase();
 
+  for (const complex of COMPLEX_EXAM_KEYWORDS) {
+    if (complex.pattern.test(combined)) {
+      return { type: complex.label, bodyPart: findBodyPart(combined) };
+    }
+  }
+
   for (const img of IMAGING_KEYWORDS) {
     if (img.pattern.test(combined)) {
-      let bodyPart: string | undefined;
-      for (const bp of BODY_PARTS) {
-        if (bp.pattern.test(combined)) {
-          bodyPart = bp.label;
-          break;
-        }
-      }
-      return { type: img.label, bodyPart };
+      return { type: img.label, bodyPart: findBodyPart(combined) };
     }
   }
 
-  for (const exam of EXAM_KEYWORDS) {
-    if (exam.pattern.test(combined)) {
-      return { type: exam.label };
+  for (const labPattern of LAB_EXAM_PATTERNS) {
+    if (labPattern.test(combined)) {
+      return { type: "EXAME" };
     }
-  }
-
-  if (/sangue|laborat|lab\b/i.test(combined)) {
-    return { type: "EXAME LABORATORIAL" };
   }
 
   return { type: "EXAME" };
@@ -192,19 +219,109 @@ function formatDateReverse(dateStr: string): string {
   return `${yy}.${mm}.${dd}`;
 }
 
+const TMP_DIR = "/tmp/pdf-ocr";
+
+let _ocrWorker: any = null;
+
+async function getOcrWorker(): Promise<any> {
+  if (_ocrWorker) return _ocrWorker;
+  const Tesseract = await import("tesseract.js");
+
+  const possiblePaths = [
+    join(process.cwd(), "node_modules/tesseract.js/src/worker-script/node/index.js"),
+    join(process.cwd(), "../../node_modules/tesseract.js/src/worker-script/node/index.js"),
+  ];
+  let workerPath = "";
+  for (const p of possiblePaths) {
+    if (existsSync(p)) { workerPath = p; break; }
+  }
+  
+  const opts: any = {};
+  if (workerPath) {
+    opts.workerPath = workerPath;
+    console.log(`[OCR] Worker encontrado: ${workerPath}`);
+  }
+
+  _ocrWorker = await Tesseract.createWorker("por", undefined, opts);
+  return _ocrWorker;
+}
+
+async function ocrFromPdfBuffer(buffer: Buffer): Promise<string> {
+  try {
+    if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR, { recursive: true });
+
+    const ts = Date.now();
+    const pdfPath = join(TMP_DIR, `input_${ts}.pdf`);
+    writeFileSync(pdfPath, buffer);
+
+    try {
+      execSync(`pdftoppm -png -r 200 -f 1 -l 1 "${pdfPath}" "${join(TMP_DIR, `page_${ts}`)}"`, { timeout: 15000 });
+    } catch {
+      unlinkSync(pdfPath);
+      return "";
+    }
+
+    const pngFiles = readdirSync(TMP_DIR).filter(f => f.startsWith(`page_${ts}`) && f.endsWith(".png"));
+    if (pngFiles.length === 0) {
+      unlinkSync(pdfPath);
+      return "";
+    }
+
+    const imgPath = join(TMP_DIR, pngFiles[0]);
+    const worker = await getOcrWorker();
+    const { data } = await worker.recognize(imgPath);
+
+    unlinkSync(pdfPath);
+    for (const f of pngFiles) {
+      try { unlinkSync(join(TMP_DIR, f)); } catch {}
+    }
+
+    return data.text || "";
+  } catch (err) {
+    console.error("[OCR] Erro:", (err as Error).message);
+    return "";
+  }
+}
+
 async function extractPdfText(drive: any, fileId: string): Promise<string> {
+  let buffer: Buffer;
   try {
     const res = await drive.files.get(
       { fileId, alt: "media" },
       { responseType: "arraybuffer" }
     );
-    const buffer = Buffer.from(res.data as ArrayBuffer);
-    const pdfParse = (await import("pdf-parse")).default;
-    const parsed = await pdfParse(buffer);
-    return parsed.text || "";
-  } catch {
+    buffer = Buffer.from(res.data as ArrayBuffer);
+  } catch (err) {
+    console.error(`[Extract] Erro ao baixar fileId=${fileId}:`, (err as Error).message);
     return "";
   }
+
+  let text = "";
+  try {
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    text = (typeof result === "string" ? result : result?.text || "").trim();
+  } catch (err) {
+    console.log(`[Extract] pdf-parse falhou para fileId=${fileId}: ${(err as Error).message?.slice(0, 100)}`);
+  }
+
+  if (text.length > 20) {
+    return text;
+  }
+
+  console.log(`[OCR] Texto insuficiente (${text.length} chars), tentando OCR para fileId=${fileId}...`);
+  try {
+    const ocrText = await ocrFromPdfBuffer(buffer);
+    if (ocrText.trim().length > 10) {
+      console.log(`[OCR] Sucesso! Extraidos ${ocrText.trim().length} chars via OCR`);
+      return ocrText;
+    }
+  } catch (err) {
+    console.error(`[OCR] Falha para fileId=${fileId}:`, (err as Error).message);
+  }
+
+  return text || "";
 }
 
 interface RenameResult {
@@ -219,6 +336,68 @@ interface RenameReport {
   results: RenameResult[];
   errors: string[];
   skipped: number;
+}
+
+export async function diagnosePdfContent(maxFiles: number = 5): Promise<Array<{
+  client: string;
+  subfolder: string;
+  fileName: string;
+  extractedText: string;
+  classification: { type: string; bodyPart?: string };
+}>> {
+  const auth = await getOAuth2Client();
+  const drive = google.drive({ version: "v3", auth });
+
+  const rootQ = `mimeType='application/vnd.google-apps.folder' and name='CLIENTES' and trashed=false`;
+  const rootRes = await drive.files.list({ q: rootQ, fields: "files(id)", spaces: "drive" });
+  const rootId = rootRes.data.files?.[0]?.id;
+  if (!rootId) throw new Error("Pasta CLIENTES nao encontrada");
+
+  const clientFolders = await drive.files.list({
+    q: `mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`,
+    fields: "files(id, name)",
+    spaces: "drive",
+    pageSize: 1000,
+  });
+
+  const results: Array<{ client: string; subfolder: string; fileName: string; extractedText: string; classification: { type: string; bodyPart?: string } }> = [];
+
+  for (const clientFolder of (clientFolders.data.files || [])) {
+    if (results.length >= maxFiles) break;
+    const subFolders = await drive.files.list({
+      q: `mimeType='application/vnd.google-apps.folder' and '${clientFolder.id}' in parents and trashed=false`,
+      fields: "files(id, name)",
+      spaces: "drive",
+    });
+
+    for (const sub of (subFolders.data.files || [])) {
+      if (results.length >= maxFiles) break;
+      if (sub.name!.toUpperCase() !== "EXAMES") continue;
+
+      const files = await drive.files.list({
+        q: `'${sub.id}' in parents and trashed=false and mimeType='application/pdf'`,
+        fields: "files(id, name)",
+        spaces: "drive",
+        pageSize: 3,
+      });
+
+      for (const file of (files.data.files || [])) {
+        if (results.length >= maxFiles) break;
+        const text = await extractPdfText(drive, file.id!);
+        const classification = classifyExamFromText(text, file.name || "");
+        results.push({
+          client: clientFolder.name!,
+          subfolder: sub.name!,
+          fileName: file.name || "",
+          extractedText: text.slice(0, 1500),
+          classification,
+        });
+        console.log(`[Diagnose] ${clientFolder.name}/${file.name}: tipo=${classification.type}, texto=${text.slice(0, 200).replace(/\n/g, " ")}`);
+      }
+    }
+  }
+
+  return results;
 }
 
 export async function renameAllClientFiles(): Promise<RenameReport> {
@@ -281,7 +460,7 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
                 textContent = await extractPdfText(drive, file.id!);
               }
               const classification = classifyExamFromText(textContent, fileName);
-              const examLabel = classification.bodyPart
+              const examLabel = classification.bodyPart && !classification.type.includes(classification.bodyPart)
                 ? `${classification.type} ${classification.bodyPart}`
                 : classification.type;
               newName = datePrefix

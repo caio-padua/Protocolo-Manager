@@ -14,7 +14,7 @@ import {
   normalizeAllClientFolders,
   migrateExistingCadastros,
 } from "../lib/google-drive";
-import { renameAllClientFiles } from "../lib/drive-file-renamer";
+import { renameAllClientFiles, diagnosePdfContent } from "../lib/drive-file-renamer";
 
 const router = Router();
 
@@ -243,6 +243,18 @@ router.post("/migrate-cadastros", async (_req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Migrate cadastros error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/diagnose-pdfs", async (req: Request, res: Response) => {
+  try {
+    const max = parseInt(req.query.max as string) || 5;
+    console.log(`[Drive] Diagnosticando ${max} PDFs...`);
+    const results = await diagnosePdfContent(max);
+    res.json({ success: true, count: results.length, results });
+  } catch (err: any) {
+    console.error("Diagnose PDFs error:", err);
     res.status(500).json({ error: err.message });
   }
 });

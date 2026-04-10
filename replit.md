@@ -25,7 +25,7 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (ESM bundle)
-- **PDF**: pdf-lib (generation) + node-forge (A1 ICP-Brasil digital signature)
+- **PDF**: pdf-lib (generation) + node-forge (A1 ICP-Brasil digital signature) + pdf-parse v2 (text extraction via `PDFParse.getText()`) + tesseract.js (OCR fallback for scanned PDFs, uses `pdftoppm` for PDF→PNG conversion)
 
 ## Key Commands
 
@@ -97,6 +97,8 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
   - Subfolders: CADASTRO (with CADASTROS ANTIGOS), PATOLOGIAS, EXAMES, AVALIACOES, RECEITAS, PROTOCOLOS, FINANCEIRO, CONTRATOS, ATESTADOS, LAUDOS, TERMOS, FOTO PERFIL, IMAGENS, PESQUISA, OUVIDORIA
   - Protocol PDF naming: `YY.MM.DD PROTOCOLO NOME DO CLIENTE.pdf`
   - RAS PDF naming: `DD.MM.YY RAS NOME DO CLIENTE CPF.pdf`
+  - **File renaming**: `POST /api/google-drive/rename-files` (async fire-and-forget). Pattern: `YY.MM.DD TIPO [AREA] NOME_CLIENTE.ext`. Date from Drive `createdTime`. Classification priority: COMPLEX_EXAM (densitometria, biopsia, etc.) > IMAGING (USG, RMN, TC, etc.) > LAB → "EXAME". Text extraction: pdf-parse v2 first, OCR fallback via tesseract.js. Body part appended only if not redundant with type.
+  - **PDF diagnostics**: `GET /api/google-drive/diagnose-pdfs?max=N` — extracts text + classifies without renaming
   - Idempotent: won't recreate existing folders
   - Auto-share view-only with client email
   - Setup per-client: `/api/google-drive/setup-client/:clientId`
