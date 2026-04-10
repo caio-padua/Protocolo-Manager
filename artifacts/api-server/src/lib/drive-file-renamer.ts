@@ -82,10 +82,9 @@ const COMPLEX_EXAM_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /espirometria|prova.*func.*pulm/i, label: "ESPIROMETRIA" },
   { pattern: /audiometria/i, label: "AUDIOMETRIA" },
   { pattern: /polissonografia/i, label: "POLISSONOGRAFIA" },
-  { pattern: /biopsia/i, label: "BIOPSIA" },
+  { pattern: /biopsia|anatomopatol|histopatol/i, label: "BIOPSIA" },
   { pattern: /cintilografia/i, label: "CINTILOGRAFIA" },
   { pattern: /ergometri|teste.*esforco/i, label: "TESTE ERGOMETRICO" },
-  { pattern: /tireoide|tireoid/i, label: "TIREOIDE" },
 ];
 
 const IMAGING_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
@@ -117,11 +116,11 @@ const BODY_PARTS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /tornozelo\s*(d|dir|direito)/i, label: "TORNOZELO D" },
   { pattern: /tornozelo\s*(e|esq|esquerdo)/i, label: "TORNOZELO E" },
   { pattern: /tornozelo/i, label: "TORNOZELO" },
-  { pattern: /mao\s*(d|dir|direita)/i, label: "MAO D" },
-  { pattern: /mao\s*(e|esq|esquerda)/i, label: "MAO E" },
-  { pattern: /mao|maos/i, label: "MAO" },
-  { pattern: /pe\s*(d|dir|direito)/i, label: "PE D" },
-  { pattern: /pe\s*(e|esq|esquerdo)/i, label: "PE E" },
+  { pattern: /\bmao\s+(direita|dir)\b/i, label: "MAO D" },
+  { pattern: /\bmao\s+(esquerda|esq)\b/i, label: "MAO E" },
+  { pattern: /\bmaos?\b/i, label: "MAO" },
+  { pattern: /\bpe\s+(direito|dir)\b/i, label: "PE D" },
+  { pattern: /\bpe\s+(esquerdo|esq)\b/i, label: "PE E" },
   { pattern: /cranio|cerebr|encefal/i, label: "CRANIO" },
   { pattern: /abdome|abdomin/i, label: "ABDOME" },
   { pattern: /torax|pulmao|pulmon/i, label: "TORAX" },
@@ -449,7 +448,9 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
             const fileName = file.name || "";
             const fileDate = file.createdTime || file.modifiedTime || "";
             const datePrefix = formatDateReverse(fileDate);
-            const ext = fileName.includes(".") ? "." + fileName.split(".").pop() : "";
+            const knownExts = /\.(pdf|jpg|jpeg|png|gif|bmp|tiff|tif|webp|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|odt|ods|heic|mp4|mov)$/i;
+            const extMatch = fileName.match(knownExts);
+            const ext = extMatch ? extMatch[0].toLowerCase() : "";
             const cleanClientName = removeDiacritics(clientName).toUpperCase();
 
             let newName = "";
