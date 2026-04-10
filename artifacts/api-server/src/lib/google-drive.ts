@@ -302,14 +302,34 @@ export async function createClientSpreadsheet(
   const pais = (clientData.pais || "BRASIL").toUpperCase();
 
   const phone = clientData.phone || "";
-  const phoneWithCountry = phone.startsWith("+") ? phone : `+55 ${phone}`;
+  const phoneDigits = phone.replace(/\D/g, "");
+  let phoneFormatted = phone;
+  if (phoneDigits.length === 11) {
+    phoneFormatted = `+55 (${phoneDigits.slice(0, 2)}) ${phoneDigits.slice(2, 7)}-${phoneDigits.slice(7)}`;
+  } else if (phoneDigits.length === 13 && phoneDigits.startsWith("55")) {
+    phoneFormatted = `+${phoneDigits.slice(0, 2)} (${phoneDigits.slice(2, 4)}) ${phoneDigits.slice(4, 9)}-${phoneDigits.slice(9)}`;
+  } else if (phone.startsWith("+")) {
+    phoneFormatted = phone;
+  } else {
+    phoneFormatted = `+55 ${phone}`;
+  }
+
+  const cepDigits = cep.replace(/\D/g, "");
+  const cepFormatted = cepDigits.length === 8
+    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
+    : cep;
 
   const now = new Date();
   const carimbo = `${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR")}`;
 
-  const birthDate = clientData.birthDate || "";
+  const rawBirthDate = clientData.birthDate || "";
+  let birthDate = rawBirthDate;
+  if (rawBirthDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+    const [y, m, d] = rawBirthDate.slice(0, 10).split("-");
+    birthDate = `${d}/${m}/${y}`;
+  }
   const email = (clientData.email || "").toUpperCase();
-  const instagram = clientData.instagram || "";
+  const instagram = (clientData.instagram || "").toUpperCase();
   const comoConheceu = (clientData.comoConheceu || "").toUpperCase();
 
   const clientFolderUrl = `https://drive.google.com/drive/folders/${folderStructure.clientFolderId}`;
@@ -351,8 +371,8 @@ export async function createClientSpreadsheet(
                   { userEnteredValue: { stringValue: cleanName } },
                   { userEnteredValue: { stringValue: formattedCpf } },
                   { userEnteredValue: { stringValue: birthDate } },
-                  { userEnteredValue: { stringValue: phoneWithCountry } },
-                  { userEnteredValue: { stringValue: cep } },
+                  { userEnteredValue: { stringValue: phoneFormatted } },
+                  { userEnteredValue: { stringValue: cepFormatted } },
                   { userEnteredValue: { stringValue: endereco } },
                   { userEnteredValue: { stringValue: numero } },
                   { userEnteredValue: { stringValue: complemento } },
@@ -580,6 +600,108 @@ export async function isDriveConnected(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function extractCpfFromFolderName(folderName: string): string | null {
+  const cpfWithDots = folderName.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
+  if (cpfWithDots) return cpfWithDots[1].replace(/\D/g, "");
+
+  const cpfMatch = folderName.match(/CPF\s+(\d{11})/);
+  if (cpfMatch) return cpfMatch[1];
+
+  const rawDigits = folderName.match(/(\d{11})/);
+  if (rawDigits) return rawDigits[1];
+
+  return null;
+}
+
+export async function deduplicateClientFolders(): Promise<{
+  merged: Array<{ cpf: string; kept: string; removed: string[]; filesMoved: number }>;
+  errors: string[];
+}> {
+  const drive = await getUncachableDriveClient();
+  const rootId = await findOrCreateFolder(drive, "CLIENTES");
+
+  const allFolders = await findAllFolders(drive, rootId);
+
+  const byCpf = new Map<string, Array<{ id: string; name: string }>>();
+  for (const folder of allFolders) {
+    const cpf = extractCpfFromFolderName(folder.name);
+    if (!cpf) continue;
+    const existing = byCpf.get(cpf) || [];
+    existing.push(folder);
+    byCpf.set(cpf, existing);
+  }
+
+  const merged: Array<{ cpf: string; kept: string; removed: string[]; filesMoved: number }> = [];
+  const errors: string[] = [];
+
+  for (const [cpf, folders] of byCpf) {
+    if (folders.length <= 1) continue;
+
+    const sorted = [...folders].sort((a, b) => {
+      const aHasCpfFormatted = a.name.includes("CPF ");
+      const bHasCpfFormatted = b.name.includes("CPF ");
+      if (aHasCpfFormatted && !bHasCpfFormatted) return -1;
+      if (!aHasCpfFormatted && bHasCpfFormatted) return 1;
+      return b.name.length - a.name.length;
+    });
+
+    const keeper = sorted[0];
+    const duplicates = sorted.slice(1);
+    let totalFilesMoved = 0;
+
+    try {
+      const keeperSubs = await findAllFolders(drive, keeper.id);
+      const keeperSubMap = new Map<string, string>();
+      for (const sub of keeperSubs) {
+        keeperSubMap.set(sub.name.toUpperCase(), sub.id);
+      }
+
+      for (const dup of duplicates) {
+        const dupChildren = await listAllChildren(drive, dup.id);
+
+        for (const child of dupChildren) {
+          const isFolder = (child as any).mimeType === "application/vnd.google-apps.folder";
+
+          if (isFolder) {
+            const subName = child.name.toUpperCase();
+            const targetSubId = keeperSubMap.get(subName);
+
+            if (targetSubId) {
+              const subChildren = await listAllChildren(drive, child.id);
+              for (const subChild of subChildren) {
+                await moveFile(drive, subChild.id, child.id, targetSubId);
+                totalFilesMoved++;
+              }
+              await drive.files.update({ fileId: child.id, requestBody: { trashed: true } });
+            } else {
+              await moveFile(drive, child.id, dup.id, keeper.id);
+              keeperSubMap.set(subName, child.id);
+              totalFilesMoved++;
+            }
+          } else {
+            await moveFile(drive, child.id, dup.id, keeper.id);
+            totalFilesMoved++;
+          }
+        }
+
+        await drive.files.update({ fileId: dup.id, requestBody: { trashed: true } });
+        console.log(`[Drive] Dedup: removida pasta duplicada "${dup.name}" (CPF ${cpf})`);
+      }
+
+      merged.push({
+        cpf,
+        kept: keeper.name,
+        removed: duplicates.map(d => d.name),
+        filesMoved: totalFilesMoved,
+      });
+    } catch (err: any) {
+      errors.push(`CPF ${cpf}: ${err.message}`);
+    }
+  }
+
+  return { merged, errors };
 }
 
 export function formatProtocolFileName(date: string, clientName: string): string {

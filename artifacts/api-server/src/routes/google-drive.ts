@@ -10,6 +10,7 @@ import {
   isDriveConnected,
   formatProtocolFileName,
   formatRASFileName,
+  deduplicateClientFolders,
 } from "../lib/google-drive";
 
 const router = Router();
@@ -181,6 +182,23 @@ router.post("/upload-ras/:clientId", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Drive upload RAS error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/deduplicate-folders", async (_req: Request, res: Response) => {
+  try {
+    console.log("[Drive] Iniciando deduplicacao de pastas de clientes...");
+    const result = await deduplicateClientFolders();
+    console.log(`[Drive] Deduplicacao concluida: ${result.merged.length} clientes mesclados, ${result.errors.length} erros`);
+    res.json({
+      success: true,
+      totalMerged: result.merged.length,
+      merged: result.merged,
+      errors: result.errors,
+    });
+  } catch (err: any) {
+    console.error("Dedup error:", err);
     res.status(500).json({ error: err.message });
   }
 });
