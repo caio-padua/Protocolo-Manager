@@ -503,6 +503,180 @@ export interface CreateProfessionalBody {
   serviceTypes: string[];
 }
 
+export interface Pharmacy {
+  id: number;
+  name: string;
+  type: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  whatsapp?: string | null;
+  notes?: string | null;
+  controlledTypes: string[];
+  driveFolderId?: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreatePharmacyBody {
+  name: string;
+  type?: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  whatsapp?: string | null;
+  notes?: string | null;
+  controlledTypes?: string[];
+  active?: boolean;
+}
+
+export interface PrescriptionItemInput {
+  name: string;
+  ativos?: string | null;
+  posologia?: string | null;
+  dose?: string | null;
+  via?: string | null;
+  frequencia?: string | null;
+  periodo?: string | null;
+  observacao?: string | null;
+  category?: string | null;
+  internalColor?: string | null;
+  isControlled?: boolean | null;
+  anvisaType?: string | null;
+  pharmacyId?: number | null;
+}
+
+export interface PreviewBody {
+  items: PrescriptionItemInput[];
+}
+
+export interface RecipePlan {
+  recipeType: string;
+  pharmacyId?: number | null;
+  anvisaType?: string | null;
+  anvisaColor?: string | null;
+  anvisaColorName?: string | null;
+  needsSncr: boolean;
+  title: string;
+  items: PrescriptionItemInput[];
+}
+
+export interface EmitBody {
+  clientId?: number | null;
+  clientName: string;
+  clientCpf?: string | null;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  professionalId?: number | null;
+  professionalName?: string | null;
+  professionalCrm?: string | null;
+  professionalUf?: string | null;
+  durationDays?: string | null;
+  cid?: string | null;
+  message?: string | null;
+  items: PrescriptionItemInput[];
+}
+
+export interface EmittedRecipe {
+  id: number;
+  recipeType: string;
+  title: string;
+  pharmacyId?: number | null;
+  anvisaType?: string | null;
+  anvisaColorName?: string | null;
+  sncrNumber?: string | null;
+  sncrStatus?: string | null;
+  driveWebViewLink?: string | null;
+  pdfUrl: string;
+}
+
+export interface SncrAlert {
+  controlledType: string;
+  status: string;
+  remaining?: number | null;
+  message: string;
+}
+
+export interface EmitResult {
+  prescriptionId: number;
+  recipes: EmittedRecipe[];
+  sncrAlerts: SncrAlert[];
+  whatsappLink?: string | null;
+  whatsappSent: boolean;
+}
+
+export interface Prescription {
+  id: number;
+  clientId?: number | null;
+  clientName: string;
+  clientCpf?: string | null;
+  professionalName?: string | null;
+  status: string;
+  createdAt: string;
+  emittedAt?: string | null;
+}
+
+export interface PrescriptionDetail {
+  id: number;
+  clientName: string;
+  clientCpf?: string | null;
+  professionalName?: string | null;
+  status: string;
+  createdAt: string;
+  emittedAt?: string | null;
+  recipes: EmittedRecipe[];
+}
+
+export interface SncrRange {
+  id: number;
+  professionalId?: number | null;
+  professionalName?: string | null;
+  uf: string;
+  controlledType: string;
+  startNumber: number;
+  endNumber: number;
+  nextNumber: number;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateSncrRangeBody {
+  professionalId?: number | null;
+  professionalName?: string | null;
+  uf: string;
+  controlledType: string;
+  startNumber: number;
+  endNumber: number;
+  nextNumber?: number | null;
+  active?: boolean;
+}
+
+export interface SncrQuota {
+  rangeId: number;
+  professionalId?: number | null;
+  professionalName?: string | null;
+  uf: string;
+  controlledType: string;
+  startNumber: number;
+  endNumber: number;
+  nextNumber: number;
+  remaining: number;
+  low: boolean;
+  exhausted: boolean;
+  active: boolean;
+}
+
+export interface SendBatchBody {
+  date?: string | null;
+}
+
+export interface BatchResult {
+  pharmacies: number;
+  recipesSent: number;
+  emailsSent: number;
+  errors: string[];
+}
+
 export interface DashboardSummary {
   totalClients: number;
   activeProtocols: number;

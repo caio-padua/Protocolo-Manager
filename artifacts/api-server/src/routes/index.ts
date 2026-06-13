@@ -17,6 +17,9 @@ import googleDriveRouter from "./google-drive";
 import clientPortalRouter from "./client-portal";
 import nursingAssessmentsRouter from "./nursing-assessments";
 import taskCardsRouter from "./task-cards";
+import pharmaciesRouter from "./pharmacies";
+import prescriptionsRouter from "./prescriptions";
+import sncrRouter from "./sncr";
 
 const router: IRouter = Router();
 
@@ -38,5 +41,8 @@ router.use("/google-drive", googleDriveRouter);
 router.use(clientPortalRouter);
 router.use(nursingAssessmentsRouter);
 router.use(taskCardsRouter);
+router.use(pharmaciesRouter);
+router.use(prescriptionsRouter);
+router.use(sncrRouter);
 
 export default router;

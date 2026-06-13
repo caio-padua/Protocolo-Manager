@@ -18,17 +18,22 @@ import type {
 
 import type {
   Alert,
+  BatchResult,
   Client,
   ConfirmSubstanceApplicationBody,
   CreateClientBody,
   CreatePaymentBody,
+  CreatePharmacyBody,
   CreateProfessionalBody,
   CreateProtocolBody,
   CreateRASBody,
   CreateSessionBody,
+  CreateSncrRangeBody,
   CreateStockItemBody,
   CreateSubstanceBody,
   DashboardSummary,
+  EmitBody,
+  EmitResult,
   GenerateProtocolICS200,
   HealthStatus,
   ListClientsParams,
@@ -37,11 +42,19 @@ import type {
   ListRASParams,
   ListSessionsParams,
   Payment,
+  Pharmacy,
+  Prescription,
+  PrescriptionDetail,
+  PreviewBody,
   Professional,
   Protocol,
   ProtocolStats,
   Ras,
+  RecipePlan,
+  SendBatchBody,
   Session,
+  SncrQuota,
+  SncrRange,
   StockItem,
   Substance,
   UpdateProtocolBody,
@@ -2903,6 +2916,994 @@ export function useGetProtocolStats<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetProtocolStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List pharmacies
+ */
+export const getListPharmaciesUrl = () => {
+  return `/api/pharmacies`;
+};
+
+export const listPharmacies = async (
+  options?: RequestInit,
+): Promise<Pharmacy[]> => {
+  return customFetch<Pharmacy[]>(getListPharmaciesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPharmaciesQueryKey = () => {
+  return [`/api/pharmacies`] as const;
+};
+
+export const getListPharmaciesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPharmacies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPharmacies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPharmaciesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPharmacies>>> = ({
+    signal,
+  }) => listPharmacies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPharmacies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPharmaciesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPharmacies>>
+>;
+export type ListPharmaciesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List pharmacies
+ */
+
+export function useListPharmacies<
+  TData = Awaited<ReturnType<typeof listPharmacies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPharmacies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPharmaciesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a pharmacy
+ */
+export const getCreatePharmacyUrl = () => {
+  return `/api/pharmacies`;
+};
+
+export const createPharmacy = async (
+  createPharmacyBody: CreatePharmacyBody,
+  options?: RequestInit,
+): Promise<Pharmacy> => {
+  return customFetch<Pharmacy>(getCreatePharmacyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPharmacyBody),
+  });
+};
+
+export const getCreatePharmacyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPharmacy>>,
+    TError,
+    { data: BodyType<CreatePharmacyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPharmacy>>,
+  TError,
+  { data: BodyType<CreatePharmacyBody> },
+  TContext
+> => {
+  const mutationKey = ["createPharmacy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPharmacy>>,
+    { data: BodyType<CreatePharmacyBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPharmacy(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePharmacyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPharmacy>>
+>;
+export type CreatePharmacyMutationBody = BodyType<CreatePharmacyBody>;
+export type CreatePharmacyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a pharmacy
+ */
+export const useCreatePharmacy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPharmacy>>,
+    TError,
+    { data: BodyType<CreatePharmacyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPharmacy>>,
+  TError,
+  { data: BodyType<CreatePharmacyBody> },
+  TContext
+> => {
+  return useMutation(getCreatePharmacyMutationOptions(options));
+};
+
+/**
+ * @summary Update a pharmacy
+ */
+export const getUpdatePharmacyUrl = (id: number) => {
+  return `/api/pharmacies/${id}`;
+};
+
+export const updatePharmacy = async (
+  id: number,
+  createPharmacyBody: CreatePharmacyBody,
+  options?: RequestInit,
+): Promise<Pharmacy> => {
+  return customFetch<Pharmacy>(getUpdatePharmacyUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPharmacyBody),
+  });
+};
+
+export const getUpdatePharmacyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePharmacy>>,
+    TError,
+    { id: number; data: BodyType<CreatePharmacyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePharmacy>>,
+  TError,
+  { id: number; data: BodyType<CreatePharmacyBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePharmacy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePharmacy>>,
+    { id: number; data: BodyType<CreatePharmacyBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePharmacy(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePharmacyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePharmacy>>
+>;
+export type UpdatePharmacyMutationBody = BodyType<CreatePharmacyBody>;
+export type UpdatePharmacyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a pharmacy
+ */
+export const useUpdatePharmacy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePharmacy>>,
+    TError,
+    { id: number; data: BodyType<CreatePharmacyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePharmacy>>,
+  TError,
+  { id: number; data: BodyType<CreatePharmacyBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePharmacyMutationOptions(options));
+};
+
+/**
+ * @summary Delete a pharmacy
+ */
+export const getDeletePharmacyUrl = (id: number) => {
+  return `/api/pharmacies/${id}`;
+};
+
+export const deletePharmacy = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePharmacyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePharmacyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePharmacy>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePharmacy>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deletePharmacy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePharmacy>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePharmacy(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePharmacyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePharmacy>>
+>;
+
+export type DeletePharmacyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a pharmacy
+ */
+export const useDeletePharmacy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePharmacy>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePharmacy>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeletePharmacyMutationOptions(options));
+};
+
+/**
+ * @summary Dispara manualmente o envio em lote das receitas do dia
+ */
+export const getSendPharmacyBatchUrl = () => {
+  return `/api/pharmacies/send-batch`;
+};
+
+export const sendPharmacyBatch = async (
+  sendBatchBody?: SendBatchBody,
+  options?: RequestInit,
+): Promise<BatchResult> => {
+  return customFetch<BatchResult>(getSendPharmacyBatchUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendBatchBody),
+  });
+};
+
+export const getSendPharmacyBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendPharmacyBatch>>,
+    TError,
+    { data: BodyType<SendBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendPharmacyBatch>>,
+  TError,
+  { data: BodyType<SendBatchBody> },
+  TContext
+> => {
+  const mutationKey = ["sendPharmacyBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendPharmacyBatch>>,
+    { data: BodyType<SendBatchBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendPharmacyBatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendPharmacyBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendPharmacyBatch>>
+>;
+export type SendPharmacyBatchMutationBody = BodyType<SendBatchBody>;
+export type SendPharmacyBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Dispara manualmente o envio em lote das receitas do dia
+ */
+export const useSendPharmacyBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendPharmacyBatch>>,
+    TError,
+    { data: BodyType<SendBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendPharmacyBatch>>,
+  TError,
+  { data: BodyType<SendBatchBody> },
+  TContext
+> => {
+  return useMutation(getSendPharmacyBatchMutationOptions(options));
+};
+
+/**
+ * @summary List prescriptions
+ */
+export const getListPrescriptionsUrl = () => {
+  return `/api/prescriptions`;
+};
+
+export const listPrescriptions = async (
+  options?: RequestInit,
+): Promise<Prescription[]> => {
+  return customFetch<Prescription[]>(getListPrescriptionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPrescriptionsQueryKey = () => {
+  return [`/api/prescriptions`] as const;
+};
+
+export const getListPrescriptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPrescriptions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPrescriptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPrescriptionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPrescriptions>>
+  > = ({ signal }) => listPrescriptions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPrescriptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPrescriptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPrescriptions>>
+>;
+export type ListPrescriptionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List prescriptions
+ */
+
+export function useListPrescriptions<
+  TData = Awaited<ReturnType<typeof listPrescriptions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPrescriptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPrescriptionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Prévia do desmembramento (sem persistir)
+ */
+export const getPreviewPrescriptionUrl = () => {
+  return `/api/prescriptions/preview`;
+};
+
+export const previewPrescription = async (
+  previewBody: PreviewBody,
+  options?: RequestInit,
+): Promise<RecipePlan[]> => {
+  return customFetch<RecipePlan[]>(getPreviewPrescriptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(previewBody),
+  });
+};
+
+export const getPreviewPrescriptionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewPrescription>>,
+    TError,
+    { data: BodyType<PreviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewPrescription>>,
+  TError,
+  { data: BodyType<PreviewBody> },
+  TContext
+> => {
+  const mutationKey = ["previewPrescription"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewPrescription>>,
+    { data: BodyType<PreviewBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return previewPrescription(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewPrescriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewPrescription>>
+>;
+export type PreviewPrescriptionMutationBody = BodyType<PreviewBody>;
+export type PreviewPrescriptionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Prévia do desmembramento (sem persistir)
+ */
+export const usePreviewPrescription = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewPrescription>>,
+    TError,
+    { data: BodyType<PreviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewPrescription>>,
+  TError,
+  { data: BodyType<PreviewBody> },
+  TContext
+> => {
+  return useMutation(getPreviewPrescriptionMutationOptions(options));
+};
+
+/**
+ * @summary Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
+ */
+export const getEmitPrescriptionUrl = () => {
+  return `/api/prescriptions/emit`;
+};
+
+export const emitPrescription = async (
+  emitBody: EmitBody,
+  options?: RequestInit,
+): Promise<EmitResult> => {
+  return customFetch<EmitResult>(getEmitPrescriptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(emitBody),
+  });
+};
+
+export const getEmitPrescriptionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emitPrescription>>,
+    TError,
+    { data: BodyType<EmitBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof emitPrescription>>,
+  TError,
+  { data: BodyType<EmitBody> },
+  TContext
+> => {
+  const mutationKey = ["emitPrescription"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof emitPrescription>>,
+    { data: BodyType<EmitBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return emitPrescription(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EmitPrescriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof emitPrescription>>
+>;
+export type EmitPrescriptionMutationBody = BodyType<EmitBody>;
+export type EmitPrescriptionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
+ */
+export const useEmitPrescription = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emitPrescription>>,
+    TError,
+    { data: BodyType<EmitBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof emitPrescription>>,
+  TError,
+  { data: BodyType<EmitBody> },
+  TContext
+> => {
+  return useMutation(getEmitPrescriptionMutationOptions(options));
+};
+
+/**
+ * @summary Detalhe da prescrição com receitas
+ */
+export const getGetPrescriptionUrl = (id: number) => {
+  return `/api/prescriptions/${id}`;
+};
+
+export const getPrescription = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PrescriptionDetail> => {
+  return customFetch<PrescriptionDetail>(getGetPrescriptionUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrescriptionQueryKey = (id: number) => {
+  return [`/api/prescriptions/${id}`] as const;
+};
+
+export const getGetPrescriptionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrescription>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrescriptionQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrescription>>> = ({
+    signal,
+  }) => getPrescription(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrescription>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrescriptionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrescription>>
+>;
+export type GetPrescriptionQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Detalhe da prescrição com receitas
+ */
+
+export function useGetPrescription<
+  TData = Awaited<ReturnType<typeof getPrescription>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrescriptionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List SNCR ranges
+ */
+export const getListSncrRangesUrl = () => {
+  return `/api/sncr/ranges`;
+};
+
+export const listSncrRanges = async (
+  options?: RequestInit,
+): Promise<SncrRange[]> => {
+  return customFetch<SncrRange[]>(getListSncrRangesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSncrRangesQueryKey = () => {
+  return [`/api/sncr/ranges`] as const;
+};
+
+export const getListSncrRangesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSncrRanges>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSncrRanges>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSncrRangesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSncrRanges>>> = ({
+    signal,
+  }) => listSncrRanges({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSncrRanges>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSncrRangesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSncrRanges>>
+>;
+export type ListSncrRangesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List SNCR ranges
+ */
+
+export function useListSncrRanges<
+  TData = Awaited<ReturnType<typeof listSncrRanges>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSncrRanges>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSncrRangesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create SNCR range
+ */
+export const getCreateSncrRangeUrl = () => {
+  return `/api/sncr/ranges`;
+};
+
+export const createSncrRange = async (
+  createSncrRangeBody: CreateSncrRangeBody,
+  options?: RequestInit,
+): Promise<SncrRange> => {
+  return customFetch<SncrRange>(getCreateSncrRangeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSncrRangeBody),
+  });
+};
+
+export const getCreateSncrRangeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSncrRange>>,
+    TError,
+    { data: BodyType<CreateSncrRangeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSncrRange>>,
+  TError,
+  { data: BodyType<CreateSncrRangeBody> },
+  TContext
+> => {
+  const mutationKey = ["createSncrRange"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSncrRange>>,
+    { data: BodyType<CreateSncrRangeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSncrRange(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSncrRangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSncrRange>>
+>;
+export type CreateSncrRangeMutationBody = BodyType<CreateSncrRangeBody>;
+export type CreateSncrRangeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create SNCR range
+ */
+export const useCreateSncrRange = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSncrRange>>,
+    TError,
+    { data: BodyType<CreateSncrRangeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSncrRange>>,
+  TError,
+  { data: BodyType<CreateSncrRangeBody> },
+  TContext
+> => {
+  return useMutation(getCreateSncrRangeMutationOptions(options));
+};
+
+/**
+ * @summary Quotas SNCR (saldo por intervalo)
+ */
+export const getGetSncrQuotaUrl = () => {
+  return `/api/sncr/quota`;
+};
+
+export const getSncrQuota = async (
+  options?: RequestInit,
+): Promise<SncrQuota[]> => {
+  return customFetch<SncrQuota[]>(getGetSncrQuotaUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSncrQuotaQueryKey = () => {
+  return [`/api/sncr/quota`] as const;
+};
+
+export const getGetSncrQuotaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSncrQuota>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSncrQuota>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSncrQuotaQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSncrQuota>>> = ({
+    signal,
+  }) => getSncrQuota({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSncrQuota>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSncrQuotaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSncrQuota>>
+>;
+export type GetSncrQuotaQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Quotas SNCR (saldo por intervalo)
+ */
+
+export function useGetSncrQuota<
+  TData = Awaited<ReturnType<typeof getSncrQuota>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSncrQuota>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSncrQuotaQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

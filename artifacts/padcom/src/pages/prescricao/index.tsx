@@ -2,12 +2,17 @@ import { useMemo, useState } from "react";
 import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
   CheckCircle2, ArrowUp, ArrowDown, Layers, Clock, FolderPlus,
+  Building2, ShieldAlert, Send, ExternalLink, MessageSquare, AlertTriangle, Eye, FileSignature,
 } from "lucide-react";
 import {
   HEADER_BOILERPLATE, SEPARATOR, PERIODOS, VIAS, CATEGORIES, FORMULAS, PROTOCOLOS_SEED,
   parseBody, parseAtivosLines, tomadaToText, buildFormulaText, getPrecoMedio, formatBRL,
   type Tomada, type FormulaSeed, type Protocolo, type SelectedFormula,
 } from "./data";
+import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
+import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
+import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
+import { useToast } from "@/hooks/use-toast";
 
 const PETROLEO = "#3D7A7A";
 const CIANO = "#45B8CC";
@@ -30,6 +35,118 @@ export default function PrescricaoPage() {
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
   const [customProtocolos, setCustomProtocolos] = useState<Protocolo[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // Roteamento p/ farmácias + emissão
+  const { toast } = useToast();
+  const { data: pharmacies } = useListPharmacies();
+  const [defaultPharmacyId, setDefaultPharmacyId] = useState<number | null>(null);
+  const [routing, setRouting] = useState<Record<string, { pharmacyId: number | null; isControlled: boolean; anvisaType: string }>>({});
+  const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
+  const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
+
+  const previewMutation = usePreviewPrescription({
+    mutation: {
+      onSuccess: (res) => setPreviewPlans(res),
+      onError: () => toast({ title: "Erro ao gerar prévia do desmembramento", variant: "destructive" }),
+    },
+  });
+  const emitMutation = useEmitPrescription({
+    mutation: {
+      onSuccess: (res) => {
+        setEmitResult(res);
+        toast({ title: `Receitas emitidas! (${res.recipes.length})`, description: "PDFs gerados e enviados à farmácia." });
+      },
+      onError: () => toast({ title: "Erro ao emitir receitas", variant: "destructive" }),
+    },
+  });
+
+  const getRoute = (id: string) => routing[id] || { pharmacyId: null, isControlled: false, anvisaType: "" };
+  const setRoute = (id: string, patch: Partial<{ pharmacyId: number | null; isControlled: boolean; anvisaType: string }>) => {
+    setRouting((prev) => ({ ...prev, [id]: { ...(prev[id] || { pharmacyId: null, isControlled: false, anvisaType: "" }), ...patch } }));
+    // Roteamento mudou: prévia/emissão anteriores ficam obsoletas.
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
+  const changeDefaultPharmacy = (id: number | null) => {
+    setDefaultPharmacyId(id);
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
+
+  // Farmácias compatíveis com um tipo controlado (atendem aquele tipo Anvisa).
+  const pharmaciesForType = (anvisaType: string) =>
+    (pharmacies ?? []).filter((p) => !anvisaType || (p.controlledTypes ?? []).includes(anvisaType));
+
+  const buildItems = (): PrescriptionItemInput[] =>
+    selected.map((f) => {
+      const r = getRoute(f.id);
+      return {
+        name: f.name,
+        ativos: f.ativos,
+        posologia: f.tomadas.map(tomadaToText).join("; "),
+        category: f.cat,
+        isControlled: r.isControlled,
+        anvisaType: r.isControlled ? r.anvisaType || null : null,
+        pharmacyId: r.pharmacyId ?? defaultPharmacyId ?? null,
+      };
+    });
+
+  // Valida regras de roteamento. Retorna mensagem de erro ou null se OK.
+  const validateRouting = (requirePharmacy: boolean): string | null => {
+    for (const f of selected) {
+      const r = getRoute(f.id);
+      if (r.isControlled && !r.anvisaType) {
+        return `Selecione o tipo Anvisa do controlado em "${f.name}".`;
+      }
+      const pid = r.pharmacyId ?? defaultPharmacyId ?? null;
+      if (requirePharmacy && !pid) {
+        return "Selecione a farmácia de cada fórmula (ou defina a farmácia padrão).";
+      }
+      if (r.isControlled && r.anvisaType && pid) {
+        const ph = (pharmacies ?? []).find((p) => p.id === pid);
+        if (ph && !(ph.controlledTypes ?? []).includes(r.anvisaType)) {
+          return `A farmácia "${ph.name}" não atende o controlado ${r.anvisaType} (fórmula "${f.name}").`;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handlePreview = () => {
+    setEmitResult(null);
+    const err = validateRouting(false);
+    if (err) {
+      toast({ title: err, variant: "destructive" });
+      return;
+    }
+    previewMutation.mutate({ data: { items: buildItems() } });
+  };
+
+  const handleEmit = () => {
+    if (!patient.nome.trim()) {
+      toast({ title: "Informe o nome do cliente para emitir", variant: "destructive" });
+      return;
+    }
+    const err = validateRouting(true);
+    if (err) {
+      toast({ title: err, variant: "destructive" });
+      return;
+    }
+    emitMutation.mutate({
+      data: {
+        clientName: patient.nome.trim(),
+        clientCpf: patient.cpf || null,
+        clientPhone: patient.telefone || null,
+        clientEmail: patient.email || null,
+        professionalName: "Dr. Caio Henrique Pádua",
+        professionalCrm: "125475",
+        professionalUf: "SP",
+        durationDays: duracao || null,
+        cid: cid || null,
+        items: buildItems(),
+      },
+    });
+  };
 
   const allProtocolos = [...PROTOCOLOS_SEED, ...customProtocolos];
 
@@ -410,6 +527,200 @@ export default function PrescricaoPage() {
             <div className="bg-white border border-border rounded-md p-6 max-h-[720px] overflow-y-auto rx-scroll shadow-inner max-w-3xl mx-auto">
               <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOCO 3 — ROTEAMENTO PARA FARMÁCIAS + EMISSÃO */}
+      {selected.length > 0 && (
+        <div className="no-print mt-4">
+          <div className="bg-card border border-primary/40 rounded-md p-4">
+            <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
+              <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-sm font-mono tracking-wide">BLOCO 3</span>
+              Roteamento para Farmácias e Emissão
+            </h2>
+
+            {!pharmacies?.length ? (
+              <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Nenhuma farmácia cadastrada. Cadastre em <span className="font-semibold">Farmácias</span> antes de emitir.
+              </div>
+            ) : (
+              <>
+                {/* Farmácia padrão */}
+                <div className="flex flex-wrap items-center gap-2 mb-3 bg-muted rounded-md px-3 py-2">
+                  <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5" />Farmácia padrão:
+                  </label>
+                  <select
+                    className="px-3 py-1.5 border border-border rounded-md text-sm bg-card text-foreground"
+                    value={defaultPharmacyId ?? ""}
+                    onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">— selecione —</option>
+                    {pharmacies.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <span className="text-[11px] text-muted-foreground">Aplica a todas as fórmulas sem farmácia específica.</span>
+                </div>
+
+                {/* Roteamento por fórmula */}
+                <div className="space-y-2 mb-3">
+                  {selected.map((f, idx) => {
+                    const r = getRoute(f.id);
+                    const recipe = r.isControlled ? recipeTypeForControlledClass(r.anvisaType) : null;
+                    return (
+                      <div key={f.id} className="border border-border rounded-md p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                          <span className="text-sm font-semibold text-foreground truncate">{f.name}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                          <div className="md:col-span-5">
+                            <select
+                              className="w-full px-2 py-2 border border-border rounded-md text-xs bg-card text-foreground"
+                              value={r.pharmacyId ?? ""}
+                              onChange={(e) => setRoute(f.id, { pharmacyId: e.target.value ? Number(e.target.value) : null })}
+                            >
+                              <option value="">Usar farmácia padrão</option>
+                              {(r.isControlled && r.anvisaType ? pharmaciesForType(r.anvisaType) : pharmacies).map((p) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                            {r.isControlled && r.anvisaType && pharmaciesForType(r.anvisaType).length === 0 && (
+                              <p className="text-[10px] text-destructive mt-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />Nenhuma farmácia atende {r.anvisaType}. Ajuste o cadastro em Farmácias.
+                              </p>
+                            )}
+                          </div>
+                          <label className="md:col-span-3 flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={r.isControlled}
+                              onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })}
+                              className="accent-amber-600 w-4 h-4"
+                            />
+                            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />Controlado
+                          </label>
+                          {r.isControlled && (
+                            <div className="md:col-span-4 flex items-center gap-2">
+                              <select
+                                className="w-full px-2 py-2 border border-amber-300 rounded-md text-xs bg-amber-50 text-foreground"
+                                value={r.anvisaType}
+                                onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
+                              >
+                                <option value="">Tipo Anvisa…</option>
+                                {ANVISA_CONTROLLED_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                              </select>
+                              {recipe && (
+                                <span className="shrink-0 text-[10px] font-bold px-1.5 py-1 rounded-sm border" style={{ background: recipe.color, color: recipe.colorName === "Branca" ? "#0f172a" : "#0f172a", borderColor: "#cbd5e1" }}>
+                                  {recipe.colorName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Ações */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handlePreview}
+                    disabled={previewMutation.isPending}
+                    className="bg-secondary hover:bg-muted text-secondary-foreground font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 border border-border disabled:opacity-40"
+                  >
+                    <Eye className="w-4 h-4" />
+                    {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
+                  </button>
+                  <button
+                    onClick={handleEmit}
+                    disabled={emitMutation.isPending}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 disabled:opacity-40"
+                  >
+                    <Send className="w-4 h-4" />
+                    {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
+                  </button>
+                </div>
+
+                {/* Prévia */}
+                {previewPlans && !emitResult && (
+                  <div className="mt-4 space-y-2">
+                    <h3 className="text-[11px] font-bold uppercase tracking-wide text-primary">Prévia — {previewPlans.length} receita(s) será(ão) gerada(s)</h3>
+                    {previewPlans.map((plan, i) => (
+                      <div key={i} className="border border-border rounded-md p-3 flex items-start gap-3">
+                        {plan.anvisaColor ? (
+                          <span className="mt-0.5 w-3 h-3 rounded-full border border-border shrink-0" style={{ background: plan.anvisaColor }} />
+                        ) : (
+                          <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">{plan.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {plan.items.length} fórmula(s)
+                            {plan.anvisaColorName ? ` · Receituário ${plan.anvisaColorName}` : ""}
+                            {plan.needsSncr ? " · exige nº SNCR" : ""}
+                            {plan.pharmacyId ? ` · ${pharmacies.find((p) => p.id === plan.pharmacyId)?.name ?? "Farmácia"}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Resultado da emissão */}
+                {emitResult && (
+                  <div className="mt-4 space-y-3">
+                    {emitResult.sncrAlerts.length > 0 && (
+                      <div className="space-y-1">
+                        {emitResult.sncrAlerts.map((a, i) => (
+                          <div key={i} className={`flex items-center gap-2 text-xs rounded-md px-3 py-2 border ${a.status === "exhausted" ? "bg-destructive/10 border-destructive/30 text-destructive" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+                            <AlertTriangle className="w-4 h-4 shrink-0" />{a.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <h3 className="text-[11px] font-bold uppercase tracking-wide text-primary flex items-center gap-1">
+                      <FileSignature className="w-3.5 h-3.5" />Receitas emitidas ({emitResult.recipes.length})
+                    </h3>
+                    {emitResult.recipes.map((rec) => (
+                      <div key={rec.id} className="border border-border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">{rec.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {rec.anvisaColorName ? `Receituário ${rec.anvisaColorName}` : "Manipulação"}
+                            {rec.sncrNumber ? ` · SNCR nº ${rec.sncrNumber}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <a href={`${import.meta.env.BASE_URL}${rec.pdfUrl.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5" />Abrir PDF
+                          </a>
+                          {rec.driveWebViewLink && (
+                            <a href={rec.driveWebViewLink} target="_blank" rel="noreferrer" className="text-xs font-semibold text-accent hover:underline flex items-center gap-1">
+                              <ExternalLink className="w-3.5 h-3.5" />Drive
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {emitResult.whatsappLink && (
+                      <a
+                        href={emitResult.whatsappLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-md text-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />Avisar cliente no WhatsApp
+                      </a>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

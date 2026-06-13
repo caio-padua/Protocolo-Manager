@@ -12,7 +12,9 @@ import {
   Menu,
   X,
   Beaker,
-  ClipboardList
+  ClipboardList,
+  Building2,
+  Hash
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PadconLogo } from "./PadconLogo";
@@ -32,6 +34,8 @@ const navigation = [
   { name: "Profissionais", href: "/professionals", icon: Stethoscope },
   { name: "Substâncias", href: "/substances", icon: Beaker },
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
+  { name: "Farmácias", href: "/pharmacies", icon: Building2 },
+  { name: "SNCR", href: "/sncr", icon: Hash },
 ];
 
 export function Layout({ children }: LayoutProps) {

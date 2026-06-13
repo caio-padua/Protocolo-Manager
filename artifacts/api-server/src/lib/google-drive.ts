@@ -602,6 +602,36 @@ export async function isDriveConnected(): Promise<boolean> {
   }
 }
 
+// ===== Roteamento de receitas para farmácias =====
+// Estrutura: FARMACIAS (raiz) -> <NOME FARMACIA> -> <AAAA-MM-DD> (subpasta por dia).
+// Idempotente: não recria pastas existentes.
+export async function ensurePharmacyDayFolder(
+  pharmacyName: string,
+  dateStr: string,
+): Promise<{ rootFolderId: string; pharmacyFolderId: string; dayFolderId: string }> {
+  const drive = await getUncachableDriveClient();
+  const cleanName = removeDiacritics(pharmacyName).toUpperCase().trim() || "FARMACIA";
+
+  const rootFolderId = await findOrCreateFolder(drive, "FARMACIAS");
+  const pharmacyFolderId = await findOrCreateFolder(drive, cleanName, rootFolderId);
+  const dayFolderId = await findOrCreateFolder(drive, dateStr, pharmacyFolderId);
+
+  return { rootFolderId, pharmacyFolderId, dayFolderId };
+}
+
+// Garante a pasta raiz da farmácia (sem subpasta de dia) — usada no cadastro.
+export async function ensurePharmacyFolder(pharmacyName: string): Promise<string> {
+  const drive = await getUncachableDriveClient();
+  const cleanName = removeDiacritics(pharmacyName).toUpperCase().trim() || "FARMACIA";
+  const rootFolderId = await findOrCreateFolder(drive, "FARMACIAS");
+  return findOrCreateFolder(drive, cleanName, rootFolderId);
+}
+
+// Compartilhamento somente leitura (permite download, não edição).
+export async function sharePharmacyFolder(folderId: string, email: string): Promise<void> {
+  await shareWithClient(folderId, email);
+}
+
 function extractCpfFromFolderName(folderName: string): string | null {
   const cpfWithDots = folderName.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
   if (cpfWithDots) return cpfWithDots[1].replace(/\D/g, "");

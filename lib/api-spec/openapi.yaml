@@ -25,6 +25,12 @@ tags:
     description: Payment management
   - name: dashboard
     description: Dashboard and analytics
+  - name: pharmacies
+    description: Farmácias de manipulação e roteamento de receitas
+  - name: prescriptions
+    description: Prescrições e desmembramento em receitas
+  - name: sncr
+    description: Numeração SNCR de medicamentos controlados
 
 paths:
   /healthz:
@@ -722,6 +728,219 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProtocolStats"
+
+  # PHARMACIES
+  /pharmacies:
+    get:
+      operationId: listPharmacies
+      tags: [pharmacies]
+      summary: List pharmacies
+      responses:
+        "200":
+          description: List of pharmacies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pharmacy"
+    post:
+      operationId: createPharmacy
+      tags: [pharmacies]
+      summary: Create a pharmacy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePharmacyBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pharmacy"
+
+  /pharmacies/{id}:
+    patch:
+      operationId: updatePharmacy
+      tags: [pharmacies]
+      summary: Update a pharmacy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePharmacyBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pharmacy"
+    delete:
+      operationId: deletePharmacy
+      tags: [pharmacies]
+      summary: Delete a pharmacy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /pharmacies/send-batch:
+    post:
+      operationId: sendPharmacyBatch
+      tags: [pharmacies]
+      summary: Dispara manualmente o envio em lote das receitas do dia
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBatchBody"
+      responses:
+        "200":
+          description: Resultado do lote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchResult"
+
+  # PRESCRIPTIONS
+  /prescriptions:
+    get:
+      operationId: listPrescriptions
+      tags: [prescriptions]
+      summary: List prescriptions
+      responses:
+        "200":
+          description: List of prescriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Prescription"
+
+  /prescriptions/preview:
+    post:
+      operationId: previewPrescription
+      tags: [prescriptions]
+      summary: Prévia do desmembramento (sem persistir)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreviewBody"
+      responses:
+        "200":
+          description: Plano de receitas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipePlan"
+
+  /prescriptions/emit:
+    post:
+      operationId: emitPrescription
+      tags: [prescriptions]
+      summary: Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmitBody"
+      responses:
+        "201":
+          description: Resultado da emissão
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmitResult"
+
+  /prescriptions/{id}:
+    get:
+      operationId: getPrescription
+      tags: [prescriptions]
+      summary: Detalhe da prescrição com receitas
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrescriptionDetail"
+
+  # SNCR
+  /sncr/ranges:
+    get:
+      operationId: listSncrRanges
+      tags: [sncr]
+      summary: List SNCR ranges
+      responses:
+        "200":
+          description: Ranges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SncrRange"
+    post:
+      operationId: createSncrRange
+      tags: [sncr]
+      summary: Create SNCR range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSncrRangeBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SncrRange"
+
+  /sncr/quota:
+    get:
+      operationId: getSncrQuota
+      tags: [sncr]
+      summary: Quotas SNCR (saldo por intervalo)
+      responses:
+        "200":
+          description: Quotas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SncrQuota"
 
 components:
   schemas:
@@ -1557,6 +1776,477 @@ components:
       required:
         - name
         - serviceTypes
+
+    Pharmacy:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        cnpj:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        whatsapp:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        controlledTypes:
+          type: array
+          items:
+            type: string
+        driveFolderId:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - type
+        - controlledTypes
+        - active
+        - createdAt
+
+    CreatePharmacyBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        cnpj:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        whatsapp:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        controlledTypes:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+      required:
+        - name
+
+    PrescriptionItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+        ativos:
+          type: string
+          nullable: true
+        posologia:
+          type: string
+          nullable: true
+        dose:
+          type: string
+          nullable: true
+        via:
+          type: string
+          nullable: true
+        frequencia:
+          type: string
+          nullable: true
+        periodo:
+          type: string
+          nullable: true
+        observacao:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        internalColor:
+          type: string
+          nullable: true
+        isControlled:
+          type: boolean
+          nullable: true
+        anvisaType:
+          type: string
+          nullable: true
+        pharmacyId:
+          type: integer
+          nullable: true
+      required:
+        - name
+
+    PreviewBody:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrescriptionItemInput"
+      required:
+        - items
+
+    RecipePlan:
+      type: object
+      properties:
+        recipeType:
+          type: string
+        pharmacyId:
+          type: integer
+          nullable: true
+        anvisaType:
+          type: string
+          nullable: true
+        anvisaColor:
+          type: string
+          nullable: true
+        anvisaColorName:
+          type: string
+          nullable: true
+        needsSncr:
+          type: boolean
+        title:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrescriptionItemInput"
+      required:
+        - recipeType
+        - needsSncr
+        - title
+        - items
+
+    EmitBody:
+      type: object
+      properties:
+        clientId:
+          type: integer
+          nullable: true
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+          nullable: true
+        clientPhone:
+          type: string
+          nullable: true
+        clientEmail:
+          type: string
+          nullable: true
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        professionalCrm:
+          type: string
+          nullable: true
+        professionalUf:
+          type: string
+          nullable: true
+        durationDays:
+          type: string
+          nullable: true
+        cid:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrescriptionItemInput"
+      required:
+        - clientName
+        - items
+
+    EmittedRecipe:
+      type: object
+      properties:
+        id:
+          type: integer
+        recipeType:
+          type: string
+        title:
+          type: string
+        pharmacyId:
+          type: integer
+          nullable: true
+        anvisaType:
+          type: string
+          nullable: true
+        anvisaColorName:
+          type: string
+          nullable: true
+        sncrNumber:
+          type: string
+          nullable: true
+        sncrStatus:
+          type: string
+          nullable: true
+        driveWebViewLink:
+          type: string
+          nullable: true
+        pdfUrl:
+          type: string
+      required:
+        - id
+        - recipeType
+        - title
+        - pdfUrl
+
+    SncrAlert:
+      type: object
+      properties:
+        controlledType:
+          type: string
+        status:
+          type: string
+        remaining:
+          type: integer
+          nullable: true
+        message:
+          type: string
+      required:
+        - controlledType
+        - status
+        - message
+
+    EmitResult:
+      type: object
+      properties:
+        prescriptionId:
+          type: integer
+        recipes:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmittedRecipe"
+        sncrAlerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SncrAlert"
+        whatsappLink:
+          type: string
+          nullable: true
+        whatsappSent:
+          type: boolean
+      required:
+        - prescriptionId
+        - recipes
+        - sncrAlerts
+        - whatsappSent
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+          nullable: true
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+        emittedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - clientName
+        - status
+        - createdAt
+
+    PrescriptionDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientName:
+          type: string
+        clientCpf:
+          type: string
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+        emittedAt:
+          type: string
+          nullable: true
+        recipes:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmittedRecipe"
+      required:
+        - id
+        - clientName
+        - status
+        - createdAt
+        - recipes
+
+    SncrRange:
+      type: object
+      properties:
+        id:
+          type: integer
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        uf:
+          type: string
+        controlledType:
+          type: string
+        startNumber:
+          type: integer
+        endNumber:
+          type: integer
+        nextNumber:
+          type: integer
+        active:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - uf
+        - controlledType
+        - startNumber
+        - endNumber
+        - nextNumber
+        - active
+        - createdAt
+
+    CreateSncrRangeBody:
+      type: object
+      properties:
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        uf:
+          type: string
+        controlledType:
+          type: string
+        startNumber:
+          type: integer
+        endNumber:
+          type: integer
+        nextNumber:
+          type: integer
+          nullable: true
+        active:
+          type: boolean
+      required:
+        - uf
+        - controlledType
+        - startNumber
+        - endNumber
+
+    SncrQuota:
+      type: object
+      properties:
+        rangeId:
+          type: integer
+        professionalId:
+          type: integer
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        uf:
+          type: string
+        controlledType:
+          type: string
+        startNumber:
+          type: integer
+        endNumber:
+          type: integer
+        nextNumber:
+          type: integer
+        remaining:
+          type: integer
+        low:
+          type: boolean
+        exhausted:
+          type: boolean
+        active:
+          type: boolean
+      required:
+        - rangeId
+        - uf
+        - controlledType
+        - startNumber
+        - endNumber
+        - nextNumber
+        - remaining
+        - low
+        - exhausted
+        - active
+
+    SendBatchBody:
+      type: object
+      properties:
+        date:
+          type: string
+          nullable: true
+
+    BatchResult:
+      type: object
+      properties:
+        pharmacies:
+          type: integer
+        recipesSent:
+          type: integer
+        emailsSent:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - pharmacies
+        - recipesSent
+        - emailsSent
+        - errors
 
     DashboardSummary:
       type: object

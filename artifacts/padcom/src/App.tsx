@@ -21,6 +21,8 @@ import Stock from "@/pages/stock";
 import Payments from "@/pages/payments";
 import Professionals from "@/pages/professionals";
 import Prescricao from "@/pages/prescricao";
+import Pharmacies from "@/pages/pharmacies";
+import Sncr from "@/pages/sncr";
 import Portal from "@/pages/portal";
 
 const queryClient = new QueryClient({
@@ -62,6 +64,8 @@ function Router() {
             <Route path="/stock" component={Stock} />
             <Route path="/payments" component={Payments} />
             <Route path="/professionals" component={Professionals} />
+            <Route path="/pharmacies" component={Pharmacies} />
+            <Route path="/sncr" component={Sncr} />
             
             <Route component={NotFound} />
           </Switch>

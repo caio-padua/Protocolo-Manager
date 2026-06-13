@@ -1254,3 +1254,278 @@ export const GetProtocolStatsResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List pharmacies
+ */
+export const ListPharmaciesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod.string(),
+  cnpj: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  whatsapp: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  controlledTypes: zod.array(zod.string()),
+  driveFolderId: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListPharmaciesResponse = zod.array(ListPharmaciesResponseItem);
+
+/**
+ * @summary Create a pharmacy
+ */
+export const CreatePharmacyBody = zod.object({
+  name: zod.string(),
+  type: zod.string().optional(),
+  cnpj: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  whatsapp: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  controlledTypes: zod.array(zod.string()).optional(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a pharmacy
+ */
+export const UpdatePharmacyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePharmacyBody = zod.object({
+  name: zod.string(),
+  type: zod.string().optional(),
+  cnpj: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  whatsapp: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  controlledTypes: zod.array(zod.string()).optional(),
+  active: zod.boolean().optional(),
+});
+
+export const UpdatePharmacyResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod.string(),
+  cnpj: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  whatsapp: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  controlledTypes: zod.array(zod.string()),
+  driveFolderId: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a pharmacy
+ */
+export const DeletePharmacyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Dispara manualmente o envio em lote das receitas do dia
+ */
+export const SendPharmacyBatchBody = zod.object({
+  date: zod.string().nullish(),
+});
+
+export const SendPharmacyBatchResponse = zod.object({
+  pharmacies: zod.number(),
+  recipesSent: zod.number(),
+  emailsSent: zod.number(),
+  errors: zod.array(zod.string()),
+});
+
+/**
+ * @summary List prescriptions
+ */
+export const ListPrescriptionsResponseItem = zod.object({
+  id: zod.number(),
+  clientId: zod.number().nullish(),
+  clientName: zod.string(),
+  clientCpf: zod.string().nullish(),
+  professionalName: zod.string().nullish(),
+  status: zod.string(),
+  createdAt: zod.string(),
+  emittedAt: zod.string().nullish(),
+});
+export const ListPrescriptionsResponse = zod.array(
+  ListPrescriptionsResponseItem,
+);
+
+/**
+ * @summary Prévia do desmembramento (sem persistir)
+ */
+export const PreviewPrescriptionBody = zod.object({
+  items: zod.array(
+    zod.object({
+      name: zod.string(),
+      ativos: zod.string().nullish(),
+      posologia: zod.string().nullish(),
+      dose: zod.string().nullish(),
+      via: zod.string().nullish(),
+      frequencia: zod.string().nullish(),
+      periodo: zod.string().nullish(),
+      observacao: zod.string().nullish(),
+      category: zod.string().nullish(),
+      internalColor: zod.string().nullish(),
+      isControlled: zod.boolean().nullish(),
+      anvisaType: zod.string().nullish(),
+      pharmacyId: zod.number().nullish(),
+    }),
+  ),
+});
+
+export const PreviewPrescriptionResponseItem = zod.object({
+  recipeType: zod.string(),
+  pharmacyId: zod.number().nullish(),
+  anvisaType: zod.string().nullish(),
+  anvisaColor: zod.string().nullish(),
+  anvisaColorName: zod.string().nullish(),
+  needsSncr: zod.boolean(),
+  title: zod.string(),
+  items: zod.array(
+    zod.object({
+      name: zod.string(),
+      ativos: zod.string().nullish(),
+      posologia: zod.string().nullish(),
+      dose: zod.string().nullish(),
+      via: zod.string().nullish(),
+      frequencia: zod.string().nullish(),
+      periodo: zod.string().nullish(),
+      observacao: zod.string().nullish(),
+      category: zod.string().nullish(),
+      internalColor: zod.string().nullish(),
+      isControlled: zod.boolean().nullish(),
+      anvisaType: zod.string().nullish(),
+      pharmacyId: zod.number().nullish(),
+    }),
+  ),
+});
+export const PreviewPrescriptionResponse = zod.array(
+  PreviewPrescriptionResponseItem,
+);
+
+/**
+ * @summary Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
+ */
+export const EmitPrescriptionBody = zod.object({
+  clientId: zod.number().nullish(),
+  clientName: zod.string(),
+  clientCpf: zod.string().nullish(),
+  clientPhone: zod.string().nullish(),
+  clientEmail: zod.string().nullish(),
+  professionalId: zod.number().nullish(),
+  professionalName: zod.string().nullish(),
+  professionalCrm: zod.string().nullish(),
+  professionalUf: zod.string().nullish(),
+  durationDays: zod.string().nullish(),
+  cid: zod.string().nullish(),
+  message: zod.string().nullish(),
+  items: zod.array(
+    zod.object({
+      name: zod.string(),
+      ativos: zod.string().nullish(),
+      posologia: zod.string().nullish(),
+      dose: zod.string().nullish(),
+      via: zod.string().nullish(),
+      frequencia: zod.string().nullish(),
+      periodo: zod.string().nullish(),
+      observacao: zod.string().nullish(),
+      category: zod.string().nullish(),
+      internalColor: zod.string().nullish(),
+      isControlled: zod.boolean().nullish(),
+      anvisaType: zod.string().nullish(),
+      pharmacyId: zod.number().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Detalhe da prescrição com receitas
+ */
+export const GetPrescriptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPrescriptionResponse = zod.object({
+  id: zod.number(),
+  clientName: zod.string(),
+  clientCpf: zod.string().nullish(),
+  professionalName: zod.string().nullish(),
+  status: zod.string(),
+  createdAt: zod.string(),
+  emittedAt: zod.string().nullish(),
+  recipes: zod.array(
+    zod.object({
+      id: zod.number(),
+      recipeType: zod.string(),
+      title: zod.string(),
+      pharmacyId: zod.number().nullish(),
+      anvisaType: zod.string().nullish(),
+      anvisaColorName: zod.string().nullish(),
+      sncrNumber: zod.string().nullish(),
+      sncrStatus: zod.string().nullish(),
+      driveWebViewLink: zod.string().nullish(),
+      pdfUrl: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary List SNCR ranges
+ */
+export const ListSncrRangesResponseItem = zod.object({
+  id: zod.number(),
+  professionalId: zod.number().nullish(),
+  professionalName: zod.string().nullish(),
+  uf: zod.string(),
+  controlledType: zod.string(),
+  startNumber: zod.number(),
+  endNumber: zod.number(),
+  nextNumber: zod.number(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListSncrRangesResponse = zod.array(ListSncrRangesResponseItem);
+
+/**
+ * @summary Create SNCR range
+ */
+export const CreateSncrRangeBody = zod.object({
+  professionalId: zod.number().nullish(),
+  professionalName: zod.string().nullish(),
+  uf: zod.string(),
+  controlledType: zod.string(),
+  startNumber: zod.number(),
+  endNumber: zod.number(),
+  nextNumber: zod.number().nullish(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Quotas SNCR (saldo por intervalo)
+ */
+export const GetSncrQuotaResponseItem = zod.object({
+  rangeId: zod.number(),
+  professionalId: zod.number().nullish(),
+  professionalName: zod.string().nullish(),
+  uf: zod.string(),
+  controlledType: zod.string(),
+  startNumber: zod.number(),
+  endNumber: zod.number(),
+  nextNumber: zod.number(),
+  remaining: zod.number(),
+  low: zod.boolean(),
+  exhausted: zod.boolean(),
+  active: zod.boolean(),
+});
+export const GetSncrQuotaResponse = zod.array(GetSncrQuotaResponseItem);

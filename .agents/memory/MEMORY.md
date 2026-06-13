@@ -1,1 +1,2 @@
 - [PADCOM typecheck vs codegen defasado](padcom-typecheck-stale-codegen.md) — typecheck do padcom quebra por hooks Orval defasados; Vite ignora tipos e a app roda mesmo assim.
+- [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated types; validate by runtime/curl + screenshots, not tsc.
