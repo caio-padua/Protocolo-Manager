@@ -1,0 +1,1 @@
+- [PADCOM typecheck vs codegen defasado](padcom-typecheck-stale-codegen.md) — typecheck do padcom quebra por hooks Orval defasados; Vite ignora tipos e a app roda mesmo assim.

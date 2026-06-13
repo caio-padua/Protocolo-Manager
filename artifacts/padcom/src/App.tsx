@@ -20,6 +20,7 @@ import RASDetail from "@/pages/ras/detail";
 import Stock from "@/pages/stock";
 import Payments from "@/pages/payments";
 import Professionals from "@/pages/professionals";
+import Prescricao from "@/pages/prescricao";
 import Portal from "@/pages/portal";
 
 const queryClient = new QueryClient({
@@ -46,6 +47,8 @@ function Router() {
             <Route path="/clients/:id" component={ClientDetail} />
             
             <Route path="/substances" component={Substances} />
+
+            <Route path="/prescricao" component={Prescricao} />
             
             <Route path="/protocols" component={Protocols} />
             <Route path="/protocols/new" component={NewProtocol} />
