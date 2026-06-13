@@ -851,6 +851,8 @@ components:
         stockUnit:
           type: string
           nullable: true
+        pricePerUnit:
+          type: number
         createdAt:
           type: string
       required:
@@ -890,6 +892,8 @@ components:
         stockUnit:
           type: string
           nullable: true
+        pricePerUnit:
+          type: number
       required:
         - name
         - category
@@ -980,6 +984,10 @@ components:
           type: string
         dose:
           type: string
+        unitPrice:
+          type: number
+        lineTotal:
+          type: number
         totalSessions:
           type: integer
         completedSessions:
@@ -996,6 +1004,8 @@ components:
         - substanceName
         - substanceColor
         - dose
+        - unitPrice
+        - lineTotal
         - totalSessions
         - completedSessions
         - intervalDays

@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import {
   HEADER_BOILERPLATE, SEPARATOR, PERIODOS, VIAS, CATEGORIES, FORMULAS, PROTOCOLOS_SEED,
-  parseBody, parseAtivosLines, tomadaToText, buildFormulaText,
+  parseBody, parseAtivosLines, tomadaToText, buildFormulaText, getPrecoMedio, formatBRL,
   type Tomada, type FormulaSeed, type Protocolo, type SelectedFormula,
 } from "./data";
 
@@ -50,7 +50,7 @@ export default function PrescricaoPage() {
     setSelected((prev) => {
       if (prev.find((s) => s.id === f.id)) return prev;
       const { ativos, tomadas } = parseBody(f.body);
-      return [...prev, { id: f.id, cat: f.cat, name: f.name, ativos, tomadas }];
+      return [...prev, { id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) }];
     });
   };
 
@@ -108,6 +108,8 @@ export default function PrescricaoPage() {
     ? Math.floor((Date.now() - new Date(patient.dataNascimento).getTime()) / 31557600000)
     : 0;
   const today = new Date().toLocaleDateString("pt-BR");
+
+  const totalInterno = useMemo(() => selected.reduce((sum, s) => sum + (s.preco || 0), 0), [selected]);
 
   const buildFullText = () => {
     let txt = "";
@@ -288,6 +290,7 @@ export default function PrescricaoPage() {
                       {cat && <span className="text-[10px] px-2 py-0.5 rounded-sm bg-primary/10 text-primary font-semibold uppercase tracking-wide">{cat.label}</span>}
                       <h3 className="font-semibold text-foreground text-sm mt-1">{f.name}</h3>
                       <p className="font-mono text-[11px] text-muted-foreground mt-1 line-clamp-2">{f.body.split("\n").slice(0, 2).join(" • ")}</p>
+                      <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm" title="Valor médio de mercado — uso interno, não aparece para o cliente">≈ {formatBRL(getPrecoMedio(f))} <span className="font-sans tracking-wide">INTERNO</span></span>
                     </div>
                     <button onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))} className={`shrink-0 px-3 py-2 rounded-md text-xs font-semibold flex items-center gap-1 transition ${isSel ? "bg-accent text-accent-foreground hover:bg-accent/90" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
                       {isSel ? (<><CheckCircle2 className="w-4 h-4" />Incluída</>) : (<><Plus className="w-4 h-4" />Adicionar</>)}
@@ -332,6 +335,7 @@ export default function PrescricaoPage() {
                         <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
                         {cat && <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-semibold uppercase">{cat.label.split(" ")[0]}</span>}
                         <span className="text-sm font-semibold text-foreground truncate">{f.name}</span>
+                        <span className="ml-auto mr-1 shrink-0 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm" title="Valor médio — uso interno">{formatBRL(f.preco)}</span>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button onClick={() => moveFormula(idx, -1)} disabled={idx === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
@@ -372,6 +376,16 @@ export default function PrescricaoPage() {
             </div>
           )}
           <datalist id="periodos-list">{PERIODOS.map((p) => <option key={p} value={p} />)}</datalist>
+
+          {selected.length > 0 && (
+            <div className="border-t border-border pt-3 mt-3 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">Total estimado — uso interno</span>
+                <span className="text-[10px] text-amber-600/90">Valor médio de mercado. Não aparece no texto nem no PDF do cliente.</span>
+              </div>
+              <span className="font-mono text-lg font-bold text-amber-800 shrink-0">{formatBRL(totalInterno)}</span>
+            </div>
+          )}
 
           <div className="border-t border-border pt-3 mt-3 grid grid-cols-2 gap-2">
             <button onClick={handleCopy} disabled={!selected.length} className="bg-secondary hover:bg-muted text-secondary-foreground font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40 border border-border">

@@ -25,6 +25,7 @@ export const protocolItemsTable = pgTable("protocol_items", {
   protocolId: integer("protocol_id").notNull(),
   substanceId: integer("substance_id").notNull(),
   dose: text("dose").notNull(),
+  unitPrice: real("unit_price").notNull().default(0),
   totalSessions: integer("total_sessions").notNull(),
   completedSessions: integer("completed_sessions").notNull().default(0),
   intervalDays: integer("interval_days").notNull().default(7),

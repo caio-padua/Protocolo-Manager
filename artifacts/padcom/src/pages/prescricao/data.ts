@@ -7,10 +7,42 @@ import {
 } from "lucide-react";
 
 export type Tomada = { doses: number; via: string; periodo: string; hora: string; raw?: string };
-export type FormulaSeed = { id: string; cat: string; name: string; body: string };
+export type FormulaSeed = { id: string; cat: string; name: string; body: string; precoMedio?: number };
 export type Category = { id: string; label: string; icon: LucideIcon; color?: string };
 export type Protocolo = { id: string; nome: string; formulaIds: string[] };
-export type SelectedFormula = { id: string; cat: string; name: string; ativos: string; tomadas: Tomada[] };
+export type SelectedFormula = { id: string; cat: string; name: string; ativos: string; tomadas: Tomada[]; preco: number };
+
+// ===== VALOR MÉDIO DAS FÓRMULAS (USO INTERNO — NÃO APARECE PARA O CLIENTE) =====
+// A clínica NÃO vende fórmulas manipuladas. Estes valores são apenas uma
+// referência fictícia de preço de mercado de manipulação, para o médico ter
+// noção do custo ao prescrever. Para definir o valor real de uma fórmula,
+// basta preencher `precoMedio` no objeto da fórmula no catálogo.
+export const PRECO_BASE_CATEGORIA: Record<string, number> = {
+  gastrico: 70, tireoide: 90, hepato: 85, vitaminas: 80, adaptogenos: 110,
+  adhd: 130, emagrecimento: 150, transito: 60, calmante: 95, cortisol: 120,
+  articulacao: 130, circulacao: 110, antiaromatase: 140, 'hormonal-f': 160,
+  anabolizante: 180, libido: 140, pretreino: 120, prostata: 130, magnesio: 70,
+  cabelo: 120, pele: 90, antiox: 130, sono: 100, menopausa: 160, hidratacao: 50,
+  probioticos: 110, comerciais: 200,
+};
+
+function hashId(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Valor médio fictício e ESTÁVEL por fórmula (mesma fórmula => mesmo valor).
+export function getPrecoMedio(f: FormulaSeed): number {
+  if (typeof f.precoMedio === 'number') return f.precoMedio;
+  const base = PRECO_BASE_CATEGORIA[f.cat] ?? 90;
+  const jitter = (hashId(f.id) % 41) - 20; // -20 .. +20
+  return Math.max(20, Math.round((base + jitter) / 5) * 5);
+}
+
+export function formatBRL(n: number): string {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+}
 export type ParsedAtivo = { empty: true } | { nome: string; dose: string } | { raw: string };
 
 export const HEADER_BOILERPLATE = `À Farmácia de Manipulação e ao Paciente:

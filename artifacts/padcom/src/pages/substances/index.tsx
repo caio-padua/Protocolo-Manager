@@ -211,7 +211,15 @@ export default function Substances() {
                       </p>
                     )}
 
-                    <div className="grid grid-cols-4 gap-3 mt-3 text-sm bg-muted/30 p-3 rounded-xl">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3 text-sm bg-muted/30 p-3 rounded-xl">
+                      <div>
+                        <span className="text-xs text-muted-foreground block">Valor Ampola</span>
+                        <span className="font-bold text-sm text-primary">
+                          {substance.pricePerUnit > 0
+                            ? `R$ ${Number(substance.pricePerUnit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                            : "-"}
+                        </span>
+                      </div>
                       <div>
                         <span className="text-xs text-muted-foreground block">Dose Padrão</span>
                         <span className="font-semibold text-sm">{substance.defaultDose || "-"}</span>

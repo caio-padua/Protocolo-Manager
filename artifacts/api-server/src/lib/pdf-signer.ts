@@ -957,6 +957,7 @@ interface ProtocolDocSubstance {
   intervalDays: number;
   startDate: string;
   procedureType: string;
+  unitPrice?: number;
   description?: string;
   mainFunction?: string;
   perceivedEffects?: string;
@@ -1563,7 +1564,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   // PAGE: FINANCIAL SUMMARY
   // ============================================================
   {
-    const page = newDocPage(pdfDoc, allPages);
+    let page = newDocPage(pdfDoc, allPages);
     let y = PAGE_H - MARGIN;
 
     y = drawSectionHeader(page, fonts, y, "RESUMO FINANCEIRO");
@@ -1595,6 +1596,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     y -= subRowH;
 
     for (const sub of data.substances) {
+      if (y < MARGIN + 30) { page = newDocPage(pdfDoc, allPages); y = PAGE_H - MARGIN; }
       const vals = [
         safeTxt(sub.name), safeTxt(sub.dose), `${sub.totalSessions}`,
         procTypeLabel(sub.procedureType).split("(")[0].trim(),
@@ -1612,7 +1614,54 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
     y -= 20;
 
+    const hasPricing = data.substances.some(s => (s.unitPrice ?? 0) > 0);
+    if (hasPricing) {
+      if (y < MARGIN + 60) { page = newDocPage(pdfDoc, allPages); y = PAGE_H - MARGIN; }
+      page.drawText("ORCAMENTO - INJETAVEIS (VALOR POR AMPOLA)", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
+      y -= 16;
+
+      const orcCols = ["Substancia", "Valor Ampola", "Sessoes", "Subtotal"];
+      const orcW = [180, 110, 90, 115];
+
+      page.drawRectangle({ x: MARGIN, y: y - subRowH + 4, width: CONTENT_W, height: subRowH, color: PETROL_LIGHT });
+      tx = MARGIN;
+      for (let c = 0; c < orcCols.length; c++) {
+        page.drawText(orcCols[c], { x: tx + 4, y: y - 7, size: 6.5, font: fonts.bold, color: PETROL });
+        tx += orcW[c];
+      }
+      y -= subRowH;
+
+      let orcTotal = 0;
+      for (const sub of data.substances) {
+        if (y < MARGIN + 30) { page = newDocPage(pdfDoc, allPages); y = PAGE_H - MARGIN; }
+        const unit = sub.unitPrice ?? 0;
+        const line = unit * sub.totalSessions;
+        orcTotal += line;
+        const vals = [
+          safeTxt(sub.name),
+          `R$ ${unit.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          `${sub.totalSessions}`,
+          `R$ ${line.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        ];
+        tx = MARGIN;
+        for (let c = 0; c < vals.length; c++) {
+          const trunc = vals[c].length > 24 ? vals[c].slice(0, 22) + ".." : vals[c];
+          page.drawText(trunc, { x: tx + 4, y: y - 7, size: 7, font: fonts.regular, color: BLACK });
+          tx += orcW[c];
+        }
+        page.drawLine({ start: { x: MARGIN, y: y - subRowH + 4 }, end: { x: MARGIN + CONTENT_W, y: y - subRowH + 4 }, thickness: 0.2, color: LIGHT_GRAY });
+        y -= subRowH;
+      }
+
+      y -= 4;
+      page.drawText(`Total estimado (injetaveis): R$ ${orcTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, {
+        x: MARGIN, y, size: 9, font: fonts.bold, color: PETROL,
+      });
+      y -= 20;
+    }
+
     if (data.payments.length > 0) {
+      if (y < MARGIN + 60) { page = newDocPage(pdfDoc, allPages); y = PAGE_H - MARGIN; }
       page.drawText("HISTORICO DE PAGAMENTOS", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
       y -= 16;
 
@@ -1628,6 +1677,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
       y -= subRowH;
 
       for (const pay of data.payments) {
+        if (y < MARGIN + 30) { page = newDocPage(pdfDoc, allPages); y = PAGE_H - MARGIN; }
         const statusLbl = pay.status === "paid" ? "Pago" : pay.status === "pending" ? "Pendente" : pay.status;
         const vals = [
           `R$ ${pay.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,

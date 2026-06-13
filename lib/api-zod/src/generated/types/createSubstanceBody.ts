@@ -17,4 +17,5 @@ export interface CreateSubstanceBody {
   notes?: string | null;
   stockQuantity: number;
   stockUnit?: string | null;
+  pricePerUnit?: number;
 }

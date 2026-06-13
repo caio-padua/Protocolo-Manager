@@ -69,6 +69,7 @@ export interface Substance {
   notes?: string | null;
   stockQuantity: number;
   stockUnit?: string | null;
+  pricePerUnit?: number;
   createdAt: string;
 }
 
@@ -83,6 +84,7 @@ export interface CreateSubstanceBody {
   notes?: string | null;
   stockQuantity: number;
   stockUnit?: string | null;
+  pricePerUnit?: number;
 }
 
 export type ProtocolStatus =
@@ -110,6 +112,8 @@ export interface ProtocolItem {
   substanceName: string;
   substanceColor: string;
   dose: string;
+  unitPrice: number;
+  lineTotal: number;
   totalSessions: number;
   completedSessions: number;
   intervalDays: number;

@@ -134,6 +134,7 @@ export const ListSubstancesResponseItem = zod.object({
   notes: zod.string().nullish(),
   stockQuantity: zod.number(),
   stockUnit: zod.string().nullish(),
+  pricePerUnit: zod.number().optional(),
   createdAt: zod.string(),
 });
 export const ListSubstancesResponse = zod.array(ListSubstancesResponseItem);
@@ -152,6 +153,7 @@ export const CreateSubstanceBody = zod.object({
   notes: zod.string().nullish(),
   stockQuantity: zod.number(),
   stockUnit: zod.string().nullish(),
+  pricePerUnit: zod.number().optional(),
 });
 
 /**
@@ -172,6 +174,7 @@ export const UpdateSubstanceBody = zod.object({
   notes: zod.string().nullish(),
   stockQuantity: zod.number(),
   stockUnit: zod.string().nullish(),
+  pricePerUnit: zod.number().optional(),
 });
 
 export const UpdateSubstanceResponse = zod.object({
@@ -186,6 +189,7 @@ export const UpdateSubstanceResponse = zod.object({
   notes: zod.string().nullish(),
   stockQuantity: zod.number(),
   stockUnit: zod.string().nullish(),
+  pricePerUnit: zod.number().optional(),
   createdAt: zod.string(),
 });
 
@@ -227,6 +231,8 @@ export const ListProtocolsResponseItem = zod.object({
       substanceName: zod.string(),
       substanceColor: zod.string(),
       dose: zod.string(),
+      unitPrice: zod.number(),
+      lineTotal: zod.number(),
       totalSessions: zod.number(),
       completedSessions: zod.number(),
       intervalDays: zod.number(),
@@ -347,6 +353,8 @@ export const GetProtocolResponse = zod.object({
       substanceName: zod.string(),
       substanceColor: zod.string(),
       dose: zod.string(),
+      unitPrice: zod.number(),
+      lineTotal: zod.number(),
       totalSessions: zod.number(),
       completedSessions: zod.number(),
       intervalDays: zod.number(),
@@ -450,6 +458,8 @@ export const UpdateProtocolResponse = zod.object({
       substanceName: zod.string(),
       substanceColor: zod.string(),
       dose: zod.string(),
+      unitPrice: zod.number(),
+      lineTotal: zod.number(),
       totalSessions: zod.number(),
       completedSessions: zod.number(),
       intervalDays: zod.number(),
@@ -539,6 +549,8 @@ export const ValidateProtocolResponse = zod.object({
       substanceName: zod.string(),
       substanceColor: zod.string(),
       dose: zod.string(),
+      unitPrice: zod.number(),
+      lineTotal: zod.number(),
       totalSessions: zod.number(),
       completedSessions: zod.number(),
       intervalDays: zod.number(),

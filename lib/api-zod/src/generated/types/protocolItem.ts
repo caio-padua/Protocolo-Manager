@@ -12,6 +12,8 @@ export interface ProtocolItem {
   substanceName: string;
   substanceColor: string;
   dose: string;
+  unitPrice: number;
+  lineTotal: number;
   totalSessions: number;
   completedSessions: number;
   intervalDays: number;

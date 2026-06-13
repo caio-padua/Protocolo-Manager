@@ -18,5 +18,6 @@ export interface Substance {
   notes?: string | null;
   stockQuantity: number;
   stockUnit?: string | null;
+  pricePerUnit?: number;
   createdAt: string;
 }

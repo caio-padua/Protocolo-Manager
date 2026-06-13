@@ -203,6 +203,11 @@ export default function ProtocolDetail() {
                     <span className="font-medium">{item.substanceName}</span>
                     <span className="text-sm text-muted-foreground">{item.completedSessions}/{item.totalSessions} sessões — {item.dose}</span>
                   </div>
+                  {item.unitPrice > 0 && (
+                    <div className="text-xs text-muted-foreground mb-1">
+                      R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / ampola × {item.totalSessions} = <span className="font-semibold text-foreground">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${item.totalSessions > 0 ? (item.completedSessions / item.totalSessions) * 100 : 0}%`, backgroundColor: item.substanceColor }} />
                   </div>
@@ -216,6 +221,52 @@ export default function ProtocolDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {protocol.items.some(i => i.unitPrice > 0) && (
+        <Card style={{ borderLeftWidth: "5px", borderLeftColor: "#3D7A7A" }}>
+          <CardHeader>
+            <CardTitle className="text-base uppercase tracking-wide">Orçamento — Injetáveis</CardTitle>
+            <p className="text-xs text-muted-foreground">Valor das ampolas por substância. Visível para a equipe e para o cliente.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="py-2 pr-3 font-semibold">Substância</th>
+                    <th className="py-2 px-3 font-semibold text-right">Valor Ampola</th>
+                    <th className="py-2 px-3 font-semibold text-center">Sessões</th>
+                    <th className="py-2 pl-3 font-semibold text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {protocol.items.map(item => (
+                    <tr key={item.id} className="border-b last:border-0">
+                      <td className="py-2 pr-3">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.substanceColor }} />
+                          {item.substanceName}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2 px-3 text-center">{item.totalSessions}</td>
+                      <td className="py-2 pl-3 text-right font-mono font-semibold">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2">
+                    <td className="py-2 pr-3 font-bold uppercase tracking-wide" colSpan={3}>Total do orçamento</td>
+                    <td className="py-2 pl-3 text-right font-mono text-lg font-bold text-primary">
+                      R$ {protocol.items.reduce((sum, i) => sum + i.lineTotal, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {protocol.sessions.length > 0 && (
         <Card>

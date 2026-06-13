@@ -14,6 +14,7 @@ export const substancesTable = pgTable("substances", {
   notes: text("notes"),
   stockQuantity: real("stock_quantity").notNull().default(0),
   stockUnit: text("stock_unit"),
+  pricePerUnit: real("price_per_unit").notNull().default(0),
   procedureType: text("procedure_type").notNull().default("iv"),
   durationMinutes: integer("duration_minutes").notNull().default(30),
   description: text("description"),

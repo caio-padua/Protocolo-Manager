@@ -111,18 +111,24 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     completedSessions: protocol.completedSessions,
     totalValue: protocol.totalValue,
     notes: protocol.notes ?? null,
-    items: items.map(item => ({
-      id: item.id,
-      substanceId: item.substanceId,
-      substanceName: substances[item.substanceId]?.name ?? "",
-      substanceColor: substances[item.substanceId]?.color ?? "#888888",
-      dose: item.dose,
-      totalSessions: item.totalSessions,
-      completedSessions: item.completedSessions,
-      intervalDays: item.intervalDays,
-      startDate: item.startDate,
-      frequency: item.frequency,
-    })),
+    items: items.map(item => {
+      const unitPrice = item.unitPrice || substances[item.substanceId]?.pricePerUnit || 0;
+      const lineTotal = unitPrice * item.totalSessions;
+      return {
+        id: item.id,
+        substanceId: item.substanceId,
+        substanceName: substances[item.substanceId]?.name ?? "",
+        substanceColor: substances[item.substanceId]?.color ?? "#888888",
+        dose: item.dose,
+        unitPrice,
+        lineTotal,
+        totalSessions: item.totalSessions,
+        completedSessions: item.completedSessions,
+        intervalDays: item.intervalDays,
+        startDate: item.startDate,
+        frequency: item.frequency,
+      };
+    }),
     sessions: formattedSessions,
     createdAt: protocol.createdAt.toISOString(),
     updatedAt: protocol.updatedAt.toISOString(),
@@ -166,8 +172,24 @@ router.post("/protocols", async (req, res): Promise<void> => {
 
   const totalSessions = Math.max(...items.map((i: { totalSessions: number }) => i.totalSessions), 0);
 
+  // Busca o valor da ampola de cada substância para montar o orçamento.
+  const subIds = [...new Set(items.map((i: { substanceId: number }) => i.substanceId))];
+  const priceMap: Record<number, number> = {};
+  for (const sid of subIds) {
+    const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, sid));
+    priceMap[sid] = s?.pricePerUnit ?? 0;
+  }
+  const computedBudget = items.reduce(
+    (sum: number, i: { substanceId: number; totalSessions: number }) =>
+      sum + (priceMap[i.substanceId] ?? 0) * i.totalSessions,
+    0,
+  );
+  const finalTotalValue =
+    protocolData.totalValue && protocolData.totalValue > 0 ? protocolData.totalValue : computedBudget;
+
   const [protocol] = await db.insert(protocolsTable).values({
     ...protocolData,
+    totalValue: finalTotalValue,
     totalSessions,
   }).returning();
 
@@ -176,6 +198,7 @@ router.post("/protocols", async (req, res): Promise<void> => {
       protocolId: protocol.id,
       substanceId: item.substanceId,
       dose: item.dose,
+      unitPrice: priceMap[item.substanceId] ?? 0,
       totalSessions: item.totalSessions,
       intervalDays: item.intervalDays,
       startDate: protocolData.startDate,
@@ -235,6 +258,7 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       intervalDays: item.intervalDays,
       startDate: item.startDate,
       procedureType: sub?.procedureType ?? "iv",
+      unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
       description: sub?.description ?? undefined,
       mainFunction: sub?.mainFunction ?? undefined,
       perceivedEffects: sub?.perceivedEffects ?? undefined,
