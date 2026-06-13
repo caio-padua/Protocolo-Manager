@@ -17,12 +17,21 @@ function formatPharmacy(p: typeof pharmaciesTable.$inferSelect) {
     notes: p.notes ?? null,
     controlledTypes: p.controlledTypes ?? [],
     driveFolderId: p.driveFolderId ?? null,
+    active: p.active,
     createdAt: p.createdAt.toISOString(),
   };
 }
 
-router.get("/pharmacies", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(pharmaciesTable).orderBy(desc(pharmaciesTable.createdAt));
+router.get("/pharmacies", async (req, res): Promise<void> => {
+  // Por padrão retorna apenas farmácias ativas; ?all=true inclui inativadas.
+  const includeAll = req.query.all === "true";
+  const rows = includeAll
+    ? await db.select().from(pharmaciesTable).orderBy(desc(pharmaciesTable.createdAt))
+    : await db
+        .select()
+        .from(pharmaciesTable)
+        .where(eq(pharmaciesTable.active, true))
+        .orderBy(desc(pharmaciesTable.createdAt));
   res.json(rows.map(formatPharmacy));
 });
 
@@ -72,7 +81,16 @@ router.delete("/pharmacies/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "id inválido" });
     return;
   }
-  await db.delete(pharmaciesTable).where(eq(pharmaciesTable.id, id));
+  // Inativação (soft delete): preserva histórico de receitas/dispatch.
+  const [row] = await db
+    .update(pharmaciesTable)
+    .set({ active: false })
+    .where(eq(pharmaciesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Farmácia não encontrada" });
+    return;
+  }
   res.status(204).end();
 });
 

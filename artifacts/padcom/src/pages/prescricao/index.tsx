@@ -707,15 +707,32 @@ export default function PrescricaoPage() {
                       </div>
                     ))}
 
-                    {emitResult.whatsappLink && (
-                      <a
-                        href={emitResult.whatsappLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-md text-sm"
-                      >
-                        <MessageSquare className="w-4 h-4" />Avisar cliente no WhatsApp
-                      </a>
+                    {emitResult.pharmacyDispatches.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wide text-primary flex items-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5" />WhatsApp às farmácias
+                        </h3>
+                        {emitResult.pharmacyDispatches.map((d) => (
+                          <div key={d.pharmacyId} className="border border-border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold">{d.pharmacyName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {d.recipeCount} receita(s) · {d.sent ? "enviado automaticamente" : "envio manual"}
+                              </p>
+                            </div>
+                            {d.whatsappLink && (
+                              <a
+                                href={d.whatsappLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-md text-sm shrink-0"
+                              >
+                                <MessageSquare className="w-4 h-4" />Abrir WhatsApp
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}

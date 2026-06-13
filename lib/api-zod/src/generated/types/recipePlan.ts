@@ -13,6 +13,7 @@ export interface RecipePlan {
   anvisaType?: string | null;
   anvisaColor?: string | null;
   anvisaColorName?: string | null;
+  internalColor?: string | null;
   needsSncr: boolean;
   title: string;
   items: PrescriptionItemInput[];

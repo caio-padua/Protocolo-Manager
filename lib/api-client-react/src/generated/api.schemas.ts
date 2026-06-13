@@ -556,6 +556,7 @@ export interface RecipePlan {
   anvisaType?: string | null;
   anvisaColor?: string | null;
   anvisaColorName?: string | null;
+  internalColor?: string | null;
   needsSncr: boolean;
   title: string;
   items: PrescriptionItemInput[];
@@ -597,12 +598,19 @@ export interface SncrAlert {
   message: string;
 }
 
+export interface PharmacyDispatch {
+  pharmacyId: number;
+  pharmacyName: string;
+  recipeCount: number;
+  sent: boolean;
+  whatsappLink?: string | null;
+}
+
 export interface EmitResult {
   prescriptionId: number;
   recipes: EmittedRecipe[];
   sncrAlerts: SncrAlert[];
-  whatsappLink?: string | null;
-  whatsappSent: boolean;
+  pharmacyDispatches: PharmacyDispatch[];
 }
 
 export interface Prescription {

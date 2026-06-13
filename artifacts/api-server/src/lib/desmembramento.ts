@@ -31,6 +31,7 @@ export interface RecipePlan {
   anvisaType: string | null;
   anvisaColor: string | null;
   anvisaColorName: string | null;
+  internalColor: string | null;
   needsSncr: boolean;
   title: string;
   items: PrescriptionItemInput[];
@@ -38,6 +39,10 @@ export interface RecipePlan {
 
 function groupKey(pharmacyId: number | null | undefined): string {
   return pharmacyId == null ? "none" : String(pharmacyId);
+}
+
+function colorKey(internalColor: string | null | undefined): string {
+  return internalColor == null || internalColor === "" ? "__sem_cor__" : internalColor;
 }
 
 export function planDesmembramento(items: PrescriptionItemInput[]): RecipePlan[] {
@@ -54,21 +59,34 @@ export function planDesmembramento(items: PrescriptionItemInput[]): RecipePlan[]
   for (const [, group] of byPharmacy) {
     const pharmacyId = group[0]?.pharmacyId ?? null;
 
-    // 1) Receita de manipulação (blend integral — inclui controlados).
-    if (group.length > 0) {
+    // 1) Receita(s) de manipulação — uma por COR INTERNA (organização/destino).
+    //    O blend mantém os controlados integralmente (a cópia isolada é adicional).
+    const byColor = new Map<string, PrescriptionItemInput[]>();
+    for (const item of group) {
+      const ck = colorKey(item.internalColor);
+      if (!byColor.has(ck)) byColor.set(ck, []);
+      byColor.get(ck)!.push(item);
+    }
+    const multiColor = byColor.size > 1;
+    for (const [ck, colorItems] of byColor) {
+      if (colorItems.length === 0) continue;
+      const internalColor = ck === "__sem_cor__" ? null : ck;
       plans.push({
         recipeType: "manipulacao",
         pharmacyId,
         anvisaType: null,
         anvisaColor: null,
         anvisaColorName: null,
+        internalColor,
         needsSncr: false,
-        title: "Receita de Manipulação",
-        items: group,
+        title: multiColor && internalColor
+          ? `Receita de Manipulação — ${internalColor}`
+          : "Receita de Manipulação",
+        items: colorItems,
       });
     }
 
-    // 2) Cópia isolada e numerada por item controlado.
+    // 2) Cópia isolada e numerada por item controlado (legalidade).
     for (const item of group) {
       if (item.isControlled) {
         const recipe = recipeTypeForControlledClass(item.anvisaType);
@@ -78,6 +96,7 @@ export function planDesmembramento(items: PrescriptionItemInput[]): RecipePlan[]
           anvisaType: item.anvisaType ?? null,
           anvisaColor: recipe?.color ?? null,
           anvisaColorName: recipe?.colorName ?? null,
+          internalColor: item.internalColor ?? null,
           needsSncr: recipe?.requiresNotificationNumber ?? false,
           title: recipe
             ? `${recipe.label}`

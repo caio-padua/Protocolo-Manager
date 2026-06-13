@@ -1390,6 +1390,7 @@ export const PreviewPrescriptionResponseItem = zod.object({
   anvisaType: zod.string().nullish(),
   anvisaColor: zod.string().nullish(),
   anvisaColorName: zod.string().nullish(),
+  internalColor: zod.string().nullish(),
   needsSncr: zod.boolean(),
   title: zod.string(),
   items: zod.array(

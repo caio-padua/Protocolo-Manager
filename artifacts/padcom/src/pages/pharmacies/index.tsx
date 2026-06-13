@@ -136,7 +136,7 @@ export default function Pharmacies() {
   }
 
   function handleDelete(p: Pharmacy) {
-    if (window.confirm(`Remover a farmácia "${p.name}"?`)) {
+    if (window.confirm(`Inativar a farmácia "${p.name}"? O histórico de receitas é preservado e ela deixa de aparecer nos seletores.`)) {
       deleteMutation.mutate({ id: p.id });
     }
   }
@@ -277,7 +277,7 @@ export default function Pharmacies() {
                     <button onClick={() => openEdit(p)} className="p-1.5 text-muted-foreground hover:text-foreground" title="Editar">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(p)} className="p-1.5 text-destructive hover:opacity-80" title="Remover">
+                    <button onClick={() => handleDelete(p)} className="p-1.5 text-destructive hover:opacity-80" title="Inativar">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>

@@ -1922,6 +1922,9 @@ components:
         anvisaColorName:
           type: string
           nullable: true
+        internalColor:
+          type: string
+          nullable: true
         needsSncr:
           type: boolean
         title:
@@ -2034,6 +2037,26 @@ components:
         - status
         - message
 
+    PharmacyDispatch:
+      type: object
+      properties:
+        pharmacyId:
+          type: integer
+        pharmacyName:
+          type: string
+        recipeCount:
+          type: integer
+        sent:
+          type: boolean
+        whatsappLink:
+          type: string
+          nullable: true
+      required:
+        - pharmacyId
+        - pharmacyName
+        - recipeCount
+        - sent
+
     EmitResult:
       type: object
       properties:
@@ -2047,16 +2070,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SncrAlert"
-        whatsappLink:
-          type: string
-          nullable: true
-        whatsappSent:
-          type: boolean
+        pharmacyDispatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/PharmacyDispatch"
       required:
         - prescriptionId
         - recipes
         - sncrAlerts
-        - whatsappSent
+        - pharmacyDispatches
 
     Prescription:
       type: object

@@ -15,6 +15,7 @@ import { generateRecipePdf } from "../lib/prescription-pdf";
 import { ensurePharmacyDayFolder, uploadFileToDrive } from "../lib/google-drive";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
+import { handleSncrAlert } from "../lib/sncr-alerts";
 
 const router: IRouter = Router();
 
@@ -152,6 +153,7 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
 
   const emittedRecipes: any[] = [];
   const sncrAlerts: any[] = [];
+  const sncrSideEffects: Parameters<typeof handleSncrAlert>[0][] = [];
 
   for (const plan of plans) {
     // 2a) SNCR (somente controlado isolado que exige numeração).
@@ -171,25 +173,43 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
       sncrRangeId = consume.rangeId;
 
       if (consume.status === "consumed" && consume.low) {
-        sncrAlerts.push({
-          controlledType,
+        const message = `Atenção: restam ${consume.remaining} números SNCR para ${controlledType} (${uf}). Solicite novo talão.`;
+        sncrAlerts.push({ controlledType, status: "low", remaining: consume.remaining, message });
+        sncrSideEffects.push({
           status: "low",
+          controlledType,
+          uf,
           remaining: consume.remaining,
-          message: `Atenção: restam ${consume.remaining} números SNCR para ${controlledType} (${uf}). Solicite novo talão.`,
+          prescriptionId: prescription.id,
+          clientId: body.clientId ?? null,
+          professionalName: body.professionalName ?? null,
+          message,
         });
       } else if (consume.status === "exhausted") {
-        sncrAlerts.push({
-          controlledType,
+        const message = `Numeração SNCR ESGOTADA para ${controlledType} (${uf}). Receita emitida SEM número — providencie novo talão com urgência.`;
+        sncrAlerts.push({ controlledType, status: "exhausted", remaining: 0, message });
+        sncrSideEffects.push({
           status: "exhausted",
+          controlledType,
+          uf,
           remaining: 0,
-          message: `Numeração SNCR ESGOTADA para ${controlledType} (${uf}). Receita emitida SEM número — providencie novo talão com urgência.`,
+          prescriptionId: prescription.id,
+          clientId: body.clientId ?? null,
+          professionalName: body.professionalName ?? null,
+          message,
         });
       } else if (consume.status === "no_range") {
-        sncrAlerts.push({
-          controlledType,
+        const message = `Sem intervalo SNCR cadastrado para ${controlledType} (${uf}). Receita emitida SEM número.`;
+        sncrAlerts.push({ controlledType, status: "no_range", remaining: null, message });
+        sncrSideEffects.push({
           status: "no_range",
+          controlledType,
+          uf,
           remaining: null,
-          message: `Sem intervalo SNCR cadastrado para ${controlledType} (${uf}). Receita emitida SEM número.`,
+          prescriptionId: prescription.id,
+          clientId: body.clientId ?? null,
+          professionalName: body.professionalName ?? null,
+          message,
         });
       }
     }
@@ -269,31 +289,82 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
     });
   }
 
-  // 3) WhatsApp ao cliente (best-effort).
-  let whatsappLink: string | null = null;
-  let whatsappSent = false;
-  if (body.clientPhone) {
-    const msg =
-      body.message?.trim() ||
-      `Olá ${body.clientName}, suas receitas foram emitidas pelo Instituto Padua e encaminhadas à farmácia. Qualquer dúvida, estamos à disposição.`;
-    const wa = await sendWhatsapp(body.clientPhone, msg);
-    whatsappLink = wa.link;
-    whatsappSent = wa.sent;
-    await db.insert(dispatchLogTable).values({
-      prescriptionId: prescription.id,
-      channel: "whatsapp",
-      status: wa.sent ? "sent" : "link_only",
-      detail: wa.error ?? (wa.sent ? "Enviado via Twilio" : "Link de fallback gerado"),
-      batchDate,
+  // 3) WhatsApp às FARMÁCIAS (best-effort, uma mensagem por farmácia).
+  //    A receita é roteada à farmácia de manipulação, não ao cliente.
+  const pharmacyDispatches: Array<{
+    pharmacyId: number;
+    pharmacyName: string;
+    recipeCount: number;
+    sent: boolean;
+    whatsappLink: string | null;
+  }> = [];
+
+  const distinctPharmacyIds = [
+    ...new Set(
+      emittedRecipes
+        .map((r) => r.pharmacyId)
+        .filter((id): id is number => typeof id === "number"),
+    ),
+  ];
+
+  for (const pid of distinctPharmacyIds) {
+    const pharmacy = pharmMap.get(pid);
+    if (!pharmacy) continue;
+    const recipeCount = emittedRecipes.filter((r) => r.pharmacyId === pid).length;
+    const target = (pharmacy.whatsapp || pharmacy.phone || "").trim();
+
+    let sent = false;
+    let link: string | null = null;
+    let detail = "Sem WhatsApp/telefone cadastrado na farmácia";
+    if (target) {
+      const msg =
+        `Olá, equipe ${pharmacy.name}. O Instituto Padua emitiu ${recipeCount} receita(s) ` +
+        `para o(a) cliente ${body.clientName}. O lote completo com os PDFs segue por e-mail/Drive. ` +
+        `Em caso de urgência, retornar por este contato.`;
+      try {
+        const wa = await sendWhatsapp(target, msg);
+        sent = wa.sent;
+        link = wa.link;
+        detail = wa.error ?? (wa.sent ? "Enviado via Twilio à farmácia" : "Link de fallback gerado");
+      } catch (err) {
+        req.log.warn({ err, pharmacyId: pid }, "Falha ao enviar WhatsApp à farmácia");
+        detail = "Falha no envio do WhatsApp";
+      }
+    }
+
+    try {
+      await db.insert(dispatchLogTable).values({
+        prescriptionId: prescription.id,
+        pharmacyId: pid,
+        channel: "whatsapp",
+        status: sent ? "sent" : target ? "link_only" : "skipped",
+        recipeCount,
+        detail,
+        batchDate,
+      });
+    } catch (err) {
+      req.log.warn({ err, pharmacyId: pid }, "Falha ao registrar dispatch WhatsApp");
+    }
+
+    pharmacyDispatches.push({
+      pharmacyId: pid,
+      pharmacyName: pharmacy.name,
+      recipeCount,
+      sent,
+      whatsappLink: link,
     });
+  }
+
+  // 4) Efeitos colaterais dos alertas SNCR (best-effort, não bloqueia).
+  for (const alert of sncrSideEffects) {
+    await handleSncrAlert(alert);
   }
 
   res.status(201).json({
     prescriptionId: prescription.id,
     recipes: emittedRecipes,
     sncrAlerts,
-    whatsappLink,
-    whatsappSent,
+    pharmacyDispatches,
   });
 });
 

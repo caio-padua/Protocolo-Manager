@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EmittedRecipe } from "./emittedRecipe";
+import type { PharmacyDispatch } from "./pharmacyDispatch";
 import type { SncrAlert } from "./sncrAlert";
 
 export interface EmitResult {
   prescriptionId: number;
   recipes: EmittedRecipe[];
   sncrAlerts: SncrAlert[];
-  whatsappLink?: string | null;
-  whatsappSent: boolean;
+  pharmacyDispatches: PharmacyDispatch[];
 }

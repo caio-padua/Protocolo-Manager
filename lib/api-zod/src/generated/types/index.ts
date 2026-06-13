@@ -46,6 +46,7 @@ export * from "./payment";
 export * from "./paymentMethod";
 export * from "./paymentStatus";
 export * from "./pharmacy";
+export * from "./pharmacyDispatch";
 export * from "./prescription";
 export * from "./prescriptionDetail";
 export * from "./prescriptionItemInput";
