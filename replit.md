@@ -131,4 +131,44 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - UI and user communication in Portuguese (Brazil)
 - Term: "cliente" (not "paciente")
 
+## CONCEITO RAIZ — Sistemas Primos Independentes (IHE x Manager)
+
+Decisao do CEO (Dr. Caio), registrada em 14/06/2026. Vale como regra para todas as ondas de integracao/transmutacao.
+
+1. IHE (Integrative Health Engine) e Padcon Conect (Manager) sao sistemas PRIMOS: independentes, cada um dono dos seus proprios dados, que colaboram por interface — nunca fundidos.
+
+2. Na transmutacao/integracao, NADA entra com prefixo de origem nem coluna/tag de origem. O dado, ao entrar num sistema, passa a ser nativo dele.
+
+3. "Separar os gemeos siameses": mesmo com dor no coracao, desacoplar tudo que hoje esta conjugado entre os dois sistemas.
+
+4. Colaboracao maxima: cada Dr (agente) pensa 10 passos a frente em possiveis conflitos e erros antes de agir.
+
+5. Esta decisao SUBSTITUI a premissa anterior da CARTA_02 (que pedia TAG de origem e import unificado). A nova diretriz e: primos independentes, sem tag de origem.
+
+## Preferencias do Usuario (Dr. Caio) — Como me comunicar
+
+Formato de resposta (arejado, nunca comprimido "em linha"):
+
+1. TOPICO em MAIUSCULO e NEGRITO.
+
+2. Pular uma linha apos o topico antes do paragrafo.
+
+3. Numerais para itens principais; letras para subgrupos (1, depois 1.a, 1.b, 1.c).
+
+4. Subitens alinhados verticalmente (linha vertical imaginaria) e espacados (linha em branco entre grupos).
+
+5. Conclusao primeiro; fechar com "RESUMO EM 1 LINHA".
+
+6. Decisoes em opcoes A / B / C com um default recomendado; uma pergunta por vez.
+
+7. Tudo por extenso; explicar toda sigla na primeira vez que aparece.
+
+8. Frases curtas, uma por linha; zero emoji em texto tecnico.
+
+9. Virgula decimal e datas no padrao Brasil (1.342,50 e 14/06/2026).
+
+10. Sinceridade total, zero bajulacao; zelo acima de velocidade; verificar na fonte antes de afirmar.
+
+11. Voz: interpretar a fonetica pelo contexto, sem comentar o erro.
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
