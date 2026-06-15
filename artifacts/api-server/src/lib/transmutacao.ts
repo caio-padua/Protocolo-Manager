@@ -69,6 +69,17 @@ function hashConteudo(r: Raw): string {
   return createHash("sha256").update(JSON.stringify(rest, keys)).digest("hex");
 }
 
+function numId(v: unknown): number | null {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (!/^\d+$/.test(t)) return null;
+    const n = Number(t);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
 function digits(v: unknown): string {
   return String(v ?? "").replace(/\D/g, "");
 }
@@ -193,16 +204,20 @@ export async function runTransmutacao(opts: {
     }
   });
 
-  // ---- (3) catalogo_formulas (chave: hash de conteudo) ----
+  // ---- (3) catalogo_formulas (chave: id de origem do IHE) ----
   log.info("Transmutacao: catalogo_formulas");
   await db.transaction(async (tx) => {
     const existing = new Set(
-      (await tx.select({ k: catalogoFormulasTable.hashConteudo }).from(catalogoFormulasTable)).map((r) => r.k),
+      (await tx.select({ k: catalogoFormulasTable.idIhe }).from(catalogoFormulasTable)).map((r) => r.k),
     );
     for (const r of (catalogo.formulas ?? []) as Raw[]) {
-      const hash = hashConteudo(r);
+      const idIhe = numId(r.id);
+      if (idIhe == null) {
+        report.catalogo_formulas.pulados++;
+        continue;
+      }
       const values = {
-        hashConteudo: hash,
+        idIhe,
         codigoSemantico: s(r.codigo_semantico),
         codigoPadcom: s(r.codigo_padcom),
         identificador: s(r.identificador),
@@ -224,29 +239,33 @@ export async function runTransmutacao(opts: {
         periodosPadrao: r.periodos_padrao ?? null,
         efeitosColaterais: s(r.efeitos_colaterais),
       };
-      const isUpdate = existing.has(hash);
+      const isUpdate = existing.has(idIhe);
       await tx
         .insert(catalogoFormulasTable)
         .values(values)
-        .onConflictDoUpdate({ target: catalogoFormulasTable.hashConteudo, set: { ...values, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: catalogoFormulasTable.idIhe, set: { ...values, updatedAt: new Date() } });
       if (isUpdate) report.catalogo_formulas.atualizados++;
       else {
         report.catalogo_formulas.criados++;
-        existing.add(hash);
+        existing.add(idIhe);
       }
     }
   });
 
-  // ---- (4) catalogo_injetaveis (chave: hash de conteudo) ----
+  // ---- (4) catalogo_injetaveis (chave: id de origem do IHE) ----
   log.info("Transmutacao: catalogo_injetaveis");
   await db.transaction(async (tx) => {
     const existing = new Set(
-      (await tx.select({ k: catalogoInjetaveisTable.hashConteudo }).from(catalogoInjetaveisTable)).map((r) => r.k),
+      (await tx.select({ k: catalogoInjetaveisTable.idIhe }).from(catalogoInjetaveisTable)).map((r) => r.k),
     );
     for (const r of (catalogo.injetaveis ?? []) as Raw[]) {
-      const hash = hashConteudo(r);
+      const idIhe = numId(r.id);
+      if (idIhe == null) {
+        report.catalogo_injetaveis.pulados++;
+        continue;
+      }
       const values = {
-        hashConteudo: hash,
+        idIhe,
         codigoSemantico: s(r.codigo_semantico),
         codigoPadcom: s(r.codigo_padcom),
         tipoLinha: s(r.tipo_linha),
@@ -270,33 +289,34 @@ export async function runTransmutacao(opts: {
         seq: s(r.seq),
         substanciaBase: s(r.substancia_base),
       };
-      const isUpdate = existing.has(hash);
+      const isUpdate = existing.has(idIhe);
       await tx
         .insert(catalogoInjetaveisTable)
         .values(values)
-        .onConflictDoUpdate({ target: catalogoInjetaveisTable.hashConteudo, set: { ...values, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: catalogoInjetaveisTable.idIhe, set: { ...values, updatedAt: new Date() } });
       if (isUpdate) report.catalogo_injetaveis.atualizados++;
       else {
         report.catalogo_injetaveis.criados++;
-        existing.add(hash);
+        existing.add(idIhe);
       }
     }
   });
 
-  // ---- (5) catalogo_implantes (chave: codigo_padcom) ----
+  // ---- (5) catalogo_implantes (chave: id de origem do IHE) ----
   log.info("Transmutacao: catalogo_implantes");
   await db.transaction(async (tx) => {
     const existing = new Set(
-      (await tx.select({ k: catalogoImplantesTable.codigoPadcom }).from(catalogoImplantesTable)).map((r) => r.k),
+      (await tx.select({ k: catalogoImplantesTable.idIhe }).from(catalogoImplantesTable)).map((r) => r.k),
     );
     for (const r of (catalogo.implantes ?? []) as Raw[]) {
-      const codigoPadcom = s(r.codigo_padcom);
-      if (!codigoPadcom) {
+      const idIhe = numId(r.id);
+      if (idIhe == null) {
         report.catalogo_implantes.pulados++;
         continue;
       }
       const values = {
-        codigoPadcom,
+        idIhe,
+        codigoPadcom: s(r.codigo_padcom),
         codigoSemantico: s(r.codigo_semantico),
         nomeImplante: s(r.nome_implante),
         substanciaAtiva: s(r.substancia_ativa),
@@ -319,15 +339,15 @@ export async function runTransmutacao(opts: {
         b4: s(r.b4),
         seq: s(r.seq),
       };
-      const isUpdate = existing.has(codigoPadcom);
+      const isUpdate = existing.has(idIhe);
       await tx
         .insert(catalogoImplantesTable)
         .values(values)
-        .onConflictDoUpdate({ target: catalogoImplantesTable.codigoPadcom, set: { ...values, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: catalogoImplantesTable.idIhe, set: { ...values, updatedAt: new Date() } });
       if (isUpdate) report.catalogo_implantes.atualizados++;
       else {
         report.catalogo_implantes.criados++;
-        existing.add(codigoPadcom);
+        existing.add(idIhe);
       }
     }
   });

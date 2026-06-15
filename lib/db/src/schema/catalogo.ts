@@ -51,7 +51,7 @@ export const catalogoItensTable = pgTable("catalogo_itens", {
 
 export const catalogoFormulasTable = pgTable("catalogo_formulas", {
   id: serial("id").primaryKey(),
-  hashConteudo: text("hash_conteudo").notNull().unique(),
+  idIhe: integer("id_ihe").notNull().unique(),
   codigoSemantico: text("codigo_semantico"),
   codigoPadcom: text("codigo_padcom"),
   identificador: text("identificador"),
@@ -78,7 +78,7 @@ export const catalogoFormulasTable = pgTable("catalogo_formulas", {
 
 export const catalogoInjetaveisTable = pgTable("catalogo_injetaveis", {
   id: serial("id").primaryKey(),
-  hashConteudo: text("hash_conteudo").notNull().unique(),
+  idIhe: integer("id_ihe").notNull().unique(),
   codigoSemantico: text("codigo_semantico"),
   codigoPadcom: text("codigo_padcom"),
   tipoLinha: text("tipo_linha"),
@@ -107,7 +107,8 @@ export const catalogoInjetaveisTable = pgTable("catalogo_injetaveis", {
 
 export const catalogoImplantesTable = pgTable("catalogo_implantes", {
   id: serial("id").primaryKey(),
-  codigoPadcom: text("codigo_padcom").notNull().unique(),
+  idIhe: integer("id_ihe").notNull().unique(),
+  codigoPadcom: text("codigo_padcom"),
   codigoSemantico: text("codigo_semantico"),
   nomeImplante: text("nome_implante"),
   substanciaAtiva: text("substancia_ativa"),

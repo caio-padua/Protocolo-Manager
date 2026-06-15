@@ -1,1 +1,2 @@
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
+- [Transmutacao IHE -> Manager](transmutacao-ihe-manager.md) — catalogo deduplica por id_ihe (3 tabelas), pacientes por chave natural; nunca truncar clients; push com notNull em tabela populada exige truncate/ALTER previo.

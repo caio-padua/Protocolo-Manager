@@ -145,6 +145,8 @@ Decisao do CEO (Dr. Caio), registrada em 14/06/2026. Vale como regra para todas 
 
 5. Esta decisao SUBSTITUI a premissa anterior da CARTA_02 (que pedia TAG de origem e import unificado). A nova diretriz e: primos independentes, sem tag de origem.
 
+6. EXCECAO ao item 2 (decisao do CEO em 15/06/2026): as tabelas-deposito do catalogo `catalogo_formulas`, `catalogo_injetaveis` e `catalogo_implantes` usam a coluna `id_ihe` (id de origem do IHE) como chave unica de deduplicacao. Motivo: nessas tres colecoes nenhum campo de negocio e unico (codigo_semantico se repete), entao so o id de origem garante 0 perda de dado (54 formulas / 305 injetaveis / 32 implantes). As demais colecoes mantem chave de negocio nativa (catalogo_itens=codigo_padcom, catalogo_blends=codigo_blend, periodos_dia=sigla) e os pacientes deduplicam por chave natural, sem id de origem.
+
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
 Formato de resposta (arejado, nunca comprimido "em linha"):
