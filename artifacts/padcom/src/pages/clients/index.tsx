@@ -9,9 +9,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, User, Phone, Mail, Activity } from "lucide-react";
 import { formatStatus, getStatusColor } from "@/lib/status";
 
+const MAX_RENDER = 60;
+
 export default function Clients() {
   const [search, setSearch] = useState("");
   const { data: clients, isLoading } = useListClients({ search });
+
+  const total = clients?.length ?? 0;
+  const visibleClients = clients?.slice(0, MAX_RENDER) ?? [];
+  const hiddenCount = total - visibleClients.length;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -41,6 +47,23 @@ export default function Clients() {
         </div>
       </div>
 
+      {!isLoading && total > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {hiddenCount > 0 ? (
+            <>
+              Mostrando os primeiros <span className="font-medium text-foreground">{visibleClients.length}</span> de{" "}
+              <span className="font-medium text-foreground">{total.toLocaleString("pt-BR")}</span> clientes. Use a busca
+              acima para encontrar um cliente específico.
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">{total.toLocaleString("pt-BR")}</span>{" "}
+              {total === 1 ? "cliente encontrado" : "clientes encontrados"}.
+            </>
+          )}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -62,7 +85,7 @@ export default function Clients() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {clients?.map((client) => (
+          {visibleClients.map((client) => (
             <Link key={client.id} href={`/clients/${client.id}`}>
               <Card className="hover-elevate cursor-pointer transition-colors hover:bg-muted/50 h-full flex flex-col">
                 <CardHeader className="pb-3">
