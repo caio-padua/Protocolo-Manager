@@ -25,6 +25,13 @@ Importa 2 JSON raw do GitHub (catalogo + pacientes com PII real) para tabelas-de
 - Validacao de aceitacao (nao numeros fixos): `count(*) == count(distinct chave)` por tabela; 2a run = 0 criados.
 - `numId()` aceita so inteiro positivo (numero ou string `^\d+$`); "" / 0 / fracionario -> null (pulado), para nao colapsar varios registros no mesmo id.
 
+## Caixinhas operacionais (deposito -> tela)
+- O deposito (`catalogo_*`) guarda 100% do dado; as TELAS leem de tabelas operacionais proprias, nao do deposito. Para "operar", importa-se do deposito para a caixinha que a tela ja consome.
+- Substancias: tela `/substances` le tabela `substances`. Importa-se `catalogo_itens` (categorias injetavel_ev/injetavel_im/implante = substancias aplicaveis) para `substances`, idempotente por `codigo_padcom` (unique). Exames/protocolos NAO sao substancias; formulas vao para a caixinha de Prescricao.
+- **Why:** misturar tudo numa tela so seria clinicamente errado; cada natureza tem sua caixinha.
+- Upsert preserva campos operacionais/manuais: o `set` do onConflictDoUpdate so inclui campos do catalogo (stock e beneficios clinicos ficam de fora). Preco so e sobrescrito quando o catalogo traz valor valido — catalogo sem preco NAO zera preco ajustado a mao (regra de ouro).
+- Os 9 seeds antigos de `substances` tem `codigo_padcom` NULL e coexistem (Postgres permite multiplos NULL em coluna unique); nunca sao tocados pelo import.
+
 ## Operacao
 - Schema com notNull novo em tabela populada quebra o `drizzle-kit push`. Truncar a tabela do catalogo (NUNCA clients) antes do push, ou aplicar a coluna via SQL direto (tabela vazia) e depois rodar push para reconciliar.
 - `drizzle-kit push` tem prompt interativo (create vs rename column) que NAO aceita Enter via pipe (precisa TTY). Contornar aplicando ALTER TABLE via psql e depois `push` confirma sem diff.

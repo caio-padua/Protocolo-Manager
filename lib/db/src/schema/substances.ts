@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -36,6 +36,23 @@ export const substancesTable = pgTable("substances", {
   contraindications: text("contraindications"),
   scientificEvidence: text("scientific_evidence"),
   categoryType: text("category_type"),
+  // Campos nativos vindos do catalogo transmutado (catalogo_itens). Criados sem
+  // excecao para nao perder nenhum dado da origem (regra de ouro). codigoPadcom e
+  // a chave natural de idempotencia da importacao.
+  codigoPadcom: text("codigo_padcom").unique(),
+  subCategoria: text("sub_categoria"),
+  disponivel: boolean("disponivel"),
+  tags: jsonb("tags"),
+  blocoId: text("bloco_id"),
+  grau: text("grau"),
+  viaUso: text("via_uso"),
+  frequenciaBase: text("frequencia_base"),
+  composicao: text("composicao"),
+  posologia: text("posologia"),
+  areaSemantica: text("area_semantica"),
+  exigeValidacaoHumana: boolean("exige_validacao_humana"),
+  unidadeId: integer("unidade_id"),
+  posologiaEstruturada: jsonb("posologia_estruturada"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
