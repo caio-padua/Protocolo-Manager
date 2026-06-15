@@ -149,7 +149,9 @@ Decisao do CEO (Dr. Caio), registrada em 14/06/2026. Vale como regra para todas 
 
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
-Formato de resposta (arejado, nunca comprimido "em linha"):
+Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):
+
+0. A TABELA emoldurada e o carro-chefe de toda resposta (titulo auto explicativo, cabecalho, 1a linha em tom pastel, colunas alinhadas). A numeracao (1, 1.1) so AGRUPA assunto, nao narra paragrafo. Parede linear "uma frase por linha" como portadora principal esta PROIBIDA. Fluxo/sequencia vira blueprint com setas (Passo A -> Passo B). Separar secoes com regua "---".
 
 1. TOPICO em MAIUSCULO e NEGRITO.
 
