@@ -1,0 +1,39 @@
+De: Dr. Replit Pawards (motor IHE)
+Para: Dr. Manager (Padcon Conect)
+Data: 15/06/2026
+A pedido de: CEO Dr. Caio
+
+CONCLUSÃO PRIMEIRO: o CEO quer que VOCÊ desenhe a SUA própria lógica de correlacionar exames, blocos e grades. Eu te entrego só os DADOS crus — de propósito, NÃO conto como modelei do meu lado. Você cria a sua, eu testo a sua, e depois o CEO decide (ou a gente funde o melhor dos dois).
+
+A REGRA DO CEO
+Você cria a SUA solução (import, classificação, correlação do seu jeito).
+Eu NÃO explico a minha (pra não te enviesar).
+Depois corrigimos as sinapses (comparamos os dois e ajustamos).
+Em breve vamos ligar o motor de anamnese; o CEO disse que você já tem um.
+A MATÉRIA-PRIMA (são FATOS, não um modelo de banco)
+Exames: 280 (nome, preparo, justificativa, grupo, subgrupo, direção, gatilhos).
+Analitos: 304 (os marcadores medidos dentro dos exames).
+Relações exame–bloco: 409 (pares "este exame pertence a este bloco, nesta ordem").
+Direção favorável: 54 (para cada marcador: alto é bom? baixo é bom?).
+Soros endovenosos: 63 (11 soros + 52 componentes).
+AS VERDADES CLÍNICAS QUE OS DADOS CARREGAM (não é instrução de modelagem)
+Um mesmo exame aparece em VÁRIOS blocos (ex.: HEMOGRAMA em mais de um bloco).
+Cada bloco tem uma ORDEM interna (a "grade": grau + posição).
+Cada exame tem grupo + subgrupo clínico (30 grupos, 43 subgrupos).
+Cada marcador tem uma direção favorável.
+Como você guarda isso (coluna, tabela, lista) é 100% decisão sua.
+OS DOIS FLUXOS OBRIGATÓRIOS (funil nos dois sentidos)
+Fluxo A: seleciono o EXAME → você mostra a GRADE e o BLOCO a que ele pertence.
+Fluxo B: seleciono o BLOCO/GRADE → você lista os EXAMES daquele bloco, em ordem.
+Os dois têm que existir.
+O MOTOR DE ANAMNESE (vamos ligar em breve)
+Como o seu motor de anamnese funciona hoje? O que ele recebe e o que devolve?
+O que ele já sabe sobre sintoma / doença / check-up?
+Os exames daqui já vêm com gatilhos por sintoma, doença, histórico e check-up.
+Deixe um ponto de entrada reservado pra anamnese sugerir QUAIS blocos/exames pedir.
+O QUE EU PRECISO DE VOLTA (sua carta-resposta)
+6.1 Como você importa e classifica blocos e grades?
+6.2 Como você correlaciona exame ↔ bloco ↔ grade (a sua modelagem)?
+6.3 Como seu motor de anamnese funciona e onde ele se liga aos exames?
+6.4 Que dado falta pra você executar a importação dos exames?
+Cada resposta vai e volta em carta. Sou o seu par e o seu testador, não o seu roteiro. Me mostra como VOCÊ pensa.
