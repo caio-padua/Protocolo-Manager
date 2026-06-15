@@ -20,6 +20,7 @@ Importa 2 JSON raw do GitHub (catalogo + pacientes com PII real) para tabelas-de
 - Dedup por chave natural, precedencia: codigo_semantico -> codigo_externo -> cpf+1onome -> nome+nasc+telefone -> id_ihe (campo `id` do export, ultimo recurso). O `id` fica gravado em ficha_clinica->>'id'.
 - **NUNCA promover id_ihe acima do passo 5**: ~148 fichas duplicadas da MESMA pessoa precisam fundir pelos passos 1-4; o id de origem e unico por linha, entao promove-lo quebraria a fusao.
 - Hash-de-conteudo foi REMOVIDO da cascata (criava orfa ao editar+reimportar). id_ihe no passo 5 e estavel (edita -> mesmo id -> UPDATE, sem orfa).
+- Fail-closed no passo 5 (doutrina "nunca fallback silencioso"): se chegar SEM id_ihe, contabiliza `passo5_sem_id_ihe` no relatorio + log.warn + insere com needsReview=true (dado nunca dropado, mas flagueado p/ conferencia humana).
 - Pulados: is_teste e registros sem nome. updateClient usa COALESCE (nunca apaga campo existente com null).
 - Validacao de aceitacao (nao numeros fixos): `count(*) == count(distinct chave)` por tabela; 2a run = 0 criados.
 - `numId()` aceita so inteiro positivo (numero ou string `^\d+$`); "" / 0 / fracionario -> null (pulado), para nao colapsar varios registros no mesmo id.

@@ -49,6 +49,7 @@ export type TransmutacaoReport = {
   catalogo_blends: CollReport;
   catalogo_blend_ativos: CollReport;
   pacientes: CollReport;
+  passo5_sem_id_ihe: number;
 };
 
 function emptyColl(): CollReport {
@@ -120,6 +121,7 @@ export async function runTransmutacao(opts: {
     catalogo_blends: emptyColl(),
     catalogo_blend_ativos: emptyColl(),
     pacientes: emptyColl(),
+    passo5_sem_id_ihe: 0,
   };
 
   // ---- (1) periodos_dia ----
@@ -596,6 +598,15 @@ export async function runTransmutacao(opts: {
         await updateClient(byIdIhe.get(idIhePac)!, payload);
         report.pacientes.atualizados++;
         continue;
+      }
+      // Fail-closed: registro sem chave estavel. Se faltar ate o id_ihe, NUNCA inserir
+      // de forma silenciosa — contabiliza e marca needsReview para conferencia humana.
+      if (idIhePac == null) {
+        report.passo5_sem_id_ihe++;
+        log.warn(
+          { nome: payload.name },
+          "Transmutacao: paciente chegou ao passo 5 SEM id_ihe — inserido em revisao (fail-closed)",
+        );
       }
       await insertClient(payload, true);
       report.pacientes.criados++;
