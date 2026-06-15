@@ -21,6 +21,7 @@ import pharmaciesRouter from "./pharmacies";
 import prescriptionsRouter from "./prescriptions";
 import sncrRouter from "./sncr";
 import transmutacaoRouter from "./transmutacao";
+import motorRouter from "./motor";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(pharmaciesRouter);
 router.use(prescriptionsRouter);
 router.use(sncrRouter);
 router.use(transmutacaoRouter);
+router.use(motorRouter);
 
 export default router;

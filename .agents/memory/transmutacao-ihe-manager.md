@@ -34,6 +34,13 @@ Importa 2 JSON raw do GitHub (catalogo + pacientes com PII real) para tabelas-de
 - Prescricao (formulas): a tela mescla formulas curadas estaticas + formulas do banco (rota le `catalogo_itens` categoria=formula + componentes `catalogo_formulas`). Merge dedup por id, estatico vence. As do IHE entram na categoria unica "ihe" ("Formulas Padcon (importadas)"), NAO mapeadas para categorias clinicas. **Why:** mapear area_semantica->categoria clinica arriscava mis-categorizacao (Dr. e medico); bucket neutro deixa o medico recategorizar. **Pitfall React:** ao mesclar estatico+banco, todo `useMemo` derivado (filtered/stats) precisa do array mesclado nas deps, senao filtra so o estatico enquanto o badge conta o total.
 - Deposito de formulas veio INCOMPLETO do IHE: so 5 de 13 com ativos; 8 vieram so com titulo. Carta de pedido de reexport em `CARTA_AO_DR_REPLIT_IHE_FORMULAS_FALTANTES_26.06.15.md`. Quando o IHE reexportar completo, re-rodar importador e elas aparecem sozinhas.
 
+## Onda motor/exames (3o export do IHE)
+- 13 colecoes: chave de negocio NATIVA onde existe (exames=codigo_exame, analitos=codigo, blocos=codigo_bloco, bloco_exames=bloco_id+nome_exame+grau, sintomas/cid10=codigo, direcao=nome_exame, decisao_clinica=caso_id).
+- `id_ihe` ESTENDIDO para 5 colecoes onde NENHUM campo de negocio e unico: doencas, regras_motor (regra_id repete 3x), anamnese_questionario (pergunta_id Q030 duplica), mapa_anamnese_motor, endovenosos. Verificado por teste de unicidade que o `id` de origem e 100% unico nessas.
+- **Why:** mesma logica da excecao do item 6 do replit.md (zero perda quando nao ha chave natural). E uma EXTENSAO da excecao documentada — sinalizada ao CEO (Art.50), nao decisao silenciosa.
+- `catalogo_exames` tem coluna `dados` jsonb com a linha crua inteira (68 colunas da origem) -> garante zero perda mesmo das colunas nao promovidas.
+- A GRADE (bloco x exame) e a tabela `catalogo_bloco_exames`; grau ordena por ranking (BASICA<INTERMEDIARIA<SOFISTICADA<AMPLIADA), fallback 99 p/ desconhecido.
+
 ## Operacao
 - Schema com notNull novo em tabela populada quebra o `drizzle-kit push`. Truncar a tabela do catalogo (NUNCA clients) antes do push, ou aplicar a coluna via SQL direto (tabela vazia) e depois rodar push para reconciliar.
 - `drizzle-kit push` tem prompt interativo (create vs rename column) que NAO aceita Enter via pipe (precisa TTY). Contornar aplicando ALTER TABLE via psql e depois `push` confirma sem diff.

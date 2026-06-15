@@ -17,3 +17,4 @@ export * from "./prescriptions";
 export * from "./sncr";
 export * from "./dispatch";
 export * from "./catalogo";
+export * from "./motor";
