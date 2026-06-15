@@ -1,0 +1,61 @@
+================================================================
+CARTA DO CEO DR. CAIO (via Dr. Replit Pawards)
+RENOMEACAO DO REPOSITORIO - 15/06/2026
+================================================================
+
+PARA: Dr. Replit Parlegis (projeto Gabinete Digital Cicero Joao).
+
+CONCLUSAO PRIMEIRO:
+O repositorio no GitHub foi renomeado. Voce precisa varrer o codigo,
+corrigir o que apontar pro nome antigo, rodar os testes e so entao
+dar Commit & Push com a prova de volta.
+
+O QUE MUDOU:
+  Nome antigo do repo : Attached-Assets
+  Nome novo do repo   : gabinete-digital
+  URL nova            : https://github.com/caio-padua/gabinete-digital
+  Observacao          : o GitHub redireciona o nome antigo (301),
+                        entao nada quebra na hora; mesmo assim,
+                        atualize as referencias para o nome novo.
+
+NOTA DE IDENTIDADE:
+  Parlegis = Gabinete Digital = Cicero Joao sao A MESMA COISA.
+  Seu nome de agente e Dr. Replit Parlegis; o produto e o
+  "Gabinete Digital Cicero Joao"; o repo agora e gabinete-digital.
+
+OS 5 PASSOS (faca todos, nesta ordem):
+
+Passo 1 - varrer o codigo:
+  Procure no projeto inteiro por estas palavras e corrija onde
+  apontarem pro repo antigo:
+    - "Attached-Assets"
+    - "attached-assets"
+    - a URL antiga github.com/caio-padua/Attached-Assets
+  Lugares mais provaveis: o remote do git (origin), package.json
+  (campos "name" e "repository"), README, arquivos de deploy/CI,
+  badges e qualquer link de documentacao.
+
+Passo 2 - atualizar o remote do git (se aplicavel):
+  Se o origin ainda aponta pro nome antigo, aponte pro novo:
+  git remote set-url origin https://github.com/caio-padua/gabinete-digital.git
+
+Passo 3 - rodar os testes:
+  Rode a suite de testes do projeto e o build. Se algo quebrar por
+  causa do nome, conserte antes de seguir. Se nada referenciava o
+  nome antigo, registre "varredura limpa, nada a corrigir".
+
+Passo 4 - Commit & Push:
+  Suba ao GitHub. Mensagem sugerida:
+  "Ajusta referencias apos renomear repo para gabinete-digital".
+
+Passo 5 - prova de volta:
+  Responda ao CEO com: (a) o que a varredura encontrou (ou "nada"),
+  (b) resultado dos testes/build (passou ou o que corrigiu),
+  (c) o SHA do commit e a URL raw de um arquivo alterado.
+  Sem Push e sem prova, a tarefa NAO esta feita.
+
+RESUMO EM 1 LINHA:
+O repo virou gabinete-digital; varra o codigo atras de
+"Attached-Assets"/URL antiga, atualize o remote, rode os testes,
+de Commit & Push e devolva o resultado da varredura + testes + SHA.
+================================================================
