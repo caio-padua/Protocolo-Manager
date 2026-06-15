@@ -18,3 +18,4 @@ export * from "./sncr";
 export * from "./dispatch";
 export * from "./catalogo";
 export * from "./motor";
+export * from "./mega-anamnese";

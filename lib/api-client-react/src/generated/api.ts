@@ -18,6 +18,13 @@ import type {
 
 import type {
   Alert,
+  AmarracaoSintomaInput,
+  AnamneseAmarracaoSintoma,
+  AnamneseAmarracoes,
+  AnamneseBloco,
+  AnamnesePergunta,
+  AnamnesePerguntaUpdate,
+  AnamneseSintoma,
   BatchResult,
   Client,
   ConfirmSubstanceApplicationBody,
@@ -32,10 +39,12 @@ import type {
   CreateStockItemBody,
   CreateSubstanceBody,
   DashboardSummary,
+  DeleteResult,
   EmitBody,
   EmitResult,
   GenerateProtocolICS200,
   HealthStatus,
+  ListAnamnesePerguntasParams,
   ListClientsParams,
   ListPaymentsParams,
   ListProtocolsParams,
@@ -53,6 +62,8 @@ import type {
   RecipePlan,
   SendBatchBody,
   Session,
+  SimulacaoInput,
+  SimulacaoResultado,
   SncrQuota,
   SncrRange,
   StockItem,
@@ -3911,3 +3922,692 @@ export function useGetSncrQuota<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Lista os blocos da mega anamnese com contagem de perguntas
+ */
+export const getListAnamneseBlocosUrl = () => {
+  return `/api/mega-anamnese/blocos`;
+};
+
+export const listAnamneseBlocos = async (
+  options?: RequestInit,
+): Promise<AnamneseBloco[]> => {
+  return customFetch<AnamneseBloco[]>(getListAnamneseBlocosUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAnamneseBlocosQueryKey = () => {
+  return [`/api/mega-anamnese/blocos`] as const;
+};
+
+export const getListAnamneseBlocosQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAnamneseBlocos>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseBlocos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAnamneseBlocosQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAnamneseBlocos>>
+  > = ({ signal }) => listAnamneseBlocos({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseBlocos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAnamneseBlocosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAnamneseBlocos>>
+>;
+export type ListAnamneseBlocosQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista os blocos da mega anamnese com contagem de perguntas
+ */
+
+export function useListAnamneseBlocos<
+  TData = Awaited<ReturnType<typeof listAnamneseBlocos>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseBlocos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAnamneseBlocosQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Lista perguntas (opcionalmente filtradas por bloco)
+ */
+export const getListAnamnesePerguntasUrl = (
+  params?: ListAnamnesePerguntasParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/mega-anamnese/perguntas?${stringifiedParams}`
+    : `/api/mega-anamnese/perguntas`;
+};
+
+export const listAnamnesePerguntas = async (
+  params?: ListAnamnesePerguntasParams,
+  options?: RequestInit,
+): Promise<AnamnesePergunta[]> => {
+  return customFetch<AnamnesePergunta[]>(getListAnamnesePerguntasUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAnamnesePerguntasQueryKey = (
+  params?: ListAnamnesePerguntasParams,
+) => {
+  return [`/api/mega-anamnese/perguntas`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAnamnesePerguntasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAnamnesePerguntas>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAnamnesePerguntasParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAnamnesePerguntas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAnamnesePerguntasQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAnamnesePerguntas>>
+  > = ({ signal }) =>
+    listAnamnesePerguntas(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamnesePerguntas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAnamnesePerguntasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAnamnesePerguntas>>
+>;
+export type ListAnamnesePerguntasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista perguntas (opcionalmente filtradas por bloco)
+ */
+
+export function useListAnamnesePerguntas<
+  TData = Awaited<ReturnType<typeof listAnamnesePerguntas>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAnamnesePerguntasParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAnamnesePerguntas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAnamnesePerguntasQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
+ */
+export const getUpdateAnamnesePerguntaUrl = (id: number) => {
+  return `/api/mega-anamnese/perguntas/${id}`;
+};
+
+export const updateAnamnesePergunta = async (
+  id: number,
+  anamnesePerguntaUpdate: AnamnesePerguntaUpdate,
+  options?: RequestInit,
+): Promise<AnamnesePergunta> => {
+  return customFetch<AnamnesePergunta>(getUpdateAnamnesePerguntaUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamnesePerguntaUpdate),
+  });
+};
+
+export const getUpdateAnamnesePerguntaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnamnesePergunta>>,
+    TError,
+    { id: number; data: BodyType<AnamnesePerguntaUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAnamnesePergunta>>,
+  TError,
+  { id: number; data: BodyType<AnamnesePerguntaUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateAnamnesePergunta"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAnamnesePergunta>>,
+    { id: number; data: BodyType<AnamnesePerguntaUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateAnamnesePergunta(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAnamnesePerguntaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAnamnesePergunta>>
+>;
+export type UpdateAnamnesePerguntaMutationBody =
+  BodyType<AnamnesePerguntaUpdate>;
+export type UpdateAnamnesePerguntaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
+ */
+export const useUpdateAnamnesePergunta = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnamnesePergunta>>,
+    TError,
+    { id: number; data: BodyType<AnamnesePerguntaUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAnamnesePergunta>>,
+  TError,
+  { id: number; data: BodyType<AnamnesePerguntaUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateAnamnesePerguntaMutationOptions(options));
+};
+
+/**
+ * @summary Catalogo de sintomas (para amarracao)
+ */
+export const getListAnamneseSintomasUrl = () => {
+  return `/api/mega-anamnese/sintomas`;
+};
+
+export const listAnamneseSintomas = async (
+  options?: RequestInit,
+): Promise<AnamneseSintoma[]> => {
+  return customFetch<AnamneseSintoma[]>(getListAnamneseSintomasUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAnamneseSintomasQueryKey = () => {
+  return [`/api/mega-anamnese/sintomas`] as const;
+};
+
+export const getListAnamneseSintomasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAnamneseSintomas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseSintomas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAnamneseSintomasQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAnamneseSintomas>>
+  > = ({ signal }) => listAnamneseSintomas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseSintomas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAnamneseSintomasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAnamneseSintomas>>
+>;
+export type ListAnamneseSintomasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Catalogo de sintomas (para amarracao)
+ */
+
+export function useListAnamneseSintomas<
+  TData = Awaited<ReturnType<typeof listAnamneseSintomas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseSintomas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAnamneseSintomasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Lista amarracoes (sintomas e doencas) de uma pergunta
+ */
+export const getListAnamneseAmarracoesUrl = (perguntaId: string) => {
+  return `/api/mega-anamnese/perguntas/${perguntaId}/amarracoes`;
+};
+
+export const listAnamneseAmarracoes = async (
+  perguntaId: string,
+  options?: RequestInit,
+): Promise<AnamneseAmarracoes> => {
+  return customFetch<AnamneseAmarracoes>(
+    getListAnamneseAmarracoesUrl(perguntaId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListAnamneseAmarracoesQueryKey = (perguntaId: string) => {
+  return [`/api/mega-anamnese/perguntas/${perguntaId}/amarracoes`] as const;
+};
+
+export const getListAnamneseAmarracoesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAnamneseAmarracoes>>,
+  TError = ErrorType<unknown>,
+>(
+  perguntaId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAnamneseAmarracoes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAnamneseAmarracoesQueryKey(perguntaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAnamneseAmarracoes>>
+  > = ({ signal }) =>
+    listAnamneseAmarracoes(perguntaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!perguntaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseAmarracoes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAnamneseAmarracoesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAnamneseAmarracoes>>
+>;
+export type ListAnamneseAmarracoesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista amarracoes (sintomas e doencas) de uma pergunta
+ */
+
+export function useListAnamneseAmarracoes<
+  TData = Awaited<ReturnType<typeof listAnamneseAmarracoes>>,
+  TError = ErrorType<unknown>,
+>(
+  perguntaId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAnamneseAmarracoes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAnamneseAmarracoesQueryOptions(
+    perguntaId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cria amarracao pergunta -> sintoma
+ */
+export const getAddAmarracaoSintomaUrl = () => {
+  return `/api/mega-anamnese/amarracoes/sintoma`;
+};
+
+export const addAmarracaoSintoma = async (
+  amarracaoSintomaInput: AmarracaoSintomaInput,
+  options?: RequestInit,
+): Promise<AnamneseAmarracaoSintoma> => {
+  return customFetch<AnamneseAmarracaoSintoma>(getAddAmarracaoSintomaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(amarracaoSintomaInput),
+  });
+};
+
+export const getAddAmarracaoSintomaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addAmarracaoSintoma>>,
+    TError,
+    { data: BodyType<AmarracaoSintomaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addAmarracaoSintoma>>,
+  TError,
+  { data: BodyType<AmarracaoSintomaInput> },
+  TContext
+> => {
+  const mutationKey = ["addAmarracaoSintoma"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addAmarracaoSintoma>>,
+    { data: BodyType<AmarracaoSintomaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addAmarracaoSintoma(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddAmarracaoSintomaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addAmarracaoSintoma>>
+>;
+export type AddAmarracaoSintomaMutationBody = BodyType<AmarracaoSintomaInput>;
+export type AddAmarracaoSintomaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cria amarracao pergunta -> sintoma
+ */
+export const useAddAmarracaoSintoma = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addAmarracaoSintoma>>,
+    TError,
+    { data: BodyType<AmarracaoSintomaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addAmarracaoSintoma>>,
+  TError,
+  { data: BodyType<AmarracaoSintomaInput> },
+  TContext
+> => {
+  return useMutation(getAddAmarracaoSintomaMutationOptions(options));
+};
+
+/**
+ * @summary Remove amarracao pergunta -> sintoma
+ */
+export const getDeleteAmarracaoSintomaUrl = (id: number) => {
+  return `/api/mega-anamnese/amarracoes/sintoma/${id}`;
+};
+
+export const deleteAmarracaoSintoma = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteResult> => {
+  return customFetch<DeleteResult>(getDeleteAmarracaoSintomaUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAmarracaoSintomaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAmarracaoSintoma>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAmarracaoSintoma>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteAmarracaoSintoma"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAmarracaoSintoma>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteAmarracaoSintoma(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAmarracaoSintomaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAmarracaoSintoma>>
+>;
+
+export type DeleteAmarracaoSintomaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove amarracao pergunta -> sintoma
+ */
+export const useDeleteAmarracaoSintoma = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAmarracaoSintoma>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAmarracaoSintoma>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteAmarracaoSintomaMutationOptions(options));
+};
+
+/**
+ * @summary Simula o motor (respostas -> escore por bloco -> grade -> sintomas/doencas/exames)
+ */
+export const getSimularMotorUrl = () => {
+  return `/api/mega-anamnese/simular`;
+};
+
+export const simularMotor = async (
+  simulacaoInput: SimulacaoInput,
+  options?: RequestInit,
+): Promise<SimulacaoResultado> => {
+  return customFetch<SimulacaoResultado>(getSimularMotorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(simulacaoInput),
+  });
+};
+
+export const getSimularMotorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof simularMotor>>,
+    TError,
+    { data: BodyType<SimulacaoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof simularMotor>>,
+  TError,
+  { data: BodyType<SimulacaoInput> },
+  TContext
+> => {
+  const mutationKey = ["simularMotor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof simularMotor>>,
+    { data: BodyType<SimulacaoInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return simularMotor(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SimularMotorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof simularMotor>>
+>;
+export type SimularMotorMutationBody = BodyType<SimulacaoInput>;
+export type SimularMotorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Simula o motor (respostas -> escore por bloco -> grade -> sintomas/doencas/exames)
+ */
+export const useSimularMotor = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof simularMotor>>,
+    TError,
+    { data: BodyType<SimulacaoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof simularMotor>>,
+  TError,
+  { data: BodyType<SimulacaoInput> },
+  TContext
+> => {
+  return useMutation(getSimularMotorMutationOptions(options));
+};

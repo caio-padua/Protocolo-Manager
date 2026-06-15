@@ -9,6 +9,131 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface AnamneseBloco {
+  bloco: string;
+  total: number;
+  comAlarme?: number;
+  comEscala?: number;
+}
+
+export interface AnamneseOpcao {
+  label: string;
+  valor: string | number;
+  peso: number;
+}
+
+export interface AnamnesePergunta {
+  id: number;
+  idIhe?: number;
+  bloco: string;
+  perguntaId: string;
+  pergunta: string;
+  /** @nullable */
+  tipoResposta?: string | null;
+  /** @nullable */
+  sistema?: string | null;
+  /** @nullable */
+  escalaValidada?: string | null;
+  /** @nullable */
+  pesoGravidade?: number | null;
+  /** @nullable */
+  eSinalAlarme?: boolean | null;
+  /** @nullable */
+  obrigatorio?: string | null;
+  /** @nullable */
+  ordem?: number | null;
+  /** @nullable */
+  opcoes?: AnamneseOpcao[] | null;
+}
+
+export interface AnamnesePerguntaUpdate {
+  bloco?: string;
+  pergunta?: string;
+  tipoResposta?: string;
+  sistema?: string;
+  escalaValidada?: string;
+  pesoGravidade?: number;
+  eSinalAlarme?: boolean;
+  ordem?: number;
+  opcoes?: AnamneseOpcao[];
+}
+
+export interface AnamneseSintoma {
+  codigoSemantico: string;
+  /** @nullable */
+  nomeSintoma?: string | null;
+}
+
+export interface AnamneseAmarracaoSintoma {
+  id: number;
+  perguntaId: string;
+  sintomaCodigo: string;
+  /** @nullable */
+  nomeSintoma?: string | null;
+  /** @nullable */
+  gatilhoValor?: string | null;
+  /** @nullable */
+  peso?: number | null;
+}
+
+export interface AnamneseAmarracaoDoenca {
+  id: number;
+  perguntaId: string;
+  doencaIdIhe: number;
+  /** @nullable */
+  nomeDoenca?: string | null;
+  /** @nullable */
+  gatilhoValor?: string | null;
+  /** @nullable */
+  peso?: number | null;
+}
+
+export interface AnamneseAmarracoes {
+  sintomas: AnamneseAmarracaoSintoma[];
+  doencas: AnamneseAmarracaoDoenca[];
+}
+
+export interface AmarracaoSintomaInput {
+  perguntaId: string;
+  sintomaCodigo: string;
+  gatilhoValor?: string;
+  peso?: number;
+}
+
+export interface DeleteResult {
+  ok: boolean;
+}
+
+export interface SimulacaoRespostaItem {
+  perguntaId: string;
+  valor: string | number;
+}
+
+export interface SimulacaoInput {
+  respostas: SimulacaoRespostaItem[];
+}
+
+export interface SimulacaoBlocoEscore {
+  bloco: string;
+  escore: number;
+  grade: string;
+}
+
+export interface SimulacaoSinalAlarme {
+  perguntaId: string;
+  pergunta: string;
+}
+
+export interface SimulacaoResultado {
+  escoreTotal: number;
+  gradeGlobal: string;
+  blocos: SimulacaoBlocoEscore[];
+  sintomas: string[];
+  doencas: string[];
+  exames: string[];
+  alarmes: SimulacaoSinalAlarme[];
+}
+
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
 
 export const ClientStatus = {
@@ -794,4 +919,8 @@ export type ListRASParams = {
 export type ListPaymentsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type ListAnamnesePerguntasParams = {
+  bloco?: string;
 };

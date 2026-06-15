@@ -942,6 +942,158 @@ paths:
                 items:
                   $ref: "#/components/schemas/SncrQuota"
 
+  /mega-anamnese/blocos:
+    get:
+      operationId: listAnamneseBlocos
+      tags: [mega-anamnese]
+      summary: Lista os blocos da mega anamnese com contagem de perguntas
+      responses:
+        "200":
+          description: Blocos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnamneseBloco"
+
+  /mega-anamnese/perguntas:
+    get:
+      operationId: listAnamnesePerguntas
+      tags: [mega-anamnese]
+      summary: Lista perguntas (opcionalmente filtradas por bloco)
+      parameters:
+        - in: query
+          name: bloco
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Perguntas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnamnesePergunta"
+
+  /mega-anamnese/perguntas/{id}:
+    patch:
+      operationId: updateAnamnesePergunta
+      tags: [mega-anamnese]
+      summary: Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamnesePerguntaUpdate"
+      responses:
+        "200":
+          description: Pergunta atualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamnesePergunta"
+
+  /mega-anamnese/sintomas:
+    get:
+      operationId: listAnamneseSintomas
+      tags: [mega-anamnese]
+      summary: Catalogo de sintomas (para amarracao)
+      responses:
+        "200":
+          description: Sintomas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnamneseSintoma"
+
+  /mega-anamnese/perguntas/{perguntaId}/amarracoes:
+    get:
+      operationId: listAnamneseAmarracoes
+      tags: [mega-anamnese]
+      summary: Lista amarracoes (sintomas e doencas) de uma pergunta
+      parameters:
+        - in: path
+          name: perguntaId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Amarracoes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseAmarracoes"
+
+  /mega-anamnese/amarracoes/sintoma:
+    post:
+      operationId: addAmarracaoSintoma
+      tags: [mega-anamnese]
+      summary: Cria amarracao pergunta -> sintoma
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AmarracaoSintomaInput"
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseAmarracaoSintoma"
+
+  /mega-anamnese/amarracoes/sintoma/{id}:
+    delete:
+      operationId: deleteAmarracaoSintoma
+      tags: [mega-anamnese]
+      summary: Remove amarracao pergunta -> sintoma
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+
+  /mega-anamnese/simular:
+    post:
+      operationId: simularMotor
+      tags: [mega-anamnese]
+      summary: Simula o motor (respostas -> escore por bloco -> grade -> sintomas/doencas/exames)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulacaoInput"
+      responses:
+        "200":
+          description: Resultado da simulacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulacaoResultado"
+
 components:
   schemas:
     HealthStatus:
@@ -951,6 +1103,234 @@ components:
           type: string
       required:
         - status
+
+    AnamneseBloco:
+      type: object
+      required: [bloco, total]
+      properties:
+        bloco:
+          type: string
+        total:
+          type: integer
+        comAlarme:
+          type: integer
+        comEscala:
+          type: integer
+
+    AnamneseOpcao:
+      type: object
+      required: [label, valor, peso]
+      properties:
+        label:
+          type: string
+        valor:
+          oneOf:
+            - type: string
+            - type: number
+        peso:
+          type: number
+
+    AnamnesePergunta:
+      type: object
+      required: [id, perguntaId, pergunta, bloco]
+      properties:
+        id:
+          type: integer
+        idIhe:
+          type: integer
+        bloco:
+          type: string
+        perguntaId:
+          type: string
+        pergunta:
+          type: string
+        tipoResposta:
+          type: ["string", "null"]
+        sistema:
+          type: ["string", "null"]
+        escalaValidada:
+          type: ["string", "null"]
+        pesoGravidade:
+          type: ["integer", "null"]
+        eSinalAlarme:
+          type: ["boolean", "null"]
+        obrigatorio:
+          type: ["string", "null"]
+        ordem:
+          type: ["integer", "null"]
+        opcoes:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/AnamneseOpcao"
+
+    AnamnesePerguntaUpdate:
+      type: object
+      properties:
+        bloco:
+          type: string
+        pergunta:
+          type: string
+        tipoResposta:
+          type: string
+        sistema:
+          type: string
+        escalaValidada:
+          type: string
+        pesoGravidade:
+          type: integer
+        eSinalAlarme:
+          type: boolean
+        ordem:
+          type: integer
+        opcoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseOpcao"
+
+    AnamneseSintoma:
+      type: object
+      required: [codigoSemantico]
+      properties:
+        codigoSemantico:
+          type: string
+        nomeSintoma:
+          type: ["string", "null"]
+
+    AnamneseAmarracaoSintoma:
+      type: object
+      required: [id, perguntaId, sintomaCodigo]
+      properties:
+        id:
+          type: integer
+        perguntaId:
+          type: string
+        sintomaCodigo:
+          type: string
+        nomeSintoma:
+          type: ["string", "null"]
+        gatilhoValor:
+          type: ["string", "null"]
+        peso:
+          type: ["integer", "null"]
+
+    AnamneseAmarracaoDoenca:
+      type: object
+      required: [id, perguntaId, doencaIdIhe]
+      properties:
+        id:
+          type: integer
+        perguntaId:
+          type: string
+        doencaIdIhe:
+          type: integer
+        nomeDoenca:
+          type: ["string", "null"]
+        gatilhoValor:
+          type: ["string", "null"]
+        peso:
+          type: ["integer", "null"]
+
+    AnamneseAmarracoes:
+      type: object
+      required: [sintomas, doencas]
+      properties:
+        sintomas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseAmarracaoSintoma"
+        doencas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseAmarracaoDoenca"
+
+    AmarracaoSintomaInput:
+      type: object
+      required: [perguntaId, sintomaCodigo]
+      properties:
+        perguntaId:
+          type: string
+        sintomaCodigo:
+          type: string
+        gatilhoValor:
+          type: string
+        peso:
+          type: integer
+
+    DeleteResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    SimulacaoRespostaItem:
+      type: object
+      required: [perguntaId, valor]
+      properties:
+        perguntaId:
+          type: string
+        valor:
+          oneOf:
+            - type: string
+            - type: number
+
+    SimulacaoInput:
+      type: object
+      required: [respostas]
+      properties:
+        respostas:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimulacaoRespostaItem"
+
+    SimulacaoBlocoEscore:
+      type: object
+      required: [bloco, escore, grade]
+      properties:
+        bloco:
+          type: string
+        escore:
+          type: number
+        grade:
+          type: string
+
+    SimulacaoSinalAlarme:
+      type: object
+      required: [perguntaId, pergunta]
+      properties:
+        perguntaId:
+          type: string
+        pergunta:
+          type: string
+
+    SimulacaoResultado:
+      type: object
+      required: [escoreTotal, gradeGlobal, blocos, sintomas, doencas, exames, alarmes]
+      properties:
+        escoreTotal:
+          type: number
+        gradeGlobal:
+          type: string
+        blocos:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimulacaoBlocoEscore"
+        sintomas:
+          type: array
+          items:
+            type: string
+        doencas:
+          type: array
+          items:
+            type: string
+        exames:
+          type: array
+          items:
+            type: string
+        alarmes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimulacaoSinalAlarme"
 
     Client:
       type: object

@@ -1530,3 +1530,196 @@ export const GetSncrQuotaResponseItem = zod.object({
   active: zod.boolean(),
 });
 export const GetSncrQuotaResponse = zod.array(GetSncrQuotaResponseItem);
+
+/**
+ * @summary Lista os blocos da mega anamnese com contagem de perguntas
+ */
+export const ListAnamneseBlocosResponseItem = zod.object({
+  bloco: zod.string(),
+  total: zod.number(),
+  comAlarme: zod.number().optional(),
+  comEscala: zod.number().optional(),
+});
+export const ListAnamneseBlocosResponse = zod.array(
+  ListAnamneseBlocosResponseItem,
+);
+
+/**
+ * @summary Lista perguntas (opcionalmente filtradas por bloco)
+ */
+export const ListAnamnesePerguntasQueryParams = zod.object({
+  bloco: zod.coerce.string().optional(),
+});
+
+export const ListAnamnesePerguntasResponseItem = zod.object({
+  id: zod.number(),
+  idIhe: zod.number().optional(),
+  bloco: zod.string(),
+  perguntaId: zod.string(),
+  pergunta: zod.string(),
+  tipoResposta: zod.string().nullish(),
+  sistema: zod.string().nullish(),
+  escalaValidada: zod.string().nullish(),
+  pesoGravidade: zod.number().nullish(),
+  eSinalAlarme: zod.boolean().nullish(),
+  obrigatorio: zod.string().nullish(),
+  ordem: zod.number().nullish(),
+  opcoes: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        valor: zod.union([zod.string(), zod.number()]),
+        peso: zod.number(),
+      }),
+    )
+    .nullish(),
+});
+export const ListAnamnesePerguntasResponse = zod.array(
+  ListAnamnesePerguntasResponseItem,
+);
+
+/**
+ * @summary Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
+ */
+export const UpdateAnamnesePerguntaParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateAnamnesePerguntaBody = zod.object({
+  bloco: zod.string().optional(),
+  pergunta: zod.string().optional(),
+  tipoResposta: zod.string().optional(),
+  sistema: zod.string().optional(),
+  escalaValidada: zod.string().optional(),
+  pesoGravidade: zod.number().optional(),
+  eSinalAlarme: zod.boolean().optional(),
+  ordem: zod.number().optional(),
+  opcoes: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        valor: zod.union([zod.string(), zod.number()]),
+        peso: zod.number(),
+      }),
+    )
+    .optional(),
+});
+
+export const UpdateAnamnesePerguntaResponse = zod.object({
+  id: zod.number(),
+  idIhe: zod.number().optional(),
+  bloco: zod.string(),
+  perguntaId: zod.string(),
+  pergunta: zod.string(),
+  tipoResposta: zod.string().nullish(),
+  sistema: zod.string().nullish(),
+  escalaValidada: zod.string().nullish(),
+  pesoGravidade: zod.number().nullish(),
+  eSinalAlarme: zod.boolean().nullish(),
+  obrigatorio: zod.string().nullish(),
+  ordem: zod.number().nullish(),
+  opcoes: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        valor: zod.union([zod.string(), zod.number()]),
+        peso: zod.number(),
+      }),
+    )
+    .nullish(),
+});
+
+/**
+ * @summary Catalogo de sintomas (para amarracao)
+ */
+export const ListAnamneseSintomasResponseItem = zod.object({
+  codigoSemantico: zod.string(),
+  nomeSintoma: zod.string().nullish(),
+});
+export const ListAnamneseSintomasResponse = zod.array(
+  ListAnamneseSintomasResponseItem,
+);
+
+/**
+ * @summary Lista amarracoes (sintomas e doencas) de uma pergunta
+ */
+export const ListAnamneseAmarracoesParams = zod.object({
+  perguntaId: zod.coerce.string(),
+});
+
+export const ListAnamneseAmarracoesResponse = zod.object({
+  sintomas: zod.array(
+    zod.object({
+      id: zod.number(),
+      perguntaId: zod.string(),
+      sintomaCodigo: zod.string(),
+      nomeSintoma: zod.string().nullish(),
+      gatilhoValor: zod.string().nullish(),
+      peso: zod.number().nullish(),
+    }),
+  ),
+  doencas: zod.array(
+    zod.object({
+      id: zod.number(),
+      perguntaId: zod.string(),
+      doencaIdIhe: zod.number(),
+      nomeDoenca: zod.string().nullish(),
+      gatilhoValor: zod.string().nullish(),
+      peso: zod.number().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Cria amarracao pergunta -> sintoma
+ */
+export const AddAmarracaoSintomaBody = zod.object({
+  perguntaId: zod.string(),
+  sintomaCodigo: zod.string(),
+  gatilhoValor: zod.string().optional(),
+  peso: zod.number().optional(),
+});
+
+/**
+ * @summary Remove amarracao pergunta -> sintoma
+ */
+export const DeleteAmarracaoSintomaParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteAmarracaoSintomaResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Simula o motor (respostas -> escore por bloco -> grade -> sintomas/doencas/exames)
+ */
+export const SimularMotorBody = zod.object({
+  respostas: zod.array(
+    zod.object({
+      perguntaId: zod.string(),
+      valor: zod.union([zod.string(), zod.number()]),
+    }),
+  ),
+});
+
+export const SimularMotorResponse = zod.object({
+  escoreTotal: zod.number(),
+  gradeGlobal: zod.string(),
+  blocos: zod.array(
+    zod.object({
+      bloco: zod.string(),
+      escore: zod.number(),
+      grade: zod.string(),
+    }),
+  ),
+  sintomas: zod.array(zod.string()),
+  doencas: zod.array(zod.string()),
+  exames: zod.array(zod.string()),
+  alarmes: zod.array(
+    zod.object({
+      perguntaId: zod.string(),
+      pergunta: zod.string(),
+    }),
+  ),
+});

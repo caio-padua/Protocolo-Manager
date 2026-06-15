@@ -22,6 +22,7 @@ import prescriptionsRouter from "./prescriptions";
 import sncrRouter from "./sncr";
 import transmutacaoRouter from "./transmutacao";
 import motorRouter from "./motor";
+import megaAnamneseRouter from "./mega-anamnese";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(prescriptionsRouter);
 router.use(sncrRouter);
 router.use(transmutacaoRouter);
 router.use(motorRouter);
+router.use(megaAnamneseRouter);
 
 export default router;

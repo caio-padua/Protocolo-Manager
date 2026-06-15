@@ -155,6 +155,10 @@ export const catalogoEndovenososTable = pgTable("catalogo_endovenosos", {
 });
 
 // ---- Anamnese: questionario_master. pergunta_id repete (Q030) -> id_ihe. ----
+// ONDA 2 (aditivo): +sistema, +escala_validada, +peso_gravidade, +e_sinal_alarme,
+// +opcoes (jsonb com alternativas + peso de cada uma). Nada dropado.
+// idIhe agora aceita 0..n para perguntas NOVAS da mega-anamnese (nascidas no
+// Manager, sem origem IHE) — mantemos unique para deduplicar import legado.
 export const anamneseQuestionarioTable = pgTable("anamnese_questionario", {
   id: serial("id").primaryKey(),
   idIhe: integer("id_ihe").notNull().unique(),
@@ -166,6 +170,13 @@ export const anamneseQuestionarioTable = pgTable("anamnese_questionario", {
   exemplo: text("exemplo"),
   observacao: text("observacao"),
   aplicavelEm: jsonb("aplicavel_em"),
+  // --- ONDA 2 (colunas novas, aditivas) ---
+  sistema: text("sistema"),
+  escalaValidada: text("escala_validada"),
+  pesoGravidade: integer("peso_gravidade"),
+  eSinalAlarme: boolean("e_sinal_alarme").default(false),
+  opcoes: jsonb("opcoes"),
+  ordem: integer("ordem"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

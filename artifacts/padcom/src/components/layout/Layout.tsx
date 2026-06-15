@@ -14,7 +14,8 @@ import {
   Beaker,
   ClipboardList,
   Building2,
-  Hash
+  Hash,
+  Brain
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PadconLogo } from "./PadconLogo";
@@ -33,6 +34,7 @@ const navigation = [
   { name: "Financeiro", href: "/payments", icon: CreditCard },
   { name: "Profissionais", href: "/professionals", icon: Stethoscope },
   { name: "Substâncias", href: "/substances", icon: Beaker },
+  { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
   { name: "Farmácias", href: "/pharmacies", icon: Building2 },
   { name: "SNCR", href: "/sncr", icon: Hash },

@@ -23,6 +23,7 @@ import Professionals from "@/pages/professionals";
 import Prescricao from "@/pages/prescricao";
 import Pharmacies from "@/pages/pharmacies";
 import Sncr from "@/pages/sncr";
+import MegaAnamnese from "@/pages/mega-anamnese";
 import Portal from "@/pages/portal";
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ function Router() {
             <Route path="/professionals" component={Professionals} />
             <Route path="/pharmacies" component={Pharmacies} />
             <Route path="/sncr" component={Sncr} />
+            <Route path="/mega-anamnese" component={MegaAnamnese} />
             
             <Route component={NotFound} />
           </Switch>
