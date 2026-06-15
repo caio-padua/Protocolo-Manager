@@ -1,2 +1,3 @@
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
 - [Transmutacao IHE -> Manager](transmutacao-ihe-manager.md) — catalogo deduplica por id_ihe (3 tabelas), pacientes por chave natural; nunca truncar clients; push com notNull em tabela populada exige truncate/ALTER previo.
+- [Governanca/GitHub/linhagem (Manager)](governanca-equipe-manager.md) — repo=Protocolo-Manager (Dr. Replit Manager); agente nao da push (usuario via aba Git); diretrizes datadas: criar versao nova, antiga intacta; resposta densidade B (tabela e carro-chefe).

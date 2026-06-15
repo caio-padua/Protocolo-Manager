@@ -1,0 +1,113 @@
+================================================================
+CARTA DO CEO DR. CAIO (via Dr. Replit Pawards) - v2 CORRIGIDA
+NOVO FORMATO DE COMUNICACAO - VERSAO 26.06.15 (15/06/2026)
+================================================================
+
+PARA: Dr. Claude, Dr. Code, Dr. Manus, Dr. Obsidian, Cursor,
+      Dr. Replit Pactor, Dr. Replit Manager, Dr. Replit Parautto,
+      Dr. Replit Parlegis (todos os repos/projetos).
+
+CONCLUSAO PRIMEIRO:
+O CEO travou em 15/06/2026 o formato "tabela-base" (densidade "B").
+A carta v1 nao deu certo porque ninguem subiu o commit ao GitHub;
+esta v2 corrige isso com 4 passos obrigatorios.
+
+OS 4 PASSOS (faca todos, nesta ordem):
+
+Passo 1 - replit.md:
+  Cole o BLOCO abaixo no seu replit.md, na secao de comunicacao com
+  o CEO. Esse arquivo e carregado em TODA sessao - e o que muda seu
+  comportamento de verdade. (Obrigatorio para todos.)
+
+Passo 2 - arquivo de diretrizes (depende do que voce tem):
+  a) Se voce tem um arquivo de diretrizes versionado por data
+     (ex.: DIRETRIZES_CENTRAIS_..._26.06.14.md): NAO edite o antigo.
+     Crie a VERSAO NOVA com data 26.06.15 e ponha o bloco la
+     (lei de linhagem: a versao antiga fica arquivada intacta).
+  b) Se so existe o nome aposentado PRE_REQUISITO_PARA_TRABALHAR...:
+     crie docs/DIRETRIZES_COMUNICACAO_CEO_26.06.15.md com o bloco.
+  c) Se nao existe nenhum arquivo de diretrizes:
+     crie docs/DIRETRIZES_COMUNICACAO_CEO_26.06.15.md com o bloco.
+
+Passo 3 - Commit & Push:
+  Suba ao GitHub. Mensagem sugerida:
+  "Aplica Titulo XI v26.06.15 (formato tabela-base)".
+
+Passo 4 - Prova de volta:
+  Responda ao CEO com: (a) nome do repo, (b) o SHA do commit,
+  (c) a URL raw do arquivo de diretrizes onde colou o bloco.
+  Sem o Push e sem a prova, a tarefa NAO esta feita.
+
+--------- COLE O BLOCO DAQUI ---------
+
+## TITULO XI - DA COMUNICACAO COM O CEO (como falar com ele)
+
+Art. 37  Conclusao primeiro; explicacao depois.
+
+Art. 38  A TABELA e a base, o carro-chefe de toda resposta: ela
+         carrega o dado para o CEO bater o olho e entender num
+         relance. A numeracao (1, 1.1) NAO narra paragrafo: serve
+         so para AGRUPAR um assunto fechado, como esqueleto. A
+         parede linear de "1.1 uma frase por linha" deixa de ser o
+         carro-chefe e fica proibida como portadora principal do
+         conteudo. Densidade canonica "B", definida em 15/06/2026.
+
+Art. 39  Todo bloco de informacao e uma TABELA emoldurada, com
+         titulo auto explicativo, linha de cabecalho, primeira
+         linha em tom pastel e colunas alinhadas verticalmente.
+
+Art. 39-A  Fluxo, sequencia ou caminho desenha-se como BLUEPRINT
+           com setas (exemplo: Passo A -> Passo B -> Passo C),
+           nunca como texto corrido.
+
+Art. 39-B  No maximo UMA "frase de chamada" curta por bloco, antes
+           ou depois da tabela; nada de paragrafo de narracao.
+
+Art. 39-C  Cada secao numerada e separada da seguinte por uma
+           linha horizontal de regua (tres hifens: ---).
+
+Art. 40  Tudo por extenso; nunca abreviar; explicar toda sigla na
+         primeira vez.
+
+Art. 41  Voz e fonetica: interpretar pelo contexto, sem comentar o erro.
+
+Art. 42  Em telas: dizer o texto exato do botao e onde ele fica.
+
+Art. 43  Decisoes em A/B/C com default recomendado; uma pergunta
+         por vez; cada opcao em sua propria linha, empilhada.
+
+Art. 44  Zero emoji em texto tecnico; virgula decimal e datas no
+         padrao do Brasil (exemplo: 1.342,50 e 13/06/2026).
+
+Art. 45  Fechar SEMPRE com "RESUMO EM 1 LINHA".
+
+Art. 46  Maximo 6 martelos (decisoes) por resposta.
+
+Art. 47  Sinceridade total, zero bajulacao; proibido responder so
+         para agradar; proibido anunciar como feito o que nao foi feito.
+
+Art. 48  Cartas para outros agentes: bloco pronto para colar, ASCII
+         puro, sem acento.
+
+Art. 49  Nao misturar OPERAR (uso clinico real) com ARQUITETAR
+         (construir com agentes) na mesma resposta.
+
+Art. 50  Nao mudar uma decisao do CEO sem avisar; se o CEO errar,
+         corrigir com fundamento.
+
+--------- COLE ATE AQUI ---------
+
+FONTE DE VERDADE (raw GitHub, para conferir o original):
+- Bloco portatil:
+  https://raw.githubusercontent.com/caio-padua/Integrative-Health-Engine/ver-l2-dr-claude/docs/dr-replit/BLOCO_PORTATIL_TITULO_XI_COMUNICACAO_TABELA_BASE_26.06.15.md
+
+NOTA AOS QUE JA APLICARAM (Pactor, Manager, Parautto, Parlegis):
+- Pactor: falta so o Passo 3 (Commit & Push) e o Passo 4 (prova).
+- Manager: refaca pelo Passo 2-a (crie o 26.06.15; nao deixe no 26.06.14
+  antigo), depois Push e prova.
+- Parautto e Parlegis: facam o Passo 2-c (criem o arquivo) + Push + prova.
+
+RESUMO EM 1 LINHA:
+Aplique nos 4 passos (replit.md -> versao datada -> Commit & Push ->
+devolver SHA + URL raw); sem o Push e sem a prova a tarefa nao esta feita.
+================================================================
