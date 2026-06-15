@@ -9,6 +9,7 @@ import {
   parseBody, parseAtivosLines, tomadaToText, buildFormulaText, getPrecoMedio, formatBRL,
   type Tomada, type FormulaSeed, type Protocolo, type SelectedFormula,
 } from "./data";
+import { useQuery } from "@tanstack/react-query";
 import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
@@ -150,9 +151,26 @@ export default function PrescricaoPage() {
 
   const allProtocolos = [...PROTOCOLOS_SEED, ...customProtocolos];
 
+  // Formulas vindas do banco (catalogo transmutado do IHE), juntadas com as
+  // formulas curadas estaticas. Dedup por id: nenhuma formula existente e perdida.
+  const { data: dbFormulas } = useQuery<FormulaSeed[]>({
+    queryKey: ["prescription-formulas"],
+    queryFn: async () => {
+      const r = await fetch("/api/prescription-formulas");
+      if (!r.ok) throw new Error("Falha ao carregar formulas do banco");
+      return r.json();
+    },
+  });
+
+  const allFormulas = useMemo(() => {
+    const ids = new Set(FORMULAS.map((f) => f.id));
+    const extras = (dbFormulas ?? []).filter((f) => !ids.has(f.id));
+    return [...FORMULAS, ...extras];
+  }, [dbFormulas]);
+
   const filtered = useMemo(
     () =>
-      FORMULAS.filter((f) => {
+      allFormulas.filter((f) => {
         const mc = activeCategory === "all" || f.cat === activeCategory;
         const ms =
           !search ||
@@ -160,7 +178,7 @@ export default function PrescricaoPage() {
           f.body.toLowerCase().includes(search.toLowerCase());
         return mc && ms;
       }),
-    [activeCategory, search],
+    [activeCategory, search, allFormulas],
   );
 
   const addFormula = (f: FormulaSeed) => {
@@ -173,7 +191,7 @@ export default function PrescricaoPage() {
 
   const addProtocolo = (p: Protocolo) =>
     p.formulaIds.forEach((id) => {
-      const f = FORMULAS.find((x) => x.id === id);
+      const f = allFormulas.find((x) => x.id === id);
       if (f) addFormula(f);
     });
 
@@ -274,12 +292,12 @@ export default function PrescricaoPage() {
   const handlePrint = () => window.print();
 
   const stats = useMemo(() => {
-    const s: Record<string, number> = { all: FORMULAS.length };
-    FORMULAS.forEach((f) => {
+    const s: Record<string, number> = { all: allFormulas.length };
+    allFormulas.forEach((f) => {
       s[f.cat] = (s[f.cat] || 0) + 1;
     });
     return s;
-  }, []);
+  }, [allFormulas]);
 
   const inputCls =
     "px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground";
@@ -383,7 +401,7 @@ export default function PrescricaoPage() {
                     <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-accent" />{p.nome}</h3>
                     <button onClick={() => addProtocolo(p)} className="shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => FORMULAS.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
                 </div>
               ))}
             </div>

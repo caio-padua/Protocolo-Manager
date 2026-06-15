@@ -6,8 +6,10 @@ import {
   recipesTable,
   pharmaciesTable,
   dispatchLogTable,
+  catalogoItensTable,
+  catalogoFormulasTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
@@ -384,6 +386,62 @@ router.get("/recipes/:id/pdf", async (req, res): Promise<void> => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${recipe.fileName ?? `receita-${id}.pdf`}"`);
   res.send(buf);
+});
+
+// Formulas vindas do deposito transmutado (catalogo_itens categoria=formula +
+// componentes em catalogo_formulas). Servidas no formato FormulaSeed que a tela
+// de Prescricao consome, para juntar com as formulas curadas (estaticas). Assim
+// futuras importacoes aparecem sozinhas, sem perder nenhuma formula existente.
+router.get("/prescription-formulas", async (_req, res): Promise<void> => {
+  const itens = await db
+    .select()
+    .from(catalogoItensTable)
+    .where(eq(catalogoItensTable.categoria, "formula"))
+    .orderBy(asc(catalogoItensTable.codigoPadcom));
+
+  const componentes = await db.select().from(catalogoFormulasTable);
+  const compByCodigo = new Map<string, typeof componentes>();
+  for (const c of componentes) {
+    const k = c.codigoPadcom ?? "";
+    if (!k) continue;
+    const arr = compByCodigo.get(k) ?? [];
+    arr.push(c);
+    compByCodigo.set(k, arr);
+  }
+
+  const formulas = itens
+    .filter((it) => it.codigoPadcom && it.nome)
+    .map((it) => {
+      const codigo = it.codigoPadcom as string;
+      let body = "";
+      const composicao = (it.composicao ?? "").trim();
+      if (composicao) {
+        // "ZINCO 30 MG, MAGNESIO 150 MG" -> uma linha por ativo.
+        body = composicao
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join("\n");
+      } else {
+        // Sem composicao consolidada: monta a partir dos componentes SUBS.
+        body = (compByCodigo.get(codigo) ?? [])
+          .filter((c) => (c.identificador ?? "").toUpperCase().startsWith("SUBS"))
+          .map((c) => (c.conteudo ?? "").trim())
+          .filter(Boolean)
+          .join("\n");
+      }
+      const posologia = (it.posologia ?? "").trim();
+      if (posologia) body = body ? `${body}\n${posologia}` : posologia;
+      return {
+        id: codigo,
+        cat: "ihe",
+        name: it.nome as string,
+        body,
+        precoMedio: typeof it.preco === "number" ? it.preco : undefined,
+      };
+    });
+
+  res.json(formulas);
 });
 
 export default router;

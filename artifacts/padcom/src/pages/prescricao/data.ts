@@ -109,6 +109,7 @@ export const CATEGORIES: Category[] = [
   { id: 'hidratacao', label: 'Hidratação', icon: Droplet, color: 'from-sky-500 to-blue-600' },
   { id: 'probioticos', label: 'Probióticos / Microbioma', icon: FlaskConical, color: 'from-green-500 to-emerald-700' },
   { id: 'comerciais', label: 'Suplementos Comerciais', icon: Coffee, color: 'from-stone-600 to-amber-800' },
+  { id: 'ihe', label: 'Fórmulas Padcon (importadas)', icon: FlaskConical, color: 'from-teal-600 to-cyan-700' },
 ];
 
 const FORMULAS_BASE: FormulaSeed[] = [

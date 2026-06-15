@@ -31,6 +31,8 @@ Importa 2 JSON raw do GitHub (catalogo + pacientes com PII real) para tabelas-de
 - **Why:** misturar tudo numa tela so seria clinicamente errado; cada natureza tem sua caixinha.
 - Upsert preserva campos operacionais/manuais: o `set` do onConflictDoUpdate so inclui campos do catalogo (stock e beneficios clinicos ficam de fora). Preco so e sobrescrito quando o catalogo traz valor valido — catalogo sem preco NAO zera preco ajustado a mao (regra de ouro).
 - Os 9 seeds antigos de `substances` tem `codigo_padcom` NULL e coexistem (Postgres permite multiplos NULL em coluna unique); nunca sao tocados pelo import.
+- Prescricao (formulas): a tela mescla formulas curadas estaticas + formulas do banco (rota le `catalogo_itens` categoria=formula + componentes `catalogo_formulas`). Merge dedup por id, estatico vence. As do IHE entram na categoria unica "ihe" ("Formulas Padcon (importadas)"), NAO mapeadas para categorias clinicas. **Why:** mapear area_semantica->categoria clinica arriscava mis-categorizacao (Dr. e medico); bucket neutro deixa o medico recategorizar. **Pitfall React:** ao mesclar estatico+banco, todo `useMemo` derivado (filtered/stats) precisa do array mesclado nas deps, senao filtra so o estatico enquanto o badge conta o total.
+- Deposito de formulas veio INCOMPLETO do IHE: so 5 de 13 com ativos; 8 vieram so com titulo. Carta de pedido de reexport em `CARTA_AO_DR_REPLIT_IHE_FORMULAS_FALTANTES_26.06.15.md`. Quando o IHE reexportar completo, re-rodar importador e elas aparecem sozinhas.
 
 ## Operacao
 - Schema com notNull novo em tabela populada quebra o `drizzle-kit push`. Truncar a tabela do catalogo (NUNCA clients) antes do push, ou aplicar a coluna via SQL direto (tabela vazia) e depois rodar push para reconciliar.
