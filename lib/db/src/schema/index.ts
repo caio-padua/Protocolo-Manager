@@ -16,3 +16,4 @@ export * from "./pharmacies";
 export * from "./prescriptions";
 export * from "./sncr";
 export * from "./dispatch";
+export * from "./catalogo";

@@ -20,6 +20,7 @@ import taskCardsRouter from "./task-cards";
 import pharmaciesRouter from "./pharmacies";
 import prescriptionsRouter from "./prescriptions";
 import sncrRouter from "./sncr";
+import transmutacaoRouter from "./transmutacao";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(taskCardsRouter);
 router.use(pharmaciesRouter);
 router.use(prescriptionsRouter);
 router.use(sncrRouter);
+router.use(transmutacaoRouter);
 
 export default router;
