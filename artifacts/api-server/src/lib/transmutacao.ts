@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
 import {
   db,
   clientsTable,
@@ -60,13 +59,6 @@ function s(v: unknown): string | null {
   if (v == null) return null;
   const t = String(v).trim();
   return t === "" ? null : t;
-}
-
-function hashConteudo(r: Raw): string {
-  const { id, ...rest } = r as Record<string, unknown>;
-  void id;
-  const keys = Object.keys(rest).sort();
-  return createHash("sha256").update(JSON.stringify(rest, keys)).digest("hex");
 }
 
 function numId(v: unknown): number | null {
@@ -433,7 +425,7 @@ export async function runTransmutacao(opts: {
     const byCodExterno = new Map<string, number>();
     const byCpfName = new Map<string, number>();
     const byNameBirthPhone = new Map<string, number>();
-    const byContentHash = new Map<string, number>();
+    const byIdIhe = new Map<number, number>();
     const cpfNames = new Map<string, Set<string>>();
 
     const indexClient = (c: {
@@ -458,9 +450,8 @@ export async function runTransmutacao(opts: {
       const phoneD = digits(c.phone);
       const birth = s(c.birthDate);
       if (fn && birth && phoneD) byNameBirthPhone.set(`${fn}|${birth}|${phoneD}`, c.id);
-      if (c.fichaClinica && Object.keys(c.fichaClinica as Raw).length > 0) {
-        byContentHash.set(hashConteudo(c.fichaClinica as Raw), c.id);
-      }
+      const idIheExisting = numId(c.fichaClinica?.id);
+      if (idIheExisting != null) byIdIhe.set(idIheExisting, c.id);
     };
 
     for (const c of existingClients) indexClient(c);
@@ -597,15 +588,16 @@ export async function runTransmutacao(opts: {
           continue;
         }
       }
-      // 5. Sem chave de negocio estavel: idempotencia por hash do snapshot bruto
-      const h = hashConteudo(r);
-      if (byContentHash.has(h)) {
-        await updateClient(byContentHash.get(h)!, payload);
+      // 5. Sem chave de negocio estavel: idempotencia por id de origem do IHE (ultimo recurso)
+      //    NUNCA promover id_ihe para passos anteriores — quebraria a fusao das fichas
+      //    duplicadas da mesma pessoa (que casam por codigo_semantico/codigo_externo/CPF+nome).
+      const idIhePac = numId(r.id);
+      if (idIhePac != null && byIdIhe.has(idIhePac)) {
+        await updateClient(byIdIhe.get(idIhePac)!, payload);
         report.pacientes.atualizados++;
         continue;
       }
-      const newId = await insertClient(payload, true);
-      byContentHash.set(h, newId);
+      await insertClient(payload, true);
       report.pacientes.criados++;
       report.pacientes.emRevisao++;
     }
