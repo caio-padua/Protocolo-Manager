@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClientCombobox } from "@/components/ClientCombobox";
 import {
   Select,
   SelectContent,
@@ -580,18 +581,12 @@ export default function ExamesPage() {
           <div className="border rounded-md p-4 space-y-3">
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Paciente</label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="rounded-md">
-                  <SelectValue placeholder="Selecionar paciente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(clients ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClientCombobox
+                clients={clients ?? []}
+                value={clientId}
+                onChange={setClientId}
+                placeholder="Selecionar paciente"
+              />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">

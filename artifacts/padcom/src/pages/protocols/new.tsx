@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ClientCombobox } from "@/components/ClientCombobox";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -279,21 +280,12 @@ export default function NovoProtocolo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Cliente *</Label>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients?.map(c => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      <div>
-                        <span className="font-medium">{c.name}</span>
-                        <span className="text-muted-foreground text-xs ml-2">{c.cpf}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClientCombobox
+                clients={clients ?? []}
+                value={clientId}
+                onChange={setClientId}
+                placeholder="Selecione o cliente"
+              />
             </div>
             <div className="space-y-2">
               <Label>Médico Responsável *</Label>
