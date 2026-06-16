@@ -1452,6 +1452,79 @@ components:
           nullable: true
         pricePerUnit:
           type: number
+        procedureType:
+          type: string
+        durationMinutes:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        mainFunction:
+          type: string
+          nullable: true
+        perceivedEffects:
+          type: string
+          nullable: true
+        timeToEffect:
+          type: string
+          nullable: true
+        starRating:
+          type: integer
+        bodySystemEffects:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        categoryMeters:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        longevityBenefit:
+          type: string
+          nullable: true
+        qualityOfLifeImpact:
+          type: string
+          nullable: true
+        sleepBenefit:
+          type: string
+          nullable: true
+        energyBenefit:
+          type: string
+          nullable: true
+        libidoBenefit:
+          type: string
+          nullable: true
+        physicalPerformance:
+          type: string
+          nullable: true
+        muscleStrength:
+          type: string
+          nullable: true
+        mentalClarity:
+          type: string
+          nullable: true
+        skinHairNails:
+          type: string
+          nullable: true
+        immuneSupport:
+          type: string
+          nullable: true
+        contraindications:
+          type: string
+          nullable: true
+        scientificEvidence:
+          type: string
+          nullable: true
+        categoryType:
+          type: string
+          nullable: true
+        composicao:
+          type: string
+          nullable: true
+        posologia:
+          type: string
+          nullable: true
         createdAt:
           type: string
       required:
@@ -1493,6 +1566,79 @@ components:
           nullable: true
         pricePerUnit:
           type: number
+        procedureType:
+          type: string
+        durationMinutes:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        mainFunction:
+          type: string
+          nullable: true
+        perceivedEffects:
+          type: string
+          nullable: true
+        timeToEffect:
+          type: string
+          nullable: true
+        starRating:
+          type: integer
+        bodySystemEffects:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        categoryMeters:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        longevityBenefit:
+          type: string
+          nullable: true
+        qualityOfLifeImpact:
+          type: string
+          nullable: true
+        sleepBenefit:
+          type: string
+          nullable: true
+        energyBenefit:
+          type: string
+          nullable: true
+        libidoBenefit:
+          type: string
+          nullable: true
+        physicalPerformance:
+          type: string
+          nullable: true
+        muscleStrength:
+          type: string
+          nullable: true
+        mentalClarity:
+          type: string
+          nullable: true
+        skinHairNails:
+          type: string
+          nullable: true
+        immuneSupport:
+          type: string
+          nullable: true
+        contraindications:
+          type: string
+          nullable: true
+        scientificEvidence:
+          type: string
+          nullable: true
+        categoryType:
+          type: string
+          nullable: true
+        composicao:
+          type: string
+          nullable: true
+        posologia:
+          type: string
+          nullable: true
       required:
         - name
         - category

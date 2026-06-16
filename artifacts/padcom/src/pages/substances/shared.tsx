@@ -1,6 +1,6 @@
 import {
   Heart, Brain, Zap, Moon, Dumbbell, Shield, Sparkles, Leaf, Activity,
-  TrendingUp, FlaskRound, Beaker, Droplet,
+  TrendingUp, FlaskRound, Beaker, Droplet, Flame, HeartPulse, Gem,
 } from "lucide-react";
 
 export function getProcedureLabel(type: string | null): string {
@@ -133,6 +133,125 @@ export function BlendComposition({ composicao }: { composicao: string | null | u
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Categorias-medidor tematicas (Nº2): graus 0-5 por objetivo + legenda.
+// "Ouro e diamante" para impressionar o cliente na apresentacao.
+// ============================================================================
+
+export interface CategoryMeterDef {
+  label: string;
+  icon: typeof Heart;
+  from: string;
+  to: string;
+  text: string;
+  legend: string;
+}
+
+export const CATEGORY_METER_ORDER = [
+  "emagrecimento",
+  "hipertrofia",
+  "recuperacao_muscular",
+  "neurocognicao",
+] as const;
+
+export const CATEGORY_METERS: Record<string, CategoryMeterDef> = {
+  emagrecimento: {
+    label: "Emagrecimento",
+    icon: Flame,
+    from: "from-rose-500",
+    to: "to-orange-400",
+    text: "text-rose-600",
+    legend:
+      "O quanto este ativo auxilia na queima de gordura, no controle do apetite e na aceleração do metabolismo.",
+  },
+  hipertrofia: {
+    label: "Hipertrofia",
+    icon: Dumbbell,
+    from: "from-amber-500",
+    to: "to-yellow-400",
+    text: "text-amber-600",
+    legend:
+      "O quanto contribui para o ganho e a construção de massa muscular.",
+  },
+  recuperacao_muscular: {
+    label: "Recuperação Muscular",
+    icon: HeartPulse,
+    from: "from-teal-500",
+    to: "to-emerald-400",
+    text: "text-teal-600",
+    legend:
+      "O quanto acelera a recuperação e reduz a dor muscular após o treino.",
+  },
+  neurocognicao: {
+    label: "Neurocognição",
+    icon: Brain,
+    from: "from-violet-500",
+    to: "to-fuchsia-400",
+    text: "text-violet-600",
+    legend:
+      "Aprimoramento cognitivo: Foco e Atenção, Memória e Aprendizado, Saúde Cerebral e Agilidade Mental.",
+  },
+};
+
+export function CategoryMetersShowcase({
+  meters,
+}: {
+  meters: Record<string, number> | null | undefined;
+}) {
+  const m = meters && typeof meters === "object" ? meters : {};
+  const items = CATEGORY_METER_ORDER.map((k) => ({
+    key: k,
+    def: CATEGORY_METERS[k],
+    score: Number(m[k]) || 0,
+  })).filter((i) => i.def && i.score > 0);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-amber-300/70 dark:border-amber-500/30 bg-gradient-to-br from-amber-50 via-white to-amber-50/40 dark:from-amber-950/20 dark:via-background dark:to-amber-950/10 p-5 shadow-[0_2px_24px_-6px_rgba(212,175,55,0.45)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.14),transparent_60%)]" />
+      <div className="relative">
+        <div className="flex items-center gap-2 mb-4">
+          <Gem className="h-4 w-4 text-amber-500" />
+          <span className="text-sm font-bold uppercase tracking-[0.18em] bg-gradient-to-r from-amber-600 to-yellow-500 bg-clip-text text-transparent">
+            Resultados que você vai sentir
+          </span>
+        </div>
+
+        {/* Barrinhas proximas umas das outras */}
+        <div className="space-y-2.5">
+          {items.map(({ key, def, score }) => {
+            const Icon = def.icon;
+            const pct = (score / 5) * 100;
+            return (
+              <div key={key} className="flex items-center gap-3">
+                <Icon className={`h-4 w-4 flex-shrink-0 ${def.text}`} />
+                <span className="text-xs font-semibold w-36 truncate">{def.label}</span>
+                <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden ring-1 ring-black/5">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${def.from} ${def.to} transition-all duration-700`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold w-9 text-right tabular-nums">{score}/5</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legendas na parte de baixo */}
+        <div className="mt-4 pt-3 border-t border-amber-200/60 dark:border-amber-500/20 space-y-1.5">
+          {items.map(({ key, def }) => (
+            <p key={key} className="text-[11px] leading-snug text-muted-foreground">
+              <span className={`font-bold ${def.text}`}>{def.label}:</span> {def.legend}
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );

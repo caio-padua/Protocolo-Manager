@@ -23,6 +23,7 @@ export const substancesTable = pgTable("substances", {
   timeToEffect: text("time_to_effect"),
   starRating: integer("star_rating").notNull().default(5),
   bodySystemEffects: jsonb("body_system_effects").default({}),
+  categoryMeters: jsonb("category_meters").default({}),
   longevityBenefit: text("longevity_benefit"),
   qualityOfLifeImpact: text("quality_of_life_impact"),
   sleepBenefit: text("sleep_benefit"),

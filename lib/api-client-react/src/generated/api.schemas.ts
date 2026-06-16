@@ -182,6 +182,10 @@ export interface CreateClientBody {
   notes?: string | null;
 }
 
+export type SubstanceBodySystemEffects = { [key: string]: number } | null;
+
+export type SubstanceCategoryMeters = { [key: string]: number } | null;
+
 export interface Substance {
   id: number;
   name: string;
@@ -195,8 +199,40 @@ export interface Substance {
   stockQuantity: number;
   stockUnit?: string | null;
   pricePerUnit?: number;
+  procedureType?: string;
+  durationMinutes?: number;
+  description?: string | null;
+  mainFunction?: string | null;
+  perceivedEffects?: string | null;
+  timeToEffect?: string | null;
+  starRating?: number;
+  bodySystemEffects?: SubstanceBodySystemEffects;
+  categoryMeters?: SubstanceCategoryMeters;
+  longevityBenefit?: string | null;
+  qualityOfLifeImpact?: string | null;
+  sleepBenefit?: string | null;
+  energyBenefit?: string | null;
+  libidoBenefit?: string | null;
+  physicalPerformance?: string | null;
+  muscleStrength?: string | null;
+  mentalClarity?: string | null;
+  skinHairNails?: string | null;
+  immuneSupport?: string | null;
+  contraindications?: string | null;
+  scientificEvidence?: string | null;
+  categoryType?: string | null;
+  composicao?: string | null;
+  posologia?: string | null;
   createdAt: string;
 }
+
+export type CreateSubstanceBodyBodySystemEffects = {
+  [key: string]: number;
+} | null;
+
+export type CreateSubstanceBodyCategoryMeters = {
+  [key: string]: number;
+} | null;
 
 export interface CreateSubstanceBody {
   name: string;
@@ -210,6 +246,30 @@ export interface CreateSubstanceBody {
   stockQuantity: number;
   stockUnit?: string | null;
   pricePerUnit?: number;
+  procedureType?: string;
+  durationMinutes?: number;
+  description?: string | null;
+  mainFunction?: string | null;
+  perceivedEffects?: string | null;
+  timeToEffect?: string | null;
+  starRating?: number;
+  bodySystemEffects?: CreateSubstanceBodyBodySystemEffects;
+  categoryMeters?: CreateSubstanceBodyCategoryMeters;
+  longevityBenefit?: string | null;
+  qualityOfLifeImpact?: string | null;
+  sleepBenefit?: string | null;
+  energyBenefit?: string | null;
+  libidoBenefit?: string | null;
+  physicalPerformance?: string | null;
+  muscleStrength?: string | null;
+  mentalClarity?: string | null;
+  skinHairNails?: string | null;
+  immuneSupport?: string | null;
+  contraindications?: string | null;
+  scientificEvidence?: string | null;
+  categoryType?: string | null;
+  composicao?: string | null;
+  posologia?: string | null;
 }
 
 export type ProtocolStatus =

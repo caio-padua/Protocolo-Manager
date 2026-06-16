@@ -67,6 +67,7 @@ const PATCHABLE_FIELDS = [
   "longevityBenefit", "qualityOfLifeImpact", "sleepBenefit", "energyBenefit", "libidoBenefit",
   "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
   "contraindications", "scientificEvidence", "categoryType",
+  "categoryMeters", "pricePerUnit", "composicao", "posologia",
 ] as const;
 
 router.patch("/substances/:id", async (req, res): Promise<void> => {

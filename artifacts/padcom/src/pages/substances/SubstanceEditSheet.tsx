@@ -13,8 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Star, X, Plus, Activity } from "lucide-react";
-import { BODY_SYSTEM_LABELS, barColorForScore } from "./shared";
+import { Star, X, Plus, Activity, Gem } from "lucide-react";
+import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 
 const NULLABLE_TEXT = "";
 
@@ -135,6 +135,43 @@ function SystemEditor({
   );
 }
 
+function CategoryMeterEditor({
+  meters,
+  setMeters,
+}: {
+  meters: Record<string, number>;
+  setMeters: (next: Record<string, number>) => void;
+}) {
+  const set = (k: string, v: number) => setMeters({ ...meters, [k]: v });
+  return (
+    <div className="space-y-3">
+      {CATEGORY_METER_ORDER.map((k) => {
+        const def = CATEGORY_METERS[k];
+        const Icon = def.icon;
+        const score = Number(meters[k]) || 0;
+        return (
+          <div key={k} className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 flex-shrink-0 ${def.text}`} />
+            <span className="text-xs font-medium w-32 truncate">{def.label}</span>
+            <div className="flex gap-1 flex-1">
+              {[1, 2, 3, 4, 5].map((seg) => (
+                <button
+                  key={seg}
+                  type="button"
+                  onClick={() => set(k, seg === score ? seg - 1 : seg)}
+                  className={`h-5 flex-1 rounded transition-colors ${seg <= score ? `bg-gradient-to-r ${def.from} ${def.to}` : "bg-muted hover:bg-muted-foreground/20"}`}
+                  aria-label={`${def.label} grau ${seg}`}
+                />
+              ))}
+            </div>
+            <span className="text-xs font-bold w-4 text-right">{score}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -180,7 +217,10 @@ export function SubstanceEditSheet({
       const bse = substance.bodySystemEffects && typeof substance.bodySystemEffects === "object"
         ? (substance.bodySystemEffects as Record<string, number>)
         : {};
-      setForm({ ...substance, bodySystemEffects: { ...bse } });
+      const cm = substance.categoryMeters && typeof substance.categoryMeters === "object"
+        ? (substance.categoryMeters as Record<string, number>)
+        : {};
+      setForm({ ...substance, bodySystemEffects: { ...bse }, categoryMeters: { ...cm } });
     }
   }, [substance]);
 
@@ -205,6 +245,7 @@ export function SubstanceEditSheet({
       stockUnit: emptyToNull(form.stockUnit),
       timeToEffect: emptyToNull(form.timeToEffect),
       bodySystemEffects: form.bodySystemEffects ?? {},
+      categoryMeters: form.categoryMeters ?? {},
       composicao: emptyToNull(form.composicao),
       posologia: emptyToNull(form.posologia),
     };
@@ -302,6 +343,20 @@ export function SubstanceEditSheet({
               <SystemEditor
                 effects={(form.bodySystemEffects as Record<string, number>) ?? {}}
                 setEffects={(next) => setField("bodySystemEffects", next)}
+              />
+            </div>
+
+            <div className="rounded-xl border-2 border-amber-300/70 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Gem className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-bold">Medidores de Resultado (clique nas barras)</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Estes medidores aparecem em destaque "ouro e diamante" na apresentação ao cliente.
+              </p>
+              <CategoryMeterEditor
+                meters={(form.categoryMeters as Record<string, number>) ?? {}}
+                setMeters={(next) => setField("categoryMeters", next)}
               />
             </div>
 

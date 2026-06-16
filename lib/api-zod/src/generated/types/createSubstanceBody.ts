@@ -5,6 +5,8 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateSubstanceBodyBodySystemEffects } from "./createSubstanceBodyBodySystemEffects";
+import type { CreateSubstanceBodyCategoryMeters } from "./createSubstanceBodyCategoryMeters";
 
 export interface CreateSubstanceBody {
   name: string;
@@ -18,4 +20,28 @@ export interface CreateSubstanceBody {
   stockQuantity: number;
   stockUnit?: string | null;
   pricePerUnit?: number;
+  procedureType?: string;
+  durationMinutes?: number;
+  description?: string | null;
+  mainFunction?: string | null;
+  perceivedEffects?: string | null;
+  timeToEffect?: string | null;
+  starRating?: number;
+  bodySystemEffects?: CreateSubstanceBodyBodySystemEffects;
+  categoryMeters?: CreateSubstanceBodyCategoryMeters;
+  longevityBenefit?: string | null;
+  qualityOfLifeImpact?: string | null;
+  sleepBenefit?: string | null;
+  energyBenefit?: string | null;
+  libidoBenefit?: string | null;
+  physicalPerformance?: string | null;
+  muscleStrength?: string | null;
+  mentalClarity?: string | null;
+  skinHairNails?: string | null;
+  immuneSupport?: string | null;
+  contraindications?: string | null;
+  scientificEvidence?: string | null;
+  categoryType?: string | null;
+  composicao?: string | null;
+  posologia?: string | null;
 }

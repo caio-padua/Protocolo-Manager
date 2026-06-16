@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import {
   BODY_SYSTEM_LABELS, getProcedureLabel, getProcedureColor, getCategoryStyle,
-  BodySystemBar, BlendComposition, parseComposicao,
+  BodySystemBar, BlendComposition, parseComposicao, CategoryMetersShowcase,
 } from "./shared";
 import { SubstanceEditSheet } from "./SubstanceEditSheet";
 
@@ -224,6 +224,7 @@ export default function Substances() {
 
                 {isOpen && (
                   <div className="px-6 pb-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 border-t pt-5">
+                    <CategoryMetersShowcase meters={substance.categoryMeters} />
                     {hasBlend && <BlendComposition composicao={substance.composicao} />}
 
                     {substance.mainFunction && (
