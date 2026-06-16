@@ -26,6 +26,7 @@ import Sncr from "@/pages/sncr";
 import MegaAnamnese from "@/pages/mega-anamnese";
 import Catalogos from "@/pages/catalogos";
 import Exames from "@/pages/exames";
+import CadastroExames from "@/pages/cadastros/exames";
 import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
@@ -76,6 +77,7 @@ function Router() {
             <Route path="/mega-anamnese" component={MegaAnamnese} />
             <Route path="/catalogos" component={Catalogos} />
             <Route path="/exames" component={Exames} />
+            <Route path="/cadastros/exames" component={CadastroExames} />
             
             <Route component={NotFound} />
           </Switch>

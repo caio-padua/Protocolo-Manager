@@ -17,6 +17,9 @@ import {
   Hash,
   Brain,
   Library,
+  FolderTree,
+  ChevronDown,
+  TestTube,
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,7 +29,15 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-const navigation = [
+type NavLeaf = { name: string; href: string; icon: typeof LayoutDashboard };
+type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[] };
+type NavEntry = NavLeaf | NavGroup;
+
+function isGroup(e: NavEntry): e is NavGroup {
+  return (e as NavGroup).children !== undefined;
+}
+
+const navigation: NavEntry[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clients", icon: Users },
   { name: "Protocolos", href: "/protocols", icon: FlaskConical },
@@ -37,6 +48,13 @@ const navigation = [
   { name: "Profissionais", href: "/professionals", icon: Stethoscope },
   { name: "Substâncias", href: "/substances", icon: Beaker },
   { name: "Catálogos", href: "/catalogos", icon: Library },
+  {
+    name: "Cadastros",
+    icon: FolderTree,
+    children: [
+      { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
+    ],
+  },
   { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
   { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
@@ -47,6 +65,7 @@ const navigation = [
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Cadastros: true });
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -76,8 +95,58 @@ export function Layout({ children }: LayoutProps) {
 
           <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               const Icon = item.icon;
+
+              if (isGroup(item)) {
+                const childActive = item.children.some(
+                  (c) => location === c.href || location.startsWith(c.href),
+                );
+                const isOpen = openGroups[item.name] ?? childActive;
+                return (
+                  <div key={item.name}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenGroups((prev) => ({ ...prev, [item.name]: !isOpen }))
+                      }
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2.5 transition-all cursor-pointer border
+                        ${childActive
+                          ? 'text-sidebar-foreground font-medium border-sidebar-primary/40'
+                          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent'}
+                      `}
+                      style={{ borderRadius: '4px' }}
+                    >
+                      <Icon className={`w-4.5 h-4.5 ${childActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
+                      <span className="text-sm tracking-wide">{item.name}</span>
+                      <ChevronDown className={`ml-auto w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isOpen && (
+                      <div className="mt-0.5 ml-3 pl-3 border-l border-sidebar-border space-y-0.5">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const isActive = location === child.href || location.startsWith(child.href);
+                          return (
+                            <Link key={child.name} href={child.href} onClick={() => setSidebarOpen(false)}>
+                              <div className={`
+                                flex items-center gap-3 px-3 py-2 transition-all cursor-pointer border
+                                ${isActive
+                                  ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm'
+                                  : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent'}
+                              `} style={{ borderRadius: '4px' }}>
+                                <ChildIcon className={`w-4 h-4 ${isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/40'}`} />
+                                <span className="text-sm tracking-wide">{child.name}</span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (
                 <Link key={item.name} href={item.href} onClick={() => setSidebarOpen(false)}>
                   <div className={`
