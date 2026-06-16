@@ -43,7 +43,7 @@ Sistema web completo (React + Vite frontend, Express + Node backend, PostgreSQL)
     /src
       /routes          → Endpoints REST (clients, sessions, substances, google-calendar, etc.)
       /lib             → Servicos (google-calendar.ts, email-service.ts, pdf-signer.ts, google-drive.ts)
-    /certs             → Certificado A1 (assinatura.pfx, senha: Padua4321@, CPF: 293.274.948-06)
+    /certs             → Certificado A1 (assinatura.pfx, senha no segredo CERT_PASSWORD, CPF: 293.274.948-06)
   /padcom              → Frontend React/Vite (preview path: /)
     /src/pages         → Paginas React (clients, sessions, protocols, etc.)
 /lib

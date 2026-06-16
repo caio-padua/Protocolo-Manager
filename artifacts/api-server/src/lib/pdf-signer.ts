@@ -9,9 +9,13 @@ import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
 const signpdf = new SignPdf();
 
 const CERT_PATH = process.env.CERT_PATH || path.resolve(import.meta.dirname, "../certs/assinatura.pfx");
-const CERT_PASSWORDS = [process.env.CERT_PASSWORD, "Padua4321@", "123456"].filter(
-  (p): p is string => Boolean(p),
-);
+const CERT_PASSWORDS = [process.env.CERT_PASSWORD].filter((p): p is string => Boolean(p));
+
+if (CERT_PASSWORDS.length === 0) {
+  throw new Error(
+    "CERT_PASSWORD nao definido. Registre o segredo CERT_PASSWORD (senha do certificado A1) para assinar PDFs.",
+  );
+}
 
 interface SubstanceInfo {
   substanceName: string;

@@ -382,7 +382,7 @@ PACIENTES/
 ## 6. ASSINATURA DIGITAL A1 ICP-BRASIL
 
 - Certificado: `artifacts/api-server/certs/assinatura.pfx`
-- Senha: `Padua4321@`
+- Senha: registrada no segredo `CERT_PASSWORD` (cofre de segredos; nao fica no codigo nem na documentacao)
 - CPF vinculado: 293.274.948-06
 - Validade: ate 2026-09-22
 - Biblioteca: `pdf-lib` (geracao) + `node-forge` (assinatura PKCS#7)

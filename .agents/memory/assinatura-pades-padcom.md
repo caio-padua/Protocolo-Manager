@@ -29,6 +29,8 @@ Armadilhas (cada uma custou tempo):
   re-save) invalida a assinatura. Upload ao Google Drive deve enviar os bytes assinados
   intactos.
 
-**Divida de seguranca conhecida:** a senha do .pfx esteve hardcoded no fonte
-(`CERT_PASSWORDS`). Caminho preferido e a variavel de ambiente `CERT_PASSWORD`
-(secret); os literais sao fallback ate o secret ser registrado e os literais removidos.
+**Senha do certificado (resolvido):** a senha do .pfx vem APENAS do secret
+`CERT_PASSWORD` (sem fallback no codigo; se faltar, o modulo lanca erro na carga).
+Os literais antigos foram removidos do fonte e tambem da documentacao
+(PADCOM_HANDOFF.md, PADCOM_TECHNICAL_BRIEFING.md). Nunca reescrever a senha em
+codigo ou .md — apontar sempre para o secret.
