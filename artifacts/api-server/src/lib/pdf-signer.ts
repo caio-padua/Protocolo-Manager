@@ -2,9 +2,16 @@ import { PDFDocument, rgb, StandardFonts, PDFPage } from "pdf-lib";
 import forge from "node-forge";
 import fs from "fs";
 import path from "path";
+import { SignPdf } from "@signpdf/signpdf";
+import { P12Signer } from "@signpdf/signer-p12";
+import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
+
+const signpdf = new SignPdf();
 
 const CERT_PATH = process.env.CERT_PATH || path.resolve(import.meta.dirname, "../certs/assinatura.pfx");
-const CERT_PASSWORDS = ["Padua4321@", "123456"];
+const CERT_PASSWORDS = [process.env.CERT_PASSWORD, "Padua4321@", "123456"].filter(
+  (p): p is string => Boolean(p),
+);
 
 interface SubstanceInfo {
   substanceName: string;
@@ -70,6 +77,43 @@ function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Cer
   const ca = certBag.slice(1).filter(b => b.cert).map(b => b.cert!);
 
   return { key, cert, ca };
+}
+
+let cachedCertPassword: string | null = null;
+function getCertPassword(): string {
+  if (cachedCertPassword) return cachedCertPassword;
+  const pfxBuffer = fs.readFileSync(CERT_PATH);
+  const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(pfxBuffer));
+  const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
+  for (const pw of CERT_PASSWORDS) {
+    try {
+      forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw);
+      cachedCertPassword = pw;
+      return pw;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("Could not determine PFX password");
+}
+
+async function embedPadesSignature(
+  pdfDoc: PDFDocument,
+  opts: { name: string; reason: string; location?: string; contactInfo?: string },
+): Promise<Uint8Array> {
+  pdflibAddPlaceholder({
+    pdfDoc,
+    reason: opts.reason,
+    contactInfo: opts.contactInfo || "",
+    name: opts.name,
+    location: opts.location || "Brasil",
+    signatureLength: 16384,
+  });
+  const withPlaceholder = await pdfDoc.save({ useObjectStreams: false });
+  const pfxBuffer = fs.readFileSync(CERT_PATH);
+  const signer = new P12Signer(Buffer.from(pfxBuffer), { passphrase: getCertPassword() });
+  const signed = await signpdf.sign(Buffer.from(withPlaceholder), signer);
+  return new Uint8Array(signed);
 }
 
 function getCertInfo(): { subject: string; issuer: string; serial: string; validFrom: string; validTo: string; cpf: string | null } {
@@ -161,7 +205,7 @@ function drawStars(page: PDFPage, x: number, y: number, rating: number, maxStars
 
 export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Uint8Array; certInfo: any }> {
   const certInfo = getCertInfo();
-  const { key, cert } = loadCertificate();
+  const { cert } = loadCertificate();
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`RAS ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
@@ -578,35 +622,20 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     drawPageFooter(allPages[i], fonts, i + 1, allPages.length);
   }
 
-  // === SIGN THE PDF ===
-  const pdfBytes = await pdfDoc.save();
-
-  const p7 = forge.pkcs7.createSignedData();
-  p7.content = forge.util.createBuffer(pdfBytes);
-  p7.addCertificate(cert);
-
-  p7.addSigner({
-    key,
-    certificate: cert,
-    digestAlgorithm: forge.pki.oids.sha256,
-    authenticatedAttributes: [
-      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
-      { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() },
-    ],
-  });
-
-  p7.sign({ detached: false });
-
-  const signatureDer = forge.asn1.toDer(p7.toAsn1()).getBytes();
-  const signatureB64 = forge.util.encode64(signatureDer);
-
+  // === SIGN THE PDF (PAdES embarcado — selo verde Adobe) ===
   const cnAttrInfo = cert.subject.getField("CN");
   const signerName = cnAttrInfo?.value ? String(cnAttrInfo.value) : ras.professionalName;
 
+  const pdfBytes = await embedPadesSignature(pdfDoc, {
+    name: signerName,
+    reason: "Assinatura digital do RAS (ICP-Brasil)",
+    location: ras.unit || "PADCOM",
+    contactInfo: ras.clientCpf || "",
+  });
+
   return {
     pdfBytes,
-    certInfo: { ...certInfo, signatureB64, signerName },
+    certInfo: { ...certInfo, signerName },
   };
 }
 
@@ -1098,7 +1127,7 @@ function procTypeLabel(t: string): string {
 
 export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): Promise<{ pdfBytes: Uint8Array; certInfo: any }> {
   const certInfo = getCertInfo();
-  const { key, cert } = loadCertificate();
+  const { cert } = loadCertificate();
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} - ${data.clientName}`);
@@ -1785,32 +1814,20 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     drawDocFooter(allPages[i], fonts, i + 1, allPages.length, data.clientName);
   }
 
-  // === SIGN THE PDF ===
-  const pdfBytes = await pdfDoc.save();
-
-  const p7 = forge.pkcs7.createSignedData();
-  p7.content = forge.util.createBuffer(pdfBytes);
-  p7.addCertificate(cert);
-  p7.addSigner({
-    key,
-    certificate: cert,
-    digestAlgorithm: forge.pki.oids.sha256,
-    authenticatedAttributes: [
-      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
-      { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() },
-    ],
-  });
-  p7.sign({ detached: false });
-
-  const signatureDer = forge.asn1.toDer(p7.toAsn1()).getBytes();
-  const signatureB64 = forge.util.encode64(signatureDer);
+  // === SIGN THE PDF (PAdES embarcado — selo verde Adobe) ===
   const cnAttrInfo = cert.subject.getField("CN");
   const sName = cnAttrInfo?.value ? String(cnAttrInfo.value) : data.professionalName;
 
+  const pdfBytes = await embedPadesSignature(pdfDoc, {
+    name: sName,
+    reason: "Assinatura digital do protocolo (ICP-Brasil)",
+    location: data.unit || "PADCOM",
+    contactInfo: data.clientCpf || "",
+  });
+
   return {
     pdfBytes,
-    certInfo: { ...certInfo, signatureB64, signerName: sName },
+    certInfo: { ...certInfo, signerName: sName },
   };
 }
 

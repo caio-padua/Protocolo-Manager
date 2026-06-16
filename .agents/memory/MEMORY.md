@@ -3,3 +3,4 @@
 - [Governanca/GitHub/linhagem (Manager)](governanca-equipe-manager.md) — repo=Protocolo-Manager (Dr. Replit Manager); agente nao da push (usuario via aba Git); diretrizes datadas: criar versao nova, antiga intacta; resposta densidade B (tabela e carro-chefe).
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [Gerador de PDF: coercao de texto](ras-pdf-coercao-texto.md) — bodySystemEffects jsonb e numerico (0-5), nao texto; helpers de PDF devem coagir nao-strings via safeTxt ou estouram .split.
+- [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
