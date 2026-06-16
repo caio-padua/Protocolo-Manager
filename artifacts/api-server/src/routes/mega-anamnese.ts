@@ -5,39 +5,12 @@ import {
   anamneseQuestionarioTable,
   catalogoSintomasTable,
   catalogoDoencasTable,
-  catalogoBlocoExamesTable,
   perguntaSintomaTable,
   perguntaDoencaTable,
 } from "@workspace/db";
+import { computeMotor } from "../lib/motor-anamnese";
 
 const router: IRouter = Router();
-
-// Grade global a partir do escore total (escada de gravidade do CEO).
-function gradeDoEscore(escore: number): string {
-  if (escore >= 25) return "GRADE AMPLIADA";
-  if (escore >= 15) return "GRADE SOFISTICADA";
-  if (escore >= 7) return "GRADE INTERMEDIARIA";
-  if (escore >= 1) return "GRADE BASICA";
-  return "SEM GRADE";
-}
-
-type Opcao = { label: string; valor: string | number; peso: number };
-
-// Avalia se o valor respondido dispara o gatilho da amarracao.
-// Gatilhos suportados: "sim", ">=N", valor textual exato.
-function gatilhoBate(gatilho: string | null, valor: string | number): boolean {
-  if (gatilho == null || gatilho === "") return true;
-  const v = String(valor).toLowerCase();
-  if (gatilho.startsWith(">=")) {
-    const n = Number(gatilho.slice(2));
-    return Number(valor) >= n;
-  }
-  if (gatilho.startsWith(">")) {
-    const n = Number(gatilho.slice(1));
-    return Number(valor) > n;
-  }
-  return v === gatilho.toLowerCase();
-}
 
 // ---- Blocos com contagem ----
 router.get("/mega-anamnese/blocos", async (_req, res): Promise<void> => {
@@ -214,94 +187,8 @@ router.delete("/mega-anamnese/amarracoes/sintoma/:id", async (req, res): Promise
 router.post("/mega-anamnese/simular", async (req, res): Promise<void> => {
   const b = (req.body ?? {}) as { respostas?: { perguntaId: string; valor: string | number }[] };
   const respostas = Array.isArray(b.respostas) ? b.respostas : [];
-  const mapResp = new Map<string, string | number>();
-  for (const r of respostas) mapResp.set(r.perguntaId, r.valor);
-
-  // Carrega perguntas envolvidas
-  const perguntas = await db.select().from(anamneseQuestionarioTable);
-  const porPerguntaId = new Map<string, typeof perguntas[number]>();
-  for (const p of perguntas) if (p.perguntaId) porPerguntaId.set(p.perguntaId, p);
-
-  // Escore por bloco
-  const escoreBloco = new Map<string, number>();
-  const alarmes: { perguntaId: string; pergunta: string }[] = [];
-  for (const [perguntaId, valor] of mapResp) {
-    const p = porPerguntaId.get(perguntaId);
-    if (!p || !p.bloco) continue;
-    let pontos = 0;
-    // peso da opcao escolhida
-    const opcoes = (p.opcoes as Opcao[] | null) ?? null;
-    if (opcoes && opcoes.length) {
-      const op = opcoes.find((o) => String(o.valor) === String(valor));
-      if (op) pontos += op.peso;
-    } else if (typeof valor === "number") {
-      pontos += valor;
-    }
-    // peso de gravidade da pergunta soma quando ha qualquer pontuacao
-    if (pontos > 0) pontos += p.pesoGravidade ?? 0;
-    escoreBloco.set(p.bloco, (escoreBloco.get(p.bloco) ?? 0) + pontos);
-    // sinal de alarme
-    if (p.eSinalAlarme && pontos > 0) alarmes.push({ perguntaId, pergunta: p.pergunta ?? perguntaId });
-  }
-
-  const blocos = Array.from(escoreBloco.entries())
-    .map(([bloco, escore]) => ({ bloco, escore, grade: gradeDoEscore(escore) }))
-    .sort((a, b2) => b2.escore - a.escore);
-  const escoreTotal = blocos.reduce((s, x) => s + x.escore, 0);
-
-  // Sintomas acesos pelas amarracoes
-  const amarSint = await db.select().from(perguntaSintomaTable);
-  const sintCodigos = new Set<string>();
-  for (const a of amarSint) {
-    if (!mapResp.has(a.perguntaId)) continue;
-    if (gatilhoBate(a.gatilhoValor, mapResp.get(a.perguntaId)!)) sintCodigos.add(a.sintomaCodigo);
-  }
-  const sintNomes: string[] = [];
-  if (sintCodigos.size) {
-    const rows = await db.select().from(catalogoSintomasTable);
-    for (const r of rows) if (sintCodigos.has(r.codigoSemantico) && r.nomeSintoma) sintNomes.push(r.nomeSintoma);
-  }
-
-  // Doencas acesas
-  const amarDoe = await db.select().from(perguntaDoencaTable);
-  const doeIds = new Set<number>();
-  for (const a of amarDoe) {
-    if (!mapResp.has(a.perguntaId)) continue;
-    if (gatilhoBate(a.gatilhoValor, mapResp.get(a.perguntaId)!)) doeIds.add(a.doencaIdIhe);
-  }
-  const doeNomes: string[] = [];
-  const blocosMotor = new Set<string>();
-  if (doeIds.size) {
-    const rows = await db.select().from(catalogoDoencasTable);
-    for (const r of rows) {
-      if (!doeIds.has(r.idIhe)) continue;
-      if (r.nomeDoenca) doeNomes.push(r.nomeDoenca);
-      // bloco_motor pode trazer varios codigos "BLK003 / BLK005"
-      const bm = (r.blocoMotor as string | null) ?? "";
-      bm.split("/").map((s) => s.trim()).filter(Boolean).forEach((c) => blocosMotor.add(c));
-    }
-  }
-
-  // Exames derivados dos blocos motor das doencas acesas
-  const exames = new Set<string>();
-  if (blocosMotor.size) {
-    const rows = await db.select().from(catalogoBlocoExamesTable);
-    for (const r of rows) {
-      const cod = (r.blocoId as unknown as string | null) ?? null;
-      const nome = (r as unknown as { nomeExame?: string | null }).nomeExame ?? null;
-      if (cod && blocosMotor.has(String(cod)) && nome) exames.add(nome);
-    }
-  }
-
-  res.json({
-    escoreTotal,
-    gradeGlobal: gradeDoEscore(escoreTotal),
-    blocos,
-    sintomas: sintNomes,
-    doencas: doeNomes,
-    exames: Array.from(exames).slice(0, 40),
-    alarmes,
-  });
+  const resultado = await computeMotor(respostas);
+  res.json(resultado);
 });
 
 export default router;

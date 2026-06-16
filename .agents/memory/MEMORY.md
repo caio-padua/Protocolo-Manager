@@ -4,3 +4,4 @@
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [Gerador de PDF: coercao de texto](ras-pdf-coercao-texto.md) — bodySystemEffects jsonb e numerico (0-5), nao texto; helpers de PDF devem coagir nao-strings via safeTxt ou estouram .split.
 - [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
+- [API admin sem auth (Manager)](admin-api-sem-auth.md) — todos os routers admin nao tem authz (single-tenant, proxy); nao inventar auth p/ 1-2 rotas em revisao, e condicao do app inteiro.

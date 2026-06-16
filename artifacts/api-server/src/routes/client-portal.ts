@@ -2,42 +2,16 @@ import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { clientsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { createHmac, randomBytes } from "crypto";
 import multer from "multer";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
   removeDiacritics,
 } from "../lib/google-drive";
+import { createPortalToken, verifyPortalToken } from "../lib/portal-token";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-
-const TOKEN_SECRET = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
-const TOKEN_TTL_MS = 30 * 60 * 1000;
-
-function createPortalToken(clientId: number): string {
-  const exp = Date.now() + TOKEN_TTL_MS;
-  const payload = `${clientId}:${exp}`;
-  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
-  return Buffer.from(`${payload}:${sig}`).toString("base64url");
-}
-
-function verifyPortalToken(token: string): number | null {
-  try {
-    const decoded = Buffer.from(token, "base64url").toString();
-    const parts = decoded.split(":");
-    if (parts.length !== 3) return null;
-    const [clientIdStr, expStr, sig] = parts;
-    const payload = `${clientIdStr}:${expStr}`;
-    const expected = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
-    if (sig !== expected) return null;
-    if (Date.now() > Number(expStr)) return null;
-    return Number(clientIdStr);
-  } catch {
-    return null;
-  }
-}
 
 const FILE_TYPE_TO_FOLDER: Record<string, string> = {
   "exame_sangue": "EXAMES",

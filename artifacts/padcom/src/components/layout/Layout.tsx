@@ -15,7 +15,9 @@ import {
   ClipboardList,
   Building2,
   Hash,
-  Brain
+  Brain,
+  Library,
+  ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PadconLogo } from "./PadconLogo";
@@ -34,6 +36,8 @@ const navigation = [
   { name: "Financeiro", href: "/payments", icon: CreditCard },
   { name: "Profissionais", href: "/professionals", icon: Stethoscope },
   { name: "Substâncias", href: "/substances", icon: Beaker },
+  { name: "Catálogos", href: "/catalogos", icon: Library },
+  { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
   { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
   { name: "Farmácias", href: "/pharmacies", icon: Building2 },

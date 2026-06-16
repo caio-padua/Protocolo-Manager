@@ -23,6 +23,9 @@ import sncrRouter from "./sncr";
 import transmutacaoRouter from "./transmutacao";
 import motorRouter from "./motor";
 import megaAnamneseRouter from "./mega-anamnese";
+import catalogsRouter from "./catalogs";
+import examRequestsRouter from "./exam-requests";
+import anamnesePortalRouter from "./anamnese-portal";
 
 const router: IRouter = Router();
 
@@ -50,5 +53,8 @@ router.use(sncrRouter);
 router.use(transmutacaoRouter);
 router.use(motorRouter);
 router.use(megaAnamneseRouter);
+router.use(catalogsRouter);
+router.use(examRequestsRouter);
+router.use(anamnesePortalRouter);
 
 export default router;

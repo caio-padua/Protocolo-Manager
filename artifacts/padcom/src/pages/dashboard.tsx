@@ -3,11 +3,130 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Activity, AlertTriangle, Calendar as CalendarIcon, CheckCircle2, Clock, CreditCard, Info, TrendingUp, Users } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Activity, AlertTriangle, Calendar as CalendarIcon, CheckCircle2, Clock, ClipboardCheck, Info, Loader2, TrendingUp, X } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { Badge } from "@/components/ui/badge";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+type FilaItem = {
+  id: number;
+  clienteId: number | null;
+  status: string;
+  createdAt: string;
+  clientName: string | null;
+  totalItens: number;
+  resumo: { escoreTotal?: number; gradeGlobal?: string; exames?: string[]; doencas?: string[] } | null;
+};
+
+function FilaValidacao() {
+  const qc = useQueryClient();
+  const [pendingId, setPendingId] = useState<number | null>(null);
+  const { data: fila, isLoading } = useQuery<FilaItem[]>({
+    queryKey: ["anamnese-fila"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/anamnese-portal/fila`);
+      if (!res.ok) throw new Error("Erro ao carregar fila");
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  const decidir = useMutation({
+    mutationFn: async ({ id, decisao }: { id: number; decisao: "validado" | "recusado" }) => {
+      setPendingId(id);
+      const res = await fetch(`${API_BASE}/api/anamnese-portal/sugestao/${id}/decidir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decisao }),
+      });
+      if (!res.ok) throw new Error("Erro ao decidir");
+      return res.json();
+    },
+    onSettled: () => {
+      setPendingId(null);
+      qc.invalidateQueries({ queryKey: ["anamnese-fila"] });
+    },
+  });
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex h-full">
+        <div className="w-1 shrink-0" style={{ backgroundColor: "hsl(38, 92%, 50%)" }} />
+        <div className="flex-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" style={{ color: "hsl(38, 92%, 50%)" }} />
+              Fila de Validação — Anamnese
+            </CardTitle>
+            {fila && fila.length > 0 && (
+              <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400">
+                {fila.length} aguardando
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+              </div>
+            ) : !fila || fila.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
+                <CheckCircle2 className="mx-auto h-8 w-8 mb-2 opacity-20 text-green-500" />
+                <p className="text-sm">Nenhuma anamnese aguardando validação.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fila.map((item) => {
+                  const busy = pendingId === item.id && decidir.isPending;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{item.clientName ?? `Cliente #${item.clienteId ?? "?"}`}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-1">
+                          <span>{format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                          {item.resumo?.gradeGlobal && (
+                            <>
+                              <span>•</span>
+                              <span className="uppercase tracking-wide">{item.resumo.gradeGlobal}</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>{item.totalItens} exame(s) sugerido(s)</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => decidir.mutate({ id: item.id, decisao: "validado" })}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold uppercase tracking-wide disabled:opacity-40 transition-colors"
+                        >
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          Validar
+                        </button>
+                        <button
+                          onClick={() => decidir.mutate({ id: item.id, decisao: "recusado" })}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-border hover:bg-muted text-xs font-semibold uppercase tracking-wide disabled:opacity-40 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" /> Recusar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -84,6 +203,8 @@ export default function Dashboard() {
           ))}
         </div>
       ) : null}
+
+      <FilaValidacao />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4">

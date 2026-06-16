@@ -24,7 +24,10 @@ import Prescricao from "@/pages/prescricao";
 import Pharmacies from "@/pages/pharmacies";
 import Sncr from "@/pages/sncr";
 import MegaAnamnese from "@/pages/mega-anamnese";
+import Catalogos from "@/pages/catalogos";
+import Exames from "@/pages/exames";
 import Portal from "@/pages/portal";
+import Anamnese from "@/pages/anamnese";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +42,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/portal" component={Portal} />
+      <Route path="/anamnese" component={Anamnese} />
       <Route>
         <Layout>
           <Switch>
@@ -68,6 +72,8 @@ function Router() {
             <Route path="/pharmacies" component={Pharmacies} />
             <Route path="/sncr" component={Sncr} />
             <Route path="/mega-anamnese" component={MegaAnamnese} />
+            <Route path="/catalogos" component={Catalogos} />
+            <Route path="/exames" component={Exames} />
             
             <Route component={NotFound} />
           </Switch>
