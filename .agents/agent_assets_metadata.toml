@@ -30,3 +30,9 @@ id = "c3YYBAy4YEyAoJ0DQqD0h"
 uri = "file://PADCOM_FULL_TECHNICAL_DOC.md"
 type = "text"
 title = "PADCOM - Documentacao Tecnica Completa"
+
+[[outputs]]
+id = "_LAWW5-lDn6xXQmmgidPL"
+uri = "file://.local/exports/ras-teste-quebra-pagina.pdf"
+type = "pdf"
+title = "RAS assinado — teste de estresse (15 substancias, 19 paginas, sem pagina em branco)"

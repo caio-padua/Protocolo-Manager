@@ -4,5 +4,6 @@
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [Gerador de PDF: coercao de texto](ras-pdf-coercao-texto.md) — bodySystemEffects jsonb e numerico (0-5), nao texto; helpers de PDF devem coagir nao-strings via safeTxt ou estouram .split.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body (e na whitelist do PATCH); zod.object faz strip, 200 nao prova persistencia; objeto livre = additionalProperties->zod.record; nao marcar nullable em coluna NOT NULL.
+- [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
 - [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
 - [API admin sem auth (Manager)](admin-api-sem-auth.md) — todos os routers admin nao tem authz (single-tenant, proxy); nao inventar auth p/ 1-2 rotas em revisao, e condicao do app inteiro.

@@ -224,13 +224,30 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   const allPages: PDFPage[] = [];
 
+  // Cursor de página compartilhado — garante que o conteúdo nunca caia fora da folha.
+  let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  allPages.push(page);
+  let y = PAGE_H - MARGIN;
+
+  function newPage(): void {
+    page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    allPages.push(page);
+    y = PAGE_H - MARGIN;
+  }
+
+  function ensureSpace(needed: number): void {
+    // Quebra de pagina so quando nao cabe E ainda nao estamos no topo de uma
+    // pagina nova. Isso evita criar pagina em branco quando um unico bloco e
+    // maior que a area util (nesse caso desenha no topo da pagina nova, sem
+    // ciclo de paginas vazias).
+    const atTop = y >= PAGE_H - MARGIN - 0.5;
+    if (y - needed < MARGIN + 24 && !atTop) newPage();
+  }
+
   // ============================================================
   // PAGE 1: RAS — REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS
   // ============================================================
   {
-    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-    allPages.push(page);
-    let y = PAGE_H - MARGIN;
 
     page.drawText("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", {
       x: MARGIN, y, size: 14, font: fonts.bold, color: DARK_BLUE,
@@ -291,15 +308,24 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     const colHeaders = ["Substância", "Dose", "Sessão", "Via", "Lote", "Validade", "Status"];
     const rowH = 18;
 
-    let cx = MARGIN;
-    page.drawRectangle({ x: MARGIN, y: y - rowH + 4, width: CONTENT_W, height: rowH, color: LIGHT_GRAY });
-    for (let i = 0; i < colHeaders.length; i++) {
-      page.drawText(colHeaders[i], { x: cx + 4, y: y - 8, size: 7, font: fonts.bold, color: DARK_BLUE });
-      cx += colWidths[i];
+    function drawSubstHeader(): void {
+      let cxh = MARGIN;
+      page.drawRectangle({ x: MARGIN, y: y - rowH + 4, width: CONTENT_W, height: rowH, color: LIGHT_GRAY });
+      for (let i = 0; i < colHeaders.length; i++) {
+        page.drawText(colHeaders[i], { x: cxh + 4, y: y - 8, size: 7, font: fonts.bold, color: DARK_BLUE });
+        cxh += colWidths[i];
+      }
+      y -= rowH;
     }
-    y -= rowH;
+
+    let cx = MARGIN;
+    drawSubstHeader();
 
     for (const sub of ras.substances) {
+      if (y - rowH < MARGIN + 24) {
+        newPage();
+        drawSubstHeader();
+      }
       cx = MARGIN;
       const route = sub.procedureType === "im" ? "IM" : sub.procedureType === "implant" ? "IMP" : "IV";
       const values = [
@@ -322,15 +348,19 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     y -= 15;
 
     if (ras.observations) {
+      ensureSpace(40);
       sectionTitle("Observações");
       const obsLines = wrapText(ras.observations, fonts.regular, 9, CONTENT_W);
       for (const line of obsLines) {
+        ensureSpace(13);
         page.drawText(line, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
         y -= 13;
       }
       y -= 10;
     }
 
+    // Mantém todo o bloco de assinatura junto, nunca cortado entre páginas.
+    ensureSpace(230);
     y -= 20;
     page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: GRAY, opacity: 0.4 });
     y -= 25;
@@ -384,9 +414,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   for (let si = 0; si < substancesWithInfo.length; si++) {
     const sub = substancesWithInfo[si];
-    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-    allPages.push(page);
-    let y = PAGE_H - MARGIN;
+    newPage();
 
     const pageLabel = `${si + 1}/${substancesWithInfo.length}`;
     page.drawText(`FICHA DA SUBSTÂNCIA — ${pageLabel}`, { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
@@ -405,6 +433,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     y -= 55;
 
     if (sub.description) {
+      ensureSpace(31);
       page.drawText("O QUE É", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
       y -= 4;
       page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: ACCENT_BLUE, opacity: 0.3 });
@@ -412,6 +441,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
       const descLines = wrapText(sub.description, fonts.regular, 9, CONTENT_W);
       for (const line of descLines) {
+        ensureSpace(13);
         page.drawText(line, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
         y -= 13;
       }
@@ -419,6 +449,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     }
 
     if (sub.mainFunction) {
+      ensureSpace(48);
       page.drawText("FUNÇÃO PRINCIPAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
       y -= 4;
       page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: ACCENT_BLUE, opacity: 0.3 });
@@ -435,6 +466,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     }
 
     if (sub.bodySystemEffects && typeof sub.bodySystemEffects === "object") {
+      ensureSpace(40);
       y -= 10;
       page.drawText("EFEITO POR SISTEMA DO CORPO", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
       y -= 4;
@@ -456,6 +488,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       const colW = CONTENT_W / 2 - 5;
 
       for (let row = 0; row < systems.length; row += 2) {
+        ensureSpace(55);
         for (let col = 0; col < 2 && row + col < systems.length; col++) {
           const [system, effect] = systems[row + col];
           const xPos = MARGIN + col * (colW + 10);
@@ -476,6 +509,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     }
 
     if (sub.perceivedEffects) {
+      ensureSpace(36);
       y -= 5;
       page.drawText("EFEITOS PERCEBIDOS PELO CLIENTE", { x: MARGIN, y, size: 8, font: fonts.bold, color: GREEN });
       y -= 4;
@@ -484,6 +518,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
       const effectLines = wrapText(sub.perceivedEffects, fonts.regular, 9, CONTENT_W);
       for (const line of effectLines) {
+        ensureSpace(13);
         page.drawText(`> ${line}`, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
         y -= 13;
       }
@@ -491,6 +526,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     }
 
     if (sub.timeToEffect) {
+      ensureSpace(31);
       page.drawText("TEMPO PARA PERCEBER O EFEITO", { x: MARGIN, y, size: 8, font: fonts.bold, color: GOLD });
       y -= 4;
       page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: GOLD, opacity: 0.3 });
@@ -498,6 +534,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
       const timeLines = wrapText(sub.timeToEffect, fonts.regular, 9, CONTENT_W);
       for (const line of timeLines) {
+        ensureSpace(13);
         page.drawText(`>> ${line}`, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
         y -= 13;
       }
@@ -508,9 +545,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   // LAST PAGE(S): TERMO DE CONSENTIMENTO INFORMADO
   // ============================================================
   {
-    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-    allPages.push(page);
-    let y = PAGE_H - MARGIN;
+    newPage();
 
     page.drawText("TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO", {
       x: MARGIN, y, size: 13, font: fonts.bold, color: DARK_BLUE,
@@ -570,55 +605,38 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     ];
 
     for (const section of consentSections) {
-      if (y < MARGIN + 80) {
-        const newPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-        allPages.push(newPage);
-        y = PAGE_H - MARGIN;
-        page.drawText("TERMO DE CONSENTIMENTO (cont.)", { x: MARGIN, y: PAGE_H - MARGIN, size: 9, font: fonts.bold, color: ACCENT_BLUE });
+      const lines = wrapText(section.text, fonts.regular, 8.5, CONTENT_W);
+      // Mantém o título junto das primeiras linhas; quebra antes de um título órfão.
+      const beforeLen = allPages.length;
+      ensureSpace(14 + Math.min(lines.length, 3) * 12);
+      if (allPages.length > beforeLen) {
+        page.drawText("TERMO DE CONSENTIMENTO (cont.)", { x: MARGIN, y, size: 9, font: fonts.bold, color: ACCENT_BLUE });
         y -= 20;
-
-        const p = allPages[allPages.length - 1];
-        p.drawText(section.title, { x: MARGIN, y, size: 9, font: fonts.bold, color: DARK_BLUE });
-        y -= 14;
-
-        const lines = wrapText(section.text, fonts.regular, 8.5, CONTENT_W);
-        for (const line of lines) {
-          if (y < MARGIN + 40) {
-            const np = pdfDoc.addPage([PAGE_W, PAGE_H]);
-            allPages.push(np);
-            y = PAGE_H - MARGIN;
-          }
-          p.drawText(line, { x: MARGIN, y, size: 8.5, font: fonts.regular, color: BLACK });
-          y -= 12;
-        }
-        y -= 10;
-        continue;
       }
 
       page.drawText(section.title, { x: MARGIN, y, size: 9, font: fonts.bold, color: DARK_BLUE });
       y -= 14;
 
-      const lines = wrapText(section.text, fonts.regular, 8.5, CONTENT_W);
       for (const line of lines) {
-        if (y < MARGIN + 40) break;
+        ensureSpace(12);
         page.drawText(line, { x: MARGIN, y, size: 8.5, font: fonts.regular, color: BLACK });
         y -= 12;
       }
       y -= 10;
     }
 
-    if (y > MARGIN + 80) {
-      y -= 20;
-      const boxWidth = CONTENT_W / 2 - 15;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + boxWidth, y }, thickness: 0.8, color: DARK_BLUE });
-      page.drawText("Assinatura do Cliente", { x: MARGIN + 10, y: y - 12, size: 7, font: fonts.regular, color: GRAY });
-      page.drawText(ras.clientName, { x: MARGIN + 10, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
-      page.drawText(`CPF: ${ras.clientCpf}`, { x: MARGIN + 10, y: y - 33, size: 7, font: fonts.regular, color: GRAY });
+    // Assinatura do cliente — sempre cabe inteira (cria página se faltar espaço).
+    ensureSpace(60);
+    y -= 20;
+    const boxWidth = CONTENT_W / 2 - 15;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + boxWidth, y }, thickness: 0.8, color: DARK_BLUE });
+    page.drawText("Assinatura do Cliente", { x: MARGIN + 10, y: y - 12, size: 7, font: fonts.regular, color: GRAY });
+    page.drawText(ras.clientName, { x: MARGIN + 10, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
+    page.drawText(`CPF: ${ras.clientCpf}`, { x: MARGIN + 10, y: y - 33, size: 7, font: fonts.regular, color: GRAY });
 
-      page.drawLine({ start: { x: MARGIN + boxWidth + 30, y }, end: { x: MARGIN + 2 * boxWidth + 30, y }, thickness: 0.8, color: DARK_BLUE });
-      page.drawText("Data", { x: MARGIN + boxWidth + 40, y: y - 12, size: 7, font: fonts.regular, color: GRAY });
-      page.drawText(formattedDate, { x: MARGIN + boxWidth + 40, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
-    }
+    page.drawLine({ start: { x: MARGIN + boxWidth + 30, y }, end: { x: MARGIN + 2 * boxWidth + 30, y }, thickness: 0.8, color: DARK_BLUE });
+    page.drawText("Data", { x: MARGIN + boxWidth + 40, y: y - 12, size: 7, font: fonts.regular, color: GRAY });
+    page.drawText(formattedDate, { x: MARGIN + boxWidth + 40, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
   }
 
   // Add page numbers to all pages
