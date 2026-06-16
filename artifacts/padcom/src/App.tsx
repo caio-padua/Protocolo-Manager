@@ -28,6 +28,7 @@ import Catalogos from "@/pages/catalogos";
 import Exames from "@/pages/exames";
 import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
+import Area from "@/pages/area";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +44,7 @@ function Router() {
     <Switch>
       <Route path="/portal" component={Portal} />
       <Route path="/anamnese" component={Anamnese} />
+      <Route path="/area" component={Area} />
       <Route>
         <Layout>
           <Switch>

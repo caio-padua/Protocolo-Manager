@@ -26,6 +26,7 @@ import megaAnamneseRouter from "./mega-anamnese";
 import catalogsRouter from "./catalogs";
 import examRequestsRouter from "./exam-requests";
 import anamnesePortalRouter from "./anamnese-portal";
+import areaPacienteRouter from "./area-paciente";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(megaAnamneseRouter);
 router.use(catalogsRouter);
 router.use(examRequestsRouter);
 router.use(anamnesePortalRouter);
+router.use(areaPacienteRouter);
 
 export default router;
