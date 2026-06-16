@@ -53,6 +53,7 @@ const navigation: NavEntry[] = [
     icon: FolderTree,
     children: [
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
+      { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
     ],
   },
   { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },

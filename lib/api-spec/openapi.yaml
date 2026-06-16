@@ -31,6 +31,8 @@ tags:
     description: Prescrições e desmembramento em receitas
   - name: sncr
     description: Numeração SNCR de medicamentos controlados
+  - name: catalog-options
+    description: Opções gerenciáveis de listas (categorias, tipos)
 
 paths:
   /healthz:
@@ -730,6 +732,87 @@ paths:
                 $ref: "#/components/schemas/ProtocolStats"
 
   # PHARMACIES
+  /catalog-options:
+    get:
+      operationId: listCatalogOptions
+      tags: [catalog-options]
+      summary: List catalog options (optionally filtered by kind)
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: all
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of catalog options
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogOption"
+    post:
+      operationId: createCatalogOption
+      tags: [catalog-options]
+      summary: Create a catalog option
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCatalogOptionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogOption"
+
+  /catalog-options/{id}:
+    patch:
+      operationId: updateCatalogOption
+      tags: [catalog-options]
+      summary: Update a catalog option
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCatalogOptionBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogOption"
+    delete:
+      operationId: deleteCatalogOption
+      tags: [catalog-options]
+      summary: Delete (deactivate) a catalog option
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /pharmacies:
     get:
       operationId: listPharmacies
@@ -2302,6 +2385,50 @@ components:
       required:
         - name
         - serviceTypes
+
+    CatalogOption:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+        label:
+          type: string
+        color:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        active:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - kind
+        - label
+        - sortOrder
+        - active
+        - createdAt
+
+    CreateCatalogOptionBody:
+      type: object
+      properties:
+        kind:
+          type: string
+        label:
+          type: string
+        color:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        active:
+          type: boolean
+      required:
+        - kind
+        - label
 
     Pharmacy:
       type: object

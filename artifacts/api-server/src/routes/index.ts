@@ -28,6 +28,7 @@ import cadastrosRouter from "./cadastros";
 import examRequestsRouter from "./exam-requests";
 import anamnesePortalRouter from "./anamnese-portal";
 import areaPacienteRouter from "./area-paciente";
+import catalogOptionsRouter from "./catalog-options";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use(cadastrosRouter);
 router.use(examRequestsRouter);
 router.use(anamnesePortalRouter);
 router.use(areaPacienteRouter);
+router.use(catalogOptionsRouter);
 
 export default router;

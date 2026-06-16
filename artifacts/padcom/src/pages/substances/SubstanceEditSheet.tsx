@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useUpdateSubstance, getListSubstancesQueryKey } from "@workspace/api-client-react";
+import { useUpdateSubstance, getListSubstancesQueryKey, useListCatalogOptions } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -13,7 +13,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Star, X, Plus, Activity, Gem } from "lucide-react";
+import {
+  Star, X, Plus, Activity, Gem, Beaker, Syringe, Droplet, Info, Sparkles, ShieldAlert,
+} from "lucide-react";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 
 const NULLABLE_TEXT = "";
@@ -28,6 +30,93 @@ function numOrNull(v: any): number | null {
   if (v === undefined || v === null || String(v).trim() === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+// Dropdown que puxa as opcoes gerenciaveis do Cadastros (catalog-options) por
+// "kind". Mantem o valor atual da substancia mesmo que ainda nao esteja
+// cadastrado, para nao perder dado legado.
+function CatalogSelect({
+  kind,
+  value,
+  onChange,
+  placeholder,
+}: {
+  kind: string;
+  value: string | null | undefined;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const { data } = useListCatalogOptions({ kind });
+  const labels = (data ?? []).map((o) => o.label);
+  const current = (value ?? "").trim();
+  const merged = current && !labels.includes(current) ? [current, ...labels] : labels;
+  return (
+    <Select value={current || undefined} onValueChange={onChange}>
+      <SelectTrigger><SelectValue placeholder={placeholder ?? "Selecione..."} /></SelectTrigger>
+      <SelectContent>
+        {merged.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            Nenhuma opção. Cadastre em Cadastros &gt; Listas.
+          </div>
+        ) : (
+          merged.map((l) => (
+            <SelectItem key={l} value={l}>{l}</SelectItem>
+          ))
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ============================================================================
+// Faixa premium: bloco com cabecalho (titulo + subtitulo explicativo) que fica
+// DESTACADO quando esta selecionado/focado. Reaproveitado por todas as secoes.
+// ============================================================================
+function SectionCard({
+  icon: Icon,
+  title,
+  subtitle,
+  active,
+  onActivate,
+  accent,
+  children,
+}: {
+  icon: typeof Star;
+  title: string;
+  subtitle: string;
+  active: boolean;
+  onActivate: () => void;
+  accent?: { bg: string; text: string; band: string; ring: string };
+  children: React.ReactNode;
+}) {
+  const a = accent ?? {
+    bg: "bg-primary/10",
+    text: "text-primary",
+    band: "bg-primary/5",
+    ring: "ring-primary/60 border-primary/40 shadow-primary/10",
+  };
+  return (
+    <section
+      onMouseDown={onActivate}
+      onFocusCapture={onActivate}
+      className={`rounded-xl border bg-card overflow-hidden transition-all duration-300 ${
+        active
+          ? `ring-2 ${a.ring} shadow-lg scale-[1.005]`
+          : "border-border hover:border-primary/20 hover:shadow-sm"
+      }`}
+    >
+      <header className={`flex items-start gap-3 px-4 py-3 border-b ${active ? a.band : "bg-muted/40"}`}>
+        <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${a.bg}`}>
+          <Icon className={`h-5 w-5 ${a.text}`} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold uppercase tracking-wider leading-tight">{title}</h3>
+          <p className="text-xs text-muted-foreground leading-snug mt-0.5">{subtitle}</p>
+        </div>
+      </header>
+      <div className="p-4">{children}</div>
+    </section>
+  );
 }
 
 function EditableStars({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -181,10 +270,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const TEXTAREAS: { key: string; label: string }[] = [
+const TEXTAREAS_DESC: { key: string; label: string }[] = [
   { key: "description", label: "O que é (descrição)" },
   { key: "mainFunction", label: "Função principal" },
   { key: "perceivedEffects", label: "Efeitos percebidos pelo cliente" },
+];
+
+const TEXTAREAS_BENEFIT: { key: string; label: string }[] = [
   { key: "longevityBenefit", label: "Longevidade" },
   { key: "qualityOfLifeImpact", label: "Qualidade de vida" },
   { key: "sleepBenefit", label: "Sono" },
@@ -195,9 +287,14 @@ const TEXTAREAS: { key: string; label: string }[] = [
   { key: "mentalClarity", label: "Clareza mental" },
   { key: "skinHairNails", label: "Pele, cabelo e unhas" },
   { key: "immuneSupport", label: "Imunidade" },
+];
+
+const TEXTAREAS_SAFETY: { key: string; label: string }[] = [
   { key: "contraindications", label: "Contraindicações" },
   { key: "scientificEvidence", label: "Evidência científica" },
 ];
+
+const ALL_TEXTAREAS = [...TEXTAREAS_DESC, ...TEXTAREAS_BENEFIT, ...TEXTAREAS_SAFETY];
 
 export function SubstanceEditSheet({
   substance,
@@ -211,6 +308,7 @@ export function SubstanceEditSheet({
   const queryClient = useQueryClient();
   const update = useUpdateSubstance();
   const [form, setForm] = useState<Record<string, any>>({});
+  const [activeSection, setActiveSection] = useState<string>("ident");
 
   useEffect(() => {
     if (substance) {
@@ -221,6 +319,7 @@ export function SubstanceEditSheet({
         ? (substance.categoryMeters as Record<string, number>)
         : {};
       setForm({ ...substance, bodySystemEffects: { ...bse }, categoryMeters: { ...cm } });
+      setActiveSection("ident");
     }
   }, [substance]);
 
@@ -249,7 +348,7 @@ export function SubstanceEditSheet({
       composicao: emptyToNull(form.composicao),
       posologia: emptyToNull(form.posologia),
     };
-    for (const { key } of TEXTAREAS) payload[key] = emptyToNull(form[key]);
+    for (const { key } of ALL_TEXTAREAS) payload[key] = emptyToNull(form[key]);
 
     update.mutate(
       { id: substance.id, data: payload as any },
@@ -264,117 +363,224 @@ export function SubstanceEditSheet({
     );
   };
 
+  const is = (id: string) => activeSection === id;
+  const go = (id: string) => () => setActiveSection(id);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col p-0">
-        <SheetHeader className="px-6 pt-6 pb-2">
-          <SheetTitle>Editar substância</SheetTitle>
-          <SheetDescription>
-            Ajuste as informações, as estrelas e as barras dos sistemas corporais. As alterações entram no informativo e no RAS.
-          </SheetDescription>
+      <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col p-0 gap-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-br from-primary/5 to-transparent">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+              style={{ backgroundColor: form.color ?? substance.color ?? "#3D7A7A" }}
+            >
+              <Beaker className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <SheetTitle className="text-lg leading-tight truncate">
+                {form.name || substance.name || "Editar substância"}
+              </SheetTitle>
+              <SheetDescription className="text-xs leading-snug">
+                Tudo que você ajustar aqui entra no informativo do cliente e no RAS.
+              </SheetDescription>
+            </div>
+          </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-6">
-          <div className="space-y-5 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Nome">
-                <Input value={form.name ?? ""} onChange={(e) => setField("name", e.target.value)} />
-              </Field>
-              <Field label="Cor">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={form.color ?? "#3D7A7A"}
-                    onChange={(e) => setField("color", e.target.value)}
-                    className="h-9 w-12 rounded border cursor-pointer"
+        <ScrollArea className="flex-1 px-5">
+          <div className="space-y-4 py-5">
+            {/* 1 — IDENTIFICACAO */}
+            <SectionCard
+              icon={Beaker}
+              title="Identificação"
+              subtitle="Nome, cor, categoria e como a substância é aplicada."
+              active={is("ident")}
+              onActivate={go("ident")}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nome">
+                  <Input value={form.name ?? ""} onChange={(e) => setField("name", e.target.value)} />
+                </Field>
+                <Field label="Cor">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={form.color ?? "#3D7A7A"}
+                      onChange={(e) => setField("color", e.target.value)}
+                      className="h-9 w-12 rounded border cursor-pointer"
+                    />
+                    <Input value={form.color ?? ""} onChange={(e) => setField("color", e.target.value)} />
+                  </div>
+                </Field>
+                <Field label="Categoria">
+                  <CatalogSelect
+                    kind="substance_category"
+                    value={form.category}
+                    onChange={(v) => setField("category", v)}
                   />
-                  <Input value={form.color ?? ""} onChange={(e) => setField("color", e.target.value)} />
-                </div>
-              </Field>
-              <Field label="Categoria">
-                <Input value={form.category ?? ""} onChange={(e) => setField("category", e.target.value)} />
-              </Field>
-              <Field label="Tipo / Categoria (exibição)">
-                <Input value={form.categoryType ?? ""} onChange={(e) => setField("categoryType", e.target.value)} />
-              </Field>
-              <Field label="Procedimento">
-                <Select value={form.procedureType ?? "iv"} onValueChange={(v) => setField("procedureType", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="iv">Endovenoso (IV) — 30 min</SelectItem>
-                    <SelectItem value="im">Intramuscular (IM) — 15 min</SelectItem>
-                    <SelectItem value="implant">Implante — 60 min</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Avaliação (estrelas)">
-                <EditableStars value={Number(form.starRating) || 0} onChange={(n) => setField("starRating", n)} />
-              </Field>
-            </div>
+                </Field>
+                <Field label="Tipo / Categoria (exibição)">
+                  <CatalogSelect
+                    kind="substance_type"
+                    value={form.categoryType}
+                    onChange={(v) => setField("categoryType", v)}
+                  />
+                </Field>
+                <Field label="Procedimento">
+                  <Select value={form.procedureType ?? "iv"} onValueChange={(v) => setField("procedureType", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="iv">Endovenoso (IV) — 30 min</SelectItem>
+                      <SelectItem value="im">Intramuscular (IM) — 15 min</SelectItem>
+                      <SelectItem value="implant">Implante — 60 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Avaliação (estrelas)">
+                  <EditableStars value={Number(form.starRating) || 0} onChange={(n) => setField("starRating", n)} />
+                </Field>
+              </div>
+            </SectionCard>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Field label="Dose padrão">
-                <Input value={form.defaultDose ?? ""} onChange={(e) => setField("defaultDose", e.target.value)} />
-              </Field>
-              <Field label="Intervalo (dias)">
-                <Input type="number" value={form.intervalDays ?? ""} onChange={(e) => setField("intervalDays", e.target.value)} />
-              </Field>
-              <Field label="Duração (min)">
-                <Input type="number" value={form.durationMinutes ?? 30} onChange={(e) => setField("durationMinutes", e.target.value)} />
-              </Field>
-              <Field label="Tempo p/ resultado">
-                <Input value={form.timeToEffect ?? ""} onChange={(e) => setField("timeToEffect", e.target.value)} />
-              </Field>
-            </div>
+            {/* 2 — POSOLOGIA & LOGISTICA */}
+            <SectionCard
+              icon={Syringe}
+              title="Posologia & Logística"
+              subtitle="Dose, intervalo entre sessões, duração e tempo até o resultado."
+              active={is("posologia")}
+              onActivate={go("posologia")}
+              accent={{ bg: "bg-sky-500/10", text: "text-sky-600", band: "bg-sky-500/5", ring: "ring-sky-400/60 border-sky-300/50 shadow-sky-500/10" }}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Field label="Dose padrão">
+                  <Input value={form.defaultDose ?? ""} onChange={(e) => setField("defaultDose", e.target.value)} />
+                </Field>
+                <Field label="Intervalo (dias)">
+                  <Input type="number" value={form.intervalDays ?? ""} onChange={(e) => setField("intervalDays", e.target.value)} />
+                </Field>
+                <Field label="Duração (min)">
+                  <Input type="number" value={form.durationMinutes ?? 30} onChange={(e) => setField("durationMinutes", e.target.value)} />
+                </Field>
+                <Field label="Tempo p/ resultado">
+                  <Input value={form.timeToEffect ?? ""} onChange={(e) => setField("timeToEffect", e.target.value)} />
+                </Field>
+              </div>
+            </SectionCard>
 
-            <Field label="Composição do blend (separe por vírgula; ex.: L-CARNITINA 1 G, INOSITOL 500 MG)">
+            {/* 3 — COMPOSICAO */}
+            <SectionCard
+              icon={Droplet}
+              title="Composição do Blend"
+              subtitle="Separe os ativos por vírgula. Ex.: L-CARNITINA 1 G, INOSITOL 500 MG."
+              active={is("composicao")}
+              onActivate={go("composicao")}
+              accent={{ bg: "bg-teal-500/10", text: "text-teal-600", band: "bg-teal-500/5", ring: "ring-teal-400/60 border-teal-300/50 shadow-teal-500/10" }}
+            >
               <Textarea
                 value={form.composicao ?? ""}
                 onChange={(e) => setField("composicao", e.target.value)}
                 rows={2}
               />
-            </Field>
+            </SectionCard>
 
-            <div className="rounded-xl border bg-muted/30 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="h-4 w-4 text-primary" />
-                <span className="text-sm font-bold">Impacto nos Sistemas Corporais (clique nas barras)</span>
-              </div>
+            {/* 4 — IMPACTO NOS SISTEMAS */}
+            <SectionCard
+              icon={Activity}
+              title="Impacto nos Sistemas Corporais"
+              subtitle="Clique nas barras (grau 0 a 5) para definir o quanto a substância age em cada sistema."
+              active={is("sistemas")}
+              onActivate={go("sistemas")}
+            >
               <SystemEditor
                 effects={(form.bodySystemEffects as Record<string, number>) ?? {}}
                 setEffects={(next) => setField("bodySystemEffects", next)}
               />
-            </div>
+            </SectionCard>
 
-            <div className="rounded-xl border-2 border-amber-300/70 dark:border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Gem className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-bold">Medidores de Resultado (clique nas barras)</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Estes medidores aparecem em destaque "ouro e diamante" na apresentação ao cliente.
-              </p>
+            {/* 5 — MEDIDORES DE RESULTADO (ouro e diamante) */}
+            <SectionCard
+              icon={Gem}
+              title="Medidores de Resultado"
+              subtitle="Aparecem em destaque ouro e diamante na apresentação ao cliente. Clique nas barras (0 a 5)."
+              active={is("medidores")}
+              onActivate={go("medidores")}
+              accent={{ bg: "bg-amber-400/15", text: "text-amber-500", band: "bg-amber-400/10", ring: "ring-amber-400/70 border-amber-300/60 shadow-amber-500/15" }}
+            >
               <CategoryMeterEditor
                 meters={(form.categoryMeters as Record<string, number>) ?? {}}
                 setMeters={(next) => setField("categoryMeters", next)}
               />
-            </div>
+            </SectionCard>
 
-            <div className="space-y-4">
-              {TEXTAREAS.map(({ key, label }) => (
-                <Field key={key} label={label}>
-                  <Textarea
-                    value={form[key] ?? NULLABLE_TEXT}
-                    onChange={(e) => setField(key, e.target.value)}
-                    rows={key === "description" || key === "mainFunction" ? 3 : 2}
-                  />
-                </Field>
-              ))}
-            </div>
+            {/* 6 — DESCRICAO CLINICA */}
+            <SectionCard
+              icon={Info}
+              title="Descrição Clínica"
+              subtitle="O que é, função principal e os efeitos que o cliente percebe."
+              active={is("descricao")}
+              onActivate={go("descricao")}
+            >
+              <div className="space-y-4">
+                {TEXTAREAS_DESC.map(({ key, label }) => (
+                  <Field key={key} label={label}>
+                    <Textarea
+                      value={form[key] ?? NULLABLE_TEXT}
+                      onChange={(e) => setField(key, e.target.value)}
+                      rows={key === "description" || key === "mainFunction" ? 3 : 2}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* 7 — BENEFICIOS POR AREA */}
+            <SectionCard
+              icon={Sparkles}
+              title="Benefícios por Área"
+              subtitle="Longevidade, energia, sono, libido, performance e demais ganhos percebidos."
+              active={is("beneficios")}
+              onActivate={go("beneficios")}
+              accent={{ bg: "bg-violet-500/10", text: "text-violet-600", band: "bg-violet-500/5", ring: "ring-violet-400/60 border-violet-300/50 shadow-violet-500/10" }}
+            >
+              <div className="space-y-4">
+                {TEXTAREAS_BENEFIT.map(({ key, label }) => (
+                  <Field key={key} label={label}>
+                    <Textarea
+                      value={form[key] ?? NULLABLE_TEXT}
+                      onChange={(e) => setField(key, e.target.value)}
+                      rows={2}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* 8 — SEGURANCA & EVIDENCIA */}
+            <SectionCard
+              icon={ShieldAlert}
+              title="Segurança & Evidência"
+              subtitle="Contraindicações e base científica que sustenta a indicação."
+              active={is("seguranca")}
+              onActivate={go("seguranca")}
+              accent={{ bg: "bg-rose-500/10", text: "text-rose-600", band: "bg-rose-500/5", ring: "ring-rose-400/60 border-rose-300/50 shadow-rose-500/10" }}
+            >
+              <div className="space-y-4">
+                {TEXTAREAS_SAFETY.map(({ key, label }) => (
+                  <Field key={key} label={label}>
+                    <Textarea
+                      value={form[key] ?? NULLABLE_TEXT}
+                      onChange={(e) => setField(key, e.target.value)}
+                      rows={2}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </SectionCard>
           </div>
         </ScrollArea>
 
-        <SheetFooter className="px-6 py-4 border-t flex-row justify-end gap-2">
+        <SheetFooter className="px-6 py-4 border-t flex-row justify-end gap-2 bg-muted/30">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={update.isPending}>
             Cancelar
           </Button>

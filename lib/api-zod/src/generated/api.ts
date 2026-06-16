@@ -1352,6 +1352,70 @@ export const GetProtocolStatsResponse = zod.object({
 });
 
 /**
+ * @summary List catalog options (optionally filtered by kind)
+ */
+export const ListCatalogOptionsQueryParams = zod.object({
+  kind: zod.coerce.string().optional(),
+  all: zod.coerce.string().optional(),
+});
+
+export const ListCatalogOptionsResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.string(),
+  label: zod.string(),
+  color: zod.string().nullish(),
+  sortOrder: zod.number(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListCatalogOptionsResponse = zod.array(
+  ListCatalogOptionsResponseItem,
+);
+
+/**
+ * @summary Create a catalog option
+ */
+export const CreateCatalogOptionBody = zod.object({
+  kind: zod.string(),
+  label: zod.string(),
+  color: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a catalog option
+ */
+export const UpdateCatalogOptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCatalogOptionBody = zod.object({
+  kind: zod.string(),
+  label: zod.string(),
+  color: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+  active: zod.boolean().optional(),
+});
+
+export const UpdateCatalogOptionResponse = zod.object({
+  id: zod.number(),
+  kind: zod.string(),
+  label: zod.string(),
+  color: zod.string().nullish(),
+  sortOrder: zod.number(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete (deactivate) a catalog option
+ */
+export const DeleteCatalogOptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List pharmacies
  */
 export const ListPharmaciesResponseItem = zod.object({

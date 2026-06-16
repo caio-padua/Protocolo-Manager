@@ -688,6 +688,24 @@ export interface CreateProfessionalBody {
   serviceTypes: string[];
 }
 
+export interface CatalogOption {
+  id: number;
+  kind: string;
+  label: string;
+  color?: string | null;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateCatalogOptionBody {
+  kind: string;
+  label: string;
+  color?: string | null;
+  sortOrder?: number;
+  active?: boolean;
+}
+
 export interface Pharmacy {
   id: number;
   name: string;
@@ -979,6 +997,11 @@ export type ListRASParams = {
 export type ListPaymentsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type ListCatalogOptionsParams = {
+  kind?: string;
+  all?: string;
 };
 
 export type ListAnamnesePerguntasParams = {

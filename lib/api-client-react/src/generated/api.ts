@@ -26,8 +26,10 @@ import type {
   AnamnesePerguntaUpdate,
   AnamneseSintoma,
   BatchResult,
+  CatalogOption,
   Client,
   ConfirmSubstanceApplicationBody,
+  CreateCatalogOptionBody,
   CreateClientBody,
   CreatePaymentBody,
   CreatePharmacyBody,
@@ -45,6 +47,7 @@ import type {
   GenerateProtocolICS200,
   HealthStatus,
   ListAnamnesePerguntasParams,
+  ListCatalogOptionsParams,
   ListClientsParams,
   ListPaymentsParams,
   ListProtocolsParams,
@@ -2934,6 +2937,360 @@ export function useGetProtocolStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List catalog options (optionally filtered by kind)
+ */
+export const getListCatalogOptionsUrl = (params?: ListCatalogOptionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/catalog-options?${stringifiedParams}`
+    : `/api/catalog-options`;
+};
+
+export const listCatalogOptions = async (
+  params?: ListCatalogOptionsParams,
+  options?: RequestInit,
+): Promise<CatalogOption[]> => {
+  return customFetch<CatalogOption[]>(getListCatalogOptionsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCatalogOptionsQueryKey = (
+  params?: ListCatalogOptionsParams,
+) => {
+  return [`/api/catalog-options`, ...(params ? [params] : [])] as const;
+};
+
+export const getListCatalogOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCatalogOptions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCatalogOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCatalogOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCatalogOptionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCatalogOptions>>
+  > = ({ signal }) => listCatalogOptions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCatalogOptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCatalogOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCatalogOptions>>
+>;
+export type ListCatalogOptionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List catalog options (optionally filtered by kind)
+ */
+
+export function useListCatalogOptions<
+  TData = Awaited<ReturnType<typeof listCatalogOptions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCatalogOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCatalogOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCatalogOptionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a catalog option
+ */
+export const getCreateCatalogOptionUrl = () => {
+  return `/api/catalog-options`;
+};
+
+export const createCatalogOption = async (
+  createCatalogOptionBody: CreateCatalogOptionBody,
+  options?: RequestInit,
+): Promise<CatalogOption> => {
+  return customFetch<CatalogOption>(getCreateCatalogOptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCatalogOptionBody),
+  });
+};
+
+export const getCreateCatalogOptionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogOption>>,
+    TError,
+    { data: BodyType<CreateCatalogOptionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCatalogOption>>,
+  TError,
+  { data: BodyType<CreateCatalogOptionBody> },
+  TContext
+> => {
+  const mutationKey = ["createCatalogOption"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCatalogOption>>,
+    { data: BodyType<CreateCatalogOptionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCatalogOption(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCatalogOptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCatalogOption>>
+>;
+export type CreateCatalogOptionMutationBody = BodyType<CreateCatalogOptionBody>;
+export type CreateCatalogOptionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a catalog option
+ */
+export const useCreateCatalogOption = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogOption>>,
+    TError,
+    { data: BodyType<CreateCatalogOptionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCatalogOption>>,
+  TError,
+  { data: BodyType<CreateCatalogOptionBody> },
+  TContext
+> => {
+  return useMutation(getCreateCatalogOptionMutationOptions(options));
+};
+
+/**
+ * @summary Update a catalog option
+ */
+export const getUpdateCatalogOptionUrl = (id: number) => {
+  return `/api/catalog-options/${id}`;
+};
+
+export const updateCatalogOption = async (
+  id: number,
+  createCatalogOptionBody: CreateCatalogOptionBody,
+  options?: RequestInit,
+): Promise<CatalogOption> => {
+  return customFetch<CatalogOption>(getUpdateCatalogOptionUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCatalogOptionBody),
+  });
+};
+
+export const getUpdateCatalogOptionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogOption>>,
+    TError,
+    { id: number; data: BodyType<CreateCatalogOptionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCatalogOption>>,
+  TError,
+  { id: number; data: BodyType<CreateCatalogOptionBody> },
+  TContext
+> => {
+  const mutationKey = ["updateCatalogOption"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCatalogOption>>,
+    { id: number; data: BodyType<CreateCatalogOptionBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCatalogOption(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCatalogOptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCatalogOption>>
+>;
+export type UpdateCatalogOptionMutationBody = BodyType<CreateCatalogOptionBody>;
+export type UpdateCatalogOptionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a catalog option
+ */
+export const useUpdateCatalogOption = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogOption>>,
+    TError,
+    { id: number; data: BodyType<CreateCatalogOptionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCatalogOption>>,
+  TError,
+  { id: number; data: BodyType<CreateCatalogOptionBody> },
+  TContext
+> => {
+  return useMutation(getUpdateCatalogOptionMutationOptions(options));
+};
+
+/**
+ * @summary Delete (deactivate) a catalog option
+ */
+export const getDeleteCatalogOptionUrl = (id: number) => {
+  return `/api/catalog-options/${id}`;
+};
+
+export const deleteCatalogOption = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCatalogOptionUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCatalogOptionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogOption>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCatalogOption>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCatalogOption"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCatalogOption>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCatalogOption(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCatalogOptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCatalogOption>>
+>;
+
+export type DeleteCatalogOptionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete (deactivate) a catalog option
+ */
+export const useDeleteCatalogOption = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogOption>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCatalogOption>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCatalogOptionMutationOptions(options));
+};
 
 /**
  * @summary List pharmacies
