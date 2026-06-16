@@ -2,7 +2,7 @@
 // REGRA CRÍTICA: nunca bloqueia a emissão. Quando esgota ou não há intervalo,
 // retorna número nulo e o status correspondente — quem chama segue emitindo.
 import { db, sncrRangesTable, sncrLogTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 export const SNCR_LOW_THRESHOLD = 50;
 
@@ -58,6 +58,7 @@ export async function consumeSncrNumber(opts: {
         .select()
         .from(sncrRangesTable)
         .where(buildConditions(professionalId, uf, controlledType))
+        .orderBy(asc(sncrRangesTable.id))
         .for("update");
 
       const usable = ranges.find((r) => r.nextNumber <= r.endNumber);

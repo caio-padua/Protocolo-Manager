@@ -18,6 +18,18 @@ import { useToast } from "@/hooks/use-toast";
 const PETROLEO = "#3D7A7A";
 const CIANO = "#45B8CC";
 
+// Cor interna = organização clínica do desmembramento. A manipulação é separada
+// em uma receita por cor interna (campo enviado ao motor de desmembramento).
+const INTERNAL_COLORS: { value: string; label: string; hex: string }[] = [
+  { value: "", label: "— sem cor —", hex: "" },
+  { value: "Azul", label: "Azul", hex: "#2563eb" },
+  { value: "Verde", label: "Verde", hex: "#16a34a" },
+  { value: "Amarelo", label: "Amarelo", hex: "#ca8a04" },
+  { value: "Vermelho", label: "Vermelho", hex: "#dc2626" },
+  { value: "Laranja", label: "Laranja", hex: "#ea580c" },
+  { value: "Roxo", label: "Roxo", hex: "#7c3aed" },
+];
+
 interface PatientData {
   nome: string;
   cpf: string;
@@ -41,7 +53,7 @@ export default function PrescricaoPage() {
   const { toast } = useToast();
   const { data: pharmacies } = useListPharmacies();
   const [defaultPharmacyId, setDefaultPharmacyId] = useState<number | null>(null);
-  const [routing, setRouting] = useState<Record<string, { pharmacyId: number | null; isControlled: boolean; anvisaType: string }>>({});
+  const [routing, setRouting] = useState<Record<string, { pharmacyId: number | null; isControlled: boolean; anvisaType: string; internalColor: string }>>({});
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
 
@@ -61,9 +73,9 @@ export default function PrescricaoPage() {
     },
   });
 
-  const getRoute = (id: string) => routing[id] || { pharmacyId: null, isControlled: false, anvisaType: "" };
-  const setRoute = (id: string, patch: Partial<{ pharmacyId: number | null; isControlled: boolean; anvisaType: string }>) => {
-    setRouting((prev) => ({ ...prev, [id]: { ...(prev[id] || { pharmacyId: null, isControlled: false, anvisaType: "" }), ...patch } }));
+  const getRoute = (id: string) => routing[id] || { pharmacyId: null, isControlled: false, anvisaType: "", internalColor: "" };
+  const setRoute = (id: string, patch: Partial<{ pharmacyId: number | null; isControlled: boolean; anvisaType: string; internalColor: string }>) => {
+    setRouting((prev) => ({ ...prev, [id]: { ...(prev[id] || { pharmacyId: null, isControlled: false, anvisaType: "", internalColor: "" }), ...patch } }));
     // Roteamento mudou: prévia/emissão anteriores ficam obsoletas.
     setPreviewPlans(null);
     setEmitResult(null);
@@ -78,14 +90,32 @@ export default function PrescricaoPage() {
   const pharmaciesForType = (anvisaType: string) =>
     (pharmacies ?? []).filter((p) => !anvisaType || (p.controlledTypes ?? []).includes(anvisaType));
 
+  // Após emitir: mapa tipo Anvisa -> status SNCR (low/exhausted/no_range) para
+  // emoldurar visualmente a matéria-prima controlada cuja numeração apertou.
+  const sncrFlags = useMemo(() => {
+    const m = new Map<string, string>();
+    (emitResult?.sncrAlerts ?? []).forEach((a) => m.set(a.controlledType, a.status));
+    return m;
+  }, [emitResult]);
+
   const buildItems = (): PrescriptionItemInput[] =>
     selected.map((f) => {
       const r = getRoute(f.id);
+      const vias = [...new Set(f.tomadas.map((t) => t.via).filter(Boolean))].join(", ");
+      const periodos = f.tomadas.map((t) => t.periodo).filter(Boolean).join("; ");
+      const doses = f.tomadas
+        .map((t) => `${t.doses}${t.hora ? ` (${t.hora})` : ""}`)
+        .filter(Boolean)
+        .join("; ");
       return {
         name: f.name,
         ativos: f.ativos,
         posologia: f.tomadas.map(tomadaToText).join("; "),
+        dose: doses || null,
+        via: vias || null,
+        periodo: periodos || null,
         category: f.cat,
+        internalColor: r.internalColor || null,
         isControlled: r.isControlled,
         anvisaType: r.isControlled ? r.anvisaType || null : null,
         pharmacyId: r.pharmacyId ?? defaultPharmacyId ?? null,
@@ -586,11 +616,23 @@ export default function PrescricaoPage() {
                   {selected.map((f, idx) => {
                     const r = getRoute(f.id);
                     const recipe = r.isControlled ? recipeTypeForControlledClass(r.anvisaType) : null;
+                    const sncrFlag = r.isControlled && r.anvisaType ? sncrFlags.get(r.anvisaType) : undefined;
+                    const frameClass = sncrFlag === "low"
+                      ? "border-2 border-amber-400 bg-amber-50"
+                      : sncrFlag
+                        ? "border-2 border-destructive bg-destructive/5"
+                        : "border border-border";
                     return (
-                      <div key={f.id} className="border border-border rounded-md p-3">
+                      <div key={f.id} className={`${frameClass} rounded-md p-3`}>
                         <div className="flex items-center gap-2 mb-2">
                           <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
                           <span className="text-sm font-semibold text-foreground truncate">{f.name}</span>
+                          {sncrFlag && (
+                            <span className={`ml-auto shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-sm border flex items-center gap-1 ${sncrFlag === "low" ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-destructive/10 text-destructive border-destructive/30"}`}>
+                              <AlertTriangle className="w-3 h-3" />
+                              {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
+                            </span>
+                          )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
                           <div className="md:col-span-5">
@@ -636,6 +678,22 @@ export default function PrescricaoPage() {
                               )}
                             </div>
                           )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-dashed border-border">
+                          <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                            <Layers className="w-3 h-3" />Cor interna
+                          </label>
+                          <select
+                            className="px-2 py-1.5 border border-border rounded-md text-xs bg-card text-foreground"
+                            value={r.internalColor}
+                            onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
+                          >
+                            {INTERNAL_COLORS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                          {r.internalColor && (
+                            <span className="w-3.5 h-3.5 rounded-full border border-border shrink-0" style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }} />
+                          )}
+                          <span className="text-[10px] text-muted-foreground">A manipulação é desmembrada em uma receita por cor interna.</span>
                         </div>
                       </div>
                     );
