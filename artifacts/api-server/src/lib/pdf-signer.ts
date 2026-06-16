@@ -127,8 +127,8 @@ function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages
   });
 }
 
-function wrapText(text: string, font: Fonts["regular"], fontSize: number, maxWidth: number): string[] {
-  const words = text.split(" ");
+function wrapText(text: string | number | null | undefined, font: Fonts["regular"], fontSize: number, maxWidth: number): string[] {
+  const words = safeTxt(text).split(" ");
   const lines: string[] = [];
   let currentLine = "";
 

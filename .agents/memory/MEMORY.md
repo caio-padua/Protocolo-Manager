@@ -2,3 +2,4 @@
 - [Transmutacao IHE -> Manager](transmutacao-ihe-manager.md) — catalogo deduplica por id_ihe (3 tabelas), pacientes por chave natural; nunca truncar clients; push com notNull em tabela populada exige truncate/ALTER previo.
 - [Governanca/GitHub/linhagem (Manager)](governanca-equipe-manager.md) — repo=Protocolo-Manager (Dr. Replit Manager); agente nao da push (usuario via aba Git); diretrizes datadas: criar versao nova, antiga intacta; resposta densidade B (tabela e carro-chefe).
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
+- [Gerador de PDF: coercao de texto](ras-pdf-coercao-texto.md) — bodySystemEffects jsonb e numerico (0-5), nao texto; helpers de PDF devem coagir nao-strings via safeTxt ou estouram .split.
