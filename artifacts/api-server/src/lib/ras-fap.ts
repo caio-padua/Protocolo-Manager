@@ -66,9 +66,9 @@ function fmtData(d: Date): string {
 function fmtMoeda(v: number): string {
   return `R$ ${v.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
 }
-function semAcento(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
+// Acentos PRESERVADOS no documento (pedido do CEO). O data bind NUNCA dependeu
+// do texto exibido: as colunas fixas sao preenchidas por CHAVE de codigo (c.key)
+// e os valores por funcoes (ln.valor / dados.campo). Acentuar e 100% seguro.
 
 // ===========================================================================
 // MOTOR DA GRADE — COPIA IDENTICA DO IHE (rasFap.ts). NAO EDITAR A LOGICA.
@@ -199,7 +199,6 @@ interface Paleta {
   ink: string;
   brand: string; // navy do wordmark/cabecalho
   accent: string; // teal de apoio
-  gold: string; // fio bronze classico
   labelInk: string;
   border: string; // linhas finas internas
   frame: string; // moldura grossa externa
@@ -213,7 +212,6 @@ interface Paleta {
   // --- Estetica variavel (a "pele"); o motor da grade NAO muda ---
   bg: string; // cor do "papel" (fundo da folha)
   wordmark: "serif" | "sans"; // estilo do "RAS"
-  rule: "double" | "single" | "hair"; // fio sob o cabecalho
   cell: "battleship" | "center" | "tick"; // pintura da celula aplicada
   frameW: number; // grossura da moldura grossa externa
 }
@@ -223,7 +221,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     ink: "#1f2937",
     brand: "#0a2540",
     accent: "#0e7490",
-    gold: "#b08d57",
     labelInk: "#54647a",
     border: "#aab6c6",
     frame: "#0a2540",
@@ -236,7 +233,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     blank: "#fbfcfe",
     bg: "#ffffff",
     wordmark: "serif",
-    rule: "double",
     cell: "battleship",
     frameW: 1.5,
   },
@@ -244,7 +240,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     ink: "#000000",
     brand: "#000000",
     accent: "#000000",
-    gold: "#000000",
     labelInk: "#333333",
     border: "#000000",
     frame: "#000000",
@@ -257,7 +252,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     blank: "#ffffff",
     bg: "#ffffff",
     wordmark: "sans",
-    rule: "hair",
     cell: "tick",
     frameW: 1.2,
   },
@@ -266,7 +260,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     ink: "#14342f",
     brand: "#3D7A7A",
     accent: "#2a9aad",
-    gold: "#45B8CC",
     labelInk: "#51716d",
     border: "#b7d3d0",
     frame: "#3D7A7A",
@@ -279,7 +272,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     blank: "#fbfdfd",
     bg: "#ffffff",
     wordmark: "sans",
-    rule: "single",
     cell: "center",
     frameW: 1.6,
   },
@@ -288,7 +280,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     ink: "#1f2937",
     brand: "#111827",
     accent: "#475569",
-    gold: "#cbd5e1",
     labelInk: "#6b7280",
     border: "#d6dbe2",
     frame: "#1f2937",
@@ -301,7 +292,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     blank: "#ffffff",
     bg: "#ffffff",
     wordmark: "serif",
-    rule: "hair",
     cell: "tick",
     frameW: 0.9,
   },
@@ -310,7 +300,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     ink: "#3b2f2a",
     brand: "#4a3b30",
     accent: "#9a7b4f",
-    gold: "#b08d57",
     labelInk: "#6e5d4e",
     border: "#d9cbb6",
     frame: "#4a3b30",
@@ -323,7 +312,6 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     blank: "#f7f2e9",
     bg: "#faf7f1",
     wordmark: "serif",
-    rule: "double",
     cell: "center",
     frameW: 1.4,
   },
@@ -344,9 +332,9 @@ const CW = PAGE_W - ML - M;
 const COLS_FIXAS = [
   { key: "sem", label: "APLIC", head: ["APLIC"], w: 26 },
   { key: "agend", label: "DATA AGENDADA", head: ["DATA", "AGENDADA"], w: 58 },
-  { key: "hora", label: "HORA", head: ["HORA"], w: 30 },
   { key: "efetiva", label: "DATA EFETIVA", head: ["DATA", "EFETIVA"], w: 58 },
-  { key: "cienciaPac", label: "CIENCIA / RUBRICA PACIENTE", head: ["CIENCIA / RUBRICA", "PACIENTE"], w: 120 },
+  { key: "hora", label: "HORA", head: ["HORA"], w: 30 },
+  { key: "cienciaPac", label: "CIÊNCIA / RUBRICA PACIENTE", head: ["CIÊNCIA / RUBRICA", "PACIENTE"], w: 120 },
   { key: "rubEnf", label: "RUBRICA ENF.", head: ["RUBRICA", "ENF."], w: 64 },
   { key: "obs", label: "OBS.", head: ["OBS."], w: 58 },
 ] as const;
@@ -385,7 +373,6 @@ function celula(
     wrap?: boolean;
     valign?: "middle" | "top";
     spacing?: number;
-    keepAccents?: boolean;
   } = {},
 ) {
   if (opts.fill) doc.rect(x, y, w, h).fill(opts.fill);
@@ -393,7 +380,9 @@ function celula(
   if (opts.text) {
     const size = opts.size ?? 7;
     const wrap = opts.wrap ?? false;
-    const ty = opts.valign === "top" ? y + 2.5 : y + (h - size) / 2 - 0.5;
+    // Centragem vertical real: a altura visivel da maiuscula ~0.72*size, entao
+    // centramos por essa metrica (item ouro do CEO: texto no meio da celula).
+    const ty = opts.valign === "top" ? y + 2.5 : y + (h - size * 0.72) / 2;
     const font = opts.serif
       ? opts.bold
         ? "Times-Bold"
@@ -405,7 +394,7 @@ function celula(
       .font(font)
       .fontSize(size)
       .fillColor(opts.color ?? pal.ink)
-      .text(opts.keepAccents ? opts.text : semAcento(opts.text), x + 3, ty, {
+      .text(opts.text, x + 3, ty, {
         width: w - 6,
         align: opts.align ?? "left",
         lineBreak: wrap,
@@ -436,7 +425,7 @@ function cabecalhoFixo(
   let ty = y + (h - blockH) / 2 + 0.3;
   doc.font("Helvetica-Bold").fontSize(size).fillColor(pal.labelInk);
   for (const ln of lines) {
-    doc.text(semAcento(ln), x + 2, ty, {
+    doc.text(ln, x + 2, ty, {
       width: w - 4,
       align: "center",
       lineBreak: false,
@@ -456,47 +445,33 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
     .font("Helvetica-Bold")
     .fontSize(7)
     .fillColor(pal.accent)
-    .text(semAcento(texto), x, y, { lineBreak: false, characterSpacing: 1.3 });
+    .text(texto, x, y, { lineBreak: false, characterSpacing: 1.3 });
 }
 
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
-  // Wordmark "RAS": serif (classico/editorial) ou sans block (marca).
-  if (pal.wordmark === "serif") {
-    doc.font("Times-Bold").fontSize(30).fillColor(pal.brand).text("RAS", ML, y - 6, { lineBreak: false });
-  } else {
-    doc.font("Helvetica-Bold").fontSize(27).fillColor(pal.brand).text("RAS", ML, y - 4, { lineBreak: false, characterSpacing: 1.5 });
-  }
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .fillColor(pal.ink)
-    .text("REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS", ML + 70, y + 1, { lineBreak: false, characterSpacing: 0.6 });
-  doc
-    .font("Helvetica")
-    .fontSize(6.4)
-    .fillColor(pal.labelInk)
-    .text("FORMULARIO DE AUDITORIA DE PROCEDIMENTOS  \u00b7  FAP", ML + 70, y + 14, {
-      lineBreak: false,
-      characterSpacing: 1.2,
-    });
-
   const rEnd = PAGE_W - M;
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PAWARDS", rEnd - 320, y - 2, { width: 150, align: "right", lineBreak: false });
-  doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Clinical Intelligence System", rEnd - 320, y + 9, { width: 150, align: "right", lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
-  doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Advanced Systems Architecture", rEnd - 165, y + 9, { width: 165, align: "right", lineBreak: false });
 
-  // Fio sob o cabecalho: duplo (teal+bronze) | unico grosso | hairline fino.
-  const yl = y + 26;
-  if (pal.rule === "double") {
-    doc.lineWidth(1.2).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
-    doc.lineWidth(0.5).moveTo(ML, yl + 2.4).lineTo(PAGE_W - M, yl + 2.4).stroke(pal.gold);
-  } else if (pal.rule === "single") {
-    doc.lineWidth(1.8).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
-  } else {
-    doc.lineWidth(0.6).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.border);
-  }
-  return yl + 9;
+  // Faixa de marca (topo): PAWARDS (engenharia) a ESQUERDA e PADCON a DIREITA,
+  // cada um com seu subtitulo em ingles logo abaixo (pedido do CEO).
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.brand).text("PAWARDS", ML, y, { lineBreak: false, characterSpacing: 0.6 });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("Clinical Intelligence System", ML, y + 9.5, { lineBreak: false, characterSpacing: 0.3 });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.brand).text("PADCON", rEnd - 220, y, { width: 220, align: "right", lineBreak: false });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("Advanced Systems Architecture", rEnd - 220, y + 9.5, { width: 220, align: "right", lineBreak: false });
+
+  // Titulo do documento: wordmark "RAS FAP" + 2 descritivos no estilo do anexo.
+  // Linha 1 (RAS) normal, recuada a esquerda; linha 2 (FAP) em italico, 20%
+  // menor e mais recuada a direita = efeito de subtitulo.
+  const yt = y + 22;
+  const wmFont = pal.wordmark === "serif" ? "Times-Bold" : "Helvetica-Bold";
+  doc.font(wmFont).fontSize(23).fillColor(pal.brand).text("RAS FAP", ML, yt, { lineBreak: false, characterSpacing: pal.wordmark === "serif" ? 0 : 1 });
+  const dx = ML + doc.widthOfString("RAS FAP") + 18;
+  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yt + 2.5, { lineBreak: false, characterSpacing: 0.3 });
+  doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yt + 13.5, { lineBreak: false, characterSpacing: 0.3 });
+
+  // Fio unico fino (a linha dourada de ponta a ponta foi REMOVIDA — pedido do CEO).
+  const yl = yt + 24;
+  doc.lineWidth(0.8).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
+  return yl + 8;
 }
 
 function desenharPaciente(doc: Doc, pal: Paleta, dados: DadosRasFap, y: number): number {
@@ -513,7 +488,7 @@ function desenharPaciente(doc: Doc, pal: Paleta, dados: DadosRasFap, y: number):
     ["NOME", dados.nome],
     ["CPF", dados.cpf || ""],
     ["CELULAR", dados.celular || ""],
-    ["MEDICO RESPONSAVEL", dados.medicoResponsavel],
+    ["MÉDICO RESPONSÁVEL", dados.medicoResponsavel],
     ["PROTOCOLO", dados.protocoloNumero || ""],
   ];
   const dir: [string, string][] = [
@@ -527,8 +502,8 @@ function desenharPaciente(doc: Doc, pal: Paleta, dados: DadosRasFap, y: number):
   const linha = (x0: number, idx: number, par: [string, string]) => {
     const ly = y + idx * rowH;
     if (idx > 0) doc.lineWidth(0.3).moveTo(x0, ly).lineTo(x0 + half, ly).stroke("#d7dfe9");
-    doc.font("Helvetica-Bold").fontSize(6.4).fillColor(pal.labelInk).text(semAcento(par[0]), x0 + 6, ly + 4.2, { width: labelW - 10, lineBreak: false, characterSpacing: 0.5 });
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.ink).text(semAcento(par[1]), x0 + labelW, ly + 3.4, { width: half - labelW - 6, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(6.4).fillColor(pal.labelInk).text(par[0], x0 + 6, ly + (rowH - 6.4 * 0.72) / 2, { width: labelW - 10, lineBreak: false, characterSpacing: 0.5 });
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.ink).text(par[1], x0 + labelW, ly + (rowH - 8 * 0.72) / 2, { width: half - labelW - 6, lineBreak: false });
   };
   esq.forEach((p, i) => linha(ML, i, p));
   dir.forEach((p, i) => linha(ML + half, i, p));
@@ -544,10 +519,10 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
   const cols = slots5(grupo);
 
   const linhas: { label: string; valor: (s: SubstanciaFap) => string; destaque?: boolean }[] = [
-    { label: "SUBSTANCIAS", valor: (s) => `${s.nome}${s.dose ? " " + s.dose : ""}`, destaque: true },
-    { label: "APLICACOES", valor: (s) => String(s.sessoes) },
-    { label: "FREQUENCIA", valor: (s) => `A cada ${s.frequenciaDias} dias` },
-    { label: "INICIO DA APLICACAO", valor: (s) => fmtData(s.inicio) },
+    { label: "SUBSTÂNCIAS", valor: (s) => `${s.nome}${s.dose ? " " + s.dose : ""}`, destaque: true },
+    { label: "APLICAÇÕES", valor: (s) => String(s.sessoes) },
+    { label: "FREQUÊNCIA", valor: (s) => `A cada ${s.frequenciaDias} dias.` },
+    { label: "INÍCIO DA APLICAÇÃO", valor: (s) => fmtData(s.inicio) },
   ];
 
   for (const ln of linhas) {
@@ -592,7 +567,7 @@ function desenharGrade(
   yRodape: number,
   aplicInicio: number,
 ): void {
-  rotulo(doc, pal, "GRADE DE APLICACOES", ML, yTopo - 11);
+  rotulo(doc, pal, "GRADE DE APLICAÇÕES", ML, yTopo - 11);
   const headH = 26;
   const rowH = Math.min(15, (yRodape - yTopo - headH) / LINHAS_POR_PAGINA);
   const cols = slots5(grupo);
@@ -619,7 +594,6 @@ function desenharGrade(
       color: pal.brand,
       wrap: false,
       valign: "middle",
-      keepAccents: true,
     });
   });
 
@@ -688,9 +662,9 @@ function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void 
   // Caixas retangulares (regra do CEO); profissionais com espaco para CARIMBO.
   const slots: { label: string; weight: number; carimbo?: boolean }[] = [
     { label: "ASSINATURA DO PACIENTE", weight: 200 },
-    { label: "MEDICO(A) RESPONSAVEL", weight: 150 },
+    { label: "MÉDICO(A) RESPONSÁVEL", weight: 150 },
     { label: "CARIMBO / CRM", weight: 96, carimbo: true },
-    { label: "ENFERMAGEM RESPONSAVEL", weight: 170 },
+    { label: "ENFERMAGEM RESPONSÁVEL", weight: 170 },
     { label: "CARIMBO / COREN", weight: 96, carimbo: true },
   ];
   const totalWeight = slots.reduce((a, s) => a + s.weight, 0);
@@ -712,17 +686,18 @@ function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void 
       .font("Helvetica-Bold")
       .fontSize(6)
       .fillColor(pal.labelInk)
-      .text(semAcento(s.label), x, y + h - 9, { width: w, align: "center", lineBreak: false, characterSpacing: 0.4 });
+      .text(s.label, x, y + h - 9, { width: w, align: "center", lineBreak: false, characterSpacing: 0.4 });
     x += w;
   }
   // Moldura grossa externa da faixa toda.
   molduraBloco(doc, pal, ML, y, CW, h);
 }
 
-// Faixa lateral esquerda (sugestao do CEO): spine vertical com as siglas "RAS"
-// e "FAP" em letras GRANDES + o significado de cada uma. So RENDER: ocupa o
-// espaco reservado por BAND_W (a esquerda de ML); nao toca a grade nem o motor.
-function desenharFaixaLateral(doc: Doc, pal: Paleta, top: number, bottom: number): void {
+// Faixa lateral esquerda (pedido do CEO): spine vertical que mostra
+// "RAS FAP — NOME DO PACIENTE", ANCORADO no topo (alinhamento a esquerda) para
+// que o nome seja lido com a folha em pe. So RENDER: ocupa o espaco reservado
+// por BAND_W (a esquerda de ML); nao toca a grade nem o motor.
+function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, bottom: number): void {
   const bandW = BAND_W - 8; // largura visivel da faixa (deixa folga ate o conteudo)
   const x0 = M; // comeca na margem base, a esquerda do conteudo (ML)
   const h = bottom - top;
@@ -733,43 +708,35 @@ function desenharFaixaLateral(doc: Doc, pal: Paleta, top: number, bottom: number
   doc.lineWidth(0.6).rect(x0, top, bandW, h).stroke(pal.accent);
   doc.restore();
 
-  const cx = x0 + bandW / 2;
-  const cy = top + h / 2;
+  const cx = x0 + bandW / 2; // centro da ESPESSURA da faixa
+  const size = 9;
+  const cspc = 1;
+  doc.font("Helvetica-Bold").fontSize(size);
 
-  // Texto girado -90 graus (le-se de baixo para cima). Em coordenadas
-  // rotacionadas desenhamos uma "linha" horizontal centrada em (cx, cy) que
-  // aparece VERTICAL na folha; cada trecho e centralizado na espessura da faixa.
-  type Seg = { t: string; font: string; size: number; color: string };
-  const segs: Seg[] = [
-    { t: "RAS", font: "Helvetica-Bold", size: 16, color: pal.brand },
-    { t: "  REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS", font: "Helvetica-Bold", size: 6.6, color: pal.labelInk },
-    { t: "        \u00b7  \u00b7  \u00b7        ", font: "Helvetica", size: 7, color: pal.accent },
-    { t: "FAP", font: "Helvetica-Bold", size: 16, color: pal.brand },
-    { t: "  FORMULARIO DE AUDITORIA DE PROCEDIMENTOS", font: "Helvetica-Bold", size: 6.6, color: pal.labelInk },
-  ];
-
-  let total = 0;
-  for (const s of segs) {
-    doc.font(s.font).fontSize(s.size);
-    total += doc.widthOfString(s.t);
+  // Nome muito comprido nao pode correr alem do rodape: trunca com reticencias
+  // medindo a largura real disponivel ao longo da faixa (h - folgas).
+  const avail = h - 14;
+  let label = `RAS FAP   —   ${(nome || "").toUpperCase()}`;
+  if (doc.widthOfString(label, { characterSpacing: cspc }) > avail) {
+    while (label.length > 12 && doc.widthOfString(label + "\u2026", { characterSpacing: cspc }) > avail) {
+      label = label.slice(0, -1);
+    }
+    label = label.replace(/\s+$/, "") + "\u2026";
   }
 
+  // Gira 90 graus em torno de (cx, top): o texto corre de cima para baixo,
+  // comecando no TOPO (alinhamento a esquerda). ly = top - size/2 centraliza o
+  // bloco na espessura (folga em ambos os lados, nao encosta na linha).
   doc.save();
-  doc.rotate(-90, { origin: [cx, cy] });
-  let tx = cx - total / 2;
-  for (const s of segs) {
-    doc.font(s.font).fontSize(s.size).fillColor(s.color);
-    const w = doc.widthOfString(s.t);
-    // Centraliza verticalmente cada trecho na espessura da faixa.
-    doc.text(s.t, tx, cy - s.size * 0.62, { lineBreak: false });
-    tx += w;
-  }
+  doc.rotate(90, { origin: [cx, top] });
+  doc.fillColor(pal.brand);
+  doc.text(label, cx + 6, top - size / 2, { width: h - 12, align: "left", lineBreak: false, characterSpacing: cspc });
   doc.restore();
 }
 
 function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number): void {
   const yb = PAGE_H - M + 2;
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO A CANETA NA SALA", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
   doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, PAGE_W - M - 90, yb, { width: 90, align: "right", lineBreak: false });
 }
 
@@ -812,7 +779,7 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
       desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages);
-      desenharFaixaLateral(doc, pal, M, PAGE_H - M);
+      desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M);
       aplicBase += LINHAS_POR_PAGINA;
     });
 
