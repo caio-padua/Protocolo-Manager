@@ -338,13 +338,13 @@ const M = 24;
 const CW = PAGE_W - 2 * M;
 
 const COLS_FIXAS = [
-  { key: "sem", label: "SEM.", w: 26 },
-  { key: "agend", label: "DATA AGEND.", w: 58 },
-  { key: "hora", label: "HORA", w: 30 },
-  { key: "efetiva", label: "DATA EFETIVA", w: 58 },
-  { key: "cienciaPac", label: "CIENCIA / RUBRICA PACIENTE", w: 120 },
-  { key: "rubEnf", label: "RUBRICA ENF.", w: 64 },
-  { key: "obs", label: "OBS.", w: 58 },
+  { key: "sem", label: "APLIC", head: ["APLIC"], w: 26 },
+  { key: "agend", label: "DATA AGENDADA", head: ["DATA", "AGENDADA"], w: 58 },
+  { key: "hora", label: "HORA", head: ["HORA"], w: 30 },
+  { key: "efetiva", label: "DATA EFETIVA", head: ["DATA", "EFETIVA"], w: 58 },
+  { key: "cienciaPac", label: "CIENCIA / RUBRICA PACIENTE", head: ["CIENCIA / RUBRICA", "PACIENTE"], w: 120 },
+  { key: "rubEnf", label: "RUBRICA ENF.", head: ["RUBRICA", "ENF."], w: 64 },
+  { key: "obs", label: "OBS.", head: ["OBS."], w: 58 },
 ] as const;
 const FIXED_W = COLS_FIXAS.reduce((a, c) => a + c.w, 0);
 
@@ -409,6 +409,36 @@ function celula(
         ellipsis: false,
         characterSpacing: opts.spacing ?? 0,
       });
+  }
+}
+
+// Cabecalho de coluna FIXA: mesma fonte, tamanho e altura em TODAS as colunas
+// (Helvetica-Bold 6, centralizado vertical e horizontal), multi-linha, para
+// harmonia (regra do CEO). As linhas ja vem pre-quebradas em COLS_FIXAS.head.
+function cabecalhoFixo(
+  doc: Doc,
+  pal: Paleta,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  lines: readonly string[],
+): void {
+  doc.rect(x, y, w, h).fill(pal.gridFill);
+  doc.lineWidth(0.4).rect(x, y, w, h).stroke(pal.border);
+  const size = 6;
+  const lh = size + 1.7;
+  const blockH = lines.length * lh;
+  let ty = y + (h - blockH) / 2 + 0.3;
+  doc.font("Helvetica-Bold").fontSize(size).fillColor(pal.labelInk);
+  for (const ln of lines) {
+    doc.text(semAcento(ln), x + 2, ty, {
+      width: w - 4,
+      align: "center",
+      lineBreak: false,
+      characterSpacing: 0.3,
+    });
+    ty += lh;
   }
 }
 
@@ -556,25 +586,18 @@ function desenharGrade(
   linhas: LinhaGrade[],
   yTopo: number,
   yRodape: number,
+  aplicInicio: number,
 ): void {
   rotulo(doc, pal, "GRADE DE APLICACOES", M, yTopo - 11);
   const headH = 26;
   const rowH = Math.min(15, (yRodape - yTopo - headH) / LINHAS_POR_PAGINA);
   const cols = slots5(grupo);
 
-  // Cabecalho da grade
+  // Cabecalho da grade — TODAS as colunas fixas com a mesma fonte/tamanho/altura
+  // (helper cabecalhoFixo), centralizadas, multi-linha, para harmonia.
   let x = M;
   for (const c of COLS_FIXAS) {
-    celula(doc, pal, x, yTopo, c.w, headH, {
-      text: c.label,
-      bold: true,
-      size: 5.8,
-      align: "center",
-      fill: pal.gridFill,
-      color: pal.labelInk,
-      wrap: true,
-      valign: "top",
-    });
+    cabecalhoFixo(doc, pal, x, yTopo, c.w, headH, c.head);
     x += c.w;
   }
   cols.forEach((s, i) => {
@@ -602,7 +625,9 @@ function desenharGrade(
     const zebra = pal.zebra && idx % 2 === 1 ? pal.zebra : undefined;
     let cx = M;
     const fixedVals: Record<string, string> = {
-      sem: ln.numero > 0 ? String(ln.numero) : "",
+      // APLIC: numeracao continua POR FOLHA (1..20, 21..40 ...), em TODAS as
+      // linhas, inclusive padding (regra do CEO: aparece com ou sem aplicacao).
+      sem: String(aplicInicio + idx + 1),
       agend: ln.data ? fmtData(ln.data) : "",
       hora: "",
       cienciaPac: "",
@@ -711,9 +736,19 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
     const planoPaginas = planejarPaginasRasFap(dados.substancias);
     const totalPages = planoPaginas.length;
 
+    // APLIC continua, reiniciando a cada GRUPO de substancias (cada grupo gera
+    // seu proprio conjunto de folhas). Cada folha tem exatamente
+    // LINHAS_POR_PAGINA linhas (com padding), entao o passo e fixo = 20.
+    let aplicBase = 0;
+    let grupoAtual: SubstanciaFap[] | null = null;
+
     planoPaginas.forEach((p, idx) => {
       if (idx > 0) doc.addPage({ size: "A4", layout: "landscape", margin: 0 });
       if (pal.bg !== "#ffffff") doc.rect(0, 0, PAGE_W, PAGE_H).fill(pal.bg);
+      if (p.grupo !== grupoAtual) {
+        grupoAtual = p.grupo;
+        aplicBase = 0;
+      }
       let y = M;
       y = desenharCabecalho(doc, pal, y);
       y = desenharPaciente(doc, pal, dados, y);
@@ -722,9 +757,10 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
       const assinH = 42;
       const yAssin = PAGE_H - M - 12 - assinH;
       const yRodape = yAssin - 8;
-      desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape);
+      desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages);
+      aplicBase += LINHAS_POR_PAGINA;
     });
 
     doc.end();

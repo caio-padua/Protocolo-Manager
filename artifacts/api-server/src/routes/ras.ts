@@ -513,6 +513,16 @@ function buildBigDemoSubstances(): DemoSub[] {
   ];
 }
 
+// Cenario de STRESS: 1 substancia semanal com N aplicacoes (teste de paginacao
+// e numeracao continua da coluna APLIC sem corte de dado). Acessado via ?n=150.
+// Cap em 400 para evitar abuso.
+function buildCountDemoSubstances(n: number): DemoSub[] {
+  const total = Math.max(1, Math.min(400, Math.floor(n)));
+  return [
+    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: total, startDate: "2026-06-15", stars: 5, func: `Cenario de stress: ${total} aplicacoes semanais para testar paginacao e numeracao continua da coluna APLIC.` },
+  ];
+}
+
 function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string): string {
   const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
   const rows = subs.map((s, i) => `
@@ -583,7 +593,10 @@ router.get("/ras-fap-demo", async (req, res) => {
   const clientName = "MARIANA DEMONSTRACAO SILVA";
   const valor = "R$ 14.890,00";
   const big = req.query.big === "1";
-  const demoSubs = big ? buildBigDemoSubstances() : buildDemoSubstances();
+  const nParam = parseInt(typeof req.query.n === "string" ? req.query.n : "", 10);
+  const demoSubs = Number.isFinite(nParam) && nParam > 0
+    ? buildCountDemoSubstances(nParam)
+    : big ? buildBigDemoSubstances() : buildDemoSubstances();
   const temaParam = (typeof req.query.tema === "string" ? req.query.tema : "").toUpperCase();
   const TEMAS_OK = ["PREMIUM", "MARCA", "MINIMAL", "BRONZE", "SIMPLES"] as const satisfies readonly ModoRasFap[];
   const modo: ModoRasFap = (TEMAS_OK as readonly string[]).includes(temaParam)
