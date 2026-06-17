@@ -1080,6 +1080,8 @@ const PETROL_MID = rgb(0.18, 0.45, 0.45);
 const COVER_BG = rgb(0.08, 0.22, 0.22);
 const WHITE = rgb(1, 1, 1);
 const GOLD_ACCENT = rgb(0.82, 0.68, 0.21);
+const CYAN = rgb(0.27, 0.72, 0.80);
+const BAR_TRACK = rgb(0.90, 0.92, 0.92);
 
 function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
   const rY = 38;
@@ -1130,6 +1132,105 @@ function benefitLabel(val: string | undefined): string {
   const t = safeTxt(val).trim();
   return t.length > 40 ? t.slice(0, 38) + ".." : t;
 }
+
+// Coage o valor de impacto (0-5) que pode chegar como numero ou string.
+function impactNum(v: unknown): number {
+  if (typeof v === "number") return v;
+  const n = parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Cor da barra conforme intensidade: vermelho (baixo) -> verde (maximo).
+function impactColor(v: number): ReturnType<typeof rgb> {
+  if (v >= 4.5) return rgb(0.05, 0.55, 0.25); // verde forte
+  if (v >= 3.5) return rgb(0.16, 0.63, 0.60); // ciano-petroleo
+  if (v >= 2.5) return rgb(0.82, 0.68, 0.21); // ambar/ouro
+  if (v >= 1.5) return rgb(0.85, 0.52, 0.18); // laranja
+  if (v > 0) return rgb(0.78, 0.30, 0.25);    // vermelho suave
+  return rgb(0.70, 0.72, 0.72);               // neutro
+}
+
+function impactWord(v: number): string {
+  if (v >= 4.5) return "MAXIMO";
+  if (v >= 3.5) return "ALTO";
+  if (v >= 2.5) return "MODERADO";
+  if (v >= 1.5) return "LEVE";
+  if (v > 0) return "BAIXO";
+  return "-";
+}
+
+// Rotulos legiveis (PT) para as chaves snake_case de bodySystemEffects.
+const SYSTEM_LABELS: Record<string, string> = {
+  cardiovascular: "Cardiovascular",
+  neurologico: "Neurologico",
+  neurocognicao: "Neurocognicao",
+  metabolismo: "Metabolismo",
+  muscular: "Muscular",
+  muscular_hipertrofia: "Musculo/Hipertrofia",
+  hepatico: "Figado",
+  imunologico: "Imunologico",
+  dermatologico: "Pele/Dermato",
+  endocrino: "Endocrino",
+  longevidade: "Longevidade",
+  hematologico: "Sangue/Hemato",
+  osteoarticular: "Ossos/Articulacoes",
+  libido_sexual: "Libido/Sexual",
+  performance_fisica: "Performance Fisica",
+  respiratorio: "Respiratorio",
+  digestivo: "Digestivo",
+  renal: "Renal",
+};
+function systemLabel(k: string): string {
+  return SYSTEM_LABELS[k] ?? safeTxt(k).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Desenha uma barra horizontal de impacto 0-5: rotulo | trilho com preenchimento | valor.
+function drawImpactBar(
+  page: PDFPage,
+  fonts: Fonts,
+  x: number,
+  y: number,
+  totalW: number,
+  label: string,
+  rawValue: unknown,
+): void {
+  const value = impactNum(rawValue);
+  const labelW = 110;
+  const valW = 62;
+  const barX = x + labelW;
+  const barW = Math.max(40, totalW - labelW - valW);
+  const barH = 7;
+
+  const lbl = label.length > 22 ? label.slice(0, 21) + "." : label;
+  page.drawText(lbl, { x, y: y - 1, size: 7, font: fonts.bold, color: PETROL });
+
+  page.drawRectangle({ x: barX, y: y - 2, width: barW, height: barH, color: BAR_TRACK });
+  const frac = Math.max(0, Math.min(1, value / 5));
+  if (frac > 0) {
+    page.drawRectangle({ x: barX, y: y - 2, width: barW * frac, height: barH, color: impactColor(value) });
+  }
+  // Separadores das 5 unidades.
+  for (let i = 1; i < 5; i++) {
+    const tx = barX + (barW / 5) * i;
+    page.drawLine({ start: { x: tx, y: y - 2 }, end: { x: tx, y: y - 2 + barH }, thickness: 0.4, color: WHITE });
+  }
+  const valTxt = value > 0 ? `${value % 1 === 0 ? value : value.toFixed(1)}/5 ${impactWord(value)}` : "-";
+  page.drawText(valTxt, { x: barX + barW + 6, y: y - 1, size: 6, font: fonts.bold, color: impactColor(value) });
+}
+
+// Dimensoes de beneficio (campos texto) usadas na matriz e na ficha.
+const BENEFIT_DIMS: Array<{ key: string; label: string; color: ReturnType<typeof rgb> }> = [
+  { key: "longevityBenefit", label: "LONGEVIDADE", color: rgb(0.45, 0.30, 0.60) },
+  { key: "energyBenefit", label: "ENERGIA", color: rgb(0.85, 0.55, 0.15) },
+  { key: "sleepBenefit", label: "SONO", color: rgb(0.25, 0.40, 0.70) },
+  { key: "libidoBenefit", label: "LIBIDO", color: rgb(0.80, 0.25, 0.40) },
+  { key: "mentalClarity", label: "CLAREZA MENTAL", color: rgb(0.20, 0.55, 0.65) },
+  { key: "immuneSupport", label: "IMUNIDADE", color: rgb(0.15, 0.60, 0.35) },
+  { key: "physicalPerformance", label: "PERFORMANCE FISICA", color: rgb(0.60, 0.40, 0.15) },
+  { key: "muscleStrength", label: "FORCA MUSCULAR", color: rgb(0.30, 0.45, 0.50) },
+  { key: "skinHairNails", label: "PELE/CABELO/UNHAS", color: rgb(0.85, 0.50, 0.40) },
+  { key: "qualityOfLifeImpact", label: "QUALIDADE DE VIDA", color: PETROL_MID },
+];
 
 function methodLabel(m: string): string {
   const map: Record<string, string> = {
@@ -1228,71 +1329,88 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     let y = PAGE_H - MARGIN;
 
     const benefitCols = [
-      { key: "longevityBenefit", label: "LONGEVIDADE" },
-      { key: "sleepBenefit", label: "SONO" },
-      { key: "energyBenefit", label: "ENERGIA" },
-      { key: "libidoBenefit", label: "LIBIDO" },
-      { key: "mentalClarity", label: "CLAREZA MENTAL" },
-      { key: "immuneSupport", label: "IMUNIDADE" },
-      { key: "skinHairNails", label: "PELE/CABELO" },
-      { key: "muscleStrength", label: "MUSCULO" },
+      { key: "longevityBenefit", label: "LONGEV.", color: rgb(0.45, 0.30, 0.60) },
+      { key: "energyBenefit", label: "ENERGIA", color: rgb(0.85, 0.55, 0.15) },
+      { key: "sleepBenefit", label: "SONO", color: rgb(0.25, 0.40, 0.70) },
+      { key: "libidoBenefit", label: "LIBIDO", color: rgb(0.80, 0.25, 0.40) },
+      { key: "mentalClarity", label: "MENTE", color: rgb(0.20, 0.55, 0.65) },
+      { key: "immuneSupport", label: "IMUNE", color: rgb(0.15, 0.60, 0.35) },
+      { key: "physicalPerformance", label: "PERFORM.", color: rgb(0.60, 0.40, 0.15) },
+      { key: "muscleStrength", label: "MUSCULO", color: rgb(0.30, 0.45, 0.50) },
+      { key: "skinHairNails", label: "PELE", color: rgb(0.85, 0.50, 0.40) },
     ];
 
-    const nameColW = 90;
-    const starsColW = 40;
-    const benefitColW = Math.min(50, (CONTENT_W - nameColW - starsColW) / benefitCols.length);
-    const rowH = 22;
+    const nameColW = 116;
+    const starsColW = 80;
+    const benefitColW = (CONTENT_W - nameColW - starsColW) / benefitCols.length;
+    const rowH = 20;
+
+    const has = (sub: ProtocolDocSubstance, key: string): boolean => {
+      const v = (sub as Record<string, unknown>)[key];
+      return v !== undefined && v !== null && String(v).trim() !== "";
+    };
 
     function drawBenefitHeader(pg: PDFPage, yPos: number, isFirst: boolean): number {
-      yPos = drawSectionHeader(pg, fonts, yPos, isFirst ? "MATRIZ DE BENEFICIOS POR SUBSTANCIA" : "MATRIZ DE BENEFICIOS (CONT.)");
+      yPos = drawSectionHeader(pg, fonts, yPos, isFirst ? "MAPA DE BENEFICIOS POR SUBSTANCIA" : "MAPA DE BENEFICIOS (CONT.)");
       yPos -= 5;
-      pg.drawRectangle({ x: MARGIN, y: yPos - rowH + 5, width: CONTENT_W, height: rowH, color: PETROL_LIGHT });
-      pg.drawText("SUBSTANCIA", { x: MARGIN + 4, y: yPos - 8, size: 6, font: fonts.bold, color: PETROL });
-      pg.drawText("NOTA", { x: MARGIN + nameColW + 2, y: yPos - 8, size: 6, font: fonts.bold, color: PETROL });
+      pg.drawRectangle({ x: MARGIN, y: yPos - rowH + 5, width: CONTENT_W, height: rowH, color: PETROL });
+      pg.drawText("SUBSTANCIA", { x: MARGIN + 6, y: yPos - 9, size: 6.5, font: fonts.bold, color: WHITE });
+      pg.drawText("AVALIACAO", { x: MARGIN + nameColW + 2, y: yPos - 9, size: 6.5, font: fonts.bold, color: WHITE });
       for (let c = 0; c < benefitCols.length; c++) {
         const bx = MARGIN + nameColW + starsColW + c * benefitColW;
-        const lines = benefitCols[c].label.length > 8
-          ? [benefitCols[c].label.slice(0, 8), benefitCols[c].label.slice(8)]
-          : [benefitCols[c].label];
-        for (let l = 0; l < lines.length; l++) {
-          pg.drawText(lines[l], { x: bx + 2, y: yPos - 5 - l * 7, size: 5.5, font: fonts.bold, color: PETROL });
-        }
+        const lblW = fonts.bold.widthOfTextAtSize(benefitCols[c].label, 5);
+        pg.drawText(benefitCols[c].label, { x: bx + (benefitColW - lblW) / 2, y: yPos - 9, size: 5, font: fonts.bold, color: WHITE });
       }
       return yPos - rowH;
     }
 
     y = drawBenefitHeader(currentPage, y, true);
 
+    let zebra = false;
     for (const sub of data.substances) {
-      if (y < MARGIN + 60) {
+      if (y < MARGIN + 70) {
         currentPage = newDocPage(pdfDoc, allPages);
         y = PAGE_H - MARGIN;
         y = drawBenefitHeader(currentPage, y, false);
       }
 
+      if (zebra) {
+        currentPage.drawRectangle({ x: MARGIN, y: y - rowH + 5, width: CONTENT_W, height: rowH, color: PETROL_LIGHT, opacity: 0.45 });
+      }
+      zebra = !zebra;
+
       const subColor = getSubstanceColor(sub.color);
-      currentPage.drawCircle({ x: MARGIN + 6, y: y - 6, size: 4, color: subColor });
-      const nm = safeTxt(sub.name).length > 12 ? safeTxt(sub.name).slice(0, 11) + "." : safeTxt(sub.name);
-      currentPage.drawText(nm, { x: MARGIN + 14, y: y - 8, size: 7, font: fonts.bold, color: BLACK });
+      currentPage.drawCircle({ x: MARGIN + 7, y: y - 6, size: 4, color: subColor });
+      const nm = safeTxt(sub.name).length > 18 ? safeTxt(sub.name).slice(0, 17) + "." : safeTxt(sub.name);
+      currentPage.drawText(nm, { x: MARGIN + 16, y: y - 8, size: 7, font: fonts.bold, color: BLACK });
 
       if (sub.starRating !== undefined) {
         drawStars(currentPage, MARGIN + nameColW + 2, y - 10, sub.starRating, 5);
       }
 
       for (let c = 0; c < benefitCols.length; c++) {
-        const bx = MARGIN + nameColW + starsColW + c * benefitColW;
-        const val = (sub as any)[benefitCols[c].key] as string | undefined;
-        const label = benefitLabel(val);
-        const truncLabel = label.length > 7 ? label.slice(0, 6) + "." : label;
-        currentPage.drawText(truncLabel, { x: bx + 2, y: y - 8, size: 5.5, font: fonts.regular, color: BLACK });
+        const bx = MARGIN + nameColW + starsColW + c * benefitColW + benefitColW / 2;
+        if (has(sub, benefitCols[c].key)) {
+          currentPage.drawCircle({ x: bx, y: y - 6, size: 4, color: benefitCols[c].color });
+        } else {
+          currentPage.drawCircle({ x: bx, y: y - 6, size: 3.5, borderColor: LIGHT_GRAY, borderWidth: 0.8, color: WHITE });
+        }
       }
 
       currentPage.drawLine({ start: { x: MARGIN, y: y - rowH + 5 }, end: { x: MARGIN + CONTENT_W, y: y - rowH + 5 }, thickness: 0.3, color: LIGHT_GRAY });
       y -= rowH;
     }
 
-    y -= 15;
-    currentPage.drawText("Legenda: Os circulos de cor representam a substancia. Estrelas indicam avaliacao geral (1-5).", {
+    y -= 16;
+    if (y < MARGIN + 30) {
+      currentPage = newDocPage(pdfDoc, allPages);
+      y = PAGE_H - MARGIN;
+    }
+    currentPage.drawText("Legenda: circulo colorido = beneficio presente nesta dimensao | circulo vazio = nao se aplica.", {
+      x: MARGIN, y, size: 6.5, font: fonts.regular, color: GRAY,
+    });
+    y -= 11;
+    currentPage.drawText("Estrelas = avaliacao geral de eficacia (1 a 5). Veja a ficha de cada substancia para o impacto por sistema.", {
       x: MARGIN, y, size: 6.5, font: fonts.regular, color: GRAY,
     });
   }
@@ -1302,31 +1420,75 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   // ============================================================
   for (let si = 0; si < data.substances.length; si++) {
     const sub = data.substances[si];
-    if (!sub.description && !sub.mainFunction) continue;
-
-    const page = newDocPage(pdfDoc, allPages);
-    let y = PAGE_H - MARGIN;
+    const hasClinicalContent = Boolean(
+      sub.description ||
+      sub.mainFunction ||
+      sub.bodySystemEffects ||
+      sub.perceivedEffects ||
+      sub.timeToEffect ||
+      sub.categoryType ||
+      sub.scientificEvidence ||
+      sub.contraindications ||
+      BENEFIT_DIMS.some((d) => {
+        const v = (sub as Record<string, unknown>)[d.key];
+        return v !== undefined && v !== null && String(v).trim() !== "";
+      }),
+    );
+    if (!hasClinicalContent) continue;
 
     const subColor = getSubstanceColor(sub.color);
-    page.drawRectangle({ x: MARGIN, y: y - 40, width: CONTENT_W, height: 50, color: PETROL });
-    page.drawText(safeTxt(sub.name).toUpperCase(), { x: MARGIN + 15, y: y - 10, size: 16, font: fonts.bold, color: WHITE });
-    page.drawText(procTypeLabel(sub.procedureType), { x: MARGIN + 15, y: y - 28, size: 8, font: fonts.regular, color: GOLD_ACCENT });
+    let page = newDocPage(pdfDoc, allPages);
+    let y = PAGE_H - MARGIN;
 
-    const doseInfo = `Dose: ${safeTxt(sub.dose)} | ${sub.totalSessions} sessoes | Intervalo: ${sub.intervalDays} dias`;
-    const diW = fonts.regular.widthOfTextAtSize(doseInfo, 7.5);
-    page.drawText(doseInfo, { x: PAGE_W - MARGIN - 15 - diW, y: y - 20, size: 7.5, font: fonts.regular, color: rgb(0.7, 0.85, 0.85) });
+    const drawHeaderBand = (pg: PDFPage, cont: boolean): number => {
+      pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 40, width: CONTENT_W, height: 50, color: PETROL });
+      pg.drawText(safeTxt(sub.name).toUpperCase() + (cont ? " (CONT.)" : ""), { x: MARGIN + 15, y: PAGE_H - MARGIN - 10, size: 16, font: fonts.bold, color: WHITE });
+      pg.drawText(procTypeLabel(sub.procedureType), { x: MARGIN + 15, y: PAGE_H - MARGIN - 28, size: 8, font: fonts.regular, color: GOLD_ACCENT });
+      const doseInfo = `Dose: ${safeTxt(sub.dose)} | ${sub.totalSessions} sessoes | Intervalo: ${sub.intervalDays} dias`;
+      const diW = fonts.regular.widthOfTextAtSize(doseInfo, 7.5);
+      pg.drawText(doseInfo, { x: PAGE_W - MARGIN - 15 - diW, y: PAGE_H - MARGIN - 20, size: 7.5, font: fonts.regular, color: rgb(0.7, 0.85, 0.85) });
+      pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 42, width: CONTENT_W, height: 3, color: subColor });
+      return PAGE_H - MARGIN - 55;
+    };
 
-    page.drawRectangle({ x: MARGIN, y: y - 42, width: CONTENT_W, height: 3, color: subColor });
-    y -= 55;
+    y = drawHeaderBand(page, false);
+
+    const ensure = (needed: number): void => {
+      if (y - needed < MARGIN + 30) {
+        page = newDocPage(pdfDoc, allPages);
+        y = drawHeaderBand(page, true);
+      }
+    };
+
+    const sectionTitle = (title: string, color: ReturnType<typeof rgb> = PETROL_MID): void => {
+      ensure(26);
+      page.drawText(title, { x: MARGIN, y, size: 8, font: fonts.bold, color });
+      y -= 4;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color, opacity: 0.3 });
+      y -= 14;
+    };
+
+    // CATEGORIA + TEMPO PARA EFEITO
+    {
+      const badges: Array<{ label: string; value: string }> = [];
+      if (sub.categoryType) badges.push({ label: "CATEGORIA", value: safeTxt(sub.categoryType).toUpperCase() });
+      if (sub.timeToEffect) badges.push({ label: "TEMPO PARA EFEITO", value: safeTxt(sub.timeToEffect) });
+      for (const b of badges) {
+        const valLines = wrapText(b.value, fonts.regular, 8, CONTENT_W - 130);
+        ensure(valLines.length * 11 + 4);
+        page.drawText(b.label, { x: MARGIN, y: y - 1, size: 6.5, font: fonts.bold, color: CYAN });
+        for (let i = 0; i < valLines.length; i++) {
+          page.drawText(valLines[i], { x: MARGIN + 120, y: y - 1 - i * 11, size: 8, font: i === 0 ? fonts.bold : fonts.regular, color: BLACK });
+        }
+        y -= Math.max(13, valLines.length * 11 + 4);
+      }
+      if (badges.length) y -= 4;
+    }
 
     if (sub.description) {
-      page.drawText("O QUE E", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
-      y -= 14;
-      const lines = wrapText(safeTxt(sub.description), fonts.regular, 8.5, CONTENT_W);
-      for (const line of lines) {
-        if (y < MARGIN + 60) break;
+      sectionTitle("O QUE E");
+      for (const line of wrapText(safeTxt(sub.description), fonts.regular, 8.5, CONTENT_W)) {
+        ensure(12);
         page.drawText(line, { x: MARGIN, y, size: 8.5, font: fonts.regular, color: BLACK });
         y -= 12;
       }
@@ -1334,72 +1496,81 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     }
 
     if (sub.mainFunction) {
-      page.drawText("FUNCAO PRINCIPAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
-      y -= 16;
-      page.drawRectangle({ x: MARGIN, y: y - 15, width: CONTENT_W, height: 28, color: PETROL_LIGHT, borderColor: PETROL, borderWidth: 0.5 });
-      page.drawText(safeTxt(sub.mainFunction), { x: MARGIN + 10, y: y - 5, size: 9, font: fonts.bold, color: PETROL });
+      sectionTitle("FUNCAO PRINCIPAL");
+      const fnLines = wrapText(safeTxt(sub.mainFunction), fonts.bold, 9, CONTENT_W - 110).slice(0, 2);
+      const boxH = 16 + fnLines.length * 12;
+      ensure(boxH + 6);
+      page.drawRectangle({ x: MARGIN, y: y - (boxH - 13), width: CONTENT_W, height: boxH, color: PETROL_LIGHT, borderColor: PETROL, borderWidth: 0.5 });
+      for (let i = 0; i < fnLines.length; i++) {
+        page.drawText(fnLines[i], { x: MARGIN + 10, y: y - 5 - i * 12, size: 9, font: fonts.bold, color: PETROL });
+      }
       if (sub.starRating !== undefined) {
         drawStars(page, PAGE_W - MARGIN - 85, y - 5, sub.starRating);
       }
-      y -= 30;
+      y -= boxH + 4;
     }
 
+    // IMPACTO POR SISTEMA — BARRAS COLORIDAS 0-5 (data binding de bodySystemEffects)
     if (sub.bodySystemEffects && typeof sub.bodySystemEffects === "object") {
-      y -= 5;
-      page.drawText("EFEITOS POR SISTEMA CORPORAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL_MID });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL_MID, opacity: 0.3 });
-      y -= 16;
+      sectionTitle("IMPACTO POR SISTEMA CORPORAL (0 A 5)");
+      const systems = Object.entries(sub.bodySystemEffects)
+        .map(([k, v]) => [k, impactNum(v)] as [string, number])
+        .sort((a, b) => b[1] - a[1]);
+      for (const [system, val] of systems) {
+        ensure(13);
+        drawImpactBar(page, fonts, MARGIN, y, CONTENT_W, systemLabel(system), val);
+        y -= 13;
+      }
+      y -= 6;
+    }
 
-      const systemColors: Record<string, ReturnType<typeof rgb>> = {
-        "Pele": rgb(0.9, 0.55, 0.35), "Figado": rgb(0.55, 0.35, 0.2),
-        "Sistema Imunologico": rgb(0.2, 0.6, 0.35), "Neurologico": rgb(0.4, 0.3, 0.7),
-        "Cardiovascular": rgb(0.8, 0.2, 0.2), "Muscular": rgb(0.2, 0.5, 0.6),
-        "Endocrino": rgb(0.6, 0.5, 0.15), "Muscular/Esqueletico": rgb(0.3, 0.5, 0.5),
-      };
-
-      const systems = Object.entries(sub.bodySystemEffects);
-      const colW = CONTENT_W / 2 - 5;
-
-      for (let row = 0; row < systems.length; row += 2) {
-        if (y < MARGIN + 70) break;
-        for (let col = 0; col < 2 && row + col < systems.length; col++) {
-          const [system, effect] = systems[row + col];
-          const xPos = MARGIN + col * (colW + 10);
-          page.drawRectangle({ x: xPos, y: y - 35, width: colW, height: 45, color: PETROL_LIGHT, borderColor: LIGHT_GRAY, borderWidth: 0.5 });
-          const dotColor = systemColors[system] ?? PETROL_MID;
-          page.drawCircle({ x: xPos + 12, y: y - 2, size: 4, color: dotColor });
-          page.drawText(safeTxt(system).toUpperCase(), { x: xPos + 22, y: y - 5, size: 7, font: fonts.bold, color: PETROL });
-          const effectLines = wrapText(safeTxt(effect), fonts.regular, 7, colW - 20);
-          for (let el = 0; el < Math.min(effectLines.length, 3); el++) {
-            page.drawText(effectLines[el], { x: xPos + 10, y: y - 18 - el * 9, size: 7, font: fonts.regular, color: GRAY });
+    // BENEFICIOS POR DIMENSAO (campos texto)
+    {
+      const dims = BENEFIT_DIMS.filter(d => {
+        const v = (sub as Record<string, unknown>)[d.key];
+        return v !== undefined && v !== null && String(v).trim() !== "";
+      });
+      if (dims.length) {
+        sectionTitle("BENEFICIOS POR DIMENSAO");
+        for (const d of dims) {
+          const txt = safeTxt(String((sub as Record<string, unknown>)[d.key]));
+          const lines = wrapText(txt, fonts.regular, 8, CONTENT_W - 130);
+          ensure(Math.max(12, lines.length * 10 + 4));
+          page.drawCircle({ x: MARGIN + 4, y: y - 2, size: 3, color: d.color });
+          page.drawText(d.label, { x: MARGIN + 12, y: y - 4, size: 6.5, font: fonts.bold, color: d.color });
+          for (let i = 0; i < lines.length; i++) {
+            page.drawText(lines[i], { x: MARGIN + 125, y: y - 4 - i * 10, size: 8, font: fonts.regular, color: BLACK });
           }
+          y -= Math.max(12, lines.length * 10 + 5);
         }
-        y -= 50;
+        y -= 4;
       }
     }
 
-    if (sub.perceivedEffects && y > MARGIN + 80) {
-      y -= 5;
-      page.drawText("EFEITOS PERCEBIDOS PELO CLIENTE", { x: MARGIN, y, size: 8, font: fonts.bold, color: GREEN });
-      y -= 14;
-      const lines = wrapText(safeTxt(sub.perceivedEffects), fonts.regular, 8.5, CONTENT_W - 10);
-      for (const line of lines) {
-        if (y < MARGIN + 60) break;
+    if (sub.perceivedEffects) {
+      sectionTitle("EFEITOS PERCEBIDOS PELO CLIENTE", GREEN);
+      for (const line of wrapText(safeTxt(sub.perceivedEffects), fonts.regular, 8.5, CONTENT_W - 10)) {
+        ensure(12);
         page.drawText(`> ${line}`, { x: MARGIN + 5, y, size: 8.5, font: fonts.regular, color: BLACK });
         y -= 12;
       }
       y -= 5;
     }
 
-    if (sub.contraindications && y > MARGIN + 80) {
-      page.drawText("CONTRAINDICACOES", { x: MARGIN, y, size: 8, font: fonts.bold, color: rgb(0.8, 0.2, 0.2) });
-      y -= 14;
-      const lines = wrapText(safeTxt(sub.contraindications), fonts.regular, 8, CONTENT_W - 10);
-      for (const line of lines) {
-        if (y < MARGIN + 60) break;
+    if (sub.scientificEvidence) {
+      sectionTitle("EVIDENCIA CIENTIFICA", PETROL);
+      for (const line of wrapText(safeTxt(sub.scientificEvidence), fonts.regular, 8, CONTENT_W - 10)) {
+        ensure(11);
+        page.drawText(line, { x: MARGIN + 5, y, size: 8, font: fonts.regular, color: BLACK });
+        y -= 11;
+      }
+      y -= 5;
+    }
+
+    if (sub.contraindications) {
+      sectionTitle("CONTRAINDICACOES", rgb(0.8, 0.2, 0.2));
+      for (const line of wrapText(safeTxt(sub.contraindications), fonts.regular, 8, CONTENT_W - 10)) {
+        ensure(11);
         page.drawText(line, { x: MARGIN + 5, y, size: 8, font: fonts.regular, color: BLACK });
         y -= 11;
       }

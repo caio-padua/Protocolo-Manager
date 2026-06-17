@@ -1,0 +1,75 @@
+================================================================
+CARTA DO CEO DR. CAIO (via Dr. Replit Pactor)
+PARA: Dr. Replit Manager (produto Padcon Conect)
+ASSUNTO: liberacao da logistica de anamnese do PADCOM para clonar
+DATA: 16/06/2026
+================================================================
+
+CONCLUSAO PRIMEIRO:
+Voce esta autorizado a clonar a experiencia de anamnese do sistema
+PADCOM (repositorio caio-padua/Pactor) e adaptar ao Padcon Conect,
+SEM quebrar o seu sistema. Leve o desenho, a linha do tempo, o salto
+por bloco, as bordas e o video de ajuda nas questoes.
+
+O QUE VOCE PODE LEVAR (e onde esta no repo caio-padua/Pactor, main):
+
+1. Fluxo paginado com linha do tempo
+   - arquivo: artifacts/padcom/src/pages/patient/flow.tsx
+   - o que faz: mostra "Etapa X de 5" mais uma barra de progresso
+     fixa no topo (a linhazinha do tempo que o cliente acompanha);
+     cada bloco cabe em uma tela; o botao "Continuar" leva ao
+     proximo bloco; rola para o topo a cada troca; barra de acao
+     fixa embaixo com botoes de cantos redondos.
+
+2. Microtextos de transicao e divisao em blocos
+   - arquivo: artifacts/padcom/src/data/questionnaire.ts
+   - o que faz: STEP_TITLES, STEP_TRANSITIONS e questionsForStep()
+     definem o titulo do bloco, o texto de passagem entre blocos e
+     quais perguntas entram em cada tela.
+
+3. Video de ajuda nas duvidas das questoes
+   - arquivo: artifacts/padcom/src/components/HelpModal.tsx
+   - o que faz: o link "Ver explicacao" abre um quadro com area de
+     video (botao de play), termo tecnico, orientacao e o trecho
+     "Por que perguntamos?". Hoje o video e um espaco reservado;
+     basta plugar a URL do seu proprio video.
+
+4. Campo de pergunta
+   - arquivo: artifacts/padcom/src/components/QuestionField.tsx
+   - o que faz: desenha cada pergunta e chama o HelpModal.
+
+5. Molduras, bordas e layout
+   - arquivos: artifacts/padcom/src/components/layouts.tsx
+              artifacts/padcom/src/index.css
+   - o que faz: cartoes, cantos arredondados, cabecalho e rodape
+     fixos com desfoque (backdrop blur), bordas e sombras suaves;
+     os tokens de cor e de borda ficam no index.css.
+
+COMO ACESSAR:
+- Clonar o repositorio:
+  git clone https://github.com/caio-padua/Pactor.git
+- Ou ler um arquivo cru (exemplo do fluxo):
+  https://raw.githubusercontent.com/caio-padua/Pactor/main/artifacts/padcom/src/pages/patient/flow.tsx
+
+REGRAS DE ADAPTACAO (nao quebrar o seu sistema):
+- No Padcon Conect a pessoa atendida chama-se CLIENTE, nunca
+  paciente: troque todo rotulo "paciente" por "cliente".
+- Leve apenas a camada de apresentacao e experiencia (telas,
+  componentes, estilos); mantenha a SUA camada de dados e as SUAS
+  rotas como ja estao.
+- Adapte os nomes dos blocos e das perguntas ao conteudo do Padcon
+  Conect; o que importa copiar e a ESTRUTURA: um bloco por tela,
+  linha do tempo no topo e video de ajuda na duvida.
+- Nao copie o painel administrativo nem os dados de exemplo (mock)
+  se nao precisar; o foco e a jornada do cliente.
+- Teste cada bloco antes de seguir; nao suba nada que quebre o app.
+
+CONFIRME DE VOLTA AO CEO:
+(a) o que voce clonou, (b) o que adaptou de paciente para cliente,
+(c) um print da sua primeira tela ja com a linha do tempo.
+
+RESUMO EM 1 LINHA:
+Clone do PADCOM a jornada de anamnese (fluxo paginado, linha do
+tempo, salto por bloco, bordas e video de ajuda), troque paciente
+por cliente e adapte ao Padcon Conect sem quebrar o seu sistema.
+================================================================
