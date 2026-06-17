@@ -523,6 +523,31 @@ function buildCountDemoSubstances(n: number): DemoSub[] {
   ];
 }
 
+// Cenario de MULTIPLAS SUBSTANCIAS: N substancias (cada uma com 8 aplicacoes
+// semanais). Como cabem 5 substancias por folha, N>5 gera grupos extras e cada
+// GRUPO comeca uma nova folha com a coluna APLIC reiniciando em 1..20 (regra do
+// CEO). Acessado via ?subs=6 (2 folhas) ou ?subs=12 (3 folhas). Cap em 20.
+function buildSubsDemoSubstances(n: number): DemoSub[] {
+  const total = Math.max(1, Math.min(20, Math.floor(n)));
+  const palette = ["#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#3D7A7A", "#EC4899", "#14B8A6", "#F97316", "#45B8CC", "#6366F1"];
+  const out: DemoSub[] = [];
+  for (let i = 0; i < total; i++) {
+    out.push({
+      name: `Substancia ${String(i + 1).padStart(2, "0")}`,
+      dose: "1 G / 5 ML",
+      color: palette[i % palette.length],
+      via: i % 2 === 0 ? "Endovenosa" : "Intramuscular",
+      procedureType: i % 2 === 0 ? "iv" : "im",
+      frequencyDays: 7,
+      totalSessions: 8,
+      startDate: "2026-06-15",
+      stars: 5,
+      func: `Substancia ${i + 1} (teste de multiplas folhas por grupo; APLIC reinicia em cada folha de substancia nova).`,
+    });
+  }
+  return out;
+}
+
 function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string): string {
   const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
   const rows = subs.map((s, i) => `
@@ -594,7 +619,10 @@ router.get("/ras-fap-demo", async (req, res) => {
   const valor = "R$ 14.890,00";
   const big = req.query.big === "1";
   const nParam = parseInt(typeof req.query.n === "string" ? req.query.n : "", 10);
-  const demoSubs = Number.isFinite(nParam) && nParam > 0
+  const subsParam = parseInt(typeof req.query.subs === "string" ? req.query.subs : "", 10);
+  const demoSubs = Number.isFinite(subsParam) && subsParam > 0
+    ? buildSubsDemoSubstances(subsParam)
+    : Number.isFinite(nParam) && nParam > 0
     ? buildCountDemoSubstances(nParam)
     : big ? buildBigDemoSubstances() : buildDemoSubstances();
   const temaParam = (typeof req.query.tema === "string" ? req.query.tema : "").toUpperCase();

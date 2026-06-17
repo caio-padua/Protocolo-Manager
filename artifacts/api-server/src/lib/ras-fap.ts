@@ -335,7 +335,11 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
 const PAGE_W = 841.89;
 const PAGE_H = 595.28;
 const M = 24;
-const CW = PAGE_W - 2 * M;
+// Faixa lateral esquerda (RAS/FAP) reserva BAND_W; o CONTEUDO comeca em ML.
+// Margem direita/topo/base seguem M. CW recalculado (assimetrico).
+const BAND_W = 30;
+const ML = M + BAND_W;
+const CW = PAGE_W - ML - M;
 
 const COLS_FIXAS = [
   { key: "sem", label: "APLIC", head: ["APLIC"], w: 26 },
@@ -458,20 +462,20 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   // Wordmark "RAS": serif (classico/editorial) ou sans block (marca).
   if (pal.wordmark === "serif") {
-    doc.font("Times-Bold").fontSize(30).fillColor(pal.brand).text("RAS", M, y - 6, { lineBreak: false });
+    doc.font("Times-Bold").fontSize(30).fillColor(pal.brand).text("RAS", ML, y - 6, { lineBreak: false });
   } else {
-    doc.font("Helvetica-Bold").fontSize(27).fillColor(pal.brand).text("RAS", M, y - 4, { lineBreak: false, characterSpacing: 1.5 });
+    doc.font("Helvetica-Bold").fontSize(27).fillColor(pal.brand).text("RAS", ML, y - 4, { lineBreak: false, characterSpacing: 1.5 });
   }
   doc
     .font("Helvetica-Bold")
     .fontSize(10)
     .fillColor(pal.ink)
-    .text("REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS", M + 70, y + 1, { lineBreak: false, characterSpacing: 0.6 });
+    .text("REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS", ML + 70, y + 1, { lineBreak: false, characterSpacing: 0.6 });
   doc
     .font("Helvetica")
     .fontSize(6.4)
     .fillColor(pal.labelInk)
-    .text("FORMULARIO DE AUDITORIA DE PROCEDIMENTOS  \u00b7  FAP", M + 70, y + 14, {
+    .text("FORMULARIO DE AUDITORIA DE PROCEDIMENTOS  \u00b7  FAP", ML + 70, y + 14, {
       lineBreak: false,
       characterSpacing: 1.2,
     });
@@ -479,18 +483,18 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const rEnd = PAGE_W - M;
   doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PAWARDS", rEnd - 320, y - 2, { width: 150, align: "right", lineBreak: false });
   doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Clinical Intelligence System", rEnd - 320, y + 9, { width: 150, align: "right", lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON CONECT", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
-  doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Motor Clinico", rEnd - 165, y + 9, { width: 165, align: "right", lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
+  doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Advanced Systems Architecture", rEnd - 165, y + 9, { width: 165, align: "right", lineBreak: false });
 
   // Fio sob o cabecalho: duplo (teal+bronze) | unico grosso | hairline fino.
   const yl = y + 26;
   if (pal.rule === "double") {
-    doc.lineWidth(1.2).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
-    doc.lineWidth(0.5).moveTo(M, yl + 2.4).lineTo(PAGE_W - M, yl + 2.4).stroke(pal.gold);
+    doc.lineWidth(1.2).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
+    doc.lineWidth(0.5).moveTo(ML, yl + 2.4).lineTo(PAGE_W - M, yl + 2.4).stroke(pal.gold);
   } else if (pal.rule === "single") {
-    doc.lineWidth(1.8).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
+    doc.lineWidth(1.8).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
   } else {
-    doc.lineWidth(0.6).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.border);
+    doc.lineWidth(0.6).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.border);
   }
   return yl + 9;
 }
@@ -503,7 +507,7 @@ function desenharPaciente(doc: Doc, pal: Paleta, dados: DadosRasFap, y: number):
   const labelW = 122;
 
   // Linhas internas finas + divisoria central.
-  doc.lineWidth(0.5).moveTo(M + half, y).lineTo(M + half, y + blocoH).stroke(pal.border);
+  doc.lineWidth(0.5).moveTo(ML + half, y).lineTo(ML + half, y + blocoH).stroke(pal.border);
 
   const esq: [string, string][] = [
     ["NOME", dados.nome],
@@ -526,15 +530,15 @@ function desenharPaciente(doc: Doc, pal: Paleta, dados: DadosRasFap, y: number):
     doc.font("Helvetica-Bold").fontSize(6.4).fillColor(pal.labelInk).text(semAcento(par[0]), x0 + 6, ly + 4.2, { width: labelW - 10, lineBreak: false, characterSpacing: 0.5 });
     doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.ink).text(semAcento(par[1]), x0 + labelW, ly + 3.4, { width: half - labelW - 6, lineBreak: false });
   };
-  esq.forEach((p, i) => linha(M, i, p));
-  dir.forEach((p, i) => linha(M + half, i, p));
+  esq.forEach((p, i) => linha(ML, i, p));
+  dir.forEach((p, i) => linha(ML + half, i, p));
 
-  molduraBloco(doc, pal, M, y, CW, blocoH);
+  molduraBloco(doc, pal, ML, y, CW, blocoH);
   return y + blocoH + 7;
 }
 
 function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: number): number {
-  rotulo(doc, pal, "PROTOCOLO", M, y);
+  rotulo(doc, pal, "PROTOCOLO", ML, y);
   const cyTop = y + 11;
   let cy = cyTop;
   const cols = slots5(grupo);
@@ -548,7 +552,7 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
 
   for (const ln of linhas) {
     const rh = ln.destaque ? 22 : 15;
-    celula(doc, pal, M, cy, FIXED_W, rh, {
+    celula(doc, pal, ML, cy, FIXED_W, rh, {
       text: ln.label,
       bold: true,
       size: ln.label.length > 18 ? 6.5 : 7.5,
@@ -557,7 +561,7 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
       spacing: 0.4,
     });
     cols.forEach((s, i) => {
-      const x = M + FIXED_W + i * SUB_W;
+      const x = ML + FIXED_W + i * SUB_W;
       if (!s) {
         celula(doc, pal, x, cy, SUB_W, rh, { fill: pal.blank });
         return;
@@ -575,7 +579,7 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
     });
     cy += rh;
   }
-  molduraBloco(doc, pal, M, cyTop, CW, cy - cyTop);
+  molduraBloco(doc, pal, ML, cyTop, CW, cy - cyTop);
   return cy + 7;
 }
 
@@ -588,20 +592,20 @@ function desenharGrade(
   yRodape: number,
   aplicInicio: number,
 ): void {
-  rotulo(doc, pal, "GRADE DE APLICACOES", M, yTopo - 11);
+  rotulo(doc, pal, "GRADE DE APLICACOES", ML, yTopo - 11);
   const headH = 26;
   const rowH = Math.min(15, (yRodape - yTopo - headH) / LINHAS_POR_PAGINA);
   const cols = slots5(grupo);
 
   // Cabecalho da grade — TODAS as colunas fixas com a mesma fonte/tamanho/altura
   // (helper cabecalhoFixo), centralizadas, multi-linha, para harmonia.
-  let x = M;
+  let x = ML;
   for (const c of COLS_FIXAS) {
     cabecalhoFixo(doc, pal, x, yTopo, c.w, headH, c.head);
     x += c.w;
   }
   cols.forEach((s, i) => {
-    const sx = M + FIXED_W + i * SUB_W;
+    const sx = ML + FIXED_W + i * SUB_W;
     if (!s) {
       celula(doc, pal, sx, yTopo, SUB_W, headH, { fill: pal.blank });
       return;
@@ -623,7 +627,7 @@ function desenharGrade(
   let ry = yTopo + headH;
   linhas.forEach((ln, idx) => {
     const zebra = pal.zebra && idx % 2 === 1 ? pal.zebra : undefined;
-    let cx = M;
+    let cx = ML;
     const fixedVals: Record<string, string> = {
       // APLIC: numeracao continua POR FOLHA (1..20, 21..40 ...), em TODAS as
       // linhas, inclusive padding (regra do CEO: aparece com ou sem aplicacao).
@@ -646,7 +650,7 @@ function desenharGrade(
       cx += c.w;
     }
     cols.forEach((s, i) => {
-      const sx = M + FIXED_W + i * SUB_W;
+      const sx = ML + FIXED_W + i * SUB_W;
       if (!s) {
         celula(doc, pal, sx, ry, SUB_W, rowH, { fill: pal.blank });
         return;
@@ -677,7 +681,7 @@ function desenharGrade(
     ry += rowH;
   });
 
-  molduraBloco(doc, pal, M, yTopo, CW, headH + rowH * LINHAS_POR_PAGINA);
+  molduraBloco(doc, pal, ML, yTopo, CW, headH + rowH * LINHAS_POR_PAGINA);
 }
 
 function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void {
@@ -692,7 +696,7 @@ function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void 
   const totalWeight = slots.reduce((a, s) => a + s.weight, 0);
   const scale = CW / totalWeight;
 
-  let x = M;
+  let x = ML;
   for (const s of slots) {
     const w = s.weight * scale;
     // Caixa interna fina.
@@ -712,12 +716,60 @@ function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void 
     x += w;
   }
   // Moldura grossa externa da faixa toda.
-  molduraBloco(doc, pal, M, y, CW, h);
+  molduraBloco(doc, pal, ML, y, CW, h);
+}
+
+// Faixa lateral esquerda (sugestao do CEO): spine vertical com as siglas "RAS"
+// e "FAP" em letras GRANDES + o significado de cada uma. So RENDER: ocupa o
+// espaco reservado por BAND_W (a esquerda de ML); nao toca a grade nem o motor.
+function desenharFaixaLateral(doc: Doc, pal: Paleta, top: number, bottom: number): void {
+  const bandW = BAND_W - 8; // largura visivel da faixa (deixa folga ate o conteudo)
+  const x0 = M; // comeca na margem base, a esquerda do conteudo (ML)
+  const h = bottom - top;
+
+  // Fundo pastel + moldura fina (mesma linguagem visual dos blocos).
+  doc.save();
+  doc.rect(x0, top, bandW, h).fill(pal.gridFill);
+  doc.lineWidth(0.6).rect(x0, top, bandW, h).stroke(pal.accent);
+  doc.restore();
+
+  const cx = x0 + bandW / 2;
+  const cy = top + h / 2;
+
+  // Texto girado -90 graus (le-se de baixo para cima). Em coordenadas
+  // rotacionadas desenhamos uma "linha" horizontal centrada em (cx, cy) que
+  // aparece VERTICAL na folha; cada trecho e centralizado na espessura da faixa.
+  type Seg = { t: string; font: string; size: number; color: string };
+  const segs: Seg[] = [
+    { t: "RAS", font: "Helvetica-Bold", size: 16, color: pal.brand },
+    { t: "  REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS", font: "Helvetica-Bold", size: 6.6, color: pal.labelInk },
+    { t: "        \u00b7  \u00b7  \u00b7        ", font: "Helvetica", size: 7, color: pal.accent },
+    { t: "FAP", font: "Helvetica-Bold", size: 16, color: pal.brand },
+    { t: "  FORMULARIO DE AUDITORIA DE PROCEDIMENTOS", font: "Helvetica-Bold", size: 6.6, color: pal.labelInk },
+  ];
+
+  let total = 0;
+  for (const s of segs) {
+    doc.font(s.font).fontSize(s.size);
+    total += doc.widthOfString(s.t);
+  }
+
+  doc.save();
+  doc.rotate(-90, { origin: [cx, cy] });
+  let tx = cx - total / 2;
+  for (const s of segs) {
+    doc.font(s.font).fontSize(s.size).fillColor(s.color);
+    const w = doc.widthOfString(s.t);
+    // Centraliza verticalmente cada trecho na espessura da faixa.
+    doc.text(s.t, tx, cy - s.size * 0.62, { lineBreak: false });
+    tx += w;
+  }
+  doc.restore();
 }
 
 function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number): void {
   const yb = PAGE_H - M + 2;
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PADCON CONECT  \u00b7  MOTOR CLINICO  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO A CANETA NA SALA", M, yb, { lineBreak: false, characterSpacing: 0.4 });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO A CANETA NA SALA", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
   doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, PAGE_W - M - 90, yb, { width: 90, align: "right", lineBreak: false });
 }
 
@@ -760,6 +812,7 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
       desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages);
+      desenharFaixaLateral(doc, pal, M, PAGE_H - M);
       aplicBase += LINHAS_POR_PAGINA;
     });
 
