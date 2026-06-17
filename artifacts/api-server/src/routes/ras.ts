@@ -340,6 +340,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       frequencyDays: item.intervalDays,
       startDate: item.startDate,
       procedureType: sub?.procedureType ?? "iv",
+      dose: item.dose,
     };
   });
 
@@ -396,6 +397,8 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       nurseName: nurseName || undefined,
       unit: protocol.unit ?? "Clinica Padua",
       startDate: protocol.startDate,
+      protocolNumber: protocol.id,
+      valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       substances,
       sessions: physicalSessions,
     });
