@@ -36,3 +36,15 @@ id = "_LAWW5-lDn6xXQmmgidPL"
 uri = "file://.local/exports/ras-teste-quebra-pagina.pdf"
 type = "pdf"
 title = "RAS assinado — teste de estresse (15 substancias, 19 paginas, sem pagina em branco)"
+
+[[outputs]]
+id = "Tg7bGpcC6MFTChiyK0Obd"
+uri = "file://attached_assets/demo_caio/Apresentacao_Premium_Protocolo_Caio.pdf"
+type = "pdf"
+title = "Apresentacao Premium do Protocolo (8-10 paginas)"
+
+[[outputs]]
+id = "Ja9y3s6Yr1jhSXcfkFkdI"
+uri = "file://attached_assets/demo_caio/RAS_FAP_Protocolo_Caio.pdf"
+type = "pdf"
+title = "RAS FAP (folha de impressao / auditoria)"
