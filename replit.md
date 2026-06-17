@@ -165,6 +165,8 @@ Resumo da CARTA_08 recebida do IHE e executada pelo Dr. Replit Manager.
 
 5. Implementacao: `gerarRasFapPdf` em `artifacts/api-server/src/lib/ras-fap.ts` (pdfkit); `generatePhysicalRASPdf` em `pdf-signer.ts` virou ADAPTADOR fino. Gabarito cego da carta (sec.10) conferido pelo motor puro. RAS JURIDICO (assinado digital) fica para depois.
 
+6. VARIANTES VISUAIS (pele) — `ModoRasFap` = PREMIUM|SIMPLES|MARCA|MINIMAL|BRONZE. So o RENDER muda (cores, wordmark serif/sans, fio do cabecalho, pintura da celula, largura da moldura via `Paleta`); o motor da grade e as 4 regras visuais do CEO permanecem identicos. `generatePhysicalRASPdf(data, modo="PREMIUM")`. Rota de demonstracao: `GET /api/ras-fap-demo?tema=PREMIUM|MARCA|MINIMAL|BRONZE` (whitelist tipada, fallback PREMIUM) e `?big=1` (3 substancias semanais x 26 sessoes = 2 folhas, prova viva da regra de 20 linhas por folha). Default em producao continua PREMIUM ate o CEO bater o martelo do tema.
+
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
 Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):

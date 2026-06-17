@@ -47,7 +47,7 @@ export interface DadosRasFap {
   substancias: SubstanciaFap[];
 }
 
-export type ModoRasFap = "PREMIUM" | "SIMPLES";
+export type ModoRasFap = "PREMIUM" | "SIMPLES" | "MARCA" | "MINIMAL" | "BRONZE";
 
 // ---------------------------------------------------------------------------
 // Helpers de data e texto
@@ -210,8 +210,15 @@ interface Paleta {
   aplic: string; // pintura "batalha naval" da celula aplicada
   aplicInk: string; // cor da fracao N/total sobre a pintura
   blank: string; // fundo da coluna em branco (sobra)
+  // --- Estetica variavel (a "pele"); o motor da grade NAO muda ---
+  bg: string; // cor do "papel" (fundo da folha)
+  wordmark: "serif" | "sans"; // estilo do "RAS"
+  rule: "double" | "single" | "hair"; // fio sob o cabecalho
+  cell: "battleship" | "center" | "tick"; // pintura da celula aplicada
+  frameW: number; // grossura da moldura grossa externa
 }
 const PALETAS: Record<ModoRasFap, Paleta> = {
+  // Tema A — PETROLEO CLASSICO (atual, aprovado): navy + teal + bronze.
   PREMIUM: {
     ink: "#1f2937",
     brand: "#0a2540",
@@ -227,6 +234,11 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     aplic: "#c3d7ea",
     aplicInk: "#0a2540",
     blank: "#fbfcfe",
+    bg: "#ffffff",
+    wordmark: "serif",
+    rule: "double",
+    cell: "battleship",
+    frameW: 1.5,
   },
   SIMPLES: {
     ink: "#000000",
@@ -243,6 +255,77 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     aplic: "#cfcfcf",
     aplicInk: "#000000",
     blank: "#ffffff",
+    bg: "#ffffff",
+    wordmark: "sans",
+    rule: "hair",
+    cell: "tick",
+    frameW: 1.2,
+  },
+  // Tema B — MARCA PADCON CONECT: verde-petroleo (#3D7A7A) + ciano (#45B8CC).
+  MARCA: {
+    ink: "#14342f",
+    brand: "#3D7A7A",
+    accent: "#2a9aad",
+    gold: "#45B8CC",
+    labelInk: "#51716d",
+    border: "#b7d3d0",
+    frame: "#3D7A7A",
+    gridFill: "#e6f5f7",
+    protoFill: "#3D7A7A",
+    protoInk: "#ffffff",
+    zebra: "#f1f9f9",
+    aplic: "#bfe6ec",
+    aplicInk: "#1f5560",
+    blank: "#fbfdfd",
+    bg: "#ffffff",
+    wordmark: "sans",
+    rule: "single",
+    cell: "center",
+    frameW: 1.6,
+  },
+  // Tema C — CLINICO MINIMAL: monocromatico, leve/arejado, fio hairline.
+  MINIMAL: {
+    ink: "#1f2937",
+    brand: "#111827",
+    accent: "#475569",
+    gold: "#cbd5e1",
+    labelInk: "#6b7280",
+    border: "#d6dbe2",
+    frame: "#1f2937",
+    gridFill: "#fafbfc",
+    protoFill: "#eef1f4",
+    protoInk: "#111827",
+    zebra: null,
+    aplic: "#e7ebf0",
+    aplicInk: "#1f2937",
+    blank: "#ffffff",
+    bg: "#ffffff",
+    wordmark: "serif",
+    rule: "hair",
+    cell: "tick",
+    frameW: 0.9,
+  },
+  // Tema D — EDITORIAL BRONZE: papel creme, tinta marrom, dourado classico.
+  BRONZE: {
+    ink: "#3b2f2a",
+    brand: "#4a3b30",
+    accent: "#9a7b4f",
+    gold: "#b08d57",
+    labelInk: "#6e5d4e",
+    border: "#d9cbb6",
+    frame: "#4a3b30",
+    gridFill: "#f1e8d8",
+    protoFill: "#4a3b30",
+    protoInk: "#f7efe1",
+    zebra: "#f7f1e6",
+    aplic: "#e6d7bd",
+    aplicInk: "#4a3b30",
+    blank: "#f7f2e9",
+    bg: "#faf7f1",
+    wordmark: "serif",
+    rule: "double",
+    cell: "center",
+    frameW: 1.4,
   },
 };
 
@@ -330,7 +413,7 @@ function celula(
 
 // Moldura grossa SO na caixa externa do bloco (regra do CEO).
 function molduraBloco(doc: Doc, pal: Paleta, x: number, y: number, w: number, h: number) {
-  doc.lineWidth(1.5).rect(x, y, w, h).stroke(pal.frame);
+  doc.lineWidth(pal.frameW).rect(x, y, w, h).stroke(pal.frame);
 }
 
 function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
@@ -342,8 +425,12 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 }
 
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
-  // Wordmark "RAS" em serif (toque classico) + titulo em sans (legibilidade).
-  doc.font("Times-Bold").fontSize(30).fillColor(pal.brand).text("RAS", M, y - 6, { lineBreak: false });
+  // Wordmark "RAS": serif (classico/editorial) ou sans block (marca).
+  if (pal.wordmark === "serif") {
+    doc.font("Times-Bold").fontSize(30).fillColor(pal.brand).text("RAS", M, y - 6, { lineBreak: false });
+  } else {
+    doc.font("Helvetica-Bold").fontSize(27).fillColor(pal.brand).text("RAS", M, y - 4, { lineBreak: false, characterSpacing: 1.5 });
+  }
   doc
     .font("Helvetica-Bold")
     .fontSize(10)
@@ -364,10 +451,16 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON CONECT", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
   doc.font("Helvetica").fontSize(6.2).fillColor(pal.labelInk).text("Motor Clinico", rEnd - 165, y + 9, { width: 165, align: "right", lineBreak: false });
 
-  // Fio duplo: teal grosso + bronze fino (classico).
+  // Fio sob o cabecalho: duplo (teal+bronze) | unico grosso | hairline fino.
   const yl = y + 26;
-  doc.lineWidth(1.2).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
-  doc.lineWidth(0.5).moveTo(M, yl + 2.4).lineTo(PAGE_W - M, yl + 2.4).stroke(pal.gold);
+  if (pal.rule === "double") {
+    doc.lineWidth(1.2).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
+    doc.lineWidth(0.5).moveTo(M, yl + 2.4).lineTo(PAGE_W - M, yl + 2.4).stroke(pal.gold);
+  } else if (pal.rule === "single") {
+    doc.lineWidth(1.8).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
+  } else {
+    doc.lineWidth(0.6).moveTo(M, yl).lineTo(PAGE_W - M, yl).stroke(pal.border);
+  }
   return yl + 9;
 }
 
@@ -532,25 +625,30 @@ function desenharGrade(
         return;
       }
       const v = ln.contadores[i];
-      if (v) {
-        // "Batalha naval": pinta os ~74% da esquerda e mantem a fracao N/total
-        // nos ~26% da direita.
-        const pintW = SUB_W * 0.74;
-        celula(doc, pal, sx, ry, SUB_W, rowH, { fill: zebra });
-        doc.save();
-        doc.rect(sx + 0.6, ry + 0.6, pintW - 0.6, rowH - 1.2).fillAndStroke(pal.aplic, pal.border);
-        doc.restore();
+      celula(doc, pal, sx, ry, SUB_W, rowH, { fill: zebra });
+      if (!v) return;
+      const escreveFracao = (fx: number, fw: number) =>
         doc
           .font("Helvetica-Bold")
           .fontSize(6.8)
           .fillColor(pal.aplicInk)
-          .text(v, sx + pintW, ry + (rowH - 6.8) / 2 - 0.3, {
-            width: SUB_W - pintW,
-            align: "center",
-            lineBreak: false,
-          });
+          .text(v, fx, ry + (rowH - 6.8) / 2 - 0.3, { width: fw, align: "center", lineBreak: false });
+      if (pal.cell === "battleship") {
+        // Pinta ~74% da esquerda e mantem a fracao N/total nos ~26% da direita.
+        const pintW = SUB_W * 0.74;
+        doc.save();
+        doc.rect(sx + 0.6, ry + 0.6, pintW - 0.6, rowH - 1.2).fillAndStroke(pal.aplic, pal.border);
+        doc.restore();
+        escreveFracao(sx + pintW, SUB_W - pintW);
+      } else if (pal.cell === "center") {
+        // Pinta a celula inteira e centraliza a fracao.
+        doc.save();
+        doc.rect(sx + 0.8, ry + 0.8, SUB_W - 1.6, rowH - 1.6).fillAndStroke(pal.aplic, pal.border);
+        doc.restore();
+        escreveFracao(sx, SUB_W);
       } else {
-        celula(doc, pal, sx, ry, SUB_W, rowH, { fill: zebra });
+        // "tick": sem pintura, so a fracao centralizada (visual clean/minimal).
+        escreveFracao(sx, SUB_W);
       }
     });
     ry += rowH;
@@ -605,7 +703,7 @@ function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: numb
 // ---------------------------------------------------------------------------
 export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM"): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const pal = PALETAS[modo];
+    const pal = PALETAS[modo] ?? PALETAS.PREMIUM;
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0 });
     const bufs: Buffer[] = [];
     doc.on("data", (b: Buffer) => bufs.push(b));
@@ -617,6 +715,7 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
 
     planoPaginas.forEach((p, idx) => {
       if (idx > 0) doc.addPage({ size: "A4", layout: "landscape", margin: 0 });
+      if (pal.bg !== "#ffffff") doc.rect(0, 0, PAGE_W, PAGE_H).fill(pal.bg);
       let y = M;
       y = desenharCabecalho(doc, pal, y);
       y = desenharPaciente(doc, pal, dados, y);

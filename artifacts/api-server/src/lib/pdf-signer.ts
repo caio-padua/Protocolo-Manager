@@ -5,7 +5,7 @@ import path from "path";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
-import { gerarRasFapPdf, type DadosRasFap } from "./ras-fap";
+import { gerarRasFapPdf, type DadosRasFap, type ModoRasFap } from "./ras-fap";
 
 const signpdf = new SignPdf();
 
@@ -719,11 +719,15 @@ function getSubstanceColor(color: string): ReturnType<typeof rgb> {
  * RAS FAP (Formulario de Auditoria de Procedimentos) — modelo "PDF PREMIUM".
  * Paisagem A4, tema azul-marinho, replica o modelo aprovado pelo CEO (FABIO MORGON).
  */
-export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uint8Array> {
+export async function generatePhysicalRASPdf(
+  data: PhysicalRASData,
+  modo: ModoRasFap = "PREMIUM",
+): Promise<Uint8Array> {
   // Adaptador: o RAS FAP agora e desenhado pelo motor pdfkit em ./ras-fap (grade
   // IDENTICA a fonte-da-verdade do IHE). Aqui apenas mapeamos os dados do banco
   // (PhysicalRASData) para o formato DadosRasFap e devolvemos os bytes do PDF.
-  const buf = await gerarRasFapPdf(physicalDataToFap(data), "PREMIUM");
+  // `modo` escolhe SO a estetica (a "pele"); a grade nao muda.
+  const buf = await gerarRasFapPdf(physicalDataToFap(data), modo);
   return new Uint8Array(buf);
 }
 

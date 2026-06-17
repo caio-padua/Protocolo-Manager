@@ -7,6 +7,7 @@ import {
   GetRASParams,
 } from "@workspace/api-zod";
 import { generateSignedRASPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
+import type { ModoRasFap } from "../lib/ras-fap";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
@@ -501,6 +502,17 @@ function buildDemoSubstances(): DemoSub[] {
   ];
 }
 
+// Cenario "folha cheia": 3 substancias semanais com 26 aplicacoes cada ->
+// 26 idas reais > 20 linhas por folha, forcando a quebra de pagina (prova da
+// regra das 20 linhas reiterada pelo CEO). Acessado via ?big=1.
+function buildBigDemoSubstances(): DemoSub[] {
+  return [
+    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
+    { name: "Vitamina C (Ac. Ascorbico)", dose: "1 G / 5 ML", color: "#10B981", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
+    { name: "Cloreto de Magnesio", dose: "2 G / 10 ML", color: "#F59E0B", via: "Intramuscular", procedureType: "im", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
+  ];
+}
+
 function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string): string {
   const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
   const rows = subs.map((s, i) => `
@@ -570,7 +582,13 @@ function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string):
 router.get("/ras-fap-demo", async (req, res) => {
   const clientName = "MARIANA DEMONSTRACAO SILVA";
   const valor = "R$ 14.890,00";
-  const demoSubs = buildDemoSubstances();
+  const big = req.query.big === "1";
+  const demoSubs = big ? buildBigDemoSubstances() : buildDemoSubstances();
+  const temaParam = (typeof req.query.tema === "string" ? req.query.tema : "").toUpperCase();
+  const TEMAS_OK = ["PREMIUM", "MARCA", "MINIMAL", "BRONZE", "SIMPLES"] as const satisfies readonly ModoRasFap[];
+  const modo: ModoRasFap = (TEMAS_OK as readonly string[]).includes(temaParam)
+    ? (temaParam as ModoRasFap)
+    : "PREMIUM";
 
   try {
     const pdfBytes = await generatePhysicalRASPdf({
@@ -594,7 +612,7 @@ router.get("/ras-fap-demo", async (req, res) => {
         dose: s.dose,
       })),
       sessions: [],
-    });
+    }, modo);
     const pdfBuffer = Buffer.from(pdfBytes);
     const driveFileName = `26.06.17 RAS FAP DEMO ${clientName}.pdf`;
 

@@ -44,6 +44,25 @@ FAP por permitir `?send=1&to=qualquer-email` sem auth — vetor de spam/custo.
 efeitos colaterais ficam atras do guard. Padrao usado: `authorizedSend = send &&
 emailValido && key === SESSION_SECRET && ALLOWED.has(to)`.
 
+# Pele (tema visual) parametrizada — motor intacto
+
+Regra: o RAS FAP tem N temas visuais selecionaveis (`ModoRasFap` =
+PREMIUM|SIMPLES|MARCA|MINIMAL|BRONZE). Toda a variacao vive numa `Paleta`
+(fundo, wordmark serif/sans, fio do cabecalho duplo/simples/hairline, estilo da
+celula aplicada, largura da moldura). O tema so muda RENDER — nunca datas,
+contadores, agrupamento, paginacao ou as 4 regras visuais fixas do CEO.
+
+**Why:** o CEO quis comparar opcoes visuais sem tocar na grade (que e copia
+byte-identica do IHE). Misturar pele com motor reintroduziria o modelo morto
+"por grupo".
+
+**How to apply:** adicionar tema = nova entrada em `PALETAS` (Record completo por
+`ModoRasFap`) + render le sempre de `pal`. Acesso defensivo `PALETAS[modo] ??
+PALETAS.PREMIUM`. Rota demo `/ras-fap-demo?tema=` valida por whitelist tipada
+(`as const satisfies readonly ModoRasFap[]`) com fallback PREMIUM; `?big=1` usa
+3 subs semanais x 26 sessoes = 26 idas -> 2 folhas, prova viva da regra
+LINHAS_POR_PAGINA=20 (folha 1 = 20 linhas, folha 2 = 6).
+
 # Colisao de rota Express por segmento unico
 
 `/ras/:id` (registrada antes) captura qualquer `/ras/<um-segmento>`, inclusive
