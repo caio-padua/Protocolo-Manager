@@ -167,6 +167,8 @@ Resumo da CARTA_08 recebida do IHE e executada pelo Dr. Replit Manager.
 
 6. VARIANTES VISUAIS (pele) — `ModoRasFap` = PREMIUM|SIMPLES|MARCA|MINIMAL|BRONZE. So o RENDER muda (cores, wordmark serif/sans, fio do cabecalho, pintura da celula, largura da moldura via `Paleta`); o motor da grade e as 4 regras visuais do CEO permanecem identicos. `generatePhysicalRASPdf(data, modo="PREMIUM")`. Rota de demonstracao: `GET /api/ras-fap-demo?tema=PREMIUM|MARCA|MINIMAL|BRONZE` (whitelist tipada, fallback PREMIUM) e `?big=1` (3 substancias semanais x 26 sessoes = 2 folhas, prova viva da regra de 20 linhas por folha). Default em producao continua PREMIUM ate o CEO bater o martelo do tema.
 
+7. AJUSTES FINOS DE RENDER (17/06/2026; valem para os 4 temas; motor da grade INTACTO): (a) cabecalho das colunas de substancia na grade virou "SESSÃO" (com acento, via flag `keepAccents` em `celula()` que pula o `semAcento()`); (b) frequencia "A CADA N DIAS" -> "A cada N dias"; (c) coluna DATA EFETIVA reordenada para logo apos HORA em `COLS_FIXAS` (soma de larguras inalterada); (d) pintura da celula virou faixa marcadora de 1/4 a esquerda + fracao "N / total" nos 3/4 da direita (temas battleship/center; o tema "tick"/MINIMAL segue sem pintura); (e) fracao com espaco "1 / 12".
+
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
 Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):

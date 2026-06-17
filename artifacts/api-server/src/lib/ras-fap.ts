@@ -341,9 +341,9 @@ const COLS_FIXAS = [
   { key: "sem", label: "SEM.", w: 26 },
   { key: "agend", label: "DATA AGEND.", w: 58 },
   { key: "hora", label: "HORA", w: 30 },
+  { key: "efetiva", label: "DATA EFETIVA", w: 58 },
   { key: "cienciaPac", label: "CIENCIA / RUBRICA PACIENTE", w: 120 },
   { key: "rubEnf", label: "RUBRICA ENF.", w: 64 },
-  { key: "efetiva", label: "DATA EFETIVA", w: 58 },
   { key: "obs", label: "OBS.", w: 58 },
 ] as const;
 const FIXED_W = COLS_FIXAS.reduce((a, c) => a + c.w, 0);
@@ -381,6 +381,7 @@ function celula(
     wrap?: boolean;
     valign?: "middle" | "top";
     spacing?: number;
+    keepAccents?: boolean;
   } = {},
 ) {
   if (opts.fill) doc.rect(x, y, w, h).fill(opts.fill);
@@ -400,7 +401,7 @@ function celula(
       .font(font)
       .fontSize(size)
       .fillColor(opts.color ?? pal.ink)
-      .text(semAcento(opts.text), x + 3, ty, {
+      .text(opts.keepAccents ? opts.text : semAcento(opts.text), x + 3, ty, {
         width: w - 6,
         align: opts.align ?? "left",
         lineBreak: wrap,
@@ -511,7 +512,7 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
   const linhas: { label: string; valor: (s: SubstanciaFap) => string; destaque?: boolean }[] = [
     { label: "SUBSTANCIAS", valor: (s) => `${s.nome}${s.dose ? " " + s.dose : ""}`, destaque: true },
     { label: "APLICACOES", valor: (s) => String(s.sessoes) },
-    { label: "FREQUENCIA", valor: (s) => `A CADA ${s.frequenciaDias} DIAS` },
+    { label: "FREQUENCIA", valor: (s) => `A cada ${s.frequenciaDias} dias` },
     { label: "INICIO DA APLICACAO", valor: (s) => fmtData(s.inicio) },
   ];
 
@@ -583,14 +584,15 @@ function desenharGrade(
       return;
     }
     celula(doc, pal, sx, yTopo, SUB_W, headH, {
-      text: `${s.nome}${s.dose ? " " + s.dose : ""} - SESSAO`,
+      text: "SESSÃO",
       bold: true,
-      size: 5.8,
+      size: 7,
       align: "center",
       fill: pal.gridFill,
       color: pal.brand,
-      wrap: true,
-      valign: "top",
+      wrap: false,
+      valign: "middle",
+      keepAccents: true,
     });
   });
 
@@ -627,28 +629,24 @@ function desenharGrade(
       const v = ln.contadores[i];
       celula(doc, pal, sx, ry, SUB_W, rowH, { fill: zebra });
       if (!v) return;
+      // Espaco ao redor da barra: "1/12" -> "1 / 12" (so render; motor intacto).
+      const vFmt = v.replace("/", " / ");
       const escreveFracao = (fx: number, fw: number) =>
         doc
           .font("Helvetica-Bold")
           .fontSize(6.8)
           .fillColor(pal.aplicInk)
-          .text(v, fx, ry + (rowH - 6.8) / 2 - 0.3, { width: fw, align: "center", lineBreak: false });
-      if (pal.cell === "battleship") {
-        // Pinta ~74% da esquerda e mantem a fracao N/total nos ~26% da direita.
-        const pintW = SUB_W * 0.74;
-        doc.save();
-        doc.rect(sx + 0.6, ry + 0.6, pintW - 0.6, rowH - 1.2).fillAndStroke(pal.aplic, pal.border);
-        doc.restore();
-        escreveFracao(sx + pintW, SUB_W - pintW);
-      } else if (pal.cell === "center") {
-        // Pinta a celula inteira e centraliza a fracao.
-        doc.save();
-        doc.rect(sx + 0.8, ry + 0.8, SUB_W - 1.6, rowH - 1.6).fillAndStroke(pal.aplic, pal.border);
-        doc.restore();
+          .text(vFmt, fx, ry + (rowH - 6.8) / 2 - 0.3, { width: fw, align: "center", lineBreak: false });
+      if (pal.cell === "tick") {
+        // Minimal: sem pintura, fracao centralizada na celula inteira.
         escreveFracao(sx, SUB_W);
       } else {
-        // "tick": sem pintura, so a fracao centralizada (visual clean/minimal).
-        escreveFracao(sx, SUB_W);
+        // Pinta SOMENTE 1/4 (faixa marcador a esquerda); fracao nos 3/4 da direita.
+        const q = SUB_W / 4;
+        doc.save();
+        doc.rect(sx + 0.6, ry + 0.6, q - 0.6, rowH - 1.2).fillAndStroke(pal.aplic, pal.border);
+        doc.restore();
+        escreveFracao(sx + q, SUB_W - q);
       }
     });
     ry += rowH;
