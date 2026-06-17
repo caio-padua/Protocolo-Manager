@@ -221,6 +221,11 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
     bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
   };
+  // Fontes serifadas (Times) — toque classico/editorial nos titulos das fichas.
+  const serif = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const serifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  // Tom marfim para as caixas de destaque (funcao principal).
+  const IVORY = rgb(0.98, 0.97, 0.93);
 
   const allPages: PDFPage[] = [];
 
@@ -408,134 +413,124 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   }
 
   // ============================================================
-  // PAGES 2+: FICHAS DAS SUBSTÂNCIAS (TDAH-friendly)
+  // PAGES 2+: FICHAS DAS SUBSTÂNCIAS — layout editorial premium
+  // (faixa navy + fio dourado, nome serifado, barras de impacto por sistema)
   // ============================================================
   const substancesWithInfo = ras.substances.filter(s => s.description || s.mainFunction);
+
+  // Titulo de secao da ficha: rotulo + fio fino colorido (estilo editorial).
+  function fichaTitle(title: string, accent: ReturnType<typeof rgb> = GOLD): void {
+    ensureSpace(24);
+    page.drawText(title, { x: MARGIN, y, size: 8.5, font: fonts.bold, color: DARK_BLUE });
+    y -= 5;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.8, color: accent, opacity: 0.55 });
+    y -= 15;
+  }
+
+  const LIGHT_BLUE = rgb(0.72, 0.8, 0.95);
+  const TEXT_INK = rgb(0.2, 0.2, 0.22);
 
   for (let si = 0; si < substancesWithInfo.length; si++) {
     const sub = substancesWithInfo[si];
     newPage();
 
-    const pageLabel = `${si + 1}/${substancesWithInfo.length}`;
-    page.drawText(`FICHA DA SUBSTÂNCIA — ${pageLabel}`, { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
-    y -= 20;
+    // --- Cabecalho: faixa navy com fio dourado, nome serifado e eficacia ---
+    const bandTop = y;
+    const bandH = 60;
+    const bandY = bandTop - bandH;
+    page.drawRectangle({ x: MARGIN, y: bandY, width: CONTENT_W, height: bandH, color: DARK_BLUE });
+    page.drawRectangle({ x: MARGIN, y: bandTop - 3, width: CONTENT_W, height: 3, color: GOLD });
 
-    page.drawRectangle({ x: MARGIN, y: y - 35, width: CONTENT_W, height: 45, color: DARK_BLUE, borderColor: DARK_BLUE, borderWidth: 0 });
-    page.drawText(sub.substanceName.toUpperCase(), { x: MARGIN + 15, y: y - 8, size: 18, font: fonts.bold, color: rgb(1, 1, 1) });
+    page.drawText(`FICHA DA SUBSTANCIA   ${si + 1} DE ${substancesWithInfo.length}`, {
+      x: MARGIN + 16, y: bandTop - 19, size: 7, font: fonts.bold, color: GOLD,
+    });
 
-    const procLabel = sub.procedureType === "im" ? "INTRAMUSCULAR" : sub.procedureType === "implant" ? "IMPLANTE" : "ENDOVENOSO";
-    page.drawText(procLabel, { x: MARGIN + 15, y: y - 27, size: 9, font: fonts.regular, color: rgb(0.7, 0.8, 1) });
+    const nameUpper = sub.substanceName.toUpperCase();
+    let nameSize = 20;
+    while (serifBold.widthOfTextAtSize(nameUpper, nameSize) > CONTENT_W - 130 && nameSize > 12) nameSize -= 0.5;
+    page.drawText(nameUpper, { x: MARGIN + 16, y: bandTop - 43, size: nameSize, font: serifBold, color: rgb(1, 1, 1) });
 
-    const doseLabel = `Dose: ${sub.dose} · Sessão ${sub.sessionNumber}/${sub.totalSessions}`;
-    const dlw = fonts.regular.widthOfTextAtSize(doseLabel, 9);
-    page.drawText(doseLabel, { x: PAGE_W - MARGIN - 15 - dlw, y: y - 18, size: 9, font: fonts.regular, color: rgb(0.7, 0.8, 1) });
+    const procLabel = sub.procedureType === "im" ? "INTRAMUSCULAR (IM)" : sub.procedureType === "implant" ? "IMPLANTE" : "ENDOVENOSO (IV)";
+    page.drawText(procLabel, { x: MARGIN + 16, y: bandY + 10, size: 8, font: fonts.regular, color: LIGHT_BLUE });
 
-    y -= 55;
+    if (sub.starRating !== undefined) {
+      page.drawText("EFICACIA", { x: PAGE_W - MARGIN - 86, y: bandTop - 15, size: 6, font: fonts.bold, color: GOLD });
+      drawStars(page, PAGE_W - MARGIN - 86, bandTop - 32, sub.starRating);
+    }
+    const doseLabel = `Dose ${sub.dose}  ·  Sessao ${sub.sessionNumber}/${sub.totalSessions}`;
+    const dlw = fonts.regular.widthOfTextAtSize(doseLabel, 8);
+    page.drawText(doseLabel, { x: PAGE_W - MARGIN - 16 - dlw, y: bandY + 10, size: 8, font: fonts.regular, color: LIGHT_BLUE });
 
+    y = bandY - 24;
+
+    // --- O QUE E (descricao) ---
     if (sub.description) {
-      ensureSpace(31);
-      page.drawText("O QUE É", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: ACCENT_BLUE, opacity: 0.3 });
-      y -= 14;
-
-      const descLines = wrapText(sub.description, fonts.regular, 9, CONTENT_W);
+      fichaTitle("O QUE E");
+      const descLines = wrapText(sub.description, fonts.regular, 9.5, CONTENT_W);
       for (const line of descLines) {
         ensureSpace(13);
-        page.drawText(line, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
+        page.drawText(line, { x: MARGIN, y, size: 9.5, font: fonts.regular, color: TEXT_INK });
         y -= 13;
       }
       y -= 10;
     }
 
+    // --- FUNCAO PRINCIPAL (caixa marfim com tarja dourada lateral, texto serifado) ---
     if (sub.mainFunction) {
-      ensureSpace(48);
-      page.drawText("FUNÇÃO PRINCIPAL", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: ACCENT_BLUE, opacity: 0.3 });
-      y -= 16;
-
-      page.drawRectangle({ x: MARGIN, y: y - 15, width: CONTENT_W, height: 30, color: LIGHT_BG, borderColor: ACCENT_BLUE, borderWidth: 0.5, opacity: 0.8 });
-      page.drawText(sub.mainFunction, { x: MARGIN + 10, y: y - 5, size: 10, font: fonts.bold, color: DARK_BLUE });
-
-      if (sub.starRating !== undefined) {
-        drawStars(page, PAGE_W - MARGIN - 80, y - 5, sub.starRating);
+      const fnLines = wrapText(sub.mainFunction, serif, 11, CONTENT_W - 30);
+      const boxH = 12 + fnLines.length * 15 + 6;
+      ensureSpace(boxH + 32);
+      fichaTitle("FUNCAO PRINCIPAL");
+      const boxTop = y + 4;
+      const boxBottom = boxTop - boxH;
+      page.drawRectangle({ x: MARGIN, y: boxBottom, width: CONTENT_W, height: boxH, color: IVORY, borderColor: GOLD, borderWidth: 0.6 });
+      page.drawRectangle({ x: MARGIN, y: boxBottom, width: 4, height: boxH, color: GOLD });
+      let fy = boxTop - 17;
+      for (const line of fnLines) {
+        page.drawText(line, { x: MARGIN + 16, y: fy, size: 11, font: serif, color: DARK_BLUE });
+        fy -= 15;
       }
-
-      y -= 30;
+      y = boxBottom - 16;
     }
 
+    // --- IMPACTO POR SISTEMA DO CORPO (barras 0-5, mais alto primeiro) ---
     if (sub.bodySystemEffects && typeof sub.bodySystemEffects === "object") {
-      ensureSpace(40);
-      y -= 10;
-      page.drawText("EFEITO POR SISTEMA DO CORPO", { x: MARGIN, y, size: 8, font: fonts.bold, color: ACCENT_BLUE });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: ACCENT_BLUE, opacity: 0.3 });
-      y -= 16;
-
-      const systemColors: Record<string, typeof ACCENT_BLUE> = {
-        "Pele": rgb(0.9, 0.55, 0.35),
-        "Fígado": rgb(0.55, 0.35, 0.2),
-        "Sistema Imunológico": rgb(0.2, 0.6, 0.35),
-        "Neurológico": rgb(0.4, 0.3, 0.7),
-        "Cardiovascular": rgb(0.8, 0.2, 0.2),
-        "Muscular": rgb(0.2, 0.5, 0.6),
-        "Endócrino": rgb(0.6, 0.5, 0.15),
-        "Muscular/Esquelético": rgb(0.3, 0.5, 0.5),
-      };
-
-      const systems = Object.entries(sub.bodySystemEffects as Record<string, string>);
-      const colW = CONTENT_W / 2 - 5;
-
-      for (let row = 0; row < systems.length; row += 2) {
-        ensureSpace(55);
-        for (let col = 0; col < 2 && row + col < systems.length; col++) {
-          const [system, effect] = systems[row + col];
-          const xPos = MARGIN + col * (colW + 10);
-
-          page.drawRectangle({ x: xPos, y: y - 40, width: colW, height: 50, color: LIGHT_BG, borderColor: LIGHT_GRAY, borderWidth: 0.5 });
-
-          const dotColor = systemColors[system] ?? ACCENT_BLUE;
-          page.drawCircle({ x: xPos + 12, y: y - 2, size: 4, color: dotColor, borderWidth: 0 });
-          page.drawText(system.toUpperCase(), { x: xPos + 22, y: y - 5, size: 7.5, font: fonts.bold, color: DARK_BLUE });
-
-          const effectLines = wrapText(effect, fonts.regular, 7.5, colW - 20);
-          for (let el = 0; el < Math.min(effectLines.length, 3); el++) {
-            page.drawText(effectLines[el], { x: xPos + 10, y: y - 20 - el * 10, size: 7.5, font: fonts.regular, color: GRAY });
-          }
+      const entries = Object.entries(sub.bodySystemEffects as Record<string, unknown>)
+        .map(([k, v]) => ({ k, v: impactNum(v) }))
+        .filter(e => e.v > 0)
+        .sort((a, b) => b.v - a.v);
+      if (entries.length) {
+        fichaTitle("IMPACTO POR SISTEMA DO CORPO", ACCENT_BLUE);
+        for (const e of entries) {
+          ensureSpace(16);
+          drawImpactBar(page, fonts, MARGIN, y, CONTENT_W, systemLabel(e.k), e.v);
+          y -= 16;
         }
-        y -= 55;
+        y -= 8;
       }
     }
 
+    // --- EFEITOS PERCEBIDOS PELO CLIENTE ---
     if (sub.perceivedEffects) {
-      ensureSpace(36);
-      y -= 5;
-      page.drawText("EFEITOS PERCEBIDOS PELO CLIENTE", { x: MARGIN, y, size: 8, font: fonts.bold, color: GREEN });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: GREEN, opacity: 0.3 });
-      y -= 14;
-
-      const effectLines = wrapText(sub.perceivedEffects, fonts.regular, 9, CONTENT_W);
+      fichaTitle("EFEITOS PERCEBIDOS PELO CLIENTE", GREEN);
+      const effectLines = wrapText(sub.perceivedEffects, fonts.regular, 9.5, CONTENT_W - 16);
       for (const line of effectLines) {
         ensureSpace(13);
-        page.drawText(`> ${line}`, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
+        page.drawCircle({ x: MARGIN + 3, y: y + 3, size: 2, color: GREEN });
+        page.drawText(line, { x: MARGIN + 12, y, size: 9.5, font: fonts.regular, color: TEXT_INK });
         y -= 13;
       }
       y -= 8;
     }
 
+    // --- TEMPO PARA PERCEBER O EFEITO ---
     if (sub.timeToEffect) {
-      ensureSpace(31);
-      page.drawText("TEMPO PARA PERCEBER O EFEITO", { x: MARGIN, y, size: 8, font: fonts.bold, color: GOLD });
-      y -= 4;
-      page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: GOLD, opacity: 0.3 });
-      y -= 14;
-
-      const timeLines = wrapText(sub.timeToEffect, fonts.regular, 9, CONTENT_W);
+      fichaTitle("TEMPO PARA PERCEBER O EFEITO", GOLD);
+      const timeLines = wrapText(sub.timeToEffect, fonts.regular, 9.5, CONTENT_W - 16);
       for (const line of timeLines) {
         ensureSpace(13);
-        page.drawText(`>> ${line}`, { x: MARGIN, y, size: 9, font: fonts.regular, color: BLACK });
+        page.drawCircle({ x: MARGIN + 3, y: y + 3, size: 2, color: GOLD });
+        page.drawText(line, { x: MARGIN + 12, y, size: 9.5, font: fonts.regular, color: TEXT_INK });
         y -= 13;
       }
     }
