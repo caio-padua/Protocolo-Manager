@@ -451,10 +451,17 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const rEnd = PAGE_W - M;
 
-  // Faixa de marca (topo): PAWARDS e PADCON JUNTOS no canto superior DIREITO,
-  // lado a lado (pedido do CEO — voltar para onde estava).
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PAWARDS", rEnd - 320, y - 2, { width: 150, align: "right", lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
+  // Faixa de marca (topo, canto superior DIREITO): PAWARDS e PADCON lado a lado,
+  // cada um com sua tagline em ingles DESTACADA (cor de acento) logo abaixo.
+  // PAWARDS = sistema clinico; PADCON = empresa-raiz de tecnologia (holding que
+  // cria varias empresas de tecnologia). Sao empresas de tecnologia, nao a clinica.
+  const colW = 190;
+  const colAx = rEnd - 400; // coluna PAWARDS (borda direita em rEnd-210)
+  const colBx = rEnd - colW; // coluna PADCON (borda direita em rEnd)
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(pal.brand).text("PAWARDS", colAx, y - 2, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(pal.brand).text("PADCON", colBx, y - 2, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(6.5).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEMS", colAx, y + 10, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  doc.font("Helvetica-Bold").fontSize(6.5).fillColor(pal.accent).text("TECHNOLOGY VENTURE BUILDER", colBx, y + 10, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
 
   // Titulo do documento: wordmark "RAS FAP" + 2 descritivos no estilo do anexo.
   // Linha 1 (RAS) normal, recuada a esquerda; linha 2 (FAP) em italico, 20%
