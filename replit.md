@@ -80,7 +80,7 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - Health/Wellness fields: `longevityBenefit`, `qualityOfLifeImpact`, `sleepBenefit`, `energyBenefit`, `libidoBenefit`, `physicalPerformance`, `muscleStrength`, `mentalClarity`, `skinHairNails`, `immuneSupport`, `contraindications`, `scientificEvidence`, `categoryType`
 
 ### Key Features
-- **Lançador**: Single-page guided protocol creation with up to 10 substance slots (per-substance start date, frequency, dose)
+- **Lançador**: Single-page guided protocol creation with up to 10 substance slots (per-substance start date, frequency, dose). Tela de resumo tem dois botões de lançamento: "Confirmar e Lançar Protocolo" (cria e vai ao detalhe) e o atalho "Lançar + Gerar RAS FAP" (cria → valida/gera sessões → gera o RAS FAP paisagem → baixa para impressão + envia ao Drive do cliente → vai ao detalhe). O RAS FAP só tem linhas de sessão depois da validação, por isso o atalho valida antes de gerar.
 - **Weekly consolidation**: Sessions grouped by week (Mon-Sun), one visit per week per client
 - **ICS integration**: Download ICS files per session or per week; Google Calendar deep links
 - **WhatsApp reminders**: Pre-formatted messages sent to client's phone
@@ -188,5 +188,7 @@ Art. 48  Cartas para outros agentes: bloco pronto para colar, ASCII puro, sem ac
 Art. 49  Nao misturar OPERAR (uso clinico real) com ARQUITETAR (construir com agentes) na mesma resposta.
 
 Art. 50  Nao mudar uma decisao do CEO sem avisar; se o CEO errar, corrigir com fundamento.
+
+Art. 51  Comunicacao visual no Canvas (decisao do CEO em 16/06/2026): quando o assunto for fluxo, comparacao de opcoes, arquitetura ou "antes x depois", o agente deve oferecer/desenhar um ORGANOGRAMA (blueprint) no Canvas — caixas + setas, cores da marca (verde-petroleo/ciano para sistema, verde para resultado, laranja para o item novo/proposto), faixas separando cada caminho, e uma nota-resumo. Ao terminar, sempre chamar presentArtifact com os ids das formas. Esta pratica complementa a Densidade B (tabela continua sendo o carro-chefe do texto). Vale para todos os repositorios/agentes do CEO.
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

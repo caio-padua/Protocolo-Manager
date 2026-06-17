@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useCreateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
+import { useCreateProtocol, useValidateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -73,6 +73,8 @@ export default function NovoProtocolo() {
   const [scheduledTime, setScheduledTime] = useState("08:00");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
+  const [comboLoading, setComboLoading] = useState(false);
+  const comboRef = useRef(false);
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}api/locations`)
@@ -84,14 +86,18 @@ export default function NovoProtocolo() {
   const createMutation = useCreateProtocol({
     mutation: {
       onSuccess: (data) => {
+        if (comboRef.current) return;
         toast({ title: "Protocolo lançado!", description: "Sessões serão geradas após validação." });
         setLocation(`/protocols/${data.id}`);
       },
       onError: () => {
+        if (comboRef.current) return;
         toast({ title: "Erro ao criar protocolo", variant: "destructive" });
       }
     }
   });
+
+  const validateMutation = useValidateProtocol();
 
   const selectedClient = clients?.find(c => String(c.id) === clientId);
   const selectedProfessional = professionals?.find(p => String(p.id) === professionalId);
@@ -123,32 +129,78 @@ export default function NovoProtocolo() {
 
   const canAdvance = clientId && professionalId && locationId && filledSlots.length > 0;
 
-  const handleLancar = () => {
+  const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
-    createMutation.mutate({
-      data: {
-        clientId: parseInt(clientId),
-        title: autoTitle,
-        status: "suggested",
-        startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
-        serviceType: selectedLocation?.type === "homecare" ? "homecare" : "clinic",
-        professionalId: parseInt(professionalId),
-        unit: selectedLocation?.name ?? null,
-        totalValue: 0,
-        notes: null,
-        items: filledSlots.map(s => {
-          const freq = FREQUENCY_OPTIONS.find(f => f.value === s.frequency);
-          const intervalDays = s.frequency === "custom" ? s.customDays : (freq?.days ?? 7);
-          return {
-            substanceId: s.substanceId,
-            dose: s.dose,
-            totalSessions: s.totalSessions,
-            intervalDays,
-            frequency: s.frequency,
-          };
-        }),
+    return {
+      clientId: parseInt(clientId),
+      title: autoTitle,
+      status: "suggested" as const,
+      startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
+      serviceType: (selectedLocation?.type === "homecare" ? "homecare" : "clinic") as "homecare" | "clinic",
+      professionalId: parseInt(professionalId),
+      unit: selectedLocation?.name ?? null,
+      totalValue: 0,
+      notes: null,
+      items: filledSlots.map(s => {
+        const freq = FREQUENCY_OPTIONS.find(f => f.value === s.frequency);
+        const intervalDays = s.frequency === "custom" ? s.customDays : (freq?.days ?? 7);
+        return {
+          substanceId: s.substanceId,
+          dose: s.dose,
+          totalSessions: s.totalSessions,
+          intervalDays,
+          frequency: s.frequency,
+        };
+      }),
+    };
+  };
+
+  const handleLancar = () => {
+    createMutation.mutate({ data: buildPayload() });
+  };
+
+  const handleLancarComRasFap = async () => {
+    if (comboRef.current) return;
+    comboRef.current = true;
+    setComboLoading(true);
+    let createdId: number | null = null;
+    try {
+      const created = await createMutation.mutateAsync({ data: buildPayload() });
+      createdId = created.id;
+      await validateMutation.mutateAsync({ id: created.id });
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null);
+        throw new Error(err?.details || "Erro ao gerar RAS FAP");
       }
-    });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = resp.headers.get("Content-Disposition");
+      const m = cd?.match(/filename="(.+)"/);
+      a.download = m?.[1] ?? `RAS_FAP_${created.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Protocolo lançado e RAS FAP gerado!", description: "PDF baixado para impressao e enviado ao Drive do cliente." });
+      comboRef.current = false;
+      setLocation(`/protocols/${created.id}`);
+    } catch (err: any) {
+      if (createdId !== null) {
+        toast({
+          title: "Protocolo criado, mas o RAS FAP falhou",
+          description: "Abrindo o detalhe — gere o RAS FAP pelo botão da tela.",
+          variant: "destructive",
+        });
+        comboRef.current = false;
+        setLocation(`/protocols/${createdId}`);
+      } else {
+        toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RAS FAP", variant: "destructive" });
+      }
+    } finally {
+      comboRef.current = false;
+      setComboLoading(false);
+    }
   };
 
   if (step === "resumo") {
@@ -241,14 +293,24 @@ export default function NovoProtocolo() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" size="lg" onClick={() => setStep("configurar")}>
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button variant="outline" size="lg" onClick={() => setStep("configurar")} disabled={comboLoading || createMutation.isPending}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Voltar e Editar
           </Button>
-          <Button size="lg" onClick={handleLancar} disabled={createMutation.isPending} className="px-8">
-            {createMutation.isPending ? "Lançando..." : "Confirmar e Lançar Protocolo"}
+          <Button size="lg" onClick={handleLancar} disabled={createMutation.isPending || comboLoading} className="px-8">
+            {createMutation.isPending && !comboRef.current ? "Lançando..." : "Confirmar e Lançar Protocolo"}
             <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={handleLancarComRasFap}
+            disabled={comboLoading || createMutation.isPending}
+            className="px-8"
+          >
+            {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+            {comboLoading ? "Gerando RAS FAP..." : "Lançar + Gerar RAS FAP"}
           </Button>
         </div>
       </div>
