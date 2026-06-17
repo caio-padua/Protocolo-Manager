@@ -722,7 +722,7 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
   const M = 30;
 
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`RAS Fisico — ${data.clientName}`);
+  pdfDoc.setTitle(`RAS FAP — ${data.clientName}`);
   pdfDoc.setAuthor("PADCOM — Protocolos Injetaveis");
 
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -774,7 +774,7 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
       let y = PAGE_H_L - M;
 
       page.drawRectangle({ x: M, y: y - 12, width: PAGE_W_L - 2 * M, height: 16, color: rgb(0.92, 0.92, 0.92) });
-      page.drawText("RAS - REGISTRO ADMINISTRACAO DE SUBSTANCIAS", {
+      page.drawText("RAS FAP - REGISTRO ADMINISTRACAO DE SUBSTANCIAS", {
         x: M + 5, y: y - 8, size: 9, font: bold, color: BLACK,
       });
       if (sPage > 0 || sessPage > 0) {
@@ -992,7 +992,7 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
       page.drawText("Enfermeiro Resp.:", { x: enfSigX, y: y - 10, size: 7, font: bold, color: BLACK });
       page.drawText(data.nurseName ?? "", { x: enfSigX, y: y - 20, size: 7, font: regular, color: GRAY });
 
-      const footerText = `PADCOM -- Protocolos Injetaveis · RAS Fisico · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+      const footerText = `PADCOM -- Protocolos Injetaveis · RAS FAP · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
       page.drawText(footerText, { x: M, y: M - 10, size: 6, font: regular, color: GRAY });
     }
   }

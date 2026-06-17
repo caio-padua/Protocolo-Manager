@@ -472,7 +472,7 @@ function buildProtocolEmailHTML(data: ProtocolEmailData): string {
               </p>
 
               <p style="color: #475569; font-size: 15px; margin: 0 0 24px; line-height: 1.7;">
-                Segue em anexo o documento <strong>RAS Fisico</strong> (Registro de Administracao de Substancias)
+                Segue em anexo o documento <strong>RAS FAP</strong> (Registro de Administracao de Substancias)
                 contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle
                 presencial de cada aplicacao.
               </p>

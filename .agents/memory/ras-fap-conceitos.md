@@ -5,12 +5,13 @@ description: Definicoes de negocio do CEO para FAP (papel), RAS (nuvem), concili
 
 # RAS / FAP — conceitos do CEO (fonte: 3 docs Google, glossario PAWARDS 26.06.02)
 
-## ALERTA DE NOMENCLATURA (divergencia a resolver)
-- No SISTEMA HOJE: "RAS" = Registro de Administracao de Substancias (PDF digital assinado ICP-Brasil) + "RAS Fisico" = impresso paisagem para a enfermeira preencher a mao.
-- No DOC NOVO do CEO (CONCEITOS RAS FAP): a sigla muda de sentido:
-  - **FAP = Formulario de Auditoria de Procedimentos** = o papel fisico de cabeceira preenchido A CANETA na sala, no momento exato da aplicacao. Prova fisica/juridica. (Equivale ao "RAS Fisico" de hoje.)
-  - **RAS = Registro de Assistencia Sistemico** = prontuario macro DIGITAL em nuvem: historico, anamnese, planejamento, evolucao a longo prazo.
-- **Acao futura (pedir validacao ao CEO antes de mexer):** alinhar a sigla no sistema. Provavel: renomear "RAS Fisico" -> "FAP"; e decidir se o "RAS digital" atual vira "RAS (Registro de Assistencia Sistemico)" ou mantem o nome antigo.
+## NOMENCLATURA (decisao final do CEO em 16/06/2026 — IMPLEMENTADA)
+- "RAS FAP" e um NOME COMPOSTO UNICO (nao duas siglas separadas). E o documento impresso paisagem (folha unica horizontal) de auditoria em papel = o antigo "RAS Fisico" do sistema.
+- O CEO mandou apenas acrescentar "FAP" ao lado de "RAS"; finalidade = IMPRESSAO para anotacao manual a caneta.
+- JA IMPLEMENTADO: todo "RAS Fisico" virou "RAS FAP" (titulo/cabecalho/rodape do PDF em pdf-signer.ts generatePhysicalRASPdf; botao/toast/erro/download em detail.tsx; corpo do email; nome no Drive em formatPhysicalRASFileName, que antes era "PROTOCOLO ..." e agora e "RAS FAP ..."; erro 500 e Content-Disposition em routes/ras.ts). Rota inalterada: GET /api/ras/physical/:protocolId.
+- O "RAS" digital assinado ICP-Brasil (generateSignedRASPdf, /api/ras/:id/pdf) NAO foi renomeado: continua "RAS".
+- Contexto teorico (doc CONCEITOS RAS FAP) ja registrado nas secoes abaixo: FAP=papel na sala, RAS=prontuario nuvem, conciliacao tripla. Mas para o SISTEMA vale a decisao acima: "RAS FAP" = o documento impresso, ponto.
+- Botao + upload ao Drive JA existiam: a rota GET /api/ras/physical/:protocolId gera o PDF e faz upload automatico para a subpasta PROTOCOLOS do paciente; botao "RAS FAP (Imprimir)" no detalhe do protocolo.
 
 ## Tres papeis do fluxo
 - **FAP** (papel, caneta, na hora): data/hora real, nome comercial + miligragem (ml/UI), LOTE + VALIDADE, assinatura do profissional (carimbo) E do paciente (proprio punho).

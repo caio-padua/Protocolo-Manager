@@ -103,7 +103,7 @@ export default function ProtocolDetail() {
                     const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}`);
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
-                      throw new Error(err?.details || "Erro ao gerar RAS fisico");
+                      throw new Error(err?.details || "Erro ao gerar RAS FAP");
                     }
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
@@ -111,10 +111,10 @@ export default function ProtocolDetail() {
                     a.href = url;
                     const cd = resp.headers.get("Content-Disposition");
                     const m = cd?.match(/filename="(.+)"/);
-                    a.download = m?.[1] ?? `RAS_FISICO_${id}.pdf`;
+                    a.download = m?.[1] ?? `RAS_FAP_${id}.pdf`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    toast({ title: "RAS Fisico baixado!", description: "Documento para impressao e controle manual." });
+                    toast({ title: "RAS FAP baixado!", description: "Documento para impressao e controle manual." });
                   } catch (err: any) {
                     toast({ title: "Erro", description: err.message, variant: "destructive" });
                   } finally {
@@ -123,7 +123,7 @@ export default function ProtocolDetail() {
                 }}
               >
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-                {physicalRasLoading ? "Gerando..." : "RAS Fisico (Imprimir)"}
+                {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
               </Button>
               <Button
                 variant="default"

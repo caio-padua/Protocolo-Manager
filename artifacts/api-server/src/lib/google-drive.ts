@@ -1016,7 +1016,7 @@ export function formatPhysicalRASFileName(date: string, clientName: string, prot
   const yy = y.slice(-2);
   const cleanName = removeDiacritics(clientName).toUpperCase();
   const cleanTitle = removeDiacritics(protocolTitle).toUpperCase();
-  return `${yy}.${m}.${d} PROTOCOLO ${cleanName} (${cleanTitle}).pdf`;
+  return `${yy}.${m}.${d} RAS FAP ${cleanName} (${cleanTitle}).pdf`;
 }
 
 export async function uploadToFolderById(

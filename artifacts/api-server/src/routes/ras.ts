@@ -403,7 +403,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     const pdfBuffer = Buffer.from(pdfBytes);
     const driveFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
     const clientSlug = client.name.replace(/\s+/g, "_");
-    const filename = `RAS_FISICO_${clientSlug}_PROTOCOLO_${protocolId}.pdf`;
+    const filename = `RAS_FAP_${clientSlug}_${protocolId}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -472,7 +472,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     })();
   } catch (err: any) {
     console.error("Physical RAS PDF error:", err);
-    res.status(500).json({ error: "Erro ao gerar RAS fisico", details: err.message });
+    res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
   }
 });
 
