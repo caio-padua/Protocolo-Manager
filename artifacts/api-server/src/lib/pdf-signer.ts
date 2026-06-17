@@ -740,6 +740,9 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
 
   const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // Fontes serifadas (Times) dao o toque classico/editorial ao logotipo e titulos.
+  const serif = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const serifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
   // Cores do modelo
   const NAVY = rgb(0.11, 0.21, 0.34);
@@ -751,6 +754,17 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
   const WHITE = rgb(1, 1, 1);
   const BORDER = rgb(0.62, 0.67, 0.73);
   const INK = rgb(0.12, 0.14, 0.18);
+  const GOLD = rgb(0.72, 0.58, 0.23);
+  const SLATE = rgb(0.4, 0.44, 0.5);
+
+  // Converte cor hex (#RRGGBB) da substancia em rgb pdf-lib; fallback navy.
+  const hexToColor = (hex?: string): ReturnType<typeof rgb> => {
+    if (!hex) return NAVY_HDR;
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return NAVY_HDR;
+    const n = parseInt(m[1], 16);
+    return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+  };
 
   // Mantem acentos Latin-1 (suportados pelo WinAnsi); celulas sao 1 linha,
   // entao tab/quebra viram espaco e qualquer char exotico vira "-".
@@ -890,16 +904,21 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
     let y = PAGE_H - M;
 
     // ===== Cabecalho de marca =====
-    txt("RAS", tableX0, y - 18, 22, bold, NAVY);
-    txt("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", tableX0 + 52, y - 13, 9, reg, rgb(0.3, 0.34, 0.4));
+    txt("RAS", tableX0, y - 18, 24, serifBold, NAVY);
+    const rasW = serifBold.widthOfTextAtSize("RAS", 24);
+    txt("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", tableX0 + rasW + 10, y - 11, 8.5, serif, rgb(0.3, 0.34, 0.4));
+    txt("FORMULÁRIO DE AUDITORIA DE PROCEDIMENTOS  ·  FAP", tableX0 + rasW + 10, y - 21, 6, reg, SLATE);
+    // fio dourado classico sob o logotipo
+    hline(tableX0, tableX0 + rasW + 270, y - 25, GOLD, 0.9);
 
     const brand1X = tableRight - 290;
     const brand2X = tableRight - 130;
-    txtC("PAWARDS", brand1X + 60, y - 7, 9, bold, NAVY);
-    txtC("Clinical Intelligence System", brand1X + 60, y - 17, 6.5, reg, rgb(0.4, 0.44, 0.5));
-    txtC("PADCON", brand2X + 60, y - 7, 9, bold, NAVY);
-    txtC("Advanced Systems Architecture", brand2X + 60, y - 17, 6.5, reg, rgb(0.4, 0.44, 0.5));
-    y -= 28;
+    txtC("PAWARDS", brand1X + 60, y - 7, 9.5, serifBold, NAVY);
+    txtC("Clinical Intelligence System", brand1X + 60, y - 17, 6.5, serif, SLATE);
+    vline(brand2X - 8, y - 2, y - 20, BORDER, 0.5);
+    txtC("PADCON", brand2X + 60, y - 7, 9.5, serifBold, NAVY);
+    txtC("Advanced Systems Architecture", brand2X + 60, y - 17, 6.5, serif, SLATE);
+    y -= 30;
 
     // ===== Tabela de identificacao (2 colunas) =====
     const idRowH = 12.5;
@@ -1003,8 +1022,10 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
     for (let i = 0; i < subs.length; i++) {
       const sx = subX(i);
       vline(sx, hdrTop, hdrBot, rgb(0.45, 0.55, 0.68), 0.4);
+      // faixa de identidade da substancia (cor propria) no topo da coluna
+      drawRect(sx + 1, hdrTop - 2.5, substColW - 1, 2.5, hexToColor(subs[i].color));
       const label = enc(`${subs[i].name}${subs[i].dose ? " " + subs[i].dose : ""}`);
-      txtC(fitText(label, bold, 5.4, substColW - 4), sx + substColW / 2, hdrBot + colHdrH - 8, 5.4, bold, WHITE);
+      txtC(fitText(label, bold, 5.4, substColW - 4), sx + substColW / 2, hdrBot + colHdrH - 9, 5.4, bold, WHITE);
       txtC("SESSÃO", sx + substColW / 2, hdrBot + 4, 5.4, bold, rgb(0.78, 0.85, 0.95));
     }
     hline(tableX0, tableRight, hdrTop, BORDER, 0.6);
@@ -1078,8 +1099,12 @@ export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uin
       rotate: degrees(90),
     });
 
+    // ===== Rodape institucional =====
+    const genStamp = new Date().toLocaleDateString("pt-BR");
+    txt(`PADCON CONECT  ·  Motor Clínico | Protocolos Injetáveis  ·  Gerado em ${genStamp}`,
+      tableX0, M - 12, 6, serif, SLATE);
     // ===== Numero da pagina =====
-    txtR(`PÁG. ${p + 1} / ${totalPages}`, tableRight, M - 12, 6.5, reg, rgb(0.4, 0.44, 0.5));
+    txtR(`PÁG. ${p + 1} / ${totalPages}`, tableRight, M - 12, 6.5, reg, SLATE);
   }
 
   return await pdfDoc.save();

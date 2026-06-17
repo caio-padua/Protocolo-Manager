@@ -6,7 +6,7 @@
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body (e na whitelist do PATCH); zod.object faz strip, 200 nao prova persistencia; objeto livre = additionalProperties->zod.record; nao marcar nullable em coluna NOT NULL.
 - [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
 - [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
-- [RAS FAP premium layout](ras-fap-premium.md) — grade calcula cronograma POR GRUPO de substancias (chunks de 5 col/pag) de startDate/freq/total, consolida por semana ISO; nao usar sessions globais.
+- [RAS FAP premium + rota demo](ras-fap-premium.md) — grade por grupo (chunks 5 col/pag, semana ISO), nao sessions globais; rota publica com e-mail/Drive exige key SESSION_SECRET + allowlist; /ras/:id captura segmento unico.
 - [Conceitos RAS/FAP + glossario prescricao](ras-fap-conceitos.md) — CEO redefine RAS=Reg.Assistencia Sistemico(nuvem) e FAP=Form.Auditoria Procedimentos(papel, ~"RAS Fisico" atual); fluxo 5 passos, SNCR nunca bloqueia, cores internas.
 - [executeSql RETURNING nao serve para contagem](executesql-returning-count.md) — contar linhas afetadas via SELECT COUNT, nao parseando RETURNING (notebook soma linha extra e superestima).
 - [API admin sem auth (Manager)](admin-api-sem-auth.md) — todos os routers admin nao tem authz (single-tenant, proxy); nao inventar auth p/ 1-2 rotas em revisao, e condicao do app inteiro.

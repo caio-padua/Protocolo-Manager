@@ -17,7 +17,7 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail } from "../lib/email-service";
-import { isGmailConnected } from "../lib/google-gmail";
+import { isGmailConnected, sendGmailMessage } from "../lib/google-gmail";
 
 const router: IRouter = Router();
 
@@ -476,6 +476,184 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("Physical RAS PDF error:", err);
     res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
+  }
+});
+
+// ===== Demonstracao do RAS FAP (cliente ficticio, substancias reais) =====
+// GET /ras-fap-demo            -> baixa o PDF de exemplo
+// GET /ras-fap-demo?send=1&to=email@x.com  -> envia por e-mail + sobe ao Drive
+interface DemoSub {
+  name: string; dose: string; color: string; via: string;
+  procedureType: string; frequencyDays: number; totalSessions: number;
+  startDate: string; stars: number; func: string;
+}
+
+function buildDemoSubstances(): DemoSub[] {
+  return [
+    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 12, startDate: "2026-06-15", stars: 5, func: "Neutraliza radicais livres, desintoxica o organismo e clareia e uniformiza a pele." },
+    { name: "Coenzima Q10", dose: "100 MG / 2 ML", color: "#3D7A7A", via: "Intramuscular", procedureType: "im", frequencyDays: 15, totalSessions: 6, startDate: "2026-06-15", stars: 5, func: "Produz energia celular, protege o coracao e combate o cansaco." },
+    { name: "Acido Alfa Lipoico", dose: "600 MG / 24 ML", color: "#45B8CC", via: "Intramuscular", procedureType: "im", frequencyDays: 21, totalSessions: 5, startDate: "2026-06-18", stars: 5, func: "Combate o estresse oxidativo, melhora a sensibilidade a insulina e protege os nervos." },
+    { name: "Cloreto de Magnesio", dose: "2 G / 10 ML", color: "#F59E0B", via: "Intramuscular", procedureType: "im", frequencyDays: 10, totalSessions: 8, startDate: "2026-06-16", stars: 5, func: "Relaxa musculos e nervos, melhora o sono e participa da producao de energia." },
+    { name: "Acetil L-Carnitina", dose: "800 MG / 2 ML", color: "#F97316", via: "Intramuscular", procedureType: "im", frequencyDays: 14, totalSessions: 8, startDate: "2026-06-15", stars: 5, func: "Transforma gordura em energia, melhora o desempenho fisico e apoia o foco mental." },
+    { name: "L-Carnitina", dose: "600 MG / 2 ML", color: "#14B8A6", via: "Intramuscular", procedureType: "im", frequencyDays: 7, totalSessions: 10, startDate: "2026-06-20", stars: 5, func: "Converte gordura em energia utilizavel e melhora o desempenho fisico." },
+    { name: "Estradiol Pellet", dose: "25 MG - 1 pellet", color: "#EC4899", via: "Implante", procedureType: "implant", frequencyDays: 90, totalSessions: 2, startDate: "2026-06-15", stars: 5, func: "Repor estrogenio: alivia fogachos, ressecamento e insonia; protege a massa ossea." },
+    { name: "Vitamina C (Ac. Ascorbico)", dose: "1 G / 5 ML", color: "#10B981", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 10, startDate: "2026-06-17", stars: 5, func: "Antioxidante, apoia a imunidade e a sintese de colageno para pele e vasos." },
+  ];
+}
+
+function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string): string {
+  const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
+  const rows = subs.map((s, i) => `
+    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f5f8fa"};">
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:13px;color:#11233a;font-weight:600;">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color};margin-right:7px;"></span>${s.name}
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;">${s.dose}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;">${s.via}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;text-align:center;">${s.frequencyDays} / ${s.frequencyDays} dias</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;text-align:center;">${s.totalSessions}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;color:#C9961D;font-size:13px;letter-spacing:1px;text-align:center;">${stars(s.stars)}</td>
+    </tr>
+    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f5f8fa"};">
+      <td colspan="6" style="padding:0 12px 12px 31px;border-bottom:1px solid #e6edf2;font-size:11.5px;color:#64748b;font-style:italic;">${s.func}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+  <body style="margin:0;padding:0;background:#eef2f5;font-family:Georgia,'Times New Roman',serif;">
+    <div style="max-width:680px;margin:0 auto;background:#ffffff;">
+      <div style="background:linear-gradient(135deg,#0e1c2e 0%,#1c3a52 60%,#2b5c6b 100%);padding:34px 36px 26px 36px;">
+        <div style="border-bottom:2px solid #C9961D;padding-bottom:14px;">
+          <span style="font-size:30px;font-weight:bold;color:#ffffff;letter-spacing:1px;">RAS</span>
+          <span style="font-size:13px;color:#cfe0ea;margin-left:10px;">REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS</span>
+          <div style="font-size:10px;color:#9fb6c6;letter-spacing:2px;margin-top:4px;">FORMULARIO DE AUDITORIA DE PROCEDIMENTOS &middot; FAP</div>
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:space-between;">
+          <span style="font-size:12px;color:#cfe0ea;">PAWARDS &middot; Clinical Intelligence System</span>
+          <span style="font-size:12px;color:#cfe0ea;float:right;">PADCON &middot; Advanced Systems Architecture</span>
+        </div>
+      </div>
+      <div style="padding:30px 36px;">
+        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Padcon Conect</strong></p>
+        <p style="font-size:13px;color:#475569;line-height:1.6;margin:0 0 22px 0;font-family:Arial,Helvetica,sans-serif;">
+          Segue o modelo premium do <strong>RAS FAP</strong> (planilha de auditoria de procedimentos, em PDF paisagem, anexa a este e-mail).
+          Abaixo, o resumo do protocolo-exemplo com as substancias, vias, frequencias e numero de aplicacoes.
+        </p>
+        <div style="background:#0e1c2e;color:#ffffff;padding:14px 18px;border-left:4px solid #C9961D;margin-bottom:20px;font-family:Arial,Helvetica,sans-serif;">
+          <span style="font-size:12px;color:#9fb6c6;">CLIENTE-EXEMPLO</span><br>
+          <span style="font-size:16px;font-weight:bold;">${clientName}</span>
+          <span style="float:right;font-size:15px;font-weight:bold;color:#7fd4c1;">${valor}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;border:1px solid #d6e0e8;">
+          <thead>
+            <tr style="background:#1c3a52;">
+              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;letter-spacing:.5px;">SUBSTANCIA</th>
+              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;">DOSE</th>
+              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;">VIA</th>
+              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">FREQUENCIA</th>
+              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">APLIC.</th>
+              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">EFICACIA</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="font-size:11px;color:#94a3b8;margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-style:italic;">
+          Documento gerado automaticamente pelo Padcon Conect &mdash; Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
+        </p>
+      </div>
+      <div style="background:#0e1c2e;padding:16px 36px;text-align:center;">
+        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PADCON CONECT &middot; PADCOM / PAWARDS</span>
+      </div>
+    </div>
+  </body></html>`;
+}
+
+router.get("/ras-fap-demo", async (req, res) => {
+  const clientName = "MARIANA DEMONSTRACAO SILVA";
+  const valor = "R$ 14.890,00";
+  const demoSubs = buildDemoSubstances();
+
+  try {
+    const pdfBytes = await generatePhysicalRASPdf({
+      clientName,
+      clientCpf: "000.000.000-00",
+      clientPhone: "(11) 90000-0000",
+      clientAge: 42,
+      professionalName: "Dra. Ana Beatriz Santos",
+      nurseName: "Enf. Carlos Mendes",
+      unit: "Clinica Tatuape",
+      startDate: "2026-06-15",
+      protocolNumber: "DEMO-08",
+      valorTratamento: valor,
+      substances: demoSubs.map(s => ({
+        name: s.name,
+        color: s.color,
+        totalSessions: s.totalSessions,
+        frequencyDays: s.frequencyDays,
+        startDate: s.startDate,
+        procedureType: s.procedureType,
+        dose: s.dose,
+      })),
+      sessions: [],
+    });
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const driveFileName = `26.06.17 RAS FAP DEMO ${clientName}.pdf`;
+
+    const send = req.query.send === "1";
+    const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
+    const key = typeof req.query.key === "string" ? req.query.key : "";
+
+    // Allowlist de destinatarios aprovados para a demonstracao (evita uso como relay aberto).
+    const ALLOWED_DEMO_RECIPIENTS = new Set([
+      "carlucia.fernandes.vendas@gmail.com",
+    ]);
+    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to);
+    // Efeitos colaterais (e-mail + Drive) exigem a chave secreta E destinatario na allowlist.
+    const authorizedSend =
+      send &&
+      validEmail &&
+      !!process.env.SESSION_SECRET &&
+      key === process.env.SESSION_SECRET &&
+      ALLOWED_DEMO_RECIPIENTS.has(to);
+
+    if (send && !authorizedSend) {
+      req.log.warn(`RAS FAP demo: tentativa de envio nao autorizada (to=${to || "vazio"})`);
+    }
+
+    if (authorizedSend) {
+      (async () => {
+        try {
+          if (await isGmailConnected()) {
+            const r = await sendGmailMessage({
+              to,
+              subject: "Padcon Conect | RAS FAP - Modelo Premium (Demonstracao)",
+              html: buildDemoEmailHtml(demoSubs, clientName, valor),
+              attachments: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+            });
+            if (r.success) req.log.info(`RAS FAP demo email sent to ${to}`);
+            else req.log.error(`RAS FAP demo email failed: ${r.error}`);
+          }
+        } catch (err: any) {
+          req.log.error(`RAS FAP demo email error: ${err.message}`);
+        }
+        try {
+          if (await isDriveConnected()) {
+            const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+            await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
+            req.log.info(`RAS FAP demo uploaded to Drive: ${driveFileName}`);
+          }
+        } catch (err: any) {
+          req.log.error(`RAS FAP demo Drive error: ${err.message}`);
+        }
+      })();
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="RAS_FAP_DEMO.pdf"`);
+    res.setHeader("Content-Length", pdfBytes.length);
+    res.send(pdfBuffer);
+  } catch (err: any) {
+    req.log.error(`RAS FAP demo error: ${err.message}`);
+    res.status(500).json({ error: "Erro ao gerar RAS FAP demo", details: err.message });
   }
 });
 
