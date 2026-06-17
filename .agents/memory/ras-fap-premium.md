@@ -1,31 +1,34 @@
 ---
-name: RAS FAP premium layout
-description: Como o gerador do RAS FAP (PDF paisagem) calcula a grade e por que difere das sessions globais
+name: RAS FAP — motor de grade (agenda global)
+description: Como o RAS FAP monta a grade substancias x idas (agenda GLOBAL, nao por grupo) e as regras visuais do CEO
 ---
 
-# RAS FAP — modelo "PDF PREMIUM"
+# RAS FAP — motor de grade (AGENDA GLOBAL)
 
-Regra: a grade do RAS FAP calcula o cronograma POR GRUPO de substancias
-(chunks de ate 5 colunas por pagina), derivando as datas e o numero da sessao
-de cada substancia a partir de `startDate` + k*`frequencyDays` (ate `totalSessions`),
-e consolidando por SEMANA ISO (segunda a domingo). NAO usa as `sessions` globais
-ja consolidadas do protocolo para montar as linhas.
+Regra: a grade do RAS FAP usa uma AGENDA GLOBAL unica para todas as substancias.
+Cada substancia gera suas idas por `inicio + k*frequenciaDias` (ate `sessoes`);
+todas as idas entram numa unica linha do tempo consolidada por SEMANA ISO
+(segunda a domingo); a numeracao SEM e CONTINUA atravessando paginas. Quando uma
+folha (bloco de 5 colunas) nao tem nenhuma substancia aplicada numa semana,
+aquela SEM NAO aparece naquela folha — geram-se LACUNAS (ex.: folha 2 pula de
+SEM 10 para SEM 13). Celula = "N/total"; varias doses na mesma semana juntam com
+middot ("\u00b7").
 
-**Why:** No modelo aprovado pelo CEO (FABIO MORGON), cada pagina/grupo de
-substancias REINICIA as datas das semanas independentemente das outras paginas
-(ex.: pagina 2 da testosterona comeca em 13/06 mesmo que a pagina 1 ja tenha
-semanas em outras datas). A consolidacao global do protocolo funde semanas entre
-substancias de paginas diferentes e quebraria essa fidelidade.
+**Why:** Decisao do CEO (Dr. Caio) — o motor deve ser IDENTICO ao `rasFap.ts` do
+IHE (fonte-da-verdade). Verificado por diff normalizado: segundaDaSemana, chunk e
+planejarPaginasRasFap byte-identicos; montarGrade difere so por 1 ponto-e-virgula
+cosmetico. Isto SUBSTITUI o modelo antigo "por grupo / pagina reinicia datas" —
+esse modelo esta MORTO, nao reintroduzir.
 
-**How to apply:** Ao mexer em `generatePhysicalRASPdf` (artifacts/api-server/src/lib/pdf-signer.ts),
-manter o calculo por grupo. Detalhes fieis ao modelo que NAO sao bug:
-- `DATA ATENDIMENTO` fica EM BRANCO de proposito (preenchida a mao no modelo).
-- Data eleita da semana = aplicacao mais cedo da semana (bate com o modelo).
-- Colunas/linhas em branco ate completar 20 linhas por pagina; numeracao SEM.
-  continua entre paginas (slotBase += 20 por pagina).
-- Cabecalho da substancia = `name` + ` ` + `dose` (dose vem de protocol_items.dose).
-- Texto via helper `enc`: mantem Latin-1 (acentos do WinAnsi), troca tab/quebra
-  por espaco e chars exoticos por "-" (celulas sao de 1 linha).
+**How to apply:** O motor vive em `artifacts/api-server/src/lib/ras-fap.ts` e a
+LOGICA da grade nunca deve ser alterada (so render/estetica). `generatePhysicalRASPdf`
+em `pdf-signer.ts` e so um ADAPTADOR (PhysicalRASData -> DadosRasFap); normaliza
+dados ruins do banco (clampInt sessoes/frequencia em [1,365]) e falha explicita em
+data invalida (nao imprimir cronograma errado). Regras visuais fixas do CEO:
+5 colunas de substancia por folha, largura fixa, sobras EM BRANCO; moldura grossa
+so na caixa externa de cada bloco; assinaturas em caixas + carimbo (CRM/COREN);
+padding ate 20 linhas por pagina. Gotcha de build: pdfkit no bundle ESM precisa dos
+`.afm` copiados para `dist/data` (build.mjs) e da dep transitiva `@swc/helpers`.
 
 # Endpoint publico com efeitos colaterais (e-mail/Drive) — exigir chave + allowlist
 

@@ -5,6 +5,7 @@ import path from "path";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
+import { gerarRasFapPdf, type DadosRasFap } from "./ras-fap";
 
 const signpdf = new SignPdf();
 
@@ -719,390 +720,69 @@ function getSubstanceColor(color: string): ReturnType<typeof rgb> {
  * Paisagem A4, tema azul-marinho, replica o modelo aprovado pelo CEO (FABIO MORGON).
  */
 export async function generatePhysicalRASPdf(data: PhysicalRASData): Promise<Uint8Array> {
-  const PAGE_W = 841.89;
-  const PAGE_H = 595.28;
-  const M = 20;
-  const LEFT_STRIP = 16;
-  const tableX0 = M + LEFT_STRIP;
-  const tableRight = PAGE_W - M;
-  const tableW = tableRight - tableX0;
-  const ROWS_PER_PAGE = 20;
-  const MAX_SUBST_COLS = 5;
+  // Adaptador: o RAS FAP agora e desenhado pelo motor pdfkit em ./ras-fap (grade
+  // IDENTICA a fonte-da-verdade do IHE). Aqui apenas mapeamos os dados do banco
+  // (PhysicalRASData) para o formato DadosRasFap e devolvemos os bytes do PDF.
+  const buf = await gerarRasFapPdf(physicalDataToFap(data), "PREMIUM");
+  return new Uint8Array(buf);
+}
 
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`RAS FAP — ${data.clientName}`);
-  pdfDoc.setAuthor("PADCON — Protocolos Injetaveis");
+// "YYYY-MM-DD" -> Date local (evita deslocamento de fuso horario no fmtData).
+// Falha EXPLICITA em data invalida: melhor um 500 claro do que imprimir um
+// cronograma de aplicacoes silenciosamente errado num documento clinico.
+function parseISODateLocal(s: string, campo: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s ?? "");
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+  throw new Error(`RAS FAP: data invalida em ${campo}: "${s}"`);
+}
 
-  const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  // Fontes serifadas (Times) dao o toque classico/editorial ao logotipo e titulos.
-  const serif = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-  const serifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+// Garante inteiro finito dentro de [min,max] (defende a grade contra dados ruins
+// do banco: undefined, NaN, negativos ou valores absurdamente altos).
+function clampInt(v: unknown, min: number, max: number, dflt: number): number {
+  const n = Math.floor(Number(v));
+  if (!isFinite(n)) return dflt;
+  return Math.max(min, Math.min(max, n));
+}
 
-  // Cores do modelo
-  const NAVY = rgb(0.11, 0.21, 0.34);
-  const NAVY_HDR = rgb(0.17, 0.29, 0.43);
-  const PALE = rgb(0.91, 0.94, 0.98);
-  const PALE2 = rgb(0.84, 0.89, 0.96);
-  const CELLBLUE = rgb(0.45, 0.66, 0.85);
-  const CELLBLUE_LITE = rgb(0.83, 0.90, 0.97);
-  const WHITE = rgb(1, 1, 1);
-  const BORDER = rgb(0.62, 0.67, 0.73);
-  const INK = rgb(0.12, 0.14, 0.18);
-  const GOLD = rgb(0.72, 0.58, 0.23);
-  const SLATE = rgb(0.4, 0.44, 0.5);
+// "R$ 14.890,00" -> 14890
+function parseMoedaBR(s?: string): number | undefined {
+  if (!s) return undefined;
+  const n = parseFloat(s.replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", "."));
+  return isFinite(n) ? n : undefined;
+}
 
-  // Converte cor hex (#RRGGBB) da substancia em rgb pdf-lib; fallback navy.
-  const hexToColor = (hex?: string): ReturnType<typeof rgb> => {
-    if (!hex) return NAVY_HDR;
-    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-    if (!m) return NAVY_HDR;
-    const n = parseInt(m[1], 16);
-    return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+function viaLabel(t?: string): string | undefined {
+  if (!t) return undefined;
+  const map: Record<string, string> = {
+    iv: "EV", endovenoso: "EV", im: "IM", intramuscular: "IM",
+    sc: "SC", subcutaneo: "SC", implant: "IMPL", implante: "IMPL",
   };
+  return map[t.toLowerCase()] ?? t.toUpperCase();
+}
 
-  // Mantem acentos Latin-1 (suportados pelo WinAnsi); celulas sao 1 linha,
-  // entao tab/quebra viram espaco e qualquer char exotico vira "-".
-  const enc = (s: unknown): string =>
-    (s ?? "")
-      .toString()
-      .replace(/[\t\n\r]+/g, " ")
-      .replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "-");
-
-  function fitText(txt: string, font: typeof reg, size: number, maxW: number): string {
-    let t = enc(txt);
-    if (font.widthOfTextAtSize(t, size) <= maxW) return t;
-    while (t.length > 1 && font.widthOfTextAtSize(t + ".", size) > maxW) {
-      t = t.slice(0, -1);
-    }
-    return t.length > 1 ? t.slice(0, -1) + "." : t;
-  }
-
-  function fmtDate(iso: string): string {
-    if (!iso) return "";
-    const [y, m, d] = iso.split("-");
-    if (!y || !m || !d) return iso;
-    return `${d} / ${m} / ${y.slice(-2)}`;
-  }
-
-  // ---- Calculo do cronograma por substancia (datas + numero da sessao) ----
-  function weekKey(d: Date): string {
-    const t = new Date(d.getTime());
-    const day = (t.getDay() + 6) % 7; // segunda = 0
-    t.setDate(t.getDate() - day);
-    return t.toISOString().slice(0, 10);
-  }
-
-  interface GridRow {
-    dateIso: string;
-    nums: Map<string, { n: number; total: number }>;
-  }
-
-  function buildRows(subs: PhysicalRASSubstance[]): GridRow[] {
-    interface App { date: Date; name: string; n: number; total: number }
-    const apps: App[] = [];
-    for (const s of subs) {
-      const start = new Date(s.startDate + "T00:00:00");
-      const total = Math.max(1, s.totalSessions || 1);
-      const freq = Math.max(1, s.frequencyDays || 1);
-      for (let k = 0; k < total; k++) {
-        const d = new Date(start.getTime());
-        d.setDate(start.getDate() + k * freq);
-        apps.push({ date: d, name: s.name, n: k + 1, total });
-      }
-    }
-    const buckets = new Map<string, App[]>();
-    for (const a of apps) {
-      const k = weekKey(a.date);
-      const arr = buckets.get(k);
-      if (arr) arr.push(a);
-      else buckets.set(k, [a]);
-    }
-    return [...buckets.entries()]
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([, arr]) => {
-        const repDate = arr.reduce((m, a) => (a.date < m ? a.date : m), arr[0].date);
-        const nums = new Map<string, { n: number; total: number }>();
-        // Se a mesma substancia cair 2x na semana (freq < 7d), mantem a sessao mais cedo.
-        const sorted = [...arr].sort((a, b) => a.date.getTime() - b.date.getTime());
-        for (const a of sorted) if (!nums.has(a.name)) nums.set(a.name, { n: a.n, total: a.total });
-        return { dateIso: repDate.toISOString().slice(0, 10), nums };
-      });
-  }
-
-  // ---- Montagem das paginas: grupos de substancias x faixas de linhas ----
-  interface PageDef {
-    subs: PhysicalRASSubstance[];
-    rows: GridRow[];
-    slotBase: number;
-  }
-  const pages: PageDef[] = [];
-  let slotBase = 0;
-  for (let g = 0; g < data.substances.length; g += MAX_SUBST_COLS) {
-    const subs = data.substances.slice(g, g + MAX_SUBST_COLS);
-    const rows = buildRows(subs);
-    const chunks = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
-    for (let c = 0; c < chunks; c++) {
-      pages.push({ subs, rows: rows.slice(c * ROWS_PER_PAGE, (c + 1) * ROWS_PER_PAGE), slotBase });
-      slotBase += ROWS_PER_PAGE;
-    }
-  }
-  if (pages.length === 0) {
-    pages.push({ subs: [], rows: [], slotBase: 0 });
-  }
-  const totalPages = pages.length;
-
-  // Colunas fixas (esquerda da grade)
-  const fixedCols: Array<{ label: string[]; w: number }> = [
-    { label: ["SEM."], w: 26 },
-    { label: ["DATA", "AGEND."], w: 52 },
-    { label: ["HORA"], w: 28 },
-    { label: ["CIÊNCIA / RUBRICA", "PACIENTE"], w: 108 },
-    { label: ["RUBRICA", "ENF."], w: 70 },
-    { label: ["DATA", "EFETIVA"], w: 56 },
-    { label: ["OBS."], w: 64 },
-  ];
-  const fixedW = fixedCols.reduce((a, c) => a + c.w, 0);
-  const substAreaW = tableW - fixedW;
-
-  const drawRect = (x: number, y: number, w: number, h: number, color: ReturnType<typeof rgb>) =>
-    pageRef.drawRectangle({ x, y, width: w, height: h, color });
-  const vline = (x: number, y0: number, y1: number, c = BORDER, t = 0.4) =>
-    pageRef.drawLine({ start: { x, y: y0 }, end: { x, y: y1 }, thickness: t, color: c });
-  const hline = (x0: number, x1: number, y: number, c = BORDER, t = 0.4) =>
-    pageRef.drawLine({ start: { x: x0, y }, end: { x: x1, y }, thickness: t, color: c });
-  const txt = (s: string, x: number, y: number, size: number, font = reg, color = INK) =>
-    pageRef.drawText(enc(s), { x, y, size, font, color });
-  const txtC = (s: string, cx: number, y: number, size: number, font = reg, color = INK) =>
-    pageRef.drawText(enc(s), { x: cx - font.widthOfTextAtSize(enc(s), size) / 2, y, size, font, color });
-  const txtR = (s: string, rx: number, y: number, size: number, font = reg, color = INK) =>
-    pageRef.drawText(enc(s), { x: rx - font.widthOfTextAtSize(enc(s), size), y, size, font, color });
-
-  let pageRef!: PDFPage;
-
-  for (let p = 0; p < pages.length; p++) {
-    const { subs, rows, slotBase: base } = pages[p];
-    const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-    pageRef = page;
-
-    const subCount = Math.max(subs.length, 1);
-    const substColW = subs.length > 0 ? substAreaW / subs.length : substAreaW;
-    const markerW = 14;
-
-    // x de cada coluna fixa
-    const fixedX: number[] = [];
-    let acc = tableX0;
-    for (const c of fixedCols) { fixedX.push(acc); acc += c.w; }
-    const substX0 = tableX0 + fixedW;
-    const subX = (i: number) => substX0 + i * substColW;
-
-    let y = PAGE_H - M;
-
-    // ===== Cabecalho de marca =====
-    txt("RAS", tableX0, y - 18, 24, serifBold, NAVY);
-    const rasW = serifBold.widthOfTextAtSize("RAS", 24);
-    txt("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", tableX0 + rasW + 10, y - 11, 8.5, serif, rgb(0.3, 0.34, 0.4));
-    txt("FORMULÁRIO DE AUDITORIA DE PROCEDIMENTOS  ·  FAP", tableX0 + rasW + 10, y - 21, 6, reg, SLATE);
-    // fio dourado classico sob o logotipo
-    hline(tableX0, tableX0 + rasW + 270, y - 25, GOLD, 0.9);
-
-    const brand1X = tableRight - 290;
-    const brand2X = tableRight - 130;
-    txtC("PAWARDS", brand1X + 60, y - 7, 9.5, serifBold, NAVY);
-    txtC("Clinical Intelligence System", brand1X + 60, y - 17, 6.5, serif, SLATE);
-    vline(brand2X - 8, y - 2, y - 20, BORDER, 0.5);
-    txtC("PADCON", brand2X + 60, y - 7, 9.5, serifBold, NAVY);
-    txtC("Advanced Systems Architecture", brand2X + 60, y - 17, 6.5, serif, SLATE);
-    y -= 30;
-
-    // ===== Tabela de identificacao (2 colunas) =====
-    const idRowH = 12.5;
-    const idLabelW = 95;
-    const halfW = tableW / 2;
-    const leftValW = halfW - idLabelW;
-    const rightLabelX = tableX0 + halfW;
-    const rightValX = rightLabelX + idLabelW;
-    const rightValW = tableRight - rightValX;
-
-    const leftFields = [
-      ["NOME", enc(data.clientName)],
-      ["CPF", enc(data.clientCpf)],
-      ["CELULAR", enc(data.clientPhone ?? "")],
-      ["MÉDICO RESPONSÁVEL", enc(data.professionalName)],
-      ["PROTOCOLO", data.protocolNumber != null ? String(data.protocolNumber) : ""],
-    ];
-    const rightFields = [
-      ["IDADE", data.clientAge ? String(data.clientAge) : ""],
-      ["ENFERMEIRA", enc(data.nurseName || "EQUIPE DE ENFERMAGEM PÁDUA")],
-      ["UNIDADE", enc(data.unit || "")],
-      ["DATA ATENDIMENTO", ""],
-      ["VALOR TRATAMENTO", enc(data.valorTratamento || "R$ 0,00")],
-    ];
-
-    for (let i = 0; i < 5; i++) {
-      const ry = y - (i + 1) * idRowH;
-      // esquerda
-      drawRect(tableX0, ry, idLabelW, idRowH, NAVY);
-      drawRect(tableX0 + idLabelW, ry, leftValW, idRowH, i % 2 === 0 ? PALE : WHITE);
-      txt(fitText(leftFields[i][0], bold, 6.5, idLabelW - 6), tableX0 + 4, ry + 3.5, 6.5, bold, WHITE);
-      if (leftFields[i][0] === "PROTOCOLO")
-        txtR(leftFields[i][1], tableX0 + idLabelW + leftValW - 5, ry + 3.5, 7, reg, INK);
-      else
-        txt(fitText(leftFields[i][1], reg, 7, leftValW - 8), tableX0 + idLabelW + 4, ry + 3.5, 7, reg, INK);
-      // direita
-      drawRect(rightLabelX, ry, idLabelW, idRowH, NAVY);
-      drawRect(rightValX, ry, rightValW, idRowH, i % 2 === 0 ? PALE : WHITE);
-      txt(fitText(rightFields[i][0], bold, 6.5, idLabelW - 6), rightLabelX + 4, ry + 3.5, 6.5, bold, WHITE);
-      txt(fitText(rightFields[i][1], reg, 7, rightValW - 8), rightValX + 4, ry + 3.5, 7, reg, INK);
-    }
-    // moldura externa do bloco id
-    hline(tableX0, tableRight, y, BORDER, 0.5);
-    hline(tableX0, tableRight, y - 5 * idRowH, BORDER, 0.5);
-    vline(tableX0, y, y - 5 * idRowH, BORDER, 0.5);
-    vline(tableRight, y, y - 5 * idRowH, BORDER, 0.5);
-    y -= 5 * idRowH + 4;
-
-    // ===== Faixa PROTOCOLO + sub-tabela por substancia =====
-    const bandH = 12;
-    drawRect(tableX0, y - bandH, tableW, bandH, NAVY);
-    txt("PROTOCOLO", tableX0 + 4, y - bandH + 3.5, 7.5, bold, WHITE);
-    y -= bandH;
-
-    const protoRows: Array<{ label: string; get: (s: PhysicalRASSubstance) => string }> = [
-      { label: "SUBSTÂNCIAS", get: s => enc(`${s.name}${s.dose ? " " + s.dose : ""}`) },
-      { label: "APLICAÇÕES", get: s => String(s.totalSessions) },
-      { label: "FREQUÊNCIA", get: s => `${s.frequencyDays} / ${s.frequencyDays} DIAS` },
-      { label: "INÍCIO DA APLICAÇÃO DA SUBSTÂNCIA", get: s => fmtDate(s.startDate) },
-    ];
-    const protoRowH = 12;
-    for (let r = 0; r < protoRows.length; r++) {
-      const ry = y - (r + 1) * protoRowH;
-      drawRect(tableX0, ry, fixedW, protoRowH, r === 0 ? NAVY_HDR : PALE2);
-      txt(fitText(protoRows[r].label, bold, 6.5, fixedW - 6), tableX0 + 4, ry + 3.5, 6.5, bold, r === 0 ? WHITE : NAVY);
-      for (let i = 0; i < subs.length; i++) {
-        const sx = subX(i);
-        drawRect(sx, ry, substColW, protoRowH, r === 0 ? NAVY_HDR : (i % 2 === 0 ? PALE : WHITE));
-        const val = protoRows[r].get(subs[i]);
-        if (r === 0)
-          txtC(fitText(val, bold, 6, substColW - 4), sx + substColW / 2, ry + 3.5, 6, bold, WHITE);
-        else
-          txtC(fitText(val, reg, 6.5, substColW - 4), sx + substColW / 2, ry + 3.5, 6.5, reg, INK);
-        vline(sx, ry, ry + protoRowH, BORDER, 0.3);
-      }
-    }
-    // moldura sub-tabela
-    const protoTop = y;
-    const protoBot = y - protoRows.length * protoRowH;
-    hline(tableX0, tableRight, protoBot, BORDER, 0.5);
-    vline(tableX0, protoTop, protoBot, BORDER, 0.5);
-    vline(substX0, protoTop, protoBot, BORDER, 0.5);
-    vline(tableRight, protoTop, protoBot, BORDER, 0.5);
-    for (let r = 1; r < protoRows.length; r++) hline(tableX0, tableRight, protoTop - r * protoRowH, BORDER, 0.3);
-    y = protoBot - 4;
-
-    // ===== Cabecalho da grade =====
-    const colHdrH = 26;
-    const hdrTop = y;
-    const hdrBot = y - colHdrH;
-    drawRect(tableX0, hdrBot, tableW, colHdrH, NAVY_HDR);
-    for (let c = 0; c < fixedCols.length; c++) {
-      const cx = fixedX[c];
-      const lines = fixedCols[c].label;
-      const startY = lines.length === 1 ? hdrBot + colHdrH / 2 - 2.5 : hdrBot + colHdrH - 9;
-      for (let li = 0; li < lines.length; li++) {
-        txtC(lines[li], cx + fixedCols[c].w / 2, startY - li * 7.5, 5.6, bold, WHITE);
-      }
-      vline(cx, hdrTop, hdrBot, rgb(0.45, 0.55, 0.68), 0.4);
-    }
-    for (let i = 0; i < subs.length; i++) {
-      const sx = subX(i);
-      vline(sx, hdrTop, hdrBot, rgb(0.45, 0.55, 0.68), 0.4);
-      // faixa de identidade da substancia (cor propria) no topo da coluna
-      drawRect(sx + 1, hdrTop - 2.5, substColW - 1, 2.5, hexToColor(subs[i].color));
-      const label = enc(`${subs[i].name}${subs[i].dose ? " " + subs[i].dose : ""}`);
-      txtC(fitText(label, bold, 5.4, substColW - 4), sx + substColW / 2, hdrBot + colHdrH - 9, 5.4, bold, WHITE);
-      txtC("SESSÃO", sx + substColW / 2, hdrBot + 4, 5.4, bold, rgb(0.78, 0.85, 0.95));
-    }
-    hline(tableX0, tableRight, hdrTop, BORDER, 0.6);
-    hline(tableX0, tableRight, hdrBot, BORDER, 0.6);
-    vline(tableX0, hdrTop, hdrBot, BORDER, 0.6);
-    vline(tableRight, hdrTop, hdrBot, BORDER, 0.6);
-    y = hdrBot;
-
-    // ===== Linhas =====
-    const today = data.todayDate || new Date().toISOString().slice(0, 10);
-    const rowH = 15;
-    const gridTop = y;
-    for (let i = 0; i < ROWS_PER_PAGE; i++) {
-      const ry = y - (i + 1) * rowH;
-      const row = i < rows.length ? rows[i] : null;
-      const isToday = !!row && row.dateIso === today;
-
-      if (isToday) drawRect(tableX0, ry, fixedW, rowH, rgb(0.92, 0.97, 0.86));
-      else if (i % 2 === 1) drawRect(tableX0, ry, fixedW, rowH, rgb(0.97, 0.98, 1));
-
-      txtC(String(base + i + 1), tableX0 + fixedCols[0].w / 2, ry + 4.5, 7, bold, INK);
-      if (row) txtC(fmtDate(row.dateIso), fixedX[1] + fixedCols[1].w / 2, ry + 4.5, 6.5, reg, INK);
-
-      // colunas de substancia
-      for (let si = 0; si < subs.length; si++) {
-        const sx = subX(si);
-        const info = row?.nums.get(subs[si].name);
-        // sub-coluna marcador (guia clara sempre; solida quando ha sessao)
-        drawRect(sx + 1, ry + 1, markerW - 1, rowH - 2, info ? CELLBLUE : CELLBLUE_LITE);
-        if (info) {
-          txtC(`${info.n}/${info.total}`, sx + markerW + (substColW - markerW) / 2, ry + 4.5, 6.5, bold, INK);
-        }
-      }
-
-      // grade
-      hline(tableX0, tableRight, ry, BORDER, 0.3);
-      for (let c = 1; c < fixedCols.length; c++) vline(fixedX[c], ry, ry + rowH, BORDER, 0.3);
-      for (let si = 0; si < subs.length; si++) {
-        vline(subX(si), ry, ry + rowH, BORDER, 0.3);
-        vline(subX(si) + markerW, ry, ry + rowH, BORDER, 0.25);
-      }
-    }
-    const gridBot = gridTop - ROWS_PER_PAGE * rowH;
-    hline(tableX0, tableRight, gridBot, BORDER, 0.6);
-    vline(tableX0, gridTop, gridBot, BORDER, 0.6);
-    vline(tableRight, gridTop, gridBot, BORDER, 0.6);
-    y = gridBot - 14;
-
-    // ===== Rodape: 5 colunas de assinatura =====
-    const sigLabels = [
-      "ASSINATURA DO PACIENTE",
-      "MÉDICO RESPONSÁVEL",
-      "CARIMBO",
-      "ENFERMAGEM RESPONSÁVEL",
-      "CARIMBO",
-    ];
-    const sigW = tableW / 5;
-    for (let i = 0; i < 5; i++) {
-      const cx = tableX0 + i * sigW + sigW / 2;
-      hline(tableX0 + i * sigW + 15, tableX0 + (i + 1) * sigW - 15, y, INK, 0.5);
-      txtC(sigLabels[i], cx, y - 9, 6, bold, INK);
-    }
-
-    // ===== Faixa lateral rotacionada =====
-    page.drawText(enc(`RAS  ${data.clientName}`), {
-      x: M + 2,
-      y: gridBot + 6,
-      size: 9,
-      font: bold,
-      color: NAVY,
-      rotate: degrees(90),
-    });
-
-    // ===== Rodape institucional =====
-    const genStamp = new Date().toLocaleDateString("pt-BR");
-    txt(`PADCON CONECT  ·  Motor Clínico | Protocolos Injetáveis  ·  Gerado em ${genStamp}`,
-      tableX0, M - 12, 6, serif, SLATE);
-    // ===== Numero da pagina =====
-    txtR(`PÁG. ${p + 1} / ${totalPages}`, tableRight, M - 12, 6.5, reg, SLATE);
-  }
-
-  return await pdfDoc.save();
+function physicalDataToFap(data: PhysicalRASData): DadosRasFap {
+  return {
+    nome: data.clientName,
+    cpf: data.clientCpf || undefined,
+    celular: data.clientPhone || undefined,
+    idade: data.clientAge != null ? `${data.clientAge} ANOS` : undefined,
+    medicoResponsavel: data.professionalName,
+    enfermeira: data.nurseName || "",
+    unidade: data.unit,
+    dataAtendimento: parseISODateLocal(data.startDate, "dataAtendimento"),
+    protocoloNumero: data.protocolNumber != null ? String(data.protocolNumber) : undefined,
+    valorTratamento: parseMoedaBR(data.valorTratamento),
+    substancias: data.substances.map((s) => ({
+      nome: s.name,
+      dose: s.dose || undefined,
+      sessoes: clampInt(s.totalSessions, 1, 365, 1),
+      frequenciaDias: clampInt(s.frequencyDays, 1, 365, 1),
+      inicio: parseISODateLocal(s.startDate, `substancia "${s.name}"`),
+      via: viaLabel(s.procedureType),
+    })),
+  };
 }
 
 interface ProtocolDocSubstance {

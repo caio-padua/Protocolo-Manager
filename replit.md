@@ -43,7 +43,7 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 - **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
 - **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
 - **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download, auto-upload to Google Drive (PROTOCOLOS folder), manual "Enviar ao Drive" button
-- **RAS FAP** (antigo "RAS Físico") — Printable landscape PDF (spreadsheet format) for nurse manual control / paper audit (FAP = Formulário de Auditoria de Procedimentos). Substance columns with colored headers, numbered session rows with date/signature/ENF/status fields, cells colored for applied/today sessions. Accessed from protocol detail page (button "RAS FAP (Imprimir)"). Auto-uploads to client Drive PROTOCOLOS folder. Filename: `YY.MM.DD RAS FAP NOME (TITULO).pdf`
+- **RAS FAP** (antigo "RAS Físico") — Printable landscape PDF (spreadsheet format) for nurse manual control / paper audit (FAP = Formulário de Auditoria de Procedimentos). Gerado por **pdfkit** em `artifacts/api-server/src/lib/ras-fap.ts` (export `gerarRasFapPdf`); `generatePhysicalRASPdf` em `pdf-signer.ts` é só o adaptador (PhysicalRASData → DadosRasFap). Motor da grade COPIADO IDÊNTICO do `rasFap.ts` do IHE (agenda global, SEM contínuo cruzando páginas com lacunas, célula "N/total", consolidação por semana ISO no 1º dia previsto). Regras visuais do CEO: 5 colunas de substância FIXAS por folha (sobras EM BRANCO), moldura grossa só na caixa externa, wordmark serif "RAS", assinaturas em caixas + carimbo (CRM/COREN), padding até 20 linhas/página. Accessed from protocol detail page (button "RAS FAP (Imprimir)"). Demo: `GET /api/ras-fap-demo`. Auto-uploads to client Drive PROTOCOLOS folder. Filename: `YY.MM.DD RAS FAP NOME (TITULO).pdf`
 - **Estoque** — stock management with critical/low alerts
 - **Financeiro** — payments tracking with PIX/credit/debit/boleto/cash methods, installments for credit cards, card identification labels, running balance with total pago/pendente
 - **Profissionais** — staff management
@@ -150,6 +150,20 @@ Decisao do CEO (Dr. Caio), registrada em 14/06/2026. Vale como regra para todas 
 6-A. EXTENSAO da excecao (Onda 1 motor/exames — aprovada pelo CEO em 15/06/2026, apos auditoria do commit 5ca1888d): mais 5 colecoes usam `id_ihe` como chave de deduplicacao porque nenhum campo de negocio e unico nelas (verificado por teste de unicidade): `catalogo_doencas`, `motor_regras` (regra_id repete 3x), `anamnese_questionario` (pergunta_id Q030 duplica), `mapa_anamnese_motor`, `catalogo_endovenosos` (soros repetem codigo). As demais 8 colecoes da Onda 1 mantem chave de negocio nativa: catalogo_exames=codigo_exame, catalogo_analitos=codigo, catalogo_blocos=codigo_bloco, catalogo_bloco_exames=(bloco_id+nome_exame+grau), direcao_favoravel_exame=nome_exame, catalogo_sintomas=codigo_semantico, catalogo_cid10=codigo, motor_decisao_clinica=caso_id. `catalogo_exames` guarda a linha crua inteira em coluna jsonb `dados` (zero perda das 68 colunas de origem).
 
 6-B. DIVIDAS TECNICAS da Onda 1 (registradas pelo CEO em 15/06/2026 para a proxima onda; NAO bloqueiam a Onda 1): (1) vinculo bloco<->exame hoje e por TEXTO (nome_exame) — migrar para chave estrangeira (FK) por id antes de o motor consumir em producao; (2) campos sim/nao vieram como TEXTO — converter para booleano ao montar a tela; (3) a consulta do motor por doenca pede o numero `id_ihe` — adicionar busca por nome/codigo.
+
+## CARTA_08 (IHE) — RAS FAP corrigido (17/06/2026)
+
+Resumo da CARTA_08 recebida do IHE e executada pelo Dr. Replit Manager.
+
+1. RAS FAP = folha A4 paisagem imprimivel (substancias x idas a clinica), preenchida a caneta na sala (FAP = Formulario de Auditoria de Procedimentos).
+
+2. Motor da grade COPIADO IDENTICO do `rasFap.ts` do IHE (fonte-da-verdade). Verificado por diff normalizado: `segundaDaSemana`, `chunk`, `planejarPaginasRasFap` byte-identicos; `montarGrade` difere so por 1 ponto-e-virgula cosmetico. A LOGICA da grade nunca deve ser alterada (so render/estetica).
+
+3. As 7 regras de ouro da grade: (a) 1 visita por semana ISO (consolidacao); (b) SEM contínuo na agenda GLOBAL, cruzando paginas com LACUNAS (folha 2 pode pular de SEM 10 para SEM 13); (c) celula "N/total"; (d) varias doses na mesma semana juntam com middot; (e) padding ate 20 linhas POR pagina; (f) 5 colunas de substancia FIXAS por folha, sobras EM BRANCO; (g) data eleita = 1o dia previsto da semana.
+
+4. As 4 regras visuais do CEO: 5 colunas fixas por folha (largura como se fossem 5; sobras em branco); moldura grossa SO na caixa externa de cada bloco; visual clean/elegante/classico (wordmark serif "RAS", fio duplo, tom pastel); faixa de assinaturas em CAIXAS retangulares, profissionais com espaco de CARIMBO (CRM/COREN).
+
+5. Implementacao: `gerarRasFapPdf` em `artifacts/api-server/src/lib/ras-fap.ts` (pdfkit); `generatePhysicalRASPdf` em `pdf-signer.ts` virou ADAPTADOR fino. Gabarito cego da carta (sec.10) conferido pelo motor puro. RAS JURIDICO (assinado digital) fica para depois.
 
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
