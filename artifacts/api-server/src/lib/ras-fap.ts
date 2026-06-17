@@ -451,12 +451,10 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const rEnd = PAGE_W - M;
 
-  // Faixa de marca (topo): PAWARDS (engenharia) a ESQUERDA e PADCON a DIREITA,
-  // cada um com seu subtitulo em ingles logo abaixo (pedido do CEO).
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.brand).text("PAWARDS", ML, y, { lineBreak: false, characterSpacing: 0.6 });
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("Clinical Intelligence System", ML, y + 9.5, { lineBreak: false, characterSpacing: 0.3 });
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(pal.brand).text("PADCON", rEnd - 220, y, { width: 220, align: "right", lineBreak: false });
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("Advanced Systems Architecture", rEnd - 220, y + 9.5, { width: 220, align: "right", lineBreak: false });
+  // Faixa de marca (topo): PAWARDS e PADCON JUNTOS no canto superior DIREITO,
+  // lado a lado (pedido do CEO — voltar para onde estava).
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PAWARDS", rEnd - 320, y - 2, { width: 150, align: "right", lineBreak: false });
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(pal.brand).text("PADCON", rEnd - 165, y - 2, { width: 165, align: "right", lineBreak: false });
 
   // Titulo do documento: wordmark "RAS FAP" + 2 descritivos no estilo do anexo.
   // Linha 1 (RAS) normal, recuada a esquerda; linha 2 (FAP) em italico, 20%
@@ -724,13 +722,15 @@ function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, 
     label = label.replace(/\s+$/, "") + "\u2026";
   }
 
-  // Gira 90 graus em torno de (cx, top): o texto corre de cima para baixo,
-  // comecando no TOPO (alinhamento a esquerda). ly = top - size/2 centraliza o
-  // bloco na espessura (folga em ambos os lados, nao encosta na linha).
+  // Gira -90 graus (180 graus em relacao ao render anterior — pedido do CEO):
+  // o texto corre de BAIXO para CIMA, centralizado na espessura E no comprimento
+  // da faixa, para ser lido com a folha observada pelo outro angulo.
+  const cyMid = (top + bottom) / 2;
+  const textW = doc.widthOfString(label, { characterSpacing: cspc });
   doc.save();
-  doc.rotate(90, { origin: [cx, top] });
+  doc.rotate(-90, { origin: [cx, cyMid] });
   doc.fillColor(pal.brand);
-  doc.text(label, cx + 6, top - size / 2, { width: h - 12, align: "left", lineBreak: false, characterSpacing: cspc });
+  doc.text(label, cx - textW / 2, cyMid - size / 2, { lineBreak: false, characterSpacing: cspc });
   doc.restore();
 }
 
