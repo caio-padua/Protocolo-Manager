@@ -451,30 +451,39 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const rEnd = PAGE_W - M;
 
-  // Faixa de marca (topo, canto superior DIREITO): PAWARDS e PADCON lado a lado,
-  // cada um com sua tagline em ingles DESTACADA (cor de acento) logo abaixo.
-  // PAWARDS = sistema clinico; PADCON = empresa-raiz de tecnologia (holding que
-  // cria varias empresas de tecnologia). Sao empresas de tecnologia, nao a clinica.
+  // --- Cabecalho-titulo: RAS FAP (esquerda) e marcas PAWARDS/PADCON (direita)
+  //     no MESMO NIVEL, centralizados verticalmente um ao outro (pedido do CEO).
+  const bandH = 30;
+  const yc = y + bandH / 2; // linha de centro comum aos dois lados
+
+  // Esquerda: wordmark "RAS FAP" + 2 descritivos, centralizados em yc.
+  const wmSize = 23;
+  const wmFont = pal.wordmark === "serif" ? "Times-Bold" : "Helvetica-Bold";
+  doc.font(wmFont).fontSize(wmSize).fillColor(pal.brand).text("RAS FAP", ML, yc - (wmSize * 0.72) / 2, { lineBreak: false, characterSpacing: pal.wordmark === "serif" ? 0 : 1 });
+  const dx = ML + doc.widthOfString("RAS FAP") + 18;
+  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
+  doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yc + 2.5, { lineBreak: false, characterSpacing: 0.3 });
+
+  // Direita: PAWARDS e PADCON lado a lado, cada um com tagline em ingles
+  // DESTACADA (cor de acento). Bloco (marca + tagline) centralizado em yc, no
+  // MESMO NIVEL do wordmark. PAWARDS = sistema clinico; PADCON = empresa-raiz
+  // de tecnologia (holding que cria varias empresas de tecnologia).
   const colW = 190;
   const colAx = rEnd - 400; // coluna PAWARDS (borda direita em rEnd-210)
   const colBx = rEnd - colW; // coluna PADCON (borda direita em rEnd)
-  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(pal.brand).text("PAWARDS", colAx, y - 2, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
-  doc.font("Helvetica-Bold").fontSize(9.5).fillColor(pal.brand).text("PADCON", colBx, y - 2, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
-  doc.font("Helvetica-Bold").fontSize(6.5).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEMS", colAx, y + 10, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
-  doc.font("Helvetica-Bold").fontSize(6.5).fillColor(pal.accent).text("TECHNOLOGY VENTURE BUILDER", colBx, y + 10, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  const brandSize = 9.5;
+  const tagSize = 6.5;
+  const gapBT = 3;
+  const blockH = brandSize * 0.72 + gapBT + tagSize * 0.72;
+  const yBrand = yc - blockH / 2;
+  const yTag = yBrand + brandSize * 0.72 + gapBT;
+  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAWARDS", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PADCON", colBx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEMS", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("TECHNOLOGY VENTURE BUILDER", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
 
-  // Titulo do documento: wordmark "RAS FAP" + 2 descritivos no estilo do anexo.
-  // Linha 1 (RAS) normal, recuada a esquerda; linha 2 (FAP) em italico, 20%
-  // menor e mais recuada a direita = efeito de subtitulo.
-  const yt = y + 22;
-  const wmFont = pal.wordmark === "serif" ? "Times-Bold" : "Helvetica-Bold";
-  doc.font(wmFont).fontSize(23).fillColor(pal.brand).text("RAS FAP", ML, yt, { lineBreak: false, characterSpacing: pal.wordmark === "serif" ? 0 : 1 });
-  const dx = ML + doc.widthOfString("RAS FAP") + 18;
-  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yt + 2.5, { lineBreak: false, characterSpacing: 0.3 });
-  doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yt + 13.5, { lineBreak: false, characterSpacing: 0.3 });
-
-  // Fio unico fino (a linha dourada de ponta a ponta foi REMOVIDA — pedido do CEO).
-  const yl = yt + 24;
+  // Fio unico fino de ponta a ponta.
+  const yl = y + bandH + 4;
   doc.lineWidth(0.8).moveTo(ML, yl).lineTo(PAGE_W - M, yl).stroke(pal.accent);
   return yl + 8;
 }
@@ -729,15 +738,16 @@ function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, 
     label = label.replace(/\s+$/, "") + "\u2026";
   }
 
-  // Gira -90 graus (180 graus em relacao ao render anterior — pedido do CEO):
-  // o texto corre de BAIXO para CIMA, centralizado na espessura E no comprimento
-  // da faixa, para ser lido com a folha observada pelo outro angulo.
-  const cyMid = (top + bottom) / 2;
+  // Gira +90 graus (sentido horario, estilo lombada de livro): o texto corre de
+  // CIMA para BAIXO, com o TITULO "RAS FAP" no TOPO e ALINHADO AO ALTO (nao mais
+  // centralizado no comprimento) — pedido do CEO: faixa alinhada a esquerda/topo.
+  const padTopo = 10;
   const textW = doc.widthOfString(label, { characterSpacing: cspc });
+  const cyA = top + padTopo + textW / 2; // ancora que joga o bloco para o topo
   doc.save();
-  doc.rotate(-90, { origin: [cx, cyMid] });
+  doc.rotate(90, { origin: [cx, cyA] });
   doc.fillColor(pal.brand);
-  doc.text(label, cx - textW / 2, cyMid - size / 2, { lineBreak: false, characterSpacing: cspc });
+  doc.text(label, cx - textW / 2, cyA - size / 2, { lineBreak: false, characterSpacing: cspc });
   doc.restore();
 }
 
