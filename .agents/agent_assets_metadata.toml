@@ -48,3 +48,15 @@ id = "Ja9y3s6Yr1jhSXcfkFkdI"
 uri = "file://attached_assets/demo_caio/RAS_FAP_Protocolo_Caio.pdf"
 type = "pdf"
 title = "RAS FAP (folha de impressao / auditoria)"
+
+[[outputs]]
+id = "W1Vj1AxJkySXonEqoAnNU"
+uri = "file://attached_assets/demo_caio/anamnese_linha_do_tempo.png"
+type = "image"
+title = "Anamnese — 1a tela com a LINHA DO TEMPO (Etapa 1 de 14)"
+
+[[outputs]]
+id = "UDBu1boKmm2IexyBxiOYX"
+uri = "file://attached_assets/demo_caio/anamnese_video_ajuda.png"
+type = "image"
+title = "Anamnese — modal de VIDEO DE AJUDA por pergunta"
