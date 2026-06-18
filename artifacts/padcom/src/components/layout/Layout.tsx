@@ -20,6 +20,7 @@ import {
   FolderTree,
   ChevronDown,
   TestTube,
+  Calculator,
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const navigation: NavEntry[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clients", icon: Users },
   { name: "Protocolos", href: "/protocols", icon: FlaskConical },
+  { name: "Orçamentos", href: "/orcamentos", icon: Calculator },
   { name: "Agenda", href: "/agenda", icon: Calendar },
   { name: "RAS", href: "/ras", icon: FileText },
   { name: "Estoque", href: "/stock", icon: Box },

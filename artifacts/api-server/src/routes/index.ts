@@ -29,6 +29,9 @@ import examRequestsRouter from "./exam-requests";
 import anamnesePortalRouter from "./anamnese-portal";
 import areaPacienteRouter from "./area-paciente";
 import catalogOptionsRouter from "./catalog-options";
+import budgetCatalogRouter from "./budget-catalog";
+import budgetSettingsRouter from "./budget-settings";
+import budgetsRouter from "./budgets";
 
 const router: IRouter = Router();
 
@@ -62,5 +65,8 @@ router.use(examRequestsRouter);
 router.use(anamnesePortalRouter);
 router.use(areaPacienteRouter);
 router.use(catalogOptionsRouter);
+router.use(budgetCatalogRouter);
+router.use(budgetSettingsRouter);
+router.use(budgetsRouter);
 
 export default router;

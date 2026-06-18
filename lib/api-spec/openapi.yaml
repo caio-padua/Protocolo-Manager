@@ -1177,6 +1177,238 @@ paths:
               schema:
                 $ref: "#/components/schemas/SimulacaoResultado"
 
+  # ORCAMENTO - CATALOGO COMERCIAL
+  /budget-catalog:
+    get:
+      operationId: listBudgetCatalog
+      tags: [budget]
+      summary: List budget catalog items
+      responses:
+        "200":
+          description: List of budget catalog items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetCatalogItem"
+    post:
+      operationId: createBudgetCatalogItem
+      tags: [budget]
+      summary: Create a budget catalog item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetCatalogItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetCatalogItem"
+
+  /budget-catalog/seed:
+    post:
+      operationId: seedBudgetCatalog
+      tags: [budget]
+      summary: Idempotently seed the budget catalog and settings row
+      responses:
+        "200":
+          description: Seed result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetSeedResult"
+
+  /budget-catalog/{id}:
+    patch:
+      operationId: updateBudgetCatalogItem
+      tags: [budget]
+      summary: Update a budget catalog item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetCatalogItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetCatalogItem"
+    delete:
+      operationId: deleteBudgetCatalogItem
+      tags: [budget]
+      summary: Delete a budget catalog item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ORCAMENTO - PARAMETRIZACAO
+  /budget-settings:
+    get:
+      operationId: getBudgetSettings
+      tags: [budget]
+      summary: Get budget settings (single row, auto-created)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetSettings"
+    put:
+      operationId: updateBudgetSettings
+      tags: [budget]
+      summary: Update budget settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetSettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetSettings"
+
+  # ORCAMENTO - CALCULO (stateless preview)
+  /budgets/calculate:
+    post:
+      operationId: calculateBudget
+      tags: [budget]
+      summary: Compute scenarios A/B/C/free for a set of items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetCalcInput"
+      responses:
+        "200":
+          description: Calculation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetCalcResult"
+
+  # ORCAMENTO - ORCAMENTOS PERSISTIDOS
+  /budgets:
+    get:
+      operationId: listBudgets
+      tags: [budget]
+      summary: List budgets
+      parameters:
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Budget"
+    post:
+      operationId: createBudget
+      tags: [budget]
+      summary: Create (save) a budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+
+  /budgets/{id}:
+    get:
+      operationId: getBudget
+      tags: [budget]
+      summary: Get budget by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+    patch:
+      operationId: updateBudget
+      tags: [budget]
+      summary: Update a budget (items, status, chosen scenario)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+    delete:
+      operationId: deleteBudget
+      tags: [budget]
+      summary: Delete a budget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
@@ -3051,3 +3283,265 @@ components:
         - byServiceType
         - topSubstances
         - revenueByMonth
+
+    BudgetCatalogItem:
+      type: object
+      required: [id, kind, name, defaultSessions, unitPriceCents, active, sortOrder]
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        name: { type: string }
+        defaultDose: { type: ["string", "null"] }
+        defaultSessions: { type: integer }
+        frequencyDays: { type: ["integer", "null"] }
+        unitPriceCents: { type: integer }
+        active: { type: boolean }
+        sortOrder: { type: integer }
+        substanceId: { type: ["integer", "null"] }
+    BudgetCatalogItemInput:
+      type: object
+      required: [name, unitPriceCents]
+      properties:
+        kind: { type: string }
+        name: { type: string, minLength: 1 }
+        defaultDose: { type: string }
+        defaultSessions: { type: integer }
+        frequencyDays: { type: integer }
+        unitPriceCents: { type: integer }
+        active: { type: boolean }
+        sortOrder: { type: integer }
+        substanceId: { type: integer }
+    BudgetCatalogItemUpdate:
+      type: object
+      properties:
+        kind: { type: string }
+        name: { type: string, minLength: 1 }
+        defaultDose: { type: string }
+        defaultSessions: { type: integer }
+        frequencyDays: { type: integer }
+        unitPriceCents: { type: integer }
+        active: { type: boolean }
+        sortOrder: { type: integer }
+        substanceId: { type: integer }
+    CardFee:
+      type: object
+      required: [installments, feePct]
+      properties:
+        installments: { type: integer }
+        feePct: { type: number }
+    BudgetSettings:
+      type: object
+      required: [id, cashDiscountPct, down50DiscountPct, down30DiscountPct, maxNoInterestInstallments, planMonths, planWeeks, planDays, cardFees, recommendedScenario, passCardFeeDefault]
+      properties:
+        id: { type: integer }
+        cashDiscountPct: { type: number }
+        down50DiscountPct: { type: number }
+        down30DiscountPct: { type: number }
+        maxNoInterestInstallments: { type: integer }
+        planMonths: { type: integer }
+        planWeeks: { type: integer }
+        planDays: { type: integer }
+        cardFees:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardFee"
+        recommendedScenario: { type: string }
+        passCardFeeDefault: { type: boolean }
+        updatedAt: { type: ["string", "null"] }
+    BudgetSettingsUpdate:
+      type: object
+      properties:
+        cashDiscountPct: { type: number }
+        down50DiscountPct: { type: number }
+        down30DiscountPct: { type: number }
+        maxNoInterestInstallments: { type: integer }
+        planMonths: { type: integer }
+        planWeeks: { type: integer }
+        planDays: { type: integer }
+        cardFees:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardFee"
+        recommendedScenario: { type: string }
+        passCardFeeDefault: { type: boolean }
+    BudgetItem:
+      type: object
+      required: [kind, name, sessions, unitPriceCents, include]
+      properties:
+        catalogId: { type: ["integer", "null"] }
+        kind: { type: string }
+        name: { type: string }
+        dose: { type: ["string", "null"] }
+        sessions: { type: integer }
+        frequencyDays: { type: ["integer", "null"] }
+        unitPriceCents: { type: integer }
+        include: { type: boolean }
+        substanceId: { type: ["integer", "null"] }
+    Budget:
+      type: object
+      required: [id, status, items, totalCents, liberarFrequencia, repassarTaxa, createdAt]
+      properties:
+        id: { type: integer }
+        clientId: { type: ["integer", "null"] }
+        clientName: { type: ["string", "null"] }
+        title: { type: ["string", "null"] }
+        status: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetItem"
+        settingsSnapshot: { type: ["object", "null"], additionalProperties: true }
+        totalsSnapshot: { type: ["object", "null"], additionalProperties: true }
+        chosenScenario: { type: ["string", "null"] }
+        chosenDetail: { type: ["object", "null"], additionalProperties: true }
+        totalCents: { type: integer }
+        liberarFrequencia: { type: boolean }
+        repassarTaxa: { type: boolean }
+        createdBy: { type: ["string", "null"] }
+        presentedAt: { type: ["string", "null"] }
+        acceptedAt: { type: ["string", "null"] }
+        convertedProtocolId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: ["string", "null"] }
+    BudgetInput:
+      type: object
+      required: [items]
+      properties:
+        clientId: { type: integer }
+        title: { type: string }
+        status: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetItem"
+        settingsSnapshot: { type: object, additionalProperties: true }
+        totalsSnapshot: { type: object, additionalProperties: true }
+        chosenScenario: { type: string }
+        chosenDetail: { type: object, additionalProperties: true }
+        totalCents: { type: integer }
+        liberarFrequencia: { type: boolean }
+        repassarTaxa: { type: boolean }
+        createdBy: { type: string }
+    BudgetUpdate:
+      type: object
+      properties:
+        clientId: { type: integer }
+        title: { type: string }
+        status: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetItem"
+        settingsSnapshot: { type: object, additionalProperties: true }
+        totalsSnapshot: { type: object, additionalProperties: true }
+        chosenScenario: { type: string }
+        chosenDetail: { type: object, additionalProperties: true }
+        totalCents: { type: integer }
+        liberarFrequencia: { type: boolean }
+        repassarTaxa: { type: boolean }
+        convertedProtocolId: { type: integer }
+    CalcItemInput:
+      type: object
+      required: [unitPriceCents, sessions, include]
+      properties:
+        unitPriceCents: { type: integer }
+        sessions: { type: integer }
+        include: { type: boolean }
+    FreeCalcInput:
+      type: object
+      required: [downPaymentPct, installments]
+      properties:
+        downPaymentPct: { type: number }
+        installments: { type: integer }
+        passCardFee: { type: boolean }
+    BudgetCalcInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalcItemInput"
+        freeCalc:
+          $ref: "#/components/schemas/FreeCalcInput"
+    Perspective:
+      type: object
+      required: [perMonthCents, perWeekCents, perDayCents, perSessionCents]
+      properties:
+        perMonthCents: { type: integer }
+        perWeekCents: { type: integer }
+        perDayCents: { type: integer }
+        perSessionCents: { type: integer }
+    InstallmentOption:
+      type: object
+      required: [installments, installmentCents]
+      properties:
+        installments: { type: integer }
+        installmentCents: { type: integer }
+    CashScenario:
+      type: object
+      required: [key, label, discountPct, finalCents, savingsCents, perspective]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        discountPct: { type: number }
+        finalCents: { type: integer }
+        savingsCents: { type: integer }
+        perspective:
+          $ref: "#/components/schemas/Perspective"
+    DownScenario:
+      type: object
+      required: [key, label, discountPct, downPaymentPct, discountedCents, downPaymentCents, balanceCents, installmentOptions, savingsCents, perspective]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        discountPct: { type: number }
+        downPaymentPct: { type: number }
+        discountedCents: { type: integer }
+        downPaymentCents: { type: integer }
+        balanceCents: { type: integer }
+        installmentOptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstallmentOption"
+        savingsCents: { type: integer }
+        perspective:
+          $ref: "#/components/schemas/Perspective"
+    FreeScenario:
+      type: object
+      required: [key, label, downPaymentPct, downPaymentCents, balanceCents, passCardFee, feePct, installments, totalWithFeeCents, installmentCents]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        downPaymentPct: { type: number }
+        downPaymentCents: { type: integer }
+        balanceCents: { type: integer }
+        passCardFee: { type: boolean }
+        feePct: { type: number }
+        installments: { type: integer }
+        totalWithFeeCents: { type: integer }
+        installmentCents: { type: integer }
+    BudgetCalcResult:
+      type: object
+      required: [totalCents, totalSessions, scenarioA, scenarioB, scenarioC, recommendedScenario]
+      properties:
+        totalCents: { type: integer }
+        totalSessions: { type: integer }
+        scenarioA:
+          $ref: "#/components/schemas/CashScenario"
+        scenarioB:
+          $ref: "#/components/schemas/DownScenario"
+        scenarioC:
+          $ref: "#/components/schemas/DownScenario"
+        free:
+          oneOf:
+            - $ref: "#/components/schemas/FreeScenario"
+            - type: "null"
+        recommendedScenario: { type: string }
+    BudgetSeedResult:
+      type: object
+      required: [catalogInserted, catalogTotal, settingsCreated]
+      properties:
+        catalogInserted: { type: integer }
+        catalogTotal: { type: integer }
+        settingsCreated: { type: boolean }

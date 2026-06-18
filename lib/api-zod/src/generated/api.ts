@@ -1883,3 +1883,443 @@ export const SimularMotorResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List budget catalog items
+ */
+export const ListBudgetCatalogResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.string(),
+  name: zod.string(),
+  defaultDose: zod.string().nullish(),
+  defaultSessions: zod.number(),
+  frequencyDays: zod.number().nullish(),
+  unitPriceCents: zod.number(),
+  active: zod.boolean(),
+  sortOrder: zod.number(),
+  substanceId: zod.number().nullish(),
+});
+export const ListBudgetCatalogResponse = zod.array(
+  ListBudgetCatalogResponseItem,
+);
+
+/**
+ * @summary Create a budget catalog item
+ */
+
+export const CreateBudgetCatalogItemBody = zod.object({
+  kind: zod.string().optional(),
+  name: zod.string().min(1),
+  defaultDose: zod.string().optional(),
+  defaultSessions: zod.number().optional(),
+  frequencyDays: zod.number().optional(),
+  unitPriceCents: zod.number(),
+  active: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+  substanceId: zod.number().optional(),
+});
+
+/**
+ * @summary Idempotently seed the budget catalog and settings row
+ */
+export const SeedBudgetCatalogResponse = zod.object({
+  catalogInserted: zod.number(),
+  catalogTotal: zod.number(),
+  settingsCreated: zod.boolean(),
+});
+
+/**
+ * @summary Update a budget catalog item
+ */
+export const UpdateBudgetCatalogItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateBudgetCatalogItemBody = zod.object({
+  kind: zod.string().optional(),
+  name: zod.string().min(1).optional(),
+  defaultDose: zod.string().optional(),
+  defaultSessions: zod.number().optional(),
+  frequencyDays: zod.number().optional(),
+  unitPriceCents: zod.number().optional(),
+  active: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+  substanceId: zod.number().optional(),
+});
+
+export const UpdateBudgetCatalogItemResponse = zod.object({
+  id: zod.number(),
+  kind: zod.string(),
+  name: zod.string(),
+  defaultDose: zod.string().nullish(),
+  defaultSessions: zod.number(),
+  frequencyDays: zod.number().nullish(),
+  unitPriceCents: zod.number(),
+  active: zod.boolean(),
+  sortOrder: zod.number(),
+  substanceId: zod.number().nullish(),
+});
+
+/**
+ * @summary Delete a budget catalog item
+ */
+export const DeleteBudgetCatalogItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get budget settings (single row, auto-created)
+ */
+export const GetBudgetSettingsResponse = zod.object({
+  id: zod.number(),
+  cashDiscountPct: zod.number(),
+  down50DiscountPct: zod.number(),
+  down30DiscountPct: zod.number(),
+  maxNoInterestInstallments: zod.number(),
+  planMonths: zod.number(),
+  planWeeks: zod.number(),
+  planDays: zod.number(),
+  cardFees: zod.array(
+    zod.object({
+      installments: zod.number(),
+      feePct: zod.number(),
+    }),
+  ),
+  recommendedScenario: zod.string(),
+  passCardFeeDefault: zod.boolean(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Update budget settings
+ */
+export const UpdateBudgetSettingsBody = zod.object({
+  cashDiscountPct: zod.number().optional(),
+  down50DiscountPct: zod.number().optional(),
+  down30DiscountPct: zod.number().optional(),
+  maxNoInterestInstallments: zod.number().optional(),
+  planMonths: zod.number().optional(),
+  planWeeks: zod.number().optional(),
+  planDays: zod.number().optional(),
+  cardFees: zod
+    .array(
+      zod.object({
+        installments: zod.number(),
+        feePct: zod.number(),
+      }),
+    )
+    .optional(),
+  recommendedScenario: zod.string().optional(),
+  passCardFeeDefault: zod.boolean().optional(),
+});
+
+export const UpdateBudgetSettingsResponse = zod.object({
+  id: zod.number(),
+  cashDiscountPct: zod.number(),
+  down50DiscountPct: zod.number(),
+  down30DiscountPct: zod.number(),
+  maxNoInterestInstallments: zod.number(),
+  planMonths: zod.number(),
+  planWeeks: zod.number(),
+  planDays: zod.number(),
+  cardFees: zod.array(
+    zod.object({
+      installments: zod.number(),
+      feePct: zod.number(),
+    }),
+  ),
+  recommendedScenario: zod.string(),
+  passCardFeeDefault: zod.boolean(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Compute scenarios A/B/C/free for a set of items
+ */
+export const CalculateBudgetBody = zod.object({
+  items: zod.array(
+    zod.object({
+      unitPriceCents: zod.number(),
+      sessions: zod.number(),
+      include: zod.boolean(),
+    }),
+  ),
+  freeCalc: zod
+    .object({
+      downPaymentPct: zod.number(),
+      installments: zod.number(),
+      passCardFee: zod.boolean().optional(),
+    })
+    .optional(),
+});
+
+export const CalculateBudgetResponse = zod.object({
+  totalCents: zod.number(),
+  totalSessions: zod.number(),
+  scenarioA: zod.object({
+    key: zod.string(),
+    label: zod.string(),
+    discountPct: zod.number(),
+    finalCents: zod.number(),
+    savingsCents: zod.number(),
+    perspective: zod.object({
+      perMonthCents: zod.number(),
+      perWeekCents: zod.number(),
+      perDayCents: zod.number(),
+      perSessionCents: zod.number(),
+    }),
+  }),
+  scenarioB: zod.object({
+    key: zod.string(),
+    label: zod.string(),
+    discountPct: zod.number(),
+    downPaymentPct: zod.number(),
+    discountedCents: zod.number(),
+    downPaymentCents: zod.number(),
+    balanceCents: zod.number(),
+    installmentOptions: zod.array(
+      zod.object({
+        installments: zod.number(),
+        installmentCents: zod.number(),
+      }),
+    ),
+    savingsCents: zod.number(),
+    perspective: zod.object({
+      perMonthCents: zod.number(),
+      perWeekCents: zod.number(),
+      perDayCents: zod.number(),
+      perSessionCents: zod.number(),
+    }),
+  }),
+  scenarioC: zod.object({
+    key: zod.string(),
+    label: zod.string(),
+    discountPct: zod.number(),
+    downPaymentPct: zod.number(),
+    discountedCents: zod.number(),
+    downPaymentCents: zod.number(),
+    balanceCents: zod.number(),
+    installmentOptions: zod.array(
+      zod.object({
+        installments: zod.number(),
+        installmentCents: zod.number(),
+      }),
+    ),
+    savingsCents: zod.number(),
+    perspective: zod.object({
+      perMonthCents: zod.number(),
+      perWeekCents: zod.number(),
+      perDayCents: zod.number(),
+      perSessionCents: zod.number(),
+    }),
+  }),
+  free: zod
+    .union([
+      zod.object({
+        key: zod.string(),
+        label: zod.string(),
+        downPaymentPct: zod.number(),
+        downPaymentCents: zod.number(),
+        balanceCents: zod.number(),
+        passCardFee: zod.boolean(),
+        feePct: zod.number(),
+        installments: zod.number(),
+        totalWithFeeCents: zod.number(),
+        installmentCents: zod.number(),
+      }),
+      zod.null(),
+    ])
+    .optional(),
+  recommendedScenario: zod.string(),
+});
+
+/**
+ * @summary List budgets
+ */
+export const ListBudgetsQueryParams = zod.object({
+  clientId: zod.coerce.number().optional(),
+  status: zod.coerce.string().optional(),
+});
+
+export const ListBudgetsResponseItem = zod.object({
+  id: zod.number(),
+  clientId: zod.number().nullish(),
+  clientName: zod.string().nullish(),
+  title: zod.string().nullish(),
+  status: zod.string(),
+  items: zod.array(
+    zod.object({
+      catalogId: zod.number().nullish(),
+      kind: zod.string(),
+      name: zod.string(),
+      dose: zod.string().nullish(),
+      sessions: zod.number(),
+      frequencyDays: zod.number().nullish(),
+      unitPriceCents: zod.number(),
+      include: zod.boolean(),
+      substanceId: zod.number().nullish(),
+    }),
+  ),
+  settingsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  chosenScenario: zod.string().nullish(),
+  chosenDetail: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalCents: zod.number(),
+  liberarFrequencia: zod.boolean(),
+  repassarTaxa: zod.boolean(),
+  createdBy: zod.string().nullish(),
+  presentedAt: zod.string().nullish(),
+  acceptedAt: zod.string().nullish(),
+  convertedProtocolId: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string().nullish(),
+});
+export const ListBudgetsResponse = zod.array(ListBudgetsResponseItem);
+
+/**
+ * @summary Create (save) a budget
+ */
+export const CreateBudgetBody = zod.object({
+  clientId: zod.number().optional(),
+  title: zod.string().optional(),
+  status: zod.string().optional(),
+  items: zod.array(
+    zod.object({
+      catalogId: zod.number().nullish(),
+      kind: zod.string(),
+      name: zod.string(),
+      dose: zod.string().nullish(),
+      sessions: zod.number(),
+      frequencyDays: zod.number().nullish(),
+      unitPriceCents: zod.number(),
+      include: zod.boolean(),
+      substanceId: zod.number().nullish(),
+    }),
+  ),
+  settingsSnapshot: zod.record(zod.string(), zod.unknown()).optional(),
+  totalsSnapshot: zod.record(zod.string(), zod.unknown()).optional(),
+  chosenScenario: zod.string().optional(),
+  chosenDetail: zod.record(zod.string(), zod.unknown()).optional(),
+  totalCents: zod.number().optional(),
+  liberarFrequencia: zod.boolean().optional(),
+  repassarTaxa: zod.boolean().optional(),
+  createdBy: zod.string().optional(),
+});
+
+/**
+ * @summary Get budget by id
+ */
+export const GetBudgetParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetBudgetResponse = zod.object({
+  id: zod.number(),
+  clientId: zod.number().nullish(),
+  clientName: zod.string().nullish(),
+  title: zod.string().nullish(),
+  status: zod.string(),
+  items: zod.array(
+    zod.object({
+      catalogId: zod.number().nullish(),
+      kind: zod.string(),
+      name: zod.string(),
+      dose: zod.string().nullish(),
+      sessions: zod.number(),
+      frequencyDays: zod.number().nullish(),
+      unitPriceCents: zod.number(),
+      include: zod.boolean(),
+      substanceId: zod.number().nullish(),
+    }),
+  ),
+  settingsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  chosenScenario: zod.string().nullish(),
+  chosenDetail: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalCents: zod.number(),
+  liberarFrequencia: zod.boolean(),
+  repassarTaxa: zod.boolean(),
+  createdBy: zod.string().nullish(),
+  presentedAt: zod.string().nullish(),
+  acceptedAt: zod.string().nullish(),
+  convertedProtocolId: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a budget (items, status, chosen scenario)
+ */
+export const UpdateBudgetParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateBudgetBody = zod.object({
+  clientId: zod.number().optional(),
+  title: zod.string().optional(),
+  status: zod.string().optional(),
+  items: zod
+    .array(
+      zod.object({
+        catalogId: zod.number().nullish(),
+        kind: zod.string(),
+        name: zod.string(),
+        dose: zod.string().nullish(),
+        sessions: zod.number(),
+        frequencyDays: zod.number().nullish(),
+        unitPriceCents: zod.number(),
+        include: zod.boolean(),
+        substanceId: zod.number().nullish(),
+      }),
+    )
+    .optional(),
+  settingsSnapshot: zod.record(zod.string(), zod.unknown()).optional(),
+  totalsSnapshot: zod.record(zod.string(), zod.unknown()).optional(),
+  chosenScenario: zod.string().optional(),
+  chosenDetail: zod.record(zod.string(), zod.unknown()).optional(),
+  totalCents: zod.number().optional(),
+  liberarFrequencia: zod.boolean().optional(),
+  repassarTaxa: zod.boolean().optional(),
+  convertedProtocolId: zod.number().optional(),
+});
+
+export const UpdateBudgetResponse = zod.object({
+  id: zod.number(),
+  clientId: zod.number().nullish(),
+  clientName: zod.string().nullish(),
+  title: zod.string().nullish(),
+  status: zod.string(),
+  items: zod.array(
+    zod.object({
+      catalogId: zod.number().nullish(),
+      kind: zod.string(),
+      name: zod.string(),
+      dose: zod.string().nullish(),
+      sessions: zod.number(),
+      frequencyDays: zod.number().nullish(),
+      unitPriceCents: zod.number(),
+      include: zod.boolean(),
+      substanceId: zod.number().nullish(),
+    }),
+  ),
+  settingsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalsSnapshot: zod.record(zod.string(), zod.unknown()).nullish(),
+  chosenScenario: zod.string().nullish(),
+  chosenDetail: zod.record(zod.string(), zod.unknown()).nullish(),
+  totalCents: zod.number(),
+  liberarFrequencia: zod.boolean(),
+  repassarTaxa: zod.boolean(),
+  createdBy: zod.string().nullish(),
+  presentedAt: zod.string().nullish(),
+  acceptedAt: zod.string().nullish(),
+  convertedProtocolId: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Delete a budget
+ */
+export const DeleteBudgetParams = zod.object({
+  id: zod.coerce.number(),
+});

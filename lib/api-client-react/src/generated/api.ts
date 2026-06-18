@@ -26,6 +26,17 @@ import type {
   AnamnesePerguntaUpdate,
   AnamneseSintoma,
   BatchResult,
+  Budget,
+  BudgetCalcInput,
+  BudgetCalcResult,
+  BudgetCatalogItem,
+  BudgetCatalogItemInput,
+  BudgetCatalogItemUpdate,
+  BudgetInput,
+  BudgetSeedResult,
+  BudgetSettings,
+  BudgetSettingsUpdate,
+  BudgetUpdate,
   CatalogOption,
   Client,
   ConfirmSubstanceApplicationBody,
@@ -47,6 +58,7 @@ import type {
   GenerateProtocolICS200,
   HealthStatus,
   ListAnamnesePerguntasParams,
+  ListBudgetsParams,
   ListCatalogOptionsParams,
   ListClientsParams,
   ListPaymentsParams,
@@ -4967,4 +4979,1102 @@ export const useSimularMotor = <
   TContext
 > => {
   return useMutation(getSimularMotorMutationOptions(options));
+};
+
+/**
+ * @summary List budget catalog items
+ */
+export const getListBudgetCatalogUrl = () => {
+  return `/api/budget-catalog`;
+};
+
+export const listBudgetCatalog = async (
+  options?: RequestInit,
+): Promise<BudgetCatalogItem[]> => {
+  return customFetch<BudgetCatalogItem[]>(getListBudgetCatalogUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBudgetCatalogQueryKey = () => {
+  return [`/api/budget-catalog`] as const;
+};
+
+export const getListBudgetCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBudgetCatalog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetCatalog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBudgetCatalogQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBudgetCatalog>>
+  > = ({ signal }) => listBudgetCatalog({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetCatalog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBudgetCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBudgetCatalog>>
+>;
+export type ListBudgetCatalogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List budget catalog items
+ */
+
+export function useListBudgetCatalog<
+  TData = Awaited<ReturnType<typeof listBudgetCatalog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgetCatalog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBudgetCatalogQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a budget catalog item
+ */
+export const getCreateBudgetCatalogItemUrl = () => {
+  return `/api/budget-catalog`;
+};
+
+export const createBudgetCatalogItem = async (
+  budgetCatalogItemInput: BudgetCatalogItemInput,
+  options?: RequestInit,
+): Promise<BudgetCatalogItem> => {
+  return customFetch<BudgetCatalogItem>(getCreateBudgetCatalogItemUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetCatalogItemInput),
+  });
+};
+
+export const getCreateBudgetCatalogItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudgetCatalogItem>>,
+    TError,
+    { data: BodyType<BudgetCatalogItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBudgetCatalogItem>>,
+  TError,
+  { data: BodyType<BudgetCatalogItemInput> },
+  TContext
+> => {
+  const mutationKey = ["createBudgetCatalogItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBudgetCatalogItem>>,
+    { data: BodyType<BudgetCatalogItemInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBudgetCatalogItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBudgetCatalogItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBudgetCatalogItem>>
+>;
+export type CreateBudgetCatalogItemMutationBody =
+  BodyType<BudgetCatalogItemInput>;
+export type CreateBudgetCatalogItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a budget catalog item
+ */
+export const useCreateBudgetCatalogItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudgetCatalogItem>>,
+    TError,
+    { data: BodyType<BudgetCatalogItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBudgetCatalogItem>>,
+  TError,
+  { data: BodyType<BudgetCatalogItemInput> },
+  TContext
+> => {
+  return useMutation(getCreateBudgetCatalogItemMutationOptions(options));
+};
+
+/**
+ * @summary Idempotently seed the budget catalog and settings row
+ */
+export const getSeedBudgetCatalogUrl = () => {
+  return `/api/budget-catalog/seed`;
+};
+
+export const seedBudgetCatalog = async (
+  options?: RequestInit,
+): Promise<BudgetSeedResult> => {
+  return customFetch<BudgetSeedResult>(getSeedBudgetCatalogUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSeedBudgetCatalogMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof seedBudgetCatalog>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof seedBudgetCatalog>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["seedBudgetCatalog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof seedBudgetCatalog>>,
+    void
+  > = () => {
+    return seedBudgetCatalog(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SeedBudgetCatalogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof seedBudgetCatalog>>
+>;
+
+export type SeedBudgetCatalogMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Idempotently seed the budget catalog and settings row
+ */
+export const useSeedBudgetCatalog = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof seedBudgetCatalog>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof seedBudgetCatalog>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSeedBudgetCatalogMutationOptions(options));
+};
+
+/**
+ * @summary Update a budget catalog item
+ */
+export const getUpdateBudgetCatalogItemUrl = (id: number) => {
+  return `/api/budget-catalog/${id}`;
+};
+
+export const updateBudgetCatalogItem = async (
+  id: number,
+  budgetCatalogItemUpdate: BudgetCatalogItemUpdate,
+  options?: RequestInit,
+): Promise<BudgetCatalogItem> => {
+  return customFetch<BudgetCatalogItem>(getUpdateBudgetCatalogItemUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetCatalogItemUpdate),
+  });
+};
+
+export const getUpdateBudgetCatalogItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetCatalogItem>>,
+    TError,
+    { id: number; data: BodyType<BudgetCatalogItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBudgetCatalogItem>>,
+  TError,
+  { id: number; data: BodyType<BudgetCatalogItemUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateBudgetCatalogItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBudgetCatalogItem>>,
+    { id: number; data: BodyType<BudgetCatalogItemUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBudgetCatalogItem(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBudgetCatalogItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBudgetCatalogItem>>
+>;
+export type UpdateBudgetCatalogItemMutationBody =
+  BodyType<BudgetCatalogItemUpdate>;
+export type UpdateBudgetCatalogItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a budget catalog item
+ */
+export const useUpdateBudgetCatalogItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetCatalogItem>>,
+    TError,
+    { id: number; data: BodyType<BudgetCatalogItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBudgetCatalogItem>>,
+  TError,
+  { id: number; data: BodyType<BudgetCatalogItemUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateBudgetCatalogItemMutationOptions(options));
+};
+
+/**
+ * @summary Delete a budget catalog item
+ */
+export const getDeleteBudgetCatalogItemUrl = (id: number) => {
+  return `/api/budget-catalog/${id}`;
+};
+
+export const deleteBudgetCatalogItem = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBudgetCatalogItemUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBudgetCatalogItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudgetCatalogItem>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBudgetCatalogItem>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBudgetCatalogItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBudgetCatalogItem>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBudgetCatalogItem(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBudgetCatalogItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBudgetCatalogItem>>
+>;
+
+export type DeleteBudgetCatalogItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a budget catalog item
+ */
+export const useDeleteBudgetCatalogItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudgetCatalogItem>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBudgetCatalogItem>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBudgetCatalogItemMutationOptions(options));
+};
+
+/**
+ * @summary Get budget settings (single row, auto-created)
+ */
+export const getGetBudgetSettingsUrl = () => {
+  return `/api/budget-settings`;
+};
+
+export const getBudgetSettings = async (
+  options?: RequestInit,
+): Promise<BudgetSettings> => {
+  return customFetch<BudgetSettings>(getGetBudgetSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBudgetSettingsQueryKey = () => {
+  return [`/api/budget-settings`] as const;
+};
+
+export const getGetBudgetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBudgetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBudgetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBudgetSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBudgetSettings>>
+  > = ({ signal }) => getBudgetSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBudgetSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBudgetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBudgetSettings>>
+>;
+export type GetBudgetSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get budget settings (single row, auto-created)
+ */
+
+export function useGetBudgetSettings<
+  TData = Awaited<ReturnType<typeof getBudgetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBudgetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBudgetSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update budget settings
+ */
+export const getUpdateBudgetSettingsUrl = () => {
+  return `/api/budget-settings`;
+};
+
+export const updateBudgetSettings = async (
+  budgetSettingsUpdate: BudgetSettingsUpdate,
+  options?: RequestInit,
+): Promise<BudgetSettings> => {
+  return customFetch<BudgetSettings>(getUpdateBudgetSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetSettingsUpdate),
+  });
+};
+
+export const getUpdateBudgetSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetSettings>>,
+    TError,
+    { data: BodyType<BudgetSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBudgetSettings>>,
+  TError,
+  { data: BodyType<BudgetSettingsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateBudgetSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBudgetSettings>>,
+    { data: BodyType<BudgetSettingsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateBudgetSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBudgetSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBudgetSettings>>
+>;
+export type UpdateBudgetSettingsMutationBody = BodyType<BudgetSettingsUpdate>;
+export type UpdateBudgetSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update budget settings
+ */
+export const useUpdateBudgetSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudgetSettings>>,
+    TError,
+    { data: BodyType<BudgetSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBudgetSettings>>,
+  TError,
+  { data: BodyType<BudgetSettingsUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateBudgetSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Compute scenarios A/B/C/free for a set of items
+ */
+export const getCalculateBudgetUrl = () => {
+  return `/api/budgets/calculate`;
+};
+
+export const calculateBudget = async (
+  budgetCalcInput: BudgetCalcInput,
+  options?: RequestInit,
+): Promise<BudgetCalcResult> => {
+  return customFetch<BudgetCalcResult>(getCalculateBudgetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetCalcInput),
+  });
+};
+
+export const getCalculateBudgetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof calculateBudget>>,
+    TError,
+    { data: BodyType<BudgetCalcInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof calculateBudget>>,
+  TError,
+  { data: BodyType<BudgetCalcInput> },
+  TContext
+> => {
+  const mutationKey = ["calculateBudget"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof calculateBudget>>,
+    { data: BodyType<BudgetCalcInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return calculateBudget(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CalculateBudgetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof calculateBudget>>
+>;
+export type CalculateBudgetMutationBody = BodyType<BudgetCalcInput>;
+export type CalculateBudgetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Compute scenarios A/B/C/free for a set of items
+ */
+export const useCalculateBudget = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof calculateBudget>>,
+    TError,
+    { data: BodyType<BudgetCalcInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof calculateBudget>>,
+  TError,
+  { data: BodyType<BudgetCalcInput> },
+  TContext
+> => {
+  return useMutation(getCalculateBudgetMutationOptions(options));
+};
+
+/**
+ * @summary List budgets
+ */
+export const getListBudgetsUrl = (params?: ListBudgetsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/budgets?${stringifiedParams}`
+    : `/api/budgets`;
+};
+
+export const listBudgets = async (
+  params?: ListBudgetsParams,
+  options?: RequestInit,
+): Promise<Budget[]> => {
+  return customFetch<Budget[]>(getListBudgetsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBudgetsQueryKey = (params?: ListBudgetsParams) => {
+  return [`/api/budgets`, ...(params ? [params] : [])] as const;
+};
+
+export const getListBudgetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBudgets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBudgetsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBudgets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBudgetsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBudgets>>> = ({
+    signal,
+  }) => listBudgets(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBudgets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBudgetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBudgets>>
+>;
+export type ListBudgetsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List budgets
+ */
+
+export function useListBudgets<
+  TData = Awaited<ReturnType<typeof listBudgets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBudgetsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBudgets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBudgetsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create (save) a budget
+ */
+export const getCreateBudgetUrl = () => {
+  return `/api/budgets`;
+};
+
+export const createBudget = async (
+  budgetInput: BudgetInput,
+  options?: RequestInit,
+): Promise<Budget> => {
+  return customFetch<Budget>(getCreateBudgetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetInput),
+  });
+};
+
+export const getCreateBudgetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudget>>,
+    TError,
+    { data: BodyType<BudgetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBudget>>,
+  TError,
+  { data: BodyType<BudgetInput> },
+  TContext
+> => {
+  const mutationKey = ["createBudget"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBudget>>,
+    { data: BodyType<BudgetInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBudget(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBudgetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBudget>>
+>;
+export type CreateBudgetMutationBody = BodyType<BudgetInput>;
+export type CreateBudgetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create (save) a budget
+ */
+export const useCreateBudget = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBudget>>,
+    TError,
+    { data: BodyType<BudgetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBudget>>,
+  TError,
+  { data: BodyType<BudgetInput> },
+  TContext
+> => {
+  return useMutation(getCreateBudgetMutationOptions(options));
+};
+
+/**
+ * @summary Get budget by id
+ */
+export const getGetBudgetUrl = (id: number) => {
+  return `/api/budgets/${id}`;
+};
+
+export const getBudget = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Budget> => {
+  return customFetch<Budget>(getGetBudgetUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBudgetQueryKey = (id: number) => {
+  return [`/api/budgets/${id}`] as const;
+};
+
+export const getGetBudgetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBudget>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBudget>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBudgetQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBudget>>> = ({
+    signal,
+  }) => getBudget(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getBudget>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetBudgetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBudget>>
+>;
+export type GetBudgetQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get budget by id
+ */
+
+export function useGetBudget<
+  TData = Awaited<ReturnType<typeof getBudget>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBudget>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBudgetQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a budget (items, status, chosen scenario)
+ */
+export const getUpdateBudgetUrl = (id: number) => {
+  return `/api/budgets/${id}`;
+};
+
+export const updateBudget = async (
+  id: number,
+  budgetUpdate: BudgetUpdate,
+  options?: RequestInit,
+): Promise<Budget> => {
+  return customFetch<Budget>(getUpdateBudgetUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(budgetUpdate),
+  });
+};
+
+export const getUpdateBudgetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudget>>,
+    TError,
+    { id: number; data: BodyType<BudgetUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBudget>>,
+  TError,
+  { id: number; data: BodyType<BudgetUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateBudget"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBudget>>,
+    { id: number; data: BodyType<BudgetUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBudget(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBudgetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBudget>>
+>;
+export type UpdateBudgetMutationBody = BodyType<BudgetUpdate>;
+export type UpdateBudgetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a budget (items, status, chosen scenario)
+ */
+export const useUpdateBudget = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBudget>>,
+    TError,
+    { id: number; data: BodyType<BudgetUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBudget>>,
+  TError,
+  { id: number; data: BodyType<BudgetUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateBudgetMutationOptions(options));
+};
+
+/**
+ * @summary Delete a budget
+ */
+export const getDeleteBudgetUrl = (id: number) => {
+  return `/api/budgets/${id}`;
+};
+
+export const deleteBudget = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBudgetUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBudgetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudget>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBudget>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBudget"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBudget>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBudget(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBudgetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBudget>>
+>;
+
+export type DeleteBudgetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a budget
+ */
+export const useDeleteBudget = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBudget>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBudget>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBudgetMutationOptions(options));
 };

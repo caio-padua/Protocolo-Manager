@@ -959,6 +959,269 @@ export interface ProtocolStats {
   revenueByMonth: ProtocolStatsRevenueByMonthItem[];
 }
 
+export interface BudgetCatalogItem {
+  id: number;
+  kind: string;
+  name: string;
+  /** @nullable */
+  defaultDose?: string | null;
+  defaultSessions: number;
+  /** @nullable */
+  frequencyDays?: number | null;
+  unitPriceCents: number;
+  active: boolean;
+  sortOrder: number;
+  /** @nullable */
+  substanceId?: number | null;
+}
+
+export interface BudgetCatalogItemInput {
+  kind?: string;
+  /** @minLength 1 */
+  name: string;
+  defaultDose?: string;
+  defaultSessions?: number;
+  frequencyDays?: number;
+  unitPriceCents: number;
+  active?: boolean;
+  sortOrder?: number;
+  substanceId?: number;
+}
+
+export interface BudgetCatalogItemUpdate {
+  kind?: string;
+  /** @minLength 1 */
+  name?: string;
+  defaultDose?: string;
+  defaultSessions?: number;
+  frequencyDays?: number;
+  unitPriceCents?: number;
+  active?: boolean;
+  sortOrder?: number;
+  substanceId?: number;
+}
+
+export interface CardFee {
+  installments: number;
+  feePct: number;
+}
+
+export interface BudgetSettings {
+  id: number;
+  cashDiscountPct: number;
+  down50DiscountPct: number;
+  down30DiscountPct: number;
+  maxNoInterestInstallments: number;
+  planMonths: number;
+  planWeeks: number;
+  planDays: number;
+  cardFees: CardFee[];
+  recommendedScenario: string;
+  passCardFeeDefault: boolean;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export interface BudgetSettingsUpdate {
+  cashDiscountPct?: number;
+  down50DiscountPct?: number;
+  down30DiscountPct?: number;
+  maxNoInterestInstallments?: number;
+  planMonths?: number;
+  planWeeks?: number;
+  planDays?: number;
+  cardFees?: CardFee[];
+  recommendedScenario?: string;
+  passCardFeeDefault?: boolean;
+}
+
+export interface BudgetItem {
+  /** @nullable */
+  catalogId?: number | null;
+  kind: string;
+  name: string;
+  /** @nullable */
+  dose?: string | null;
+  sessions: number;
+  /** @nullable */
+  frequencyDays?: number | null;
+  unitPriceCents: number;
+  include: boolean;
+  /** @nullable */
+  substanceId?: number | null;
+}
+
+/**
+ * @nullable
+ */
+export type BudgetSettingsSnapshot = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type BudgetTotalsSnapshot = { [key: string]: unknown } | null;
+
+/**
+ * @nullable
+ */
+export type BudgetChosenDetail = { [key: string]: unknown } | null;
+
+export interface Budget {
+  id: number;
+  /** @nullable */
+  clientId?: number | null;
+  /** @nullable */
+  clientName?: string | null;
+  /** @nullable */
+  title?: string | null;
+  status: string;
+  items: BudgetItem[];
+  /** @nullable */
+  settingsSnapshot?: BudgetSettingsSnapshot;
+  /** @nullable */
+  totalsSnapshot?: BudgetTotalsSnapshot;
+  /** @nullable */
+  chosenScenario?: string | null;
+  /** @nullable */
+  chosenDetail?: BudgetChosenDetail;
+  totalCents: number;
+  liberarFrequencia: boolean;
+  repassarTaxa: boolean;
+  /** @nullable */
+  createdBy?: string | null;
+  /** @nullable */
+  presentedAt?: string | null;
+  /** @nullable */
+  acceptedAt?: string | null;
+  /** @nullable */
+  convertedProtocolId?: number | null;
+  createdAt: string;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export type BudgetInputSettingsSnapshot = { [key: string]: unknown };
+
+export type BudgetInputTotalsSnapshot = { [key: string]: unknown };
+
+export type BudgetInputChosenDetail = { [key: string]: unknown };
+
+export interface BudgetInput {
+  clientId?: number;
+  title?: string;
+  status?: string;
+  items: BudgetItem[];
+  settingsSnapshot?: BudgetInputSettingsSnapshot;
+  totalsSnapshot?: BudgetInputTotalsSnapshot;
+  chosenScenario?: string;
+  chosenDetail?: BudgetInputChosenDetail;
+  totalCents?: number;
+  liberarFrequencia?: boolean;
+  repassarTaxa?: boolean;
+  createdBy?: string;
+}
+
+export type BudgetUpdateSettingsSnapshot = { [key: string]: unknown };
+
+export type BudgetUpdateTotalsSnapshot = { [key: string]: unknown };
+
+export type BudgetUpdateChosenDetail = { [key: string]: unknown };
+
+export interface BudgetUpdate {
+  clientId?: number;
+  title?: string;
+  status?: string;
+  items?: BudgetItem[];
+  settingsSnapshot?: BudgetUpdateSettingsSnapshot;
+  totalsSnapshot?: BudgetUpdateTotalsSnapshot;
+  chosenScenario?: string;
+  chosenDetail?: BudgetUpdateChosenDetail;
+  totalCents?: number;
+  liberarFrequencia?: boolean;
+  repassarTaxa?: boolean;
+  convertedProtocolId?: number;
+}
+
+export interface CalcItemInput {
+  unitPriceCents: number;
+  sessions: number;
+  include: boolean;
+}
+
+export interface FreeCalcInput {
+  downPaymentPct: number;
+  installments: number;
+  passCardFee?: boolean;
+}
+
+export interface BudgetCalcInput {
+  items: CalcItemInput[];
+  freeCalc?: FreeCalcInput;
+}
+
+export interface Perspective {
+  perMonthCents: number;
+  perWeekCents: number;
+  perDayCents: number;
+  perSessionCents: number;
+}
+
+export interface InstallmentOption {
+  installments: number;
+  installmentCents: number;
+}
+
+export interface CashScenario {
+  key: string;
+  label: string;
+  discountPct: number;
+  finalCents: number;
+  savingsCents: number;
+  perspective: Perspective;
+}
+
+export interface DownScenario {
+  key: string;
+  label: string;
+  discountPct: number;
+  downPaymentPct: number;
+  discountedCents: number;
+  downPaymentCents: number;
+  balanceCents: number;
+  installmentOptions: InstallmentOption[];
+  savingsCents: number;
+  perspective: Perspective;
+}
+
+export interface FreeScenario {
+  key: string;
+  label: string;
+  downPaymentPct: number;
+  downPaymentCents: number;
+  balanceCents: number;
+  passCardFee: boolean;
+  feePct: number;
+  installments: number;
+  totalWithFeeCents: number;
+  installmentCents: number;
+}
+
+export interface BudgetCalcResult {
+  totalCents: number;
+  totalSessions: number;
+  scenarioA: CashScenario;
+  scenarioB: DownScenario;
+  scenarioC: DownScenario;
+  free?: FreeScenario | null;
+  recommendedScenario: string;
+}
+
+export interface BudgetSeedResult {
+  catalogInserted: number;
+  catalogTotal: number;
+  settingsCreated: boolean;
+}
+
 export type ListClientsParams = {
   search?: string;
   status?: string;
@@ -1006,4 +1269,9 @@ export type ListCatalogOptionsParams = {
 
 export type ListAnamnesePerguntasParams = {
   bloco?: string;
+};
+
+export type ListBudgetsParams = {
+  clientId?: number;
+  status?: string;
 };

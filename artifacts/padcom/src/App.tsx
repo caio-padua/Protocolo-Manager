@@ -31,6 +31,11 @@ import CadastroListas from "@/pages/cadastros/listas";
 import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
+import OrcamentosList from "@/pages/orcamentos";
+import MontagemOrcamento from "@/pages/orcamentos/novo";
+import Parametrizacao from "@/pages/orcamentos/parametrizacao";
+import Vitrine from "@/pages/orcamentos/vitrine";
+import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +69,12 @@ function Router() {
             <Route path="/protocols" component={Protocols} />
             <Route path="/protocols/new" component={NewProtocol} />
             <Route path="/protocols/:id" component={ProtocolDetail} />
+
+            <Route path="/orcamentos/parametrizacao" component={Parametrizacao} />
+            <Route path="/orcamentos/vitrine" component={Vitrine} />
+            <Route path="/orcamentos/novo" component={MontagemOrcamento} />
+            <Route path="/orcamentos/:id/apresentacao" component={ApresentacaoOrcamento} />
+            <Route path="/orcamentos" component={OrcamentosList} />
             
             <Route path="/agenda" component={Agenda} />
             
