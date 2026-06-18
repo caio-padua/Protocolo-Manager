@@ -418,12 +418,12 @@
    ============================================================ */
 @keyframes paxterPulse {
   0%, 100% {
-    opacity: 0.5;
-    box-shadow: 0 0 0 0 hsl(187 92% 56% / 0), inset 0 0 2px rgba(255, 255, 255, 0.6);
+    opacity: 0.45;
+    box-shadow: 0 0 0 0 transparent, inset 0 0 2px rgba(255, 255, 255, 0.6);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 9px 2px hsl(187 92% 56% / 0.8), inset 0 0 3px rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 9px 2px var(--led-glow), inset 0 0 3px rgba(255, 255, 255, 0.95);
   }
 }
 .paxter-led {
@@ -431,8 +431,21 @@
   width: 9px;
   height: 9px;
   border-radius: 9999px;
+  --led-glow: hsl(187 92% 56% / 0.85);
   background: radial-gradient(circle at 35% 30%, #e6fdff 0%, hsl(187 82% 54%) 45%, hsl(187 80% 38%) 100%);
   border: 1px solid hsl(187 55% 30% / 0.55);
+}
+/* Tons da luz — todas usam a MESMA cadencia (paxterPulse 1.4s), logo acendem
+   e apagam EM SINCRONIA. Amarela = Agora; verde = Meta / melhor faixa. */
+.paxter-led-amber {
+  --led-glow: hsl(45 95% 55% / 0.9);
+  background: radial-gradient(circle at 35% 30%, #fff7e0 0%, hsl(45 95% 58%) 45%, hsl(40 90% 42%) 100%);
+  border-color: hsl(40 70% 35% / 0.6);
+}
+.paxter-led-green {
+  --led-glow: hsl(140 72% 46% / 0.9);
+  background: radial-gradient(circle at 35% 30%, #e8ffe9 0%, hsl(140 65% 48%) 45%, hsl(140 60% 32%) 100%);
+  border-color: hsl(140 45% 26% / 0.6);
 }
 .paxter-led-on {
   animation: paxterPulse 1.4s ease-in-out infinite;
@@ -442,6 +455,16 @@
   border-color: #b9c8c8;
   opacity: 0.55;
   animation: none;
+}
+
+/* Faixa ATUAL da barra: luz pulsando POR DETRAS (acende/apaga), sem bolinha
+   por cima. Mesma cadencia 1.4s das LEDs — fica em sincronia com elas. */
+@keyframes paxterTierGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent) brightness(0.95); }
+  50% { filter: drop-shadow(0 0 7px hsl(187 92% 56% / 0.9)) brightness(1.15); }
+}
+.paxter-tier-live {
+  animation: paxterTierGlow 1.4s ease-in-out infinite;
 }
 
 /* Bevel GROSSO — chanfro saliente, da impressao de "botao grosso" que salta

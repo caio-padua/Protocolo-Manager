@@ -27,7 +27,6 @@ import { SessionStacker } from "./SessionStacker";
 import { FrequencyDial, FrequencyBar, frequencyLabel, FREQ_LEGEND } from "./FrequencyDial";
 import { StatPanel } from "./StatPanel";
 import { Ampola } from "./VitrineCard";
-import cofrinhoEconomia from "@/assets/cofrinho-economia.png";
 
 type Row = {
   catalogId: number;
@@ -46,8 +45,11 @@ type Row = {
 };
 
 // LED de luz latente (acende/apaga). So apresentacao — chama a atencao.
-function Led({ on }: { on: boolean }) {
-  return <span className={`paxter-led ${on ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />;
+// tone: cyan (padrao) | amber (Agora) | green (Meta / melhor faixa). Todas as
+// LEDs acesas usam a mesma cadencia, logo piscam EM SINCRONIA.
+function Led({ on, tone = "cyan" }: { on: boolean; tone?: "cyan" | "amber" | "green" }) {
+  const toneClass = tone === "amber" ? "paxter-led-amber" : tone === "green" ? "paxter-led-green" : "";
+  return <span className={`paxter-led ${toneClass} ${on ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />;
 }
 
 // Pintura padrao das barras acesas (mesma das barras de Sessoes/Frequencia).
@@ -58,9 +60,9 @@ const TIER_FILL = {
 } as const;
 
 // Barra de evolucao HORIZONTAL das faixas de desconto (mesmo padrao das barras
-// de Sessoes/Frequencia): segmentos preenchidos ate a faixa ATUAL, LED pulsante
-// marcando "voce esta aqui" e, abaixo, % + limiar de sessoes por faixa. So
-// apresentacao — o motor de calculo nao muda.
+// de Sessoes/Frequencia): segmentos preenchidos ate a faixa ATUAL, a faixa atual
+// PULSA uma luz por detras (sem bolinha por cima) e, abaixo, DOIS inserts concavos
+// lado a lado por faixa (% + limiar de sessoes). So apresentacao — o motor nao muda.
 function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; discountPct: number }[]; currentSessions: number }) {
   let curIdx = -1;
   tiers.forEach((t, i) => { if (currentSessions >= t.minSessions) curIdx = i; });
@@ -72,28 +74,27 @@ function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; d
           const isCurrent = i === curIdx;
           return (
             <div key={i} className="relative flex-1">
-              {isCurrent ? (
-                <span className="paxter-led paxter-led-on absolute -top-[7px] left-1/2 -translate-x-1/2" aria-hidden="true" />
-              ) : null}
+              {/* sem bolinha por cima: a faixa atual PULSA a luz por detras */}
               <div
                 className={`h-4 rounded-[2px] transition-all duration-200 ${
                   reached ? "" : "bg-black/[0.06] shadow-[inset_0_1px_2px_rgba(7,22,43,0.10)] dark:bg-white/10"
-                } ${isCurrent ? "ring-2 ring-cyan-400 ring-offset-1 ring-offset-transparent" : ""}`}
+                } ${isCurrent ? "paxter-tier-live ring-2 ring-cyan-400" : ""}`}
                 style={reached ? TIER_FILL : undefined}
               />
             </div>
           );
         })}
       </div>
+      {/* rotulos por faixa: DOIS inserts concavos LADO A LADO (% | >=N), nunca empilhados */}
       <div className="mt-2 flex w-full gap-[3px]">
         {tiers.map((t, i) => {
           const reached = i <= curIdx;
           return (
-            <div key={i} className="flex flex-1 flex-col items-center leading-none">
-              <span className={`text-[10px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
+            <div key={i} className="flex flex-1 items-center justify-center gap-1">
+              <span className={`concave-3d px-1 py-0.5 text-[9px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
                 {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
               </span>
-              <span className="mt-0.5 text-[8px] font-bold uppercase tabular-nums text-muted-foreground">≥{t.minSessions}</span>
+              <span className="concave-3d px-1 py-0.5 text-[8px] font-bold uppercase tabular-nums text-muted-foreground">≥{t.minSessions}</span>
             </div>
           );
         })}
@@ -345,14 +346,15 @@ export default function MontagemOrcamento() {
                                     const fullNum = sp > 0 ? full.slice(sp + 1) : full;
                                     return (
                                       <div className="mx-auto mt-1.5 flex w-full max-w-[150px] flex-col gap-1">
-                                        {/* PRECO CHEIO CANCELADO: riscado + X vermelho por cima.
+                                        {/* PRECO CHEIO CANCELADO: selo de PROIBIDO compacto (quadrado,
+                                            circulo + trave) centralizado por cima — SEM risco.
                                             R$ na guia esquerda, ultimo zero na guia direita. */}
                                         <div className="relative flex items-center justify-between text-sm font-bold tabular-nums text-slate-500 dark:text-slate-400">
-                                          <span className="line-through decoration-2 decoration-slate-400/80">{fullSym}</span>
-                                          <span className="line-through decoration-2 decoration-slate-400/80">{fullNum}</span>
-                                          <svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full text-red-500/85">
-                                            <line x1="3" y1="3" x2="97" y2="21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                                            <line x1="3" y1="21" x2="97" y2="3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                                          <span>{fullSym}</span>
+                                          <span>{fullNum}</span>
+                                          <svg viewBox="0 0 24 24" aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 text-red-500/85">
+                                            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                                            <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
                                           </svg>
                                         </div>
                                         {/* DESCONTO DO PACOTE: -X% na guia esquerda, "no pacote" na guia
@@ -387,14 +389,41 @@ export default function MontagemOrcamento() {
                                     Desconto por Volume do Protocolo
                                   </div>
                                   <div className="flex flex-wrap items-end gap-3">
-                                    {/* cofrinho sorrindo — somente a imagem, sem moldura */}
-                                    <img
-                                      src={cofrinhoEconomia}
-                                      alt="Cofrinho de economia"
-                                      loading="lazy"
-                                      onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
-                                      className="h-14 w-14 shrink-0 object-contain drop-shadow-[0_6px_8px_rgba(7,22,43,0.18)]"
-                                    />
+                                    {/* cofrinho de PERFIL — vetor achatado (nao 3D), nos tons da marca
+                                        (verde-petroleo + ciano). Sem dependencia de imagem externa. */}
+                                    <svg
+                                      viewBox="0 0 64 64"
+                                      role="img"
+                                      aria-label="Cofrinho de economia"
+                                      className="h-14 w-14 shrink-0 drop-shadow-[0_6px_8px_rgba(7,22,43,0.18)]"
+                                    >
+                                      <defs>
+                                        <linearGradient id="pigBody" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="0%" stopColor="hsl(187 72% 55%)" />
+                                          <stop offset="100%" stopColor="hsl(180 32% 34%)" />
+                                        </linearGradient>
+                                      </defs>
+                                      {/* rabinho (atras) */}
+                                      <path d="M9 33 q-5 -1 -4 -5 q1 -3 4 -1.5" fill="none" stroke="hsl(180 34% 26%)" strokeWidth="2" strokeLinecap="round" />
+                                      {/* pernas (atras do corpo) */}
+                                      <rect x="16" y="46" width="7" height="11" rx="2.5" fill="hsl(180 34% 30%)" />
+                                      <rect x="39" y="46" width="7" height="11" rx="2.5" fill="hsl(180 34% 30%)" />
+                                      {/* orelha (atras do corpo) */}
+                                      <path d="M41 17 L49 14 L46 25 Z" fill="hsl(180 34% 30%)" />
+                                      {/* corpo */}
+                                      <ellipse cx="31" cy="36" rx="23" ry="16" fill="url(#pigBody)" stroke="hsl(180 34% 26%)" strokeWidth="2" />
+                                      {/* focinho de perfil */}
+                                      <ellipse cx="52" cy="38" rx="7.5" ry="8.5" fill="hsl(187 55% 50%)" stroke="hsl(180 34% 26%)" strokeWidth="2" />
+                                      <ellipse cx="53" cy="35" rx="1.3" ry="1.8" fill="hsl(180 36% 18%)" />
+                                      <ellipse cx="53" cy="41" rx="1.3" ry="1.8" fill="hsl(180 36% 18%)" />
+                                      {/* fenda da moeda + moeda entrando */}
+                                      <rect x="23" y="20" width="16" height="3" rx="1.5" transform="rotate(-10 31 21)" fill="hsl(180 36% 18%)" />
+                                      <circle cx="31" cy="11" r="5" fill="hsl(187 75% 60%)" stroke="hsl(180 34% 26%)" strokeWidth="1.5" />
+                                      {/* olho */}
+                                      <circle cx="44" cy="31" r="2.3" fill="hsl(180 36% 16%)" />
+                                      {/* brilho achatado */}
+                                      <ellipse cx="24" cy="29" rx="6" ry="3" fill="rgba(255,255,255,0.32)" />
+                                    </svg>
                                     {/* organograma AGORA -> META: rotulo em RELEVO (sobressalente),
                                         valor no CONCAVO (profundo) e a seta como 3o subbloco 3D */}
                                     <div className="flex flex-1 items-end justify-center gap-2.5">
@@ -402,7 +431,7 @@ export default function MontagemOrcamento() {
                                           com a porcentagem em cima e as sessoes embaixo */}
                                       <div className="flex flex-col items-center gap-1">
                                         <span className="bevel-3d flex items-center gap-1.5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                                          <Led on={nowPct > 0} /> Agora
+                                          <Led on={nowPct > 0} tone="amber" /> Agora
                                         </span>
                                         <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
                                           <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `-${nowPct}%` : "0%"}</span>
@@ -417,7 +446,7 @@ export default function MontagemOrcamento() {
                                           {/* META: mesma leitura, com LED latente puxando para a proxima faixa */}
                                           <div className="flex flex-col items-center gap-1">
                                             <span className="bevel-3d flex items-center gap-1.5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                                              <Led on={true} /> Meta
+                                              <Led on={true} tone="green" /> Meta
                                             </span>
                                             <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
                                               <span className="text-xl font-extrabold tabular-nums text-primary">-{v!.nextTierPct}%</span>
@@ -427,7 +456,7 @@ export default function MontagemOrcamento() {
                                         </>
                                       ) : (
                                         <span className="bevel-3d flex h-12 items-center gap-2 px-4 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-                                          <Led on={true} /> Melhor faixa atingida
+                                          <Led on={true} tone="green" /> Melhor faixa atingida
                                         </span>
                                       )}
                                     </div>
