@@ -13,11 +13,15 @@ function todayBR(): string {
   return brt.toISOString().slice(0, 10);
 }
 
-function formatDateBR(d: Date): string {
-  const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-  const day = String(brt.getUTCDate()).padStart(2, "0");
-  const month = String(brt.getUTCMonth() + 1).padStart(2, "0");
-  const year = brt.getUTCFullYear();
+// Formata a data DO LOTE (string ISO YYYY-MM-DD = mesmo formato de batchDate)
+// para exibicao DD/MM/AAAA. Usar isto, e nao new Date(), para o assunto/corpo
+// refletirem o dia das receitas mesmo quando o lote roda para uma data passada.
+function formatBatchDateBR(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = d.getUTCFullYear();
   return `${day}/${month}/${year}`;
 }
 
@@ -89,9 +93,9 @@ export async function sendNightlyPharmacyBatch(forDate?: string): Promise<BatchR
 
     const html = `
       <div style="font-family:Arial,sans-serif;color:#1a1a1a">
-        <h2 style="color:#3D7A7A">Instituto Padua — Receitas do dia ${formatDateBR(new Date())}</h2>
+        <h2 style="color:#3D7A7A">Instituto Padua — Receitas do dia ${formatBatchDateBR(dateStr)}</h2>
         <p>Prezada equipe <strong>${pharmacy.name}</strong>,</p>
-        <p>Seguem em anexo as receitas emitidas hoje. Total: <strong>${recipes.length}</strong>.</p>
+        <p>Seguem em anexo as receitas do dia ${formatBatchDateBR(dateStr)}. Total: <strong>${recipes.length}</strong>.</p>
         <table style="border-collapse:collapse;width:100%;font-size:13px">
           <thead><tr style="background:#e8f4f4">
             <th style="padding:6px;border:1px solid #ddd;text-align:left">Receita</th>
@@ -114,7 +118,7 @@ export async function sendNightlyPharmacyBatch(forDate?: string): Promise<BatchR
     if (gmailOk && pharmacy.email) {
       const res = await sendGmailMessage({
         to: pharmacy.email,
-        subject: `Instituto Padua | Receitas ${formatDateBR(new Date())} | ${pharmacy.name}`,
+        subject: `Instituto Padua | Receitas ${formatBatchDateBR(dateStr)} | ${pharmacy.name}`,
         html,
         attachments,
       });

@@ -538,18 +538,24 @@ export async function uploadFileToDrive(
   folderId: string,
   fileName: string,
   mimeType: string,
-  fileBuffer: Buffer
+  fileBuffer: Buffer,
+  // Quando true, NAO apaga arquivo homonimo antes de subir. Use para arquivos
+  // que devem coexistir (ex.: receitas — nome ja e unico por id), evitando que
+  // um upload destrua um PDF anterior do mesmo dia.
+  allowDuplicates = false
 ): Promise<{ fileId: string; webViewLink: string }> {
   const drive = await getUncachableDriveClient();
 
-  const existingFiles = await drive.files.list({
-    q: `name='${fileName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed=false`,
-    fields: "files(id)",
-  });
+  if (!allowDuplicates) {
+    const existingFiles = await drive.files.list({
+      q: `name='${fileName.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed=false`,
+      fields: "files(id)",
+    });
 
-  if (existingFiles.data.files?.length) {
-    for (const f of existingFiles.data.files) {
-      await drive.files.delete({ fileId: f.id });
+    if (existingFiles.data.files?.length) {
+      for (const f of existingFiles.data.files) {
+        await drive.files.delete({ fileId: f.id });
+      }
     }
   }
 

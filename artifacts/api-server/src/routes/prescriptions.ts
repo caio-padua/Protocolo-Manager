@@ -237,23 +237,10 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
 
     const safeClient = body.clientName.replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
     const kind = plan.recipeType === "controlado_isolado" ? `CONTROLADO ${plan.anvisaType ?? ""}` : "MANIPULACAO";
-    const fileName = `${batchDate} RECEITA ${kind} ${safeClient}.pdf`.replace(/\s+/g, " ");
 
-    // 2c) Upload Drive (best-effort).
-    let driveFileId: string | null = null;
-    let driveWebViewLink: string | null = null;
-    if (pharmacy) {
-      try {
-        const { dayFolderId } = await ensurePharmacyDayFolder(pharmacy.name, batchDate);
-        const up = await uploadFileToDrive(dayFolderId, fileName, "application/pdf", pdfBuffer);
-        driveFileId = up.fileId;
-        driveWebViewLink = up.webViewLink;
-      } catch (err) {
-        req.log.warn({ err }, "Falha ao subir receita ao Drive");
-      }
-    }
-
-    // 2d) Persiste receita.
+    // 2c) Persiste receita PRIMEIRO para obter um id estavel — o id entra no nome
+    //     do arquivo, garantindo unicidade (sem colisao/sobrescrita no Drive
+    //     para mesmo cliente/tipo/dia).
     const [recipe] = await db
       .insert(recipesTable)
       .values({
@@ -268,14 +255,40 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
         sncrStatus,
         title: plan.title,
         itemsJson: plan.items,
-        driveFileId,
-        driveWebViewLink,
-        fileName,
         pdfData: pdfBase64,
         batchDate,
         status: "generated",
       })
       .returning();
+
+    const fileName = `${batchDate} RECEITA ${kind} ${safeClient} #${recipe.id}.pdf`.replace(/\s+/g, " ");
+
+    // 2d) Upload Drive (best-effort). allowDuplicates=true: nunca apaga homonimo
+    //     (o id ja torna o nome unico; protege PDFs anteriores do mesmo dia).
+    let driveFileId: string | null = null;
+    let driveWebViewLink: string | null = null;
+    if (pharmacy) {
+      try {
+        const { dayFolderId } = await ensurePharmacyDayFolder(pharmacy.name, batchDate);
+        const up = await uploadFileToDrive(dayFolderId, fileName, "application/pdf", pdfBuffer, true);
+        driveFileId = up.fileId;
+        driveWebViewLink = up.webViewLink;
+      } catch (err) {
+        req.log.warn({ err }, "Falha ao subir receita ao Drive");
+      }
+    }
+
+    // 2e) Atualiza a receita com o nome final + vinculo do Drive (best-effort:
+    //     a receita ja esta persistida com pdfData e e baixavel via
+    //     /api/recipes/:id/pdf mesmo se este update falhar).
+    try {
+      await db
+        .update(recipesTable)
+        .set({ fileName, driveFileId, driveWebViewLink })
+        .where(eq(recipesTable.id, recipe.id));
+    } catch (err) {
+      req.log.warn({ err, recipeId: recipe.id }, "Falha ao atualizar metadados da receita");
+    }
 
     emittedRecipes.push({
       id: recipe.id,
@@ -286,7 +299,7 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
       anvisaColorName: recipe.anvisaColorName ?? null,
       sncrNumber: recipe.sncrNumber ?? null,
       sncrStatus: recipe.sncrStatus ?? null,
-      driveWebViewLink: recipe.driveWebViewLink ?? null,
+      driveWebViewLink,
       pdfUrl: `/api/recipes/${recipe.id}/pdf`,
     });
   }
