@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Presentation, Save, Calculator, Lock, TrendingDown, ArrowRight, ArrowUp, Plus } from "lucide-react";
+import { Presentation, Save, Calculator, Lock, TrendingDown, ArrowRight, Plus } from "lucide-react";
 import { fmt } from "./money";
 import { SessionStacker } from "./SessionStacker";
 import { FrequencyDial, FrequencyBar, frequencyLabel, FREQ_LEGEND } from "./FrequencyDial";
@@ -45,41 +45,59 @@ type Row = {
   itemVolumeTiers: { minSessions: number; discountPct: number }[] | null;
 };
 
-// Escada de faixas de desconto por volume: barras de ALTURA crescente (faixa
-// maior = barra mais alta), com seta de chegada e o limiar de sessoes. A faixa
-// atual fica destacada. So apresentacao — o motor de calculo nao muda.
-function TierLadder({ tiers, currentSessions }: { tiers: { minSessions: number; discountPct: number }[]; currentSessions: number }) {
+// LED de luz latente (acende/apaga). So apresentacao — chama a atencao.
+function Led({ on }: { on: boolean }) {
+  return <span className={`paxter-led ${on ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />;
+}
+
+// Pintura padrao das barras acesas (mesma das barras de Sessoes/Frequencia).
+const TIER_FILL = {
+  background: "linear-gradient(180deg, hsl(187 80% 52%) 0%, hsl(187 78% 42%) 100%)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 1px rgba(0,0,0,0.10), 0 1px 1.5px rgba(7,22,43,0.30)",
+} as const;
+
+// Barra de evolucao HORIZONTAL das faixas de desconto (mesmo padrao das barras
+// de Sessoes/Frequencia): segmentos preenchidos ate a faixa ATUAL, LED pulsante
+// marcando "voce esta aqui" e, abaixo, % + limiar de sessoes por faixa. So
+// apresentacao — o motor de calculo nao muda.
+function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; discountPct: number }[]; currentSessions: number }) {
   let curIdx = -1;
   tiers.forEach((t, i) => { if (currentSessions >= t.minSessions) curIdx = i; });
-  const maxIdx = Math.max(1, tiers.length - 1);
   return (
-    <div className="flex w-full items-end justify-between gap-1.5">
-      {tiers.map((t, i) => {
-        const reached = i <= curIdx;
-        const isCurrent = i === curIdx;
-        const h = 22 + Math.round((i / maxIdx) * 40);
-        return (
-          <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-            <span className={`concave-3d w-full max-w-[58px] px-1 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
-              {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
-            </span>
-            <div
-              style={{ height: `${h}px` }}
-              className={`w-full max-w-[42px] rounded-[3px] transition-all duration-300 ${
-                isCurrent
-                  ? "bg-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_2px_hsl(187_72%_48%/0.6)]"
-                  : reached
-                  ? "bg-primary/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
-                  : "bg-white/60 dark:bg-black/30"
-              }`}
-            />
-            <div className="flex flex-col items-center leading-none">
-              <ArrowUp className={`h-3 w-3 ${reached ? "text-primary" : "text-muted-foreground/45"}`} />
+    <div className="w-full pt-1.5">
+      <div className="flex w-full items-stretch gap-[3px]">
+        {tiers.map((t, i) => {
+          const reached = i <= curIdx;
+          const isCurrent = i === curIdx;
+          return (
+            <div key={i} className="relative flex-1">
+              {isCurrent ? (
+                <span className="paxter-led paxter-led-on absolute -top-[7px] left-1/2 -translate-x-1/2" aria-hidden="true" />
+              ) : null}
+              <div
+                className={`h-4 rounded-[2px] transition-all duration-200 ${
+                  reached ? "" : "bg-black/[0.06] shadow-[inset_0_1px_2px_rgba(7,22,43,0.10)] dark:bg-white/10"
+                } ${isCurrent ? "ring-2 ring-cyan-400 ring-offset-1 ring-offset-transparent" : ""}`}
+                style={reached ? TIER_FILL : undefined}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex w-full gap-[3px]">
+        {tiers.map((t, i) => {
+          const reached = i <= curIdx;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center leading-none">
+              <span className={`text-[10px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
+                {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
+              </span>
               <span className="mt-0.5 text-[8px] font-bold uppercase tabular-nums text-muted-foreground">≥{t.minSessions}</span>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -277,7 +295,7 @@ export default function MontagemOrcamento() {
                               barra h-5, legenda h-4, com gap-2.5 — alinhamento por linhas. */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
                             {/* 1) SESSOES */}
-                            <div className="panel-3d-sub flex flex-1 flex-col gap-2.5 p-3">
+                            <div className="panel-3d-sub paxter-attention flex flex-1 flex-col gap-2.5 p-3">
                               <div className="concave-3d flex h-7 items-center justify-center px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sessões</div>
                               <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                             </div>
@@ -320,12 +338,32 @@ export default function MontagemOrcamento() {
                                       {fmt(finalSubtotal)}
                                     </div>
                                   </div>
-                                  {hasDisc ? (
-                                    <div className="mt-1.5 flex flex-col items-center gap-1">
-                                      <span className="text-sm font-bold tabular-nums text-slate-500 line-through decoration-2 decoration-slate-400/80 dark:text-slate-400">{fmt(fullSubtotal)}</span>
-                                      <span className="text-[12px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">-{v!.discountPct}% no pacote</span>
-                                    </div>
-                                  ) : null}
+                                  {hasDisc ? (() => {
+                                    const full = fmt(fullSubtotal);
+                                    const sp = full.indexOf(" ");
+                                    const fullSym = sp > 0 ? full.slice(0, sp) : "R$";
+                                    const fullNum = sp > 0 ? full.slice(sp + 1) : full;
+                                    return (
+                                      <div className="mx-auto mt-1.5 flex w-full max-w-[150px] flex-col gap-1">
+                                        {/* PRECO CHEIO CANCELADO: riscado + X vermelho por cima.
+                                            R$ na guia esquerda, ultimo zero na guia direita. */}
+                                        <div className="relative flex items-center justify-between text-sm font-bold tabular-nums text-slate-500 dark:text-slate-400">
+                                          <span className="line-through decoration-2 decoration-slate-400/80">{fullSym}</span>
+                                          <span className="line-through decoration-2 decoration-slate-400/80">{fullNum}</span>
+                                          <svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full text-red-500/85">
+                                            <line x1="3" y1="3" x2="97" y2="21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                                            <line x1="3" y1="21" x2="97" y2="3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                                          </svg>
+                                        </div>
+                                        {/* DESCONTO DO PACOTE: -X% na guia esquerda, "no pacote" na guia
+                                            direita — mesma largura, formando as linhas verticais. */}
+                                        <div className="flex items-center justify-between text-[12px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                          <span>-{v!.discountPct}%</span>
+                                          <span>no pacote</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })() : null}
                                 </div>
                               );
                             })()}
@@ -360,22 +398,37 @@ export default function MontagemOrcamento() {
                                     {/* organograma AGORA -> META: rotulo em RELEVO (sobressalente),
                                         valor no CONCAVO (profundo) e a seta como 3o subbloco 3D */}
                                     <div className="flex flex-1 items-end justify-center gap-2.5">
+                                      {/* AGORA: rotulo em RELEVO grosso (bevel) com LED + valor CONCAVO
+                                          com a porcentagem em cima e as sessoes embaixo */}
                                       <div className="flex flex-col items-center gap-1">
-                                        <span className="screen-3d px-3 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Agora</span>
-                                        <span className="concave-3d flex h-9 min-w-[64px] items-center justify-center px-3 text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `-${nowPct}%` : "0%"}</span>
+                                        <span className="bevel-3d flex items-center gap-1.5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                          <Led on={nowPct > 0} /> Agora
+                                        </span>
+                                        <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
+                                          <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `-${nowPct}%` : "0%"}</span>
+                                          <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">{r.sessions} {r.sessions === 1 ? "sessão" : "sessões"}</span>
+                                        </span>
                                       </div>
                                       {falta ? (
                                         <>
                                           <span className="screen-3d grid h-9 w-9 shrink-0 place-items-center text-primary">
                                             <ArrowRight className="h-4 w-4" />
                                           </span>
+                                          {/* META: mesma leitura, com LED latente puxando para a proxima faixa */}
                                           <div className="flex flex-col items-center gap-1">
-                                            <span className="screen-3d px-3 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Meta</span>
-                                            <span className="concave-3d flex h-9 min-w-[64px] items-center justify-center px-3 text-xl font-extrabold tabular-nums text-primary">-{v!.nextTierPct}%</span>
+                                            <span className="bevel-3d flex items-center gap-1.5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                              <Led on={true} /> Meta
+                                            </span>
+                                            <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
+                                              <span className="text-xl font-extrabold tabular-nums text-primary">-{v!.nextTierPct}%</span>
+                                              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">≥{r.sessions + falta} {r.sessions + falta === 1 ? "sessão" : "sessões"}</span>
+                                            </span>
                                           </div>
                                         </>
                                       ) : (
-                                        <span className="screen-3d flex h-9 items-center px-4 text-xs font-bold text-emerald-700 dark:text-emerald-400">Melhor faixa atingida</span>
+                                        <span className="bevel-3d flex h-12 items-center gap-2 px-4 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                          <Led on={true} /> Melhor faixa atingida
+                                        </span>
                                       )}
                                     </div>
                                     {falta ? (
@@ -389,12 +442,13 @@ export default function MontagemOrcamento() {
                                     ) : null}
                                   </div>
 
-                                  {/* ESCADA DE FAIXAS: barras de altura crescente por faixa de
-                                      desconto, com setas de chegada e a faixa atual destacada.
+                                  {/* BARRA DE EVOLUCAO HORIZONTAL: segmentos preenchidos ate a faixa
+                                      atual (padrao das barras de Sessoes/Frequencia), LED pulsante na
+                                      faixa atual e, abaixo, % + limiar de sessoes por faixa.
                                       Renderizada do catalogo (override do item ou escada global);
                                       o motor de calculo continua intacto. */}
                                   {effTiers.length >= 2 ? (
-                                    <TierLadder tiers={effTiers} currentSessions={r.sessions} />
+                                    <TierTrack tiers={effTiers} currentSessions={r.sessions} />
                                   ) : null}
                                 </div>
 

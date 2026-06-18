@@ -335,13 +335,13 @@
    alto-relevo, afastando-se da folha. Sombra externa profunda + topo iluminado. */
 .screen-3d {
   background: linear-gradient(150deg, #ffffff 0%, #f3fafa 100%);
-  border: 1px solid #cbdede;
+  border: 1px solid #c4dada;
   border-radius: 0.25rem;
   box-shadow:
-    0 22px 32px -12px rgba(7, 22, 43, 0.36),
-    0 9px 16px -6px rgba(7, 22, 43, 0.22),
-    inset 0 2px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -4px 8px rgba(0, 53, 58, 0.07);
+    0 26px 38px -12px rgba(7, 22, 43, 0.40),
+    0 11px 18px -6px rgba(7, 22, 43, 0.26),
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -7px 12px rgba(0, 53, 58, 0.12);
 }
 
 /* Variantes para tema escuro do app (nao quebrar quando .dark estiver ativo). */
@@ -409,6 +409,76 @@
   box-shadow:
     0 16px 26px -14px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================================
+   PAXTER — luz latente (LED), bevel GROSSO e pulso de atencao.
+   Vocabulario reutilizavel no sistema inteiro (clonar do
+   Console de Orcamento para qualquer tela do Manager).
+   ============================================================ */
+@keyframes paxterPulse {
+  0%, 100% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 hsl(187 92% 56% / 0), inset 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 9px 2px hsl(187 92% 56% / 0.8), inset 0 0 3px rgba(255, 255, 255, 0.95);
+  }
+}
+.paxter-led {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #e6fdff 0%, hsl(187 82% 54%) 45%, hsl(187 80% 38%) 100%);
+  border: 1px solid hsl(187 55% 30% / 0.55);
+}
+.paxter-led-on {
+  animation: paxterPulse 1.4s ease-in-out infinite;
+}
+.paxter-led-off {
+  background: #cfdada;
+  border-color: #b9c8c8;
+  opacity: 0.55;
+  animation: none;
+}
+
+/* Bevel GROSSO — chanfro saliente, da impressao de "botao grosso" que salta
+   da folha. Topo iluminado forte + sombra externa profunda. */
+.bevel-3d {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f8f8 55%, #e1eded 100%);
+  border: 1px solid #c2d6d6;
+  border-radius: 0.375rem;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.14),
+    0 16px 24px -10px rgba(7, 22, 43, 0.44),
+    0 7px 12px -4px rgba(7, 22, 43, 0.30);
+}
+.dark .bevel-3d {
+  background: linear-gradient(180deg, hsl(180 20% 21%) 0%, hsl(180 22% 15%) 100%);
+  border-color: hsl(180 16% 27%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -6px 11px rgba(0, 0, 0, 0.48),
+    0 16px 24px -10px rgba(0, 0, 0, 0.62),
+    0 7px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* Pulso de ATENCAO no hover — acende/apaga via outline, sem apagar o relevo. */
+.paxter-attention {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+  transition: outline-color 0.2s ease;
+}
+.paxter-attention:hover {
+  animation: paxterAttention 1.2s ease-in-out infinite;
+}
+@keyframes paxterAttention {
+  0%, 100% { outline-color: hsl(187 85% 52% / 0); }
+  50% { outline-color: hsl(187 85% 52% / 0.75); }
 }
 
 /* ============================================================
