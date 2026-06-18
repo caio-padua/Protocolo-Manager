@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "xTQWhBO4yEelp9MK8FhZR"
+uri = "file://artifacts/padcom/public/cofrinho-economia.png"
+type = "image"
+title = "smiling piggy bank savings"
 
 [[outputs]]
 id = "J6wH7DLw0tYOwzoNt5av7"

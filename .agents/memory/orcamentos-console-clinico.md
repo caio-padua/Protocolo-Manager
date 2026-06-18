@@ -22,7 +22,7 @@ As classes de relevo (`panel-3d`, `panel-3d-sub`, `panel-3d-hero`, `panel-3d-act
 ## Raio dos cantos: ~6px (quadrado da marca), NAO 14px premium
 As classes de relevo em `index.css` usam border-radius 0.25–0.5rem (4–8px), cantos retos alinhados a marca.
 **Why:** o CEO REVERTEU (voz, 18/06/2026) o desvio anterior de 14px/12px "premium"; pediu cantos mais quadrados. Por Art.50, isto substitui a decisao estetica antiga — se reaparecer 14px e regressao.
-**How to apply:** ao criar painel/botao nessa tela, manter radius pequeno (<=8px). Botoes usam `.btn-3d` (CTA cheio, afunda no :active) e `.btn-3d-soft` (secundario), e cards do item ganham `.neon-hover` (luz ciano de baixo no hover) — todos UNLAYERED no fim do `index.css`.
+**How to apply:** ao criar painel/botao nessa tela, manter radius pequeno (<=8px). Botoes usam `.btn-3d` (CTA cheio, afunda no :active) e `.btn-3d-soft` (secundario), e cards do item ganham `.neon-hover` (luz ciano de baixo no hover) — todos UNLAYERED no fim do `index.css`. O componente GLOBAL `Switch` (`components/ui/switch.tsx`) tambem virou quadrado (root `rounded-[5px]`, thumb `rounded-[3px]`) — decisao de marca, afeta o app inteiro; se reaparecer `rounded-full` no toggle e regressao.
 
 ## Layout MATRIZ: 4 linhas compartilhadas pelos 3 blocos
 Sessoes, Frequencia e Subtotal alinham em colunas pela MESMA grade de alturas fixas: titulo `h-7`, controle `h-[60px]`, barra/risco `h-5`, legenda `h-4`, `gap-2.5`. Subtotal = preco final (controle) + preco cheio RISCADO na linha da barra + "-X% no pacote" na linha da legenda. Frequencia read-only mostra `FrequencyBar` estatica + `FREQ_LEGEND` (mantem a grade).
@@ -32,7 +32,7 @@ Sessoes, Frequencia e Subtotal alinham em colunas pela MESMA grade de alturas fi
 ## Barras: significados FIXOS (nao inverter)
 SessionStacker = arco-iris (vermelho->verde), legenda unica central "AZUL = MELHOR PRECO" (sem "MENOS/MAIS"); mais sessoes = melhor preco. FrequencyBar = cor unica ciano `hsl(187 72% 48%)`, `fill=frequencyFill` (MENOR intervalo entre doses = barra MAIS cheia = mais eficiente), legenda `FREQ_LEGEND="Menor intervalo = mais eficiente"`.
 **Why:** o CEO definiu a direcao semantica; inverter o fill (intervalo maior = mais cheio) ou trocar a cor da frequencia por degrade quebra a leitura pedida.
-**How to apply:** clique/teclado da FrequencyBar e o render compartilham `frequencyFill`/`FREQ_SEGMENTS` — manter consistentes. Desconto por pacote vira ORGANOGRAMA (cofrinho `PiggyBank`): "AGORA -X%" --seta--> "META -Y%" alinhados em colunas, barra de progresso e botao "Adicionar N sessoes".
+**How to apply:** clique/teclado da FrequencyBar e o render compartilham `frequencyFill`/`FREQ_SEGMENTS` — manter consistentes. Desconto por pacote vira ORGANOGRAMA: imagem REAL do cofrinho sorrindo (`public/cofrinho-economia.png`, referenciada por `${import.meta.env.BASE_URL}cofrinho-economia.png`, SEM moldura — substituiu o icone `PiggyBank` da lucide), "AGORA -X%" --seta--> "META -Y%", barra de progresso segmentada e botao `.btn-3d` "Adicionar N sessoes". O "faltam N -> -Y%" e desenhado como FLUXO de chips (Art.39-A: chip relevo --seta--> chip concavo), nunca frase linear. A linha do organograma usa `flex-wrap` e o botao vira `w-full` no mobile (`sm:w-auto`) para nao cortar em tela estreita.
 
 ## Terminologia: "PACOTE", nao "volume" (D1)
 Na UI do orcamento o desconto por escala chama-se "no pacote" / "Desconto por pacote" (antes "volume").
@@ -43,6 +43,12 @@ Na UI do orcamento o desconto por escala chama-se "no pacote" / "Desconto por pa
 Decisao estetica do CEO para a tela de orcamento: ROTULOS/titulos de bloco e o chip de dose usam `concave-3d` (sombra interna no topo = "entra na tela", como menu pressionado); NUMEROS (preco, frequencia read-only, subtotal, StatPanel, valor do SessionStacker) usam `screen-3d` (sombra externa profunda = "mini tela que sai da folha"). As barras de progresso (sessoes, frequencia, incentivo) sao SEGMENTADas em quadradinhos (`flex-1` + `gap-[3px]` + `rounded-[2px]/[3px]`), nunca barra continua/gradiente — visual "tecnologico" pedido pelo CEO.
 **Why:** o CEO rejeitou cantos quadrados estilo Windows e barras lisas; quer relevo forte (sombra intensa, altura maior, arredondado) e numeros em destaque tatil.
 **How to apply:** ao adicionar campo nessa tela, rotulo->concave, numero->screen, qualquer barra->segmentos. Preco e "por sessao" por extenso EMPILHADO (nunca "/ sessao").
+
+**Excecao local (organograma do desconto):** o CEO INVERTEU a convencao dentro do banner de incentivo — o ROTULO "AGORA"/"META" usa `screen-3d` (relevo) e o VALOR "-X%" usa `concave-3d` (profundo), ao contrario do resto da tela. Proposital, documentado no comentario do JSX; so vale dentro do organograma. A seta entre eles e um 3o subbloco `screen-3d`.
+
+## Alerta clinico (teto/minimo mensal) em DUAS pontas, sem barra
+`clinicalAlert(r)` retorna `{kind, left, right}` (nao `{kind, msg}`); o render usa `justify-between` com a regra a esquerda ("Excede o teto clinico de N por mes" / "Abaixo do minimo de N por mes") e a acao a direita ("Espace para no minimo X dias" / "Use no maximo X dias"). Texto por extenso "por mes" (nunca "/mes") e sem "(cerca de X)".
+**Why:** Art.44 (sem barra/abreviacao) + leitura tipo planilha pedida pelo CEO.
 
 ## Chip de dose: so a magnitude, com guarda de overflow
 No cabecalho, `doseMain = doseDisplay.split("—")[0].trim() || doseDisplay` mostra so a magnitude (ex.: "200 MG"), cortando a parte apos o travessao em-dash. O chip tem `max-w-[180px] truncate` + `title={doseDisplay}` para posologia longa sem travessao.

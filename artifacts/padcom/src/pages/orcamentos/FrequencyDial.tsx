@@ -175,7 +175,7 @@ export function FrequencyBar({
 }
 
 const ARROW =
-  "shrink-0 h-10 w-10 grid place-items-center rounded-[6px] border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted disabled:opacity-30 disabled:active:scale-100";
+  "shrink-0 h-10 w-9 grid place-items-center rounded-[6px] border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted disabled:opacity-30 disabled:active:scale-100";
 
 export function FrequencyDial({
   value,
@@ -217,14 +217,14 @@ export function FrequencyDial({
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <div className="screen-3d flex h-full min-w-[60px] flex-1 flex-col items-center justify-center px-2">
+        <div className="screen-3d flex h-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden px-1.5">
           <div
             key={numText}
-            className="text-lg font-bold leading-tight text-foreground animate-in fade-in zoom-in-95 duration-300"
+            className="max-w-full truncate whitespace-nowrap text-base font-bold leading-tight text-foreground animate-in fade-in zoom-in-95 duration-300"
           >
             {numText}
           </div>
-          <div className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{spellText}</div>
+          <div className="mt-0.5 max-w-full truncate whitespace-nowrap text-[9px] leading-tight text-muted-foreground">{spellText}</div>
         </div>
 
         <button
