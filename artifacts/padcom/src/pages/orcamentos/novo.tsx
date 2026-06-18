@@ -27,6 +27,7 @@ import { SessionStacker } from "./SessionStacker";
 import { FrequencyDial, FrequencyBar, frequencyLabel, FREQ_LEGEND } from "./FrequencyDial";
 import { StatPanel } from "./StatPanel";
 import { Ampola } from "./VitrineCard";
+import cofrinhoEconomia from "@/assets/cofrinho-economia.png";
 
 type Row = {
   catalogId: number;
@@ -350,8 +351,10 @@ export default function MontagemOrcamento() {
                                   <div className="flex flex-wrap items-end gap-3">
                                     {/* cofrinho sorrindo — somente a imagem, sem moldura */}
                                     <img
-                                      src={`${import.meta.env.BASE_URL}cofrinho-economia.png`}
+                                      src={cofrinhoEconomia}
                                       alt="Cofrinho de economia"
+                                      loading="lazy"
+                                      onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
                                       className="h-14 w-14 shrink-0 object-contain drop-shadow-[0_6px_8px_rgba(7,22,43,0.18)]"
                                     />
                                     {/* organograma AGORA -> META: rotulo em RELEVO (sobressalente),
