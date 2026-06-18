@@ -171,16 +171,16 @@ export default function MontagemOrcamento() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Montagem do Orcamento</h1>
         <p className="text-muted-foreground">Escolha os itens, sessoes e frequencia. Preview ao vivo. Tela interna.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* COLUNA ITENS */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="panel-3d">
             <CardHeader><CardTitle className="text-base uppercase tracking-wide">Dados do Orcamento</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -200,18 +200,18 @@ export default function MontagemOrcamento() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="panel-3d">
             <CardHeader><CardTitle className="text-base uppercase tracking-wide">Itens do Catalogo</CardTitle></CardHeader>
             <CardContent>
               {loadingCatalog ? (
                 <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded" />)}</div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-5">
                   {rows.map((r) => {
                     const sub = r.substanceId ? subsById.get(r.substanceId) : undefined;
                     const doseDisplay = (sub?.defaultDose || sub?.posologia || r.dose || "").trim() || "—";
                     return (
-                    <div key={r.catalogId} className={`rounded-lg border p-3 transition-colors ${r.include ? "border-primary/50 bg-primary/5" : ""}`}>
+                    <div key={r.catalogId} className={`p-4 transition-all duration-300 ${r.include ? "panel-3d panel-3d-active" : "rounded-[0.875rem] border bg-muted/20"}`}>
                       <div className="flex items-center gap-3">
                         <Switch checked={r.include} onCheckedChange={(v) => setRow(r.catalogId, { include: v })} />
                         {sub ? <Ampola color={sub.color} width={20} /> : null}
@@ -224,28 +224,26 @@ export default function MontagemOrcamento() {
                         </div>
                       </div>
                       {r.include && (
-                        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 mt-4 pl-12">
-                          <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-stretch gap-5 mt-5">
+                          <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[160px]">
                             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Sessoes</Label>
                             <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                           </div>
                           {liberarFrequencia && (
-                            <div className="space-y-1.5">
+                            <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[170px]">
                               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Frequencia</Label>
                               <FrequencyDial value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
                             </div>
                           )}
-                          <div className="flex flex-col gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-                                <Lock className="h-3 w-3" /> Dose (catalogo)
-                              </Label>
-                              <div className="inline-flex h-8 min-w-36 items-center rounded border bg-muted/40 px-2.5 text-sm font-medium tabular-nums text-foreground/90">
-                                {doseDisplay}
-                              </div>
+                          <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[160px]">
+                            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                              <Lock className="h-3 w-3" /> Dose (catalogo)
+                            </Label>
+                            <div className="field-engraved inline-flex h-9 min-w-36 items-center rounded-md border px-2.5 text-sm font-medium tabular-nums text-foreground/90">
+                              {doseDisplay}
                             </div>
-                            <DigitalDisplay size="sm" label="Subtotal" value={fmt(r.unitPriceCents * r.sessions)} className="min-w-36" />
                           </div>
+                          <DigitalDisplay size="md" label="Subtotal" value={fmt(r.unitPriceCents * r.sessions)} className="min-w-[170px] flex flex-col justify-center" />
                         </div>
                       )}
                       {r.include && (() => {
@@ -283,15 +281,15 @@ export default function MontagemOrcamento() {
         </div>
 
         {/* COLUNA RESUMO */}
-        <div className="space-y-4">
-          <Card className="border-l-4 border-l-primary lg:sticky lg:top-4">
+        <div className="space-y-6">
+          <Card className="panel-3d-hero lg:sticky lg:top-4">
             <CardHeader>
               <CardTitle className="text-base uppercase tracking-wide flex items-center gap-2">
                 <Calculator className="h-4 w-4" /> Preview
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
                 <DigitalDisplay size="sm" tone="slate" label="Itens" value={String(includedRows.length)} />
                 <DigitalDisplay size="sm" tone="slate" label="Sessoes" value={String(result?.totalSessions ?? 0)} />
               </div>
@@ -325,7 +323,7 @@ export default function MontagemOrcamento() {
                   <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
                     <TrendingDown className="h-3.5 w-3.5 text-emerald-600" /> Economia por forma de pagamento
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-3">
                     <EconomiaCard label="A - a vista" sav={result.scenarioA.savingsCents} final={result.scenarioA.finalCents} recommended={result.recommendedScenario === "A"} />
                     <EconomiaCard label="B - entrada 50%" sav={result.scenarioB.savingsCents} final={result.scenarioB.discountedCents} recommended={result.recommendedScenario === "B"} />
                     <EconomiaCard label="C - entrada 30%" sav={result.scenarioC.savingsCents} final={result.scenarioC.discountedCents} recommended={result.recommendedScenario === "C"} />
