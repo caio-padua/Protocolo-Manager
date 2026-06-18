@@ -21,11 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Presentation, Save, Calculator, Lock, TrendingDown } from "lucide-react";
+import { Presentation, Save, Calculator, Lock, TrendingDown, Percent, Plus } from "lucide-react";
 import { fmt } from "./money";
 import { SessionStacker } from "./SessionStacker";
-import { FrequencyDial } from "./FrequencyDial";
-import { DigitalDisplay } from "./DigitalDisplay";
+import { FrequencyDial, frequencyLabel } from "./FrequencyDial";
+import { StatPanel } from "./StatPanel";
 import { Ampola } from "./VitrineCard";
 
 type Row = {
@@ -206,71 +206,136 @@ export default function MontagemOrcamento() {
               {loadingCatalog ? (
                 <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded" />)}</div>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-7">
                   {rows.map((r) => {
                     const sub = r.substanceId ? subsById.get(r.substanceId) : undefined;
-                    const doseDisplay = (sub?.defaultDose || sub?.posologia || r.dose || "").trim() || "—";
+                    const doseDisplay = (sub?.defaultDose || sub?.posologia || r.dose || "").trim();
                     return (
-                    <div key={r.catalogId} className={`p-4 transition-all duration-300 ${r.include ? "panel-3d panel-3d-active" : "rounded-[0.875rem] border bg-muted/20"}`}>
+                    <div key={r.catalogId} className={`p-4 sm:p-5 transition-all duration-300 ${r.include ? "panel-3d panel-3d-active" : "rounded-[0.875rem] border bg-muted/20"}`}>
+                      {/* CABECALHO: toggle + nome · dose + chip de preco */}
                       <div className="flex items-center gap-3">
                         <Switch checked={r.include} onCheckedChange={(v) => setRow(r.catalogId, { include: v })} />
                         {sub ? <Ampola color={sub.color} width={20} /> : null}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{r.name}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold">{r.name}</span>
+                            {doseDisplay ? <span className="inline-flex items-center gap-1 text-sm text-muted-foreground"><span aria-hidden="true">·</span> {doseDisplay}</span> : null}
                             {r.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
                           </div>
-                          <span className="text-xs text-muted-foreground">{fmt(r.unitPriceCents)} / sessao</span>
+                        </div>
+                        <div className="panel-3d-sub shrink-0 px-3 py-1.5 text-right">
+                          <div className="text-sm font-semibold tabular-nums text-foreground">{fmt(r.unitPriceCents)}</div>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">/ sessao</div>
                         </div>
                       </div>
+
                       {r.include && (
-                        <div className="flex flex-wrap items-stretch gap-5 mt-5">
-                          <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[160px]">
-                            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Sessoes</Label>
-                            <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
-                          </div>
-                          {liberarFrequencia && (
-                            <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[170px]">
-                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Frequencia</Label>
-                              <FrequencyDial value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
+                        <>
+                          {/* TRES BLOCOS LADO A LADO: Sessoes | Frequencia | Valor */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+                            {/* 1) SESSOES */}
+                            <div className="panel-3d-sub p-4 flex flex-col gap-2">
+                              <Label className="text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Sessoes</Label>
+                              <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                             </div>
-                          )}
-                          <div className="panel-3d-sub p-4 flex flex-col gap-2 min-w-[160px]">
-                            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-                              <Lock className="h-3 w-3" /> Dose (catalogo)
-                            </Label>
-                            <div className="field-engraved inline-flex h-9 min-w-36 items-center rounded-md border px-2.5 text-sm font-medium tabular-nums text-foreground/90">
-                              {doseDisplay}
+
+                            {/* 2) FREQUENCIA */}
+                            <div className="panel-3d-sub p-4 flex flex-col gap-2">
+                              <Label className="text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Frequencia</Label>
+                              {liberarFrequencia ? (
+                                <div className="flex flex-1 items-center">
+                                  <FrequencyDial value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
+                                </div>
+                              ) : (() => {
+                                const f = frequencyLabel(r.frequencyDays);
+                                return (
+                                  <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center">
+                                    <div className="text-lg font-bold leading-tight text-foreground">{f.num}</div>
+                                    <div className="text-[11px] leading-tight text-muted-foreground">{f.spell}</div>
+                                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                      <Lock className="h-3 w-3" /> definido no catalogo
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
+
+                            {/* 3) VALOR (SUBTOTAL) */}
+                            {(() => {
+                              const v = volumeByCatalogId.get(r.catalogId);
+                              const hasDisc = !!v && v.discountPct > 0;
+                              const fullSubtotal = r.unitPriceCents * r.sessions;
+                              const finalSubtotal = hasDisc ? v!.effectiveUnitCents * r.sessions : fullSubtotal;
+                              return (
+                                <div className="panel-3d-sub p-4 flex flex-col items-center justify-center text-center">
+                                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Subtotal</span>
+                                  <div key={finalSubtotal} className="mt-1 text-3xl font-bold leading-none tabular-nums text-primary animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                    {fmt(finalSubtotal)}
+                                  </div>
+                                  {hasDisc ? (
+                                    <div className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                                      <span className="line-through">{fmt(fullSubtotal)}</span>
+                                      <span className="ml-1 text-emerald-600 dark:text-emerald-400">-{v!.discountPct}% volume</span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })()}
                           </div>
-                          <DigitalDisplay size="md" label="Subtotal" value={fmt(r.unitPriceCents * r.sessions)} className="min-w-[170px] flex flex-col justify-center" />
-                        </div>
+
+                          {/* BANNER DE INCENTIVO + ALERTA CLINICO */}
+                          {(() => {
+                            const v = volumeByCatalogId.get(r.catalogId);
+                            const alert = clinicalAlert(r);
+                            const falta = v?.nextTierSessions ?? null;
+                            const target = falta ? r.sessions + falta : 0;
+                            const prog = target > 0 ? Math.min(100, Math.round((r.sessions / target) * 100)) : 100;
+                            return (
+                              <div className="mt-4 space-y-2">
+                                <div className="incentive-banner flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/12 text-primary">
+                                    <Percent className="h-5 w-5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    {v && v.discountPct > 0 ? (
+                                      <div className="text-sm font-semibold text-primary">Desconto por volume: -{v.discountPct}%</div>
+                                    ) : (
+                                      <div className="text-sm font-semibold text-primary">Aumente as sessoes e destrave desconto</div>
+                                    )}
+                                    {falta ? (
+                                      <div className="text-sm font-medium text-foreground">
+                                        Faltam <strong className="text-primary">{falta}</strong> sessoes para <strong className="text-primary">-{v!.nextTierPct}%</strong> neste item
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Melhor faixa de desconto atingida</div>
+                                    )}
+                                    {falta ? (
+                                      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/60 dark:bg-black/30">
+                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-primary transition-all duration-300" style={{ width: `${prog}%` }} />
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  {falta ? (
+                                    <Button
+                                      size="sm"
+                                      className="shrink-0"
+                                      onClick={() => setRow(r.catalogId, { sessions: r.sessions + falta })}
+                                    >
+                                      Adicionar {falta} <Plus className="h-4 w-4 ml-1" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+
+                                {alert ? (
+                                  <div className={`rounded-[0.75rem] border px-3 py-2 text-xs font-medium ${alert.kind === "over" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"}`}>
+                                    {alert.msg}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
+                        </>
                       )}
-                      {r.include && (() => {
-                        const v = volumeByCatalogId.get(r.catalogId);
-                        const alert = clinicalAlert(r);
-                        return (
-                          <div className="mt-2 pl-12 space-y-1.5">
-                            {v && v.discountPct > 0 ? (
-                              <div className="text-xs flex items-center gap-2">
-                                <span className="text-emerald-600 font-medium">-{v.discountPct}% volume</span>
-                                <span className="text-muted-foreground line-through">{fmt(r.unitPriceCents)}</span>
-                                <span className="font-semibold text-emerald-700">{fmt(v.effectiveUnitCents)} / sessao</span>
-                              </div>
-                            ) : null}
-                            {v && v.nextTierSessions ? (
-                              <div className="text-[11px] text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30 rounded px-2 py-1 inline-block">
-                                Faltam <strong>{v.nextTierSessions}</strong> sessoes para <strong>-{v.nextTierPct}%</strong> neste item
-                              </div>
-                            ) : null}
-                            {alert ? (
-                              <div className={`text-[11px] rounded px-2 py-1 ${alert.kind === "over" ? "bg-red-50 text-red-700 dark:bg-red-950/30" : "bg-amber-50 text-amber-700 dark:bg-amber-950/30"}`}>
-                                {alert.msg}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
                     </div>
                     );
                   })}
@@ -290,13 +355,13 @@ export default function MontagemOrcamento() {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
-                <DigitalDisplay size="sm" tone="slate" label="Itens" value={String(includedRows.length)} />
-                <DigitalDisplay size="sm" tone="slate" label="Sessoes" value={String(result?.totalSessions ?? 0)} />
+                <StatPanel size="sm" tone="slate" label="Itens" value={String(includedRows.length)} />
+                <StatPanel size="sm" tone="slate" label="Sessoes" value={String(result?.totalSessions ?? 0)} />
               </div>
 
-              <DigitalDisplay
-                size="lg"
-                tone="cyan"
+              <StatPanel
+                size="xl"
+                tone="teal"
                 label="Preco do protocolo"
                 value={fmt(result && result.volumeDiscountCents > 0 ? result.volumeDiscountedCents : (result?.totalCents ?? 0))}
                 sub={result && result.volumeDiscountCents > 0 ? `de ${fmt(result.totalCents)} • -${result.volumeDiscountPct.toFixed(1).replace(".", ",")}% volume` : undefined}
@@ -305,14 +370,14 @@ export default function MontagemOrcamento() {
               {result && (result.itemVolumeDiscountCents > 0 || result.cartBonusCents > 0 || result.cartNextTierSessions) && (
                 <div className="space-y-1.5 text-xs">
                   {result.itemVolumeDiscountCents > 0 && (
-                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Desconto por item</span><span className="text-emerald-700 font-medium">-{fmt(result.itemVolumeDiscountCents)}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Desconto por item</span><span className="text-emerald-700 dark:text-emerald-400 font-medium">-{fmt(result.itemVolumeDiscountCents)}</span></div>
                   )}
                   {result.cartBonusCents > 0 && (
-                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Bonus de carrinho ({result.cartBonusPct}%)</span><span className="text-emerald-700 font-medium">-{fmt(result.cartBonusCents)}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Bonus de carrinho ({result.cartBonusPct}%)</span><span className="text-emerald-700 dark:text-emerald-400 font-medium">-{fmt(result.cartBonusCents)}</span></div>
                   )}
                   {result.cartNextTierSessions ? (
-                    <div className="text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30 rounded px-2 py-1">
-                      Faltam <strong>{result.cartNextTierSessions}</strong> sessoes no total para <strong>+{result.cartNextTierPct}%</strong> de bonus de carrinho
+                    <div className="incentive-banner px-3 py-2 text-[11px] font-medium text-foreground">
+                      Faltam <strong className="text-primary">{result.cartNextTierSessions}</strong> sessoes no total para <strong className="text-primary">+{result.cartNextTierPct}%</strong> de bonus de carrinho
                     </div>
                   ) : null}
                 </div>
@@ -360,9 +425,9 @@ export default function MontagemOrcamento() {
 
 function EconomiaCard({ label, sav, final, recommended }: { label: string; sav: number; final: number; recommended: boolean }) {
   return (
-    <DigitalDisplay
+    <StatPanel
       size="md"
-      tone="emerald"
+      tone="green"
       label={label}
       value={`- ${fmt(sav)}`}
       sub={`fica em ${fmt(final)}`}

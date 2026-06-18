@@ -1,26 +1,26 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-// Seletor de frequencia "Console Clinico": display digital central + setas
-// grandes (gostoso de tocar no celular) + trilha de 12 ticks para saltar
-// direto numa parada. Substitui o antigo fader vertical (termostato).
+// Seletor de frequencia clean (estilo mock ChatGPT): setas nas EXTREMIDADES e,
+// no centro, so o texto — numero ("1x / semana") + por extenso ("uma vez por
+// semana"). A palavra "Frequencia" NAO se repete aqui (fica no rotulo do bloco).
 // Contrato identico ao anterior: value:number|null, onChange(days).
 
-export type FreqStop = { label: string; days: number | null; custom?: boolean };
+export type FreqStop = { label: string; spell: string; days: number | null; custom?: boolean };
 
 export const FREQ_STOPS: FreqStop[] = [
-  { label: "Todo dia", days: 1 },
-  { label: "2 / 2 dias", days: 2 },
-  { label: "1x / semana", days: 7 },
-  { label: "15 / 15 dias", days: 15 },
-  { label: "21 / 21 dias", days: 21 },
-  { label: "30 / 30 dias", days: 30 },
-  { label: "45 / 45 dias", days: 45 },
-  { label: "60 / 60 dias", days: 60 },
-  { label: "90 / 90 dias", days: 90 },
-  { label: "180 / 180 dias", days: 180 },
-  { label: "365 / 365 dias", days: 365 },
-  { label: "Eu digito", days: null, custom: true },
+  { label: "Todo dia", spell: "todos os dias", days: 1 },
+  { label: "2 / 2 dias", spell: "a cada dois dias", days: 2 },
+  { label: "1x / semana", spell: "uma vez por semana", days: 7 },
+  { label: "15 / 15 dias", spell: "a cada quinze dias", days: 15 },
+  { label: "21 / 21 dias", spell: "a cada vinte e um dias", days: 21 },
+  { label: "30 / 30 dias", spell: "uma vez por mes", days: 30 },
+  { label: "45 / 45 dias", spell: "a cada quarenta e cinco dias", days: 45 },
+  { label: "60 / 60 dias", spell: "a cada dois meses", days: 60 },
+  { label: "90 / 90 dias", spell: "a cada tres meses", days: 90 },
+  { label: "180 / 180 dias", spell: "a cada seis meses", days: 180 },
+  { label: "365 / 365 dias", spell: "uma vez por ano", days: 365 },
+  { label: "Eu digito", spell: "intervalo personalizado", days: null, custom: true },
 ];
 
 function indexFromValue(value: number | null): number {
@@ -30,8 +30,16 @@ function indexFromValue(value: number | null): number {
   return FREQ_STOPS.length - 1;
 }
 
-const BTN =
-  "shrink-0 w-10 grid place-items-center rounded-md border border-white/10 bg-gradient-to-b from-[#0c2626] to-[#06191a] text-cyan-200 transition-transform active:scale-95 hover:border-cyan-400/40 disabled:opacity-30 disabled:active:scale-100";
+// Rotulo (numero + por extenso) para exibir a frequencia em modo leitura.
+export function frequencyLabel(days: number | null): { num: string; spell: string } {
+  if (days == null) return { num: "Sob demanda", spell: "intervalo personalizado" };
+  const stop = FREQ_STOPS.find((s) => s.days === days);
+  if (stop) return { num: stop.label, spell: stop.spell };
+  return { num: `A cada ${days} dias`, spell: `a cada ${days} dias` };
+}
+
+const ARROW =
+  "shrink-0 h-9 w-9 grid place-items-center rounded-lg border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted disabled:opacity-30 disabled:active:scale-100";
 
 export function FrequencyDial({
   value,
@@ -44,7 +52,8 @@ export function FrequencyDial({
   const selected = indexFromValue(value);
   const stop = FREQ_STOPS[selected];
   const isCustom = !!stop.custom;
-  const display = isCustom ? (value != null ? `A cada ${value} dias` : "Eu digito") : stop.label;
+  const numText = isCustom ? (value != null ? `A cada ${value} dias` : "Eu digito") : stop.label;
+  const spellText = isCustom ? "intervalo personalizado" : stop.spell;
 
   function selectIndex(i: number) {
     const clamped = Math.min(n - 1, Math.max(0, i));
@@ -57,65 +66,68 @@ export function FrequencyDial({
     }
   }
 
+  // Navegacao por VALOR (nao por indice): a partir de qualquer intervalo —
+  // inclusive um personalizado (ex.: 10 dias) — a seta caminha para o stop real
+  // imediatamente menor/maior, evitando o salto para o fim da lista ("Eu digito").
+  const realStops = FREQ_STOPS.filter((s) => !s.custom);
+  const effective = value ?? Number.POSITIVE_INFINITY;
+  const prevStop = [...realStops].reverse().find((s) => (s.days ?? 0) < effective);
+  const nextStop = realStops.find((s) => (s.days ?? 0) > effective);
+  const goPrev = () => { if (prevStop) onChange(prevStop.days); };
+  const goNext = () => { if (nextStop) onChange(nextStop.days); };
+
   return (
-    <div className="w-full max-w-[260px] select-none">
-      <div className="flex items-stretch gap-2">
+    <div className="w-full select-none">
+      {/* Setas nas extremidades, texto no centro. */}
+      <div className="flex items-center gap-2">
         <button
           type="button"
           aria-label="Diminuir intervalo (mais frequente)"
-          onClick={() => selectIndex(selected - 1)}
-          disabled={selected === 0}
-          className={BTN}
-          style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px -4px rgba(0,0,0,0.6)" }}
+          onClick={goPrev}
+          disabled={!prevStop}
+          className={ARROW}
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <div
-          className="relative flex-1 overflow-hidden rounded-md border border-white/10 bg-gradient-to-b from-[#0c2626] to-[#06191a] px-3 py-2 ring-1 ring-cyan-400/20"
-          style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -3px 8px rgba(0,0,0,0.55), 0 0 18px -4px rgba(69,184,204,0.4)" }}
-        >
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-white/[0.06] to-transparent" />
-          <div className="relative text-center">
-            <div className="text-[9px] uppercase tracking-[0.18em] text-cyan-300/60">Frequencia</div>
-            <div
-              key={display}
-              className="mt-0.5 font-mono text-base font-bold leading-tight text-cyan-200 animate-in fade-in zoom-in-95 duration-300"
-              style={{ textShadow: "0 0 10px rgba(69,184,204,0.45)" }}
-            >
-              {display}
-            </div>
+        <div className="flex-1 px-1 text-center">
+          <div
+            key={numText}
+            className="text-base font-bold leading-tight text-foreground animate-in fade-in zoom-in-95 duration-300"
+          >
+            {numText}
           </div>
+          <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{spellText}</div>
         </div>
 
         <button
           type="button"
           aria-label="Aumentar intervalo (menos frequente)"
-          onClick={() => selectIndex(selected + 1)}
-          disabled={selected === n - 1}
-          className={BTN}
-          style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 12px -4px rgba(0,0,0,0.6)" }}
+          onClick={goNext}
+          disabled={!nextStop}
+          className={ARROW}
         >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
+      {/* Trilha de saltos rapidos (clean). */}
       <div
-        className="mt-2 flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded"
+        className="mt-3 flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
         role="slider"
         tabIndex={0}
         aria-valuemin={0}
         aria-valuemax={n - 1}
         aria-valuenow={selected}
-        aria-valuetext={display}
+        aria-valuetext={`${numText} (${spellText})`}
         aria-label="Frequencia"
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
             e.preventDefault();
-            selectIndex(selected - 1);
+            goPrev();
           } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
             e.preventDefault();
-            selectIndex(selected + 1);
+            goNext();
           }
         }}
       >
@@ -128,20 +140,21 @@ export function FrequencyDial({
               aria-hidden="true"
               title={s.label}
               onClick={() => selectIndex(i)}
-              className={`h-2.5 flex-1 cursor-pointer rounded-[2px] transition-all ${on ? "" : passed ? "bg-cyan-500/40" : "bg-muted"}`}
-              style={on ? { backgroundColor: "#45B8CC", boxShadow: "0 0 8px rgba(69,184,204,0.7)" } : {}}
+              className={`h-2 flex-1 cursor-pointer rounded-full transition-all ${
+                on ? "bg-primary" : passed ? "bg-primary/35" : "bg-muted"
+              }`}
             />
           );
         })}
       </div>
 
       {isCustom && (
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <Input
             type="number"
             min={1}
             value={value ?? ""}
-            className="h-8 w-20"
+            className="h-9 w-20"
             onChange={(e) => {
               const raw = e.target.value;
               if (!raw) return onChange(null);
