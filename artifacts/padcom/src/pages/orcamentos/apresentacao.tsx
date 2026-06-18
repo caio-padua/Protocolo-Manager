@@ -189,7 +189,7 @@ export default function ApresentacaoOrcamento() {
       {/* 3 CAMINHOS */}
       <div>
         <h2 className="text-center text-sm uppercase tracking-widest text-muted-foreground mb-4">Escolha seu caminho</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
           {result && (
             <>
               <CaminhoCard
@@ -243,7 +243,7 @@ export default function ApresentacaoOrcamento() {
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Entrada</Label>
               <Select value={downPct} onValueChange={setDownPct}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">Sem entrada</SelectItem>
                   <SelectItem value="30">Entrada 30%</SelectItem>
@@ -254,7 +254,7 @@ export default function ApresentacaoOrcamento() {
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Parcelas</Label>
               <Select value={installments} onValueChange={setInstallments}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[...Array(12)].map((_, i) => <SelectItem key={i + 1} value={String(i + 1)}>{i + 1}x</SelectItem>)}
                 </SelectContent>
@@ -262,7 +262,7 @@ export default function ApresentacaoOrcamento() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Taxa de cartao</Label>
-              <div className="h-9 flex items-center gap-2">
+              <div className="concave-3d flex h-9 items-center gap-2 px-3">
                 <Switch checked={passFee} onCheckedChange={setPassFee} />
                 <span className="text-sm text-muted-foreground">{passFee ? "Repassada ao cliente" : "Absorvida pela clinica"}</span>
               </div>

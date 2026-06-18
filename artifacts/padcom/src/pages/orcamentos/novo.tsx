@@ -168,17 +168,21 @@ export default function MontagemOrcamento() {
     return m;
   }, [result, includedRows]);
 
-  // Teto clinico mensal: aplicacoes/mes estimadas pela frequencia.
-  function clinicalAlert(r: Row): { kind: "over" | "under"; left: string; right: string } | null {
+  // Limite clinico mensal: aplicacoes/mes estimadas pela frequencia. Tri-estado:
+  // over = excede o limite; under = abaixo do limite (nao eficiente); ok = dentro da faixa.
+  function clinicalAlert(r: Row): { kind: "over" | "under" | "ok"; left: string; right: string } | null {
     if (r.repeticaoLivre || !r.frequencyDays || r.frequencyDays <= 0) return null;
     const perMonth = 30 / r.frequencyDays;
     if (r.maxAplicacoesMes && perMonth > r.maxAplicacoesMes + 0.001) {
       const minDias = Math.ceil(30 / r.maxAplicacoesMes);
-      return { kind: "over", left: `Excede o teto clínico de ${r.maxAplicacoesMes} por mês`, right: `Espace para no mínimo ${minDias} dias` };
+      return { kind: "over", left: "Excede o limite clínico de prescrição da substância", right: `Espace para no mínimo ${minDias} dias` };
     }
     if (r.minAplicacoesMes && perMonth < r.minAplicacoesMes - 0.001) {
       const maxDias = Math.floor(30 / r.minAplicacoesMes);
-      return { kind: "under", left: `Abaixo do mínimo clínico de ${r.minAplicacoesMes} por mês`, right: `Use no máximo ${maxDias} dias entre aplicações` };
+      return { kind: "under", left: `Abaixo do limite clínico de ${r.minAplicacoesMes}/mês — não é eficiente`, right: `Use no máximo ${maxDias} dias entre aplicações` };
+    }
+    if (r.maxAplicacoesMes || r.minAplicacoesMes) {
+      return { kind: "ok", left: "Posologia dentro da faixa terapêutica", right: "" };
     }
     return null;
   }
@@ -482,9 +486,18 @@ export default function MontagemOrcamento() {
                                 </div>
 
                                 {alert ? (
-                                  <div className={`paxter-alert flex items-center justify-between gap-3 border px-3 py-2.5 text-xs font-medium ${alert.kind === "over" ? "paxter-alert-red border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "paxter-alert-amber border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"}`}>
-                                    <span className="text-left">{alert.left}</span>
-                                    <span className="text-right">{alert.right}</span>
+                                  <div className={`flex flex-col gap-1.5 border px-3 py-2.5 text-xs font-medium sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${
+                                    alert.kind === "over"
+                                      ? "paxter-alert paxter-alert-red border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                                      : alert.kind === "under"
+                                      ? "paxter-alert paxter-alert-amber border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+                                      : "bevel-3d border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300"
+                                  }`}>
+                                    <span className="flex items-center gap-2 text-left">
+                                      <span className={`paxter-led shrink-0 ${alert.kind === "over" ? "paxter-led-red paxter-led-on" : alert.kind === "under" ? "paxter-led-amber paxter-led-on" : "paxter-led-green"}`} aria-hidden="true" />
+                                      {alert.left}
+                                    </span>
+                                    {alert.right ? <span className="pl-4 text-left sm:pl-0 sm:text-right">{alert.right}</span> : null}
                                   </div>
                                 ) : null}
                               </div>
@@ -552,12 +565,12 @@ export default function MontagemOrcamento() {
                 </div>
               )}
 
-              <div className="space-y-3 border-t pt-3">
-                <div className="flex items-center gap-2">
+              <div className="space-y-3 border-t pt-4">
+                <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
                   <Switch checked={liberarFrequencia} onCheckedChange={setLiberarFrequencia} />
                   <Label className="text-sm">Liberar frequência</Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
                   <Switch checked={repassarTaxa} onCheckedChange={setRepassarTaxa} />
                   <Label className="text-sm">Repassar taxa de cartão</Label>
                 </div>

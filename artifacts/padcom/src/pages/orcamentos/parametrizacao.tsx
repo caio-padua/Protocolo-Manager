@@ -258,8 +258,8 @@ export default function Parametrizacao() {
                 <ExplainRow tone="green" term="Bonus de carrinho">
                   Quanto MAIS sessoes no total do orcamento, entra um desconto extra sobre tudo.
                 </ExplainRow>
-                <ExplainRow tone="amber" term="Como vira o preco">
-                  Esses dois descontos formam o preco do protocolo. So depois a forma de pagamento (a vista ou entrada) aplica mais desconto sobre esse preco.
+                <ExplainRow tone="amber" term="Como o preco e formado">
+                  O preco final do protocolo e definido apos a subtracao desses descontos. Com esse valor estabelecido, o cliente escolhe pagar a vista ou com entrada.
                 </ExplainRow>
                 <ExplainRow tone="amber" term="Teto total">
                   A soma de todos os descontos nunca passa do limite definido abaixo em "Teto total de desconto".
@@ -305,10 +305,10 @@ export default function Parametrizacao() {
         <CardContent>
           {!draft ? <Skeleton className="h-24 rounded-[6px]" /> : (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 md:grid-cols-9">
                 {draft.cardFees.map((cf, idx) => (
-                  <div key={cf.installments} className="panel-3d-sub p-2 text-center">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{cf.installments}x</div>
+                  <div key={cf.installments} className="panel-3d-sub flex flex-col items-center gap-1.5 p-2">
+                    <span className="bevel-3d px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">{cf.installments} x</span>
                     <Input type="number" step="0.01" value={cf.feePct} className="field-engraved h-8 text-center text-sm"
                       onChange={(e) => {
                         const v = parseFloat(e.target.value) || 0;
@@ -337,29 +337,41 @@ export default function Parametrizacao() {
             <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-3">
-              <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 px-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span>Acoes</span>
+              <div className="hidden gap-2 border border-transparent px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground lg:grid lg:grid-cols-[minmax(110px,1.4fr)_116px_104px_80px_88px_152px_108px]">
+                <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span className="text-center">Limites</span><span className="text-right">Acoes</span>
               </div>
               {items.map((it) => (
                 <div key={it.id} className="panel-3d-sub">
-                  <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center p-2">
-                    <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="field-engraved h-9 font-medium" />
-                    <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
-                      <SelectTrigger className="field-engraved h-9 font-medium"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input type="number" step="0.01" value={centsToReais(it.unitPriceCents)}
-                      onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="field-engraved h-9" />
-                    <Input type="number" value={it.defaultSessions}
-                      onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="field-engraved h-9" />
-                    <Input type="number" value={it.frequencyDays ?? ""}
-                      onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="field-engraved h-9" />
-                    <div className="flex items-center gap-1 justify-end">
+                  <div className="grid grid-cols-2 items-start gap-x-3 gap-y-2 p-3 lg:grid-cols-[minmax(110px,1.4fr)_116px_104px_80px_88px_152px_108px] lg:items-center lg:gap-2 lg:p-2">
+                    <CatCell label="Nome" className="col-span-2 lg:col-span-1">
+                      <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="field-engraved h-9 font-medium" />
+                    </CatCell>
+                    <CatCell label="Tipo">
+                      <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
+                        <SelectTrigger className="field-engraved h-9 font-medium"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </CatCell>
+                    <CatCell label="Preco (R$)">
+                      <Input type="number" step="0.01" value={centsToReais(it.unitPriceCents)}
+                        onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="field-engraved h-9" />
+                    </CatCell>
+                    <CatCell label="Sessoes">
+                      <Input type="number" value={it.defaultSessions}
+                        onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="field-engraved h-9" />
+                    </CatCell>
+                    <CatCell label="Freq (dias)">
+                      <Input type="number" value={it.frequencyDays ?? ""}
+                        onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="field-engraved h-9" />
+                    </CatCell>
+                    <div className="flex flex-wrap items-center gap-1 lg:flex-nowrap lg:justify-center">
                       <StatusChip on={!!it.substanceId} tone="green" label="VITRINE" />
-                      <StatusChip on={!it.repeticaoLivre} tone="amber" label="TETO/MES" />
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(it.id)} title="Limite clinico mensal">
+                      <StatusChip on={!it.repeticaoLivre} tone="amber" label="LIM/MES" />
+                    </div>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(it.id)} title="Limite clinico mensal de prescricao">
                         {expanded[it.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </Button>
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
@@ -375,7 +387,7 @@ export default function Parametrizacao() {
                       <ToggleWell
                         checked={it.repeticaoLivre}
                         onCheckedChange={(v) => setLocalItem(it.id, { repeticaoLivre: v })}
-                        label="Repeticao livre (sem teto clinico mensal)"
+                        label="Repeticao livre (sem limite clinico mensal)"
                         labelClass="text-xs"
                       />
                       {!it.repeticaoLivre && (
@@ -410,8 +422,8 @@ export default function Parametrizacao() {
               ))}
 
               {/* NOVO ITEM */}
-              <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center border-2 border-dashed rounded-[6px] p-2">
-                <Input placeholder="Novo item" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="field-engraved h-9 font-medium" />
+              <div className="grid grid-cols-2 items-center gap-x-3 gap-y-2 rounded-[6px] border-2 border-dashed p-3 lg:grid-cols-[minmax(110px,1.4fr)_116px_104px_80px_88px_152px_108px] lg:gap-2 lg:p-2">
+                <Input placeholder="Novo item" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="field-engraved h-9 font-medium col-span-2 lg:col-span-1" />
                 <Select value={newItem.kind} onValueChange={(v) => setNewItem({ ...newItem, kind: v })}>
                   <SelectTrigger className="field-engraved h-9 font-medium"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -419,9 +431,10 @@ export default function Parametrizacao() {
                   </SelectContent>
                 </Select>
                 <Input type="number" step="0.01" placeholder="0,00" value={newItem.priceReais} onChange={(e) => setNewItem({ ...newItem, priceReais: e.target.value })} className="field-engraved h-9" />
-                <Input type="number" value={newItem.sessions} onChange={(e) => setNewItem({ ...newItem, sessions: e.target.value })} className="field-engraved h-9" />
-                <span className="hidden md:block" />
-                <div className="flex justify-end">
+                <Input type="number" placeholder="Sessoes" value={newItem.sessions} onChange={(e) => setNewItem({ ...newItem, sessions: e.target.value })} className="field-engraved h-9" />
+                <span className="hidden lg:block" />
+                <span className="hidden lg:block" />
+                <div className="col-span-2 flex justify-end lg:col-span-1">
                   <Button size="icon" className="btn-3d h-8 w-8" onClick={addItem} disabled={createItem.isPending}>
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -513,6 +526,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Celula do catalogo: no mobile mostra o rotulo por cima do campo (tabela vira
+// formulario empilhado); a partir de lg o rotulo some e quem nomeia e o cabecalho.
+function CatCell({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`min-w-0 space-y-1 ${className ?? ""}`}>
+      <span className="block text-[9px] font-medium uppercase tracking-wide text-muted-foreground lg:hidden">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 // Titulo do bloco numa placa Saliente (bevel 3D) — chanfro que salta da folha.
 function BlockTitle({ icon: Icon, color, children }: { icon: React.ElementType; color: string; children: React.ReactNode }) {
   return (
@@ -523,7 +547,7 @@ function BlockTitle({ icon: Icon, color, children }: { icon: React.ElementType; 
   );
 }
 
-// Sinal de status (vitrine / teto-mes) com SLOT de largura fixa: sempre presente,
+// Sinal de status (vitrine / limite clinico mensal) com SLOT de largura fixa: sempre presente,
 // LED aceso quando ativo e apagado quando inativo. Largura constante = nao desalinha.
 function StatusChip({ on, tone, label }: { on: boolean; tone: "green" | "amber"; label: string }) {
   const txt = on ? (tone === "green" ? "text-emerald-600" : "text-amber-600") : "text-muted-foreground/70";

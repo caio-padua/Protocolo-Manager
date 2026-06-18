@@ -23,7 +23,7 @@ Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes 
 | Tecla classica | Botao 3D | `btn-3d`, `btn-3d-soft` | Botao que afunda no `:active` |
 | Faixa de incentivo | Banner de incentivo | `incentive-banner` | Degrade mint suave, carrega "quanto falta" |
 | Bevel GROSSO (botao alto) | Bevel grosso | `bevel-3d` | Chanfro saliente forte; impressao de botao grosso que salta da folha |
-| Luz latente (LED) | LED / luz | `paxter-led` (+`-amber`/`-green`) + `paxter-led-on` / `-off` | Ponto que acende/apaga (pulso); ciano padrao, amarelo=AGORA, verde=META; mesma cadencia = piscam em sincronia |
+| Luz latente (LED) | LED / luz | `paxter-led` (+`-amber`/`-green`/`-red`) + `paxter-led-on` / `-off` | Ponto que acende/apaga (pulso); ciano padrao, amarelo=AGORA, verde=META/OK, vermelho=excede; LED verde SEM `-on` = aceso ESTAVEL (calmo, sem neon) |
 | Pulso de atencao | Pulso / atencao | `paxter-attention` | Outline ciano que pisca no hover SEM apagar o relevo |
 | Neon estavel de baixo | Underglow | `paxter-underglow` | Luz ciano que sobe do rodape, ESTAVEL (nao pisca), intensa e difusa |
 | Alerta em relevo + neon | Alerta clinico | `paxter-alert` (+`-red`/`-amber`) | Painel de alerta com bevel 3D e neon na propria cor (vermelho/ambar) |
@@ -87,10 +87,14 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   ESTAVEL (nao acende/apaga), intensa e difusa (`::after` com `radial-gradient` + `blur`,
   `pointer-events-none`). Usar em bloco interativo que precisa "chamar" sem piscar — ex.: bloco
   de Sessoes. Decisao do CEO (18/06/2026): substitui o pulso piscante nesse bloco.
-- **Painel de alerta clinico (`paxter-alert`)**: alerta (excede teto / abaixo do minimo) ganha
-  relevo 3D (bevel + sombra) E neon na PROPRIA cor quando ativo — vermelho (`paxter-alert-red`)
-  para "excede o teto"; ambar (`paxter-alert-amber`) para "abaixo do minimo". Cor do neon via
-  variavel `--alert-glow`. Variante `.dark` incluida.
+- **Painel de alerta clinico TRI-ESTADO (`paxter-alert`)**: o aviso de posologia tem 3 estados e
+  NUNCA usa a palavra "teto" (termo PROIBIDO no contexto clinico) — fala-se "limite clinico de
+  prescricao da substancia". (1) EXCEDE: vermelho com neon (`paxter-alert paxter-alert-red`) + LED
+  `paxter-led-red paxter-led-on`. (2) ABAIXO (nao eficiente): ambar com neon (`paxter-alert
+  paxter-alert-amber`) + LED `paxter-led-amber paxter-led-on`. (3) DENTRO da faixa terapeutica:
+  VERDE calmo, SEM neon — so `bevel-3d` (segue o padrao do bevel) + texto esmeralda + LED
+  `paxter-led-green` SEM `-on`. Cor do neon via `--alert-glow`. No mobile o alerta empilha
+  (`flex-col` -> `sm:flex-row`). Variante `.dark` incluida.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).
@@ -113,10 +117,10 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   Lucide a esquerda, na cor tematica do bloco (primary, ambar, ciano, esmeralda). A placa SALTA
   da folha — o titulo vira a "etiqueta gravada" do painel. Helper local recebe `icon`, `color`.
 - **Padrao 4 — sinal de status com SLOT fixo (`StatusChip`)**: marcador on/off (ex.: VITRINE,
-  TETO/MES) NUNCA aparece/some entre linhas — isso desalinha colunas. Usa-se um chip de largura
+  LIM/MES) NUNCA aparece/some entre linhas — isso desalinha colunas. Usa-se um chip de largura
   FIXA (`concave-3d`, `w-[72px]`, `shrink-0`) SEMPRE presente: LED aceso (`paxter-led-on`, cor
   verde/ambar) quando ativo, LED apagado + `opacity-70` quando inativo. Verde = vitrine/positivo,
-  ambar = restricao/teto. Slot constante = linhas sempre alinhadas em coluna.
+  ambar = restricao/limite clinico. Slot constante = linhas sempre alinhadas em coluna.
 - **Padrao 5 — toggle em sulco Concavo (`ToggleWell`)**: todo `Switch` vai dentro de um well
   (`concave-3d`, `flex items-center gap-3`, `px-3 py-2.5`) com o `Label` ao lado — o controle
   parece afundado na base do painel, nunca solto na folha.
@@ -128,6 +132,22 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   sub-painel (`panel-3d-sub`) com um rotulo de secao MAIUSCULO no topo e os campos EMPILHADOS
   na vertical (`space-y-3`), nunca espremidos numa grade larga de muitas colunas. Assuntos
   distintos = sub-paineis lado a lado (ex.: "Descontos por pagamento" x "Parcelamento e plano").
+- **Padrao 8 — respiro entre pecas 3D**: blocos com relevo (paineis, chips, inserts, cards de
+  caminho) NUNCA se encostam. Gap minimo de 12px (`gap-3` / `space-y-4`) para a sombra externa
+  "respirar"; pecas coladas matam o 3D. Ex.: inserts de taxa de cartao em `gap-3`; cards dos "3
+  caminhos" em `gap-6` (acomoda o `scale-105` do recomendado); historico em `space-y-4`.
+- **Padrao 9 — rotulo de multiplicador com espaco (`N x`)**: contador de parcela/repeticao
+  escreve-se "N x" COM espaco (ex.: "12 x", nunca "12x"), de preferencia numa placa `bevel-3d`
+  acima do campo gravado.
+- **Padrao 10 — tabela alinhada ao pixel + mobile empilhado**: tabela de edicao usa o MESMO
+  template de colunas (`grid-cols-[...]`) no cabecalho E nas linhas; o cabecalho leva
+  `border border-transparent` para casar com a borda de 1px do `panel-3d-sub` da linha (alinha ao
+  pixel). A partir de `lg` e grade de colunas; abaixo de `lg` vira formulario EMPILHADO 2-colunas
+  com rotulo por campo (helper `CatCell`, rotulo `lg:hidden`), Nome em `col-span-2`. Nunca
+  espremer a grade larga no celular.
+- **Padrao 11 — toggle em well tambem no preview**: todo `Switch`, inclusive na tela de
+  Apresentacao (preview do cliente), vai em sulco `concave-3d` (Padrao 5). Selects que acompanham
+  o toggle recebem `field-engraved` para a linha inteira parecer gravada.
 
 ## 4. Console de Orcamento (referencia viva)
 
@@ -137,7 +157,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - `pages/orcamentos/parametrizacao.tsx` — Parametrizacao (referencia viva dos Padroes 3 a 7).
   Titulos em `BlockTitle` (placa Saliente por bloco); "Descontos e Plano" em dois sub-paineis
   empilhados; "Desconto por Volume" explicado em `ExplainRow` empilhados; catalogo com nome/tipo
-  em `field-engraved` e sinais `StatusChip` (VITRINE/TETO-MES) em slot fixo; toggles em
+  em `field-engraved` e sinais `StatusChip` (VITRINE/LIM-MES) em slot fixo; toggles em
   `ToggleWell`. `TierEditor` define as faixas; "Numero de faixas" gera/encurta N inputs de %.
 - A dose EXIBIDA vem do catalogo; a dose SALVA vem de `r.dose`. Diferenca proposital.
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do

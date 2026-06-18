@@ -56,7 +56,7 @@ export default function OrcamentosList() {
         <Card className="panel-3d">
           <CardHeader><CardTitle>Historico</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2.5">
+            <div className="space-y-4">
               {budgets.map((b: Budget) => {
                 const st = STATUS[b.status] ?? STATUS.draft;
                 return (
