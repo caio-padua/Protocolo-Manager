@@ -4,6 +4,8 @@
 
 Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca: **Padcon Conect** (com 1 N). Tagline: "Motor Clinico | Protocolos Injetaveis".
 
+Agente da plataforma: **Dr. Replit Paxter** (renomeado de Dr. Replit Manager em 18/06/2026, decisao do CEO Dr. Caio). Sistema de design proprio documentado na skill `skill-layout-paxter`.
+
 ## Branding
 
 - **Nome**: Padcon Conect (1 N — decisao de marca)

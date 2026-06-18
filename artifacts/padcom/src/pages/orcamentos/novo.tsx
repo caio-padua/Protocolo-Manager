@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Presentation, Save, Calculator, Lock, TrendingDown, ArrowRight, Plus } from "lucide-react";
+import { Presentation, Save, Calculator, Lock, TrendingDown, ArrowRight, ArrowUp, Plus } from "lucide-react";
 import { fmt } from "./money";
 import { SessionStacker } from "./SessionStacker";
 import { FrequencyDial, FrequencyBar, frequencyLabel, FREQ_LEGEND } from "./FrequencyDial";
@@ -43,6 +43,45 @@ type Row = {
   minAplicacoesMes: number | null;
   itemVolumeTiers: { minSessions: number; discountPct: number }[] | null;
 };
+
+// Escada de faixas de desconto por volume: barras de ALTURA crescente (faixa
+// maior = barra mais alta), com seta de chegada e o limiar de sessoes. A faixa
+// atual fica destacada. So apresentacao — o motor de calculo nao muda.
+function TierLadder({ tiers, currentSessions }: { tiers: { minSessions: number; discountPct: number }[]; currentSessions: number }) {
+  let curIdx = -1;
+  tiers.forEach((t, i) => { if (currentSessions >= t.minSessions) curIdx = i; });
+  const maxIdx = Math.max(1, tiers.length - 1);
+  return (
+    <div className="flex w-full items-end justify-between gap-1.5">
+      {tiers.map((t, i) => {
+        const reached = i <= curIdx;
+        const isCurrent = i === curIdx;
+        const h = 22 + Math.round((i / maxIdx) * 40);
+        return (
+          <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+            <span className={`concave-3d w-full max-w-[58px] px-1 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
+              {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
+            </span>
+            <div
+              style={{ height: `${h}px` }}
+              className={`w-full max-w-[42px] rounded-[3px] transition-all duration-300 ${
+                isCurrent
+                  ? "bg-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_2px_hsl(187_72%_48%/0.6)]"
+                  : reached
+                  ? "bg-primary/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                  : "bg-white/60 dark:bg-black/30"
+              }`}
+            />
+            <div className="flex flex-col items-center leading-none">
+              <ArrowUp className={`h-3 w-3 ${reached ? "text-primary" : "text-muted-foreground/45"}`} />
+              <span className="mt-0.5 text-[8px] font-bold uppercase tabular-nums text-muted-foreground">≥{t.minSessions}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function MontagemOrcamento() {
   const { toast } = useToast();
@@ -296,14 +335,18 @@ export default function MontagemOrcamento() {
                             const v = volumeByCatalogId.get(r.catalogId);
                             const alert = clinicalAlert(r);
                             const falta = v?.nextTierSessions ?? null;
-                            const target = falta ? r.sessions + falta : 0;
-                            const prog = target > 0 ? Math.min(100, Math.round((r.sessions / target) * 100)) : 100;
                             const nowPct = v?.discountPct ?? 0;
-                            const segs = 12;
-                            const onCount = Math.max(0, Math.min(segs, Math.round((prog / 100) * segs)));
+                            const effTiers = (r.itemVolumeTiers ?? settings?.itemVolumeTiers ?? [])
+                              .slice()
+                              .sort((a, b) => a.minSessions - b.minSessions);
                             return (
                               <div className="mt-4 space-y-2">
                                 <div className="incentive-banner flex flex-col gap-3.5 p-4">
+                                  {/* TITULO SALIENTE (bevel/alto-relevo) do bloco de desconto */}
+                                  <div className="screen-3d flex items-center justify-center gap-2 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                                    <TrendingDown className="h-4 w-4" />
+                                    Desconto por Volume do Protocolo
+                                  </div>
                                   <div className="flex flex-wrap items-end gap-3">
                                     {/* cofrinho sorrindo — somente a imagem, sem moldura */}
                                     <img
@@ -343,24 +386,12 @@ export default function MontagemOrcamento() {
                                     ) : null}
                                   </div>
 
-                                  {falta ? (
-                                    <>
-                                      <div className="flex w-full items-center gap-[3px]">
-                                        {Array.from({ length: segs }).map((_, i) => (
-                                          <div
-                                            key={i}
-                                            className={`h-2.5 flex-1 rounded-[2px] transition-colors duration-200 ${i < onCount ? "bg-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]" : "bg-white/55 dark:bg-black/30"}`}
-                                          />
-                                        ))}
-                                      </div>
-                                      {/* "faltam" em FLUXO (chips em relevo/concavo + seta), nao frase linear */}
-                                      <div className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                                        <span>Faltam</span>
-                                        <span className="screen-3d px-2 py-0.5 tabular-nums text-primary">{falta} {falta === 1 ? "sessão" : "sessões"}</span>
-                                        <ArrowRight className="h-3.5 w-3.5 text-primary/60" />
-                                        <span className="concave-3d px-2 py-0.5 tabular-nums text-primary">-{v!.nextTierPct}%</span>
-                                      </div>
-                                    </>
+                                  {/* ESCADA DE FAIXAS: barras de altura crescente por faixa de
+                                      desconto, com setas de chegada e a faixa atual destacada.
+                                      Renderizada do catalogo (override do item ou escada global);
+                                      o motor de calculo continua intacto. */}
+                                  {effTiers.length >= 2 ? (
+                                    <TierLadder tiers={effTiers} currentSessions={r.sessions} />
                                   ) : null}
                                 </div>
 

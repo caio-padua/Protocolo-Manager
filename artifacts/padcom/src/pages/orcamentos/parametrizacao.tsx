@@ -422,6 +422,9 @@ export default function Parametrizacao() {
 
 function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: VolumeTier[]) => void }) {
   const sorted = [...tiers].sort((a, b) => a.minSessions - b.minSessions);
+  // Rascunho local do "Numero de faixas": enquanto digita nao mexe nas faixas
+  // (apagar o campo NAO trunca); so aplica ao sair do campo ou apertar Enter.
+  const [countDraft, setCountDraft] = useState<string | null>(null);
   function update(idx: number, patch: Partial<VolumeTier>) {
     onChange(sorted.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
   }
@@ -432,8 +435,36 @@ function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: Vo
     const last = sorted[sorted.length - 1];
     onChange([...sorted, { minSessions: last ? last.minSessions + 8 : 1, discountPct: last ? last.discountPct + 5 : 0 }]);
   }
+  // Numero de faixas: cresce/encurta o array de faixas preservando as existentes.
+  function setCount(n: number) {
+    const next = [...sorted];
+    if (n <= next.length) { onChange(next.slice(0, Math.max(0, n))); return; }
+    while (next.length < n) {
+      const last = next[next.length - 1];
+      next.push({ minSessions: last ? last.minSessions + 8 : 1, discountPct: last ? last.discountPct + 5 : 0 });
+    }
+    onChange(next);
+  }
   return (
     <div className="space-y-2">
+      {/* Numero de faixas: define quantos espacos de porcentagem existem */}
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Numero de faixas</Label>
+        <Input
+          type="number"
+          min={0}
+          max={12}
+          value={countDraft ?? sorted.length}
+          className="h-8 w-20 field-engraved"
+          onChange={(e) => setCountDraft(e.target.value)}
+          onBlur={() => {
+            if (countDraft === null) return;
+            if (countDraft.trim() !== "") setCount(Math.max(0, Math.min(12, parseInt(countDraft) || 0)));
+            setCountDraft(null);
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
       <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-[10px] uppercase tracking-wide text-muted-foreground px-1">
         <span>A partir de (sessoes)</span><span>Desconto (%)</span><span></span>
       </div>
@@ -444,7 +475,7 @@ function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: Vo
         <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
           <Input type="number" value={t.minSessions} className="h-9"
             onChange={(e) => update(idx, { minSessions: parseInt(e.target.value) || 0 })} />
-          <Input type="number" step="0.01" value={t.discountPct} className="h-9"
+          <Input type="number" step="0.01" value={t.discountPct} className="h-9 field-engraved"
             onChange={(e) => update(idx, { discountPct: parseFloat(e.target.value) || 0 })} />
           <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => remove(idx)}>
             <Trash2 className="h-4 w-4" />
