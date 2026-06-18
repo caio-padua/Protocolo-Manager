@@ -29,39 +29,39 @@ export default function OrcamentosList() {
         </div>
         <div className="flex gap-2">
           <Link href="/orcamentos/parametrizacao">
-            <Button variant="outline"><SlidersHorizontal className="h-4 w-4 mr-2" /> Parametrizacao</Button>
+            <Button variant="outline" className="btn-3d-soft"><SlidersHorizontal className="h-4 w-4 mr-2" /> Parametrizacao</Button>
           </Link>
           <Link href="/orcamentos/vitrine">
-            <Button variant="outline"><Sparkles className="h-4 w-4 mr-2" /> Vitrine</Button>
+            <Button variant="outline" className="btn-3d-soft"><Sparkles className="h-4 w-4 mr-2" /> Vitrine</Button>
           </Link>
           <Link href="/orcamentos/novo">
-            <Button><Plus className="h-4 w-4 mr-2" /> Novo orcamento</Button>
+            <Button className="btn-3d"><Plus className="h-4 w-4 mr-2" /> Novo orcamento</Button>
           </Link>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-[6px]" />)}</div>
       ) : !budgets?.length ? (
-        <Card>
+        <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium">Nenhum orcamento ainda</p>
             <Link href="/orcamentos/novo">
-              <Button className="mt-4"><Plus className="h-4 w-4 mr-2" /> Criar primeiro orcamento</Button>
+              <Button className="btn-3d mt-4"><Plus className="h-4 w-4 mr-2" /> Criar primeiro orcamento</Button>
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className="panel-3d">
           <CardHeader><CardTitle>Historico</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {budgets.map((b: Budget) => {
                 const st = STATUS[b.status] ?? STATUS.draft;
                 return (
                   <Link key={b.id} href={`/orcamentos/${b.id}/apresentacao`}>
-                    <div className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/30 transition-colors cursor-pointer">
+                    <div className="neon-hover panel-3d-sub flex items-center gap-4 p-3 transition-all duration-300 cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-medium truncate">{b.title || `Orcamento #${b.id}`}</span>
@@ -71,11 +71,13 @@ export default function OrcamentosList() {
                           {b.clientName ? `${b.clientName} · ` : ""}{b.items.filter((i) => i.include).length} itens · {format(new Date(b.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                         </span>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold">{fmt(b.totalCents)}</div>
-                        {b.chosenScenario ? <div className="text-[11px] text-emerald-600">cenario {b.chosenScenario}</div> : null}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right leading-tight">
+                          <div className="screen-3d px-3 py-1 font-bold tabular-nums">{fmt(b.totalCents)}</div>
+                          {b.chosenScenario ? <div className="mt-1 text-[11px] text-emerald-600">cenario {b.chosenScenario}</div> : null}
+                        </div>
+                        <Presentation className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <Presentation className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </Link>
                 );

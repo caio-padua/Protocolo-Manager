@@ -24,7 +24,7 @@ export default function Vitrine() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <Link href="/orcamentos">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" /> Voltar</Button>
+          <Button variant="ghost" size="sm" className="btn-3d-soft"><ArrowLeft className="h-4 w-4 mr-2" /> Voltar</Button>
         </Link>
       </div>
 
@@ -37,10 +37,10 @@ export default function Vitrine() {
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40 rounded-[6px]" />)}
         </div>
       ) : vitrineItems.length === 0 ? (
-        <Card>
+        <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium">Nenhuma substancia na vitrine</p>

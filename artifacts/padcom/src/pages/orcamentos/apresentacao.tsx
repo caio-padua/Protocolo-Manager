@@ -116,7 +116,7 @@ export default function ApresentacaoOrcamento() {
   }
 
   if (isLoading || !budget) {
-    return <div className="space-y-4"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-64 rounded-xl" /></div>;
+    return <div className="space-y-4"><Skeleton className="h-32 rounded-[6px]" /><Skeleton className="h-64 rounded-[6px]" /></div>;
   }
 
   const recommended = result?.recommendedScenario ?? "A";
@@ -131,7 +131,7 @@ export default function ApresentacaoOrcamento() {
     <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <Link href="/orcamentos">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" /> Voltar</Button>
+          <Button variant="ghost" size="sm" className="btn-3d-soft"><ArrowLeft className="h-4 w-4 mr-2" /> Voltar</Button>
         </Link>
         <Badge variant="outline" className="text-xs">
           {budget.status === "accepted" ? "Aceito" : budget.status === "presented" ? "Em apresentacao" : "Rascunho"}
@@ -146,7 +146,7 @@ export default function ApresentacaoOrcamento() {
       </div>
 
       {/* HERO ECONOMIA */}
-      <Card className="bg-gradient-to-br from-primary to-cyan-600 text-white border-0 shadow-xl">
+      <Card className="bg-gradient-to-br from-primary to-cyan-600 text-white border-0 shadow-xl rounded-[8px]">
         <CardContent className="p-8 text-center">
           <div className="flex items-center justify-center gap-2 text-white/80 uppercase tracking-widest text-xs mb-2">
             <TrendingDown className="h-4 w-4" /> Economia a vista
@@ -156,7 +156,7 @@ export default function ApresentacaoOrcamento() {
             Pagando a vista voce investe <strong>{fmt(recScenario && "finalCents" in recScenario ? recScenario.finalCents : recScenario?.discountedCents ?? 0)}</strong>
             {" "}em vez de {fmt(result?.totalCents ?? 0)}
           </p>
-          <div className="mt-4 inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm">
+          <div className="mt-4 inline-flex items-center gap-2 bg-white/15 rounded-[6px] px-4 py-1.5 text-sm">
             <CalendarDays className="h-4 w-4" /> Menos de <strong>{fmt(recPerDay)}</strong> por dia
           </div>
         </CardContent>
@@ -164,23 +164,23 @@ export default function ApresentacaoOrcamento() {
 
       {/* ANCORAGEM POR VOLUME */}
       {result && result.volumeDiscountCents > 0 && (
-        <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20">
+        <Card className="panel-3d bg-emerald-50/50 dark:bg-emerald-950/20">
           <CardContent className="p-5 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 p-2">
-                <TrendingDown className="h-5 w-5 text-emerald-600" />
+              <div className="screen-3d grid h-10 w-10 place-items-center text-emerald-600">
+                <TrendingDown className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-xs uppercase tracking-widest text-emerald-700 font-semibold">Desconto por volume aplicado</div>
-                <div className="text-sm text-muted-foreground">
+                <span className="bevel-3d inline-flex px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">Desconto por volume aplicado</span>
+                <div className="mt-1.5 text-sm text-muted-foreground">
                   Preco de tabela <span className="line-through">{fmt(result.totalCents)}</span> &rarr;{" "}
                   <strong className="text-emerald-700">{fmt(result.volumeDiscountedCents)}</strong>
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-black text-emerald-700">-{fmt(result.volumeDiscountCents)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-emerald-600 font-medium">{result.volumeDiscountPct.toFixed(1)}% so pelo tamanho do protocolo</div>
+              <div className="screen-3d px-3 py-1.5 text-2xl font-black text-emerald-700 tabular-nums">-{fmt(result.volumeDiscountCents)}</div>
+              <div className="mt-1 text-[11px] uppercase tracking-wide text-emerald-600 font-medium">{result.volumeDiscountPct.toFixed(1)}% so pelo tamanho do protocolo</div>
             </div>
           </CardContent>
         </Card>
@@ -232,7 +232,7 @@ export default function ApresentacaoOrcamento() {
       </div>
 
       {/* CALCULADORA LIVRE */}
-      <Card className="border-l-4 border-l-cyan-500">
+      <Card className="panel-3d">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
             <Wallet className="h-4 w-4" /> Monte o parcelamento
@@ -270,7 +270,7 @@ export default function ApresentacaoOrcamento() {
           </div>
 
           {result?.free && (
-            <div className="rounded-lg bg-muted/40 p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="panel-3d-sub p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <Metric label="Entrada" value={fmt(result.free.downPaymentCents)} />
               <Metric label="Saldo" value={fmt(result.free.balanceCents)} />
               <Metric label={`${result.free.installments}x de`} value={fmt(result.free.installmentCents)} highlight />
@@ -280,7 +280,7 @@ export default function ApresentacaoOrcamento() {
 
           <Button
             variant="outline"
-            className="w-full"
+            className="btn-3d-soft w-full"
             onClick={() => registrarAceite("free")}
             disabled={update.isPending || !result?.free}
           >
@@ -317,7 +317,7 @@ function CaminhoCard(props: {
   linha: string; onAceitar: () => void; aceito: boolean; decoy?: boolean;
 }) {
   return (
-    <Card className={`relative ${props.destaque ? "border-2 border-primary shadow-lg md:scale-105" : props.decoy ? "border border-cyan-400/60 shadow-md" : ""} ${props.aceito ? "ring-2 ring-emerald-500" : ""}`}>
+    <Card className={`panel-3d relative ${props.destaque ? "panel-3d-active md:scale-105" : ""} ${props.aceito ? "ring-2 ring-emerald-500" : ""}`}>
       {props.destaque && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <Badge className="bg-primary">Recomendado</Badge>
@@ -329,16 +329,19 @@ function CaminhoCard(props: {
         </div>
       )}
       <CardContent className="p-5 text-center space-y-3">
-        <div className="uppercase tracking-wide text-sm font-semibold">{props.titulo}</div>
-        <div>
-          <div className="text-3xl font-black">{fmt(props.preco)}</div>
+        <div className="flex items-center justify-center gap-2">
+          <span className={`paxter-led paxter-led-green ${props.destaque ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />
+          <span className="bevel-3d px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{props.titulo}</span>
+        </div>
+        <div className="space-y-1.5">
+          <div className="screen-3d px-3 py-2 text-3xl font-black tabular-nums">{fmt(props.preco)}</div>
           {props.desconto > 0 ? <div className="text-xs text-emerald-600 font-medium">{props.desconto}% de desconto · economiza {fmt(props.economia)}</div> : null}
         </div>
         <div className="text-xs text-muted-foreground">{props.linha}</div>
-        <div className="text-xs bg-muted rounded-full px-3 py-1 inline-flex items-center gap-1">
+        <div className="concave-3d text-xs px-3 py-1 inline-flex items-center gap-1 tabular-nums">
           <CalendarDays className="h-3 w-3" /> {fmt(props.perDia)} / dia
         </div>
-        <Button className="w-full" variant={props.aceito ? "secondary" : props.destaque ? "default" : "outline"} onClick={props.onAceitar}>
+        <Button className={`w-full ${props.destaque ? "btn-3d" : "btn-3d-soft"}`} variant={props.aceito ? "secondary" : props.destaque ? "default" : "outline"} onClick={props.onAceitar}>
           {props.aceito ? <><CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" /> Aceito</> : "Escolher este"}
         </Button>
       </CardContent>
@@ -348,9 +351,9 @@ function CaminhoCard(props: {
 
 function Metric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`font-bold ${highlight ? "text-primary text-lg" : ""}`}>{value}</div>
+    <div className="flex flex-col items-center gap-1">
+      <span className="bevel-3d px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+      <div className={`concave-3d w-full px-2 py-1.5 font-bold tabular-nums ${highlight ? "text-primary text-lg" : ""}`}>{value}</div>
     </div>
   );
 }

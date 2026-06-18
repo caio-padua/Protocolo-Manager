@@ -24,3 +24,11 @@ runtime (curl through localhost:80) and frontend by restarting the `padcom` work
 screenshots. Only treat type errors that point at files YOU changed as real. Fixing the
 api-zod barrel ambiguity (so `tsc --build` can emit) is the real cure, but it is global
 codegen surgery — out of scope for feature work.
+
+**Frontend compile-check without screenshots:** `curl https://$REPLIT_DEV_DOMAIN/src/...tsx`
+returns the Vite-transformed module — HTTP 200 + no `[plugin:vite` / `transform failed`
+means the page compiles (JSX balanced, imports resolve). Beware false-positive grep hits on
+benign strings like `onError: toast("Erro...")`. A one-off `Maximum call stack size exceeded`
+runtime-error in the padcom HMR log right after a FULL page-component rewrite is a React Fast
+Refresh transient — it self-recovers and does NOT recur on later edits; ignore it once the
+module compiles 200 and the error stops repeating. Do not chase it as a real bug.

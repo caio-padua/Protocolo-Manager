@@ -162,53 +162,53 @@ export default function Parametrizacao() {
           <h1 className="text-3xl font-bold tracking-tight">Parametrizacao do Orcamento</h1>
           <p className="text-muted-foreground">Descontos, taxas de cartao, duracao do plano e precos do catalogo. Editavel somente aqui.</p>
         </div>
-        <Button variant="outline" onClick={() => seed.mutate()} disabled={seed.isPending}>
+        <Button variant="outline" className="btn-3d-soft" onClick={() => seed.mutate()} disabled={seed.isPending}>
           <Sparkles className="h-4 w-4 mr-2" /> Popular catalogo inicial
         </Button>
       </div>
 
       {/* DESCONTOS E PLANO */}
-      <Card className="border-l-4 border-l-primary">
+      <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-primary">
             <SlidersHorizontal className="h-4 w-4" /> Descontos e Plano
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loadingSettings || !draft ? (
-            <Skeleton className="h-40 rounded" />
+            <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Field label="Desconto a vista (%)">
                   <Input type="number" step="0.01" value={draft.cashDiscountPct}
-                    onChange={(e) => setDraftField("cashDiscountPct", parseFloat(e.target.value) || 0)} />
+                    onChange={(e) => setDraftField("cashDiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
                 </Field>
                 <Field label="Desconto entrada 50% (%)">
                   <Input type="number" step="0.01" value={draft.down50DiscountPct}
-                    onChange={(e) => setDraftField("down50DiscountPct", parseFloat(e.target.value) || 0)} />
+                    onChange={(e) => setDraftField("down50DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
                 </Field>
                 <Field label="Desconto entrada 30% (%)">
                   <Input type="number" step="0.01" value={draft.down30DiscountPct}
-                    onChange={(e) => setDraftField("down30DiscountPct", parseFloat(e.target.value) || 0)} />
+                    onChange={(e) => setDraftField("down30DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
                 </Field>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Field label="Parcelas s/ juros (max)">
                   <Input type="number" value={draft.maxNoInterestInstallments}
-                    onChange={(e) => setDraftField("maxNoInterestInstallments", parseInt(e.target.value) || 1)} />
+                    onChange={(e) => setDraftField("maxNoInterestInstallments", parseInt(e.target.value) || 1)} className="field-engraved" />
                 </Field>
                 <Field label="Plano (meses)">
                   <Input type="number" value={draft.planMonths}
-                    onChange={(e) => setDraftField("planMonths", parseInt(e.target.value) || 1)} />
+                    onChange={(e) => setDraftField("planMonths", parseInt(e.target.value) || 1)} className="field-engraved" />
                 </Field>
                 <Field label="Plano (semanas)">
                   <Input type="number" value={draft.planWeeks}
-                    onChange={(e) => setDraftField("planWeeks", parseInt(e.target.value) || 1)} />
+                    onChange={(e) => setDraftField("planWeeks", parseInt(e.target.value) || 1)} className="field-engraved" />
                 </Field>
                 <Field label="Plano (dias)">
                   <Input type="number" value={draft.planDays}
-                    onChange={(e) => setDraftField("planDays", parseInt(e.target.value) || 1)} />
+                    onChange={(e) => setDraftField("planDays", parseInt(e.target.value) || 1)} className="field-engraved" />
                 </Field>
                 <Field label="Cenario recomendado">
                   <Select value={draft.recommendedScenario} onValueChange={(v) => setDraftField("recommendedScenario", v)}>
@@ -225,7 +225,7 @@ export default function Parametrizacao() {
                 <Switch checked={draft.passCardFeeDefault} onCheckedChange={(v) => setDraftField("passCardFeeDefault", v)} />
                 <Label>Repassar taxa de cartao por padrao (calculadora livre)</Label>
               </div>
-              <Button onClick={saveSettings} disabled={updateSettings.isPending}>
+              <Button onClick={saveSettings} disabled={updateSettings.isPending} className="btn-3d">
                 <Save className="h-4 w-4 mr-2" /> Salvar parametros
               </Button>
             </div>
@@ -234,15 +234,15 @@ export default function Parametrizacao() {
       </Card>
 
       {/* DESCONTO POR VOLUME */}
-      <Card className="border-l-4 border-l-amber-500">
+      <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-amber-600">
             <Layers className="h-4 w-4" /> Desconto por Volume
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loadingSettings || !draft ? (
-            <Skeleton className="h-40 rounded" />
+            <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-6">
               <p className="text-xs text-muted-foreground">
@@ -268,10 +268,10 @@ export default function Parametrizacao() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Field label="Teto total de desconto (%)">
                   <Input type="number" step="0.01" value={draft.maxTotalDiscountPct}
-                    onChange={(e) => setDraftField("maxTotalDiscountPct", parseFloat(e.target.value) || 0)} />
+                    onChange={(e) => setDraftField("maxTotalDiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
                 </Field>
               </div>
-              <Button onClick={saveSettings} disabled={updateSettings.isPending}>
+              <Button onClick={saveSettings} disabled={updateSettings.isPending} className="btn-3d">
                 <Save className="h-4 w-4 mr-2" /> Salvar desconto por volume
               </Button>
             </div>
@@ -280,20 +280,20 @@ export default function Parametrizacao() {
       </Card>
 
       {/* TAXAS DE CARTAO */}
-      <Card className="border-l-4 border-l-cyan-500">
+      <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-cyan-600">
             <CreditCard className="h-4 w-4" /> Taxas de Cartao por Parcela
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!draft ? <Skeleton className="h-24 rounded" /> : (
+          {!draft ? <Skeleton className="h-24 rounded-[6px]" /> : (
             <div className="space-y-4">
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
                 {draft.cardFees.map((cf, idx) => (
-                  <div key={cf.installments} className="border rounded p-2 text-center">
+                  <div key={cf.installments} className="panel-3d-sub p-2 text-center">
                     <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{cf.installments}x</div>
-                    <Input type="number" step="0.01" value={cf.feePct} className="h-8 text-center text-sm"
+                    <Input type="number" step="0.01" value={cf.feePct} className="field-engraved h-8 text-center text-sm"
                       onChange={(e) => {
                         const v = parseFloat(e.target.value) || 0;
                         setDraft((d) => d ? { ...d, cardFees: d.cardFees.map((c, i) => i === idx ? { ...c, feePct: v } : c) } : d);
@@ -301,7 +301,7 @@ export default function Parametrizacao() {
                   </div>
                 ))}
               </div>
-              <Button onClick={saveSettings} disabled={updateSettings.isPending} variant="secondary">
+              <Button onClick={saveSettings} disabled={updateSettings.isPending} variant="secondary" className="btn-3d-soft">
                 <Save className="h-4 w-4 mr-2" /> Salvar taxas
               </Button>
             </div>
@@ -310,22 +310,22 @@ export default function Parametrizacao() {
       </Card>
 
       {/* CATALOGO DE PRECOS */}
-      <Card className="border-l-4 border-l-emerald-500">
+      <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
+          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-emerald-600">
             <Tag className="h-4 w-4" /> Catalogo de Precos
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loadingCatalog ? (
-            <Skeleton className="h-40 rounded" />
+            <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-3">
               <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 px-2 text-[10px] uppercase tracking-wide text-muted-foreground">
                 <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span>Acoes</span>
               </div>
               {items.map((it) => (
-                <div key={it.id} className="border rounded">
+                <div key={it.id} className="panel-3d-sub">
                   <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center p-2">
                     <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="h-9" />
                     <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
@@ -335,11 +335,11 @@ export default function Parametrizacao() {
                       </SelectContent>
                     </Select>
                     <Input type="number" step="0.01" value={centsToReais(it.unitPriceCents)}
-                      onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="h-9" />
+                      onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="field-engraved h-9" />
                     <Input type="number" value={it.defaultSessions}
-                      onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="h-9" />
+                      onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="field-engraved h-9" />
                     <Input type="number" value={it.frequencyDays ?? ""}
-                      onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="h-9" />
+                      onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="field-engraved h-9" />
                     <div className="flex items-center gap-1 justify-end">
                       {it.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
                       {!it.repeticaoLivre ? <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-600">teto/mes</Badge> : null}
@@ -364,11 +364,11 @@ export default function Parametrizacao() {
                         {!it.repeticaoLivre && (
                           <>
                             <Field label="Max aplicacoes / mes">
-                              <Input type="number" value={it.maxAplicacoesMes ?? ""} className="h-9 w-32"
+                              <Input type="number" value={it.maxAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
                                 onChange={(e) => setLocalItem(it.id, { maxAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
                             </Field>
                             <Field label="Min aplicacoes / mes">
-                              <Input type="number" value={it.minAplicacoesMes ?? ""} className="h-9 w-32"
+                              <Input type="number" value={it.minAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
                                 onChange={(e) => setLocalItem(it.id, { minAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
                             </Field>
                           </>
@@ -386,7 +386,7 @@ export default function Parametrizacao() {
                           <TierEditor tiers={it.itemVolumeTiers} onChange={(t) => setLocalItem(it.id, { itemVolumeTiers: t })} />
                         )}
                       </div>
-                      <Button size="sm" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
+                      <Button size="sm" className="btn-3d" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
                         <Save className="h-4 w-4 mr-2" /> Salvar limites
                       </Button>
                     </div>
@@ -395,7 +395,7 @@ export default function Parametrizacao() {
               ))}
 
               {/* NOVO ITEM */}
-              <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center border-2 border-dashed rounded p-2">
+              <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center border-2 border-dashed rounded-[6px] p-2">
                 <Input placeholder="Novo item" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="h-9" />
                 <Select value={newItem.kind} onValueChange={(v) => setNewItem({ ...newItem, kind: v })}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -403,11 +403,11 @@ export default function Parametrizacao() {
                     {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Input type="number" step="0.01" placeholder="0,00" value={newItem.priceReais} onChange={(e) => setNewItem({ ...newItem, priceReais: e.target.value })} className="h-9" />
-                <Input type="number" value={newItem.sessions} onChange={(e) => setNewItem({ ...newItem, sessions: e.target.value })} className="h-9" />
+                <Input type="number" step="0.01" placeholder="0,00" value={newItem.priceReais} onChange={(e) => setNewItem({ ...newItem, priceReais: e.target.value })} className="field-engraved h-9" />
+                <Input type="number" value={newItem.sessions} onChange={(e) => setNewItem({ ...newItem, sessions: e.target.value })} className="field-engraved h-9" />
                 <span className="hidden md:block" />
                 <div className="flex justify-end">
-                  <Button size="icon" className="h-8 w-8" onClick={addItem} disabled={createItem.isPending}>
+                  <Button size="icon" className="btn-3d h-8 w-8" onClick={addItem} disabled={createItem.isPending}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -473,7 +473,7 @@ function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: Vo
       ) : null}
       {sorted.map((t, idx) => (
         <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-          <Input type="number" value={t.minSessions} className="h-9"
+          <Input type="number" value={t.minSessions} className="field-engraved h-9"
             onChange={(e) => update(idx, { minSessions: parseInt(e.target.value) || 0 })} />
           <Input type="number" step="0.01" value={t.discountPct} className="h-9 field-engraved"
             onChange={(e) => update(idx, { discountPct: parseFloat(e.target.value) || 0 })} />
@@ -482,7 +482,7 @@ function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: Vo
           </Button>
         </div>
       ))}
-      <Button size="sm" variant="outline" onClick={add}>
+      <Button size="sm" variant="outline" className="btn-3d-soft" onClick={add}>
         <Plus className="h-4 w-4 mr-2" /> Adicionar faixa
       </Button>
     </div>
