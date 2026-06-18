@@ -8,7 +8,7 @@ export type FreqStop = { label: string; days: number | null; custom?: boolean };
 
 export const FREQ_STOPS: FreqStop[] = [
   { label: "Todo dia", days: 1 },
-  { label: "3x / semana", days: 2 },
+  { label: "2 / 2 dias", days: 2 },
   { label: "1x / semana", days: 7 },
   { label: "15 / 15 dias", days: 15 },
   { label: "21 / 21 dias", days: 21 },
