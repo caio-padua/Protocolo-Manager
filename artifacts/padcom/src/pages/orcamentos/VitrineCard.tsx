@@ -5,10 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Star, ChevronDown, Moon, Zap, Activity, Brain, ShieldCheck, Sparkles, HeartPulse, Dumbbell } from "lucide-react";
 import { fmt } from "./money";
 
-function Ampola({ color }: { color: string }) {
+export function Ampola({ color, width = 40 }: { color: string; width?: number }) {
   const c = color || "#45B8CC";
+  const height = Math.round(width * 1.8);
   return (
-    <svg width="40" height="72" viewBox="0 0 40 72" className="shrink-0">
+    <svg width={width} height={height} viewBox="0 0 40 72" className="shrink-0">
       <rect x="15" y="2" width="10" height="6" rx="1.5" fill="#cbd5e1" />
       <rect x="17" y="7" width="6" height="8" fill="#e2e8f0" />
       <path d="M10 16 Q10 13 13 13 L27 13 Q30 13 30 16 L30 64 Q30 70 24 70 L16 70 Q10 70 10 64 Z" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1.5" />

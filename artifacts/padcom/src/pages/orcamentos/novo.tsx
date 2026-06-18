@@ -4,11 +4,13 @@ import {
   useListBudgetCatalog,
   useGetBudgetSettings,
   useListClients,
+  useListSubstances,
   useCalculateBudget,
   useCreateBudget,
   type BudgetCatalogItem,
   type BudgetCalcResult,
   type BudgetItem,
+  type Substance,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,10 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Presentation, Save, Calculator } from "lucide-react";
+import { Presentation, Save, Calculator, Lock, TrendingDown } from "lucide-react";
 import { fmt } from "./money";
 import { SessionStacker } from "./SessionStacker";
-import { FrequencyFader } from "./FrequencyFader";
+import { FrequencyDial } from "./FrequencyDial";
+import { DigitalDisplay } from "./DigitalDisplay";
+import { Ampola } from "./VitrineCard";
 
 type Row = {
   catalogId: number;
@@ -46,6 +50,12 @@ export default function MontagemOrcamento() {
   const { data: catalog, isLoading: loadingCatalog } = useListBudgetCatalog();
   const { data: settings } = useGetBudgetSettings();
   const { data: clients } = useListClients();
+  const { data: substances } = useListSubstances();
+  const subsById = useMemo(() => {
+    const m = new Map<number, Substance>();
+    (substances ?? []).forEach((s) => m.set(s.id, s));
+    return m;
+  }, [substances]);
 
   const [title, setTitle] = useState("");
   const [clientId, setClientId] = useState<string>("none");
@@ -197,10 +207,14 @@ export default function MontagemOrcamento() {
                 <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded" />)}</div>
               ) : (
                 <div className="space-y-2">
-                  {rows.map((r) => (
+                  {rows.map((r) => {
+                    const sub = r.substanceId ? subsById.get(r.substanceId) : undefined;
+                    const doseDisplay = (sub?.defaultDose || sub?.posologia || r.dose || "").trim() || "—";
+                    return (
                     <div key={r.catalogId} className={`rounded-lg border p-3 transition-colors ${r.include ? "border-primary/50 bg-primary/5" : ""}`}>
                       <div className="flex items-center gap-3">
                         <Switch checked={r.include} onCheckedChange={(v) => setRow(r.catalogId, { include: v })} />
+                        {sub ? <Ampola color={sub.color} width={20} /> : null}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium truncate">{r.name}</span>
@@ -218,19 +232,19 @@ export default function MontagemOrcamento() {
                           {liberarFrequencia && (
                             <div className="space-y-1.5">
                               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Frequencia</Label>
-                              <FrequencyFader value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
+                              <FrequencyDial value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
                             </div>
                           )}
                           <div className="flex flex-col gap-3">
                             <div className="space-y-1">
-                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Dose</Label>
-                              <Input value={r.dose ?? ""} className="h-8 w-36"
-                                onChange={(e) => setRow(r.catalogId, { dose: e.target.value })} />
+                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                                <Lock className="h-3 w-3" /> Dose (catalogo)
+                              </Label>
+                              <div className="inline-flex h-8 min-w-36 items-center rounded border bg-muted/40 px-2.5 text-sm font-medium tabular-nums text-foreground/90">
+                                {doseDisplay}
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</Label>
-                              <div className="text-lg font-semibold">{fmt(r.unitPriceCents * r.sessions)}</div>
-                            </div>
+                            <DigitalDisplay size="sm" label="Subtotal" value={fmt(r.unitPriceCents * r.sessions)} className="min-w-36" />
                           </div>
                         </div>
                       )}
@@ -260,7 +274,8 @@ export default function MontagemOrcamento() {
                         );
                       })()}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -276,29 +291,21 @@ export default function MontagemOrcamento() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Itens incluidos</span>
-                  <span className="font-semibold">{includedRows.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total de sessoes</span>
-                  <span className="font-semibold">{result?.totalSessions ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-sm text-muted-foreground">Total bruto</span>
-                  <span className={`font-bold ${result && result.volumeDiscountCents > 0 ? "text-base text-muted-foreground line-through" : "text-xl"}`}>{fmt(result?.totalCents ?? 0)}</span>
-                </div>
-                {result && result.volumeDiscountCents > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-emerald-700 font-medium">Preco do protocolo (-{result.volumeDiscountPct.toFixed(1)}%)</span>
-                    <span className="text-xl font-bold text-emerald-700">{fmt(result.volumeDiscountedCents)}</span>
-                  </div>
-                )}
+              <div className="grid grid-cols-2 gap-2">
+                <DigitalDisplay size="sm" tone="slate" label="Itens" value={String(includedRows.length)} />
+                <DigitalDisplay size="sm" tone="slate" label="Sessoes" value={String(result?.totalSessions ?? 0)} />
               </div>
 
+              <DigitalDisplay
+                size="lg"
+                tone="cyan"
+                label="Preco do protocolo"
+                value={fmt(result && result.volumeDiscountCents > 0 ? result.volumeDiscountedCents : (result?.totalCents ?? 0))}
+                sub={result && result.volumeDiscountCents > 0 ? `de ${fmt(result.totalCents)} • -${result.volumeDiscountPct.toFixed(1).replace(".", ",")}% volume` : undefined}
+              />
+
               {result && (result.itemVolumeDiscountCents > 0 || result.cartBonusCents > 0 || result.cartNextTierSessions) && (
-                <div className="space-y-1.5 border-t pt-3 text-xs">
+                <div className="space-y-1.5 text-xs">
                   {result.itemVolumeDiscountCents > 0 && (
                     <div className="flex items-center justify-between"><span className="text-muted-foreground">Desconto por item</span><span className="text-emerald-700 font-medium">-{fmt(result.itemVolumeDiscountCents)}</span></div>
                   )}
@@ -314,10 +321,15 @@ export default function MontagemOrcamento() {
               )}
 
               {result && (
-                <div className="space-y-2 border-t pt-3">
-                  <ScenarioLine label="A — a vista" final={result.scenarioA.finalCents} sav={result.scenarioA.savingsCents} recommended={result.recommendedScenario === "A"} />
-                  <ScenarioLine label="B — entrada 50%" final={result.scenarioB.discountedCents} sav={result.scenarioB.savingsCents} recommended={result.recommendedScenario === "B"} />
-                  <ScenarioLine label="C — entrada 30%" final={result.scenarioC.discountedCents} sav={result.scenarioC.savingsCents} recommended={result.recommendedScenario === "C"} />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                    <TrendingDown className="h-3.5 w-3.5 text-emerald-600" /> Economia por forma de pagamento
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <EconomiaCard label="A - a vista" sav={result.scenarioA.savingsCents} final={result.scenarioA.finalCents} recommended={result.recommendedScenario === "A"} />
+                    <EconomiaCard label="B - entrada 50%" sav={result.scenarioB.savingsCents} final={result.scenarioB.discountedCents} recommended={result.recommendedScenario === "B"} />
+                    <EconomiaCard label="C - entrada 30%" sav={result.scenarioC.savingsCents} final={result.scenarioC.discountedCents} recommended={result.recommendedScenario === "C"} />
+                  </div>
                 </div>
               )}
 
@@ -348,16 +360,16 @@ export default function MontagemOrcamento() {
   );
 }
 
-function ScenarioLine({ label, final, sav, recommended }: { label: string; final: number; sav: number; recommended: boolean }) {
+function EconomiaCard({ label, sav, final, recommended }: { label: string; sav: number; final: number; recommended: boolean }) {
   return (
-    <div className={`flex items-center justify-between rounded px-2 py-1 ${recommended ? "bg-emerald-50 dark:bg-emerald-900/20" : ""}`}>
-      <span className="text-sm flex items-center gap-1">
-        {label}
-        {recommended ? <Badge className="text-[9px] bg-emerald-600">sugerido</Badge> : null}
-      </span>
-      <span className="text-sm font-semibold">
-        {fmt(final)} <span className="text-emerald-600 text-xs">(-{fmt(sav)})</span>
-      </span>
-    </div>
+    <DigitalDisplay
+      size="md"
+      tone="emerald"
+      label={label}
+      value={`- ${fmt(sav)}`}
+      sub={`fica em ${fmt(final)}`}
+      recommended={recommended}
+      badge={recommended ? "Sugerido" : undefined}
+    />
   );
 }
