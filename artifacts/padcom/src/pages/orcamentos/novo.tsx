@@ -210,6 +210,7 @@ export default function MontagemOrcamento() {
                   {rows.map((r) => {
                     const sub = r.substanceId ? subsById.get(r.substanceId) : undefined;
                     const doseDisplay = (sub?.defaultDose || sub?.posologia || r.dose || "").trim();
+                    const doseMain = doseDisplay.split("—")[0].trim() || doseDisplay;
                     return (
                     <div key={r.catalogId} className={`p-4 sm:p-5 transition-all duration-300 ${r.include ? "panel-3d panel-3d-active" : "rounded-[0.875rem] border bg-muted/20"}`}>
                       {/* CABECALHO: toggle + nome · dose + chip de preco */}
@@ -219,13 +220,13 @@ export default function MontagemOrcamento() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold">{r.name}</span>
-                            {doseDisplay ? <span className="inline-flex items-center gap-1 text-sm text-muted-foreground"><span aria-hidden="true">·</span> {doseDisplay}</span> : null}
+                            {doseMain ? <span title={doseDisplay} className="concave-3d inline-flex max-w-[180px] items-center truncate px-2 py-0.5 text-[11px] font-semibold tabular-nums text-foreground/75">{doseMain}</span> : null}
                             {r.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
                           </div>
                         </div>
-                        <div className="panel-3d-sub shrink-0 px-3 py-1.5 text-right">
-                          <div className="text-sm font-semibold tabular-nums text-foreground">{fmt(r.unitPriceCents)}</div>
-                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">/ sessao</div>
+                        <div className="screen-3d shrink-0 px-3 py-1.5 text-center">
+                          <div className="text-sm font-bold tabular-nums text-foreground">{fmt(r.unitPriceCents)}</div>
+                          <div className="text-[10px] tracking-wide text-muted-foreground">por sessao</div>
                         </div>
                       </div>
 
@@ -234,14 +235,14 @@ export default function MontagemOrcamento() {
                           {/* TRES BLOCOS LADO A LADO: Sessoes | Frequencia | Valor */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
                             {/* 1) SESSOES */}
-                            <div className="panel-3d-sub p-4 flex flex-col gap-2">
-                              <Label className="text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Sessoes</Label>
+                            <div className="panel-3d-sub p-3 flex flex-col gap-3">
+                              <div className="concave-3d px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sessoes</div>
                               <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                             </div>
 
                             {/* 2) FREQUENCIA */}
-                            <div className="panel-3d-sub p-4 flex flex-col gap-2">
-                              <Label className="text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Frequencia</Label>
+                            <div className="panel-3d-sub p-3 flex flex-col gap-3">
+                              <div className="concave-3d px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Frequencia</div>
                               {liberarFrequencia ? (
                                 <div className="flex flex-1 items-center">
                                   <FrequencyDial value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
@@ -249,10 +250,12 @@ export default function MontagemOrcamento() {
                               ) : (() => {
                                 const f = frequencyLabel(r.frequencyDays);
                                 return (
-                                  <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center">
-                                    <div className="text-lg font-bold leading-tight text-foreground">{f.num}</div>
-                                    <div className="text-[11px] leading-tight text-muted-foreground">{f.spell}</div>
-                                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
+                                    <div className="screen-3d w-full px-2 py-2 text-center">
+                                      <div className="text-lg font-bold leading-tight text-foreground">{f.num}</div>
+                                      <div className="text-[11px] leading-tight text-muted-foreground">{f.spell}</div>
+                                    </div>
+                                    <div className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                                       <Lock className="h-3 w-3" /> definido no catalogo
                                     </div>
                                   </div>
@@ -267,17 +270,19 @@ export default function MontagemOrcamento() {
                               const fullSubtotal = r.unitPriceCents * r.sessions;
                               const finalSubtotal = hasDisc ? v!.effectiveUnitCents * r.sessions : fullSubtotal;
                               return (
-                                <div className="panel-3d-sub p-4 flex flex-col items-center justify-center text-center">
-                                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Subtotal</span>
-                                  <div key={finalSubtotal} className="mt-1 text-3xl font-bold leading-none tabular-nums text-primary animate-in fade-in slide-in-from-bottom-1 duration-300">
-                                    {fmt(finalSubtotal)}
-                                  </div>
-                                  {hasDisc ? (
-                                    <div className="mt-1.5 text-[11px] font-medium text-muted-foreground">
-                                      <span className="line-through">{fmt(fullSubtotal)}</span>
-                                      <span className="ml-1 text-emerald-600 dark:text-emerald-400">-{v!.discountPct}% volume</span>
+                                <div className="panel-3d-sub p-3 flex flex-col gap-3">
+                                  <div className="concave-3d px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Subtotal</div>
+                                  <div className="screen-3d flex flex-1 flex-col items-center justify-center px-2 py-3 text-center">
+                                    <div key={finalSubtotal} className="text-3xl font-bold leading-none tabular-nums text-primary animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                      {fmt(finalSubtotal)}
                                     </div>
-                                  ) : null}
+                                    {hasDisc ? (
+                                      <div className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                                        <span className="line-through">{fmt(fullSubtotal)}</span>
+                                        <span className="ml-1 text-emerald-600 dark:text-emerald-400">-{v!.discountPct}% volume</span>
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 </div>
                               );
                             })()}
@@ -304,16 +309,25 @@ export default function MontagemOrcamento() {
                                     )}
                                     {falta ? (
                                       <div className="text-sm font-medium text-foreground">
-                                        Faltam <strong className="text-primary">{falta}</strong> sessoes para <strong className="text-primary">-{v!.nextTierPct}%</strong> neste item
+                                        Faltam <strong className="text-base font-extrabold text-primary">{falta}</strong> sessoes para <strong className="text-base font-extrabold text-primary">-{v!.nextTierPct}%</strong> neste item
                                       </div>
                                     ) : (
                                       <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Melhor faixa de desconto atingida</div>
                                     )}
-                                    {falta ? (
-                                      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/60 dark:bg-black/30">
-                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-primary transition-all duration-300" style={{ width: `${prog}%` }} />
-                                      </div>
-                                    ) : null}
+                                    {falta ? (() => {
+                                      const segs = 12;
+                                      const onCount = Math.max(0, Math.min(segs, Math.round((prog / 100) * segs)));
+                                      return (
+                                        <div className="mt-2 flex w-full items-center gap-[3px]">
+                                          {Array.from({ length: segs }).map((_, i) => (
+                                            <div
+                                              key={i}
+                                              className={`h-2.5 flex-1 rounded-[2px] transition-colors duration-200 ${i < onCount ? "bg-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]" : "bg-white/55 dark:bg-black/30"}`}
+                                            />
+                                          ))}
+                                        </div>
+                                      );
+                                    })() : null}
                                   </div>
                                   {falta ? (
                                     <Button

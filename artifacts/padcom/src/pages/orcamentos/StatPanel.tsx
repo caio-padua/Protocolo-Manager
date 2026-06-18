@@ -1,8 +1,8 @@
 import { type ComponentType } from "react";
 
-// Painel de valor CLEAN (estilo mock ChatGPT): cartao branco de alto relevo
-// (.panel-3d-sub) com rotulo pequeno em maiusculas, numero grande colorido pelo
-// "tom" e linha auxiliar opcional. Substitui o antigo visor digital escuro.
+// Painel de valor CLEAN (estilo mock ChatGPT): "mini tela" convexa (.screen-3d)
+// que se afasta da folha, com rotulo pequeno em maiusculas, numero grande
+// colorido pelo "tom" e linha auxiliar opcional. Os numeros saltam em 3D.
 
 type Tone = "teal" | "red" | "green" | "slate";
 type Size = "sm" | "md" | "lg" | "xl";
@@ -50,7 +50,7 @@ export function StatPanel({
   className?: string;
 }) {
   return (
-    <div className={`panel-3d-sub ${PAD[size]} ${recommended ? "ring-2 ring-primary/40" : ""} ${className}`}>
+    <div className={`screen-3d ${PAD[size]} ${recommended ? "ring-2 ring-primary/40" : ""} ${className}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
         {Icon ? <Icon className="h-3.5 w-3.5 text-muted-foreground" /> : null}

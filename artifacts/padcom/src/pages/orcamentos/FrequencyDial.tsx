@@ -90,14 +90,16 @@ export function FrequencyDial({
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <div className="flex-1 px-1 text-center">
-          <div
-            key={numText}
-            className="text-base font-bold leading-tight text-foreground animate-in fade-in zoom-in-95 duration-300"
-          >
-            {numText}
+        <div className="flex-1 px-0.5">
+          <div className="screen-3d px-2 py-2 text-center">
+            <div
+              key={numText}
+              className="text-base font-bold leading-tight text-foreground animate-in fade-in zoom-in-95 duration-300"
+            >
+              {numText}
+            </div>
+            <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{spellText}</div>
           </div>
-          <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{spellText}</div>
         </div>
 
         <button
@@ -140,8 +142,12 @@ export function FrequencyDial({
               aria-hidden="true"
               title={s.label}
               onClick={() => selectIndex(i)}
-              className={`h-2 flex-1 cursor-pointer rounded-full transition-all ${
-                on ? "bg-primary" : passed ? "bg-primary/35" : "bg-muted"
+              className={`h-2.5 flex-1 cursor-pointer rounded-[3px] transition-all ${
+                on
+                  ? "bg-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]"
+                  : passed
+                    ? "bg-primary/35"
+                    : "bg-black/[0.07] dark:bg-white/10"
               }`}
             />
           );

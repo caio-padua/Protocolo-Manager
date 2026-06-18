@@ -15,9 +15,18 @@ A tela exibe a dose no CABECALHO do item (read-only, vinda do catalogo de substa
 **How to apply:** persistir exatamente a dose exibida seria tarefa separada (afeta o snapshot salvo do orcamento/apresentacao).
 
 ## Relevo 3D: classes UNLAYERED para vencer utilitarios Tailwind/shadcn
-As classes de relevo (`panel-3d`, `panel-3d-sub`, `panel-3d-hero`, `panel-3d-active`, `field-engraved`, e a `incentive-banner`) ficam no FIM de `index.css` FORA de qualquer `@layer`. CSS sem layer vence todas as camadas do Tailwind v4, entao sobrepoe `bg-card`/`shadow-sm`/`rounded-*`/`border` do shadcn `Card` de forma previsivel sem `!important`.
+As classes de relevo (`panel-3d`, `panel-3d-sub`, `panel-3d-hero`, `panel-3d-active`, `field-engraved`, `incentive-banner`, mais o par `concave-3d`/`screen-3d`) ficam no FIM de `index.css` FORA de qualquer `@layer`, com variante `.dark` correspondente. CSS sem layer vence todas as camadas do Tailwind v4, entao sobrepoe `bg-card`/`shadow-sm`/`rounded-*`/`border` do shadcn `Card` de forma previsivel sem `!important`.
 **Why:** aplicar relevo direto num `<Card>` shadcn falha por utilitario (camada utilities venceria); unlayered resolve. `panel-3d-active` vem DEPOIS de `panel-3d` para vencer no cascade.
 **How to apply:** so atuam onde a classe e aplicada explicitamente (sem efeito global). Nao misturar com `shadow-*`/`bg-*`/`rounded-*` conflitantes no mesmo elemento. Radius 14px/12px (mais premium que os 6px "quadrados" da marca) — desvio estetico autorizado pelo CEO.
+
+## Vocabulario 3D do CEO: CONCAVO (rotulo afundado) vs CONVEXO (numero saltando)
+Decisao estetica do CEO para a tela de orcamento: ROTULOS/titulos de bloco e o chip de dose usam `concave-3d` (sombra interna no topo = "entra na tela", como menu pressionado); NUMEROS (preco, frequencia read-only, subtotal, StatPanel, valor do SessionStacker) usam `screen-3d` (sombra externa profunda = "mini tela que sai da folha"). As barras de progresso (sessoes, frequencia, incentivo) sao SEGMENTADas em quadradinhos (`flex-1` + `gap-[3px]` + `rounded-[2px]/[3px]`), nunca barra continua/gradiente — visual "tecnologico" pedido pelo CEO.
+**Why:** o CEO rejeitou cantos quadrados estilo Windows e barras lisas; quer relevo forte (sombra intensa, altura maior, arredondado) e numeros em destaque tatil.
+**How to apply:** ao adicionar campo nessa tela, rotulo->concave, numero->screen, qualquer barra->segmentos. Preco e "por sessao" por extenso EMPILHADO (nunca "/ sessao").
+
+## Chip de dose: so a magnitude, com guarda de overflow
+No cabecalho, `doseMain = doseDisplay.split("—")[0].trim() || doseDisplay` mostra so a magnitude (ex.: "200 MG"), cortando a parte apos o travessao em-dash. O chip tem `max-w-[180px] truncate` + `title={doseDisplay}` para posologia longa sem travessao.
+**Why:** sem o `|| doseDisplay`, dose sem em-dash sumiria; sem max-w, posologia longa estoura o cabecalho.
 
 ## Armadilha ARIA: role="slider" nao pode envolver filhos focaveis
 Tanto em `SessionStacker` (barra) quanto em `FrequencyDial` (trilha), o elemento com `role="slider"` + `tabIndex=0` + teclado NAO contem filhos focaveis: os marcadores/preenchimentos sao `<div>` com `aria-hidden`. Botoes +/- ficam IRMAOS do slider, nunca dentro.
