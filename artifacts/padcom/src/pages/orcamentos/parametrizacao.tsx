@@ -338,7 +338,7 @@ export default function Parametrizacao() {
           ) : (
             <div className="space-y-3">
               <div className="hidden gap-2 border border-transparent px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground lg:grid lg:grid-cols-[minmax(110px,1.4fr)_116px_104px_80px_88px_152px_108px]">
-                <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span className="text-center">Limites</span><span className="text-right">Acoes</span>
+                <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span className="text-center">Sinais</span><span className="text-right">Acoes</span>
               </div>
               {items.map((it) => (
                 <div key={it.id} className="panel-3d-sub">
@@ -366,11 +366,11 @@ export default function Parametrizacao() {
                       <Input type="number" value={it.frequencyDays ?? ""}
                         onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="field-engraved h-9" />
                     </CatCell>
-                    <div className="flex flex-wrap items-center gap-1 lg:flex-nowrap lg:justify-center">
+                    <div className="col-span-2 flex flex-wrap items-center gap-1.5 lg:col-span-1 lg:flex-nowrap lg:justify-center lg:gap-1">
                       <StatusChip on={!!it.substanceId} tone="green" label="VITRINE" />
-                      <StatusChip on={!it.repeticaoLivre} tone="amber" label="LIM/MES" />
+                      <StatusChip on={!it.repeticaoLivre} tone="amber" label="LIMITES" />
                     </div>
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="col-span-2 flex items-center justify-end gap-1 lg:col-span-1">
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(it.id)} title="Limite clinico mensal de prescricao">
                         {expanded[it.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </Button>

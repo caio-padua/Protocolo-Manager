@@ -117,7 +117,8 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   Lucide a esquerda, na cor tematica do bloco (primary, ambar, ciano, esmeralda). A placa SALTA
   da folha — o titulo vira a "etiqueta gravada" do painel. Helper local recebe `icon`, `color`.
 - **Padrao 4 — sinal de status com SLOT fixo (`StatusChip`)**: marcador on/off (ex.: VITRINE,
-  LIM/MES) NUNCA aparece/some entre linhas — isso desalinha colunas. Usa-se um chip de largura
+  LIMITES) NUNCA aparece/some entre linhas — isso desalinha colunas. NUNCA usar "TETO/MES" (palavra
+  "teto" proibida no contexto clinico). Usa-se um chip de largura
   FIXA (`concave-3d`, `w-[72px]`, `shrink-0`) SEMPRE presente: LED aceso (`paxter-led-on`, cor
   verde/ambar) quando ativo, LED apagado + `opacity-70` quando inativo. Verde = vitrine/positivo,
   ambar = restricao/limite clinico. Slot constante = linhas sempre alinhadas em coluna.
@@ -157,7 +158,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - `pages/orcamentos/parametrizacao.tsx` — Parametrizacao (referencia viva dos Padroes 3 a 7).
   Titulos em `BlockTitle` (placa Saliente por bloco); "Descontos e Plano" em dois sub-paineis
   empilhados; "Desconto por Volume" explicado em `ExplainRow` empilhados; catalogo com nome/tipo
-  em `field-engraved` e sinais `StatusChip` (VITRINE/LIM-MES) em slot fixo; toggles em
+  em `field-engraved` e sinais `StatusChip` (VITRINE/LIMITES) em slot fixo; toggles em
   `ToggleWell`. `TierEditor` define as faixas; "Numero de faixas" gera/encurta N inputs de %.
 - A dose EXIBIDA vem do catalogo; a dose SALVA vem de `r.dose`. Diferenca proposital.
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do
