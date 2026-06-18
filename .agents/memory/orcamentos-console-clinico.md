@@ -5,7 +5,7 @@ description: Decisoes nao-obvias da tela de orcamento (StatPanel/SessionStacker/
 
 # Tela Montagem do Orcamento — sub-blocos do item
 
-Reforma puramente visual/interativa de `artifacts/padcom/src/pages/orcamentos/novo.tsx`. Cada item incluido mostra TRES paineis brancos de alto relevo lado a lado (Sessoes | Frequencia | Subtotal), que empilham no mobile, mais um banner de incentivo. Componentes irmaos na mesma pasta: `StatPanel.tsx` (painel branco de valor, tons teal/red/green/slate), `SessionStacker.tsx` (barra HORIZONTAL em degrade espectro) e `FrequencyDial.tsx` (setas nas extremidades + texto central + trilha de ticks; exporta `FREQ_STOPS` e `frequencyLabel`).
+Reforma puramente visual/interativa de `artifacts/padcom/src/pages/orcamentos/novo.tsx`. Cada item incluido mostra TRES paineis brancos lado a lado (Sessoes | Frequencia | Subtotal), que empilham no mobile, mais um banner/organograma de incentivo. Componentes irmaos na mesma pasta: `StatPanel.tsx` (painel branco de valor), `SessionStacker.tsx` (barra HORIZONTAL segmentada em degrade espectro arco-iris) e `FrequencyDial.tsx` (setas nas extremidades + texto central + custom input; exporta `FrequencyBar`, `frequencyFill`, `frequencyLabel`, `FREQ_STOPS`, `FREQ_SEGMENTS`, `FREQ_LEGEND`).
 
 **Decisao durável (CEO):** abolido o visor digital escuro ("retroiluminado") — os numeros vivem em paineis brancos clean. Se reaparecer pedido de "mostrador escuro", e regressao do que o CEO mandou remover.
 
@@ -17,7 +17,27 @@ A tela exibe a dose no CABECALHO do item (read-only, vinda do catalogo de substa
 ## Relevo 3D: classes UNLAYERED para vencer utilitarios Tailwind/shadcn
 As classes de relevo (`panel-3d`, `panel-3d-sub`, `panel-3d-hero`, `panel-3d-active`, `field-engraved`, `incentive-banner`, mais o par `concave-3d`/`screen-3d`) ficam no FIM de `index.css` FORA de qualquer `@layer`, com variante `.dark` correspondente. CSS sem layer vence todas as camadas do Tailwind v4, entao sobrepoe `bg-card`/`shadow-sm`/`rounded-*`/`border` do shadcn `Card` de forma previsivel sem `!important`.
 **Why:** aplicar relevo direto num `<Card>` shadcn falha por utilitario (camada utilities venceria); unlayered resolve. `panel-3d-active` vem DEPOIS de `panel-3d` para vencer no cascade.
-**How to apply:** so atuam onde a classe e aplicada explicitamente (sem efeito global). Nao misturar com `shadow-*`/`bg-*`/`rounded-*` conflitantes no mesmo elemento. Radius 14px/12px (mais premium que os 6px "quadrados" da marca) — desvio estetico autorizado pelo CEO.
+**How to apply:** so atuam onde a classe e aplicada explicitamente (sem efeito global). Nao misturar com `shadow-*`/`bg-*`/`rounded-*` conflitantes no mesmo elemento.
+
+## Raio dos cantos: ~6px (quadrado da marca), NAO 14px premium
+As classes de relevo em `index.css` usam border-radius 0.25–0.5rem (4–8px), cantos retos alinhados a marca.
+**Why:** o CEO REVERTEU (voz, 18/06/2026) o desvio anterior de 14px/12px "premium"; pediu cantos mais quadrados. Por Art.50, isto substitui a decisao estetica antiga — se reaparecer 14px e regressao.
+**How to apply:** ao criar painel/botao nessa tela, manter radius pequeno (<=8px). Botoes usam `.btn-3d` (CTA cheio, afunda no :active) e `.btn-3d-soft` (secundario), e cards do item ganham `.neon-hover` (luz ciano de baixo no hover) — todos UNLAYERED no fim do `index.css`.
+
+## Layout MATRIZ: 4 linhas compartilhadas pelos 3 blocos
+Sessoes, Frequencia e Subtotal alinham em colunas pela MESMA grade de alturas fixas: titulo `h-7`, controle `h-[60px]`, barra/risco `h-5`, legenda `h-4`, `gap-2.5`. Subtotal = preco final (controle) + preco cheio RISCADO na linha da barra + "-X% no pacote" na linha da legenda. Frequencia read-only mostra `FrequencyBar` estatica + `FREQ_LEGEND` (mantem a grade).
+**Why:** o CEO quer leitura "tipo planilha/matriz" — as 4 linhas batem horizontalmente entre as 3 colunas.
+**How to apply:** as 4 linhas-chave alinham no TOPO; afordancias extras (botao "Eu digito um intervalo"; texto "definido no catalogo" no read-only) ficam na FOLGA abaixo da legenda, nunca dentro das 4 linhas. Manter o custom input e exigencia do CEO (nao remover para "fechar" a matriz).
+
+## Barras: significados FIXOS (nao inverter)
+SessionStacker = arco-iris (vermelho->verde), legenda unica central "AZUL = MELHOR PRECO" (sem "MENOS/MAIS"); mais sessoes = melhor preco. FrequencyBar = cor unica ciano `hsl(187 72% 48%)`, `fill=frequencyFill` (MENOR intervalo entre doses = barra MAIS cheia = mais eficiente), legenda `FREQ_LEGEND="Menor intervalo = mais eficiente"`.
+**Why:** o CEO definiu a direcao semantica; inverter o fill (intervalo maior = mais cheio) ou trocar a cor da frequencia por degrade quebra a leitura pedida.
+**How to apply:** clique/teclado da FrequencyBar e o render compartilham `frequencyFill`/`FREQ_SEGMENTS` — manter consistentes. Desconto por pacote vira ORGANOGRAMA (cofrinho `PiggyBank`): "AGORA -X%" --seta--> "META -Y%" alinhados em colunas, barra de progresso e botao "Adicionar N sessoes".
+
+## Terminologia: "PACOTE", nao "volume" (D1)
+Na UI do orcamento o desconto por escala chama-se "no pacote" / "Desconto por pacote" (antes "volume").
+**Why:** decisao do CEO (18/06/2026) — "pacote" e o termo de negocio que ele usa com o cliente.
+**How to apply:** so a STRING/label muda; o motor e o payload continuam com os mesmos campos (a logica de tiers por escala nao muda de nome no codigo do servidor).
 
 ## Vocabulario 3D do CEO: CONCAVO (rotulo afundado) vs CONVEXO (numero saltando)
 Decisao estetica do CEO para a tela de orcamento: ROTULOS/titulos de bloco e o chip de dose usam `concave-3d` (sombra interna no topo = "entra na tela", como menu pressionado); NUMEROS (preco, frequencia read-only, subtotal, StatPanel, valor do SessionStacker) usam `screen-3d` (sombra externa profunda = "mini tela que sai da folha"). As barras de progresso (sessoes, frequencia, incentivo) sao SEGMENTADas em quadradinhos (`flex-1` + `gap-[3px]` + `rounded-[2px]/[3px]`), nunca barra continua/gradiente — visual "tecnologico" pedido pelo CEO.

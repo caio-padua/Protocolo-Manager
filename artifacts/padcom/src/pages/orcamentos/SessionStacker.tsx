@@ -5,6 +5,10 @@ import { Minus, Plus } from "lucide-react";
 // estilo equalizador/tecnologico. Cada segmento aceso caminha do marrom/vermelho
 // (esquerda = pior preco) ao azul (direita = melhor faixa). Numero grande numa
 // "mini tela" convexa + botoes - / +. Contrato (value, onChange, max) intacto.
+//
+// Alturas fixas (control h-[60px] / bar h-5 / legend h-4) para alinhar em MATRIZ
+// com os blocos Frequencia e Subtotal. Segmentos com relevo ELEVADO (corrige o
+// "relevo pra baixo" reportado pelo CEO).
 
 // Cor de cada quadradinho por posicao (0..1): vermelho-marrom -> ... -> azul.
 function hueAt(ratio: number): number {
@@ -46,34 +50,35 @@ export function SessionStacker({
   }
 
   return (
-    <div className="flex w-full flex-col gap-3 select-none">
-      {/* Numero grande numa mini tela convexa, com botoes nas laterais. */}
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex w-full flex-1 flex-col gap-2.5 select-none">
+      {/* CONTROL (h-60): numero grande na mini tela convexa, com botoes nas laterais. */}
+      <div className="flex h-[60px] items-center justify-between gap-2">
         <button
           type="button"
-          aria-label="Diminuir sessoes"
-          className="h-9 w-9 shrink-0 grid place-items-center rounded-lg border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted disabled:opacity-30"
+          aria-label="Diminuir sessões"
+          className="h-10 w-10 shrink-0 grid place-items-center rounded-[6px] border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted disabled:opacity-30"
           onClick={() => onChange(Math.max(1, value - 1))}
         >
           <Minus className="h-4 w-4" />
         </button>
-        <div className="screen-3d grid min-w-[60px] flex-1 place-items-center px-3 py-1.5">
+        <div className="screen-3d grid h-full min-w-[60px] flex-1 place-items-center px-3">
           <span className="text-4xl font-bold leading-none tabular-nums text-primary">{value}</span>
         </div>
         <button
           type="button"
-          aria-label="Aumentar sessoes"
-          className="h-9 w-9 shrink-0 grid place-items-center rounded-lg border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted"
+          aria-label="Aumentar sessões"
+          className="h-10 w-10 shrink-0 grid place-items-center rounded-[6px] border bg-white text-primary shadow-sm transition active:scale-95 hover:bg-muted"
           onClick={() => onChange(value + 1)}
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Barra SEGMENTADA (clique/arraste). Quadradinhos que acendem do quente ao azul. */}
+      {/* BARRA SEGMENTADA (h-5, clique/arraste). Quadradinhos ELEVADOS que acendem
+          do quente ao azul. */}
       <div
         ref={trackRef}
-        className="flex w-full cursor-pointer touch-none items-end gap-[3px] rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        className="flex h-5 w-full cursor-pointer touch-none items-stretch gap-[3px] rounded-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
         onPointerDown={handleDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}
@@ -92,7 +97,7 @@ export function SessionStacker({
         aria-valuemin={1}
         aria-valuemax={Math.max(max, value)}
         aria-valuenow={value}
-        aria-label="Numero de sessoes"
+        aria-label="Número de sessões"
       >
         {Array.from({ length: segments }).map((_, i) => {
           const ratio = segments > 1 ? i / (segments - 1) : 0;
@@ -101,12 +106,13 @@ export function SessionStacker({
             <div
               key={i}
               aria-hidden="true"
-              className={`h-5 flex-1 rounded-[3px] transition-colors duration-150 ${on ? "" : "bg-black/[0.07] dark:bg-white/10"}`}
+              className={`h-full flex-1 rounded-[2px] transition-colors duration-150 ${on ? "" : "bg-black/[0.06] dark:bg-white/10 shadow-[inset_0_1px_2px_rgba(7,22,43,0.10)]"}`}
               style={
                 on
                   ? {
-                      background: `hsl(${hueAt(ratio)} 78% 50%)`,
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 3px rgba(0,0,0,0.12)",
+                      background: `linear-gradient(180deg, hsl(${hueAt(ratio)} 82% 56%) 0%, hsl(${hueAt(ratio)} 80% 46%) 100%)`,
+                      boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 1px rgba(0,0,0,0.10), 0 1px 1.5px rgba(7,22,43,0.30)",
                     }
                   : undefined
               }
@@ -115,10 +121,9 @@ export function SessionStacker({
         })}
       </div>
 
-      <div className="flex items-center justify-between text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-        <span>menos</span>
-        <span className="text-primary">azul = melhor preco</span>
-        <span>mais</span>
+      {/* LEGENDA (h-4) — central, sem "MENOS"/"MAIS". */}
+      <div className="flex h-4 items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-primary">
+        Azul = melhor preço
       </div>
     </div>
   );
