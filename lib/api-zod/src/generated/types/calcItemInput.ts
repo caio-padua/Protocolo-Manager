@@ -5,9 +5,11 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { VolumeTier } from "./volumeTier";
 
 export interface CalcItemInput {
   unitPriceCents: number;
   sessions: number;
   include: boolean;
+  volumeTiers?: VolumeTier[] | null;
 }

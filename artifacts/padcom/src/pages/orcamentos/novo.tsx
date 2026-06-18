@@ -32,6 +32,10 @@ type Row = {
   unitPriceCents: number;
   substanceId: number | null;
   include: boolean;
+  repeticaoLivre: boolean;
+  maxAplicacoesMes: number | null;
+  minAplicacoesMes: number | null;
+  itemVolumeTiers: { minSessions: number; discountPct: number }[] | null;
 };
 
 export default function MontagemOrcamento() {
@@ -60,6 +64,10 @@ export default function MontagemOrcamento() {
         unitPriceCents: c.unitPriceCents,
         substanceId: c.substanceId ?? null,
         include: false,
+        repeticaoLivre: c.repeticaoLivre,
+        maxAplicacoesMes: c.maxAplicacoesMes ?? null,
+        minAplicacoesMes: c.minAplicacoesMes ?? null,
+        itemVolumeTiers: c.itemVolumeTiers ?? null,
       })));
     }
   }, [catalog]);
@@ -79,11 +87,33 @@ export default function MontagemOrcamento() {
   const calcRef = useRef(calc.mutateAsync);
   calcRef.current = calc.mutateAsync;
 
+  // Resultado do volume por item: alinhado por INDICE aos itens incluidos.
+  const volumeByCatalogId = useMemo(() => {
+    const m = new Map<number, BudgetCalcResult["items"][number]>();
+    if (result) includedRows.forEach((r, idx) => { const v = result.items[idx]; if (v) m.set(r.catalogId, v); });
+    return m;
+  }, [result, includedRows]);
+
+  // Teto clinico mensal: aplicacoes/mes estimadas pela frequencia.
+  function clinicalAlert(r: Row): { kind: "over" | "under"; msg: string } | null {
+    if (r.repeticaoLivre || !r.frequencyDays || r.frequencyDays <= 0) return null;
+    const perMonth = 30 / r.frequencyDays;
+    if (r.maxAplicacoesMes && perMonth > r.maxAplicacoesMes + 0.001) {
+      const minDias = Math.ceil(30 / r.maxAplicacoesMes);
+      return { kind: "over", msg: `Excede o teto clinico de ${r.maxAplicacoesMes}/mes (cerca de ${perMonth.toFixed(1)}/mes). Espace para no minimo ${minDias} dias.` };
+    }
+    if (r.minAplicacoesMes && perMonth < r.minAplicacoesMes - 0.001) {
+      const maxDias = Math.floor(30 / r.minAplicacoesMes);
+      return { kind: "under", msg: `Abaixo do minimo clinico de ${r.minAplicacoesMes}/mes. Use no maximo ${maxDias} dias entre aplicacoes.` };
+    }
+    return null;
+  }
+
   // Preview ao vivo (debounce). Motor e a fonte unica de calculo (servidor).
   useEffect(() => {
     if (includedRows.length === 0) { setResult(null); return; }
     const payload = {
-      items: includedRows.map((r) => ({ unitPriceCents: r.unitPriceCents, sessions: r.sessions, include: true })),
+      items: includedRows.map((r) => ({ unitPriceCents: r.unitPriceCents, sessions: r.sessions, include: true, volumeTiers: r.itemVolumeTiers ?? undefined })),
     };
     const t = setTimeout(() => {
       calcRef.current({ data: payload })
@@ -202,6 +232,31 @@ export default function MontagemOrcamento() {
                           </div>
                         </div>
                       )}
+                      {r.include && (() => {
+                        const v = volumeByCatalogId.get(r.catalogId);
+                        const alert = clinicalAlert(r);
+                        return (
+                          <div className="mt-2 pl-12 space-y-1.5">
+                            {v && v.discountPct > 0 ? (
+                              <div className="text-xs flex items-center gap-2">
+                                <span className="text-emerald-600 font-medium">-{v.discountPct}% volume</span>
+                                <span className="text-muted-foreground line-through">{fmt(r.unitPriceCents)}</span>
+                                <span className="font-semibold text-emerald-700">{fmt(v.effectiveUnitCents)} / sessao</span>
+                              </div>
+                            ) : null}
+                            {v && v.nextTierSessions ? (
+                              <div className="text-[11px] text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30 rounded px-2 py-1 inline-block">
+                                Faltam <strong>{v.nextTierSessions}</strong> sessoes para <strong>-{v.nextTierPct}%</strong> neste item
+                              </div>
+                            ) : null}
+                            {alert ? (
+                              <div className={`text-[11px] rounded px-2 py-1 ${alert.kind === "over" ? "bg-red-50 text-red-700 dark:bg-red-950/30" : "bg-amber-50 text-amber-700 dark:bg-amber-950/30"}`}>
+                                {alert.msg}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -230,9 +285,31 @@ export default function MontagemOrcamento() {
                 </div>
                 <div className="flex items-center justify-between border-t pt-2">
                   <span className="text-sm text-muted-foreground">Total bruto</span>
-                  <span className="text-xl font-bold">{fmt(result?.totalCents ?? 0)}</span>
+                  <span className={`font-bold ${result && result.volumeDiscountCents > 0 ? "text-base text-muted-foreground line-through" : "text-xl"}`}>{fmt(result?.totalCents ?? 0)}</span>
                 </div>
+                {result && result.volumeDiscountCents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-emerald-700 font-medium">Preco do protocolo (-{result.volumeDiscountPct.toFixed(1)}%)</span>
+                    <span className="text-xl font-bold text-emerald-700">{fmt(result.volumeDiscountedCents)}</span>
+                  </div>
+                )}
               </div>
+
+              {result && (result.itemVolumeDiscountCents > 0 || result.cartBonusCents > 0 || result.cartNextTierSessions) && (
+                <div className="space-y-1.5 border-t pt-3 text-xs">
+                  {result.itemVolumeDiscountCents > 0 && (
+                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Desconto por item</span><span className="text-emerald-700 font-medium">-{fmt(result.itemVolumeDiscountCents)}</span></div>
+                  )}
+                  {result.cartBonusCents > 0 && (
+                    <div className="flex items-center justify-between"><span className="text-muted-foreground">Bonus de carrinho ({result.cartBonusPct}%)</span><span className="text-emerald-700 font-medium">-{fmt(result.cartBonusCents)}</span></div>
+                  )}
+                  {result.cartNextTierSessions ? (
+                    <div className="text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30 rounded px-2 py-1">
+                      Faltam <strong>{result.cartNextTierSessions}</strong> sessoes no total para <strong>+{result.cartNextTierPct}%</strong> de bonus de carrinho
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {result && (
                 <div className="space-y-2 border-t pt-3">

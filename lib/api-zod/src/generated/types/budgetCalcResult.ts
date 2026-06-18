@@ -8,10 +8,23 @@
 import type { CashScenario } from "./cashScenario";
 import type { DownScenario } from "./downScenario";
 import type { FreeScenario } from "./freeScenario";
+import type { ItemVolumeResult } from "./itemVolumeResult";
 
 export interface BudgetCalcResult {
   totalCents: number;
   totalSessions: number;
+  itemVolumeDiscountCents: number;
+  cartBonusPct: number;
+  cartBonusCents: number;
+  /** @nullable */
+  cartNextTierSessions?: number | null;
+  /** @nullable */
+  cartNextTierPct?: number | null;
+  volumeDiscountCents: number;
+  volumeDiscountedCents: number;
+  volumeDiscountPct: number;
+  items: ItemVolumeResult[];
+  maxTotalDiscountPct: number;
   scenarioA: CashScenario;
   scenarioB: DownScenario;
   scenarioC: DownScenario;

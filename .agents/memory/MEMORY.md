@@ -11,3 +11,4 @@
 - [executeSql RETURNING nao serve para contagem](executesql-returning-count.md) — contar linhas afetadas via SELECT COUNT, nao parseando RETURNING (notebook soma linha extra e superestima).
 - [API admin sem auth (Manager)](admin-api-sem-auth.md) — todos os routers admin nao tem authz (single-tenant, proxy); nao inventar auth p/ 1-2 rotas em revisao, e condicao do app inteiro.
 - [Motor da anamnese: bracos](motor-anamnese-bracos.md) — exames ja liga; formulas/injetaveis pre-cabeados (item_doenca); antes de ativar, definir tipo do item_ref e migrar bloco_motor texto->id.
+- [Orcamento volume: consistencia Montagem x Apresentacao](orcamento-volume-consistencia.md) — Apresentacao deve reidratar itemVolumeTiers do catalogo por catalogId; snapshot do orcamento nao persiste override.

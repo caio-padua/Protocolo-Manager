@@ -959,6 +959,11 @@ export interface ProtocolStats {
   revenueByMonth: ProtocolStatsRevenueByMonthItem[];
 }
 
+export interface VolumeTier {
+  minSessions: number;
+  discountPct: number;
+}
+
 export interface BudgetCatalogItem {
   id: number;
   kind: string;
@@ -973,6 +978,12 @@ export interface BudgetCatalogItem {
   sortOrder: number;
   /** @nullable */
   substanceId?: number | null;
+  repeticaoLivre: boolean;
+  /** @nullable */
+  maxAplicacoesMes?: number | null;
+  /** @nullable */
+  minAplicacoesMes?: number | null;
+  itemVolumeTiers?: VolumeTier[] | null;
 }
 
 export interface BudgetCatalogItemInput {
@@ -986,6 +997,12 @@ export interface BudgetCatalogItemInput {
   active?: boolean;
   sortOrder?: number;
   substanceId?: number;
+  repeticaoLivre?: boolean;
+  /** @nullable */
+  maxAplicacoesMes?: number | null;
+  /** @nullable */
+  minAplicacoesMes?: number | null;
+  itemVolumeTiers?: VolumeTier[];
 }
 
 export interface BudgetCatalogItemUpdate {
@@ -999,6 +1016,12 @@ export interface BudgetCatalogItemUpdate {
   active?: boolean;
   sortOrder?: number;
   substanceId?: number;
+  repeticaoLivre?: boolean;
+  /** @nullable */
+  maxAplicacoesMes?: number | null;
+  /** @nullable */
+  minAplicacoesMes?: number | null;
+  itemVolumeTiers?: VolumeTier[] | null;
 }
 
 export interface CardFee {
@@ -1018,6 +1041,9 @@ export interface BudgetSettings {
   cardFees: CardFee[];
   recommendedScenario: string;
   passCardFeeDefault: boolean;
+  itemVolumeTiers: VolumeTier[];
+  cartVolumeTiers: VolumeTier[];
+  maxTotalDiscountPct: number;
   /** @nullable */
   updatedAt?: string | null;
 }
@@ -1033,6 +1059,9 @@ export interface BudgetSettingsUpdate {
   cardFees?: CardFee[];
   recommendedScenario?: string;
   passCardFeeDefault?: boolean;
+  itemVolumeTiers?: VolumeTier[];
+  cartVolumeTiers?: VolumeTier[];
+  maxTotalDiscountPct?: number;
 }
 
 export interface BudgetItem {
@@ -1146,6 +1175,7 @@ export interface CalcItemInput {
   unitPriceCents: number;
   sessions: number;
   include: boolean;
+  volumeTiers?: VolumeTier[] | null;
 }
 
 export interface FreeCalcInput {
@@ -1206,9 +1236,34 @@ export interface FreeScenario {
   installmentCents: number;
 }
 
+export interface ItemVolumeResult {
+  sessions: number;
+  grossCents: number;
+  discountPct: number;
+  discountCents: number;
+  netCents: number;
+  effectiveUnitCents: number;
+  /** @nullable */
+  nextTierSessions?: number | null;
+  /** @nullable */
+  nextTierPct?: number | null;
+}
+
 export interface BudgetCalcResult {
   totalCents: number;
   totalSessions: number;
+  itemVolumeDiscountCents: number;
+  cartBonusPct: number;
+  cartBonusCents: number;
+  /** @nullable */
+  cartNextTierSessions?: number | null;
+  /** @nullable */
+  cartNextTierPct?: number | null;
+  volumeDiscountCents: number;
+  volumeDiscountedCents: number;
+  volumeDiscountPct: number;
+  items: ItemVolumeResult[];
+  maxTotalDiscountPct: number;
   scenarioA: CashScenario;
   scenarioB: DownScenario;
   scenarioC: DownScenario;

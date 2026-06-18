@@ -9,6 +9,7 @@ import {
   useSeedBudgetCatalog,
   type BudgetCatalogItem,
   type CardFee,
+  type VolumeTier,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Trash2, Plus, Sparkles, SlidersHorizontal, CreditCard, Tag } from "lucide-react";
+import { Save, Trash2, Plus, Sparkles, SlidersHorizontal, CreditCard, Tag, Layers, ChevronDown, ChevronRight } from "lucide-react";
 import { centsToReais, reaisToCents } from "./money";
 
 type SettingsDraft = {
@@ -33,6 +34,9 @@ type SettingsDraft = {
   recommendedScenario: string;
   passCardFeeDefault: boolean;
   cardFees: CardFee[];
+  itemVolumeTiers: VolumeTier[];
+  cartVolumeTiers: VolumeTier[];
+  maxTotalDiscountPct: number;
 };
 
 export default function Parametrizacao() {
@@ -43,6 +47,7 @@ export default function Parametrizacao() {
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [items, setItems] = useState<BudgetCatalogItem[]>([]);
   const [newItem, setNewItem] = useState({ name: "", kind: "substance", priceReais: "", sessions: "12" });
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (settings) {
@@ -57,6 +62,9 @@ export default function Parametrizacao() {
         recommendedScenario: settings.recommendedScenario,
         passCardFeeDefault: settings.passCardFeeDefault,
         cardFees: settings.cardFees ?? [],
+        itemVolumeTiers: settings.itemVolumeTiers ?? [],
+        cartVolumeTiers: settings.cartVolumeTiers ?? [],
+        maxTotalDiscountPct: settings.maxTotalDiscountPct ?? 40,
       });
     }
   }, [settings]);
@@ -119,8 +127,16 @@ export default function Parametrizacao() {
         defaultSessions: it.defaultSessions,
         frequencyDays: it.frequencyDays ?? undefined,
         active: it.active,
+        repeticaoLivre: it.repeticaoLivre,
+        maxAplicacoesMes: it.maxAplicacoesMes ?? null,
+        minAplicacoesMes: it.minAplicacoesMes ?? null,
+        itemVolumeTiers: it.itemVolumeTiers ?? null,
       },
     });
+  }
+
+  function toggleExpand(id: number) {
+    setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
   function addItem() {
@@ -217,6 +233,52 @@ export default function Parametrizacao() {
         </CardContent>
       </Card>
 
+      {/* DESCONTO POR VOLUME */}
+      <Card className="border-l-4 border-l-amber-500">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide">
+            <Layers className="h-4 w-4" /> Desconto por Volume
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingSettings || !draft ? (
+            <Skeleton className="h-40 rounded" />
+          ) : (
+            <div className="space-y-6">
+              <p className="text-xs text-muted-foreground">
+                A escada por item incide sobre as sessoes de CADA item. O bonus de carrinho incide sobre o total de sessoes do orcamento.
+                O desconto por volume vira o preco do protocolo; depois os pagamentos (a vista / entradas) incidem sobre ele, limitados pelo teto total.
+              </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[11px] uppercase tracking-wide font-semibold">Escada por item (sessoes do item)</Label>
+                  <TierEditor
+                    tiers={draft.itemVolumeTiers}
+                    onChange={(t) => setDraftField("itemVolumeTiers", t)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] uppercase tracking-wide font-semibold">Bonus de carrinho (total de sessoes)</Label>
+                  <TierEditor
+                    tiers={draft.cartVolumeTiers}
+                    onChange={(t) => setDraftField("cartVolumeTiers", t)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Field label="Teto total de desconto (%)">
+                  <Input type="number" step="0.01" value={draft.maxTotalDiscountPct}
+                    onChange={(e) => setDraftField("maxTotalDiscountPct", parseFloat(e.target.value) || 0)} />
+                </Field>
+              </div>
+              <Button onClick={saveSettings} disabled={updateSettings.isPending}>
+                <Save className="h-4 w-4 mr-2" /> Salvar desconto por volume
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* TAXAS DE CARTAO */}
       <Card className="border-l-4 border-l-cyan-500">
         <CardHeader>
@@ -263,29 +325,72 @@ export default function Parametrizacao() {
                 <span>Nome</span><span>Tipo</span><span>Preco (R$)</span><span>Sessoes</span><span>Freq (dias)</span><span>Acoes</span>
               </div>
               {items.map((it) => (
-                <div key={it.id} className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center border rounded p-2">
-                  <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="h-9" />
-                  <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Input type="number" step="0.01" value={centsToReais(it.unitPriceCents)}
-                    onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="h-9" />
-                  <Input type="number" value={it.defaultSessions}
-                    onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="h-9" />
-                  <Input type="number" value={it.frequencyDays ?? ""}
-                    onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="h-9" />
-                  <div className="flex items-center gap-1 justify-end">
-                    {it.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
-                      <Save className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => deleteItem.mutate({ id: it.id })} disabled={deleteItem.isPending}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                <div key={it.id} className="border rounded">
+                  <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center p-2">
+                    <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="h-9" />
+                    <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input type="number" step="0.01" value={centsToReais(it.unitPriceCents)}
+                      onChange={(e) => setLocalItem(it.id, { unitPriceCents: reaisToCents(e.target.value) })} className="h-9" />
+                    <Input type="number" value={it.defaultSessions}
+                      onChange={(e) => setLocalItem(it.id, { defaultSessions: parseInt(e.target.value) || 1 })} className="h-9" />
+                    <Input type="number" value={it.frequencyDays ?? ""}
+                      onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="h-9" />
+                    <div className="flex items-center gap-1 justify-end">
+                      {it.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
+                      {!it.repeticaoLivre ? <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-600">teto/mes</Badge> : null}
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(it.id)} title="Limite clinico mensal">
+                        {expanded[it.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => deleteItem.mutate({ id: it.id })} disabled={deleteItem.isPending}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
+                  {expanded[it.id] && (
+                    <div className="border-t bg-muted/30 p-3 space-y-3">
+                      <div className="flex flex-wrap items-end gap-4">
+                        <div className="flex items-center gap-2">
+                          <Switch checked={it.repeticaoLivre} onCheckedChange={(v) => setLocalItem(it.id, { repeticaoLivre: v })} />
+                          <Label className="text-xs">Repeticao livre (sem teto clinico mensal)</Label>
+                        </div>
+                        {!it.repeticaoLivre && (
+                          <>
+                            <Field label="Max aplicacoes / mes">
+                              <Input type="number" value={it.maxAplicacoesMes ?? ""} className="h-9 w-32"
+                                onChange={(e) => setLocalItem(it.id, { maxAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
+                            </Field>
+                            <Field label="Min aplicacoes / mes">
+                              <Input type="number" value={it.minAplicacoesMes ?? ""} className="h-9 w-32"
+                                onChange={(e) => setLocalItem(it.id, { minAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
+                            </Field>
+                          </>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={!!it.itemVolumeTiers}
+                            onCheckedChange={(v) => setLocalItem(it.id, { itemVolumeTiers: v ? (draft?.itemVolumeTiers ?? []) : null })}
+                          />
+                          <Label className="text-xs">Escada de volume propria (sobrepoe a global)</Label>
+                        </div>
+                        {it.itemVolumeTiers && (
+                          <TierEditor tiers={it.itemVolumeTiers} onChange={(t) => setLocalItem(it.id, { itemVolumeTiers: t })} />
+                        )}
+                      </div>
+                      <Button size="sm" onClick={() => saveItem(it)} disabled={updateItem.isPending}>
+                        <Save className="h-4 w-4 mr-2" /> Salvar limites
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -311,6 +416,44 @@ export default function Parametrizacao() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function TierEditor({ tiers, onChange }: { tiers: VolumeTier[]; onChange: (t: VolumeTier[]) => void }) {
+  const sorted = [...tiers].sort((a, b) => a.minSessions - b.minSessions);
+  function update(idx: number, patch: Partial<VolumeTier>) {
+    onChange(sorted.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  }
+  function remove(idx: number) {
+    onChange(sorted.filter((_, i) => i !== idx));
+  }
+  function add() {
+    const last = sorted[sorted.length - 1];
+    onChange([...sorted, { minSessions: last ? last.minSessions + 8 : 1, discountPct: last ? last.discountPct + 5 : 0 }]);
+  }
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-[10px] uppercase tracking-wide text-muted-foreground px-1">
+        <span>A partir de (sessoes)</span><span>Desconto (%)</span><span></span>
+      </div>
+      {sorted.length === 0 ? (
+        <p className="text-xs text-muted-foreground px-1">Nenhuma faixa. Adicione abaixo.</p>
+      ) : null}
+      {sorted.map((t, idx) => (
+        <div key={idx} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+          <Input type="number" value={t.minSessions} className="h-9"
+            onChange={(e) => update(idx, { minSessions: parseInt(e.target.value) || 0 })} />
+          <Input type="number" step="0.01" value={t.discountPct} className="h-9"
+            onChange={(e) => update(idx, { discountPct: parseFloat(e.target.value) || 0 })} />
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => remove(idx)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={add}>
+        <Plus className="h-4 w-4 mr-2" /> Adicionar faixa
+      </Button>
     </div>
   );
 }

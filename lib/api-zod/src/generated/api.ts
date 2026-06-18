@@ -1898,6 +1898,20 @@ export const ListBudgetCatalogResponseItem = zod.object({
   active: zod.boolean(),
   sortOrder: zod.number(),
   substanceId: zod.number().nullish(),
+  repeticaoLivre: zod.boolean(),
+  maxAplicacoesMes: zod.number().nullish(),
+  minAplicacoesMes: zod.number().nullish(),
+  itemVolumeTiers: zod
+    .union([
+      zod.array(
+        zod.object({
+          minSessions: zod.number(),
+          discountPct: zod.number(),
+        }),
+      ),
+      zod.null(),
+    ])
+    .optional(),
 });
 export const ListBudgetCatalogResponse = zod.array(
   ListBudgetCatalogResponseItem,
@@ -1917,6 +1931,17 @@ export const CreateBudgetCatalogItemBody = zod.object({
   active: zod.boolean().optional(),
   sortOrder: zod.number().optional(),
   substanceId: zod.number().optional(),
+  repeticaoLivre: zod.boolean().optional(),
+  maxAplicacoesMes: zod.number().nullish(),
+  minAplicacoesMes: zod.number().nullish(),
+  itemVolumeTiers: zod
+    .array(
+      zod.object({
+        minSessions: zod.number(),
+        discountPct: zod.number(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -1945,6 +1970,20 @@ export const UpdateBudgetCatalogItemBody = zod.object({
   active: zod.boolean().optional(),
   sortOrder: zod.number().optional(),
   substanceId: zod.number().optional(),
+  repeticaoLivre: zod.boolean().optional(),
+  maxAplicacoesMes: zod.number().nullish(),
+  minAplicacoesMes: zod.number().nullish(),
+  itemVolumeTiers: zod
+    .union([
+      zod.array(
+        zod.object({
+          minSessions: zod.number(),
+          discountPct: zod.number(),
+        }),
+      ),
+      zod.null(),
+    ])
+    .optional(),
 });
 
 export const UpdateBudgetCatalogItemResponse = zod.object({
@@ -1958,6 +1997,20 @@ export const UpdateBudgetCatalogItemResponse = zod.object({
   active: zod.boolean(),
   sortOrder: zod.number(),
   substanceId: zod.number().nullish(),
+  repeticaoLivre: zod.boolean(),
+  maxAplicacoesMes: zod.number().nullish(),
+  minAplicacoesMes: zod.number().nullish(),
+  itemVolumeTiers: zod
+    .union([
+      zod.array(
+        zod.object({
+          minSessions: zod.number(),
+          discountPct: zod.number(),
+        }),
+      ),
+      zod.null(),
+    ])
+    .optional(),
 });
 
 /**
@@ -1987,6 +2040,19 @@ export const GetBudgetSettingsResponse = zod.object({
   ),
   recommendedScenario: zod.string(),
   passCardFeeDefault: zod.boolean(),
+  itemVolumeTiers: zod.array(
+    zod.object({
+      minSessions: zod.number(),
+      discountPct: zod.number(),
+    }),
+  ),
+  cartVolumeTiers: zod.array(
+    zod.object({
+      minSessions: zod.number(),
+      discountPct: zod.number(),
+    }),
+  ),
+  maxTotalDiscountPct: zod.number(),
   updatedAt: zod.string().nullish(),
 });
 
@@ -2011,6 +2077,23 @@ export const UpdateBudgetSettingsBody = zod.object({
     .optional(),
   recommendedScenario: zod.string().optional(),
   passCardFeeDefault: zod.boolean().optional(),
+  itemVolumeTiers: zod
+    .array(
+      zod.object({
+        minSessions: zod.number(),
+        discountPct: zod.number(),
+      }),
+    )
+    .optional(),
+  cartVolumeTiers: zod
+    .array(
+      zod.object({
+        minSessions: zod.number(),
+        discountPct: zod.number(),
+      }),
+    )
+    .optional(),
+  maxTotalDiscountPct: zod.number().optional(),
 });
 
 export const UpdateBudgetSettingsResponse = zod.object({
@@ -2030,6 +2113,19 @@ export const UpdateBudgetSettingsResponse = zod.object({
   ),
   recommendedScenario: zod.string(),
   passCardFeeDefault: zod.boolean(),
+  itemVolumeTiers: zod.array(
+    zod.object({
+      minSessions: zod.number(),
+      discountPct: zod.number(),
+    }),
+  ),
+  cartVolumeTiers: zod.array(
+    zod.object({
+      minSessions: zod.number(),
+      discountPct: zod.number(),
+    }),
+  ),
+  maxTotalDiscountPct: zod.number(),
   updatedAt: zod.string().nullish(),
 });
 
@@ -2042,6 +2138,17 @@ export const CalculateBudgetBody = zod.object({
       unitPriceCents: zod.number(),
       sessions: zod.number(),
       include: zod.boolean(),
+      volumeTiers: zod
+        .union([
+          zod.array(
+            zod.object({
+              minSessions: zod.number(),
+              discountPct: zod.number(),
+            }),
+          ),
+          zod.null(),
+        ])
+        .optional(),
     }),
   ),
   freeCalc: zod
@@ -2056,6 +2163,27 @@ export const CalculateBudgetBody = zod.object({
 export const CalculateBudgetResponse = zod.object({
   totalCents: zod.number(),
   totalSessions: zod.number(),
+  itemVolumeDiscountCents: zod.number(),
+  cartBonusPct: zod.number(),
+  cartBonusCents: zod.number(),
+  cartNextTierSessions: zod.number().nullish(),
+  cartNextTierPct: zod.number().nullish(),
+  volumeDiscountCents: zod.number(),
+  volumeDiscountedCents: zod.number(),
+  volumeDiscountPct: zod.number(),
+  items: zod.array(
+    zod.object({
+      sessions: zod.number(),
+      grossCents: zod.number(),
+      discountPct: zod.number(),
+      discountCents: zod.number(),
+      netCents: zod.number(),
+      effectiveUnitCents: zod.number(),
+      nextTierSessions: zod.number().nullish(),
+      nextTierPct: zod.number().nullish(),
+    }),
+  ),
+  maxTotalDiscountPct: zod.number(),
   scenarioA: zod.object({
     key: zod.string(),
     label: zod.string(),

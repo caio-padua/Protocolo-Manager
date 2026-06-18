@@ -3284,9 +3284,15 @@ components:
         - topSubstances
         - revenueByMonth
 
+    VolumeTier:
+      type: object
+      required: [minSessions, discountPct]
+      properties:
+        minSessions: { type: integer }
+        discountPct: { type: number }
     BudgetCatalogItem:
       type: object
-      required: [id, kind, name, defaultSessions, unitPriceCents, active, sortOrder]
+      required: [id, kind, name, defaultSessions, unitPriceCents, active, sortOrder, repeticaoLivre]
       properties:
         id: { type: integer }
         kind: { type: string }
@@ -3298,6 +3304,15 @@ components:
         active: { type: boolean }
         sortOrder: { type: integer }
         substanceId: { type: ["integer", "null"] }
+        repeticaoLivre: { type: boolean }
+        maxAplicacoesMes: { type: ["integer", "null"] }
+        minAplicacoesMes: { type: ["integer", "null"] }
+        itemVolumeTiers:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/VolumeTier"
+            - type: "null"
     BudgetCatalogItemInput:
       type: object
       required: [name, unitPriceCents]
@@ -3311,6 +3326,13 @@ components:
         active: { type: boolean }
         sortOrder: { type: integer }
         substanceId: { type: integer }
+        repeticaoLivre: { type: boolean }
+        maxAplicacoesMes: { type: ["integer", "null"] }
+        minAplicacoesMes: { type: ["integer", "null"] }
+        itemVolumeTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeTier"
     BudgetCatalogItemUpdate:
       type: object
       properties:
@@ -3323,6 +3345,15 @@ components:
         active: { type: boolean }
         sortOrder: { type: integer }
         substanceId: { type: integer }
+        repeticaoLivre: { type: boolean }
+        maxAplicacoesMes: { type: ["integer", "null"] }
+        minAplicacoesMes: { type: ["integer", "null"] }
+        itemVolumeTiers:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/VolumeTier"
+            - type: "null"
     CardFee:
       type: object
       required: [installments, feePct]
@@ -3331,7 +3362,7 @@ components:
         feePct: { type: number }
     BudgetSettings:
       type: object
-      required: [id, cashDiscountPct, down50DiscountPct, down30DiscountPct, maxNoInterestInstallments, planMonths, planWeeks, planDays, cardFees, recommendedScenario, passCardFeeDefault]
+      required: [id, cashDiscountPct, down50DiscountPct, down30DiscountPct, maxNoInterestInstallments, planMonths, planWeeks, planDays, cardFees, recommendedScenario, passCardFeeDefault, itemVolumeTiers, cartVolumeTiers, maxTotalDiscountPct]
       properties:
         id: { type: integer }
         cashDiscountPct: { type: number }
@@ -3347,6 +3378,15 @@ components:
             $ref: "#/components/schemas/CardFee"
         recommendedScenario: { type: string }
         passCardFeeDefault: { type: boolean }
+        itemVolumeTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeTier"
+        cartVolumeTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeTier"
+        maxTotalDiscountPct: { type: number }
         updatedAt: { type: ["string", "null"] }
     BudgetSettingsUpdate:
       type: object
@@ -3364,6 +3404,15 @@ components:
             $ref: "#/components/schemas/CardFee"
         recommendedScenario: { type: string }
         passCardFeeDefault: { type: boolean }
+        itemVolumeTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeTier"
+        cartVolumeTiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/VolumeTier"
+        maxTotalDiscountPct: { type: number }
     BudgetItem:
       type: object
       required: [kind, name, sessions, unitPriceCents, include]
@@ -3447,6 +3496,12 @@ components:
         unitPriceCents: { type: integer }
         sessions: { type: integer }
         include: { type: boolean }
+        volumeTiers:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/VolumeTier"
+            - type: "null"
     FreeCalcInput:
       type: object
       required: [downPaymentPct, installments]
@@ -3521,12 +3576,37 @@ components:
         installments: { type: integer }
         totalWithFeeCents: { type: integer }
         installmentCents: { type: integer }
+    ItemVolumeResult:
+      type: object
+      required: [sessions, grossCents, discountPct, discountCents, netCents, effectiveUnitCents]
+      properties:
+        sessions: { type: integer }
+        grossCents: { type: integer }
+        discountPct: { type: number }
+        discountCents: { type: integer }
+        netCents: { type: integer }
+        effectiveUnitCents: { type: integer }
+        nextTierSessions: { type: ["integer", "null"] }
+        nextTierPct: { type: ["number", "null"] }
     BudgetCalcResult:
       type: object
-      required: [totalCents, totalSessions, scenarioA, scenarioB, scenarioC, recommendedScenario]
+      required: [totalCents, totalSessions, itemVolumeDiscountCents, cartBonusPct, cartBonusCents, volumeDiscountCents, volumeDiscountedCents, volumeDiscountPct, items, maxTotalDiscountPct, scenarioA, scenarioB, scenarioC, recommendedScenario]
       properties:
         totalCents: { type: integer }
         totalSessions: { type: integer }
+        itemVolumeDiscountCents: { type: integer }
+        cartBonusPct: { type: number }
+        cartBonusCents: { type: integer }
+        cartNextTierSessions: { type: ["integer", "null"] }
+        cartNextTierPct: { type: ["number", "null"] }
+        volumeDiscountCents: { type: integer }
+        volumeDiscountedCents: { type: integer }
+        volumeDiscountPct: { type: number }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemVolumeResult"
+        maxTotalDiscountPct: { type: number }
         scenarioA:
           $ref: "#/components/schemas/CashScenario"
         scenarioB:

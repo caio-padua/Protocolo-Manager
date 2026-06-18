@@ -9,6 +9,10 @@ import { z } from "zod/v4";
 // substanceId (opcional) liga o item a substances para a Vitrine puxar beneficios.
 // Dinheiro SEMPRE em centavos inteiros (unitPriceCents).
 // ---------------------------------------------------------------------------
+// Escada de desconto por volume: faixa = maior minSessions <= quantidade.
+// discountPct em % (numero), ex.: { minSessions: 9, discountPct: 5 }.
+export type VolumeTier = { minSessions: number; discountPct: number };
+
 export const budgetCatalogTable = pgTable("budget_catalog", {
   id: serial("id").primaryKey(),
   kind: text("kind").notNull().default("substance"), // substance | service | formula | consultation | diet
@@ -20,6 +24,14 @@ export const budgetCatalogTable = pgTable("budget_catalog", {
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   substanceId: integer("substance_id"),
+  // --- Fase 2: teto clinico mensal + escada de volume por item (override) ---
+  // repeticaoLivre=true => pode aplicar indefinidamente (Q10, PQQ).
+  // repeticaoLivre=false => hormonio/limitado (Vitamina D): respeitar max/min por mes.
+  repeticaoLivre: boolean("repeticao_livre").notNull().default(true),
+  maxAplicacoesMes: integer("max_aplicacoes_mes"),
+  minAplicacoesMes: integer("min_aplicacoes_mes"),
+  // itemVolumeTiers: override da escada por item. null => usa a escada global do settings.
+  itemVolumeTiers: jsonb("item_volume_tiers").$type<VolumeTier[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -47,6 +59,13 @@ export const budgetSettingsTable = pgTable("budget_settings", {
   cardFees: jsonb("card_fees").$type<CardFee[]>(),
   recommendedScenario: text("recommended_scenario").notNull().default("B"), // A | B | C
   passCardFeeDefault: boolean("pass_card_fee_default").notNull().default(true),
+  // --- Fase 2: escadas de desconto por volume + teto total ---
+  // itemVolumeTiers: escada global aplicada a cada item (sobre as sessoes DAQUELE item).
+  // cartVolumeTiers: bonus extra sobre o total de sessoes do carrinho inteiro.
+  // maxTotalDiscountPct: teto do desconto combinado (volume + pagamento) vs preco cheio.
+  itemVolumeTiers: jsonb("item_volume_tiers").$type<VolumeTier[]>(),
+  cartVolumeTiers: jsonb("cart_volume_tiers").$type<VolumeTier[]>(),
+  maxTotalDiscountPct: real("max_total_discount_pct").notNull().default(40),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

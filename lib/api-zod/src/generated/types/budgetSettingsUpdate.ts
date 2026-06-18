@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CardFee } from "./cardFee";
+import type { VolumeTier } from "./volumeTier";
 
 export interface BudgetSettingsUpdate {
   cashDiscountPct?: number;
@@ -18,4 +19,7 @@ export interface BudgetSettingsUpdate {
   cardFees?: CardFee[];
   recommendedScenario?: string;
   passCardFeeDefault?: boolean;
+  itemVolumeTiers?: VolumeTier[];
+  cartVolumeTiers?: VolumeTier[];
+  maxTotalDiscountPct?: number;
 }

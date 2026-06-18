@@ -3,6 +3,7 @@ import { useRoute, Link } from "wouter";
 import {
   useGetBudget,
   useListSubstances,
+  useListBudgetCatalog,
   useCalculateBudget,
   useUpdateBudget,
   type BudgetCalcResult,
@@ -27,6 +28,7 @@ export default function ApresentacaoOrcamento() {
 
   const { data: budget, isLoading, refetch } = useGetBudget(id);
   const { data: substances } = useListSubstances();
+  const { data: catalog } = useListBudgetCatalog();
   const calc = useCalculateBudget();
   const update = useUpdateBudget({
     mutation: {
@@ -50,6 +52,14 @@ export default function ApresentacaoOrcamento() {
     [budget],
   );
 
+  // Reidrata escada de volume por substancia (override) a partir do catalogo atual,
+  // para o calculo da Apresentacao bater identico ao da Montagem.
+  const tiersByCatalogId = useMemo(() => {
+    const m = new Map<number, { minSessions: number; discountPct: number }[]>();
+    (catalog ?? []).forEach((c) => { if (c.itemVolumeTiers && c.itemVolumeTiers.length) m.set(c.id, c.itemVolumeTiers); });
+    return m;
+  }, [catalog]);
+
   useEffect(() => {
     if (budget) {
       setPassFee(budget.repassarTaxa);
@@ -69,14 +79,14 @@ export default function ApresentacaoOrcamento() {
   useEffect(() => {
     if (includedItems.length === 0) { setResult(null); return; }
     const payload = {
-      items: includedItems.map((i) => ({ unitPriceCents: i.unitPriceCents, sessions: i.sessions, include: true })),
+      items: includedItems.map((i) => ({ unitPriceCents: i.unitPriceCents, sessions: i.sessions, include: true, volumeTiers: i.catalogId ? tiersByCatalogId.get(i.catalogId) : undefined })),
       freeCalc: { downPaymentPct: Number(downPct), installments: Number(installments), passCardFee: passFee },
     };
     const t = setTimeout(() => {
       calcRef.current({ data: payload }).then(setResult).catch(() => {});
     }, 250);
     return () => clearTimeout(t);
-  }, [includedItems, downPct, installments, passFee]);
+  }, [includedItems, downPct, installments, passFee, tiersByCatalogId]);
 
   const subsById = useMemo(() => {
     const m = new Map<number, Substance>();
@@ -152,6 +162,30 @@ export default function ApresentacaoOrcamento() {
         </CardContent>
       </Card>
 
+      {/* ANCORAGEM POR VOLUME */}
+      {result && result.volumeDiscountCents > 0 && (
+        <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <CardContent className="p-5 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 p-2">
+                <TrendingDown className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-widest text-emerald-700 font-semibold">Desconto por volume aplicado</div>
+                <div className="text-sm text-muted-foreground">
+                  Preco de tabela <span className="line-through">{fmt(result.totalCents)}</span> &rarr;{" "}
+                  <strong className="text-emerald-700">{fmt(result.volumeDiscountedCents)}</strong>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-black text-emerald-700">-{fmt(result.volumeDiscountCents)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-emerald-600 font-medium">{result.volumeDiscountPct.toFixed(1)}% so pelo tamanho do protocolo</div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 3 CAMINHOS */}
       <div>
         <h2 className="text-center text-sm uppercase tracking-widest text-muted-foreground mb-4">Escolha seu caminho</h2>
@@ -172,6 +206,7 @@ export default function ApresentacaoOrcamento() {
               <CaminhoCard
                 titulo="Entrada 50%"
                 destaque={recommended === "B"}
+                decoy={recommended !== "B"}
                 preco={result.scenarioB.discountedCents}
                 economia={result.scenarioB.savingsCents}
                 desconto={result.scenarioB.discountPct}
@@ -279,13 +314,18 @@ export default function ApresentacaoOrcamento() {
 
 function CaminhoCard(props: {
   titulo: string; destaque: boolean; preco: number; economia: number; desconto: number; perDia: number;
-  linha: string; onAceitar: () => void; aceito: boolean;
+  linha: string; onAceitar: () => void; aceito: boolean; decoy?: boolean;
 }) {
   return (
-    <Card className={`relative ${props.destaque ? "border-2 border-primary shadow-lg" : ""} ${props.aceito ? "ring-2 ring-emerald-500" : ""}`}>
+    <Card className={`relative ${props.destaque ? "border-2 border-primary shadow-lg md:scale-105" : props.decoy ? "border border-cyan-400/60 shadow-md" : ""} ${props.aceito ? "ring-2 ring-emerald-500" : ""}`}>
       {props.destaque && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <Badge className="bg-primary">Recomendado</Badge>
+        </div>
+      )}
+      {!props.destaque && props.decoy && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40">Mais escolhido</Badge>
         </div>
       )}
       <CardContent className="p-5 text-center space-y-3">

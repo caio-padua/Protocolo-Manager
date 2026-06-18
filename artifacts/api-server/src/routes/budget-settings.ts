@@ -1,23 +1,38 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, budgetSettingsTable, DEFAULT_CARD_FEES, type CardFee } from "@workspace/db";
+import { db, budgetSettingsTable, DEFAULT_CARD_FEES, type CardFee, type VolumeTier } from "@workspace/db";
 import { UpdateBudgetSettingsBody } from "@workspace/api-zod";
+import { DEFAULT_ITEM_VOLUME_TIERS, DEFAULT_CART_VOLUME_TIERS } from "../lib/budget-calc";
 
 const router: IRouter = Router();
 
-export type ResolvedSettings = typeof budgetSettingsTable.$inferSelect & { cardFees: CardFee[] };
+export type ResolvedSettings = typeof budgetSettingsTable.$inferSelect & {
+  cardFees: CardFee[];
+  itemVolumeTiers: VolumeTier[];
+  cartVolumeTiers: VolumeTier[];
+};
 
-// Garante a linha unica id=1, criando-a com os defaults (incluindo a tabela de
-// taxas de cartao) caso ainda nao exista. Retorna sempre cardFees preenchido.
+// Garante a linha unica id=1, criando-a com os defaults (taxas de cartao +
+// escadas de volume) caso ainda nao exista. Retorna sempre os jsonb preenchidos.
 export async function getOrCreateSettings(): Promise<ResolvedSettings> {
   let [row] = await db.select().from(budgetSettingsTable).where(eq(budgetSettingsTable.id, 1));
   if (!row) {
     [row] = await db
       .insert(budgetSettingsTable)
-      .values({ id: 1, cardFees: DEFAULT_CARD_FEES })
+      .values({
+        id: 1,
+        cardFees: DEFAULT_CARD_FEES,
+        itemVolumeTiers: DEFAULT_ITEM_VOLUME_TIERS,
+        cartVolumeTiers: DEFAULT_CART_VOLUME_TIERS,
+      })
       .returning();
   }
-  return { ...row, cardFees: row.cardFees ?? DEFAULT_CARD_FEES };
+  return {
+    ...row,
+    cardFees: row.cardFees ?? DEFAULT_CARD_FEES,
+    itemVolumeTiers: row.itemVolumeTiers ?? DEFAULT_ITEM_VOLUME_TIERS,
+    cartVolumeTiers: row.cartVolumeTiers ?? DEFAULT_CART_VOLUME_TIERS,
+  };
 }
 
 function formatSettings(row: ResolvedSettings) {
@@ -33,6 +48,9 @@ function formatSettings(row: ResolvedSettings) {
     cardFees: row.cardFees,
     recommendedScenario: row.recommendedScenario,
     passCardFeeDefault: row.passCardFeeDefault,
+    itemVolumeTiers: row.itemVolumeTiers,
+    cartVolumeTiers: row.cartVolumeTiers,
+    maxTotalDiscountPct: row.maxTotalDiscountPct,
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
   };
 }
@@ -64,11 +82,21 @@ router.put("/budget-settings", async (req, res): Promise<void> => {
       ...(data.cardFees !== undefined ? { cardFees: data.cardFees as CardFee[] } : {}),
       ...(data.recommendedScenario !== undefined ? { recommendedScenario: data.recommendedScenario } : {}),
       ...(data.passCardFeeDefault !== undefined ? { passCardFeeDefault: data.passCardFeeDefault } : {}),
+      ...(data.itemVolumeTiers !== undefined ? { itemVolumeTiers: data.itemVolumeTiers as VolumeTier[] } : {}),
+      ...(data.cartVolumeTiers !== undefined ? { cartVolumeTiers: data.cartVolumeTiers as VolumeTier[] } : {}),
+      ...(data.maxTotalDiscountPct !== undefined ? { maxTotalDiscountPct: data.maxTotalDiscountPct } : {}),
     })
     .where(eq(budgetSettingsTable.id, 1))
     .returning();
 
-  res.json(formatSettings({ ...row, cardFees: row.cardFees ?? DEFAULT_CARD_FEES }));
+  res.json(
+    formatSettings({
+      ...row,
+      cardFees: row.cardFees ?? DEFAULT_CARD_FEES,
+      itemVolumeTiers: row.itemVolumeTiers ?? DEFAULT_ITEM_VOLUME_TIERS,
+      cartVolumeTiers: row.cartVolumeTiers ?? DEFAULT_CART_VOLUME_TIERS,
+    }),
+  );
 });
 
 export default router;

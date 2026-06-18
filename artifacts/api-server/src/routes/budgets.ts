@@ -27,6 +27,9 @@ function toCalcSettings(s: Awaited<ReturnType<typeof getOrCreateSettings>>): Cal
     cardFees: s.cardFees,
     recommendedScenario: s.recommendedScenario,
     passCardFeeDefault: s.passCardFeeDefault,
+    itemVolumeTiers: s.itemVolumeTiers,
+    cartVolumeTiers: s.cartVolumeTiers,
+    maxTotalDiscountPct: s.maxTotalDiscountPct,
   };
 }
 
@@ -71,6 +74,7 @@ router.post("/budgets/calculate", async (req, res): Promise<void> => {
     unitPriceCents: i.unitPriceCents,
     sessions: i.sessions,
     include: i.include,
+    volumeTiers: i.volumeTiers ?? null,
   }));
   const result = calculateBudget(items, toCalcSettings(settings), parsed.data.freeCalc);
   res.json(result);
