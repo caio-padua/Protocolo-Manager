@@ -25,6 +25,8 @@ Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes 
 | Bevel GROSSO (botao alto) | Bevel grosso | `bevel-3d` | Chanfro saliente forte; impressao de botao grosso que salta da folha |
 | Luz latente (LED) | LED / luz | `paxter-led` (+`-amber`/`-green`) + `paxter-led-on` / `-off` | Ponto que acende/apaga (pulso); ciano padrao, amarelo=AGORA, verde=META; mesma cadencia = piscam em sincronia |
 | Pulso de atencao | Pulso / atencao | `paxter-attention` | Outline ciano que pisca no hover SEM apagar o relevo |
+| Neon estavel de baixo | Underglow | `paxter-underglow` | Luz ciano que sobe do rodape, ESTAVEL (nao pisca), intensa e difusa |
+| Alerta em relevo + neon | Alerta clinico | `paxter-alert` (+`-red`/`-amber`) | Painel de alerta com bevel 3D e neon na propria cor (vermelho/ambar) |
 
 Skeuomorfico = estilo que imita objeto fisico real (parece botao/tela de verdade).
 Bevel = chanfro que projeta para fora. Well/Inset = campo afundado para dentro.
@@ -56,19 +58,22 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   mesma cadencia 1.4s das LEDs). Faixas atingidas preenchidas (primary), futuras esmaecidas.
 - **Barra de evolucao horizontal (TierTrack)**: faixas de desconto como barra HORIZONTAL
   segmentada (mesmo padrao das barras de Sessoes/Frequencia), preenchida ate a faixa ATUAL,
-  faixa atual pulsando a luz por detras e, abaixo, DOIS inserts concavos LADO A LADO por
-  faixa (% e limiar de sessoes; nunca empilhados).
+  faixa atual pulsando a luz por detras e, abaixo, DOIS inserts concavos RETANGULARES por
+  faixa (% e limiar de sessoes; nunca empilhados). Os dois inserts tem MESMA altura e largura
+  (`h-7`, `flex-1`), com ESPACO entre simbolo e numero (`- N %`, `>= N`) e fonte legivel
+  (`text-[11px]`) — nunca numeros minusculos.
   Substitui a antiga escada vertical (TierLadder). Renderizada no front a partir do catalogo
   (override do item OU escada global do settings); so com >=2 faixas. Referencia em
   `artifacts/padcom/src/pages/orcamentos/novo.tsx`.
 - **Leitura por insert (AGORA/META)**: cada leitura = rotulo em Bevel grosso (`bevel-3d`) com
   LED em cima + valor em Concavo (`concave-3d`) com a PORCENTAGEM grande em cima e as SESSOES
-  pequenas embaixo. LED de AGORA = amarelo (`paxter-led-amber`); LED de META / melhor faixa =
-  verde (`paxter-led-green`); ambos piscam em sincronia.
-- **Cancelamento de preco (selo de proibido)**: preco cheio substituido por desconto recebe
-  UM selo compacto e QUADRADO de proibido (circulo + trave) em SVG, centralizado por cima
-  (overlay `absolute`, `pointer-events-none`). SEM risco (line-through) — selo OU risco, nunca
-  os dois; o selo nao se alonga na horizontal.
+  pequenas embaixo, sempre com ESPACO entre simbolo e numero (`- N %`, `>= N`). LED de AGORA =
+  amarelo (`paxter-led-amber`); LED de META / melhor faixa = verde (`paxter-led-green`); ambos
+  piscam em sincronia.
+- **Cancelamento de preco (risco vermelho fino)**: preco cheio substituido por desconto recebe
+  UM risco vermelho FINO e horizontal sobre o valor (overlay `absolute`, `h-[1.5px]`,
+  `bg-red-500/70`, `rounded-full`, `pointer-events-none`), SUTIL — so para dar o entendimento.
+  Decisao viva do CEO (18/06/2026): troca o antigo selo de proibido pelo risco fino.
 - **Guias de alinhamento**: linhas empilhadas de mesmo significado alinham por colunas
   verticais via caixa de largura fixa + `flex justify-between` (token na guia esquerda, valor
   na guia direita) — formam linhas verticais imaginarias a esquerda e a direita.
@@ -77,9 +82,32 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   (META/melhor faixa) — cor do glow via variavel `--led-glow`; mesma cadencia = sincronia.
 - **Pulso de atencao (hover)**: `paxter-attention` faz o bloco piscar um outline ciano no
   hover (keyframe `paxterAttention`) SEM apagar o relevo — usa `outline`, nunca `box-shadow`.
+  Reservado a casos pontuais; em bloco interativo preferir o underglow estavel.
+- **Neon estavel saindo de baixo (`paxter-underglow`)**: luz ciano que sobe do RODAPE do bloco,
+  ESTAVEL (nao acende/apaga), intensa e difusa (`::after` com `radial-gradient` + `blur`,
+  `pointer-events-none`). Usar em bloco interativo que precisa "chamar" sem piscar — ex.: bloco
+  de Sessoes. Decisao do CEO (18/06/2026): substitui o pulso piscante nesse bloco.
+- **Painel de alerta clinico (`paxter-alert`)**: alerta (excede teto / abaixo do minimo) ganha
+  relevo 3D (bevel + sombra) E neon na PROPRIA cor quando ativo — vermelho (`paxter-alert-red`)
+  para "excede o teto"; ambar (`paxter-alert-amber`) para "abaixo do minimo". Cor do neon via
+  variavel `--alert-glow`. Variante `.dark` incluida.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).
+- **Frasco-ampola (vial 2 ml)**: icone da substancia = vetor FLAT estilo frasco-ampola de ~2 ml
+  no MESMO estilo do porquinho: tampa crimp em verde-petroleo, vidro claro, liquido na COR da
+  substancia (`color`), brilho e marcas de medida. Componente `Ampola({ color, width })` em
+  `pages/orcamentos/VitrineCard.tsx` (assinatura preservada; substitui a ampola/ampoule antiga).
+
+### 3.1 Padroes-mae (valem para TODAS as telas de orcamento)
+
+- **Padrao 1 — numero variavel em insert alinhado**: todo numero que MUDA (porcentagem, sessoes,
+  valor) fica dentro de um insert Concavo (`concave-3d`); sempre que possivel o rotulo ao lado
+  ou acima vai em Bevel com chanfro 3D (`bevel-3d`). Inserts que sao PARES (ex.: % e >= sessoes;
+  AGORA e META) tem o MESMO alinhamento: mesma altura e largura, lado a lado com seus vizinhos.
+- **Padrao 2 — clonar para o sistema**: estes padroes do Console de Orcamento sao a referencia
+  para TODAS as telas de orcamento (Montagem, Parametrizacao, Apresentacao e futuras). Ao criar
+  ou redesenhar qualquer tela de orcamento, reusar este vocabulario 3D — nao inventar estilo novo.
 
 ## 4. Console de Orcamento (referencia viva)
 

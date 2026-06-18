@@ -5,20 +5,37 @@ import { Badge } from "@/components/ui/badge";
 import { Star, ChevronDown, Moon, Zap, Activity, Brain, ShieldCheck, Sparkles, HeartPulse, Dumbbell } from "lucide-react";
 import { fmt } from "./money";
 
+// Frasco-ampola (vial ~2 ml) — vetor achatado nos tons da marca (tampa em
+// verde-petroleo, vidro claro, liquido na cor da substancia). Mesmo estilo
+// flat do porquinho. Assinatura preservada: Ampola({ color, width }).
 export function Ampola({ color, width = 40 }: { color: string; width?: number }) {
   const c = color || "#45B8CC";
-  const height = Math.round(width * 1.8);
+  const cid = c.replace(/[^a-zA-Z0-9]/g, "");
+  const height = Math.round(width * 1.7);
+  const bodyPath = "M11 15 Q11 13 13 13 L27 13 Q29 13 29 15 L29 60 Q29 64 25 64 L15 64 Q11 64 11 60 Z";
   return (
-    <svg width={width} height={height} viewBox="0 0 40 72" className="shrink-0">
-      <rect x="15" y="2" width="10" height="6" rx="1.5" fill="#cbd5e1" />
-      <rect x="17" y="7" width="6" height="8" fill="#e2e8f0" />
-      <path d="M10 16 Q10 13 13 13 L27 13 Q30 13 30 16 L30 64 Q30 70 24 70 L16 70 Q10 70 10 64 Z" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1.5" />
-      <clipPath id={`clip-${c.replace("#", "")}`}>
-        <path d="M10 16 Q10 13 13 13 L27 13 Q30 13 30 16 L30 64 Q30 70 24 70 L16 70 Q10 70 10 64 Z" />
-      </clipPath>
-      <rect x="8" y="34" width="24" height="38" fill={c} clipPath={`url(#clip-${c.replace("#", "")})`} opacity="0.85" />
-      <ellipse cx="20" cy="34" rx="12" ry="3" fill={c} clipPath={`url(#clip-${c.replace("#", "")})`} />
-      <rect x="14" y="20" width="3" height="14" rx="1.5" fill="#ffffff" opacity="0.5" />
+    <svg width={width} height={height} viewBox="0 0 40 68" className="shrink-0" role="img" aria-label="Frasco-ampola">
+      <defs>
+        <clipPath id={`vial-${cid}`}>
+          <path d={bodyPath} />
+        </clipPath>
+      </defs>
+      {/* tampa crimp (lacre) nos tons da marca */}
+      <rect x="12" y="3" width="16" height="4" rx="1.5" fill="hsl(180 30% 42%)" />
+      <rect x="11" y="6.5" width="18" height="7" rx="1.2" fill="hsl(180 32% 30%)" />
+      <rect x="14" y="8" width="1.4" height="4" rx="0.7" fill="hsl(180 24% 52%)" />
+      <rect x="19.3" y="8" width="1.4" height="4" rx="0.7" fill="hsl(180 24% 52%)" />
+      <rect x="24.6" y="8" width="1.4" height="4" rx="0.7" fill="hsl(180 24% 52%)" />
+      {/* corpo de vidro */}
+      <path d={bodyPath} fill="hsl(187 44% 96%)" stroke="hsl(180 34% 30%)" strokeWidth="1.6" />
+      {/* liquido (cor da substancia) ~ metade do frasco = 2 ml */}
+      <rect x="10" y="34" width="20" height="32" fill={c} clipPath={`url(#vial-${cid})`} opacity="0.85" />
+      <ellipse cx="20" cy="34" rx="9" ry="2.6" fill={c} clipPath={`url(#vial-${cid})`} />
+      {/* brilho */}
+      <rect x="14" y="19" width="2.4" height="20" rx="1.2" fill="#ffffff" opacity="0.5" />
+      {/* marcas de medida */}
+      <line x1="24" y1="30" x2="27.5" y2="30" stroke="hsl(180 30% 45%)" strokeWidth="1" strokeLinecap="round" />
+      <line x1="24" y1="44" x2="27.5" y2="44" stroke="hsl(180 30% 45% / 0.7)" strokeWidth="0.8" strokeLinecap="round" />
     </svg>
   );
 }

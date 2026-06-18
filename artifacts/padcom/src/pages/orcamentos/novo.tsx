@@ -85,16 +85,19 @@ function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; d
           );
         })}
       </div>
-      {/* rotulos por faixa: DOIS inserts concavos LADO A LADO (% | >=N), nunca empilhados */}
+      {/* rotulos por faixa: DOIS inserts concavos RETANGULARES (mesma altura e
+          largura), LADO A LADO (% | >= N), com ESPACO no simbolo e numeros maiores. */}
       <div className="mt-2 flex w-full gap-[3px]">
         {tiers.map((t, i) => {
           const reached = i <= curIdx;
           return (
-            <div key={i} className="flex flex-1 items-center justify-center gap-1">
-              <span className={`concave-3d px-1 py-0.5 text-[9px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
-                {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
+            <div key={i} className="flex flex-1 items-stretch justify-center gap-1.5">
+              <span className={`concave-3d flex h-7 flex-1 items-center justify-center text-[11px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
+                {t.discountPct > 0 ? `- ${t.discountPct} %` : "0 %"}
               </span>
-              <span className="concave-3d px-1 py-0.5 text-[8px] font-bold uppercase tabular-nums text-muted-foreground">≥{t.minSessions}</span>
+              <span className={`concave-3d flex h-7 flex-1 items-center justify-center text-[11px] font-bold tabular-nums ${reached ? "text-primary" : "text-muted-foreground"}`}>
+                ≥ {t.minSessions}
+              </span>
             </div>
           );
         })}
@@ -296,7 +299,7 @@ export default function MontagemOrcamento() {
                               barra h-5, legenda h-4, com gap-2.5 — alinhamento por linhas. */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
                             {/* 1) SESSOES */}
-                            <div className="panel-3d-sub paxter-attention flex flex-1 flex-col gap-2.5 p-3">
+                            <div className="panel-3d-sub paxter-underglow flex flex-1 flex-col gap-2.5 p-3">
                               <div className="concave-3d flex h-7 items-center justify-center px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sessões</div>
                               <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                             </div>
@@ -346,16 +349,13 @@ export default function MontagemOrcamento() {
                                     const fullNum = sp > 0 ? full.slice(sp + 1) : full;
                                     return (
                                       <div className="mx-auto mt-1.5 flex w-full max-w-[150px] flex-col gap-1">
-                                        {/* PRECO CHEIO CANCELADO: selo de PROIBIDO compacto (quadrado,
-                                            circulo + trave) centralizado por cima — SEM risco.
+                                        {/* PRECO CHEIO CANCELADO: risco vermelho FINO e horizontal
+                                            sobre o valor — sutil, so para dar o entendimento.
                                             R$ na guia esquerda, ultimo zero na guia direita. */}
                                         <div className="relative flex items-center justify-between text-sm font-bold tabular-nums text-slate-500 dark:text-slate-400">
                                           <span>{fullSym}</span>
                                           <span>{fullNum}</span>
-                                          <svg viewBox="0 0 24 24" aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 text-red-500/85">
-                                            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.4" />
-                                            <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-                                          </svg>
+                                          <span aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-1/2 h-[1.5px] -translate-y-1/2 rounded-full bg-red-500/70" />
                                         </div>
                                         {/* DESCONTO DO PACOTE: -X% na guia esquerda, "no pacote" na guia
                                             direita — mesma largura, formando as linhas verticais. */}
@@ -434,7 +434,7 @@ export default function MontagemOrcamento() {
                                           <Led on={nowPct > 0} tone="amber" /> Agora
                                         </span>
                                         <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
-                                          <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `-${nowPct}%` : "0%"}</span>
+                                          <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `- ${nowPct} %` : "0 %"}</span>
                                           <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">{r.sessions} {r.sessions === 1 ? "sessão" : "sessões"}</span>
                                         </span>
                                       </div>
@@ -449,8 +449,8 @@ export default function MontagemOrcamento() {
                                               <Led on={true} tone="green" /> Meta
                                             </span>
                                             <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
-                                              <span className="text-xl font-extrabold tabular-nums text-primary">-{v!.nextTierPct}%</span>
-                                              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">≥{r.sessions + falta} {r.sessions + falta === 1 ? "sessão" : "sessões"}</span>
+                                              <span className="text-xl font-extrabold tabular-nums text-primary">- {v!.nextTierPct} %</span>
+                                              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">≥ {r.sessions + falta} {r.sessions + falta === 1 ? "sessão" : "sessões"}</span>
                                             </span>
                                           </div>
                                         </>
@@ -482,7 +482,7 @@ export default function MontagemOrcamento() {
                                 </div>
 
                                 {alert ? (
-                                  <div className={`flex items-center justify-between gap-3 rounded-[6px] border px-3 py-2 text-xs font-medium ${alert.kind === "over" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"}`}>
+                                  <div className={`paxter-alert flex items-center justify-between gap-3 border px-3 py-2.5 text-xs font-medium ${alert.kind === "over" ? "paxter-alert-red border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "paxter-alert-amber border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"}`}>
                                     <span className="text-left">{alert.left}</span>
                                     <span className="text-right">{alert.right}</span>
                                   </div>
