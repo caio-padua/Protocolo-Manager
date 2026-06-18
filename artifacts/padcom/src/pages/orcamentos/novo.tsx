@@ -21,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Presentation, Save, Calculator } from "lucide-react";
 import { fmt } from "./money";
+import { SessionStacker } from "./SessionStacker";
+import { FrequencyFader } from "./FrequencyFader";
 
 type Row = {
   catalogId: number;
@@ -208,27 +210,27 @@ export default function MontagemOrcamento() {
                         </div>
                       </div>
                       {r.include && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pl-12">
-                          <div className="space-y-1">
+                        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 mt-4 pl-12">
+                          <div className="space-y-1.5">
                             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Sessoes</Label>
-                            <Input type="number" value={r.sessions} className="h-8"
-                              onChange={(e) => setRow(r.catalogId, { sessions: parseInt(e.target.value) || 1 })} />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Dose</Label>
-                            <Input value={r.dose ?? ""} className="h-8"
-                              onChange={(e) => setRow(r.catalogId, { dose: e.target.value })} />
+                            <SessionStacker value={r.sessions} onChange={(n) => setRow(r.catalogId, { sessions: n })} />
                           </div>
                           {liberarFrequencia && (
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Freq (dias)</Label>
-                              <Input type="number" value={r.frequencyDays ?? ""} className="h-8"
-                                onChange={(e) => setRow(r.catalogId, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} />
+                            <div className="space-y-1.5">
+                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Frequencia</Label>
+                              <FrequencyFader value={r.frequencyDays} onChange={(d) => setRow(r.catalogId, { frequencyDays: d })} />
                             </div>
                           )}
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</Label>
-                            <div className="h-8 flex items-center font-semibold text-sm">{fmt(r.unitPriceCents * r.sessions)}</div>
+                          <div className="flex flex-col gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Dose</Label>
+                              <Input value={r.dose ?? ""} className="h-8 w-36"
+                                onChange={(e) => setRow(r.catalogId, { dose: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</Label>
+                              <div className="text-lg font-semibold">{fmt(r.unitPriceCents * r.sessions)}</div>
+                            </div>
                           </div>
                         </div>
                       )}
