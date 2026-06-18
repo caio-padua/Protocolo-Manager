@@ -19,7 +19,7 @@ Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes 
 | Bloco selecionado | Painel ativo | `panel-3d-active` | Painel 3D + halo na cor primaria |
 | Parte que SAI para fora (alto-relevo) | Saliente / Bevel | `screen-3d` | Mini-tela elevada; numeros/titulos em destaque |
 | Parte AFUNDADA (baixo-relevo) | Concavo / Well | `concave-3d` | Campo "gravado" onde o dado entra |
-| Campo de input gravado | Campo gravado | `field-engraved` | Input com sombra interna (parece afundado) |
+| Campo de input gravado | Campo gravado | `field-engraved` | Input afundado: degrade sutil no topo + sombra interna forte (insert nitido) |
 | Tecla classica | Botao 3D | `btn-3d`, `btn-3d-soft` | Botao que afunda no `:active` |
 | Faixa de incentivo | Banner de incentivo | `incentive-banner` | Degrade mint suave, carrega "quanto falta" |
 | Bevel GROSSO (botao alto) | Bevel grosso | `bevel-3d` | Chanfro saliente forte; impressao de botao grosso que salta da folha |
@@ -108,14 +108,37 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - **Padrao 2 — clonar para o sistema**: estes padroes do Console de Orcamento sao a referencia
   para TODAS as telas de orcamento (Montagem, Parametrizacao, Apresentacao e futuras). Ao criar
   ou redesenhar qualquer tela de orcamento, reusar este vocabulario 3D — nao inventar estilo novo.
+- **Padrao 3 — titulo de bloco em placa Saliente (`BlockTitle`)**: o titulo de cada card NAO e
+  texto solto; vai numa placa Bevel (`bevel-3d`, MAIUSCULO, `tracking` expandido) com o icone
+  Lucide a esquerda, na cor tematica do bloco (primary, ambar, ciano, esmeralda). A placa SALTA
+  da folha — o titulo vira a "etiqueta gravada" do painel. Helper local recebe `icon`, `color`.
+- **Padrao 4 — sinal de status com SLOT fixo (`StatusChip`)**: marcador on/off (ex.: VITRINE,
+  TETO/MES) NUNCA aparece/some entre linhas — isso desalinha colunas. Usa-se um chip de largura
+  FIXA (`concave-3d`, `w-[72px]`, `shrink-0`) SEMPRE presente: LED aceso (`paxter-led-on`, cor
+  verde/ambar) quando ativo, LED apagado + `opacity-70` quando inativo. Verde = vitrine/positivo,
+  ambar = restricao/teto. Slot constante = linhas sempre alinhadas em coluna.
+- **Padrao 5 — toggle em sulco Concavo (`ToggleWell`)**: todo `Switch` vai dentro de um well
+  (`concave-3d`, `flex items-center gap-3`, `px-3 py-2.5`) com o `Label` ao lado — o controle
+  parece afundado na base do painel, nunca solto na folha.
+- **Padrao 6 — explicacao para leigo empilhada (`ExplainRow`)**: instrucao/ajuda NUNCA e
+  paragrafo linear; e UMA ideia por linha, cada uma num insert Concavo com LED a esquerda
+  (`paxter-led-on`) e o termo em negrito + frase curta. Espelha a Densidade B do CEO (uma linha,
+  um assunto fechado) dentro da tela.
+- **Padrao 7 — layout empilhado por assunto (lego)**: campos relacionados agrupam-se em
+  sub-painel (`panel-3d-sub`) com um rotulo de secao MAIUSCULO no topo e os campos EMPILHADOS
+  na vertical (`space-y-3`), nunca espremidos numa grade larga de muitas colunas. Assuntos
+  distintos = sub-paineis lado a lado (ex.: "Descontos por pagamento" x "Parcelamento e plano").
 
 ## 4. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo
   Saliente no topo; leituras AGORA/META (Bevel grosso + LED; Concavo com % em cima e sessoes
   embaixo); botao 3D; barra de evolucao horizontal (TierTrack) pulsando a luz por detras da faixa atual.
-- `pages/orcamentos/parametrizacao.tsx` — Parametrizacao. `TierEditor` define as faixas;
-  campo "Numero de faixas" gera/encurta N espacos de porcentagem (inputs em `field-engraved`).
+- `pages/orcamentos/parametrizacao.tsx` — Parametrizacao (referencia viva dos Padroes 3 a 7).
+  Titulos em `BlockTitle` (placa Saliente por bloco); "Descontos e Plano" em dois sub-paineis
+  empilhados; "Desconto por Volume" explicado em `ExplainRow` empilhados; catalogo com nome/tipo
+  em `field-engraved` e sinais `StatusChip` (VITRINE/TETO-MES) em slot fixo; toggles em
+  `ToggleWell`. `TierEditor` define as faixas; "Numero de faixas" gera/encurta N inputs de %.
 - A dose EXIBIDA vem do catalogo; a dose SALVA vem de `r.dose`. Diferenca proposital.
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do
   orcamento nao persiste override de faixas).

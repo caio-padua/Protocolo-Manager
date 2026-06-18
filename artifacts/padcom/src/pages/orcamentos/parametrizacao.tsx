@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Trash2, Plus, Sparkles, SlidersHorizontal, CreditCard, Tag, Layers, ChevronDown, ChevronRight } from "lucide-react";
 import { centsToReais, reaisToCents } from "./money";
@@ -170,8 +169,8 @@ export default function Parametrizacao() {
       {/* DESCONTOS E PLANO */}
       <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-primary">
-            <SlidersHorizontal className="h-4 w-4" /> Descontos e Plano
+          <CardTitle>
+            <BlockTitle icon={SlidersHorizontal} color="text-primary">Descontos e Plano</BlockTitle>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -179,52 +178,59 @@ export default function Parametrizacao() {
             <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Field label="Desconto a vista (%)">
-                  <Input type="number" step="0.01" value={draft.cashDiscountPct}
-                    onChange={(e) => setDraftField("cashDiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
-                </Field>
-                <Field label="Desconto entrada 50% (%)">
-                  <Input type="number" step="0.01" value={draft.down50DiscountPct}
-                    onChange={(e) => setDraftField("down50DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
-                </Field>
-                <Field label="Desconto entrada 30% (%)">
-                  <Input type="number" step="0.01" value={draft.down30DiscountPct}
-                    onChange={(e) => setDraftField("down30DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
-                </Field>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* COLUNA ESQUERDA — descontos por pagamento, empilhados */}
+                <div className="panel-3d-sub p-4 space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Descontos por forma de pagamento</p>
+                  <Field label="Desconto a vista (%)">
+                    <Input type="number" step="0.01" value={draft.cashDiscountPct}
+                      onChange={(e) => setDraftField("cashDiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
+                  </Field>
+                  <Field label="Desconto entrada 50% (%)">
+                    <Input type="number" step="0.01" value={draft.down50DiscountPct}
+                      onChange={(e) => setDraftField("down50DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
+                  </Field>
+                  <Field label="Desconto entrada 30% (%)">
+                    <Input type="number" step="0.01" value={draft.down30DiscountPct}
+                      onChange={(e) => setDraftField("down30DiscountPct", parseFloat(e.target.value) || 0)} className="field-engraved" />
+                  </Field>
+                </div>
+                {/* COLUNA DIREITA — parcelamento e duracao do plano, empilhados */}
+                <div className="panel-3d-sub p-4 space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Parcelamento e duracao do plano</p>
+                  <Field label="Parcelas s/ juros (max)">
+                    <Input type="number" value={draft.maxNoInterestInstallments}
+                      onChange={(e) => setDraftField("maxNoInterestInstallments", parseInt(e.target.value) || 1)} className="field-engraved" />
+                  </Field>
+                  <Field label="Plano (meses)">
+                    <Input type="number" value={draft.planMonths}
+                      onChange={(e) => setDraftField("planMonths", parseInt(e.target.value) || 1)} className="field-engraved" />
+                  </Field>
+                  <Field label="Plano (semanas)">
+                    <Input type="number" value={draft.planWeeks}
+                      onChange={(e) => setDraftField("planWeeks", parseInt(e.target.value) || 1)} className="field-engraved" />
+                  </Field>
+                  <Field label="Plano (dias)">
+                    <Input type="number" value={draft.planDays}
+                      onChange={(e) => setDraftField("planDays", parseInt(e.target.value) || 1)} className="field-engraved" />
+                  </Field>
+                  <Field label="Cenario recomendado">
+                    <Select value={draft.recommendedScenario} onValueChange={(v) => setDraftField("recommendedScenario", v)}>
+                      <SelectTrigger className="field-engraved"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="A">A — a vista</SelectItem>
+                        <SelectItem value="B">B — entrada 50%</SelectItem>
+                        <SelectItem value="C">C — entrada 30%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Field label="Parcelas s/ juros (max)">
-                  <Input type="number" value={draft.maxNoInterestInstallments}
-                    onChange={(e) => setDraftField("maxNoInterestInstallments", parseInt(e.target.value) || 1)} className="field-engraved" />
-                </Field>
-                <Field label="Plano (meses)">
-                  <Input type="number" value={draft.planMonths}
-                    onChange={(e) => setDraftField("planMonths", parseInt(e.target.value) || 1)} className="field-engraved" />
-                </Field>
-                <Field label="Plano (semanas)">
-                  <Input type="number" value={draft.planWeeks}
-                    onChange={(e) => setDraftField("planWeeks", parseInt(e.target.value) || 1)} className="field-engraved" />
-                </Field>
-                <Field label="Plano (dias)">
-                  <Input type="number" value={draft.planDays}
-                    onChange={(e) => setDraftField("planDays", parseInt(e.target.value) || 1)} className="field-engraved" />
-                </Field>
-                <Field label="Cenario recomendado">
-                  <Select value={draft.recommendedScenario} onValueChange={(v) => setDraftField("recommendedScenario", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="A">A — a vista</SelectItem>
-                      <SelectItem value="B">B — entrada 50%</SelectItem>
-                      <SelectItem value="C">C — entrada 30%</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch checked={draft.passCardFeeDefault} onCheckedChange={(v) => setDraftField("passCardFeeDefault", v)} />
-                <Label>Repassar taxa de cartao por padrao (calculadora livre)</Label>
-              </div>
+              <ToggleWell
+                checked={draft.passCardFeeDefault}
+                onCheckedChange={(v) => setDraftField("passCardFeeDefault", v)}
+                label="Repassar taxa de cartao por padrao (calculadora livre)"
+              />
               <Button onClick={saveSettings} disabled={updateSettings.isPending} className="btn-3d">
                 <Save className="h-4 w-4 mr-2" /> Salvar parametros
               </Button>
@@ -236,8 +242,8 @@ export default function Parametrizacao() {
       {/* DESCONTO POR VOLUME */}
       <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-amber-600">
-            <Layers className="h-4 w-4" /> Desconto por Volume
+          <CardTitle>
+            <BlockTitle icon={Layers} color="text-amber-600">Desconto por Volume</BlockTitle>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -245,10 +251,20 @@ export default function Parametrizacao() {
             <Skeleton className="h-40 rounded-[6px]" />
           ) : (
             <div className="space-y-6">
-              <p className="text-xs text-muted-foreground">
-                A escada por item incide sobre as sessoes de CADA item. O bonus de carrinho incide sobre o total de sessoes do orcamento.
-                O desconto por volume vira o preco do protocolo; depois os pagamentos (a vista / entradas) incidem sobre ele, limitados pelo teto total.
-              </p>
+              <div className="space-y-2">
+                <ExplainRow tone="green" term="Escada por item">
+                  Quanto MAIS sessoes de um mesmo item, maior o desconto naquele item.
+                </ExplainRow>
+                <ExplainRow tone="green" term="Bonus de carrinho">
+                  Quanto MAIS sessoes no total do orcamento, entra um desconto extra sobre tudo.
+                </ExplainRow>
+                <ExplainRow tone="amber" term="Como vira o preco">
+                  Esses dois descontos formam o preco do protocolo. So depois a forma de pagamento (a vista ou entrada) aplica mais desconto sobre esse preco.
+                </ExplainRow>
+                <ExplainRow tone="amber" term="Teto total">
+                  A soma de todos os descontos nunca passa do limite definido abaixo em "Teto total de desconto".
+                </ExplainRow>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[11px] uppercase tracking-wide font-semibold">Escada por item (sessoes do item)</Label>
@@ -282,8 +298,8 @@ export default function Parametrizacao() {
       {/* TAXAS DE CARTAO */}
       <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-cyan-600">
-            <CreditCard className="h-4 w-4" /> Taxas de Cartao por Parcela
+          <CardTitle>
+            <BlockTitle icon={CreditCard} color="text-cyan-600">Taxas de Cartao por Parcela</BlockTitle>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -312,8 +328,8 @@ export default function Parametrizacao() {
       {/* CATALOGO DE PRECOS */}
       <Card className="panel-3d">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base uppercase tracking-wide text-emerald-600">
-            <Tag className="h-4 w-4" /> Catalogo de Precos
+          <CardTitle>
+            <BlockTitle icon={Tag} color="text-emerald-600">Catalogo de Precos</BlockTitle>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -327,9 +343,9 @@ export default function Parametrizacao() {
               {items.map((it) => (
                 <div key={it.id} className="panel-3d-sub">
                   <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center p-2">
-                    <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="h-9" />
+                    <Input value={it.name} onChange={(e) => setLocalItem(it.id, { name: e.target.value })} className="field-engraved h-9 font-medium" />
                     <Select value={it.kind} onValueChange={(v) => setLocalItem(it.id, { kind: v })}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="field-engraved h-9 font-medium"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
                       </SelectContent>
@@ -341,8 +357,8 @@ export default function Parametrizacao() {
                     <Input type="number" value={it.frequencyDays ?? ""}
                       onChange={(e) => setLocalItem(it.id, { frequencyDays: e.target.value ? parseInt(e.target.value) : null })} className="field-engraved h-9" />
                     <div className="flex items-center gap-1 justify-end">
-                      {it.substanceId ? <Badge variant="outline" className="text-[9px]">vitrine</Badge> : null}
-                      {!it.repeticaoLivre ? <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-600">teto/mes</Badge> : null}
+                      <StatusChip on={!!it.substanceId} tone="green" label="VITRINE" />
+                      <StatusChip on={!it.repeticaoLivre} tone="amber" label="TETO/MES" />
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(it.id)} title="Limite clinico mensal">
                         {expanded[it.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </Button>
@@ -356,32 +372,31 @@ export default function Parametrizacao() {
                   </div>
                   {expanded[it.id] && (
                     <div className="border-t bg-muted/30 p-3 space-y-3">
-                      <div className="flex flex-wrap items-end gap-4">
-                        <div className="flex items-center gap-2">
-                          <Switch checked={it.repeticaoLivre} onCheckedChange={(v) => setLocalItem(it.id, { repeticaoLivre: v })} />
-                          <Label className="text-xs">Repeticao livre (sem teto clinico mensal)</Label>
+                      <ToggleWell
+                        checked={it.repeticaoLivre}
+                        onCheckedChange={(v) => setLocalItem(it.id, { repeticaoLivre: v })}
+                        label="Repeticao livre (sem teto clinico mensal)"
+                        labelClass="text-xs"
+                      />
+                      {!it.repeticaoLivre && (
+                        <div className="flex flex-wrap items-end gap-4">
+                          <Field label="Max aplicacoes / mes">
+                            <Input type="number" value={it.maxAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
+                              onChange={(e) => setLocalItem(it.id, { maxAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
+                          </Field>
+                          <Field label="Min aplicacoes / mes">
+                            <Input type="number" value={it.minAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
+                              onChange={(e) => setLocalItem(it.id, { minAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
+                          </Field>
                         </div>
-                        {!it.repeticaoLivre && (
-                          <>
-                            <Field label="Max aplicacoes / mes">
-                              <Input type="number" value={it.maxAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
-                                onChange={(e) => setLocalItem(it.id, { maxAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
-                            </Field>
-                            <Field label="Min aplicacoes / mes">
-                              <Input type="number" value={it.minAplicacoesMes ?? ""} className="field-engraved h-9 w-32"
-                                onChange={(e) => setLocalItem(it.id, { minAplicacoesMes: e.target.value ? parseInt(e.target.value) : null })} />
-                            </Field>
-                          </>
-                        )}
-                      </div>
+                      )}
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={!!it.itemVolumeTiers}
-                            onCheckedChange={(v) => setLocalItem(it.id, { itemVolumeTiers: v ? (draft?.itemVolumeTiers ?? []) : null })}
-                          />
-                          <Label className="text-xs">Escada de volume propria (sobrepoe a global)</Label>
-                        </div>
+                        <ToggleWell
+                          checked={!!it.itemVolumeTiers}
+                          onCheckedChange={(v) => setLocalItem(it.id, { itemVolumeTiers: v ? (draft?.itemVolumeTiers ?? []) : null })}
+                          label="Escada de volume propria (sobrepoe a global)"
+                          labelClass="text-xs"
+                        />
                         {it.itemVolumeTiers && (
                           <TierEditor tiers={it.itemVolumeTiers} onChange={(t) => setLocalItem(it.id, { itemVolumeTiers: t })} />
                         )}
@@ -396,9 +411,9 @@ export default function Parametrizacao() {
 
               {/* NOVO ITEM */}
               <div className="grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_0.8fr_0.8fr_auto] gap-2 items-center border-2 border-dashed rounded-[6px] p-2">
-                <Input placeholder="Novo item" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="h-9" />
+                <Input placeholder="Novo item" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} className="field-engraved h-9 font-medium" />
                 <Select value={newItem.kind} onValueChange={(v) => setNewItem({ ...newItem, kind: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="field-engraved h-9 font-medium"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
                   </SelectContent>
@@ -494,6 +509,65 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1.5">
       <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+// Titulo do bloco numa placa Saliente (bevel 3D) — chanfro que salta da folha.
+function BlockTitle({ icon: Icon, color, children }: { icon: React.ElementType; color: string; children: React.ReactNode }) {
+  return (
+    <span className={`bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-base font-semibold uppercase tracking-wide ${color}`}>
+      <Icon className="h-4 w-4" />
+      {children}
+    </span>
+  );
+}
+
+// Sinal de status (vitrine / teto-mes) com SLOT de largura fixa: sempre presente,
+// LED aceso quando ativo e apagado quando inativo. Largura constante = nao desalinha.
+function StatusChip({ on, tone, label }: { on: boolean; tone: "green" | "amber"; label: string }) {
+  const txt = on ? (tone === "green" ? "text-emerald-600" : "text-amber-600") : "text-muted-foreground/70";
+  return (
+    <span
+      className={`concave-3d inline-flex items-center justify-center gap-1 h-6 w-[72px] shrink-0 ${on ? "" : "opacity-70"}`}
+      title={on ? `${label} ativo` : `${label} inativo`}
+    >
+      <span className={`paxter-led paxter-led-${tone} ${on ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />
+      <span className={`text-[8px] font-semibold uppercase tracking-wide ${txt}`}>{label}</span>
+    </span>
+  );
+}
+
+// Toggle dentro de um sulco Concavo (well), como se afundasse na base do painel.
+function ToggleWell({
+  checked,
+  onCheckedChange,
+  label,
+  labelClass,
+}: {
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  label: string;
+  labelClass?: string;
+}) {
+  return (
+    <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Label className={labelClass ?? "text-sm"}>{label}</Label>
+    </div>
+  );
+}
+
+// Linha de explicacao para leigo: termo em negrito + frase simples, empilhada
+// num insert Concavo com LED. Uma ideia por linha (nunca paragrafo linear).
+function ExplainRow({ tone, term, children }: { tone: "green" | "amber"; term: string; children: React.ReactNode }) {
+  return (
+    <div className="concave-3d flex items-start gap-2 px-3 py-2">
+      <span className={`paxter-led paxter-led-${tone} paxter-led-on mt-1 shrink-0`} aria-hidden="true" />
+      <p className="text-xs leading-snug">
+        <span className="font-semibold">{term}:</span>{" "}
+        <span className="text-muted-foreground">{children}</span>
+      </p>
     </div>
   );
 }
