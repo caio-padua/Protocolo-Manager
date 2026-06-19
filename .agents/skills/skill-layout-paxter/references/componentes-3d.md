@@ -62,6 +62,19 @@ marca por MOLDURA + selo (`panel-3d-rec`), nunca enchendo o botao de verde-suces
 <button className="neon-hover concave-3d px-3 py-2">Ver detalhe</button>
 ```
 
+### Neon estavel saindo de baixo (underglow — NAO pisca)
+```tsx
+{/* O underglow e um ::after que precisa de position:relative no pai.
+    Usar quando o bloco inteiro precisa "chamar" sem ficar piscando. */}
+<div className="paxter-underglow panel-3d p-4">
+  <p className="text-sm font-semibold">Sessoes planejadas</p>
+  <p className="text-3xl font-bold">12</p>
+</div>
+```
+Armadilha: o `::after` tem `pointer-events:none` e `position:absolute` — o pai PRECISA de
+`position:relative` (a classe `paxter-underglow` ja define). Se o pai nao tiver
+`overflow:visible`, o neon fica cortado.
+
 ### LED de status (slot fixo, nunca aparece/some)
 ```tsx
 <span className="concave-3d w-[72px] shrink-0 inline-flex items-center justify-center gap-1.5">
