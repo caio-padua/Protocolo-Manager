@@ -38,7 +38,6 @@ function buildGoogleCalendarLink(session: {
   const startDt = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
   const endH = String(h + 1).padStart(2, "0");
   const endDt = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-
   const title = encodeURIComponent(`PADCOM: ${session.clientName} — Semana ${session.weekNumber}`);
   const dispNames = session.substanceApplications
     .filter(a => a.availability === "disp")
@@ -46,7 +45,6 @@ function buildGoogleCalendarLink(session: {
     .join(", ");
   const details = encodeURIComponent(`Substâncias: ${dispNames}`);
   const location = encodeURIComponent(session.unit ?? "Clínica PADCOM");
-
   return `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${startDt}/${endDt}&details=${details}&location=${location}`;
 }
 
@@ -98,7 +96,6 @@ export default function Agenda() {
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-
   const dateFrom = format(weekStart, "yyyy-MM-dd");
   const dateTo = format(weekEnd, "yyyy-MM-dd");
 
@@ -106,14 +103,9 @@ export default function Agenda() {
 
   const confirmMutation = useConfirmSubstanceApplication({
     mutation: {
-      onSuccess: () => {
-        toast({ title: "Substância confirmada!" });
-        refetch();
-      },
-      onError: () => {
-        toast({ title: "Erro ao confirmar", variant: "destructive" });
-      }
-    }
+      onSuccess: () => { toast({ title: "Substância confirmada!" }); refetch(); },
+      onError: () => { toast({ title: "Erro ao confirmar", variant: "destructive" }); },
+    },
   });
 
   const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>({});
@@ -137,54 +129,38 @@ export default function Agenda() {
   function downloadWeekICS() {
     const url = `/api/sessions/ics?dateFrom=${dateFrom}&dateTo=${dateTo}`;
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `padcom_${dateFrom}_a_${dateTo}.ics`;
-    a.click();
+    a.href = url; a.download = `padcom_${dateFrom}_a_${dateTo}.ics`; a.click();
     toast({ title: "ICS da semana baixado!", description: "Importe no Google Agenda ou Apple Calendar." });
   }
 
   function downloadSessionICS(sessionId: number, clientName: string) {
     const url = `/api/sessions/${sessionId}/ics`;
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `padcom_sessao_${sessionId}.ics`;
-    a.click();
+    a.href = url; a.download = `padcom_sessao_${sessionId}.ics`; a.click();
     toast({ title: "ICS baixado!", description: `Sessão de ${clientName}.` });
   }
 
   async function generateValidationCode(session: any) {
-    setCodeModalSession(session);
-    setCodeModalOpen(true);
-    setGeneratedCode(null);
-    setCodeLoading(true);
+    setCodeModalSession(session); setCodeModalOpen(true);
+    setGeneratedCode(null); setCodeLoading(true);
     try {
       const res = await fetch("/api/validation-codes/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: session.id }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setGeneratedCode(data.code);
-        setCodeExpiry(data.expiresAt);
-      } else {
-        toast({ title: "Erro ao gerar código", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-    } finally {
-      setCodeLoading(false);
-    }
+      if (res.ok) { setGeneratedCode(data.code); setCodeExpiry(data.expiresAt); }
+      else toast({ title: "Erro ao gerar código", variant: "destructive" });
+    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
+    finally { setCodeLoading(false); }
   }
 
   async function verifyCode() {
     if (!verifySession || !verifyInput) return;
-    setVerifyLoading(true);
-    setVerifyResult(null);
+    setVerifyLoading(true); setVerifyResult(null);
     try {
       const res = await fetch("/api/validation-codes/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: verifySession.id, code: verifyInput }),
       });
       const data = await res.json();
@@ -192,14 +168,9 @@ export default function Agenda() {
         setVerifyResult("success");
         toast({ title: "Cliente validado!", description: `${verifySession.clientName} confirmou presença.` });
         refetch();
-      } else {
-        setVerifyResult("error");
-      }
-    } catch {
-      setVerifyResult("error");
-    } finally {
-      setVerifyLoading(false);
-    }
+      } else { setVerifyResult("error"); }
+    } catch { setVerifyResult("error"); }
+    finally { setVerifyLoading(false); }
   }
 
   function copyCode(code: string) {
@@ -209,7 +180,6 @@ export default function Agenda() {
 
   const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
   const [assessmentSession, setAssessmentSession] = useState<any>(null);
-
   const [emailSending, setEmailSending] = useState<number | null>(null);
   const [calSyncing, setCalSyncing] = useState<number | null>(null);
 
@@ -218,37 +188,24 @@ export default function Agenda() {
     try {
       const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST" });
       const data = await res.json();
-      if (res.ok && data.success) {
-        toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} adicionada ao Google Agenda.` });
-      } else {
-        toast({ title: "Erro ao sincronizar", description: data.error, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-    } finally {
-      setCalSyncing(null);
-    }
+      if (res.ok && data.success) toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} adicionada ao Google Agenda.` });
+      else toast({ title: "Erro ao sincronizar", description: data.error, variant: "destructive" });
+    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
+    finally { setCalSyncing(null); }
   }
 
   async function syncWeekToGoogleCalendar() {
     setCalSyncing(-1);
     try {
       const res = await fetch("/api/google-calendar/sync-week", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dateFrom, dateTo }),
       });
       const data = await res.json();
-      if (res.ok) {
-        toast({ title: "Semana sincronizada!", description: `${data.synced} sessões adicionadas ao Google Agenda.` });
-      } else {
-        toast({ title: "Erro", description: data.error, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-    } finally {
-      setCalSyncing(null);
-    }
+      if (res.ok) toast({ title: "Semana sincronizada!", description: `${data.synced} sessões adicionadas ao Google Agenda.` });
+      else toast({ title: "Erro", description: data.error, variant: "destructive" });
+    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
+    finally { setCalSyncing(null); }
   }
 
   async function sendPreSessionEmail(session: any) {
@@ -256,16 +213,10 @@ export default function Agenda() {
     try {
       const res = await fetch(`/api/email/send-pre-session/${session.id}`, { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        toast({ title: "E-mail enviado!", description: `Pré-aplicação enviado para ${session.clientName}. Código: ${data.code}` });
-      } else {
-        toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-    } finally {
-      setEmailSending(null);
-    }
+      if (res.ok) toast({ title: "E-mail enviado!", description: `Pré-aplicação enviado para ${session.clientName}. Código: ${data.code}` });
+      else toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
+    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
+    finally { setEmailSending(null); }
   }
 
   async function sendPostSessionEmail(session: any) {
@@ -273,16 +224,10 @@ export default function Agenda() {
     try {
       const res = await fetch(`/api/email/send-post-session/${session.id}`, { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        toast({ title: "E-mail enviado!", description: `RAS pós-aplicação enviado para ${session.clientName}.` });
-      } else {
-        toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de conexão", variant: "destructive" });
-    } finally {
-      setEmailSending(null);
-    }
+      if (res.ok) toast({ title: "E-mail enviado!", description: `RAS pós-aplicação enviado para ${session.clientName}.` });
+      else toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
+    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
+    finally { setEmailSending(null); }
   }
 
   function getProcedureLabel(session: any): string {
@@ -297,55 +242,38 @@ export default function Agenda() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* ── CABEÇALHO DA AGENDA ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda Semanal</h1>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-wide">Uma visita consolidada por semana por cliente.</p>
+          <h1 className="text-3xl font-black tracking-tight uppercase">Agenda Semanal</h1>
+          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">Uma visita consolidada por semana por cliente.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 p-1.5 concave-3d">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 p-1 concave-3d">
             <Button variant="ghost" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))} className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="bevel-3d px-4 py-1.5 text-xs font-bold uppercase tracking-widest min-w-[220px] text-center">
+            <div className="bevel-3d px-3 py-1.5 text-[11px] font-black uppercase tracking-widest min-w-[180px] text-center">
               {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
             </div>
             <Button variant="ghost" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))} className="h-8 w-8 p-0">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(new Date())} className="btn-3d-soft h-9 px-4 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadWeekICS}
-            className="btn-3d-soft gap-2 h-9 px-4 uppercase tracking-widest text-[11px] font-bold"
-            disabled={!sessions?.length}
-          >
-            <Download className="h-3.5 w-3.5" />
-            ICS
+          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(new Date())} className="btn-3d-soft h-9 px-3 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
+          <Button variant="outline" size="sm" onClick={downloadWeekICS} className="btn-3d-soft gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length}>
+            <Download className="h-3.5 w-3.5" /> ICS
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={syncWeekToGoogleCalendar}
-            className="btn-3d gap-2 h-9 px-4 uppercase tracking-widest text-[11px] font-bold"
-            disabled={!sessions?.length || calSyncing === -1}
-          >
-            {calSyncing === -1 ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <CalendarPlus className="h-3.5 w-3.5" />
-            )}
-            Sync Google
+          <Button variant="outline" size="sm" onClick={syncWeekToGoogleCalendar} className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length || calSyncing === -1}>
+            {calSyncing === -1 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
+            Sync
           </Button>
         </div>
       </div>
 
+      {/* ── CORPO ── */}
       {isLoading ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-[6px]" />)}
-        </div>
+        <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-[6px]" />)}</div>
       ) : !sessions?.length ? (
         <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-20">
@@ -357,7 +285,7 @@ export default function Agenda() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {days.map(day => {
             const daySessions = sessions.filter(s => {
               const d = new Date(s.scheduledDate + "T12:00:00");
@@ -365,30 +293,34 @@ export default function Agenda() {
             });
             const isToday = day.toDateString() === new Date().toDateString();
             const isPast = day < new Date() && !isToday;
+            const hasSessions = daySessions.length > 0;
 
             return (
-              <div key={day.toISOString()} className="space-y-3">
-                <div className={`flex items-center gap-4 py-1 px-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
-                  <div className={`bevel-3d h-10 w-14 flex flex-col items-center justify-center ${isToday ? "paxter-underglow ring-2 ring-cyan-400" : ""}`}>
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">
-                      {format(day, "EEE", { locale: ptBR })}
-                    </span>
-                    <span className="text-xl font-black leading-none mt-0.5">
-                      {format(day, "dd")}
-                    </span>
-                  </div>
-                  {daySessions.length > 0 && (
-                    <div className="concave-3d px-3 py-1 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                      <span className={`paxter-led paxter-led-on ${isToday ? "paxter-led-amber" : "paxter-led-cyan"}`} />
-                      {daySessions.length} {daySessions.length === 1 ? "sessão" : "sessões"}
+              <div key={day.toISOString()} className={`space-y-2 ${!hasSessions && !isToday ? "opacity-25" : ""}`}>
+
+                {/* ── SEPARADOR DE DIA — sólido, bem delimitado ── */}
+                <div className="flex items-center gap-3 pt-3">
+                  <div className={`panel-3d-active flex items-center gap-3 px-4 py-2 rounded-[6px] ${isToday ? "ring-2 ring-cyan-400/70" : isPast ? "opacity-60" : ""}`}>
+                    <div className="flex flex-col items-center min-w-[2.25rem]">
+                      <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${isToday ? "text-cyan-500" : "text-muted-foreground"}`}>
+                        {format(day, "EEE", { locale: ptBR })}
+                      </span>
+                      <span className={`text-2xl font-black leading-none mt-0.5 tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
+                        {format(day, "dd")}
+                      </span>
                     </div>
-                  )}
-                  <div className="flex-1 border-b border-dashed border-muted/50" />
+                    {hasSessions && (
+                      <div className="concave-3d px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {daySessions.length} {daySessions.length === 1 ? "sessão" : "sessões"}
+                      </div>
+                    )}
+                  </div>
+                  <div className={`flex-1 h-0.5 ${isToday ? "bg-cyan-400/30" : "bg-foreground/8"}`} />
                 </div>
 
-                <div className="md:ml-16 space-y-3">
+                {/* ── CARDS DE SESSÃO ── */}
+                <div className="ml-2 sm:ml-4 space-y-2">
                   {daySessions.map(session => {
-                    const googleLink = buildGoogleCalendarLink(session as any);
                     const whatsappLink = buildWhatsAppLink(session as any);
                     const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
                     const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
@@ -401,264 +333,220 @@ export default function Agenda() {
                       ? session.substanceApplications
                       : session.substanceApplications.filter(a => a.availability === "disp");
 
-                    const statusBaseColor = 
-                      session.status === "completed" ? "green" :
-                      session.status === "missed" ? "red" :
-                      session.status === "cancelled" ? "slate" :
-                      someConfirmed ? "amber" :
-                      isToday ? "cyan" : "slate";
+                    const statusBarColor =
+                      session.status === "completed" ? "bg-green-500/80" :
+                      session.status === "missed" ? "bg-red-500/80" :
+                      session.status === "cancelled" ? "bg-slate-400/80" :
+                      someConfirmed ? "bg-amber-500/80" :
+                      isToday ? "bg-cyan-500/80" : "bg-slate-300/60";
 
                     return (
-                      <Card
-                        key={session.id}
-                        className={`panel-3d-sub overflow-hidden transition-all neon-hover ${isToday ? "panel-3d-active" : ""}`}
-                      >
+                      <Card key={session.id} className={`panel-3d-sub overflow-hidden transition-all ${isToday ? "ring-1 ring-cyan-400/30" : ""}`}>
                         <div className="flex h-full">
-                          <div className={`w-1.5 shrink-0 bg-${statusBaseColor}-500/80`} />
-                          <CardContent className="p-4 flex-1">
-                            <div className="flex items-start gap-4">
-                              <div className="screen-3d shrink-0 w-16 sm:w-20 py-2 flex flex-col items-center justify-center self-start">
-                                <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">HORÁRIO</div>
-                                <div className="text-lg font-black text-primary leading-none flex items-center gap-1">
-                                  <Clock className="h-4 w-4 text-cyan-500" />
-                                  {session.scheduledTime}
-                                </div>
-                              </div>
 
-                              <div className="flex-1 min-w-0 space-y-3">
-                                {/* Cabeçalho em SLOTS FIXOS: nome (trunca) sobre CPF à esquerda; STATUS sempre no topo-direito */}
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-base font-black uppercase tracking-tight text-foreground truncate">{session.clientName}</div>
-                                    <div className="concave-3d inline-block mt-1 px-2 py-0.5 text-[11px] font-bold text-muted-foreground tabular-nums">{session.clientCpf || "—"}</div>
+                          {/* Faixa de status lateral */}
+                          <div className={`w-1 shrink-0 ${statusBarColor}`} />
+
+                          <CardContent className="p-0 flex-1 min-w-0">
+
+                            {/* ── TOP BAR: HORÁRIO · SEMANA · ⋯ ── */}
+                            <div className="flex items-center gap-2 px-3 py-2 border-b border-muted/20 bg-muted/8">
+                              <Clock className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                              <span className="text-sm font-black text-primary tabular-nums">{session.scheduledTime}</span>
+                              <span className="text-muted-foreground/30 text-xs select-none">·</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Sem. {session.weekNumber}</span>
+
+                              {/* Dropdown de ações no top bar */}
+                              <div className="ml-auto">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="btn-3d-soft h-7 w-7 p-0">
+                                      <MoreHorizontal className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-60 panel-3d">
+                                    <DropdownMenuItem onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      <ClipboardList className="h-4 w-4 text-teal-600" /> Avaliação de Enfermagem
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => generateValidationCode(session)} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      <KeyRound className="h-4 w-4 text-amber-500" /> Gerar Código de Validação
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { setVerifySession(session); setVerifyInput(""); setVerifyResult(null); setVerifyModalOpen(true); }} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      <ShieldCheck className="h-4 w-4 text-green-500" /> Verificar Código do Cliente
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => sendPreSessionEmail(session)} disabled={emailSending === session.id} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      {emailSending === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-blue-500" />}
+                                      E-mail Pré-Aplicação
+                                    </DropdownMenuItem>
+                                    {session.status === "completed" && (
+                                      <DropdownMenuItem onClick={() => sendPostSessionEmail(session)} disabled={emailSending === session.id} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                        {emailSending === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4 text-green-500" />}
+                                        E-mail Pós-Aplicação (RAS)
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => syncToGoogleCalendar(session)} disabled={calSyncing === session.id} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      {calSyncing === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4 text-blue-500" />}
+                                      Sincronizar Google Agenda
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => downloadSessionICS(session.id, session.clientName)} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                      <Download className="h-4 w-4 text-muted-foreground" /> Baixar ICS desta sessão
+                                    </DropdownMenuItem>
+                                    {whatsappLink && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => window.open(whatsappLink, "_blank")} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
+                                          <Send className="h-4 w-4 text-green-500" /> Lembrete via WhatsApp
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+
+                            {/* ── CORPO DO CARD ── */}
+                            <div className="p-3 space-y-2.5">
+
+                              {/* NOME + CPF na mesma coluna; STATUS badge ao lado do CPF */}
+                              <div>
+                                <div className="text-base font-black uppercase tracking-tight text-foreground leading-snug">
+                                  {session.clientName}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <div className="concave-3d px-2 py-0.5 text-[11px] font-bold text-muted-foreground tabular-nums">
+                                    {session.clientCpf || "—"}
                                   </div>
-                                  <div className={`concave-3d shrink-0 px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusColor(session.status)}`}>
+                                  <div className={`concave-3d px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ${getStatusColor(session.status)}`}>
                                     {formatStatus(session.status)}
                                   </div>
                                 </div>
-
-                                {/* Metadados em SLOTS FIXOS ROTULADOS — vazio fica em branco, nunca desloca (regra TDAH) */}
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                  <MetaField
-                                    label="Unidade"
-                                    value={session.serviceType === "homecare" ? "Nurse Care" : session.unit}
-                                    icon={session.serviceType === "homecare" ? Home : Building2}
-                                  />
-                                  <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
-                                  <MetaField label="Semana" value={`Semana ${session.weekNumber}`} />
-                                  <MetaField label="Procedimento" value={getProcedureLabel(session)} />
-                                  <MetaField label="Profissional" value={session.professionalName} icon={User} />
-                                </div>
-
-                                {/* Substâncias: sulco concavo, colunas fixas, quadradinho de cor + caixinha */}
-                                <div className="concave-3d p-2.5 space-y-1.5">
-                                  <div className="flex items-center justify-between gap-2 px-1 min-h-[1.5rem]">
-                                    <div className="flex items-center gap-2">
-                                      {canConfirm && confirmableCount > 0 ? (
-                                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                                          <Checkbox
-                                            checked={false}
-                                            disabled={confirmMutation.isPending}
-                                            onCheckedChange={() => confirmAllForSession(session)}
-                                            aria-label="Marcar todas as substâncias do dia como aplicadas"
-                                          />
-                                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Marcar todas</span>
-                                        </label>
-                                      ) : allConfirmed ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-green-600">
-                                          <CheckCircle2 className="h-3.5 w-3.5" /> Concluídas
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Substâncias</span>
-                                      )}
-                                    </div>
-                                    {proxCount > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleCard(session.id)}
-                                        className="btn-3d-soft flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary"
-                                      >
-                                        <Search className="h-3 w-3" />
-                                        {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length})`}
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {visibleApps.length === 0 ? (
-                                    <div className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                                      Nenhuma substância para hoje
-                                    </div>
-                                  ) : (
-                                    visibleApps.map(app => {
-                                      const isDisp = app.availability === "disp";
-                                      return (
-                                        <div
-                                          key={app.id}
-                                          className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem] items-center gap-x-2 px-2.5 py-2"
-                                        >
-                                          <span
-                                            className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner"
-                                            style={{ backgroundColor: app.substanceColor || "#94a3b8" }}
-                                            title="Cor da substância"
-                                          />
-                                          <span className="min-w-0 truncate text-xs font-bold uppercase tracking-tight text-foreground">
-                                            {app.substanceName}
-                                          </span>
-                                          <span className="justify-self-center h-7 w-px bg-foreground/15 shadow-[inset_-1px_0_0_rgba(255,255,255,0.65)]" />
-                                          <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
-                                            {app.sessionNumber > 0 ? `${app.sessionNumber}/${app.totalSessions}` : "—"}
-                                          </span>
-                                          {app.appliedAt ? (
-                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-green-600">Aplicada</span>
-                                          ) : isDisp ? (
-                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-amber-600">A aplicar</span>
-                                          ) : (
-                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Próxima</span>
-                                          )}
-                                          {app.appliedAt ? (
-                                            <CheckCircle2 className="h-5 w-5 text-green-600 justify-self-center" />
-                                          ) : isDisp && canConfirm ? (
-                                            <Checkbox
-                                              className="justify-self-center"
-                                              checked={false}
-                                              disabled={confirmMutation.isPending}
-                                              aria-label={`Confirmar aplicação de ${app.substanceName}`}
-                                              onCheckedChange={() => confirmMutation.mutate({
-                                                id: session.id,
-                                                data: { substanceId: app.substanceId, confirmed: true },
-                                              })}
-                                            />
-                                          ) : (
-                                            <span className="justify-self-center" />
-                                          )}
-                                        </div>
-                                      );
-                                    })
-                                  )}
-                                </div>
                               </div>
 
-                              <div className="flex flex-col gap-2 shrink-0">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="btn-3d-soft h-9 w-9 p-0">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-56 panel-3d">
-                                    <DropdownMenuItem
-                                      onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }}
-                                      className="gap-2 font-bold uppercase tracking-widest text-[10px]"
-                                    >
-                                      <ClipboardList className="h-4 w-4 text-teal-600" />
-                                      Avaliação de Enfermagem
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onClick={() => generateValidationCode(session)}
-                                      className="gap-2 font-bold uppercase tracking-widest text-[10px]"
-                                    >
-                                      <KeyRound className="h-4 w-4 text-amber-500" />
-                                      Gerar Código
-                                    </DropdownMenuItem>
- ...[Truncated]                              <DropdownMenuItem
-                                onClick={() => { setVerifySession(session); setVerifyInput(""); setVerifyResult(null); setVerifyModalOpen(true); }}
-                                className="gap-2"
-                              >
-                                <ShieldCheck className="h-4 w-4 text-green-500" />
-                                Verificar Código do Cliente
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => sendPreSessionEmail(session)}
-                                disabled={emailSending === session.id}
-                                className="gap-2"
-                              >
-                                {emailSending === session.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Mail className="h-4 w-4 text-blue-500" />
-                                )}
-                                Enviar E-mail Pré-Aplicação
-                              </DropdownMenuItem>
-                              {session.status === "completed" && (
-                                <DropdownMenuItem
-                                  onClick={() => sendPostSessionEmail(session)}
-                                  disabled={emailSending === session.id}
-                                  className="gap-2"
-                                >
-                                  {emailSending === session.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <MailCheck className="h-4 w-4 text-green-500" />
-                                  )}
-                                  Enviar E-mail Pós-Aplicação (RAS)
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => syncToGoogleCalendar(session)}
-                                disabled={calSyncing === session.id}
-                                className="gap-2"
-                              >
-                                {calSyncing === session.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <CalendarPlus className="h-4 w-4 text-blue-500" />
-                                )}
-                                Sincronizar Google Agenda
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => downloadSessionICS(session.id, session.clientName)}
-                                className="gap-2"
-                              >
-                                <Download className="h-4 w-4 text-muted-foreground" />
-                                Baixar ICS desta sessão
-                              </DropdownMenuItem>
-                              {whatsappLink && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => window.open(whatsappLink, "_blank")}
-                                    className="gap-2"
-                                  >
-                                    <Send className="h-4 w-4 text-green-500" />
-                                    Enviar lembrete (WhatsApp)
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              {/* Meta grid 2 colunas */}
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <MetaField
+                                  label="Unidade"
+                                  value={session.serviceType === "homecare" ? "Nurse Care" : session.unit}
+                                  icon={session.serviceType === "homecare" ? Home : Building2}
+                                />
+                                <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
+                                <MetaField label="Procedimento" value={getProcedureLabel(session)} />
+                                <MetaField label="Profissional" value={session.professionalName} icon={User} />
+                              </div>
 
-                        </div>
-                            </div>
+                              {/* Substâncias — sulco côncavo */}
+                              <div className="concave-3d p-2 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 px-1 min-h-[1.5rem]">
+                                  <div className="flex items-center gap-2">
+                                    {canConfirm && confirmableCount > 0 ? (
+                                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <Checkbox
+                                          checked={false}
+                                          disabled={confirmMutation.isPending}
+                                          onCheckedChange={() => confirmAllForSession(session)}
+                                          aria-label="Marcar todas as substâncias do dia como aplicadas"
+                                        />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Marcar todas</span>
+                                      </label>
+                                    ) : allConfirmed ? (
+                                      <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-green-600">
+                                        <CheckCircle2 className="h-3.5 w-3.5" /> Concluídas
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Substâncias</span>
+                                    )}
+                                  </div>
+                                  {proxCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCard(session.id)}
+                                      className="btn-3d-soft flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary"
+                                    >
+                                      <Search className="h-3 w-3" />
+                                      {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length})`}
+                                    </button>
+                                  )}
+                                </div>
+
+                                {visibleApps.length === 0 ? (
+                                  <div className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                    Nenhuma substância para hoje
+                                  </div>
+                                ) : (
+                                  visibleApps.map(app => {
+                                    const isDisp = app.availability === "disp";
+                                    return (
+                                      <div
+                                        key={app.id}
+                                        className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem] items-center gap-x-2 px-2.5 py-2"
+                                      >
+                                        <span
+                                          className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner shrink-0"
+                                          style={{ backgroundColor: app.substanceColor || "#94a3b8" }}
+                                        />
+                                        <span className="min-w-0 truncate text-xs font-bold uppercase tracking-tight text-foreground">
+                                          {app.substanceName}
+                                        </span>
+                                        <span className="justify-self-center h-7 w-px bg-foreground/15" />
+                                        <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
+                                          {app.sessionNumber > 0 ? `${app.sessionNumber}/${app.totalSessions}` : "—"}
+                                        </span>
+                                        {app.appliedAt ? (
+                                          <span className="text-[9px] font-black uppercase tracking-wider text-center text-green-600">Aplicada</span>
+                                        ) : isDisp ? (
+                                          <span className="text-[9px] font-black uppercase tracking-wider text-center text-amber-600">A aplicar</span>
+                                        ) : (
+                                          <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Próxima</span>
+                                        )}
+                                        {app.appliedAt ? (
+                                          <CheckCircle2 className="h-5 w-5 text-green-600 justify-self-center" />
+                                        ) : isDisp && canConfirm ? (
+                                          <Checkbox
+                                            className="justify-self-center"
+                                            checked={false}
+                                            disabled={confirmMutation.isPending}
+                                            aria-label={`Confirmar aplicação de ${app.substanceName}`}
+                                            onCheckedChange={() => confirmMutation.mutate({
+                                              id: session.id,
+                                              data: { substanceId: app.substanceId, confirmed: true },
+                                            })}
+                                          />
+                                        ) : (
+                                          <span className="justify-self-center" />
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+
+                            </div>{/* fim corpo */}
                           </CardContent>
                         </div>
-                    </Card>
-                  );
-                })}
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
             );
           })}
         </div>
       )}
 
+      {/* ── MODAL: CÓDIGO DE VALIDAÇÃO ── */}
       <Dialog open={codeModalOpen} onOpenChange={setCodeModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-amber-500" />
-              Código de Validação
+              <KeyRound className="h-5 w-5 text-amber-500" /> Código de Validação
             </DialogTitle>
-            <DialogDescription>
-              Código de 6 dígitos para validação de presença do cliente.
-            </DialogDescription>
+            <DialogDescription>Código de 6 dígitos para validação de presença do cliente.</DialogDescription>
           </DialogHeader>
           {codeLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : generatedCode ? (
             <div className="space-y-4">
               <div className="bg-slate-900 rounded-xl p-6 text-center">
@@ -683,9 +571,7 @@ export default function Agenda() {
                     if (!phone) { toast({ title: "Cliente sem telefone", variant: "destructive" }); return; }
                     const dateStr = codeModalSession?.scheduledDate ? format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy") : "";
                     const proc = getProcedureLabel(codeModalSession);
-                    const msg = encodeURIComponent(
-                      `Clínica Pádua | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.\n\nClínica Pádua — Protocolos Injetáveis`
-                    );
+                    const msg = encodeURIComponent(`Clínica Pádua | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.\n\nClínica Pádua — Protocolos Injetáveis`);
                     window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
                   }}
                 >
@@ -704,16 +590,14 @@ export default function Agenda() {
         onSuccess={() => refetch()}
       />
 
+      {/* ── MODAL: VERIFICAR CÓDIGO ── */}
       <Dialog open={verifyModalOpen} onOpenChange={setVerifyModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-green-500" />
-              Verificar Código
+              <ShieldCheck className="h-5 w-5 text-green-500" /> Verificar Código
             </DialogTitle>
-            <DialogDescription>
-              Digite o código de 6 dígitos informado pelo cliente.
-            </DialogDescription>
+            <DialogDescription>Digite o código de 6 dígitos informado pelo cliente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {verifySession && (
@@ -722,20 +606,17 @@ export default function Agenda() {
                 <p><span className="font-medium">Sessão:</span> {verifySession.scheduledDate && format(new Date(verifySession.scheduledDate + "T12:00:00"), "dd/MM/yyyy")} às {verifySession.scheduledTime}</p>
               </div>
             )}
-            <div className="flex gap-2">
-              <Input
-                value={verifyInput}
-                onChange={e => setVerifyInput(e.target.value.toUpperCase().slice(0, 6))}
-                placeholder="EX: A7K3M2"
-                className="text-center text-2xl font-mono tracking-[0.3em] h-14"
-                maxLength={6}
-                onKeyDown={e => e.key === "Enter" && verifyCode()}
-              />
-            </div>
+            <Input
+              value={verifyInput}
+              onChange={e => setVerifyInput(e.target.value.toUpperCase().slice(0, 6))}
+              placeholder="EX: A7K3M2"
+              className="text-center text-2xl font-mono tracking-[0.3em] h-14"
+              maxLength={6}
+              onKeyDown={e => e.key === "Enter" && verifyCode()}
+            />
             {verifyResult === "success" && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-800 text-sm font-medium flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5" />
-                Cliente validado com sucesso!
+                <ShieldCheck className="h-5 w-5" /> Cliente validado com sucesso!
               </div>
             )}
             {verifyResult === "error" && (
@@ -743,11 +624,7 @@ export default function Agenda() {
                 Código inválido ou expirado. Peça ao cliente para verificar.
               </div>
             )}
-            <Button
-              className="w-full gap-2"
-              onClick={verifyCode}
-              disabled={verifyLoading || verifyInput.length < 6}
-            >
+            <Button className="w-full gap-2" onClick={verifyCode} disabled={verifyLoading || verifyInput.length < 6}>
               {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
               Verificar
             </Button>
