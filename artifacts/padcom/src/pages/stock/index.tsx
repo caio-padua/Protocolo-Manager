@@ -85,7 +85,7 @@ export default function Stock() {
         </p>
       </div>
 
-      {/* Painel — 5 faixas empilhadas verticalmente, sem cor de fundo */}
+      {/* Painel — 5 faixas empilhadas; label uppercase + número em concave-3d */}
       <div className="panel-3d p-4 space-y-1">
         <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 mb-3">
           Painel de situação — selecione a faixa
@@ -98,24 +98,27 @@ export default function Stock() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] transition-all text-left ${
-                active ? "concave-3d" : "hover:bg-muted/40"
+                active ? "bg-muted/30" : "hover:bg-muted/20"
               }`}
             >
+              {/* Label da faixa — uppercase */}
               <span
                 className="text-[11px] font-black uppercase tracking-widest"
-                style={{ color: tab.color }}
+                style={{ color: active ? tab.color : "hsl(var(--muted-foreground))" }}
               >
                 {tab.label}
               </span>
-              <span
-                className="min-w-[24px] h-5 rounded-full text-[10px] font-black flex items-center justify-center px-1.5 tabular-nums"
-                style={{
-                  backgroundColor: tab.color + "18",
-                  color: tab.color,
-                }}
+              {/* Número côncavo — insert bevel */}
+              <div
+                className="concave-3d min-w-[2.5rem] h-7 flex items-center justify-center px-2 tabular-nums"
               >
-                {count}
-              </span>
+                <span
+                  className="text-sm font-black leading-none"
+                  style={{ color: count > 0 ? tab.color : "hsl(var(--muted-foreground)/0.4)" }}
+                >
+                  {count}
+                </span>
+              </div>
             </button>
           );
         })}
