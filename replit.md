@@ -175,6 +175,8 @@ Resumo da CARTA_08 recebida do IHE e executada pelo Dr. Replit Manager.
 
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
+Metodo de trabalho (decisao do CEO, 19/06/2026): para QUALQUER funcionalidade nao-trivial, seguir o **Paxter Loop** (skill `paxter-loop`) — Especificar (spec escrita em `specs/<nome>.md`) -> Construir (so o que esta na spec) -> Revisar com o architect ate aprovar sem pendencia. O CEO aciona por fala ("rode o loop", "spec isso", "pode buildar", "manda revisar").
+
 Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):
 
 Art. 37  Conclusao primeiro; explicacao depois.
