@@ -59,6 +59,11 @@ Decisao estetica do CEO para a tela de orcamento: ROTULOS/titulos de bloco e o c
 No cabecalho, `doseMain = doseDisplay.split("—")[0].trim() || doseDisplay` mostra so a magnitude (ex.: "200 MG"), cortando a parte apos o travessao em-dash. O chip tem `max-w-[180px] truncate` + `title={doseDisplay}` para posologia longa sem travessao.
 **Why:** sem o `|| doseDisplay`, dose sem em-dash sumiria; sem max-w, posologia longa estoura o cabecalho.
 
+## Apresentacao (link ao cliente): verde = SO "Aceito"; recomendado = moldura, nao botao
+Nos cards de cenario da Apresentacao (`apresentacao.tsx`, componente `CaminhoCard`), os botoes "Escolher este" sao TODOS iguais (`btn-3d-soft`). O destaque do cenario recomendado vem de CONTORNO + SOMBRA verde-petroleo por baixo do painel (`.panel-3d-rec`, definida depois de `.panel-3d`) e do selo do topo em RELEVO 3D (`bevel-3d` + LED). Verde solido (`.btn-3d-ok`, verde sucesso, NAO o teal da marca) aparece UNICA e exclusivamente no card ja aceito.
+**Why:** o CEO (19/06/2026) reprovou o botao teal cheio no recomendado — parecia "aceito" e confundia o paciente. Cor cheia no botao = significado "ja escolhido"; recomendacao nao pode roubar esse significado.
+**How to apply:** nunca dar botao colorido permanente ao recomendado; destaque so por borda/sombra/selo. Reservar verde para estado terminal. Info de desconto e pagamento sempre EMPILHADA (valor embaixo de valor: chip "X% de desconto" -> "voce economiza" -> valor; Entrada/Saldo um sob o outro), nunca em linha com middot.
+
 ## Armadilha ARIA: role="slider" nao pode envolver filhos focaveis
 Tanto em `SessionStacker` (barra) quanto em `FrequencyDial` (trilha), o elemento com `role="slider"` + `tabIndex=0` + teclado NAO contem filhos focaveis: os marcadores/preenchimentos sao `<div>` com `aria-hidden`. Botoes +/- ficam IRMAOS do slider, nunca dentro.
 **Why:** slider com `<button>` focavel dentro e ARIA invalido e gera tab-stops duplicados.

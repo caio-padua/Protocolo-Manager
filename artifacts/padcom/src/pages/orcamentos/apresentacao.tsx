@@ -188,8 +188,8 @@ export default function ApresentacaoOrcamento() {
 
       {/* 3 CAMINHOS */}
       <div>
-        <h2 className="text-center text-sm uppercase tracking-widest text-muted-foreground mb-4">Escolha seu caminho</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+        <h2 className="text-center text-sm uppercase tracking-widest text-muted-foreground mb-6">Escolha seu caminho</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
           {result && (
             <>
               <CaminhoCard
@@ -201,7 +201,6 @@ export default function ApresentacaoOrcamento() {
                 perDia={result.scenarioA.perspective.perDayCents}
                 onAceitar={() => registrarAceite("A")}
                 aceito={chosen === "A"}
-                linha="Pagamento unico"
               />
               <CaminhoCard
                 titulo="Entrada 50%"
@@ -213,7 +212,8 @@ export default function ApresentacaoOrcamento() {
                 perDia={result.scenarioB.perspective.perDayCents}
                 onAceitar={() => registrarAceite("B")}
                 aceito={chosen === "B"}
-                linha={`Entrada ${fmt(result.scenarioB.downPaymentCents)} + saldo ${fmt(result.scenarioB.balanceCents)}`}
+                entradaCents={result.scenarioB.downPaymentCents}
+                saldoCents={result.scenarioB.balanceCents}
               />
               <CaminhoCard
                 titulo="Entrada 30%"
@@ -224,7 +224,8 @@ export default function ApresentacaoOrcamento() {
                 perDia={result.scenarioC.perspective.perDayCents}
                 onAceitar={() => registrarAceite("C")}
                 aceito={chosen === "C"}
-                linha={`Entrada ${fmt(result.scenarioC.downPaymentCents)} + saldo ${fmt(result.scenarioC.balanceCents)}`}
+                entradaCents={result.scenarioC.downPaymentCents}
+                saldoCents={result.scenarioC.balanceCents}
               />
             </>
           )}
@@ -314,35 +315,81 @@ export default function ApresentacaoOrcamento() {
 
 function CaminhoCard(props: {
   titulo: string; destaque: boolean; preco: number; economia: number; desconto: number; perDia: number;
-  linha: string; onAceitar: () => void; aceito: boolean; decoy?: boolean;
+  onAceitar: () => void; aceito: boolean; decoy?: boolean; entradaCents?: number; saldoCents?: number;
 }) {
+  const parcelado = props.entradaCents != null && props.saldoCents != null;
   return (
-    <Card className={`panel-3d relative ${props.destaque ? "panel-3d-active md:scale-105" : ""} ${props.aceito ? "ring-2 ring-emerald-500" : ""}`}>
+    <Card
+      className={`panel-3d relative ${props.destaque ? "panel-3d-rec md:scale-[1.04]" : ""} ${props.aceito ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background" : ""}`}
+    >
+      {/* FAIXA SUPERIOR em relevo 3D (selo do cenario recomendado / mais escolhido) */}
       {props.destaque && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <Badge className="bg-primary">Recomendado</Badge>
+        <div className="absolute -top-3.5 left-1/2 z-10 -translate-x-1/2">
+          <span className="bevel-3d inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary">
+            <span className="paxter-led paxter-led-green paxter-led-on" aria-hidden="true" /> Recomendado para voce
+          </span>
         </div>
       )}
       {!props.destaque && props.decoy && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40">Mais escolhido</Badge>
+        <div className="absolute -top-3.5 left-1/2 z-10 -translate-x-1/2">
+          <span className="bevel-3d inline-flex whitespace-nowrap px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
+            Mais escolhido
+          </span>
         </div>
       )}
-      <CardContent className="p-5 text-center space-y-3">
-        <div className="flex items-center justify-center gap-2">
-          <span className={`paxter-led paxter-led-green ${props.destaque ? "paxter-led-on" : "paxter-led-off"}`} aria-hidden="true" />
-          <span className="bevel-3d px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{props.titulo}</span>
+
+      <CardContent className="space-y-4 p-5 pt-7 text-center">
+        {/* NOME DO CENARIO */}
+        <div className="flex justify-center">
+          <span className="concave-3d px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-primary">{props.titulo}</span>
         </div>
-        <div className="space-y-1.5">
-          <div className="screen-3d px-3 py-2 text-3xl font-black tabular-nums">{fmt(props.preco)}</div>
-          {props.desconto > 0 ? <div className="text-xs text-emerald-600 font-medium">{props.desconto}% de desconto · economiza {fmt(props.economia)}</div> : null}
+
+        {/* PRECO PRINCIPAL */}
+        <div className="screen-3d px-3 py-2.5 text-3xl font-black tabular-nums">{fmt(props.preco)}</div>
+
+        {/* ECONOMIA — empilhada e bem nitida (valor embaixo de valor) */}
+        {props.desconto > 0 && (
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+              <TrendingDown className="h-3 w-3" /> {props.desconto}% de desconto
+            </span>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">voce economiza</div>
+              <div className="text-lg font-black tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(props.economia)}</div>
+            </div>
+          </div>
+        )}
+
+        {/* DETALHE DO PAGAMENTO — valor embaixo de valor */}
+        {parcelado ? (
+          <div className="concave-3d divide-y divide-border/60 text-left">
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Entrada</span>
+              <span className="text-sm font-bold tabular-nums">{fmt(props.entradaCents!)}</span>
+            </div>
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Saldo</span>
+              <span className="text-sm font-bold tabular-nums">{fmt(props.saldoCents!)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs font-medium text-muted-foreground">Pagamento unico</div>
+        )}
+
+        {/* POR DIA */}
+        <div className="flex justify-center">
+          <span className="concave-3d inline-flex items-center gap-1 px-3 py-1 text-xs tabular-nums text-muted-foreground">
+            <CalendarDays className="h-3 w-3" /> {fmt(props.perDia)} / dia
+          </span>
         </div>
-        <div className="text-xs text-muted-foreground">{props.linha}</div>
-        <div className="concave-3d text-xs px-3 py-1 inline-flex items-center gap-1 tabular-nums">
-          <CalendarDays className="h-3 w-3" /> {fmt(props.perDia)} / dia
-        </div>
-        <Button className={`w-full ${props.destaque ? "btn-3d" : "btn-3d-soft"}`} variant={props.aceito ? "secondary" : props.destaque ? "default" : "outline"} onClick={props.onAceitar}>
-          {props.aceito ? <><CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" /> Aceito</> : "Escolher este"}
+
+        {/* ACAO — mesma cor (soft) em TODOS os cards; verde solido SO quando aceito */}
+        <Button
+          className={`w-full ${props.aceito ? "btn-3d-ok" : "btn-3d-soft"}`}
+          variant={props.aceito ? "secondary" : "outline"}
+          onClick={props.onAceitar}
+        >
+          {props.aceito ? <><CheckCircle2 className="mr-2 h-4 w-4" /> Aceito</> : "Escolher este"}
         </Button>
       </CardContent>
     </Card>
