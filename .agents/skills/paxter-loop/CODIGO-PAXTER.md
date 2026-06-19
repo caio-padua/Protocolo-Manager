@@ -199,6 +199,16 @@ revisar olhando como se fosse o próprio cliente (alinhamento por linhas-guia, e
 conferir SEMPRE no celular E no desktop, tanto no LAYOUT quanto na FUNCIONALIDADE dos botões (clique,
 alvo de toque, toggle responde). (19/06/2026 — skill `skill-layout-paxter/references/revisao-final.md`)
 
+**Art. 53** POSIÇÃO FIXA + CAMPO VAZIO ROTULADO (lei promulgada pela Agenda Semanal): em TODA tela do
+sistema, cada dado ocupa um slot em posição FIXA (o olho do CEO acha o mesmo dado no mesmo lugar, card a
+card); campo opcional NUNCA some — quando vazio, mostra "—" com o rótulo presente, pois remover desloca os
+demais. Proibido `flex-wrap` para dados-chave do cabeçalho (desliza com o tamanho do texto): ancorar com
+`min-w-0` + `truncate` à esquerda e `shrink-0` à direita. Listas de itens repetidos usam UM `grid` de
+colunas FIXO (alinhamento ao pixel), com QUADRADINHO de cor identitário do item (cor pertence ao item, não
+LED — LED só para status binário), sulco côncavo divisor, e CAIXINHA (`Checkbox`) no lugar da palavra-botão
+"CONFIRMAR" (individual e "marcar todas"); todo checkbox sem texto ao lado leva `aria-label`. Detalhe na
+skill `skill-layout-paxter` (Padrões 12 e 13). (19/06/2026 — memória: skill-layout-paxter)
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -207,3 +217,4 @@ alvo de toque, toggle responde). (19/06/2026 — skill `skill-layout-paxter/refe
 |------|---------|-----------------------|
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
+| 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |

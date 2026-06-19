@@ -187,6 +187,29 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - **Padrao 11 — toggle em well tambem no preview**: todo `Switch`, inclusive na tela de
   Apresentacao (preview do cliente), vai em sulco `concave-3d` (Padrao 5). Selects que acompanham
   o toggle recebem `field-engraved` para a linha inteira parecer gravada.
+- **Padrao 12 — POSICAO FIXA + CAMPO VAZIO ROTULADO (lei promulgada pela Agenda Semanal,
+  19/06/2026)**: vale para TODAS as telas do sistema, nao so orcamento. Todo dado de um card/linha
+  ocupa um SLOT em posicao FIXA: o olho do CEO (TDAH) sempre acha o mesmo dado no mesmo lugar,
+  card a card. (a) NUNCA usar `flex-wrap` para os dados-chave do cabecalho — `flex-wrap` faz a
+  posicao deslizar conforme o tamanho do texto. Em vez disso, ancorar: titulo (nome) `truncate`
+  numa coluna `min-w-0` a esquerda e o sinal/status com `shrink-0` na direita
+  (`flex items-start justify-between`). (b) Campo opcional NUNCA some: renderiza-se sempre o slot
+  com seu rotulo MAIUSCULO; quando vazio, mostra-se um placeholder neutro ("—"), nunca se remove a
+  linha (remover desloca todos os campos abaixo). Helper canonico `MetaField({label, value, icon})`:
+  rotulo em `bevel`/uppercase fixo + valor gravado ou "—". Grade de slots = `grid` de N colunas
+  fixas (`grid-cols-2 lg:grid-cols-3`), nao `flex-wrap`.
+- **Padrao 13 — LINHA DE ITEM EM COLUNAS FIXAS COM SULCO (lei promulgada pela Agenda Semanal,
+  19/06/2026)**: lista de itens repetidos (substancias, parcelas, exames) usa UM `grid` de template
+  de colunas FIXO (`grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem]` e similares) para que
+  TODAS as linhas aliem ao pixel. Cada coluna tem funcao unica e ordem estavel: (1) QUADRADINHO de
+  COR identitario (`h-3.5 w-3.5 rounded-[3px] ring-1`, cor da entidade) — cor pertencendo ao ITEM
+  e quadradinho, NUNCA LED (LED so para status on/off binario, Padrao 4); (2) nome `truncate`;
+  (3) SULCO concavo divisor (`w-px bg-foreground/15` com realce 3D) separando blocos de colunas;
+  (4) numeros tabulares alinhados a direita; (5) estado em texto curto centralizado; (6) controle
+  (CAIXINHA `Checkbox` para marcar/confirmar — a palavra "CONFIRMAR" como botao-texto fica
+  proibida; usa-se a caixinha, individual e "marcar todas"). Acoes em massa (lupa expandir/recolher,
+  "marcar todas") ficam numa barra de altura fixa (`min-h`) acima da lista, para nao empurrar as
+  linhas. Todo `Checkbox` sem texto visivel ao lado recebe `aria-label` descritivo.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 

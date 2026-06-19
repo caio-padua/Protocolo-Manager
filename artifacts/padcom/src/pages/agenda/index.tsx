@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useListSessions, useConfirmSubstanceApplication } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import {
   format, startOfWeek, endOfWeek, addWeeks, subWeeks,
@@ -12,7 +12,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User,
-  CheckCheck, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
+  CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
 } from "lucide-react";
 import {
@@ -67,6 +67,19 @@ function buildWhatsAppLink(session: {
   return `https://wa.me/55${phone}?text=${msg}`;
 }
 
+function MetaField({ label, value, icon: Icon }: { label: string; value: string | null; icon?: any }) {
+  const empty = value == null || value === "";
+  return (
+    <div className="concave-3d px-2.5 py-1.5 min-w-0">
+      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-1">{label}</div>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-tight leading-none min-w-0">
+        {Icon && !empty && <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />}
+        <span className={`truncate ${empty ? "text-muted-foreground/40" : "text-foreground"}`}>{empty ? "—" : value}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Agenda() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const { toast } = useToast();
@@ -102,6 +115,18 @@ export default function Agenda() {
       }
     }
   });
+
+  const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>({});
+  const toggleCard = (id: number) => setExpandedCards(p => ({ ...p, [id]: !p[id] }));
+
+  function confirmAllForSession(session: any) {
+    const pending = (session.substanceApplications ?? []).filter(
+      (a: any) => a.availability === "disp" && !a.appliedAt
+    );
+    pending.forEach((a: any) =>
+      confirmMutation.mutate({ id: session.id, data: { substanceId: a.substanceId, confirmed: true } })
+    );
+  }
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
@@ -361,13 +386,20 @@ export default function Agenda() {
                   <div className="flex-1 border-b border-dashed border-muted/50" />
                 </div>
 
-                <div className="ml-16 space-y-3">
+                <div className="md:ml-16 space-y-3">
                   {daySessions.map(session => {
                     const googleLink = buildGoogleCalendarLink(session as any);
                     const whatsappLink = buildWhatsAppLink(session as any);
                     const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
                     const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
                     const someConfirmed = dispApps.some(a => a.appliedAt) && !allConfirmed;
+                    const proxCount = session.substanceApplications.filter(a => a.availability === "prox").length;
+                    const confirmableCount = dispApps.filter(a => !a.appliedAt).length;
+                    const canConfirm = session.status !== "completed" && session.status !== "cancelled" && session.status !== "missed";
+                    const expanded = !!expandedCards[session.id];
+                    const visibleApps = expanded
+                      ? session.substanceApplications
+                      : session.substanceApplications.filter(a => a.availability === "disp");
 
                     const statusBaseColor = 
                       session.status === "completed" ? "green" :
@@ -385,8 +417,8 @@ export default function Agenda() {
                           <div className={`w-1.5 shrink-0 bg-${statusBaseColor}-500/80`} />
                           <CardContent className="p-4 flex-1">
                             <div className="flex items-start gap-4">
-                              <div className="screen-3d shrink-0 w-20 py-2 flex flex-col items-center justify-center">
-                                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">HORÁRIO</div>
+                              <div className="screen-3d shrink-0 w-16 sm:w-20 py-2 flex flex-col items-center justify-center self-start">
+                                <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">HORÁRIO</div>
                                 <div className="text-lg font-black text-primary leading-none flex items-center gap-1">
                                   <Clock className="h-4 w-4 text-cyan-500" />
                                   {session.scheduledTime}
@@ -394,81 +426,115 @@ export default function Agenda() {
                               </div>
 
                               <div className="flex-1 min-w-0 space-y-3">
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-base font-black uppercase tracking-tight text-foreground">{session.clientName}</span>
-                                  <span className="concave-3d px-2 py-0.5 text-[10px] font-bold text-muted-foreground tabular-nums">{session.clientCpf}</span>
-                                  <div className={`concave-3d px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusColor(session.status)}`}>
+                                {/* Cabeçalho em SLOTS FIXOS: nome (trunca) sobre CPF à esquerda; STATUS sempre no topo-direito */}
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-base font-black uppercase tracking-tight text-foreground truncate">{session.clientName}</div>
+                                    <div className="concave-3d inline-block mt-1 px-2 py-0.5 text-[11px] font-bold text-muted-foreground tabular-nums">{session.clientCpf || "—"}</div>
+                                  </div>
+                                  <div className={`concave-3d shrink-0 px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusColor(session.status)}`}>
                                     {formatStatus(session.status)}
                                   </div>
-                                  {session.serviceType === "homecare" ? (
-                                    <div className="bevel-3d px-2 py-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-teal-600">
-                                      <Home className="h-3 w-3" /> Nurse Care
-                                    </div>
-                                  ) : (
-                                    <div className="bevel-3d px-2 py-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                      <Building2 className="h-3 w-3" /> {session.unit ?? "Clínica"}
-                                    </div>
-                                  )}
-                                  {allConfirmed && <div className="paxter-led paxter-led-green paxter-led-on" title="Todos confirmados" />}
                                 </div>
 
-                                <div className="flex items-center gap-3 flex-wrap text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
-                                  <span className="concave-3d px-2 py-0.5">{(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`}</span>
-                                  <span>•</span>
-                                  <span className="concave-3d px-2 py-0.5">Semana {session.weekNumber}</span>
-                                  <span>•</span>
-                                  <span className="bevel-3d px-2 py-0.5 text-primary">{getProcedureLabel(session)}</span>
-                                  {session.professionalName && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="flex items-center gap-1">
-                                        <User className="h-3 w-3" /> {session.professionalName}
-                                      </span>
-                                    </>
-                                  )}
+                                {/* Metadados em SLOTS FIXOS ROTULADOS — vazio fica em branco, nunca desloca (regra TDAH) */}
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                                  <MetaField
+                                    label="Unidade"
+                                    value={session.serviceType === "homecare" ? "Nurse Care" : session.unit}
+                                    icon={session.serviceType === "homecare" ? Home : Building2}
+                                  />
+                                  <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
+                                  <MetaField label="Semana" value={`Semana ${session.weekNumber}`} />
+                                  <MetaField label="Procedimento" value={getProcedureLabel(session)} />
+                                  <MetaField label="Profissional" value={session.professionalName} icon={User} />
                                 </div>
 
-                                <div className="flex gap-3 flex-wrap items-center pt-1">
-                                  {session.substanceApplications.map(app => (
-                                    <div key={app.id} className="flex items-center gap-2">
-                                      <div
-                                        className={`concave-3d flex items-center gap-2 px-3 py-1.5 font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${
-                                          app.appliedAt ? "ring-2 ring-cyan-400" : ""
-                                        }`}
-                                      >
-                                        <span className={`paxter-led ${
-                                          app.appliedAt ? "paxter-led-green paxter-led-on" :
-                                          app.status === "missed" ? "paxter-led-red paxter-led-on" :
-                                          app.availability === "disp" ? "paxter-led-amber paxter-led-on" :
-                                          "paxter-led-off"
-                                        }`} />
-                                        <span className="text-foreground">{app.substanceName}</span>
-                                        {app.sessionNumber > 0 && (
-                                          <span className="text-[9px] opacity-60 ml-0.5">{app.sessionNumber}/{app.totalSessions}</span>
-                                        )}
-                                        {!app.appliedAt && (
-                                          <span className={`text-[8px] px-1 rounded-[2px] ${
-                                            app.availability === "disp" ? "bg-amber-500/20 text-amber-700" : "bg-slate-500/10 text-slate-500"
-                                          }`}>
-                                            {app.availability === "disp" ? "DISP" : "PROX"}
-                                          </span>
-                                        )}
-                                        {app.appliedAt && <CheckCheck className="h-3 w-3 text-cyan-500" />}
-                                      </div>
-                                      {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
-                                        <button
-                                          className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline transition-colors"
-                                          onClick={() => confirmMutation.mutate({
-                                            id: session.id,
-                                            data: { substanceId: app.substanceId, confirmed: true }
-                                          })}
-                                          disabled={confirmMutation.isPending}
-                                        >
-                                          {confirmMutation.isPending ? "..." : "Confirmar"}
-                                        </button>
+                                {/* Substâncias: sulco concavo, colunas fixas, quadradinho de cor + caixinha */}
+                                <div className="concave-3d p-2.5 space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2 px-1 min-h-[1.5rem]">
+                                    <div className="flex items-center gap-2">
+                                      {canConfirm && confirmableCount > 0 ? (
+                                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                          <Checkbox
+                                            checked={false}
+                                            disabled={confirmMutation.isPending}
+                                            onCheckedChange={() => confirmAllForSession(session)}
+                                            aria-label="Marcar todas as substâncias do dia como aplicadas"
+                                          />
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Marcar todas</span>
+                                        </label>
+                                      ) : allConfirmed ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-green-600">
+                                          <CheckCircle2 className="h-3.5 w-3.5" /> Concluídas
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Substâncias</span>
                                       )}
                                     </div>
-                                  ))}
+                                    {proxCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCard(session.id)}
+                                        className="btn-3d-soft flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary"
+                                      >
+                                        <Search className="h-3 w-3" />
+                                        {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length})`}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {visibleApps.length === 0 ? (
+                                    <div className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                      Nenhuma substância para hoje
+                                    </div>
+                                  ) : (
+                                    visibleApps.map(app => {
+                                      const isDisp = app.availability === "disp";
+                                      return (
+                                        <div
+                                          key={app.id}
+                                          className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem] items-center gap-x-2 px-2.5 py-2"
+                                        >
+                                          <span
+                                            className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner"
+                                            style={{ backgroundColor: app.substanceColor || "#94a3b8" }}
+                                            title="Cor da substância"
+                                          />
+                                          <span className="min-w-0 truncate text-xs font-bold uppercase tracking-tight text-foreground">
+                                            {app.substanceName}
+                                          </span>
+                                          <span className="justify-self-center h-7 w-px bg-foreground/15 shadow-[inset_-1px_0_0_rgba(255,255,255,0.65)]" />
+                                          <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
+                                            {app.sessionNumber > 0 ? `${app.sessionNumber}/${app.totalSessions}` : "—"}
+                                          </span>
+                                          {app.appliedAt ? (
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-green-600">Aplicada</span>
+                                          ) : isDisp ? (
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-amber-600">A aplicar</span>
+                                          ) : (
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Próxima</span>
+                                          )}
+                                          {app.appliedAt ? (
+                                            <CheckCircle2 className="h-5 w-5 text-green-600 justify-self-center" />
+                                          ) : isDisp && canConfirm ? (
+                                            <Checkbox
+                                              className="justify-self-center"
+                                              checked={false}
+                                              disabled={confirmMutation.isPending}
+                                              aria-label={`Confirmar aplicação de ${app.substanceName}`}
+                                              onCheckedChange={() => confirmMutation.mutate({
+                                                id: session.id,
+                                                data: { substanceId: app.substanceId, confirmed: true },
+                                              })}
+                                            />
+                                          ) : (
+                                            <span className="justify-self-center" />
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  )}
                                 </div>
                               </div>
 
