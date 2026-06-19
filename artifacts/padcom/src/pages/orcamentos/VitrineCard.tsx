@@ -5,50 +5,53 @@ import { Badge } from "@/components/ui/badge";
 import { Star, ChevronDown, Moon, Zap, Activity, Brain, ShieldCheck, Sparkles, HeartPulse, Dumbbell } from "lucide-react";
 import { fmt } from "./money";
 
-// Frasco-ampola (vial ~2 ml) — vetor nos tons da marca: lacre crimp em
-// verde-petroleo com flip-off, vidro com degrade (sheen), liquido na cor da
-// substancia com menisco, rotulo translucido. Assinatura preservada: Ampola({ color, width }).
+// Ampola injetavel classica (vidro tipo OPC) — vetor nos tons da marca:
+// ponta de quebra, haste estreita, ANEL DE QUEBRA colorido (na cor da
+// substancia), bulbo, ombro e corpo cilindrico com liquido + menisco e
+// brilhos de vidro. Assinatura preservada: Ampola({ color, width }).
 export function Ampola({ color, width = 40 }: { color: string; width?: number }) {
   const c = color || "#45B8CC";
   const cid = c.replace(/[^a-zA-Z0-9]/g, "");
   const height = Math.round(width * 1.7);
-  const bodyPath = "M15 13 L25 13 L25 14.5 Q30 16.5 30 22 L30 60 Q30 65 25 65 L15 65 Q10 65 10 60 L10 22 Q10 16.5 15 14.5 Z";
+  // Corpo: ombro -> cilindro -> fundo arredondado.
+  const bodyPath =
+    "M11 27 Q11 23.5 14.5 22 Q15.6 21 16 19.5 L24 19.5 Q24.4 21 25.5 22 Q29 23.5 29 27 L29 60 Q29 64 24.5 64 L15.5 64 Q11 64 11 60 Z";
   return (
-    <svg width={width} height={height} viewBox="0 0 40 68" className="shrink-0" role="img" aria-label="Frasco-ampola">
+    <svg width={width} height={height} viewBox="0 0 40 68" className="shrink-0" role="img" aria-label="Ampola">
       <defs>
-        <clipPath id={`vial-${cid}`}>
+        <clipPath id={`amp-${cid}`}>
           <path d={bodyPath} />
         </clipPath>
         <linearGradient id={`glass-${cid}`} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-          <stop offset="26%" stopColor="hsl(187 46% 95%)" />
-          <stop offset="72%" stopColor="hsl(187 40% 89%)" />
-          <stop offset="100%" stopColor="hsl(187 32% 80%)" />
+          <stop offset="28%" stopColor="hsl(187 46% 95%)" />
+          <stop offset="72%" stopColor="hsl(187 40% 88%)" />
+          <stop offset="100%" stopColor="hsl(187 32% 78%)" />
         </linearGradient>
         <linearGradient id={`liq-${cid}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={c} stopOpacity="0.6" />
+          <stop offset="0%" stopColor={c} stopOpacity="0.62" />
           <stop offset="45%" stopColor={c} stopOpacity="0.95" />
-          <stop offset="100%" stopColor={c} stopOpacity="0.78" />
+          <stop offset="100%" stopColor={c} stopOpacity="0.8" />
         </linearGradient>
       </defs>
-      {/* lacre crimp (aluminio) + flip-off central nos tons da marca */}
-      <rect x="12.5" y="2.5" width="15" height="3.6" rx="1.6" fill="hsl(180 22% 58%)" />
-      <rect x="11.5" y="5.6" width="17" height="8" rx="1.6" fill="hsl(180 30% 40%)" />
-      <rect x="11.5" y="5.6" width="17" height="2.4" rx="1.6" fill="hsl(180 26% 55%)" />
-      <rect x="17.5" y="3.2" width="5" height="2.3" rx="1.1" fill={c} opacity="0.85" />
-      {/* corpo de vidro com degrade */}
-      <path d={bodyPath} fill={`url(#glass-${cid})`} stroke="hsl(180 30% 50%)" strokeWidth="1.1" />
-      {/* liquido (cor da substancia) com menisco ~ 2 ml */}
-      <rect x="9" y="36" width="22" height="30" fill={`url(#liq-${cid})`} clipPath={`url(#vial-${cid})`} />
-      <ellipse cx="20" cy="36" rx="10" ry="2.3" fill={c} opacity="0.9" clipPath={`url(#vial-${cid})`} />
-      {/* rotulo branco translucido com linhas */}
-      <rect x="10.5" y="44" width="19" height="13" fill="#ffffff" opacity="0.72" clipPath={`url(#vial-${cid})`} />
-      <line x1="13" y1="48" x2="27" y2="48" stroke={c} strokeWidth="1.1" strokeLinecap="round" opacity="0.85" />
-      <line x1="13" y1="51.5" x2="24" y2="51.5" stroke="hsl(180 18% 58%)" strokeWidth="0.9" strokeLinecap="round" />
-      <line x1="13" y1="54.3" x2="25.5" y2="54.3" stroke="hsl(180 18% 64%)" strokeWidth="0.8" strokeLinecap="round" />
+      {/* ponta de quebra */}
+      <path d="M20 2.5 L22 6.6 Q20 7.4 18 6.6 Z" fill="hsl(187 35% 82%)" stroke="hsl(180 30% 55%)" strokeWidth="0.7" strokeLinejoin="round" />
+      {/* haste estreita */}
+      <path d="M18.1 6.8 L21.9 6.8 L21.4 13.6 L18.6 13.6 Z" fill={`url(#glass-${cid})`} stroke="hsl(180 30% 55%)" strokeWidth="0.9" strokeLinejoin="round" />
+      {/* anel de quebra colorido (na cor da substancia) */}
+      <rect x="17.4" y="12" width="5.2" height="1.9" rx="0.95" fill={c} />
+      {/* bulbo */}
+      <path d="M16.4 13.8 Q15.9 19.2 20 19.6 Q24.1 19.2 23.6 13.8 Z" fill={`url(#glass-${cid})`} stroke="hsl(180 30% 55%)" strokeWidth="0.9" strokeLinejoin="round" />
+      {/* corpo de vidro */}
+      <path d={bodyPath} fill={`url(#glass-${cid})`} stroke="hsl(180 30% 50%)" strokeWidth="1.1" strokeLinejoin="round" />
+      {/* liquido (cor da substancia) com menisco */}
+      <rect x="9" y="34" width="22" height="31" fill={`url(#liq-${cid})`} clipPath={`url(#amp-${cid})`} />
+      <ellipse cx="20" cy="34" rx="9.6" ry="1.9" fill={c} opacity="0.92" clipPath={`url(#amp-${cid})`} />
+      {/* anel impresso (graduacao) na parte vazia */}
+      <line x1="12.6" y1="29.5" x2="27.4" y2="29.5" stroke="hsl(180 24% 62%)" strokeWidth="0.7" opacity="0.7" clipPath={`url(#amp-${cid})`} />
       {/* brilhos de vidro */}
-      <rect x="13.5" y="18" width="2.6" height="22" rx="1.3" fill="#ffffff" opacity="0.6" clipPath={`url(#vial-${cid})`} />
-      <rect x="25.6" y="22" width="1.4" height="30" rx="0.7" fill="#ffffff" opacity="0.32" clipPath={`url(#vial-${cid})`} />
+      <rect x="13.4" y="25" width="2.6" height="35" rx="1.3" fill="#ffffff" opacity="0.55" clipPath={`url(#amp-${cid})`} />
+      <rect x="25.4" y="29" width="1.3" height="29" rx="0.65" fill="#ffffff" opacity="0.3" clipPath={`url(#amp-${cid})`} />
     </svg>
   );
 }

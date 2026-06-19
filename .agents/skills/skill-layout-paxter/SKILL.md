@@ -60,14 +60,15 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   segmentada (mesmo padrao das barras de Sessoes/Frequencia), preenchida ate a faixa ATUAL,
   faixa atual pulsando a luz por detras e, abaixo, DOIS inserts concavos RETANGULARES por
   faixa (% e limiar de sessoes; nunca empilhados). Os dois inserts tem MESMA altura e largura
-  (`h-7`, `flex-1`), com ESPACO entre simbolo e numero (`- N %`, `>= N`) e fonte legivel
-  (`text-[11px]`) — nunca numeros minusculos.
+  (`h-7`, `flex-1`), SEM espaco entre simbolo e numero (`-N%`, `>=N`, colado) em `whitespace-nowrap`
+  e fonte legivel (`text-[11px]`) — nunca numeros minusculos. Decisao do CEO (19/06/2026): o
+  numero gruda no simbolo (antes havia espaco).
   Substitui a antiga escada vertical (TierLadder). Renderizada no front a partir do catalogo
   (override do item OU escada global do settings); so com >=2 faixas. Referencia em
   `artifacts/padcom/src/pages/orcamentos/novo.tsx`.
 - **Leitura por insert (AGORA/META)**: cada leitura = rotulo em Bevel grosso (`bevel-3d`) com
   LED em cima + valor em Concavo (`concave-3d`) com a PORCENTAGEM grande em cima e as SESSOES
-  pequenas embaixo, sempre com ESPACO entre simbolo e numero (`- N %`, `>= N`). LED de AGORA =
+  pequenas embaixo, sempre SEM espaco entre simbolo e numero (`-N%`, `>=N`, colado). LED de AGORA =
   amarelo (`paxter-led-amber`); LED de META / melhor faixa = verde (`paxter-led-green`); ambos
   piscam em sincronia.
 - **Cancelamento de preco (risco vermelho fino)**: preco cheio substituido por desconto recebe
@@ -90,7 +91,8 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - **Painel de alerta clinico TRI-ESTADO (`paxter-alert`)**: o aviso de posologia tem 3 estados e
   NUNCA usa a palavra "teto" (termo PROIBIDO no contexto clinico) — fala-se "limite clinico de
   prescricao da substancia". (1) EXCEDE: vermelho com neon (`paxter-alert paxter-alert-red`) + LED
-  `paxter-led-red paxter-led-on`. (2) ABAIXO (nao eficiente): ambar com neon (`paxter-alert
+  `paxter-led-red paxter-led-on`. (2) ABAIXO (texto "Abaixo do limite clinico (N/mes) — nao esta no
+  efeito terapeutico"): ambar com neon (`paxter-alert
   paxter-alert-amber`) + LED `paxter-led-amber paxter-led-on`. (3) DENTRO da faixa terapeutica:
   VERDE calmo, SEM neon — so `bevel-3d` (segue o padrao do bevel) + texto esmeralda + LED
   `paxter-led-green` SEM `-on`. Cor do neon via `--alert-glow`. No mobile o alerta empilha
@@ -98,10 +100,23 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).
-- **Frasco-ampola (vial 2 ml)**: icone da substancia = vetor FLAT estilo frasco-ampola de ~2 ml
-  no MESMO estilo do porquinho: tampa crimp em verde-petroleo, vidro claro, liquido na COR da
-  substancia (`color`), brilho e marcas de medida. Componente `Ampola({ color, width })` em
-  `pages/orcamentos/VitrineCard.tsx` (assinatura preservada; substitui a ampola/ampoule antiga).
+- **Ampola injetavel (vidro OPC)**: icone da substancia = vetor FLAT de uma AMPOLA classica
+  injetavel (NAO frasco): ponta de quebra no topo, haste estreita, ANEL DE QUEBRA colorido na COR
+  da substancia (`color`), bulbo, ombro e corpo cilindrico com liquido (cor da substancia) +
+  menisco, anel de graduacao e brilhos de vidro nos tons da marca. Componente
+  `Ampola({ color, width })` em `pages/orcamentos/VitrineCard.tsx` (assinatura preservada;
+  substitui o frasco-ampola/vial anterior, reprovado pelo CEO em 19/06/2026).
+- **Concordancia de direcao da frequencia (FrequencyDial)**: a barra de frequencia mede
+  EFICIENCIA (mais frequente = barra mais cheia para a DIREITA). Por isso a seta da DIREITA
+  ENCURTA o intervalo (mais frequente, barra cresce) e a da ESQUERDA AUMENTA o intervalo (menos
+  frequente, barra recua). Setas, barra segmentada, teclado e arraste apontam todos no mesmo
+  sentido — nunca deixar a seta brigar com o crescimento da barra.
+- **Defaults clinicos ao abrir a Montagem**: substancia entra com 8 sessoes e 1x por semana
+  (`frequencyDays` 7); dieta, formula e consulta entram com 1 sessao. Vem do catalogo
+  (`budget_catalog`), entao Vitrine e Apresentacao herdam o mesmo default. O proprio default
+  semanal NAO pode disparar alerta de "excede": substancias semanais com limite usam
+  `maxAplicacoesMes` 5 (min 6 dias) para 7 dias passar com folga (decisao do CEO em 19/06/2026,
+  estendida tambem a Tirzepatida).
 
 ### 3.1 Padroes-mae (valem para TODAS as telas de orcamento)
 
@@ -136,7 +151,8 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - **Padrao 8 — respiro entre pecas 3D**: blocos com relevo (paineis, chips, inserts, cards de
   caminho) NUNCA se encostam. Gap minimo de 12px (`gap-3` / `space-y-4`) para a sombra externa
   "respirar"; pecas coladas matam o 3D. Ex.: inserts de taxa de cartao em `gap-3`; cards dos "3
-  caminhos" em `gap-6` (acomoda o `scale-105` do recomendado); historico em `space-y-4`.
+  caminhos" em `gap-6` (acomoda o `scale-105` do recomendado); lista/historico de orcamentos em
+  `space-y-5` com cada linha em `p-4` (decisao do CEO em 19/06/2026: estava amontoado em `space-y-4`/`p-3`).
 - **Padrao 9 — rotulo de multiplicador com espaco (`N x`)**: contador de parcela/repeticao
   escreve-se "N x" COM espaco (ex.: "12 x", nunca "12x"), de preferencia numa placa `bevel-3d`
   acima do campo gravado.

@@ -209,9 +209,9 @@ export function FrequencyDial({
       <div className="flex h-[60px] items-center justify-between gap-2">
         <button
           type="button"
-          aria-label="Diminuir intervalo (mais frequente)"
-          onClick={goPrev}
-          disabled={!prevStop}
+          aria-label="Aumentar intervalo (menos frequente)"
+          onClick={goNext}
+          disabled={!nextStop}
           className={ARROW}
         >
           <ChevronLeft className="h-5 w-5" />
@@ -229,9 +229,9 @@ export function FrequencyDial({
 
         <button
           type="button"
-          aria-label="Aumentar intervalo (menos frequente)"
-          onClick={goNext}
-          disabled={!nextStop}
+          aria-label="Diminuir intervalo (mais frequente)"
+          onClick={goPrev}
+          disabled={!prevStop}
           className={ARROW}
         >
           <ChevronRight className="h-5 w-5" />

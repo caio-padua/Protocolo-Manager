@@ -86,17 +86,18 @@ function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; d
         })}
       </div>
       {/* rotulos por faixa: DOIS inserts concavos RETANGULARES (mesma altura e
-          largura), LADO A LADO (% | >= N), com ESPACO no simbolo e numeros maiores. */}
+          largura), LADO A LADO (% | >=N), SEM espaco no simbolo (numero colado
+          ao % e ao >=) e em nowrap para nao quebrar linha no mobile. */}
       <div className="mt-2 flex w-full gap-[3px]">
         {tiers.map((t, i) => {
           const reached = i <= curIdx;
           return (
             <div key={i} className="flex flex-1 items-stretch justify-center gap-1.5">
-              <span className={`concave-3d flex h-7 flex-1 items-center justify-center text-[11px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
-                {t.discountPct > 0 ? `- ${t.discountPct} %` : "0 %"}
+              <span className={`concave-3d flex h-7 flex-1 items-center justify-center whitespace-nowrap text-[11px] font-extrabold tabular-nums ${reached ? "text-primary" : "text-muted-foreground/70"}`}>
+                {t.discountPct > 0 ? `-${t.discountPct}%` : "0%"}
               </span>
-              <span className={`concave-3d flex h-7 flex-1 items-center justify-center text-[11px] font-bold tabular-nums ${reached ? "text-primary" : "text-muted-foreground"}`}>
-                ≥ {t.minSessions}
+              <span className={`concave-3d flex h-7 flex-1 items-center justify-center whitespace-nowrap text-[11px] font-bold tabular-nums ${reached ? "text-primary" : "text-muted-foreground"}`}>
+                ≥{t.minSessions}
               </span>
             </div>
           );
@@ -179,7 +180,7 @@ export default function MontagemOrcamento() {
     }
     if (r.minAplicacoesMes && perMonth < r.minAplicacoesMes - 0.001) {
       const maxDias = Math.floor(30 / r.minAplicacoesMes);
-      return { kind: "under", left: `Abaixo do limite clínico de ${r.minAplicacoesMes}/mês — não é eficiente`, right: `Use no máximo ${maxDias} dias entre aplicações` };
+      return { kind: "under", left: `Abaixo do limite clínico (${r.minAplicacoesMes}/mês) — não está no efeito terapêutico`, right: `Use no máximo ${maxDias} dias entre aplicações` };
     }
     if (r.maxAplicacoesMes || r.minAplicacoesMes) {
       return { kind: "ok", left: "Posologia dentro da faixa terapêutica", right: "" };
@@ -438,7 +439,7 @@ export default function MontagemOrcamento() {
                                           <Led on={nowPct > 0} tone="amber" /> Agora
                                         </span>
                                         <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
-                                          <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `- ${nowPct} %` : "0 %"}</span>
+                                          <span className="text-xl font-extrabold tabular-nums text-primary">{nowPct > 0 ? `-${nowPct}%` : "0%"}</span>
                                           <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">{r.sessions} {r.sessions === 1 ? "sessão" : "sessões"}</span>
                                         </span>
                                       </div>
@@ -453,8 +454,8 @@ export default function MontagemOrcamento() {
                                               <Led on={true} tone="green" /> Meta
                                             </span>
                                             <span className="concave-3d flex h-12 min-w-[78px] flex-col items-center justify-center px-3 leading-none">
-                                              <span className="text-xl font-extrabold tabular-nums text-primary">- {v!.nextTierPct} %</span>
-                                              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">≥ {r.sessions + falta} {r.sessions + falta === 1 ? "sessão" : "sessões"}</span>
+                                              <span className="text-xl font-extrabold tabular-nums text-primary">-{v!.nextTierPct}%</span>
+                                              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide tabular-nums text-muted-foreground">≥{r.sessions + falta} {r.sessions + falta === 1 ? "sessão" : "sessões"}</span>
                                             </span>
                                           </div>
                                         </>

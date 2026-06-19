@@ -113,14 +113,14 @@ const SEED_ITEMS: Array<{
   maxAplicacoesMes: number | null;
   minAplicacoesMes: number | null;
 }> = [
-  { name: "Testosterona Bioidentica", kind: "substance", unitPriceCents: 15000, defaultSessions: 12, frequencyDays: 7, match: "testosterona", repeticaoLivre: false, maxAplicacoesMes: 4, minAplicacoesMes: 1 },
-  { name: "Tesamorelina", kind: "substance", unitPriceCents: 12000, defaultSessions: 12, frequencyDays: 7, match: "tesamorelina", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
-  { name: "Tirzepatida", kind: "substance", unitPriceCents: 45000, defaultSessions: 12, frequencyDays: 7, match: "tirzepatida", repeticaoLivre: false, maxAplicacoesMes: 4, minAplicacoesMes: 1 },
-  { name: "Peptideo X", kind: "substance", unitPriceCents: 35000, defaultSessions: 12, frequencyDays: 7, match: "peptideo", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
-  { name: "Coenzima Q10", kind: "substance", unitPriceCents: 9000, defaultSessions: 12, frequencyDays: 7, match: "q10", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
-  { name: "Vitamina D", kind: "substance", unitPriceCents: 8000, defaultSessions: 12, frequencyDays: 7, match: "vitamina d", repeticaoLivre: false, maxAplicacoesMes: 4, minAplicacoesMes: 1 },
-  { name: "Vitamina B12", kind: "substance", unitPriceCents: 8000, defaultSessions: 12, frequencyDays: 7, match: "b12", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
-  { name: "PQQ (Pirroloquinolina Quinona)", kind: "substance", unitPriceCents: 11000, defaultSessions: 12, frequencyDays: 7, match: "pqq", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
+  { name: "Testosterona Bioidentica", kind: "substance", unitPriceCents: 15000, defaultSessions: 8, frequencyDays: 7, match: "testosterona", repeticaoLivre: false, maxAplicacoesMes: 5, minAplicacoesMes: 1 },
+  { name: "Tesamorelina", kind: "substance", unitPriceCents: 12000, defaultSessions: 8, frequencyDays: 7, match: "tesamorelina", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
+  { name: "Tirzepatida", kind: "substance", unitPriceCents: 45000, defaultSessions: 8, frequencyDays: 7, match: "tirzepatida", repeticaoLivre: false, maxAplicacoesMes: 5, minAplicacoesMes: 1 },
+  { name: "Peptideo X", kind: "substance", unitPriceCents: 35000, defaultSessions: 8, frequencyDays: 7, match: "peptideo", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
+  { name: "Coenzima Q10", kind: "substance", unitPriceCents: 9000, defaultSessions: 8, frequencyDays: 7, match: "q10", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
+  { name: "Vitamina D", kind: "substance", unitPriceCents: 8000, defaultSessions: 8, frequencyDays: 7, match: "vitamina d", repeticaoLivre: false, maxAplicacoesMes: 5, minAplicacoesMes: 1 },
+  { name: "Vitamina B12", kind: "substance", unitPriceCents: 8000, defaultSessions: 8, frequencyDays: 7, match: "b12", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
+  { name: "PQQ (Pirroloquinolina Quinona)", kind: "substance", unitPriceCents: 11000, defaultSessions: 8, frequencyDays: 7, match: "pqq", repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
   { name: "Dieta Personalizada", kind: "diet", unitPriceCents: 50000, defaultSessions: 1, frequencyDays: null, match: null, repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
   { name: "Formulas Manipuladas", kind: "formula", unitPriceCents: 25000, defaultSessions: 1, frequencyDays: null, match: null, repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },
   { name: "Consulta Medica (60 min)", kind: "consultation", unitPriceCents: 60000, defaultSessions: 1, frequencyDays: null, match: null, repeticaoLivre: true, maxAplicacoesMes: null, minAplicacoesMes: null },

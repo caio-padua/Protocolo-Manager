@@ -56,12 +56,12 @@ export default function OrcamentosList() {
         <Card className="panel-3d">
           <CardHeader><CardTitle>Historico</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {budgets.map((b: Budget) => {
                 const st = STATUS[b.status] ?? STATUS.draft;
                 return (
                   <Link key={b.id} href={`/orcamentos/${b.id}/apresentacao`}>
-                    <div className="neon-hover panel-3d-sub flex items-center gap-4 p-3 transition-all duration-300 cursor-pointer">
+                    <div className="neon-hover panel-3d-sub flex items-center gap-4 p-4 transition-all duration-300 cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-medium truncate">{b.title || `Orcamento #${b.id}`}</span>

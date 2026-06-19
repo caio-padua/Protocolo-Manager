@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ElementType } from "react";
 import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
   CheckCircle2, ArrowUp, ArrowDown, Layers, Clock, FolderPlus,
@@ -330,10 +330,10 @@ export default function PrescricaoPage() {
   }, [allFormulas]);
 
   const inputCls =
-    "px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground";
+    "field-engraved border rounded-md px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/40";
 
   return (
-    <div className="max-w-[1700px] mx-auto">
+    <div className="max-w-[1100px] mx-auto space-y-5">
       <style>{`
         @media print { .no-print{display:none!important;} .print-only{display:block!important;} body{background:white!important;} }
         .print-only{display:none;}
@@ -343,11 +343,11 @@ export default function PrescricaoPage() {
       `}</style>
 
       {/* PAGE HEADER */}
-      <div className="no-print mb-5 flex items-center justify-between gap-4 border-b border-border pb-4">
+      <div className="no-print screen-3d flex items-center justify-between gap-4 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 flex items-center justify-center bg-primary text-primary-foreground rounded-md">
+          <span className="bevel-3d inline-flex w-11 h-11 items-center justify-center text-primary">
             <Stethoscope className="w-6 h-6" />
-          </div>
+          </span>
           <div>
             <h1 className="text-xl font-bold text-foreground tracking-tight">Prescrição de Fórmulas</h1>
             <p className="text-[11px] tracking-[0.22em] uppercase text-primary font-semibold">
@@ -358,235 +358,213 @@ export default function PrescricaoPage() {
         <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
       </div>
 
-      {/* PATIENT */}
-      <div className="no-print bg-card border border-border rounded-md p-5 mb-4">
-        <div className="flex items-center gap-2 mb-4">
-          <User className="w-4 h-4 text-primary" />
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Dados do Cliente</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          <input className={`col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
+      {/* BLOCO — DADOS DO CLIENTE */}
+      <section className="no-print panel-3d p-5">
+        <BlockTitle icon={User} color="text-primary">Dados do Cliente</BlockTitle>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-4">
+          <input className={`md:col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
           <input className={inputCls} placeholder="CPF" value={patient.cpf} onChange={(e) => setPatient({ ...patient, cpf: e.target.value })} />
           <input className={inputCls} placeholder="Telefone" value={patient.telefone} onChange={(e) => setPatient({ ...patient, telefone: e.target.value })} />
           <input className={inputCls} placeholder="E-mail" value={patient.email} onChange={(e) => setPatient({ ...patient, email: e.target.value })} />
           <input type="date" className={inputCls} value={patient.dataNascimento} onChange={(e) => setPatient({ ...patient, dataNascimento: e.target.value })} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-          <div className="flex items-center gap-2">
+          <div className="concave-3d flex items-center gap-2 px-3 py-1.5">
             <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Duração:</label>
-            <input type="number" className={`w-24 ${inputCls}`} value={duracao} onChange={(e) => setDuracao(e.target.value)} />
+            <input type="number" className={`w-20 ${inputCls}`} value={duracao} onChange={(e) => setDuracao(e.target.value)} />
             <span className="text-xs text-muted-foreground">dias</span>
           </div>
-          <input className={`col-span-3 ${inputCls}`} placeholder="CID (ex: N484 + E291 + F90)" value={cid} onChange={(e) => setCid(e.target.value)} />
+          <input className={`md:col-span-3 ${inputCls}`} placeholder="CID (ex: N484 + E291 + F90)" value={cid} onChange={(e) => setCid(e.target.value)} />
         </div>
-      </div>
+      </section>
 
-      {/* MAIN GRID */}
-      <div className="no-print grid grid-cols-12 gap-4">
-        {/* LEFT: CATEGORIES / PROTOCOLS */}
-        <aside className="col-span-12 lg:col-span-3 bg-card border border-border rounded-md p-3">
-          <div className="grid grid-cols-2 gap-1 mb-3 bg-muted rounded-md p-1">
-            <button onClick={() => setLeftTab("cat")} className={`py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 transition ${leftTab === "cat" ? "bg-card shadow text-primary" : "text-muted-foreground"}`}>
-              <FileText className="w-4 h-4" />Categorias
-            </button>
-            <button onClick={() => setLeftTab("proto")} className={`py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 transition ${leftTab === "proto" ? "bg-card shadow text-primary" : "text-muted-foreground"}`}>
-              <Layers className="w-4 h-4" />Protocolos
-            </button>
-          </div>
+      {/* BLOCO — CATÁLOGO E PROTOCOLOS */}
+      <section className="no-print panel-3d p-5">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <BlockTitle icon={FileText} color="text-primary">Catálogo e Protocolos</BlockTitle>
+          <span className="font-mono text-xs text-muted-foreground shrink-0">
+            {leftTab === "cat" ? `${filtered.length} disponíveis` : `${allProtocolos.length} protocolos`}
+          </span>
+        </div>
 
-          {leftTab === "cat" ? (
-            <>
-              <div className="relative mb-3">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input className={`w-full pl-9 ${inputCls}`} placeholder="Buscar fórmula..." value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              <div className="max-h-[560px] overflow-y-auto rx-scroll space-y-1">
-                <button onClick={() => setActiveCategory("all")} className={`w-full text-left px-3 py-2.5 rounded-md text-sm flex items-center justify-between transition border ${activeCategory === "all" ? "bg-primary text-primary-foreground font-semibold border-primary" : "hover:bg-muted text-foreground border-transparent"}`}>
-                  <span className="flex items-center gap-2"><FileText className="w-4 h-4" />Todas</span>
-                  <span className={`font-mono text-xs ${activeCategory === "all" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{stats.all}</span>
-                </button>
-                {CATEGORIES.map((c) => {
-                  const Icon = c.icon;
-                  const n = stats[c.id] || 0;
-                  if (!n) return null;
-                  const active = activeCategory === c.id;
-                  return (
-                    <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`w-full text-left px-3 py-2.5 rounded-md text-sm flex items-center justify-between transition border ${active ? "bg-primary text-primary-foreground font-semibold border-primary" : "hover:bg-muted text-foreground border-transparent"}`}>
-                      <span className="flex items-center gap-2 truncate">
-                        <Icon className={`w-4 h-4 shrink-0 ${active ? "text-primary-foreground" : "text-primary/70"}`} />
-                        <span className="truncate">{c.label}</span>
-                      </span>
-                      <span className={`font-mono text-xs shrink-0 ml-1 ${active ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{n}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="max-h-[620px] overflow-y-auto rx-scroll space-y-2">
-              <p className="text-xs text-muted-foreground px-1 mb-1">Clique para adicionar o conjunto inteiro à receita.</p>
-              {allProtocolos.map((p) => (
-                <div key={p.id} className="border border-border rounded-md p-3 hover:border-accent transition">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-accent" />{p.nome}</h3>
-                    <button onClick={() => addProtocolo(p)} className="shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
-                </div>
-              ))}
+        <div className="concave-3d grid grid-cols-2 gap-1 p-1 mb-4 max-w-md">
+          <button onClick={() => setLeftTab("cat")} className={`py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 transition ${leftTab === "cat" ? "btn-3d-soft" : "text-muted-foreground"}`}>
+            <FileText className="w-4 h-4" />Categorias
+          </button>
+          <button onClick={() => setLeftTab("proto")} className={`py-2 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 transition ${leftTab === "proto" ? "btn-3d-soft" : "text-muted-foreground"}`}>
+            <Layers className="w-4 h-4" />Protocolos
+          </button>
+        </div>
+
+        {leftTab === "cat" ? (
+          <>
+            <div className="relative mb-3 max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
+              <input className={`w-full pl-9 ${inputCls}`} placeholder="Buscar fórmula..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-          )}
-        </aside>
-
-        {/* CENTER: CATALOG */}
-        <section className="col-span-12 lg:col-span-4 bg-card border border-border rounded-md p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Catálogo de Fórmulas</h2>
-            <span className="font-mono text-xs text-muted-foreground">{filtered.length} disponíveis</span>
-          </div>
-          <div className="space-y-2 max-h-[680px] overflow-y-auto rx-scroll pr-1">
-            {filtered.map((f) => {
-              const cat = CATEGORIES.find((c) => c.id === f.cat);
-              const isSel = !!selected.find((s) => s.id === f.id);
-              return (
-                <div key={f.id} className={`border rounded-md p-3 transition ${isSel ? "border-accent bg-accent/5" : "border-border hover:border-accent/60"}`}>
-                  <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button onClick={() => setActiveCategory("all")} className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${activeCategory === "all" ? "btn-3d" : "btn-3d-soft"}`}>
+                <FileText className="w-3.5 h-3.5" />Todas
+                <span className="font-mono opacity-70">{stats.all}</span>
+              </button>
+              {CATEGORIES.map((c) => {
+                const Icon = c.icon;
+                const n = stats[c.id] || 0;
+                if (!n) return null;
+                const active = activeCategory === c.id;
+                return (
+                  <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${active ? "btn-3d" : "btn-3d-soft"}`}>
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate max-w-[150px]">{c.label}</span>
+                    <span className="font-mono opacity-70">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[560px] overflow-y-auto rx-scroll pr-1">
+              {filtered.map((f) => {
+                const cat = CATEGORIES.find((c) => c.id === f.cat);
+                const isSel = !!selected.find((s) => s.id === f.id);
+                return (
+                  <div key={f.id} className={`panel-3d-sub p-3 flex flex-col ${isSel ? "panel-3d-active" : ""}`}>
                     <div className="flex-1 min-w-0">
                       {cat && <span className="text-[10px] px-2 py-0.5 rounded-sm bg-primary/10 text-primary font-semibold uppercase tracking-wide">{cat.label}</span>}
                       <h3 className="font-semibold text-foreground text-sm mt-1">{f.name}</h3>
                       <p className="font-mono text-[11px] text-muted-foreground mt-1 line-clamp-2">{f.body.split("\n").slice(0, 2).join(" • ")}</p>
                       <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm" title="Valor médio de mercado — uso interno, não aparece para o cliente">≈ {formatBRL(getPrecoMedio(f))} <span className="font-sans tracking-wide">INTERNO</span></span>
                     </div>
-                    <button onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))} className={`shrink-0 px-3 py-2 rounded-md text-xs font-semibold flex items-center gap-1 transition ${isSel ? "bg-accent text-accent-foreground hover:bg-accent/90" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+                    <button onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))} className={`mt-2.5 w-full px-3 py-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1 ${isSel ? "btn-3d-soft" : "btn-3d"}`}>
                       {isSel ? (<><CheckCircle2 className="w-4 h-4" />Incluída</>) : (<><Plus className="w-4 h-4" />Adicionar</>)}
                     </button>
+                  </div>
+                );
+              })}
+              {filtered.length === 0 && <div className="col-span-full text-center py-12 text-muted-foreground text-sm">Nenhuma fórmula encontrada</div>}
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <p className="col-span-full text-xs text-muted-foreground px-1">Clique para adicionar o conjunto inteiro à receita.</p>
+            {allProtocolos.map((p) => (
+              <div key={p.id} className="panel-3d-sub p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-accent" />{p.nome}</h3>
+                  <button onClick={() => addProtocolo(p)} className="btn-3d shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* BLOCO 1 — RECEITA SELECIONADA / EDIÇÃO */}
+      <section className="no-print panel-3d p-5">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <BlockTitle icon={FileSignature} color="text-accent">Receita Selecionada ({selected.length})</BlockTitle>
+          <div className="flex gap-3">
+            {selected.length > 0 && <button onClick={saveAsProtocolo} className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-semibold"><FolderPlus className="w-4 h-4" />Salvar protocolo</button>}
+            {selected.length > 0 && <button onClick={handleClear} className="text-xs text-destructive hover:opacity-80 flex items-center gap-1 font-semibold"><Trash2 className="w-3.5 h-3.5" />Limpar</button>}
+          </div>
+        </div>
+
+        {selected.length === 0 ? (
+          <div className="concave-3d flex items-center justify-center text-center text-muted-foreground py-14">
+            <div>
+              <FileText className="w-12 h-12 mx-auto mb-2 text-border" />
+              <p className="text-sm">Receita vazia</p>
+              <p className="text-xs mt-1">Adicione fórmulas avulsas ou um protocolo</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-[640px] overflow-y-auto rx-scroll pr-1">
+            {selected.map((f, idx) => {
+              const cat = CATEGORIES.find((c) => c.id === f.cat);
+              return (
+                <div key={f.id} className="panel-3d-sub overflow-hidden">
+                  <div className="px-3 py-2 concave-3d flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                      {cat && <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-semibold uppercase">{cat.label.split(" ")[0]}</span>}
+                      <span className="text-sm font-semibold text-foreground truncate">{f.name}</span>
+                      <span className="ml-auto mr-1 shrink-0 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm" title="Valor médio — uso interno">{formatBRL(f.preco)}</span>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => moveFormula(idx, -1)} disabled={idx === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
+                      <button onClick={() => moveFormula(idx, 1)} disabled={idx === selected.length - 1} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
+                      <button onClick={() => removeFormula(f.id)} className="p-1 text-destructive hover:opacity-80"><X className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                  <div className="p-3 space-y-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Ativos (edite mg / adicione / retire)</label>
+                      <textarea value={f.ativos} onChange={(e) => updateAtivos(f.id, e.target.value)} className={`font-mono w-full mt-1 resize-y text-xs ${inputCls}`} rows={Math.min(f.ativos.split("\n").length + 1, 14)} />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Tomadas</label>
+                        <button onClick={() => addTomada(f.id)} className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Tomada</button>
+                      </div>
+                      <div className="space-y-2">
+                        {f.tomadas.map((t, ti) => (
+                          <div key={ti} className="grid grid-cols-12 gap-1.5 items-center concave-3d p-2">
+                            <select value={t.doses} onChange={(e) => updateTomada(f.id, ti, "doses", e.target.value)} className={`font-mono col-span-2 text-center !px-1 !py-2 ${inputCls}`}>
+                              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                            <select value={t.via || "VO"} onChange={(e) => updateTomada(f.id, ti, "via", e.target.value)} className={`col-span-2 !px-1 !py-2 ${inputCls}`}>
+                              {VIAS.map((v) => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                            <input list="periodos-list" value={t.periodo} onChange={(e) => updateTomada(f.id, ti, "periodo", e.target.value)} placeholder="Período…" className={`col-span-5 !px-2 !py-2 ${inputCls}`} />
+                            <input value={t.hora} onChange={(e) => updateTomada(f.id, ti, "hora", e.target.value)} placeholder="14h" className={`font-mono col-span-2 text-center !px-1 !py-2 ${inputCls}`} />
+                            <button onClick={() => removeTomada(f.id, ti)} className="col-span-1 flex justify-center text-destructive hover:opacity-80"><X className="w-4 h-4" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
             })}
-            {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground text-sm">Nenhuma fórmula encontrada</div>}
           </div>
-        </section>
+        )}
+        <datalist id="periodos-list">{PERIODOS.map((p) => <option key={p} value={p} />)}</datalist>
 
-        {/* RIGHT: BLOCO 1 — SELECTION / EDIT */}
-        <section className="col-span-12 lg:col-span-5 bg-card border border-accent/40 rounded-md p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-sm font-mono tracking-wide">BLOCO 1</span>
-              Seleção / Edição ({selected.length})
-            </h2>
-            <div className="flex gap-2">
-              {selected.length > 0 && <button onClick={saveAsProtocolo} className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-semibold"><FolderPlus className="w-4 h-4" />Salvar protocolo</button>}
-              {selected.length > 0 && <button onClick={handleClear} className="text-xs text-destructive hover:opacity-80 flex items-center gap-1 font-semibold"><Trash2 className="w-3.5 h-3.5" />Limpar</button>}
+        {selected.length > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">Total estimado — uso interno</span>
+              <span className="text-[10px] text-amber-600/90">Valor médio de mercado. Não aparece no texto nem no PDF do cliente.</span>
             </div>
+            <span className="font-mono text-lg font-bold text-amber-800 shrink-0">{formatBRL(totalInterno)}</span>
           </div>
+        )}
 
-          {selected.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-center text-muted-foreground py-12">
-              <div>
-                <FileText className="w-12 h-12 mx-auto mb-2 text-border" />
-                <p className="text-sm">Receita vazia</p>
-                <p className="text-xs mt-1">Adicione fórmulas avulsas ou um protocolo</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[640px] overflow-y-auto rx-scroll pr-1">
-              {selected.map((f, idx) => {
-                const cat = CATEGORIES.find((c) => c.id === f.cat);
-                return (
-                  <div key={f.id} className="border border-border rounded-md overflow-hidden">
-                    <div className="px-3 py-2 bg-muted flex items-center justify-between gap-2 border-b border-border">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
-                        {cat && <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-semibold uppercase">{cat.label.split(" ")[0]}</span>}
-                        <span className="text-sm font-semibold text-foreground truncate">{f.name}</span>
-                        <span className="ml-auto mr-1 shrink-0 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-sm" title="Valor médio — uso interno">{formatBRL(f.preco)}</span>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => moveFormula(idx, -1)} disabled={idx === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
-                        <button onClick={() => moveFormula(idx, 1)} disabled={idx === selected.length - 1} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
-                        <button onClick={() => removeFormula(f.id)} className="p-1 text-destructive hover:opacity-80"><X className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                    <div className="p-3 space-y-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Ativos (edite mg / adicione / retire)</label>
-                        <textarea value={f.ativos} onChange={(e) => updateAtivos(f.id, e.target.value)} className="font-mono w-full mt-1 px-3 py-2 text-xs border border-border rounded-md resize-y focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 bg-card text-foreground" rows={Math.min(f.ativos.split("\n").length + 1, 14)} />
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Tomadas</label>
-                          <button onClick={() => addTomada(f.id)} className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Tomada</button>
-                        </div>
-                        <div className="space-y-2">
-                          {f.tomadas.map((t, ti) => (
-                            <div key={ti} className="grid grid-cols-12 gap-1.5 items-center bg-muted rounded-md p-2 border border-border">
-                              <select value={t.doses} onChange={(e) => updateTomada(f.id, ti, "doses", e.target.value)} className="font-mono col-span-2 px-1 py-2 border border-border rounded-sm text-xs text-center bg-card text-foreground">
-                                {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
-                              </select>
-                              <select value={t.via || "VO"} onChange={(e) => updateTomada(f.id, ti, "via", e.target.value)} className="col-span-2 px-1 py-2 border border-border rounded-sm text-xs bg-card text-foreground">
-                                {VIAS.map((v) => <option key={v} value={v}>{v}</option>)}
-                              </select>
-                              <input list="periodos-list" value={t.periodo} onChange={(e) => updateTomada(f.id, ti, "periodo", e.target.value)} placeholder="Período…" className="col-span-5 px-2 py-2 border border-border rounded-sm text-xs bg-card text-foreground" />
-                              <input value={t.hora} onChange={(e) => updateTomada(f.id, ti, "hora", e.target.value)} placeholder="14h" className="font-mono col-span-2 px-1 py-2 border border-border rounded-sm text-xs text-center bg-card text-foreground" />
-                              <button onClick={() => removeTomada(f.id, ti)} className="col-span-1 flex justify-center text-destructive hover:opacity-80"><X className="w-4 h-4" /></button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <datalist id="periodos-list">{PERIODOS.map((p) => <option key={p} value={p} />)}</datalist>
-
-          {selected.length > 0 && (
-            <div className="border-t border-border pt-3 mt-3 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">Total estimado — uso interno</span>
-                <span className="text-[10px] text-amber-600/90">Valor médio de mercado. Não aparece no texto nem no PDF do cliente.</span>
-              </div>
-              <span className="font-mono text-lg font-bold text-amber-800 shrink-0">{formatBRL(totalInterno)}</span>
-            </div>
-          )}
-
-          <div className="border-t border-border pt-3 mt-3 grid grid-cols-2 gap-2">
-            <button onClick={handleCopy} disabled={!selected.length} className="bg-secondary hover:bg-muted text-secondary-foreground font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40 border border-border">
-              {copied ? <CheckCircle2 className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copiado!" : "Copiar texto"}
-            </button>
-            <button onClick={handlePrint} disabled={!selected.length} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
-              <Printer className="w-4 h-4" />Imprimir / PDF
-            </button>
-          </div>
-        </section>
-      </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onClick={handleCopy} disabled={!selected.length} className="btn-3d-soft font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+            {copied ? <CheckCircle2 className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4" />}
+            {copied ? "Copiado!" : "Copiar texto"}
+          </button>
+          <button onClick={handlePrint} disabled={!selected.length} className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
+            <Printer className="w-4 h-4" />Imprimir / PDF
+          </button>
+        </div>
+      </section>
 
       {/* BLOCO 2 — PDF VISUAL MODEL */}
       {selected.length > 0 && (
-        <div className="no-print mt-4">
-          <div className="bg-card border border-accent/40 rounded-md p-4">
-            <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
-              <span className="bg-accent text-accent-foreground text-[10px] px-2 py-0.5 rounded-sm font-mono tracking-wide">BLOCO 2</span>
-              Modelo Visual do PDF
-            </h2>
-            <div className="bg-white border border-border rounded-md p-6 max-h-[720px] overflow-y-auto rx-scroll shadow-inner max-w-3xl mx-auto">
-              <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} />
-            </div>
+        <section className="no-print panel-3d p-5">
+          <BlockTitle icon={Eye} color="text-accent">Modelo Visual do PDF</BlockTitle>
+          <div className="bg-white border border-border rounded-md p-6 max-h-[720px] overflow-y-auto rx-scroll shadow-inner max-w-3xl mx-auto mt-4">
+            <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} />
           </div>
-        </div>
+        </section>
       )}
 
       {/* BLOCO 3 — ROTEAMENTO PARA FARMÁCIAS + EMISSÃO */}
       {selected.length > 0 && (
-        <div className="no-print mt-4">
-          <div className="bg-card border border-primary/40 rounded-md p-4">
-            <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
-              <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-sm font-mono tracking-wide">BLOCO 3</span>
-              Roteamento para Farmácias e Emissão
-            </h2>
+        <section className="no-print panel-3d p-5">
+          <BlockTitle icon={Building2} color="text-primary">Roteamento para Farmácias e Emissão</BlockTitle>
+          <div className="mt-4">
 
             {!pharmacies?.length ? (
               <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
@@ -596,12 +574,12 @@ export default function PrescricaoPage() {
             ) : (
               <>
                 {/* Farmácia padrão */}
-                <div className="flex flex-wrap items-center gap-2 mb-3 bg-muted rounded-md px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2 mb-3 concave-3d px-3 py-2">
                   <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                     <Building2 className="w-3.5 h-3.5" />Farmácia padrão:
                   </label>
                   <select
-                    className="px-3 py-1.5 border border-border rounded-md text-sm bg-card text-foreground"
+                    className="field-engraved border rounded-md px-3 py-1.5 text-sm text-foreground"
                     value={defaultPharmacyId ?? ""}
                     onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
                   >
@@ -621,7 +599,7 @@ export default function PrescricaoPage() {
                       ? "border-2 border-amber-400 bg-amber-50"
                       : sncrFlag
                         ? "border-2 border-destructive bg-destructive/5"
-                        : "border border-border";
+                        : "panel-3d-sub";
                     return (
                       <div key={f.id} className={`${frameClass} rounded-md p-3`}>
                         <div className="flex items-center gap-2 mb-2">
@@ -637,7 +615,7 @@ export default function PrescricaoPage() {
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
                           <div className="md:col-span-5">
                             <select
-                              className="w-full px-2 py-2 border border-border rounded-md text-xs bg-card text-foreground"
+                              className="field-engraved border rounded-md w-full px-2 py-2 text-xs text-foreground"
                               value={r.pharmacyId ?? ""}
                               onChange={(e) => setRoute(f.id, { pharmacyId: e.target.value ? Number(e.target.value) : null })}
                             >
@@ -684,7 +662,7 @@ export default function PrescricaoPage() {
                             <Layers className="w-3 h-3" />Cor interna
                           </label>
                           <select
-                            className="px-2 py-1.5 border border-border rounded-md text-xs bg-card text-foreground"
+                            className="field-engraved border rounded-md px-2 py-1.5 text-xs text-foreground"
                             value={r.internalColor}
                             onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
                           >
@@ -705,7 +683,7 @@ export default function PrescricaoPage() {
                   <button
                     onClick={handlePreview}
                     disabled={previewMutation.isPending}
-                    className="bg-secondary hover:bg-muted text-secondary-foreground font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 border border-border disabled:opacity-40"
+                    className="btn-3d-soft font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 disabled:opacity-40"
                   >
                     <Eye className="w-4 h-4" />
                     {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
@@ -713,7 +691,7 @@ export default function PrescricaoPage() {
                   <button
                     onClick={handleEmit}
                     disabled={emitMutation.isPending}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 disabled:opacity-40"
+                    className="btn-3d font-semibold py-2.5 px-4 rounded-md text-sm flex items-center gap-2 disabled:opacity-40"
                   >
                     <Send className="w-4 h-4" />
                     {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
@@ -725,7 +703,7 @@ export default function PrescricaoPage() {
                   <div className="mt-4 space-y-2">
                     <h3 className="text-[11px] font-bold uppercase tracking-wide text-primary">Prévia — {previewPlans.length} receita(s) será(ão) gerada(s)</h3>
                     {previewPlans.map((plan, i) => (
-                      <div key={i} className="border border-border rounded-md p-3 flex items-start gap-3">
+                      <div key={i} className="panel-3d-sub p-3 flex items-start gap-3">
                         {plan.anvisaColor ? (
                           <span className="mt-0.5 w-3 h-3 rounded-full border border-border shrink-0" style={{ background: plan.anvisaColor }} />
                         ) : (
@@ -762,7 +740,7 @@ export default function PrescricaoPage() {
                       <FileSignature className="w-3.5 h-3.5" />Receitas emitidas ({emitResult.recipes.length})
                     </h3>
                     {emitResult.recipes.map((rec) => (
-                      <div key={rec.id} className="border border-border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                      <div key={rec.id} className="panel-3d-sub p-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold">{rec.title}</p>
                           <p className="text-xs text-muted-foreground">
@@ -789,7 +767,7 @@ export default function PrescricaoPage() {
                           <MessageSquare className="w-3.5 h-3.5" />WhatsApp às farmácias
                         </h3>
                         {emitResult.pharmacyDispatches.map((d) => (
-                          <div key={d.pharmacyId} className="border border-border rounded-md p-3 flex flex-wrap items-center justify-between gap-2">
+                          <div key={d.pharmacyId} className="panel-3d-sub p-3 flex flex-wrap items-center justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold">{d.pharmacyName}</p>
                               <p className="text-xs text-muted-foreground">
@@ -815,7 +793,7 @@ export default function PrescricaoPage() {
               </>
             )}
           </div>
-        </div>
+        </section>
       )}
 
       {/* PRINT */}
@@ -825,6 +803,16 @@ export default function PrescricaoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Placa Saliente (Bevel) do titulo de cada bloco — padrao Paxter (Padrao 3).
+function BlockTitle({ icon: Icon, color, children }: { icon: ElementType; color: string; children: React.ReactNode }) {
+  return (
+    <span className={`bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-base font-semibold uppercase tracking-wide ${color}`}>
+      <Icon className="h-4 w-4" />
+      {children}
+    </span>
   );
 }
 
