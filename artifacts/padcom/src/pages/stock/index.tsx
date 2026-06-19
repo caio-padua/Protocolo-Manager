@@ -7,6 +7,18 @@ import { AlertTriangle, Package, TrendingDown } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
+function MetaField({ label, value }: { label: string; value: string | null }) {
+  const empty = value == null || value === "";
+  return (
+    <div className="concave-3d px-2.5 py-1.5 min-w-0">
+      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-1">{label}</div>
+      <div className={`text-[11px] font-bold uppercase tracking-tight leading-none truncate ${empty ? "text-muted-foreground/40" : "text-foreground"}`}>
+        {empty ? "—" : value}
+      </div>
+    </div>
+  );
+}
+
 export default function Stock() {
   const { data: stockItems, isLoading, refetch } = useListStock();
   const { toast } = useToast();
@@ -69,7 +81,7 @@ export default function Stock() {
 
       {isLoading ? (
         <div className="space-y-3">
-          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 panel-3d-sub" />)}
+          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-32 panel-3d-sub" />)}
         </div>
       ) : (
         <Card className="panel-3d">
@@ -84,33 +96,36 @@ export default function Stock() {
               {stockItems?.map(item => {
                 const status = getStockStatus(item);
                 const isEditing = editId === item.id;
+                const validade = item.expirationDate
+                  ? new Date(item.expirationDate).toLocaleDateString("pt-BR")
+                  : null;
                 return (
-                  <div key={item.id} className="flex items-center gap-4 p-3 panel-3d-sub neon-hover transition-all">
+                  <div key={item.id} className="flex items-start gap-3 p-3 panel-3d-sub neon-hover transition-all">
                     <div
-                      className="flex-shrink-0 w-3 h-8 rounded-[3px]"
+                      className="flex-shrink-0 w-3 self-stretch min-h-[3rem] rounded-[3px]"
                       style={{ backgroundColor: item.substanceColor }}
                     />
+
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="font-black text-foreground uppercase tracking-tight text-sm">{item.substanceName}</span>
-                        <span className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${status.color}`}>
-                          {status.label}
-                        </span>
-                      </div>
-                      <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mt-0.5">
-                        Mínimo: {item.minimumStock} unid.
-                        {item.lot && <span className="ml-2">· Lote: {item.lot}</span>}
-                        {item.expiresAt && <span className="ml-2">· Validade: {new Date(item.expiresAt).toLocaleDateString("pt-BR")}</span>}
+                      <h3 className="font-black text-foreground uppercase tracking-tight text-base leading-snug break-words">
+                        {item.substanceName}
+                      </h3>
+                      <div className="grid grid-cols-1 gap-1.5 mt-2">
+                        <MetaField label="Denominação" value={status.label} />
+                        <MetaField label="Mínimo" value={`${item.minimumStock} unid.`} />
+                        <MetaField label="Lote" value={item.lot ?? null} />
+                        <MetaField label="Validade" value={validade} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+
+                    <div className="flex-shrink-0 flex items-start gap-2">
                       {isEditing ? (
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
                             value={editQty}
                             onChange={e => setEditQty(e.target.value)}
-                            className="w-20 h-8 text-sm field-engraved"
+                            className="w-20 h-9 text-sm field-engraved"
                             min={0}
                             autoFocus
                           />
@@ -126,10 +141,14 @@ export default function Stock() {
                         </div>
                       ) : (
                         <>
-                          <div className="screen-3d px-3 py-1 text-xl font-black text-primary tabular-nums w-16 text-center">
-                            {item.quantity}
+                          <div className="concave-3d px-2 py-1.5 w-14 text-center">
+                            <div className={`text-lg font-black tabular-nums leading-none ${status.color}`}>
+                              {item.quantity}
+                            </div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/70 mt-1">
+                              {item.unit ?? "unid."}
+                            </div>
                           </div>
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">unid.</span>
                           <Button
                             size="sm"
                             className="btn-3d-soft"

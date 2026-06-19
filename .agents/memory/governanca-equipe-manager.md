@@ -5,9 +5,8 @@ description: Identidade do repositorio Manager, fluxo de Push ao GitHub, lei de 
 
 # Identidade deste repositorio
 
-- Este repo = produto **Padcon Conect** / **Manager**. O agente Replit aqui assina como **Dr. Replit Manager**.
-- Remote GitHub: `origin` -> `https://github.com/caio-padua/Protocolo-Manager` (branch `main`).
-- URL raw padrao de um arquivo na raiz: `https://raw.githubusercontent.com/caio-padua/Protocolo-Manager/main/<ARQUIVO>`.
+- Este repo = produto **Padcon Conect** / **Manager**. O agente Replit aqui assina como **Dr. Replit Paxter**.
+- Remote GitHub: o `origin` e o repositorio `Protocolo-Manager` na branch `main`. A URL completa e o owner ficam no `.git/config` (derivavel; nao duplicar aqui). A URL raw segue o padrao `raw.githubusercontent.com/<owner>/Protocolo-Manager/main/<ARQUIVO>`.
 
 # Push ao GitHub (limite do ambiente)
 
