@@ -215,4 +215,6 @@ Art. 50  Nao mudar uma decisao do CEO sem avisar; se o CEO errar, corrigir com f
 
 Art. 51  Comunicacao visual no Canvas (decisao do CEO em 16/06/2026): quando o assunto for fluxo, comparacao de opcoes, arquitetura ou "antes x depois", o agente deve oferecer/desenhar um ORGANOGRAMA (blueprint) no Canvas — caixas + setas, cores da marca (verde-petroleo/ciano para sistema, verde para resultado, laranja para o item novo/proposto), faixas separando cada caminho, e uma nota-resumo. Ao terminar, sempre chamar presentArtifact com os ids das formas. Esta pratica complementa a Densidade B (tabela continua sendo o carro-chefe do texto). Vale para todos os repositorios/agentes do CEO.
 
+Art. 52  Organizacao do Canvas em ENTREGAS numeradas (decisao do CEO em 19/06/2026): cada pedido/demanda que usa o Canvas e uma ENTREGA com um selo numerado no canto superior esquerdo. As entregas ficam empilhadas uma embaixo da outra, comecando pelo canto superior esquerdo do Canvas; no maximo 10 entregas por coluna; a 11a inicia uma nova coluna a direita (espacamento fixo) e assim por diante. Respeitar os limites (superior/inferior/esquerdo/direito) e nunca sobrepor entregas existentes; ao terminar, chamar presentArtifact.
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
