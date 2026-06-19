@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package } from "lucide-react";
+import { Package, Printer, MessageCircle, CloudUpload } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -76,13 +76,69 @@ export default function Stock() {
     [stockItems, activeTab],
   );
 
+  function handlePrint() {
+    window.print();
+  }
+
+  function handleWhatsApp() {
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const linhas: string[] = [
+      `*📦 RELATÓRIO DE ESTOQUE — PADCON*`,
+      `_${hoje}_`,
+      ``,
+      `*Situação geral:*`,
+      ...TABS.map(t => {
+        const c = countByTab[t.id];
+        return `• ${t.label}: *${c}*`;
+      }),
+    ];
+    const urgentes = (stockItems ?? []).filter(
+      i => STATUS_CONFIG[i.status]?.tab === "expired" || STATUS_CONFIG[i.status]?.tab === "expiring_soon",
+    );
+    if (urgentes.length > 0) {
+      linhas.push(``, `*⚠️ Atenção imediata:*`);
+      urgentes.forEach(i => {
+        const cfg = STATUS_CONFIG[i.status];
+        linhas.push(`• ${i.substanceName} — ${i.quantity} ${i.unit} (${cfg?.label})`);
+      });
+    }
+    const texto = encodeURIComponent(linhas.join("\n"));
+    window.open(`https://wa.me/?text=${texto}`, "_blank");
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h1 className="text-3xl font-black tracking-tight uppercase">Estoque</h1>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-          Controle de insumos e substâncias injetáveis.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight uppercase">Estoque</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Controle de insumos e substâncias injetáveis.
+          </p>
+        </div>
+        {/* Botões de ação — Imprimir / WhatsApp / Drive */}
+        <div className="flex items-center gap-1.5 flex-shrink-0 pt-1">
+          <button
+            onClick={handlePrint}
+            title="Imprimir relatório de estoque"
+            className="btn-3d-soft w-8 h-8 flex items-center justify-center rounded-[6px]"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleWhatsApp}
+            title="Enviar resumo via WhatsApp"
+            className="btn-3d-soft w-8 h-8 flex items-center justify-center rounded-[6px] text-[#25D366]"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+          <button
+            disabled
+            title="Salvar no Google Drive — pasta ESTOQUE (em breve)"
+            className="btn-3d-soft w-8 h-8 flex items-center justify-center rounded-[6px] opacity-30 cursor-not-allowed"
+          >
+            <CloudUpload className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Painel — 5 faixas empilhadas; label uppercase + número em concave-3d */}
