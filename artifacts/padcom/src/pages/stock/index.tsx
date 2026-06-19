@@ -94,32 +94,35 @@ export default function Stock() {
           const active = activeTab === tab.id;
           const count = countByTab[tab.id];
           return (
-            <button
+            <div
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] transition-all text-left ${
-                active ? "bg-muted/30" : "hover:bg-muted/20"
-              }`}
+              className="w-full flex items-center justify-between gap-3 py-1 cursor-pointer"
             >
-              {/* Label da faixa — uppercase */}
-              <span
-                className="text-[11px] font-black uppercase tracking-widest"
+              {/* Label — botão 3D saliente (bevel), uppercase, breve */}
+              <div
+                className={`flex-1 px-3 py-2 rounded-[6px] text-[11px] font-black uppercase tracking-widest transition-all select-none
+                  ${active
+                    ? "panel-3d-active"
+                    : "panel-3d-sub opacity-60 hover:opacity-90"
+                  }`}
                 style={{ color: active ? tab.color : "hsl(var(--muted-foreground))" }}
               >
                 {tab.label}
-              </span>
-              {/* Número côncavo — insert bevel */}
-              <div
-                className="concave-3d min-w-[2.5rem] h-7 flex items-center justify-center px-2 tabular-nums"
-              >
+              </div>
+              {/* Número — insert côncavo, maior, mais grosso, colorido */}
+              <div className="concave-3d min-w-[3rem] h-9 flex items-center justify-center px-2 tabular-nums flex-shrink-0">
                 <span
-                  className="text-sm font-black leading-none"
-                  style={{ color: count > 0 ? tab.color : "hsl(var(--muted-foreground)/0.4)" }}
+                  className="text-xl font-black leading-none"
+                  style={{
+                    color: count > 0 ? tab.color : "hsl(var(--muted-foreground) / 0.3)",
+                    WebkitTextStroke: count > 0 ? "0.5px " + tab.color : undefined,
+                  }}
                 >
                   {count}
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -216,19 +219,16 @@ export default function Stock() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 mt-1">
-                            {/* Quantidade côncava */}
+                            {/* Quantidade côncava — número neutro, sem cor de status */}
                             <div className="concave-3d px-3 py-1.5 flex items-baseline gap-1">
-                              <span
-                                className="text-xl font-black tabular-nums leading-none"
-                                style={{ color: cfg.color }}
-                              >
+                              <span className="text-xl font-black tabular-nums leading-none text-foreground">
                                 {item.quantity}
                               </span>
                               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
                                 {item.unit}
                               </span>
                             </div>
-                            {/* Rótulo de status — UPPERCASE colorido */}
+                            {/* Rótulo de status — UPPERCASE colorido (único indicador de cor) */}
                             <span
                               className="text-[10px] font-black uppercase tracking-widest"
                               style={{ color: cfg.color }}
