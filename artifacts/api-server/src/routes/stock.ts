@@ -9,12 +9,21 @@ import {
 
 const router: IRouter = Router();
 
+const EXPIRING_SOON_DAYS = 60; // 2 meses
+
 async function formatStockItem(item: typeof stockItemsTable.$inferSelect) {
   const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
 
-  let status: "normal" | "low" | "critical" | "overflow" | "expired" = "normal";
-  if (item.expirationDate && new Date(item.expirationDate) < new Date()) {
+  const now = new Date();
+  const expDate = item.expirationDate ? new Date(item.expirationDate) : null;
+  const daysToExpiry = expDate ? Math.ceil((expDate.getTime() - now.getTime()) / 86400000) : null;
+
+  let status: "normal" | "low" | "critical" | "overflow" | "expired" | "expiring_soon" = "normal";
+
+  if (expDate && expDate < now) {
     status = "expired";
+  } else if (daysToExpiry !== null && daysToExpiry <= EXPIRING_SOON_DAYS) {
+    status = "expiring_soon";
   } else if (item.quantity <= 0) {
     status = "critical";
   } else if (item.quantity <= item.minimumStock) {

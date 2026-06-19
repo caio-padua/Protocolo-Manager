@@ -1056,7 +1056,14 @@ export const ListStockResponseItem = zod.object({
   expirationDate: zod.string().nullish(),
   supplier: zod.string().nullish(),
   unitCost: zod.number().nullish(),
-  status: zod.enum(["critical", "low", "normal", "overflow", "expired"]),
+  status: zod.enum([
+    "critical",
+    "low",
+    "normal",
+    "overflow",
+    "expired",
+    "expiring_soon",
+  ]),
   updatedAt: zod.string(),
 });
 export const ListStockResponse = zod.array(ListStockResponseItem);
@@ -1110,7 +1117,14 @@ export const UpdateStockItemResponse = zod.object({
   expirationDate: zod.string().nullish(),
   supplier: zod.string().nullish(),
   unitCost: zod.number().nullish(),
-  status: zod.enum(["critical", "low", "normal", "overflow", "expired"]),
+  status: zod.enum([
+    "critical",
+    "low",
+    "normal",
+    "overflow",
+    "expired",
+    "expiring_soon",
+  ]),
   updatedAt: zod.string(),
 });
 

@@ -4,18 +4,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
-type TabId = "low" | "normal" | "overflow";
+type TabId = "expired" | "expiring_soon" | "low" | "normal" | "overflow";
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; tab: TabId }> = {
-  critical: { color: "#DC2626", label: "SEM ESTOQUE", tab: "low" },
-  low:      { color: "#F59E0B", label: "BAIXO",        tab: "low" },
-  normal:   { color: "#16A34A", label: "NORMAL",       tab: "normal" },
-  overflow: { color: "#7C3AED", label: "ACIMA DO MÁX", tab: "overflow" },
-  expired:  { color: "#6B7280", label: "VENCIDO",      tab: "low" },
+  critical:      { color: "#DC2626", label: "SEM ESTOQUE",   tab: "low" },
+  low:           { color: "#D97706", label: "BAIXO",          tab: "low" },
+  normal:        { color: "#16A34A", label: "NORMAL",         tab: "normal" },
+  overflow:      { color: "#7C3AED", label: "ACIMA DO MÁX",  tab: "overflow" },
+  expired:       { color: "#DC2626", label: "VENCIDA",        tab: "expired" },
+  expiring_soon: { color: "#EA580C", label: "A VENCER",       tab: "expiring_soon" },
 };
+
+const TABS: { id: TabId; label: string; color: string }[] = [
+  { id: "expired",       label: "VENCIDAS",           color: "#DC2626" },
+  { id: "expiring_soon", label: "A VENCER < 2 MESES", color: "#EA580C" },
+  { id: "low",           label: "ABAIXO DO MÍN",      color: "#D97706" },
+  { id: "normal",        label: "DENTRO DO PADRÃO",   color: "#16A34A" },
+  { id: "overflow",      label: "ACIMA DO MÁX",       color: "#7C3AED" },
+];
 
 function MetaField({ label, value }: { label: string; value: string | null }) {
   const empty = value == null || value === "";
@@ -36,7 +45,7 @@ export default function Stock() {
   const { toast } = useToast();
   const [editId, setEditId] = useState<number | null>(null);
   const [editQty, setEditQty] = useState("");
-  const [activeTab, setActiveTab] = useState<TabId>("low");
+  const [activeTab, setActiveTab] = useState<TabId>("expired");
 
   const updateMutation = useUpdateStockItem({
     mutation: {
@@ -51,20 +60,21 @@ export default function Stock() {
     },
   });
 
-  const lowItems      = stockItems?.filter(i => STATUS_CONFIG[i.status]?.tab === "low")      ?? [];
-  const normalItems   = stockItems?.filter(i => STATUS_CONFIG[i.status]?.tab === "normal")   ?? [];
-  const overflowItems = stockItems?.filter(i => STATUS_CONFIG[i.status]?.tab === "overflow") ?? [];
+  const countByTab = useMemo(() => {
+    const counts: Record<TabId, number> = {
+      expired: 0, expiring_soon: 0, low: 0, normal: 0, overflow: 0,
+    };
+    for (const item of stockItems ?? []) {
+      const tab = STATUS_CONFIG[item.status]?.tab;
+      if (tab) counts[tab]++;
+    }
+    return counts;
+  }, [stockItems]);
 
-  const tabsConfig: { id: TabId; label: string; count: number; color: string }[] = [
-    { id: "low",      label: "ABAIXO DO MÍN", count: lowItems.length,      color: "#DC2626" },
-    { id: "normal",   label: "DENTRO DO PADRÃO", count: normalItems.length, color: "#16A34A" },
-    { id: "overflow", label: "ACIMA DO MÁX",  count: overflowItems.length, color: "#7C3AED" },
-  ];
-
-  const visibleItems =
-    activeTab === "low" ? lowItems :
-    activeTab === "overflow" ? overflowItems :
-    normalItems;
+  const visibleItems = useMemo(
+    () => (stockItems ?? []).filter(i => STATUS_CONFIG[i.status]?.tab === activeTab),
+    [stockItems, activeTab],
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -75,49 +85,53 @@ export default function Stock() {
         </p>
       </div>
 
-      {/* Mini-dashboard — seletor de faixas */}
-      <div className="panel-3d p-4 space-y-3">
-        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+      {/* Painel — 5 faixas empilhadas verticalmente, sem cor de fundo */}
+      <div className="panel-3d p-4 space-y-1">
+        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 mb-3">
           Painel de situação — selecione a faixa
         </p>
-        <div className="flex flex-wrap gap-2">
-          {tabsConfig.map(tab => {
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-[6px] text-[10px] font-black uppercase tracking-widest border transition-all ${
-                  active ? "text-white shadow-md" : "bg-background/60 text-muted-foreground border-border/40 hover:border-border"
-                }`}
-                style={active ? { backgroundColor: tab.color, borderColor: tab.color } : {}}
+        {TABS.map(tab => {
+          const active = activeTab === tab.id;
+          const count = countByTab[tab.id];
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] transition-all text-left ${
+                active ? "concave-3d" : "hover:bg-muted/40"
+              }`}
+            >
+              <span
+                className="text-[11px] font-black uppercase tracking-widest"
+                style={{ color: tab.color }}
               >
                 {tab.label}
-                <span
-                  className="min-w-[20px] h-5 rounded-full text-[10px] font-black flex items-center justify-center px-1.5"
-                  style={{
-                    backgroundColor: active ? "rgba(255,255,255,0.25)" : tab.color + "22",
-                    color: active ? "white" : tab.color,
-                  }}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              </span>
+              <span
+                className="min-w-[24px] h-5 rounded-full text-[10px] font-black flex items-center justify-center px-1.5 tabular-nums"
+                style={{
+                  backgroundColor: tab.color + "18",
+                  color: tab.color,
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-48 panel-3d-sub" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-52 panel-3d-sub" />)}
         </div>
       ) : (
         <Card className="panel-3d">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
               <Package className="h-4 w-4 text-primary" />
-              {tabsConfig.find(t => t.id === activeTab)?.label} — {visibleItems.length} {visibleItems.length === 1 ? "item" : "itens"}
+              {TABS.find(t => t.id === activeTab)?.label} — {visibleItems.length}{" "}
+              {visibleItems.length === 1 ? "item" : "itens"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -137,27 +151,22 @@ export default function Stock() {
                     item.substanceName,
                     item.substanceMg ?? null,
                     item.substanceVolume ?? null,
-                  ].filter(Boolean).join(" ");
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
                   return (
-                    <div key={item.id} className="flex items-stretch gap-3 p-3 panel-3d-sub neon-hover transition-all">
-                      {/* Barra de status — cor da faixa */}
-                      <div
-                        className="flex-shrink-0 w-1.5 self-stretch rounded-[2px]"
-                        style={{ backgroundColor: cfg.color }}
-                      />
-
+                    <div key={item.id} className="flex items-start gap-3 p-3 panel-3d-sub neon-hover transition-all">
                       {/* Coluna principal — tudo empilhado */}
                       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                        {/* Nome: dot cor da substância + nome completo */}
-                        <div className="flex items-start gap-1.5">
-                          <span
-                            className="flex-shrink-0 text-base leading-none mt-[1px]"
-                            style={{ color: item.substanceColor }}
-                          >
-                            ●
-                          </span>
-                          <h3 className="font-black text-foreground uppercase tracking-tight text-base leading-snug break-words">
+
+                        {/* Linha do nome: quadradinho colorido + nome */}
+                        <div className="flex items-start gap-2">
+                          <div
+                            className="flex-shrink-0 w-4 h-4 rounded-[3px] mt-[2px]"
+                            style={{ backgroundColor: item.substanceColor }}
+                          />
+                          <h3 className="font-black text-foreground uppercase tracking-tight text-base leading-snug break-words flex-1">
                             {fullName}
                           </h3>
                         </div>
@@ -170,9 +179,9 @@ export default function Stock() {
                         <MetaField label="Lote" value={item.lot ?? null} />
                         <MetaField label="Validade" value={validade} />
 
-                        {/* Última linha: quantidade + status + Ajustar */}
+                        {/* Última linha: quantidade + rótulo colorido + Ajustar */}
                         {isEditing ? (
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <Input
                               type="number"
                               value={editQty}
@@ -194,25 +203,31 @@ export default function Stock() {
                             >
                               Salvar
                             </Button>
-                            <Button size="sm" className="btn-3d-soft" onClick={() => setEditId(null)}>
+                            <Button
+                              size="sm"
+                              className="btn-3d-soft"
+                              onClick={() => setEditId(null)}
+                            >
                               Cancelar
                             </Button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 mt-1">
-                            <div className="concave-3d px-3 py-1.5 flex items-baseline gap-1.5">
+                            {/* Quantidade côncava */}
+                            <div className="concave-3d px-3 py-1.5 flex items-baseline gap-1">
                               <span
                                 className="text-xl font-black tabular-nums leading-none"
                                 style={{ color: cfg.color }}
                               >
                                 {item.quantity}
                               </span>
-                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
                                 {item.unit}
                               </span>
                             </div>
+                            {/* Rótulo de status — UPPERCASE colorido */}
                             <span
-                              className="text-[9px] font-black uppercase tracking-widest"
+                              className="text-[10px] font-black uppercase tracking-widest"
                               style={{ color: cfg.color }}
                             >
                               {cfg.label}

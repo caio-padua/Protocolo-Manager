@@ -15,4 +15,5 @@ export const StockItemStatus = {
   normal: "normal",
   overflow: "overflow",
   expired: "expired",
+  expiring_soon: "expiring_soon",
 } as const;
