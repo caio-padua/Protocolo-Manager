@@ -13,4 +13,5 @@
 - [Motor da anamnese: bracos](motor-anamnese-bracos.md) — exames ja liga; formulas/injetaveis pre-cabeados (item_doenca); antes de ativar, definir tipo do item_ref e migrar bloco_motor texto->id.
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn; role="slider" sem filhos focaveis.
 - [Orcamento volume: consistencia Montagem x Apresentacao](orcamento-volume-consistencia.md) — Apresentacao deve reidratar itemVolumeTiers do catalogo por catalogId; snapshot do orcamento nao persiste override.
+- [Canvas move exige coordenada inteira](canvas-move-coordenadas.md) — applyCanvasActions "move" em lote falha (procedure init failed validation) com x/y fracionario; arredondar p/ inteiro (Math.round); se falhar, dividir por cluster.
 - [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem (ex.: receitas) precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primeiro p/ ter id no nome.

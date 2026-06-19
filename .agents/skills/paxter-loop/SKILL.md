@@ -1,6 +1,6 @@
 ---
 name: paxter-loop
-description: "Loop de auto-correcao do Dr. Caio (modelo do Dr. Claude): ESPECIFICAR -> CONSTRUIR -> REVISAR -> corrigir ate limpo. Ler e seguir quando o CEO pedir 'loop', 'rode o loop', 'spec isso', 'spec', 'build', 'review', ou ao iniciar QUALQUER funcionalidade nao-trivial no Manager. Garante especificacao escrita ANTES de construir e revisao pelo architect ate aprovar sem pendencia."
+description: "Loop de auto-correcao do Dr. Caio (modelo do Dr. Claude): ESPECIFICAR -> CONSTRUIR -> REVISAR -> corrigir ate limpo. Ler e seguir quando o CEO pedir 'loop', 'rode o loop', 'spec isso', 'spec', 'build', 'review', ou ao iniciar QUALQUER funcionalidade nao-trivial no Manager. Garante especificacao escrita ANTES de construir e revisao pelo architect ate aprovar sem pendencia. Mantem tambem o CODIGO-PAXTER.md (arquitetura viva em artigos) atualizado a cada aprendizado, anunciando cada insercao ao CEO."
 ---
 
 # Paxter Loop — Especificar, Construir, Revisar
@@ -11,6 +11,23 @@ escrita antes; nada e dado por pronto sem passar pela revisao ate ficar limpo.**
 
 Um prompt unico e um palpite. Um loop e um sistema: o agente escreve o alvo, constroi, confere a
 propria obra contra o alvo, corrige as falhas e repete ate aprovar.
+
+## Codigo Paxter (arquitetura viva) — LER e MANTER
+
+O arquivo companheiro `CODIGO-PAXTER.md` (mesma pasta) e a arquitetura completa do trabalho com o CEO,
+escrita em ARTIGOS (estilo Codigo Civil), com numeracao propria: CEO e comunicacao, Densidade B, conduta,
+equipe fixa, empresas e vocabulario, o proprio Paxter Loop, Canvas, atualizacao viva e aprendizados do
+projeto.
+
+Protocolo de atualizacao viva (OBRIGATORIO):
+
+| Passo | O que fazer |
+|---|---|
+| 1. LER | Antes de tarefa nao-trivial, ler `CODIGO-PAXTER.md` + a memoria (`.agents/memory`). |
+| 2. PROMULGAR | Ao aprender algo DURAVEL de metodo/diretriz, inserir novo artigo no titulo certo do `CODIGO-PAXTER.md`. |
+| 3. ANUNCIAR | Avisar o CEO de cada insercao: numero do artigo, titulo, texto e data (dd/mm/aaaa). |
+| 4. REORGANIZAR | A cada insercao, renumerar/reagrupar e registrar no "Historico de Promulgacoes". |
+| 5. SEPARAR | Aprendizado tecnico fino vai para a memoria; o Codigo guarda METODO e DIRETRIZ, nunca changelog. |
 
 ## Diferenca honesta: Claude Code x Replit (Paxter)
 
