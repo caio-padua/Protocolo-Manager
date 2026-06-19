@@ -207,6 +207,15 @@ Quando os cards são agrupados por dia ou categoria, o separador deve:
 **Regra:** LED (`paxter-led-on`) é EXCLUSIVO para status binário on/off de um item.
 Nunca usar LED para contagens ou títulos de seção — confunde "1 item" com "primeira vez".
 
+**Vocabulário clínico obrigatório no separador de dia (decisão CEO 19/06/2026):**
+
+| Termo | Definição clínica | Onde aparece |
+|---|---|---|
+| **Atendimento** | Visita agendada de um paciente (1 paciente = 1 atendimento) | Contagem no separador de dia da Agenda |
+| **Sessão** | Aplicação individual de uma substância num protocolo | Dentro do card — "Sem. X", "1/8", substâncias aplicadas |
+
+`{count} {count === 1 ? "atendimento" : "atendimentos"}` — nunca "sessão/sessões" no separador de dia.
+
 ---
 
 ## Checklist de revisão (antes de entregar qualquer card)

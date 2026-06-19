@@ -311,7 +311,7 @@ export default function Agenda() {
                     </div>
                     {hasSessions && (
                       <div className="concave-3d px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {daySessions.length} {daySessions.length === 1 ? "sessão" : "sessões"}
+                        {daySessions.length} {daySessions.length === 1 ? "atendimento" : "atendimentos"}
                       </div>
                     )}
                   </div>
