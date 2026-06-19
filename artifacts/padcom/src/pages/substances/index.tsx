@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useListSubstances } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,10 +23,10 @@ function BenefitItem({ icon: Icon, label, value, color }: {
 }) {
   if (!value) return null;
   return (
-    <div className={`p-3 rounded-xl border-2 ${color} transition-all hover:scale-[1.01]`}>
+    <div className={`panel-3d-sub p-3 border-l-4 ${color} transition-all hover:scale-[1.01]`}>
       <div className="flex items-center gap-2 mb-1">
         <Icon className="h-4 w-4" />
-        <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
+        <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
       </div>
       <p className="text-xs leading-relaxed opacity-90">{value}</p>
     </div>
@@ -58,13 +57,17 @@ export default function Substances() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Catálogo de Substâncias</h1>
-          <p className="text-muted-foreground">Informações completas sobre cada substância, seus benefícios e sistemas corporais impactados.</p>
+          <h1 className="text-3xl font-black tracking-tight uppercase">Substâncias</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Informações completas — benefícios e sistemas corporais impactados.
+          </p>
         </div>
-        <Badge variant="outline" className="text-sm px-3 py-1.5 self-start">
-          <Beaker className="h-4 w-4 mr-1.5" />
-          {substances?.length || 0} substâncias
-        </Badge>
+        <div className="concave-3d px-3 py-1.5 flex items-center gap-2 self-start">
+          <Beaker className="h-4 w-4 text-primary" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+            {substances?.length || 0} substâncias
+          </span>
+        </div>
       </div>
 
       <div className="relative max-w-md">
@@ -73,21 +76,23 @@ export default function Substances() {
           placeholder="Buscar por nome, categoria ou composição..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="pl-9"
+          className="pl-9 field-engraved"
         />
       </div>
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
+            <Skeleton key={i} className="h-64 panel-3d-sub" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 border border-dashed rounded-lg bg-card">
-          <Beaker className="mx-auto h-12 w-12 text-muted-foreground opacity-20 mb-4" />
-          <h3 className="text-lg font-medium">Nenhuma substância encontrada</h3>
-          <p className="text-sm text-muted-foreground">Ajuste a busca ou cadastre substâncias.</p>
+        <div className="panel-3d flex flex-col items-center justify-center py-20">
+          <div className="concave-3d p-6 mb-4">
+            <Beaker className="mx-auto h-10 w-10 text-muted-foreground opacity-20" />
+          </div>
+          <h3 className="text-base font-black uppercase tracking-tight text-primary">Nenhuma substância encontrada</h3>
+          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mt-1">Ajuste a busca ou cadastre substâncias.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -101,20 +106,17 @@ export default function Substances() {
             const hasBlend = parseComposicao(substance.composicao).length > 0;
 
             return (
-              <Card
+              <div
                 key={substance.id}
-                className={`overflow-hidden transition-all duration-300 ${
-                  isOpen ? "shadow-lg ring-2" : "hover:shadow-md"
-                }`}
+                className={`panel-3d overflow-hidden transition-all duration-300`}
                 style={{
                   borderLeftWidth: "5px",
                   borderLeftColor: substance.color,
-                  ...(isOpen ? { ringColor: substance.color + "40" } : {}),
                 }}
               >
                 <div className="flex items-start">
                   <div
-                    className="cursor-pointer flex-1 min-w-0"
+                    className="cursor-pointer flex-1 min-w-0 neon-hover"
                     onClick={() => setExpanded(isOpen ? null : substance.id)}
                   >
                     <CardHeader className="pb-2">
@@ -122,25 +124,25 @@ export default function Substances() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-1">
                             <div
-                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm flex-shrink-0"
+                              className="bevel-3d w-10 h-10 flex items-center justify-center text-white flex-shrink-0"
                               style={{ backgroundColor: substance.color }}
                             >
                               <CatIcon className="h-5 w-5" />
                             </div>
                             <div>
-                              <CardTitle className="text-xl">{substance.name}</CardTitle>
+                              <p className="text-xl font-black uppercase tracking-tight text-foreground">{substance.name}</p>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <Badge className={`${catStyle.bg} ${catStyle.text} border-0 text-xs`}>
+                                <span className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${catStyle.text}`}>
                                   {substance.categoryType || substance.category}
-                                </Badge>
-                                <Badge variant="outline" className={`text-xs ${getProcedureColor(substance.procedureType)}`}>
-                                  <Syringe className="h-3 w-3 mr-1" />
+                                </span>
+                                <span className={`concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide flex items-center gap-1 ${getProcedureColor(substance.procedureType)}`}>
+                                  <Syringe className="h-3 w-3" />
                                   {getProcedureLabel(substance.procedureType)}
-                                </Badge>
+                                </span>
                                 {hasBlend && (
-                                  <Badge variant="outline" className="text-xs bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400">
+                                  <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-teal-700">
                                     BLEND
-                                  </Badge>
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -175,30 +177,30 @@ export default function Substances() {
                         </p>
                       )}
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3 text-sm bg-muted/30 p-3 rounded-xl">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3 concave-3d p-3">
                         <div>
-                          <span className="text-xs text-muted-foreground block">Valor Ampola</span>
-                          <span className="font-bold text-sm text-primary">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Valor Ampola</span>
+                          <span className="screen-3d px-2 py-0.5 text-sm font-black text-primary tabular-nums">
                             {substance.pricePerUnit > 0
                               ? `R$ ${Number(substance.pricePerUnit).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                              : "-"}
+                              : "—"}
                           </span>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground block">Dose Padrão</span>
-                          <span className="font-semibold text-sm">{substance.defaultDose || "-"}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Dose Padrão</span>
+                          <span className="font-black text-sm">{substance.defaultDose || "—"}</span>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground block">Intervalo</span>
-                          <span className="font-semibold text-sm">{substance.intervalDays ? `${substance.intervalDays} dias` : "-"}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Intervalo</span>
+                          <span className="font-black text-sm">{substance.intervalDays ? `${substance.intervalDays} dias` : "—"}</span>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground block flex items-center gap-0.5"><Clock className="h-3 w-3" />Duração</span>
-                          <span className="font-semibold text-sm">{substance.durationMinutes ?? 30} min</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1 flex items-center gap-0.5"><Clock className="h-3 w-3" />Duração</span>
+                          <span className="font-black text-sm">{substance.durationMinutes ?? 30} min</span>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground block">Estoque</span>
-                          <div className="flex items-center gap-1 font-semibold text-sm">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Estoque</span>
+                          <div className="flex items-center gap-1 font-black text-sm">
                             {substance.stockQuantity <= 10 && (
                               <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                             )}
@@ -213,7 +215,7 @@ export default function Substances() {
 
                   <div className="p-3">
                     <Button
-                      variant="outline"
+                      className="btn-3d-soft"
                       size="sm"
                       onClick={() => openEdit(substance)}
                     >
@@ -228,10 +230,10 @@ export default function Substances() {
                     {hasBlend && <BlendComposition composicao={substance.composicao} />}
 
                     {substance.mainFunction && (
-                      <div className="bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 rounded-xl p-4">
+                      <div className="panel-3d-sub border-l-4 border-primary/40 p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <Info className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-bold text-primary">Função Principal</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Função Principal</span>
                         </div>
                         <p className="text-sm">{substance.mainFunction}</p>
                       </div>
@@ -239,7 +241,7 @@ export default function Substances() {
 
                     {bodyEffects.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
                           <Activity className="h-4 w-4 text-primary" />
                           Impacto nos Sistemas Corporais
                         </h4>
@@ -252,33 +254,33 @@ export default function Substances() {
                     )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <BenefitItem icon={Leaf} label="Longevidade" value={substance.longevityBenefit} color="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-800" />
-                      <BenefitItem icon={Sparkles} label="Qualidade de Vida" value={substance.qualityOfLifeImpact} color="border-violet-200 bg-violet-50/50 dark:bg-violet-950/20 dark:border-violet-800" />
-                      <BenefitItem icon={Moon} label="Sono" value={substance.sleepBenefit} color="border-indigo-200 bg-indigo-50/50 dark:bg-indigo-950/20 dark:border-indigo-800" />
-                      <BenefitItem icon={Zap} label="Energia" value={substance.energyBenefit} color="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800" />
-                      <BenefitItem icon={Heart} label="Libido" value={substance.libidoBenefit} color="border-rose-200 bg-rose-50/50 dark:bg-rose-950/20 dark:border-rose-800" />
-                      <BenefitItem icon={Dumbbell} label="Performance Física" value={substance.physicalPerformance} color="border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800" />
-                      <BenefitItem icon={Dumbbell} label="Força Muscular" value={substance.muscleStrength} color="border-red-200 bg-red-50/50 dark:bg-red-950/20 dark:border-red-800" />
-                      <BenefitItem icon={Brain} label="Clareza Mental" value={substance.mentalClarity} color="border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 dark:border-purple-800" />
-                      <BenefitItem icon={Sparkles} label="Pele, Cabelo e Unhas" value={substance.skinHairNails} color="border-pink-200 bg-pink-50/50 dark:bg-pink-950/20 dark:border-pink-800" />
-                      <BenefitItem icon={Shield} label="Imunidade" value={substance.immuneSupport} color="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800" />
+                      <BenefitItem icon={Leaf} label="Longevidade" value={substance.longevityBenefit} color="border-emerald-400" />
+                      <BenefitItem icon={Sparkles} label="Qualidade de Vida" value={substance.qualityOfLifeImpact} color="border-violet-400" />
+                      <BenefitItem icon={Moon} label="Sono" value={substance.sleepBenefit} color="border-indigo-400" />
+                      <BenefitItem icon={Zap} label="Energia" value={substance.energyBenefit} color="border-amber-400" />
+                      <BenefitItem icon={Heart} label="Libido" value={substance.libidoBenefit} color="border-rose-400" />
+                      <BenefitItem icon={Dumbbell} label="Performance Física" value={substance.physicalPerformance} color="border-orange-400" />
+                      <BenefitItem icon={Dumbbell} label="Força Muscular" value={substance.muscleStrength} color="border-red-400" />
+                      <BenefitItem icon={Brain} label="Clareza Mental" value={substance.mentalClarity} color="border-purple-400" />
+                      <BenefitItem icon={Sparkles} label="Pele, Cabelo e Unhas" value={substance.skinHairNails} color="border-pink-400" />
+                      <BenefitItem icon={Shield} label="Imunidade" value={substance.immuneSupport} color="border-blue-400" />
                     </div>
 
                     {substance.perceivedEffects && (
-                      <div className="bg-gradient-to-r from-sky-50 to-cyan-50 dark:from-sky-950/20 dark:to-cyan-950/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4">
+                      <div className="panel-3d-sub border-l-4 border-cyan-400 p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <Eye className="h-4 w-4 text-sky-600" />
-                          <span className="text-sm font-bold text-sky-700 dark:text-sky-400">Efeitos Percebidos pelo Cliente</span>
+                          <Eye className="h-4 w-4 text-cyan-600" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-cyan-700">Efeitos Percebidos pelo Cliente</span>
                         </div>
                         <p className="text-sm">{substance.perceivedEffects}</p>
                       </div>
                     )}
 
                     {substance.timeToEffect && (
-                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                      <div className="panel-3d-sub border-l-4 border-amber-400 p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <Clock className="h-4 w-4 text-amber-600" />
-                          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">Tempo Médio para Resultado</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Tempo Médio para Resultado</span>
                         </div>
                         <p className="text-sm">{substance.timeToEffect}</p>
                       </div>
@@ -286,19 +288,19 @@ export default function Substances() {
 
                     <div className="flex gap-3 flex-col sm:flex-row">
                       {substance.contraindications && (
-                        <div className="flex-1 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <div className="flex-1 panel-3d-sub border-l-4 border-red-500 p-4">
                           <div className="flex items-center gap-2 mb-1">
                             <AlertTriangle className="h-4 w-4 text-red-500" />
-                            <span className="text-sm font-bold text-red-600 dark:text-red-400">Contraindicações</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-red-600">Contraindicações</span>
                           </div>
                           <p className="text-xs">{substance.contraindications}</p>
                         </div>
                       )}
                       {substance.scientificEvidence && (
-                        <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                        <div className="flex-1 panel-3d-sub border-l-4 border-slate-400 p-4">
                           <div className="flex items-center gap-2 mb-1">
                             <FlaskRound className="h-4 w-4 text-slate-500" />
-                            <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Evidência Científica</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Evidência Científica</span>
                           </div>
                           <p className="text-xs">{substance.scientificEvidence}</p>
                         </div>
@@ -306,7 +308,7 @@ export default function Substances() {
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
             );
           })}
         </div>

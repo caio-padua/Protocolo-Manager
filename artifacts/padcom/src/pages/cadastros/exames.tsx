@@ -263,7 +263,7 @@ function ExamesTab() {
           <Badge variant="outline" className="whitespace-nowrap text-xs font-semibold">
             {isLoading ? "..." : `${filtered.length} de ${exams?.length ?? 0}`}
           </Badge>
-          <Button onClick={openNew} className="rounded-md" style={{ background: PETROLEO }}>
+          <Button onClick={openNew} className="btn-3d">
             <Plus className="mr-1.5 h-4 w-4" /> Novo exame
           </Button>
         </div>
@@ -276,17 +276,17 @@ function ExamesTab() {
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="panel-3d overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/60">
-                <TableHead className="text-xs font-bold uppercase tracking-wide">Código</TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide">Exame</TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide">Grupo</TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide">Modalidade</TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide">Preparo</TableHead>
-                <TableHead className="text-center text-xs font-bold uppercase tracking-wide">Ativo</TableHead>
-                <TableHead className="text-right text-xs font-bold uppercase tracking-wide">Ação</TableHead>
+              <TableRow className="bg-primary/10">
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Código</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Exame</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Grupo</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Modalidade</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-primary">Preparo</TableHead>
+                <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-primary">Ativo</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-primary">Ação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -298,12 +298,12 @@ function ExamesTab() {
                 </TableRow>
               ) : (
                 filtered.map((e) => (
-                  <TableRow key={e.id} className={e.ativo === false ? "opacity-50" : ""}>
-                    <TableCell className="align-top text-xs font-mono text-slate-500">{txt(e.codigoExame)}</TableCell>
-                    <TableCell className="align-top text-sm font-medium">{txt(e.nomeExame)}</TableCell>
+                  <TableRow key={e.id} className={`neon-hover ${e.ativo === false ? "opacity-50" : ""}`}>
+                    <TableCell className="align-top text-xs font-mono text-muted-foreground">{txt(e.codigoExame)}</TableCell>
+                    <TableCell className="align-top text-sm font-bold">{txt(e.nomeExame)}</TableCell>
                     <TableCell className="align-top text-sm">{txt(e.grupoPrincipal)}</TableCell>
                     <TableCell className="align-top text-sm">{txt(e.modalidade)}</TableCell>
-                    <TableCell className="align-top max-w-[280px] truncate text-sm text-slate-500">{txt(e.preparo)}</TableCell>
+                    <TableCell className="align-top max-w-[280px] truncate text-sm text-muted-foreground">{txt(e.preparo)}</TableCell>
                     <TableCell className="text-center align-top">
                       <Switch
                         checked={e.ativo !== false}
@@ -400,7 +400,7 @@ function ExamesTab() {
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={!canSave}
-              style={{ background: PETROLEO }}
+              className="btn-3d"
             >
               {saveMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>
@@ -469,12 +469,11 @@ function BlocosTab() {
           <AccordionItem
             key={b.codigoBloco}
             value={b.codigoBloco}
-            className="rounded-md border px-4"
-            style={{ borderLeft: `3px solid ${PETROLEO}` }}
+            className="panel-3d-sub border-l-4 border-primary/50 px-4"
           >
-            <AccordionTrigger className="hover:no-underline">
+            <AccordionTrigger className="hover:no-underline neon-hover">
               <div className="flex flex-1 items-center justify-between pr-3">
-                <span className="text-sm font-semibold">{b.nomeBloco}</span>
+                <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
                 <div className="flex items-center gap-2">
                   {b.tipoMacro && (
                     <Badge variant="secondary" className="text-[10px] uppercase">
@@ -490,8 +489,8 @@ function BlocosTab() {
             <AccordionContent>
               <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                 {b.graus.map((g) => (
-                  <div key={g.grau} className="rounded-md border bg-slate-50/60 p-3">
-                    <div className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: PETROLEO }}>
+                  <div key={g.grau} className="panel-3d-sub p-3">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
                       {g.grau} ({g.exames.length})
                     </div>
                     <ul className="space-y-0.5">
@@ -542,11 +541,10 @@ function CategoriasTab() {
         {(data ?? []).map((c) => (
           <div
             key={c.nome}
-            className="rounded-md border bg-white p-3"
-            style={{ borderLeft: `3px solid ${PETROLEO}` }}
+            className="panel-3d-sub p-3 border-l-4 border-primary/50 neon-hover"
           >
-            <div className="text-sm font-semibold leading-tight">{c.nome}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-slate-400">{c.total} exames</div>
+            <div className="text-xs font-black uppercase tracking-wide">{c.nome}</div>
+            <div className="mt-1 screen-3d text-xs font-black px-2 py-0.5 inline-block">{c.total} exames</div>
           </div>
         ))}
       </div>
@@ -559,26 +557,26 @@ export default function CadastroExames() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-md" style={{ background: `${PETROLEO}1a`, color: PETROLEO }}>
+        <div className="bevel-3d w-11 h-11 flex items-center justify-center text-primary">
           <FolderTree className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cadastro de Exames</h1>
-          <p className="text-sm text-muted-foreground">
-            Cadastre e organize exames, veja os blocos (painéis) e as categorias do sistema.
+          <h1 className="text-3xl font-black tracking-tight uppercase">Cadastro de Exames</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Cadastre e organize exames, blocos e categorias do sistema.
           </p>
         </div>
       </div>
 
       <Tabs defaultValue="exames" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="exames" className="gap-1.5">
+        <TabsList className="concave-3d p-1">
+          <TabsTrigger value="exames" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <TestTube className="h-4 w-4" /> Exames
           </TabsTrigger>
-          <TabsTrigger value="blocos" className="gap-1.5">
+          <TabsTrigger value="blocos" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Layers className="h-4 w-4" /> Blocos
           </TabsTrigger>
-          <TabsTrigger value="categorias" className="gap-1.5">
+          <TabsTrigger value="categorias" className="gap-1.5 text-xs font-black uppercase tracking-wide">
             <Tags className="h-4 w-4" /> Categorias
           </TabsTrigger>
         </TabsList>

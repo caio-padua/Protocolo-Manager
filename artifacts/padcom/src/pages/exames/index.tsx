@@ -386,13 +386,13 @@ export default function ExamesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-md bg-[#3D7A7A]/10 flex items-center justify-center">
-          <ClipboardList className="w-6 h-6 text-[#3D7A7A]" />
+        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary">
+          <ClipboardList className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Prescritor de Exames</h1>
-          <p className="text-slate-500 text-sm">
-            Selecione os exames por categoria. O sistema separa SANGUE e IMAGEM e gera um PDF por tipo, sem misturar.
+          <h1 className="text-3xl font-black tracking-tight uppercase">Prescritor de Exames</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Separa SANGUE e IMAGEM e gera PDF por tipo, sem misturar.
           </p>
         </div>
       </div>
@@ -401,22 +401,24 @@ export default function ExamesPage() {
         {/* Catálogo de exames */}
         <div className="lg:col-span-2 space-y-4">
           {/* Alternador de modo: Por Lista / Por Bloco */}
-          <div className="inline-flex rounded-md border p-0.5 bg-slate-50">
+          <div className="concave-3d inline-flex p-0.5 gap-0.5">
             <button
               type="button"
               onClick={() => setViewMode("lista")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[4px] transition-colors ${
-                viewMode === "lista" ? "bg-[#3D7A7A] text-white font-medium" : "text-slate-600 hover:bg-slate-100"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors ${
+                viewMode === "lista" ? "btn-3d" : "text-muted-foreground neon-hover px-3 py-1.5"
               }`}
+              style={{ borderRadius: "4px" }}
             >
               <List className="w-4 h-4" /> Por Lista
             </button>
             <button
               type="button"
               onClick={() => setViewMode("bloco")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[4px] transition-colors ${
-                viewMode === "bloco" ? "bg-[#3D7A7A] text-white font-medium" : "text-slate-600 hover:bg-slate-100"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors ${
+                viewMode === "bloco" ? "btn-3d" : "text-muted-foreground neon-hover px-3 py-1.5"
               }`}
+              style={{ borderRadius: "4px" }}
             >
               <Layers className="w-4 h-4" /> Por Bloco
             </button>
@@ -578,9 +580,9 @@ export default function ExamesPage() {
 
         {/* Carrinho + ações */}
         <div className="space-y-4">
-          <div className="border rounded-md p-4 space-y-3">
+          <div className="panel-3d p-4 space-y-3">
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Paciente</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</label>
               <ClientCombobox
                 clients={clients ?? []}
                 value={clientId}
@@ -589,7 +591,7 @@ export default function ExamesPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 Médico solicitante (opcional)
               </label>
               <Select value={professionalId} onValueChange={setProfessionalId}>
@@ -608,10 +610,10 @@ export default function ExamesPage() {
             </div>
           </div>
 
-          <div className="border rounded-md p-4 space-y-3">
+          <div className="panel-3d-sub p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Selecionados</span>
-              <Badge variant="secondary">{cartList.length}</Badge>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Selecionados</span>
+              <span className="screen-3d text-xs font-black px-2 py-0.5">{cartList.length}</span>
             </div>
             {cartList.length === 0 ? (
               <p className="text-sm text-slate-400">Marque os exames à esquerda.</p>
@@ -643,8 +645,8 @@ export default function ExamesPage() {
             )}
           </div>
 
-          <div className="border rounded-md p-4 space-y-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Observações (opcional)</label>
+          <div className="panel-3d p-4 space-y-3">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Observações (opcional)</label>
             <Textarea
               rows={2}
               placeholder="Jejum, instruções, etc."
@@ -661,7 +663,7 @@ export default function ExamesPage() {
               <MessageCircle className="w-4 h-4 text-slate-500" /> Enviar por WhatsApp ao paciente
             </label>
             <Button
-              className="w-full rounded-md bg-[#3D7A7A] hover:bg-[#346a6a]"
+              className="btn-3d w-full"
               disabled={!canEmit}
               onClick={() => emitMutation.mutate()}
             >
@@ -671,15 +673,15 @@ export default function ExamesPage() {
           </div>
 
           {result && (
-            <div className="border rounded-md p-4 space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">PDFs gerados</span>
+            <div className="panel-3d p-4 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">PDFs gerados</span>
               {result.pdfs.map((p) => (
                 <a
                   key={p.id}
                   href={p.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#3D7A7A] hover:underline"
+                  className="concave-3d flex items-center gap-2 text-sm text-primary px-3 py-1.5 neon-hover"
                 >
                   <FileDown className="w-4 h-4" />
                   {p.tipoLabel} ({p.examCount})

@@ -6,7 +6,7 @@ import {
   useSendPharmacyBatch,
 } from "@workspace/api-client-react";
 import type { Pharmacy } from "@workspace/api-client-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PHARMACY_TYPES, pharmacyTypeLabel, ANVISA_CONTROLLED_CLASSES } from "@/lib/anvisa";
 
 const inputCls =
-  "px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground w-full";
+  "field-engraved px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground w-full";
 
 interface FormState {
   name: string;
@@ -147,14 +147,14 @@ export default function Pharmacies() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Farmácias</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-black tracking-tight uppercase">Farmácias</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
             Destinos das receitas — manipulação, drogaria e laboratório de injetáveis.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            className="btn-3d-soft"
             onClick={() => batchMutation.mutate({ data: {} })}
             disabled={batchMutation.isPending}
             title="Envia agora o lote de receitas pendentes por e-mail (mesmo conteúdo do envio noturno automático das 22h)."
@@ -164,48 +164,50 @@ export default function Pharmacies() {
           </Button>
           <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeDialog())}>
             <DialogTrigger asChild>
-              <Button onClick={openCreate}>
+              <Button className="btn-3d" onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Farmácia
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg panel-3d">
               <DialogHeader>
-                <DialogTitle>{editId ? "Editar Farmácia" : "Cadastrar Farmácia"}</DialogTitle>
+                <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                  {editId ? "Editar Farmácia" : "Cadastrar Farmácia"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Razão social ou nome fantasia" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Nome *</Label>
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Razão social ou nome fantasia" className="field-engraved" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo</Label>
                     <select className={inputCls} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                       {PHARMACY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>CNPJ</Label>
-                    <Input value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0001-00" />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CNPJ</Label>
+                    <Input value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0001-00" className="field-engraved" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 0000-0000" />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Telefone</Label>
+                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 0000-0000" className="field-engraved" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>WhatsApp</Label>
-                    <Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="11999990000" />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">WhatsApp</Label>
+                    <Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="11999990000" className="field-engraved" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>E-mail (recebe o lote noturno)</Label>
-                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="contato@farmacia.com.br" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">E-mail (recebe o lote noturno)</Label>
+                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="contato@farmacia.com.br" className="field-engraved" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Tipos controlados que esta farmácia atende</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipos controlados atendidos</Label>
                   <div className="grid grid-cols-2 gap-1.5">
                     {ANVISA_CONTROLLED_CLASSES.map((c) => {
                       const checked = form.controlledTypes.includes(c.value);
@@ -214,7 +216,12 @@ export default function Pharmacies() {
                           type="button"
                           key={c.value}
                           onClick={() => toggleControlled(c.value)}
-                          className={`text-left text-xs px-2.5 py-2 rounded-md border transition ${checked ? "bg-primary text-primary-foreground border-primary font-semibold" : "bg-card hover:bg-muted border-border text-foreground"}`}
+                          className={`text-left text-[10px] font-black uppercase tracking-wide px-2.5 py-2 border transition ${
+                            checked
+                              ? "btn-3d text-white border-primary"
+                              : "panel-3d-sub text-foreground border-border neon-hover"
+                          }`}
+                          style={{ borderRadius: "6px" }}
                         >
                           {c.label}
                         </button>
@@ -222,8 +229,8 @@ export default function Pharmacies() {
                     })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Observações</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Observações</Label>
                   <textarea
                     className={`${inputCls} resize-y`}
                     rows={2}
@@ -234,8 +241,8 @@ export default function Pharmacies() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-                <Button onClick={handleSubmit} disabled={saving}>
+                <Button className="btn-3d-soft" onClick={closeDialog}>Cancelar</Button>
+                <Button className="btn-3d" onClick={handleSubmit} disabled={saving}>
                   {saving ? "Salvando..." : editId ? "Salvar" : "Cadastrar"}
                 </Button>
               </DialogFooter>
@@ -246,38 +253,38 @@ export default function Pharmacies() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44 panel-3d-sub" />)}
         </div>
       ) : !pharmacies?.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Nenhuma farmácia cadastrada</p>
-            <p className="text-sm text-muted-foreground">Cadastre a primeira para rotear as receitas.</p>
-          </CardContent>
-        </Card>
+        <div className="panel-3d flex flex-col items-center justify-center py-16">
+          <div className="concave-3d p-6 mb-4">
+            <Building2 className="h-10 w-10 text-muted-foreground opacity-30" />
+          </div>
+          <p className="text-base font-black uppercase tracking-tight text-primary">Nenhuma farmácia cadastrada</p>
+          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mt-1">Cadastre a primeira para rotear as receitas.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pharmacies.map((p) => (
-            <Card key={p.id} className="border-l-4 border-l-primary">
+            <div key={p.id} className="panel-3d border-l-4 border-l-primary">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
-                      <FlaskConical className="h-5 w-5 text-primary" />
+                    <div className="bevel-3d flex-shrink-0 w-10 h-10 flex items-center justify-center text-primary">
+                      <FlaskConical className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold leading-tight truncate">{p.name}</p>
-                      <p className="text-[11px] uppercase tracking-wide text-primary font-semibold mt-0.5">
+                      <p className="font-black uppercase tracking-tight leading-tight truncate">{p.name}</p>
+                      <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary mt-1 inline-block">
                         {pharmacyTypeLabel(p.type)}
-                      </p>
+                      </span>
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <button onClick={() => openEdit(p)} className="p-1.5 text-muted-foreground hover:text-foreground" title="Editar">
+                    <button onClick={() => openEdit(p)} className="p-1.5 text-muted-foreground neon-hover rounded-sm" title="Editar">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(p)} className="p-1.5 text-destructive hover:opacity-80" title="Inativar">
+                    <button onClick={() => handleDelete(p)} className="p-1.5 text-destructive hover:opacity-80 rounded-sm" title="Inativar">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -306,12 +313,12 @@ export default function Pharmacies() {
 
                 {p.controlledTypes?.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 mb-1.5">
+                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">
                       <ShieldAlert className="h-3 w-3" />Controlados atendidos
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {p.controlledTypes.map((t) => (
-                        <span key={t} className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-sm bg-amber-50 border border-amber-200 text-amber-800">
+                        <span key={t} className="concave-3d text-[9px] font-mono font-black px-1.5 py-0.5 text-amber-800">
                           {t}
                         </span>
                       ))}
@@ -319,7 +326,7 @@ export default function Pharmacies() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
           ))}
         </div>
       )}

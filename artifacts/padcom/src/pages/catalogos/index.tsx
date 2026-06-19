@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tabs,
@@ -199,13 +198,13 @@ function CatalogTable({ def }: { def: CatalogDef }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`Buscar em ${def.label.toLowerCase()}...`}
-            className="pl-9"
+            className="pl-9 field-engraved"
           />
         </div>
         <div className="flex items-center gap-3">
           {def.categoryKey && categories.length > 0 && (
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-[220px]">
+              <SelectTrigger className="w-[220px] field-engraved">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -218,31 +217,31 @@ function CatalogTable({ def }: { def: CatalogDef }) {
               </SelectContent>
             </Select>
           )}
-          <Badge variant="outline" className="whitespace-nowrap text-xs font-semibold">
-            {isLoading ? "..." : `${filtered.length} de ${data?.length ?? 0}`}
-          </Badge>
+          <span className="concave-3d px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary whitespace-nowrap">
+            {isLoading ? "..." : `${filtered.length} / ${data?.length ?? 0}`}
+          </span>
         </div>
       </div>
 
       {isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+        <div className="panel-3d-sub border-l-4 border-red-500 p-4 text-sm text-red-600 font-bold uppercase tracking-wide">
           Não foi possível carregar este catálogo. Verifique se o servidor está ativo.
         </div>
       ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
+            <Skeleton key={i} className="h-10 panel-3d-sub" />
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto panel-3d">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/60">
+              <TableRow className="bg-primary/10">
                 {def.columns.map((c) => (
                   <TableHead
                     key={c.key}
-                    className="whitespace-nowrap text-xs font-bold uppercase tracking-wide"
+                    className="whitespace-nowrap text-[10px] font-black uppercase tracking-widest text-primary"
                   >
                     {c.label}
                   </TableHead>
@@ -252,13 +251,13 @@ function CatalogTable({ def }: { def: CatalogDef }) {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={def.columns.length} className="h-24 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={def.columns.length} className="h-24 text-center text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
                     Nenhum item encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((row, idx) => (
-                  <TableRow key={(row.id as number) ?? idx}>
+                  <TableRow key={(row.id as number) ?? idx} className="neon-hover transition-all">
                     {def.columns.map((c) => (
                       <TableCell key={c.key} className="align-top text-sm">
                         {cellText(row[c.key])}
@@ -279,23 +278,23 @@ export default function Catalogos() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <div className="bevel-3d flex h-11 w-11 items-center justify-center text-primary">
           <Library className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Central de Catálogos</h1>
-          <p className="text-sm text-muted-foreground">
-            Todos os catálogos do sistema em um só lugar: injetáveis, implantes, endovenosos, exames, analitos e fórmulas.
+          <h1 className="text-2xl font-black tracking-tight uppercase">Central de Catálogos</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Injetáveis, implantes, endovenosos, exames, analitos e fórmulas.
           </p>
         </div>
       </div>
 
       <Tabs defaultValue={CATALOGS[0].id} className="space-y-4">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+        <TabsList className="concave-3d flex h-auto w-full flex-wrap justify-start gap-1 p-1">
           {CATALOGS.map((c) => {
             const Icon = c.icon;
             return (
-              <TabsTrigger key={c.id} value={c.id} className="gap-1.5">
+              <TabsTrigger key={c.id} value={c.id} className="gap-1.5 text-xs font-bold uppercase tracking-wide">
                 <Icon className="h-4 w-4" />
                 {c.label}
               </TabsTrigger>

@@ -1,6 +1,5 @@
 import { useListPayments, useUpdatePayment } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -9,25 +8,25 @@ import { CreditCard, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
-  paid: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-  overdue: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-  cancelled: "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
+  pending: "text-amber-700",
+  paid: "text-green-700",
+  overdue: "text-red-700",
+  cancelled: "text-muted-foreground",
 };
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  pending: "Pendente",
-  paid: "Pago",
-  overdue: "Vencido",
-  cancelled: "Cancelado",
+  pending: "PENDENTE",
+  paid: "PAGO",
+  overdue: "VENCIDO",
+  cancelled: "CANCELADO",
 };
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  pix: "Pix",
-  credit_card: "Cartão de Crédito",
-  debit_card: "Cartão de Débito",
-  cash: "Dinheiro",
-  bank_transfer: "Transferência",
+  pix: "PIX",
+  credit_card: "CARTÃO CRÉDITO",
+  debit_card: "CARTÃO DÉBITO",
+  cash: "DINHEIRO",
+  bank_transfer: "TRANSFERÊNCIA",
 };
 
 export default function Payments() {
@@ -53,72 +52,86 @@ export default function Payments() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pagamentos</h1>
-        <p className="text-muted-foreground">Controle financeiro por protocolo.</p>
+        <h1 className="text-3xl font-black tracking-tight uppercase">Financeiro</h1>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+          Controle financeiro por protocolo.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        <Card className="panel-3d border-l-4 border-green-500">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Recebido</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Recebido</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">R$ {totalPaid.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <div className="screen-3d px-3 py-2 text-xl font-black text-green-600 tabular-nums">
+              R$ {totalPaid.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="panel-3d border-l-4 border-amber-500">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
               <Clock className="h-4 w-4 text-amber-500" />
-              <span className="text-sm text-muted-foreground">Pendente</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pendente</span>
             </div>
-            <p className="text-2xl font-bold text-amber-600">R$ {totalPending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <div className="screen-3d px-3 py-2 text-xl font-black text-amber-600 tabular-nums">
+              R$ {totalPending.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="panel-3d border-l-4 border-red-500">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
               <XCircle className="h-4 w-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">Vencido</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vencido</span>
             </div>
-            <p className="text-2xl font-bold text-red-600">R$ {totalOverdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <div className="screen-3d px-3 py-2 text-xl font-black text-red-600 tabular-nums">
+              R$ {totalOverdue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 panel-3d-sub" />)}
         </div>
       ) : !payments?.length ? (
-        <Card>
+        <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Nenhum pagamento registrado</p>
+            <div className="concave-3d p-6 mb-4">
+              <CreditCard className="h-10 w-10 text-muted-foreground opacity-30" />
+            </div>
+            <p className="text-base font-black uppercase tracking-tight text-primary">Nenhum pagamento registrado</p>
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader><CardTitle>Histórico de Pagamentos</CardTitle></CardHeader>
+        <Card className="panel-3d">
+          <CardHeader>
+            <CardTitle className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+              Histórico de Pagamentos
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {payments.map(payment => (
-                <div key={payment.id} className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/30 transition-colors">
+                <div key={payment.id} className="flex items-center gap-4 p-3 panel-3d-sub neon-hover transition-all">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-medium">{payment.clientName}</span>
-                      <Badge className={`text-xs border ${PAYMENT_STATUS_COLORS[payment.status] ?? ""}`}>
+                    <div className="flex items-center gap-3 flex-wrap mb-1">
+                      <span className="font-black uppercase tracking-tight text-foreground text-sm">{payment.clientName}</span>
+                      <span className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${PAYMENT_STATUS_COLORS[payment.status] ?? ""}`}>
                         {PAYMENT_STATUS_LABELS[payment.status] ?? payment.status}
-                      </Badge>
+                      </span>
                     </div>
-                    <div className="text-sm text-muted-foreground">{payment.protocolTitle}</div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{payment.protocolTitle}</div>
+                    <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-1 flex-wrap">
                       {payment.dueDate && (
-                        <span>Vencimento: {format(new Date(payment.dueDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        <span>Venc: {format(new Date(payment.dueDate), "dd/MM/yyyy", { locale: ptBR })}</span>
                       )}
                       {payment.paidAt && (
-                        <span>Pago em: {format(new Date(payment.paidAt), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        <span>Pago: {format(new Date(payment.paidAt), "dd/MM/yyyy", { locale: ptBR })}</span>
                       )}
                       {payment.method && (
                         <span>{PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}</span>
@@ -129,11 +142,13 @@ export default function Payments() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-lg font-bold">R$ {payment.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums text-sm">
+                      R$ {payment.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </div>
                     {payment.status === "pending" && (
                       <Button
                         size="sm"
-                        variant="outline"
+                        className="btn-3d-soft"
                         disabled={updateMutation.isPending}
                         onClick={() => updateMutation.mutate({ id: payment.id, data: { status: "paid", paidAt: new Date().toISOString() } as any })}
                       >

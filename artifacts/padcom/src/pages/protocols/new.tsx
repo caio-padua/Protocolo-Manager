@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -207,112 +207,108 @@ export default function NovoProtocolo() {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => setStep("configurar")}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Revisar
-          </Button>
-          <h1 className="text-2xl font-bold">Resumo do Protocolo</h1>
-        </div>
+        <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setStep("configurar")}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Revisar
+        </Button>
+        <h1 className="text-2xl font-bold uppercase tracking-tight">Resumo do Protocolo</h1>
+      </div>
 
-        <Card className="border-2 border-primary/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              <CardTitle>Confirme antes de lançar</CardTitle>
+      <Card className="panel-3d">
+        <CardHeader className="pb-3">
+          <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-primary" /> Confirme antes de lançar
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 panel-3d-sub">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
+                <User className="h-3.5 w-3.5" /> Cliente
+              </div>
+              <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedClient?.name}</p>
+              <p className="text-xs text-muted-foreground tabular-nums font-medium mt-1">{selectedClient?.cpf}</p>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <User className="h-3.5 w-3.5" />
-                  Cliente
-                </div>
-                <p className="font-semibold">{selectedClient?.name}</p>
-                <p className="text-xs text-muted-foreground">{selectedClient?.cpf}</p>
+            <div className="p-4 panel-3d-sub">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
+                <User className="h-3.5 w-3.5" /> Médico Responsável
               </div>
-              <div className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <User className="h-3.5 w-3.5" />
-                  Médico Responsável
-                </div>
-                <p className="font-semibold">{selectedProfessional?.name}</p>
-                <p className="text-xs text-muted-foreground">{selectedProfessional?.crm}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                  <MapPin className="h-3.5 w-3.5" />
-                  Local
-                </div>
-                <p className="font-semibold">{selectedLocation?.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedLocation?.type === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
-                </p>
-              </div>
+              <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedProfessional?.name}</p>
+              <p className="text-xs text-muted-foreground tabular-nums font-medium mt-1">{selectedProfessional?.crm}</p>
             </div>
-
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Substâncias ({filledSlots.length})</p>
-              <div className="space-y-3">
-                {filledSlots.map((slot, idx) => {
-                  const freq = FREQUENCY_OPTIONS.find(f => f.value === slot.frequency);
-                  const days = slot.frequency === "custom" ? slot.customDays : (freq?.days ?? 7);
-                  return (
-                    <div key={slot.id} className="flex items-center gap-3 p-3 rounded-lg border">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                        style={{ backgroundColor: slot.substanceColor }}>
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-semibold">{slot.substanceName}</span>
-                          <Badge variant="outline" className="text-xs">{slot.dose}</Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>{slot.totalSessions} sessões</span>
-                          <span>a cada {days} dias</span>
-                          <span>Início: {format(new Date(slot.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                          <span>Término: {getEndDate(slot)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="p-4 panel-3d-sub">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
+                <MapPin className="h-3.5 w-3.5" /> Local
               </div>
-            </div>
-
-            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-center gap-2 text-sm">
-                <CalendarDays className="h-4 w-4 text-primary" />
-                <span className="font-medium">Consolidação semanal ativa</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                O sistema agrupará automaticamente as substâncias por semana (Seg–Dom), elegendo um único dia de visita por semana. Horário padrão: <strong>{scheduledTime}</strong>.
+              <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedLocation?.name}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-1">
+                {selectedLocation?.type === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <div className="flex flex-wrap justify-end gap-3">
-          <Button variant="outline" size="lg" onClick={() => setStep("configurar")} disabled={comboLoading || createMutation.isPending}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Voltar e Editar
-          </Button>
-          <Button size="lg" onClick={handleLancar} disabled={createMutation.isPending || comboLoading} className="px-8">
-            {createMutation.isPending && !comboRef.current ? "Lançando..." : "Confirmar e Lançar Protocolo"}
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            onClick={handleLancarComRasFap}
-            disabled={comboLoading || createMutation.isPending}
-            className="px-8"
-          >
-            {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-            {comboLoading ? "Gerando RAS FAP..." : "Lançar + Gerar RAS FAP"}
-          </Button>
-        </div>
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground mb-3 uppercase tracking-widest">Substâncias ({filledSlots.length})</p>
+            <div className="space-y-4">
+              {filledSlots.map((slot, idx) => {
+                const freq = FREQUENCY_OPTIONS.find(f => f.value === slot.frequency);
+                const days = slot.frequency === "custom" ? slot.customDays : (freq?.days ?? 7);
+                return (
+                  <div key={slot.id} className="flex items-center gap-4 p-4 panel-3d-sub">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-black shadow-md"
+                      style={{ backgroundColor: slot.substanceColor }}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="font-bold uppercase tracking-tight text-lg">{slot.substanceName}</span>
+                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">{slot.dose}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        <span className="tabular-nums">{slot.totalSessions} sessões</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> a cada {days} dias</span>
+                        <span className="tabular-nums">Início: {format(new Date(slot.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        <span className="tabular-nums">Término: {getEndDate(slot)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-4 panel-3d-sub bg-primary/5 border-primary/20 paxter-underglow">
+            <div className="flex items-center gap-2 text-sm">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <span className="font-bold uppercase tracking-wide">Consolidação semanal ativa</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2 font-medium uppercase tracking-wide leading-relaxed">
+              O sistema agrupará automaticamente as substâncias por semana (Seg–Dom), elegendo um único dia de visita por semana. Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap justify-end gap-3">
+        <Button variant="outline" size="lg" className="btn-3d-soft" onClick={() => setStep("configurar")} disabled={comboLoading || createMutation.isPending}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Voltar e Editar
+        </Button>
+        <Button size="lg" className="btn-3d px-8" onClick={handleLancar} disabled={createMutation.isPending || comboLoading}>
+          {createMutation.isPending && !comboRef.current ? "Lançando..." : "Confirmar e Lançar Protocolo"}
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+        <Button
+          size="lg"
+          variant="secondary"
+          className="btn-3d px-8"
+          onClick={handleLancarComRasFap}
+          disabled={comboLoading || createMutation.isPending}
+        >
+          {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+          {comboLoading ? "Gerando RAS FAP..." : "Lançar + Gerar RAS FAP"}
+        </Button>
+      </div>
       </div>
     );
   }
@@ -320,39 +316,41 @@ export default function NovoProtocolo() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/protocols")}>
+        <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setLocation("/protocols")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Lançador de Protocolo</h1>
-          <p className="text-muted-foreground text-sm">Preencha os dados e adicione as substâncias do protocolo.</p>
+          <h1 className="text-2xl font-bold uppercase tracking-tight">Lançador de Protocolo</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">Preencha os dados e adicione as substâncias do protocolo.</p>
         </div>
       </div>
 
       {/* BLOCO 1 - DADOS GERAIS */}
-      <Card>
+      <Card className="panel-3d">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</span>
+          <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-black">1</span>
             Dados Gerais
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Cliente *</Label>
-              <ClientCombobox
-                clients={clients ?? []}
-                value={clientId}
-                onChange={setClientId}
-                placeholder="Selecione o cliente"
-              />
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Cliente *</Label>
+              <div className="field-engraved rounded-md p-1">
+                <ClientCombobox
+                  clients={clients ?? []}
+                  value={clientId}
+                  onChange={setClientId}
+                  placeholder="Selecione o cliente"
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Médico Responsável *</Label>
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Médico Responsável *</Label>
               <Select value={professionalId} onValueChange={setProfessionalId}>
-                <SelectTrigger>
+                <SelectTrigger className="field-engraved">
                   <SelectValue placeholder="Selecione o médico" />
                 </SelectTrigger>
                 <SelectContent>
@@ -365,11 +363,11 @@ export default function NovoProtocolo() {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Local de Atendimento *</Label>
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Local de Atendimento *</Label>
               <Select value={locationId} onValueChange={setLocationId}>
-                <SelectTrigger>
+                <SelectTrigger className="field-engraved">
                   <SelectValue placeholder="Selecione o local" />
                 </SelectTrigger>
                 <SelectContent>
@@ -385,18 +383,19 @@ export default function NovoProtocolo() {
                 </SelectContent>
               </Select>
               {selectedLocation?.address && (
-                <p className="text-xs text-muted-foreground">{selectedLocation.address}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-1">{selectedLocation.address}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label>Horário Padrão das Sessões</Label>
-              <Input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Horário de referência para consolidação semanal</p>
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Horário Padrão das Sessões</Label>
+              <Input type="time" className="field-engraved" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} />
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Horário de referência para consolidação semanal</p>
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Título do Protocolo (opcional)</Label>
+            <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Título do Protocolo (opcional)</Label>
             <Input
+              className="field-engraved"
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="Deixe vazio para gerar automaticamente"
@@ -406,16 +405,17 @@ export default function NovoProtocolo() {
       </Card>
 
       {/* BLOCO 2 - SUBSTÂNCIAS */}
-      <Card>
+      <Card className="panel-3d">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</span>
+            <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-black">2</span>
               Substâncias ({slots.filter(s => s.substanceId > 0).length}/{slots.length})
             </CardTitle>
             <Button
               variant="outline"
               size="sm"
+              className="btn-3d-soft"
               onClick={addSlot}
               disabled={slots.length >= 10}
             >
@@ -424,34 +424,34 @@ export default function NovoProtocolo() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {slots.map((slot, idx) => (
-            <div key={slot.id} className="relative p-4 border rounded-xl space-y-3 transition-all"
-              style={{ borderLeftColor: slot.substanceId ? slot.substanceColor : undefined, borderLeftWidth: slot.substanceId ? 4 : 1 }}>
+            <div key={slot.id} className="relative p-5 panel-3d-sub space-y-4 transition-all"
+              style={{ borderLeftColor: slot.substanceId ? slot.substanceColor : undefined, borderLeftWidth: slot.substanceId ? 5 : 1 }}>
               <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {slot.substanceId ? (
-                    <div className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: slot.substanceColor }} />
+                    <div className="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: slot.substanceColor }} />
                   ) : (
-                    <Beaker className="h-4 w-4 text-muted-foreground" />
+                    <Beaker className="h-5 w-5 text-muted-foreground" />
                   )}
-                  <span className="text-sm font-medium text-muted-foreground">Substância {idx + 1}</span>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Substância {idx + 1}</span>
                   {slot.substanceName && (
-                    <span className="text-sm font-semibold">{slot.substanceName}</span>
+                    <span className="text-base font-bold uppercase tracking-tight ml-2">{slot.substanceName}</span>
                   )}
                 </div>
                 {slots.length > 1 && (
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => removeSlot(slot.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10" onClick={() => removeSlot(slot.id)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
-                  <Label className="text-xs">Substância *</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Substância *</Label>
                   <Select value={String(slot.substanceId || "")} onValueChange={v => handleSelectSubstance(slot.id, v)}>
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="field-engraved h-10">
                       <SelectValue placeholder="Escolha a substância..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -469,19 +469,19 @@ export default function NovoProtocolo() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Dose *</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Dose *</Label>
                   <Input
-                    className="h-9"
+                    className="field-engraved h-10"
                     value={slot.dose}
                     onChange={e => updateSlot(slot.id, { dose: e.target.value })}
-                    placeholder="Ex: 600mg, 15g, 500mcg"
+                    placeholder="Ex: 600mg, 15g"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Total de Sessões</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Total de Sessões</Label>
                   <Input
-                    className="h-9"
+                    className="field-engraved h-10"
                     type="number"
                     min={1}
                     max={52}
@@ -491,9 +491,9 @@ export default function NovoProtocolo() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Frequência</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Frequência</Label>
                   <Select value={slot.frequency} onValueChange={v => updateSlot(slot.id, { frequency: v })}>
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="field-engraved h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -506,9 +506,9 @@ export default function NovoProtocolo() {
 
                 {slot.frequency === "custom" ? (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Intervalo (dias)</Label>
+                    <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Intervalo (dias)</Label>
                     <Input
-                      className="h-9"
+                      className="field-engraved h-10"
                       type="number"
                       min={1}
                       value={slot.customDays}
@@ -517,9 +517,9 @@ export default function NovoProtocolo() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Data de Início</Label>
+                    <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Data de Início</Label>
                     <Input
-                      className="h-9"
+                      className="field-engraved h-10"
                       type="date"
                       value={slot.startDate}
                       onChange={e => updateSlot(slot.id, { startDate: e.target.value })}
@@ -529,9 +529,9 @@ export default function NovoProtocolo() {
 
                 {slot.frequency === "custom" && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Data de Início</Label>
+                    <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Data de Início</Label>
                     <Input
-                      className="h-9"
+                      className="field-engraved h-10"
                       type="date"
                       value={slot.startDate}
                       onChange={e => updateSlot(slot.id, { startDate: e.target.value })}
@@ -541,7 +541,7 @@ export default function NovoProtocolo() {
               </div>
 
               {slot.substanceId > 0 && slot.dose && (
-                <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1 border-t">
+                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground pt-3 border-t border-muted/20">
                   <CalendarDays className="h-3.5 w-3.5" />
                   <span>
                     {slot.totalSessions} sessões ·{" "}
@@ -556,7 +556,7 @@ export default function NovoProtocolo() {
           {slots.length < 10 && (
             <button
               onClick={addSlot}
-              className="w-full py-3 border-2 border-dashed border-muted-foreground/30 rounded-xl text-muted-foreground text-sm hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-2"
+              className="w-full py-4 panel-3d-sub border-2 border-dashed border-muted-foreground/30 text-muted-foreground text-[10px] font-bold uppercase tracking-widest hover:border-primary/50 hover:text-primary transition-all flex items-center justify-center gap-2"
             >
               <Plus className="h-4 w-4" />
               Adicionar substância ({slots.length}/10)
@@ -567,19 +567,19 @@ export default function NovoProtocolo() {
 
       {/* BOTÃO AVANÇAR */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
           {!canAdvance && (
             <span>Preencha: cliente, médico, local e ao menos uma substância com dose.</span>
           )}
           {canAdvance && (
-            <span className="text-green-600 font-medium">Pronto para revisar — {filledSlots.length} substância{filledSlots.length !== 1 ? "s" : ""} configurada{filledSlots.length !== 1 ? "s" : ""}.</span>
+            <span className="text-emerald-600">Pronto para revisar — {filledSlots.length} substância{filledSlots.length !== 1 ? "s" : ""} configurada{filledSlots.length !== 1 ? "s" : ""}.</span>
           )}
         </div>
         <Button
           size="lg"
+          className="btn-3d px-8"
           onClick={() => setStep("resumo")}
           disabled={!canAdvance}
-          className="px-8"
         >
           Ver Resumo
           <ChevronRight className="h-4 w-4 ml-1" />

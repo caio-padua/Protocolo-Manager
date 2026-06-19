@@ -10,7 +10,6 @@ import type {
   AnamneseOpcao,
   SimulacaoResultado,
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,12 +71,11 @@ function BlocosEditor() {
               data-testid={`bloco-item-${b.bloco}`}
               className={`w-full text-left px-3 py-2.5 border transition-all flex items-center justify-between gap-2 ${
                 active
-                  ? "bg-primary/10 border-primary/40 text-foreground"
-                  : "bg-card border-border hover:bg-muted/50 text-muted-foreground"
+                  ? "panel-3d border-primary/60 text-foreground"
+                  : "panel-3d-sub border-border neon-hover text-muted-foreground"
               }`}
-              style={{ borderRadius: "6px" }}
             >
-              <span className="text-sm font-medium truncate">{b.bloco}</span>
+              <span className="text-xs font-black uppercase tracking-wide truncate">{b.bloco}</span>
               <span className="flex items-center gap-1 flex-shrink-0">
                 {(b.comAlarme ?? 0) > 0 && (
                   <Badge
@@ -118,7 +116,7 @@ function PerguntasEditor({ bloco }: { bloco: string }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2 mb-1">
         <ChevronRight className="h-4 w-4 text-primary" />
-        <h3 className="text-base font-semibold tracking-tight">{bloco}</h3>
+        <h3 className="text-base font-black uppercase tracking-tight text-primary">{bloco}</h3>
       </div>
       {isLoading ? (
         <div className="space-y-2">
@@ -163,8 +161,7 @@ function PerguntaRow({
 
   return (
     <div
-      className="border border-border bg-card p-3"
-      style={{ borderRadius: "6px" }}
+      className="panel-3d-sub p-3"
       data-testid={`pergunta-row-${pergunta.perguntaId}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -223,8 +220,7 @@ function PerguntaRow({
               {opcoes.map((o, i) => (
                 <span
                   key={i}
-                  className="text-[10px] px-1.5 py-0.5 bg-muted border border-border text-muted-foreground"
-                  style={{ borderRadius: "4px" }}
+                  className="concave-3d text-[9px] font-bold px-1.5 py-0.5 text-muted-foreground"
                 >
                   {o.label} ({o.peso})
                 </span>
@@ -323,13 +319,12 @@ function Simulador() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5">
-      <Card style={{ borderRadius: "6px" }}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Play className="h-4 w-4 text-primary" /> Entradas do caso clínico
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="panel-3d">
+        <div className="px-5 pt-4 pb-2 flex items-center gap-2">
+          <Play className="h-4 w-4 text-primary" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Entradas do caso clínico</span>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
           <div className="space-y-2">
             <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-muted-foreground">
               Casos de exemplo
@@ -343,10 +338,9 @@ function Simulador() {
                     rodar(ex.respostas);
                   }}
                   data-testid={`exemplo-${ex.nome}`}
-                  className="text-left border border-border bg-card hover:bg-muted/50 p-3 transition-all"
-                  style={{ borderRadius: "6px" }}
+                  className="panel-3d-sub text-left p-3 neon-hover transition-all w-full"
                 >
-                  <p className="text-sm font-medium">{ex.nome}</p>
+                  <p className="text-xs font-black uppercase tracking-wide">{ex.nome}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {ex.descricao}
                   </p>
@@ -363,8 +357,7 @@ function Simulador() {
               {Object.entries(respostas).map(([k, v]) => (
                 <span
                   key={k}
-                  className="text-[11px] px-2 py-1 bg-primary/10 border border-primary/30 font-mono"
-                  style={{ borderRadius: "4px" }}
+                  className="concave-3d text-[10px] px-2 py-1 font-mono text-primary"
                 >
                   {k} = {String(v)}
                 </span>
@@ -375,7 +368,7 @@ function Simulador() {
           <Button
             onClick={() => rodar(respostas)}
             disabled={simular.isPending}
-            className="w-full"
+            className="btn-3d w-full"
             data-testid="button-rodar-motor"
           >
             <Play className="h-4 w-4 mr-2" />
@@ -386,30 +379,27 @@ function Simulador() {
               Motor consome {blocos.length} blocos da base — nada hardcoded.
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {!resultado ? (
-          <Card style={{ borderRadius: "6px" }}>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              <Gauge className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">
-                Escolha um caso e clique em Rodar Motor para ver o resultado.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="panel-3d py-12 text-center text-muted-foreground">
+            <Gauge className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">
+              Escolha um caso e clique em Rodar Motor para ver o resultado.
+            </p>
+          </div>
         ) : (
           <>
-            <Card style={{ borderRadius: "6px" }}>
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-muted-foreground">
-                      Escore total
-                    </p>
-                    <p className="text-3xl font-bold">{resultado.escoreTotal}</p>
-                  </div>
+            <div className="panel-3d p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Escore total
+                  </p>
+                  <p className="screen-3d text-3xl font-black px-3 py-1 mt-1">{resultado.escoreTotal}</p>
+                </div>
                   <Badge
                     className={`text-sm px-3 py-1 border ${gradeColor(resultado.gradeGlobal)}`}
                     variant="outline"
@@ -417,16 +407,15 @@ function Simulador() {
                     {resultado.gradeGlobal}
                   </Badge>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 mt-3">
                   {resultado.blocos.map((b) => (
                     <div
                       key={b.bloco}
-                      className="flex items-center justify-between text-sm border border-border px-2.5 py-1.5"
-                      style={{ borderRadius: "4px" }}
+                      className="panel-3d-sub flex items-center justify-between text-sm px-2.5 py-1.5 neon-hover"
                     >
-                      <span className="truncate">{b.bloco}</span>
+                      <span className="truncate text-xs font-bold uppercase tracking-wide">{b.bloco}</span>
                       <span className="flex items-center gap-2 flex-shrink-0">
-                        <span className="font-semibold">{b.escore}</span>
+                        <span className="screen-3d text-xs font-black px-2 py-0.5">{b.escore}</span>
                         <Badge
                           variant="outline"
                           className={`text-[10px] ${gradeColor(b.grade)}`}
@@ -437,37 +426,23 @@ function Simulador() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+            </div>
 
             {resultado.alarmes.length > 0 && (
-              <Card
-                className="border-red-300 dark:border-red-800"
-                style={{ borderRadius: "6px" }}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 text-red-700 dark:text-red-300">
-                    <AlertTriangle className="h-4 w-4" /> Sinais de alarme (
-                    {resultado.alarmes.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  {resultado.alarmes.map((a) => (
-                    <div
-                      key={a.perguntaId}
-                      className="text-sm flex items-center gap-2"
-                    >
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-mono px-1.5"
-                      >
-                        {a.perguntaId}
-                      </Badge>
-                      <span>{a.pergunta}</span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+              <div className="panel-3d border-l-4 border-red-400 p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-red-600">
+                    Sinais de alarme ({resultado.alarmes.length})
+                  </span>
+                </div>
+                {resultado.alarmes.map((a) => (
+                  <div key={a.perguntaId} className="text-sm flex items-center gap-2">
+                    <span className="concave-3d text-[10px] font-mono px-1.5 py-0.5">{a.perguntaId}</span>
+                    <span>{a.pergunta}</span>
+                  </div>
+                ))}
+              </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -510,30 +485,23 @@ function ResultList({
   cor: string;
 }) {
   return (
-    <Card style={{ borderRadius: "6px" }}>
-      <CardHeader className="pb-2">
-        <CardTitle className={`text-sm flex items-center gap-2 ${cor}`}>
-          {icon} {titulo}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {itens.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhum.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {itens.map((s) => (
-              <span
-                key={s}
-                className="text-[11px] px-2 py-1 bg-muted border border-border"
-                style={{ borderRadius: "4px" }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="panel-3d p-4">
+      <div className={`flex items-center gap-2 mb-3 ${cor}`}>
+        {icon}
+        <span className="text-[10px] font-black uppercase tracking-widest">{titulo}</span>
+      </div>
+      {itens.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhum.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {itens.map((s) => (
+            <span key={s} className="concave-3d text-[10px] font-bold px-2 py-1">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -541,27 +509,23 @@ export default function MegaAnamnese() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-3">
-        <div
-          className="w-10 h-10 flex items-center justify-center bg-primary/10 border border-primary/30"
-          style={{ borderRadius: "6px" }}
-        >
-          <Brain className="h-5 w-5 text-primary" />
+        <div className="bevel-3d w-10 h-10 flex items-center justify-center text-primary">
+          <Brain className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mega Anamnese</h1>
-          <p className="text-muted-foreground">
-            Anamnese integrativa nível Harvard + Motor clínico — editável,
-            DB-driven.
+          <h1 className="text-3xl font-black tracking-tight uppercase">Mega Anamnese</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Anamnese integrativa nível Harvard + Motor clínico — editável, DB-driven.
           </p>
         </div>
       </div>
 
       <Tabs defaultValue="simulador" className="w-full">
-        <TabsList>
-          <TabsTrigger value="simulador" data-testid="tab-simulador">
+        <TabsList className="concave-3d p-1 mb-1">
+          <TabsTrigger value="simulador" data-testid="tab-simulador" className="text-xs font-bold uppercase tracking-wide">
             <Gauge className="h-4 w-4 mr-2" /> Simulador do Motor
           </TabsTrigger>
-          <TabsTrigger value="blocos" data-testid="tab-blocos">
+          <TabsTrigger value="blocos" data-testid="tab-blocos" className="text-xs font-bold uppercase tracking-wide">
             <ListChecks className="h-4 w-4 mr-2" /> Blocos &amp; Perguntas
           </TabsTrigger>
         </TabsList>

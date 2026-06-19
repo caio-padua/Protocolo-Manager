@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useCallback } from "react";
@@ -156,138 +156,149 @@ export default function NewClient() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => setLocation("/clients")}>
+        <Button variant="outline" size="icon" onClick={() => setLocation("/clients")} className="btn-3d-soft rounded-full">
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">NOVO CLIENTE</h1>
-          <p className="text-muted-foreground">Cadastre um novo cliente no sistema.</p>
+          <h1 className="text-2xl font-bold tracking-tight uppercase">NOVO CLIENTE</h1>
+          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">Cadastre um novo cliente no sistema.</p>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">Informacoes Pessoais</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="panel-3d border-none">
+        <CardContent className="p-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">Nome Completo *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Joao da Silva" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="cpf"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">CPF *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="000.000.000-00"
-                          value={field.value}
-                          onChange={(e) => field.onChange(formatCPF(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">Email *</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="joao@exemplo.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">Celular *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="(00) 00000-0000"
-                          value={field.value}
-                          onChange={(e) => field.onChange(formatPhone(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <User className="h-3 w-3 text-primary" /> Informações Pessoais
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="birthDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">Data de Nascimento</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-wider text-xs">Status *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Nome Completo *</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o status" />
-                          </SelectTrigger>
+                          <Input placeholder="Ex: Joao da Silva" {...field} className="field-engraved" />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="active">Ativo</SelectItem>
-                          <SelectItem value="inactive">Inativo</SelectItem>
-                          <SelectItem value="pending">Pendente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="cpf"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CPF *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="000.000.000-00"
+                            className="field-engraved"
+                            value={field.value}
+                            onChange={(e) => field.onChange(formatCPF(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Email *</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="joao@exemplo.com" {...field} className="field-engraved" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Celular *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="(00) 00000-0000"
+                            className="field-engraved"
+                            value={field.value}
+                            onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="birthDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Data de Nascimento</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} className="field-engraved" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Status *</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                                <SelectValue placeholder="Selecione o status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="active">Ativo</SelectItem>
+                              <SelectItem value="inactive">Inativo</SelectItem>
+                              <SelectItem value="pending">Pendente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
-              <div className="border-t pt-6">
-                <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">Endereco</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <MapPin className="h-3 w-3 text-primary" /> Endereço
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                   <FormField
                     control={form.control}
                     name="cep"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">CEP</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CEP</FormLabel>
                         <div className="flex gap-2">
                           <FormControl>
                             <Input
                               placeholder="00000-000"
+                              className="field-engraved"
                               value={field.value}
                               onChange={(e) => {
                                 const formatted = formatCEP(e.target.value);
@@ -300,10 +311,10 @@ export default function NewClient() {
                           </FormControl>
                           <Button
                             type="button"
-                            variant="outline"
                             size="icon"
                             onClick={lookupCep}
                             disabled={loadingCep}
+                            className="btn-3d-soft shrink-0"
                           >
                             {loadingCep ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                           </Button>
@@ -317,24 +328,24 @@ export default function NewClient() {
                     name="logradouro"
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
-                        <FormLabel className="uppercase tracking-wider text-xs">Logradouro</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Logradouro</FormLabel>
                         <FormControl>
-                          <Input placeholder="Rua, Avenida..." {...field} />
+                          <Input placeholder="Rua, Avenida..." {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <FormField
                     control={form.control}
                     name="numero"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Numero</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Numero</FormLabel>
                         <FormControl>
-                          <Input placeholder="123" {...field} />
+                          <Input placeholder="123" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -345,9 +356,9 @@ export default function NewClient() {
                     name="complemento"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Complemento</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Complemento</FormLabel>
                         <FormControl>
-                          <Input placeholder="Apto, Sala..." {...field} />
+                          <Input placeholder="Apto, Sala..." {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -358,9 +369,9 @@ export default function NewClient() {
                     name="bairro"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Bairro</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Bairro</FormLabel>
                         <FormControl>
-                          <Input placeholder="Bairro" {...field} />
+                          <Input placeholder="Bairro" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -371,24 +382,24 @@ export default function NewClient() {
                     name="cidade"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Cidade</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Cidade</FormLabel>
                         <FormControl>
-                          <Input placeholder="Sao Paulo" {...field} />
+                          <Input placeholder="Sao Paulo" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <FormField
                     control={form.control}
                     name="estado"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Estado</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Estado</FormLabel>
                         <FormControl>
-                          <Input placeholder="SP" {...field} />
+                          <Input placeholder="SP" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -399,9 +410,9 @@ export default function NewClient() {
                     name="pais"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Pais</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Pais</FormLabel>
                         <FormControl>
-                          <Input placeholder="BRASIL" {...field} />
+                          <Input placeholder="BRASIL" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -410,17 +421,20 @@ export default function NewClient() {
                 </div>
               </div>
 
-              <div className="border-t pt-6">
-                <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">Informacoes Adicionais</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <Plus className="h-3 w-3 text-primary" /> Adicionais e Notas
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                   <FormField
                     control={form.control}
                     name="instagram"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="uppercase tracking-wider text-xs">Instagram</FormLabel>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Instagram</FormLabel>
                         <FormControl>
-                          <Input placeholder="@usuario" {...field} />
+                          <Input placeholder="@usuario" {...field} className="field-engraved" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -431,52 +445,54 @@ export default function NewClient() {
                     name="comoConheceu"
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
-                        <FormLabel className="uppercase tracking-wider text-xs">Como nos Conheceu ?</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="INDICACAO">Indicacao</SelectItem>
-                            <SelectItem value="INSTAGRAM">Instagram</SelectItem>
-                            <SelectItem value="GOOGLE">Google</SelectItem>
-                            <SelectItem value="FACEBOOK">Facebook</SelectItem>
-                            <SelectItem value="FORM">Formulario</SelectItem>
-                            <SelectItem value="OUTROS">Outros</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Como nos Conheceu ?</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="INDICACAO">Indicacao</SelectItem>
+                              <SelectItem value="INSTAGRAM">Instagram</SelectItem>
+                              <SelectItem value="GOOGLE">Google</SelectItem>
+                              <SelectItem value="FACEBOOK">Facebook</SelectItem>
+                              <SelectItem value="FORM">Formulario</SelectItem>
+                              <SelectItem value="OUTROS">Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Observacoes Clinicas</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Alergias, condicoes pre-existentes, etc." 
+                          className="min-h-[100px] field-engraved"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-wider text-xs">Observacoes Clinicas</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Alergias, condicoes pre-existentes, etc." 
-                        className="min-h-[100px]"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end gap-4 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setLocation("/clients")}>
-                  Cancelar
+              <div className="flex justify-end gap-4 pt-4">
+                <Button type="button" className="btn-3d-soft" onClick={() => setLocation("/clients")}>
+                  CANCELAR
                 </Button>
-                <Button type="submit" disabled={createClient.isPending}>
+                <Button type="submit" className="btn-3d px-8" disabled={createClient.isPending}>
                   {createClient.isPending ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (

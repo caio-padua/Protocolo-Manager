@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 
 const inputCls =
-  "px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground w-full";
+  "field-engraved px-3 py-2 border border-border rounded-md text-sm focus:ring-2 focus:ring-accent/40 focus:border-accent outline-none bg-card text-foreground w-full";
 
 const UF_LIST = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
@@ -77,53 +77,57 @@ export default function Sncr() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Numeração SNCR</h1>
-          <p className="text-muted-foreground">
-            Talões do Sistema Nacional de Gerenciamento de Produtos Controlados. O sistema apenas
-            <span className="font-semibold"> alerta</span> quando a numeração está acabando — nunca bloqueia a emissão.
+          <h1 className="text-3xl font-black tracking-tight uppercase">Numeração SNCR</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+            Talões do Sistema Nacional de Gerenciamento de Produtos Controlados.
+            O sistema apenas <span className="text-primary">alerta</span> — nunca bloqueia a emissão.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Novo Talão</Button>
+            <Button className="btn-3d">
+              <Plus className="h-4 w-4 mr-2" />NOVO TALÃO
+            </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="panel-3d">
             <DialogHeader>
-              <DialogTitle>Cadastrar Talão SNCR</DialogTitle>
+              <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                Cadastrar Talão SNCR
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>UF</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">UF</Label>
                   <select className={inputCls} value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value })}>
                     {UF_LIST.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tipo controlado</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo controlado</Label>
                   <select className={inputCls} value={form.controlledType} onChange={(e) => setForm({ ...form, controlledType: e.target.value })}>
                     {ANVISA_CONTROLLED_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Profissional (opcional)</Label>
-                <Input value={form.professionalName} onChange={(e) => setForm({ ...form, professionalName: e.target.value })} placeholder="Dr. Caio Henrique Pádua" />
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Profissional (opcional)</Label>
+                <Input value={form.professionalName} onChange={(e) => setForm({ ...form, professionalName: e.target.value })} placeholder="Dr. Caio Henrique Pádua" className="field-engraved" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Número inicial</Label>
-                  <Input type="number" value={form.startNumber} onChange={(e) => setForm({ ...form, startNumber: e.target.value })} placeholder="1000" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Número inicial</Label>
+                  <Input type="number" value={form.startNumber} onChange={(e) => setForm({ ...form, startNumber: e.target.value })} placeholder="1000" className="field-engraved" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Número final</Label>
-                  <Input type="number" value={form.endNumber} onChange={(e) => setForm({ ...form, endNumber: e.target.value })} placeholder="1999" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Número final</Label>
+                  <Input type="number" value={form.endNumber} onChange={(e) => setForm({ ...form, endNumber: e.target.value })} placeholder="1999" className="field-engraved" />
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSubmit} disabled={createMutation.isPending}>
+              <Button className="btn-3d-soft" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button className="btn-3d" onClick={handleSubmit} disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Cadastrando..." : "Cadastrar"}
               </Button>
             </DialogFooter>
@@ -136,28 +140,31 @@ export default function Sncr() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {quota.map((q) => {
             const state = q.exhausted ? "exhausted" : q.low ? "low" : "ok";
-            const styles =
-              state === "exhausted"
-                ? "border-l-destructive bg-destructive/5"
-                : state === "low"
-                ? "border-l-amber-500 bg-amber-50"
-                : "border-l-emerald-500 bg-emerald-50/50";
+            const borderColor =
+              state === "exhausted" ? "border-red-500" :
+              state === "low" ? "border-amber-500" : "border-emerald-500";
             return (
-              <Card key={q.rangeId} className={`border-l-4 ${styles}`}>
+              <Card key={q.rangeId} className={`panel-3d border-l-4 ${borderColor}`}>
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-sm">{q.controlledType} · {q.uf}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono font-black text-sm text-primary">{q.controlledType} · {q.uf}</span>
                     {state === "exhausted" ? (
-                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-destructive"><XCircle className="h-3.5 w-3.5" />Esgotado</span>
+                      <span className="concave-3d flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-red-700 px-2 py-0.5">
+                        <XCircle className="h-3 w-3" />Esgotado
+                      </span>
                     ) : state === "low" ? (
-                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-amber-700"><AlertTriangle className="h-3.5 w-3.5" />Acabando</span>
+                      <span className="concave-3d flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-700 px-2 py-0.5">
+                        <AlertTriangle className="h-3 w-3" />Acabando
+                      </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />OK</span>
+                      <span className="concave-3d flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-700 px-2 py-0.5">
+                        <CheckCircle2 className="h-3 w-3" />OK
+                      </span>
                     )}
                   </div>
-                  <p className="text-2xl font-bold mt-2">{q.remaining}</p>
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">números restantes</p>
-                  {q.professionalName && <p className="text-xs text-muted-foreground mt-1 truncate">{q.professionalName}</p>}
+                  <div className="screen-3d px-3 py-1 text-2xl font-black text-primary tabular-nums">{q.remaining}</div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">números restantes</p>
+                  {q.professionalName && <p className="text-xs font-semibold text-muted-foreground mt-1 truncate">{q.professionalName}</p>}
                 </CardContent>
               </Card>
             );
@@ -167,40 +174,44 @@ export default function Sncr() {
 
       {/* RANGES TABLE */}
       {isLoading ? (
-        <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 rounded-md" />)}</div>
+        <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 panel-3d-sub" />)}</div>
       ) : !ranges?.length ? (
-        <Card>
+        <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <Hash className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Nenhum talão cadastrado</p>
-            <p className="text-sm text-muted-foreground">Cadastre os intervalos de numeração SNCR por tipo e UF.</p>
+            <div className="concave-3d p-6 mb-4">
+              <Hash className="h-10 w-10 text-muted-foreground opacity-30" />
+            </div>
+            <p className="text-base font-black uppercase tracking-tight text-primary">Nenhum talão cadastrado</p>
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mt-1">
+              Cadastre os intervalos de numeração SNCR por tipo e UF.
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className="panel-3d">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-primary/10 text-left">
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary">Tipo</th>
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary">UF</th>
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary">Receituário</th>
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary">Profissional</th>
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary text-right">Intervalo</th>
-                  <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wide text-primary text-right">Próximo</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary">Tipo</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary">UF</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary">Receituário</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary">Profissional</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary text-right">Intervalo</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary text-right">Próximo</th>
                 </tr>
               </thead>
               <tbody>
                 {ranges.map((r) => {
                   const recipe = recipeTypeForControlledClass(r.controlledType);
                   return (
-                    <tr key={r.id} className="border-t border-border">
-                      <td className="px-4 py-3 font-mono font-bold">{r.controlledType}</td>
-                      <td className="px-4 py-3">{r.uf}</td>
-                      <td className="px-4 py-3">{recipe ? recipe.colorName : "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{r.professionalName || "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono">{r.startNumber} – {r.endNumber}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold">{r.nextNumber}</td>
+                    <tr key={r.id} className="border-t border-border neon-hover transition-all">
+                      <td className="px-4 py-3 font-mono font-black text-primary">{r.controlledType}</td>
+                      <td className="px-4 py-3 font-bold">{r.uf}</td>
+                      <td className="px-4 py-3 font-semibold">{recipe ? recipe.colorName : "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{r.professionalName || "—"}</td>
+                      <td className="px-4 py-3 text-right font-mono font-semibold">{r.startNumber} – {r.endNumber}</td>
+                      <td className="px-4 py-3 text-right font-mono font-black text-primary">{r.nextNumber}</td>
                     </tr>
                   );
                 })}

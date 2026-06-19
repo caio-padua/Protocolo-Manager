@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useListClients } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,12 @@ export default function Clients() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie os pacientes da clínica e seus protocolos.</p>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] mt-1">Gerencie os pacientes da clínica e seus protocolos.</p>
         </div>
         <Link href="/clients/new">
-          <Button className="w-full sm:w-auto">
+          <Button className="btn-3d w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
-            Novo Cliente
+            NOVO CLIENTE
           </Button>
         </Link>
       </div>
@@ -40,7 +40,7 @@ export default function Clients() {
           <Input
             type="search"
             placeholder="Buscar por nome ou CPF..."
-            className="pl-8"
+            className="pl-8 field-engraved"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -48,16 +48,15 @@ export default function Clients() {
       </div>
 
       {!isLoading && total > 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">
           {hiddenCount > 0 ? (
             <>
-              Mostrando os primeiros <span className="font-medium text-foreground">{visibleClients.length}</span> de{" "}
-              <span className="font-medium text-foreground">{total.toLocaleString("pt-BR")}</span> clientes. Use a busca
-              acima para encontrar um cliente específico.
+              Mostrando os primeiros <span className="text-primary">{visibleClients.length}</span> de{" "}
+              <span className="text-primary">{total.toLocaleString("pt-BR")}</span> clientes.
             </>
           ) : (
             <>
-              <span className="font-medium text-foreground">{total.toLocaleString("pt-BR")}</span>{" "}
+              <span className="text-primary">{total.toLocaleString("pt-BR")}</span>{" "}
               {total === 1 ? "cliente encontrado" : "clientes encontrados"}.
             </>
           )}
@@ -67,59 +66,59 @@ export default function Clients() {
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
+            <Skeleton key={i} className="h-48 rounded-lg panel-3d-sub" />
           ))}
         </div>
       ) : clients?.length === 0 ? (
-        <div className="text-center py-20 border border-dashed rounded-lg bg-card text-card-foreground">
+        <div className="text-center py-20 panel-3d bg-white/50">
           <Users className="mx-auto h-12 w-12 text-muted-foreground opacity-20 mb-4" />
-          <h3 className="text-lg font-medium">Nenhum cliente encontrado</h3>
+          <h3 className="text-lg font-bold uppercase tracking-wide">Nenhum cliente encontrado</h3>
           <p className="text-sm text-muted-foreground mt-1">
             {search ? "Tente buscar com outros termos." : "Comece adicionando seu primeiro cliente."}
           </p>
           {!search && (
             <Link href="/clients/new">
-              <Button variant="outline" className="mt-4">Adicionar Cliente</Button>
+              <Button className="btn-3d-soft mt-6">ADICIONAR CLIENTE</Button>
             </Link>
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {visibleClients.map((client) => (
             <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="hover-elevate cursor-pointer transition-colors hover:bg-muted/50 h-full flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
+              <Card className="panel-3d hover:panel-3d-active neon-hover cursor-pointer transition-all duration-300 h-full flex flex-col border-none">
+                <CardContent className="p-5 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-4">
                     <div className="space-y-1">
-                      <CardTitle className="text-lg line-clamp-1">{client.name}</CardTitle>
-                      <CardDescription>{client.cpf}</CardDescription>
+                      <h3 className="text-lg font-bold leading-none text-primary uppercase tracking-tight line-clamp-1">{client.name}</h3>
+                      <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                        {client.cpf}
+                      </div>
                     </div>
-                    <Badge variant="outline" className={getStatusColor(client.status)}>
+                    <Badge variant="outline" className={`rounded-[4px] border-none px-2 py-1 text-[9px] font-extrabold uppercase tracking-widest shadow-sm ${getStatusColor(client.status)}`}>
                       {formatStatus(client.status)}
                     </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col justify-end space-y-3">
-                  <div className="text-sm space-y-2 text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{client.phone}</span>
+
+                  <div className="space-y-2 mb-6">
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      <Phone className="w-3 h-3 text-cyan-500" />
+                      <span className="tabular-nums">{client.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span className="line-clamp-1">{client.email}</span>
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      <Mail className="w-3 h-3 text-cyan-500" />
+                      <span className="line-clamp-1 lowercase">{client.email}</span>
                     </div>
                   </div>
                   
-                  {/* Mock data for now since client schema doesn't have activeProtocolCount */}
-                  <div className="pt-3 border-t mt-3 flex items-center justify-between text-xs font-medium">
-                    <span className="text-muted-foreground flex items-center gap-1.5">
-                      <Activity className="w-3.5 h-3.5" />
-                      Protocolos
-                    </span>
-                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  <div className="mt-auto pt-4 border-t flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground/70">
+                      <Activity className="w-3 h-3" />
+                      Prontuário
+                    </div>
+                    <div className="screen-3d px-3 py-1 text-[10px] font-bold text-primary uppercase tracking-wider">
                       Visualizar
-                    </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

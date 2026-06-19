@@ -275,34 +275,36 @@ export default function Agenda() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Agenda Semanal</h1>
-          <p className="text-muted-foreground text-sm">Uma visita consolidada por semana por cliente.</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-wide">Uma visita consolidada por semana por cliente.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium px-2 min-w-[200px] text-center">
-            {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
-          </span>
-          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(new Date())}>Hoje</Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 p-1.5 concave-3d">
+            <Button variant="ghost" size="sm" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))} className="h-8 w-8 p-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="bevel-3d px-4 py-1.5 text-xs font-bold uppercase tracking-widest min-w-[220px] text-center">
+              {format(weekStart, "dd 'de' MMM", { locale: ptBR })} — {format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))} className="h-8 w-8 p-0">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setCurrentWeek(new Date())} className="btn-3d-soft h-9 px-4 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
           <Button
             variant="outline"
             size="sm"
             onClick={downloadWeekICS}
-            className="gap-1.5 ml-2"
+            className="btn-3d-soft gap-2 h-9 px-4 uppercase tracking-widest text-[11px] font-bold"
             disabled={!sessions?.length}
           >
             <Download className="h-3.5 w-3.5" />
-            ICS da Semana
+            ICS
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={syncWeekToGoogleCalendar}
-            className="gap-1.5"
+            className="btn-3d gap-2 h-9 px-4 uppercase tracking-widest text-[11px] font-bold"
             disabled={!sessions?.length || calSyncing === -1}
           >
             {calSyncing === -1 ? (
@@ -310,25 +312,27 @@ export default function Agenda() {
             ) : (
               <CalendarPlus className="h-3.5 w-3.5" />
             )}
-            Sync Google Agenda
+            Sync Google
           </Button>
         </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-[6px]" />)}
         </div>
       ) : !sessions?.length ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Nenhuma sessão esta semana</p>
-            <p className="text-muted-foreground text-sm">Valide um protocolo para gerar sessões automaticamente.</p>
+        <Card className="panel-3d">
+          <CardContent className="flex flex-col items-center justify-center py-20">
+            <div className="concave-3d p-6 rounded-full mb-4">
+              <Calendar className="h-12 w-12 text-muted-foreground opacity-30" />
+            </div>
+            <p className="text-lg font-black uppercase tracking-tight text-primary">Nenhuma sessão esta semana</p>
+            <p className="text-muted-foreground text-sm font-medium mt-1">Valide um protocolo para gerar sessões automaticamente.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-0">
+        <div className="space-y-4">
           {days.map(day => {
             const daySessions = sessions.filter(s => {
               const d = new Date(s.scheduledDate + "T12:00:00");
@@ -338,175 +342,160 @@ export default function Agenda() {
             const isPast = day < new Date() && !isToday;
 
             return (
-              <div key={day.toISOString()}>
-                <div className={`flex items-center gap-3 py-2 px-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
-                  <span className="text-xs font-bold uppercase tracking-widest w-10">
-                    {format(day, "EEE", { locale: ptBR })}
-                  </span>
-                  <span className={`text-xl font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full ${
-                    isToday ? "bg-primary text-primary-foreground text-base" : ""
-                  }`}>
-                    {format(day, "dd")}
-                  </span>
+              <div key={day.toISOString()} className="space-y-3">
+                <div className={`flex items-center gap-4 py-1 px-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
+                  <div className={`bevel-3d h-10 w-14 flex flex-col items-center justify-center ${isToday ? "paxter-underglow ring-2 ring-cyan-400" : ""}`}>
+                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+                      {format(day, "EEE", { locale: ptBR })}
+                    </span>
+                    <span className="text-xl font-black leading-none mt-0.5">
+                      {format(day, "dd")}
+                    </span>
+                  </div>
                   {daySessions.length > 0 && (
-                    <Badge variant="secondary" className="text-xs h-5">
+                    <div className="concave-3d px-3 py-1 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                      <span className={`paxter-led paxter-led-on ${isToday ? "paxter-led-amber" : "paxter-led-cyan"}`} />
                       {daySessions.length} {daySessions.length === 1 ? "sessão" : "sessões"}
-                    </Badge>
+                    </div>
                   )}
-                  {daySessions.length === 0 && (
-                    <div className="flex-1 border-b border-dashed border-muted" />
-                  )}
+                  <div className="flex-1 border-b border-dashed border-muted/50" />
                 </div>
 
-                {daySessions.map(session => {
-                  const googleLink = buildGoogleCalendarLink(session as any);
-                  const whatsappLink = buildWhatsAppLink(session as any);
-                  const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
-                  const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
-                  const someConfirmed = dispApps.some(a => a.appliedAt) && !allConfirmed;
+                <div className="ml-16 space-y-3">
+                  {daySessions.map(session => {
+                    const googleLink = buildGoogleCalendarLink(session as any);
+                    const whatsappLink = buildWhatsAppLink(session as any);
+                    const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
+                    const allConfirmed = dispApps.length > 0 && dispApps.every(a => a.appliedAt);
+                    const someConfirmed = dispApps.some(a => a.appliedAt) && !allConfirmed;
 
-                  const cardStyle = session.status === "completed"
-                    ? "border-l-4 border-l-green-500 bg-green-50/50 dark:bg-green-950/20"
-                    : session.status === "missed"
-                    ? "border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20 opacity-70"
-                    : session.status === "cancelled"
-                    ? "border-l-4 border-l-gray-400 bg-gray-50/50 dark:bg-gray-900/20 opacity-50"
-                    : someConfirmed
-                    ? "border-l-4 border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10"
-                    : isToday
-                    ? "border-l-4 border-l-blue-500 border-blue-200 shadow-md bg-blue-50/30 dark:bg-blue-950/10"
-                    : "border-l-4 border-l-slate-300";
+                    const statusBaseColor = 
+                      session.status === "completed" ? "green" :
+                      session.status === "missed" ? "red" :
+                      session.status === "cancelled" ? "slate" :
+                      someConfirmed ? "amber" :
+                      isToday ? "cyan" : "slate";
 
-                  return (
-                    <Card
-                      key={session.id}
-                      className={`mb-2 ml-20 transition-all ${cardStyle}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
+                    return (
+                      <Card
+                        key={session.id}
+                        className={`panel-3d-sub overflow-hidden transition-all neon-hover ${isToday ? "panel-3d-active" : ""}`}
+                      >
+                        <div className="flex h-full">
+                          <div className={`w-1.5 shrink-0 bg-${statusBaseColor}-500/80`} />
+                          <CardContent className="p-4 flex-1">
+                            <div className="flex items-start gap-4">
+                              <div className="screen-3d shrink-0 w-20 py-2 flex flex-col items-center justify-center">
+                                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">HORÁRIO</div>
+                                <div className="text-lg font-black text-primary leading-none flex items-center gap-1">
+                                  <Clock className="h-4 w-4 text-cyan-500" />
+                                  {session.scheduledTime}
+                                </div>
+                              </div>
 
-                          <div className="flex-shrink-0 w-14 text-right">
-                            <div className={`flex items-center gap-1 text-sm font-medium ${
-                              session.status === "completed" ? "text-green-700 dark:text-green-400" : ""
-                            }`}>
-                              <Clock className={`h-3.5 w-3.5 ${
-                                session.status === "completed" ? "text-green-500" : "text-muted-foreground"
-                              }`} />
-                              {session.scheduledTime}
-                            </div>
-                          </div>
+                              <div className="flex-1 min-w-0 space-y-3">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="text-base font-black uppercase tracking-tight text-foreground">{session.clientName}</span>
+                                  <span className="concave-3d px-2 py-0.5 text-[10px] font-bold text-muted-foreground tabular-nums">{session.clientCpf}</span>
+                                  <div className={`concave-3d px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusColor(session.status)}`}>
+                                    {formatStatus(session.status)}
+                                  </div>
+                                  {session.serviceType === "homecare" ? (
+                                    <div className="bevel-3d px-2 py-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-teal-600">
+                                      <Home className="h-3 w-3" /> Nurse Care
+                                    </div>
+                                  ) : (
+                                    <div className="bevel-3d px-2 py-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                      <Building2 className="h-3 w-3" /> {session.unit ?? "Clínica"}
+                                    </div>
+                                  )}
+                                  {allConfirmed && <div className="paxter-led paxter-led-green paxter-led-on" title="Todos confirmados" />}
+                                </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                              <span className="font-semibold">{session.clientName}</span>
-                              <span className="text-xs text-muted-foreground">{session.clientCpf}</span>
-                              <Badge className={`text-xs border ${getStatusColor(session.status)}`}>
-                                {formatStatus(session.status)}
-                              </Badge>
-                              {session.serviceType === "homecare" ? (
-                                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                                  <Home className="h-3 w-3" />Nurse Care
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                                  <Building2 className="h-3 w-3" />{session.unit ?? "Clínica"}
-                                </span>
-                              )}
-                              {allConfirmed && <ShieldCheck className="h-4 w-4 text-green-500" />}
-                            </div>
-
-                            <p className="text-xs text-muted-foreground mb-2">
-                              {(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} · Semana {session.weekNumber}
-                              {" · "}
-                              <span className="font-medium text-primary/80">{getProcedureLabel(session)}</span>
-                              {session.professionalName && (
-                                <span className="ml-2">
-                                  <User className="h-3 w-3 inline mr-0.5" />{session.professionalName}
-                                </span>
-                              )}
-                            </p>
-
-                            <div className="flex gap-2 flex-wrap items-center">
-                              {session.substanceApplications.map(app => (
-                                <div key={app.id} className="flex items-center gap-1">
-                                  <span
-                                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
-                                      app.appliedAt
-                                        ? "text-white ring-2 ring-blue-400 ring-offset-1"
-                                        : app.availability === "prox"
-                                        ? "bg-muted text-muted-foreground"
-                                        : app.status === "missed"
-                                        ? "text-white bg-red-400/80"
-                                        : "text-white"
-                                    }`}
-                                    style={
-                                      app.appliedAt
-                                        ? { backgroundColor: app.substanceColor }
-                                        : app.availability === "disp" && app.status !== "missed"
-                                        ? { backgroundColor: app.substanceColor + "CC" }
-                                        : {}
-                                    }
-                                  >
-                                    <span className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/40 ${
-                                      app.appliedAt
-                                        ? "bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.6)]"
-                                        : app.status === "missed"
-                                        ? "bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]"
-                                        : app.availability === "disp"
-                                        ? "bg-yellow-400 shadow-[0_0_4px_rgba(250,204,21,0.5)]"
-                                        : "bg-amber-700 shadow-[0_0_4px_rgba(180,83,9,0.5)]"
-                                    }`} />
-                                    {app.appliedAt && <CheckCheck className="h-3 w-3 text-blue-200" />}
-                                    {app.substanceName}
-                                    {app.sessionNumber > 0
-                                      ? ` ${app.sessionNumber}/${app.totalSessions}`
-                                      : ""}
-                                    {!app.appliedAt && (
-                                      <span className="opacity-80 text-[10px] font-semibold">
-                                        {app.availability === "disp" ? "DISP" : "PROX"}
+                                <div className="flex items-center gap-3 flex-wrap text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/80">
+                                  <span className="concave-3d px-2 py-0.5">{(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`}</span>
+                                  <span>•</span>
+                                  <span className="concave-3d px-2 py-0.5">Semana {session.weekNumber}</span>
+                                  <span>•</span>
+                                  <span className="bevel-3d px-2 py-0.5 text-primary">{getProcedureLabel(session)}</span>
+                                  {session.professionalName && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" /> {session.professionalName}
                                       </span>
-                                    )}
-                                  </span>
-                                  {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
-                                    <button
-                                      className="text-xs text-primary underline hover:text-primary/80 transition-colors"
-                                      onClick={() => confirmMutation.mutate({
-                                        id: session.id,
-                                        data: { substanceId: app.substanceId, confirmed: true }
-                                      })}
-                                      disabled={confirmMutation.isPending}
-                                    >
-                                      confirmar
-                                    </button>
+                                    </>
                                   )}
                                 </div>
-                              ))}
-                            </div>
-                          </div>
 
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuItem
-                                onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }}
-                                className="gap-2"
-                              >
-                                <ClipboardList className="h-4 w-4 text-teal-600" />
-                                Avaliação de Enfermagem
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => generateValidationCode(session)}
-                                className="gap-2"
-                              >
-                                <KeyRound className="h-4 w-4 text-amber-500" />
-                                Gerar Código de Validação
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
+                                <div className="flex gap-3 flex-wrap items-center pt-1">
+                                  {session.substanceApplications.map(app => (
+                                    <div key={app.id} className="flex items-center gap-2">
+                                      <div
+                                        className={`concave-3d flex items-center gap-2 px-3 py-1.5 font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${
+                                          app.appliedAt ? "ring-2 ring-cyan-400" : ""
+                                        }`}
+                                      >
+                                        <span className={`paxter-led ${
+                                          app.appliedAt ? "paxter-led-green paxter-led-on" :
+                                          app.status === "missed" ? "paxter-led-red paxter-led-on" :
+                                          app.availability === "disp" ? "paxter-led-amber paxter-led-on" :
+                                          "paxter-led-off"
+                                        }`} />
+                                        <span className="text-foreground">{app.substanceName}</span>
+                                        {app.sessionNumber > 0 && (
+                                          <span className="text-[9px] opacity-60 ml-0.5">{app.sessionNumber}/{app.totalSessions}</span>
+                                        )}
+                                        {!app.appliedAt && (
+                                          <span className={`text-[8px] px-1 rounded-[2px] ${
+                                            app.availability === "disp" ? "bg-amber-500/20 text-amber-700" : "bg-slate-500/10 text-slate-500"
+                                          }`}>
+                                            {app.availability === "disp" ? "DISP" : "PROX"}
+                                          </span>
+                                        )}
+                                        {app.appliedAt && <CheckCheck className="h-3 w-3 text-cyan-500" />}
+                                      </div>
+                                      {app.availability === "disp" && !app.appliedAt && session.status !== "completed" && (
+                                        <button
+                                          className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline transition-colors"
+                                          onClick={() => confirmMutation.mutate({
+                                            id: session.id,
+                                            data: { substanceId: app.substanceId, confirmed: true }
+                                          })}
+                                          disabled={confirmMutation.isPending}
+                                        >
+                                          {confirmMutation.isPending ? "..." : "Confirmar"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-2 shrink-0">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="btn-3d-soft h-9 w-9 p-0">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56 panel-3d">
+                                    <DropdownMenuItem
+                                      onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }}
+                                      className="gap-2 font-bold uppercase tracking-widest text-[10px]"
+                                    >
+                                      <ClipboardList className="h-4 w-4 text-teal-600" />
+                                      Avaliação de Enfermagem
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => generateValidationCode(session)}
+                                      className="gap-2 font-bold uppercase tracking-widest text-[10px]"
+                                    >
+                                      <KeyRound className="h-4 w-4 text-amber-500" />
+                                      Gerar Código
+                                    </DropdownMenuItem>
+ ...[Truncated]                              <DropdownMenuItem
                                 onClick={() => { setVerifySession(session); setVerifyInput(""); setVerifyResult(null); setVerifyModalOpen(true); }}
                                 className="gap-2"
                               >
@@ -576,11 +565,14 @@ export default function Agenda() {
                           </DropdownMenu>
 
                         </div>
-                      </CardContent>
+                            </div>
+                          </CardContent>
+                        </div>
                     </Card>
                   );
                 })}
               </div>
+            </div>
             );
           })}
         </div>

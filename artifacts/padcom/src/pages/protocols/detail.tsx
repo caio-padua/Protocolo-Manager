@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,7 +20,7 @@ export default function ProtocolDetail() {
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
-    query: { enabled: !!id }
+    query: { enabled: !!id, queryKey: ["protocol", id] }
   });
 
   const validateMutation = useValidateProtocol({
@@ -68,34 +68,34 @@ export default function ProtocolDetail() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/protocols")}>
+        <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setLocation("/protocols")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{protocol.title}</h1>
-            <Badge className={`text-xs border ${getStatusColor(protocol.status)}`}>
+            <h1 className="text-2xl font-bold uppercase tracking-tight">{protocol.title}</h1>
+            <Badge className={`text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(protocol.status)}`}>
               {formatStatus(protocol.status)}
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm">{protocol.clientName} — CPF: {protocol.clientCpf}</p>
+          <p className="text-muted-foreground text-sm uppercase tracking-wide font-medium">{protocol.clientName} — <span className="tabular-nums">CPF: {protocol.clientCpf}</span></p>
         </div>
         <div className="flex gap-2">
           {(protocol.status === "suggested" || protocol.status === "validated") && (
-            <Button variant="outline" onClick={() => validateMutation.mutate({ id })} disabled={validateMutation.isPending}>
+            <Button className="btn-3d" onClick={() => validateMutation.mutate({ id })} disabled={validateMutation.isPending}>
               <Zap className="h-4 w-4 mr-1" />
               {validateMutation.isPending ? "Validando..." : "Validar e Gerar Sessões"}
             </Button>
           )}
           {protocol.sessions.length > 0 && (
             <>
-              <Button variant="outline" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
+              <Button className="btn-3d-soft" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
                 <Download className="h-4 w-4 mr-1" />
                 Baixar ICS
               </Button>
               <Button
-                variant="outline"
+                className="btn-3d-soft"
                 disabled={physicalRasLoading}
                 onClick={async () => {
                   setPhysicalRasLoading(true);
@@ -126,7 +126,7 @@ export default function ProtocolDetail() {
                 {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
               </Button>
               <Button
-                variant="default"
+                className="btn-3d"
                 disabled={documentPdfLoading}
                 onClick={async () => {
                   setDocumentPdfLoading(true);
@@ -162,58 +162,81 @@ export default function ProtocolDetail() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Sessões</p>
-          <p className="text-2xl font-bold">{protocol.completedSessions}/{protocol.totalSessions}</p>
-          <div className="mt-2 h-1.5 bg-muted rounded-full"><div className="h-full bg-primary rounded-full" style={{ width: `${progressPct}%` }} /></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Valor Total</p>
-          <p className="text-2xl font-bold">R$ {protocol.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Atendimento</p>
-          <div className="flex items-center gap-1 mt-1">
-            {protocol.serviceType === "homecare" ? <Home className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
-            <p className="font-semibold">{protocol.serviceType === "homecare" ? "Nurse Care" : "Clínica"}</p>
+        <Card className="panel-3d-sub"><CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Sessões</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-bold tabular-nums">{protocol.completedSessions}</span>
+            <span className="text-muted-foreground text-sm">/</span>
+            <span className="text-lg font-semibold text-muted-foreground tabular-nums">{protocol.totalSessions}</span>
           </div>
-          {protocol.unit && <p className="text-xs text-muted-foreground mt-1">{protocol.unit}</p>}
+          <div className="mt-3 h-2 bg-muted/30 rounded-full shadow-inner overflow-hidden">
+            <div className="h-full bg-primary rounded-full" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, hsl(180 30% 28%) 0%, hsl(187 72% 48%) 100%)" }} />
+          </div>
         </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Início</p>
-          <p className="font-semibold">{format(new Date(protocol.startDate), "dd/MM/yyyy", { locale: ptBR })}</p>
+        <Card className="panel-3d-sub"><CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Valor Total</p>
+          <div className="screen-3d px-3 py-1 mt-1 inline-block">
+            <p className="text-xl font-bold tabular-nums">R$ {protocol.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+          </div>
+        </CardContent></Card>
+        <Card className="panel-3d-sub"><CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Atendimento</p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="concave-3d p-1.5">
+              {protocol.serviceType === "homecare" ? <Home className="h-4 w-4 text-primary" /> : <Building2 className="h-4 w-4 text-primary" />}
+            </div>
+            <p className="font-bold uppercase tracking-wide text-xs">{protocol.serviceType === "homecare" ? "Nurse Care" : "Clínica"}</p>
+          </div>
+          {protocol.unit && <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wide font-medium">{protocol.unit}</p>}
+        </CardContent></Card>
+        <Card className="panel-3d-sub"><CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Início</p>
+          <div className="concave-3d px-3 py-1.5 mt-1 inline-block">
+            <p className="font-bold tabular-nums text-sm">{format(new Date(protocol.startDate), "dd/MM/yyyy", { locale: ptBR })}</p>
+          </div>
           {protocol.professionalName && (
-            <div className="flex items-center gap-1 mt-1">
+            <div className="flex items-center gap-1.5 mt-2">
               <User className="h-3 w-3 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">{protocol.professionalName}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{protocol.professionalName}</p>
             </div>
           )}
         </CardContent></Card>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Substâncias do Protocolo</CardTitle></CardHeader>
+      <Card className="panel-3d">
+        <CardHeader>
+          <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" /> Substâncias do Protocolo
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {protocol.items.map(item => (
-              <div key={item.id} className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.substanceColor }} />
+              <div key={item.id} className="flex items-center gap-4 p-4 panel-3d-sub">
+                <div className="w-1.5 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: item.substanceColor }} />
                 <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium">{item.substanceName}</span>
-                    <span className="text-sm text-muted-foreground">{item.completedSessions}/{item.totalSessions} sessões — {item.dose}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold uppercase tracking-tight text-lg">{item.substanceName}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">{item.dose}</span>
+                      <span className="text-sm font-bold text-primary tabular-nums">{item.completedSessions}/{item.totalSessions} <span className="text-[10px] text-muted-foreground uppercase tracking-widest">sessões</span></span>
+                    </div>
                   </div>
                   {item.unitPrice > 0 && (
-                    <div className="text-xs text-muted-foreground mb-1">
-                      R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / ampola × {item.totalSessions} = <span className="font-semibold text-foreground">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-2">
+                      <span>R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / ampola</span>
+                      <span>×</span>
+                      <span>{item.totalSessions} sessões</span>
+                      <span>=</span>
+                      <span className="text-foreground font-extrabold">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                     </div>
                   )}
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-2 bg-muted/30 rounded-full overflow-hidden shadow-inner">
                     <div className="h-full rounded-full transition-all" style={{ width: `${item.totalSessions > 0 ? (item.completedSessions / item.totalSessions) * 100 : 0}%`, backgroundColor: item.substanceColor }} />
                   </div>
-                  <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                    <span>Intervalo: {item.intervalDays}d</span>
-                    <span>Freq: {item.frequency}</span>
+                  <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Intervalo: {item.intervalDays}d</span>
+                    <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> Freq: {item.frequency}</span>
                   </div>
                 </div>
               </div>
@@ -223,42 +246,48 @@ export default function ProtocolDetail() {
       </Card>
 
       {protocol.items.some(i => i.unitPrice > 0) && (
-        <Card style={{ borderLeftWidth: "5px", borderLeftColor: "#3D7A7A" }}>
+        <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: "#3D7A7A" }}>
           <CardHeader>
-            <CardTitle className="text-base uppercase tracking-wide">Orçamento — Injetáveis</CardTitle>
-            <p className="text-xs text-muted-foreground">Valor das ampolas por substância. Visível para a equipe e para o cliente.</p>
+            <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-primary" /> Orçamento — Injetáveis
+            </CardTitle>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-2">Valor das ampolas por substância. Visível para a equipe e para o cliente.</p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="py-2 pr-3 font-semibold">Substância</th>
-                    <th className="py-2 px-3 font-semibold text-right">Valor Ampola</th>
-                    <th className="py-2 px-3 font-semibold text-center">Sessões</th>
-                    <th className="py-2 pl-3 font-semibold text-right">Subtotal</th>
+                  <tr className="border-b border-muted/50 text-left text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                    <th className="py-3 pr-3">Substância</th>
+                    <th className="py-3 px-3 text-right">Valor Ampola</th>
+                    <th className="py-3 px-3 text-center">Sessões</th>
+                    <th className="py-3 pl-3 text-right">Subtotal</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-muted/30">
                   {protocol.items.map(item => (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <td className="py-2 pr-3">
-                        <span className="inline-flex items-center gap-2">
+                    <tr key={item.id} className="neon-hover transition-all">
+                      <td className="py-3 pr-3">
+                        <span className="inline-flex items-center gap-2 font-bold uppercase tracking-tight">
                           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.substanceColor }} />
                           {item.substanceName}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-right font-mono">R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2 px-3 text-center">{item.totalSessions}</td>
-                      <td className="py-2 pl-3 text-right font-mono font-semibold">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-3 px-3 text-right font-bold tabular-nums">R$ {item.unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-3 px-3 text-center font-bold tabular-nums">{item.totalSessions}</td>
+                      <td className="py-3 pl-3 text-right font-bold tabular-nums text-primary">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2">
-                    <td className="py-2 pr-3 font-bold uppercase tracking-wide" colSpan={3}>Total do orçamento</td>
-                    <td className="py-2 pl-3 text-right font-mono text-lg font-bold text-primary">
-                      R$ {protocol.items.reduce((sum, i) => sum + i.lineTotal, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  <tr className="border-t-2 border-primary/20 bg-muted/5">
+                    <td className="py-4 pr-3 font-extrabold uppercase tracking-widest text-xs" colSpan={3}>Total do orçamento</td>
+                    <td className="py-4 pl-3 text-right">
+                      <div className="screen-3d px-3 py-1.5 inline-block">
+                        <span className="text-xl font-extrabold tabular-nums text-primary">
+                          R$ {protocol.items.reduce((sum, i) => sum + i.lineTotal, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 </tfoot>
@@ -269,38 +298,46 @@ export default function ProtocolDetail() {
       )}
 
       {protocol.sessions.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Sessões ({protocol.sessions.length} semanas)</CardTitle></CardHeader>
+        <Card className="panel-3d">
+          <CardHeader>
+            <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" /> Sessões ({protocol.sessions.length} semanas)
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {protocol.sessions.map(session => (
-                <div key={session.id} className="flex items-start gap-4 p-3 rounded-lg border bg-card">
-                  <div className="flex-shrink-0 text-center w-12">
-                    <div className="text-xs text-muted-foreground uppercase">{format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}</div>
-                    <div className="text-xl font-bold leading-none">{format(new Date(session.scheduledDate), "dd")}</div>
-                    <div className="text-xs text-muted-foreground">S{session.weekNumber}</div>
+                <div key={session.id} className="paxter-underglow flex items-start gap-4 p-4 panel-3d-sub hover:panel-3d-active transition-all">
+                  <div className="flex-shrink-0 text-center w-16 concave-3d p-2">
+                    <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}</div>
+                    <div className="text-2xl font-black leading-none tabular-nums text-primary">{format(new Date(session.scheduledDate), "dd")}</div>
+                    <div className="text-[9px] text-muted-foreground font-bold mt-1 uppercase tracking-widest">Semana {session.weekNumber}</div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm">{session.scheduledTime}</span>
-                      <Badge className={`text-xs border ${getStatusColor(session.status)}`}>{formatStatus(session.status)}</Badge>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-1.5 concave-3d px-2 py-1">
+                        <Clock className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-bold tabular-nums">{session.scheduledTime}</span>
+                      </div>
+                      <Badge className={`text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(session.status)}`}>{formatStatus(session.status)}</Badge>
                       {session.professionalName && (
-                        <span className="text-xs text-muted-foreground ml-auto">{session.professionalName}</span>
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest ml-auto flex items-center gap-1">
+                          <User className="h-3 w-3" /> {session.professionalName}
+                        </span>
                       )}
                     </div>
-                    <div className="flex gap-1.5 flex-wrap">
+                    <div className="flex gap-2 flex-wrap">
                       {session.substanceApplications.filter(a => a.availability === "disp" && a.sessionNumber > 0).map(app => (
                         <span
                           key={app.id}
-                          className="inline-flex items-center text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                          className="inline-flex items-center text-[10px] px-2.5 py-1 rounded-full text-white font-extrabold uppercase tracking-tight shadow-sm"
                           style={{ backgroundColor: app.status === "applied" ? "#2563eb" : app.substanceColor }}
                         >
                           {app.substanceName} {app.sessionNumber}/{app.totalSessions} {app.status === "applied" ? "(APLICADA)" : "(DISP)"}
                         </span>
                       ))}
                       {session.substanceApplications.filter(a => a.availability === "prox").map(app => (
-                        <span key={app.id} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                        <span key={app.id} className="concave-3d inline-flex items-center text-[10px] px-2.5 py-1 text-muted-foreground font-extrabold uppercase tracking-tight">
                           {app.substanceName} (PROX)
                         </span>
                       ))}
