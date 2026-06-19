@@ -88,15 +88,21 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   ESTAVEL (nao acende/apaga), intensa e difusa (`::after` com `radial-gradient` + `blur`,
   `pointer-events-none`). Usar em bloco interativo que precisa "chamar" sem piscar — ex.: bloco
   de Sessoes. Decisao do CEO (18/06/2026): substitui o pulso piscante nesse bloco.
-- **Painel de alerta clinico TRI-ESTADO (`paxter-alert`)**: o aviso de posologia tem 3 estados e
-  NUNCA usa a palavra "teto" (termo PROIBIDO no contexto clinico) — fala-se "limite clinico de
-  prescricao da substancia". (1) EXCEDE: vermelho com neon (`paxter-alert paxter-alert-red`) + LED
-  `paxter-led-red paxter-led-on`. (2) ABAIXO (texto "Abaixo do limite clinico (N/mes) — nao esta no
-  efeito terapeutico"): ambar com neon (`paxter-alert
-  paxter-alert-amber`) + LED `paxter-led-amber paxter-led-on`. (3) DENTRO da faixa terapeutica:
-  VERDE calmo, SEM neon — so `bevel-3d` (segue o padrao do bevel) + texto esmeralda + LED
-  `paxter-led-green` SEM `-on`. Cor do neon via `--alert-glow`. No mobile o alerta empilha
-  (`flex-col` -> `sm:flex-row`). Variante `.dark` incluida.
+- **Painel de alerta clinico TRI-ESTADO (`paxter-alert`)**: o aviso de posologia tem 3 estados com a
+  MESMA fala-base "limite terapeutico" + a FAIXA entre parenteses (por extenso, "por mes") nos 3
+  estados — decisao do CEO em 19/06/2026 (antes cada estado tinha frase DIFERENTE: "limite clinico de
+  prescricao", "efeito terapeutico", "faixa terapeutica"; a palavra "teto" continua PROIBIDA no
+  contexto clinico). (1) ACIMA — "Acima do limite terapeutico (N a M por mes)": vermelho com neon
+  (`paxter-alert paxter-alert-red`) + LED `paxter-led-red paxter-led-on`, acao a direita "Espace para
+  no minimo X dias". (2) ABAIXO — "Abaixo do limite terapeutico (N a M por mes)": ambar com neon
+  (`paxter-alert paxter-alert-amber`) + LED `paxter-led-amber paxter-led-on`, acao "Use no maximo X
+  dias entre aplicacoes". (3) DENTRO — "Dentro do limite terapeutico (N a M por mes)" + acao
+  "Posologia no alvo": verde calmo SEM neon, MAS com fundo verde via classe UNLAYERED companheira
+  `bevel-3d bevel-3d-ok` (NAO usar `bg-emerald-50`, que perde para o bevel unlayered) para APARECER
+  claramente — antes era so `bevel-3d` + texto esmeralda e "sumia" no desktop (queixa do CEO). LED
+  `paxter-led-green` SEM `-on`. A faixa entre parenteses
+  degrada para "ate M por mes" (so max) ou "a partir de N por mes" (so min). Cor do neon via
+  `--alert-glow`. No mobile o alerta empilha (`flex-col` -> `sm:flex-row`). Variante `.dark` incluida.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).
@@ -166,7 +172,55 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   Apresentacao (preview do cliente), vai em sulco `concave-3d` (Padrao 5). Selects que acompanham
   o toggle recebem `field-engraved` para a linha inteira parecer gravada.
 
-## 4. Console de Orcamento (referencia viva)
+## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
+
+Paradigma travado pelo CEO (19/06/2026): cada INTENCAO tem UM controle e UMA cor. Ao criar ou
+redesenhar QUALQUER tela, escolher o controle pela intencao nestas tabelas e reusar — nunca inventar
+estilo novo por tela. Esta secao e a fonte-da-verdade para propagar o design Paxter as demais paginas.
+
+### 4.1 Botoes por intencao
+
+| Intencao (o que o clique faz) | Componente / Classe | Cor | Regra de uso |
+|---|---|---|---|
+| Acao primaria (avancar, salvar, confirmar, lancar) | `Button` + `btn-3d` | verde-petroleo cheio | so 1 por bloco; e o CTA principal; afunda no `:active` |
+| Acao secundaria / escolha neutra (escolher 1 entre varios, voltar, alternativa) | `Button` + `btn-3d-soft` | claro/neutro | TODOS os pares iguais — nunca colorir so um (parece "ja escolhido") |
+| Estado terminal positivo (aceito, concluido, confirmado) | `Button` + `btn-3d-ok` | verde sucesso + check | SO apos a acao feita; nunca como CTA inicial |
+| Incremento dentro de banner (adicionar N sessoes) | `Button` + `btn-3d` | verde-petroleo | vive dentro do `incentive-banner`; texto "Adicionar N sessoes" |
+| Acao destrutiva (excluir, remover) | `Button` + `btn-3d` em tom vermelho | vermelho | pede confirmacao antes; nunca verde |
+| Acao textual leve / inline (eu digito, editar, link) | botao texto + icone Lucide | muted -> ciano no hover | SEM relevo; sutil; nao compete com o CTA |
+| Stepper (+ / -, setas de incremento) | par de `Button` quadrados | neutro | a DIRECAO concorda com a barra que controla (ver concordancia da frequencia, secao 3) |
+
+### 4.2 Toggles e selecao de estado
+
+| Intencao | Componente | Padrao | Regra |
+|---|---|---|---|
+| Liga/desliga uma opcao editavel | `Switch` | ToggleWell (`concave-3d` + `Label` ao lado, `px-3 py-2.5`) — Padrao 5/11 | sempre afundado no sulco; vale tambem no preview/Apresentacao |
+| Status on/off so LEITURA (VITRINE, LIMITES) | StatusChip — Padrao 4 | slot fixo `concave-3d w-[72px] shrink-0` + LED | SEMPRE presente (nunca aparece/some): LED aceso = ativo; apagado + `opacity-70` = inativo |
+| Selecionar 1 entre N (cenario, faixa) | cartao / `Button` `btn-3d-soft` | todos iguais; recomendado por MOLDURA + selo, NAO por cor de botao | a cor do botao nunca carrega "recomendado" nem "aceito" |
+
+### 4.3 Cor -> significado unico (nunca reaproveitar a cor para 2 sentidos)
+
+| Cor | Significado UNICO | Onde aparece |
+|---|---|---|
+| Verde-petroleo cheio (botao) | acao primaria disponivel | `btn-3d` |
+| Verde sucesso (+ check / LED verde) | estado terminal: aceito / concluido / dentro do alvo | `btn-3d-ok`, `paxter-led-green`, alerta "dentro" |
+| Ciano | item ATUAL / foco / destaque | halos, anel de foco, barra acesa |
+| Ambar | restricao / limite / atencao | `paxter-alert-amber`, `paxter-led-amber`, StatusChip de limite |
+| Vermelho | excede / erro / destrutivo | `paxter-alert-red`, `paxter-led-red`, botao destrutivo |
+| Neutro claro | acao secundaria / escolha em aberto | `btn-3d-soft` |
+| Verde-petroleo em MOLDURA + sombra + selo | "recomendado para voce" (sem encher o botao) | cartao de cenario recomendado (Apresentacao) |
+
+Regra-mae da cor: existem DOIS verdes e eles NAO se misturam — verde-PETROLEO cheio (`btn-3d`) =
+acao primaria disponivel; verde-SUCESSO esmeralda cheio (`btn-3d-ok`) = aceito/feito. Recomendacao
+NUNCA usa o verde-sucesso cheio: marca o recomendado por MOLDURA + selo em relevo, senao o cliente
+acha que ja aceitou (decisao do CEO no redesenho dos cards de pagamento da Apresentacao).
+
+Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
+SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
+um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use
+uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `background`/`border-color`.
+
+## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo
   Saliente no topo; leituras AGORA/META (Bevel grosso + LED; Concavo com % em cima e sessoes
@@ -180,7 +234,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do
   orcamento nao persiste override de faixas).
 
-## 5. Linha vermelha (nao cruzar)
+## 6. Linha vermelha (nao cruzar)
 
 - Nao alterar `/api/budgets/calculate` nem o payload de `salvar()` por motivo estetico.
 - Nao trocar cantos quadrados por arredondados infantis.

@@ -169,23 +169,27 @@ export default function MontagemOrcamento() {
     return m;
   }, [result, includedRows]);
 
-  // Limite clinico mensal: aplicacoes/mes estimadas pela frequencia. Tri-estado:
-  // over = excede o limite; under = abaixo do limite (nao eficiente); ok = dentro da faixa.
+  // Limite clinico mensal: aplicacoes/mes estimadas pela frequencia. Tri-estado
+  // com a MESMA fala-base ("limite terapeutico") + a faixa entre parenteses nos
+  // 3 estados (decisao do CEO em 19/06/2026; antes cada estado tinha frase
+  // diferente). over = acima do limite; under = abaixo; ok = dentro da faixa.
   function clinicalAlert(r: Row): { kind: "over" | "under" | "ok"; left: string; right: string } | null {
     if (r.repeticaoLivre || !r.frequencyDays || r.frequencyDays <= 0) return null;
+    const min = r.minAplicacoesMes;
+    const max = r.maxAplicacoesMes;
+    if (!min && !max) return null;
     const perMonth = 30 / r.frequencyDays;
-    if (r.maxAplicacoesMes && perMonth > r.maxAplicacoesMes + 0.001) {
-      const minDias = Math.ceil(30 / r.maxAplicacoesMes);
-      return { kind: "over", left: "Excede o limite clínico de prescrição da substância", right: `Espace para no mínimo ${minDias} dias` };
+    // Faixa terapeutica entre parenteses — identica nos 3 estados (Art.44: por extenso).
+    const faixa = min && max ? `${min} a ${max} por mês` : max ? `até ${max} por mês` : `a partir de ${min} por mês`;
+    if (max && perMonth > max + 0.001) {
+      const minDias = Math.ceil(30 / max);
+      return { kind: "over", left: `Acima do limite terapêutico (${faixa})`, right: `Espace para no mínimo ${minDias} dias` };
     }
-    if (r.minAplicacoesMes && perMonth < r.minAplicacoesMes - 0.001) {
-      const maxDias = Math.floor(30 / r.minAplicacoesMes);
-      return { kind: "under", left: `Abaixo do limite clínico (${r.minAplicacoesMes}/mês) — não está no efeito terapêutico`, right: `Use no máximo ${maxDias} dias entre aplicações` };
+    if (min && perMonth < min - 0.001) {
+      const maxDias = Math.floor(30 / min);
+      return { kind: "under", left: `Abaixo do limite terapêutico (${faixa})`, right: `Use no máximo ${maxDias} dias entre aplicações` };
     }
-    if (r.maxAplicacoesMes || r.minAplicacoesMes) {
-      return { kind: "ok", left: "Posologia dentro da faixa terapêutica", right: "" };
-    }
-    return null;
+    return { kind: "ok", left: `Dentro do limite terapêutico (${faixa})`, right: "Posologia no alvo" };
   }
 
   // Preview ao vivo (debounce). Motor e a fonte unica de calculo (servidor).
@@ -386,7 +390,7 @@ export default function MontagemOrcamento() {
                               .slice()
                               .sort((a, b) => a.minSessions - b.minSessions);
                             return (
-                              <div className="mt-4 space-y-2">
+                              <div className="mt-4 space-y-4">
                                 <div className="incentive-banner flex flex-col gap-3.5 p-4">
                                   {/* TITULO SALIENTE (bevel/alto-relevo) do bloco de desconto */}
                                   <div className="screen-3d flex items-center justify-center gap-2 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
@@ -492,7 +496,7 @@ export default function MontagemOrcamento() {
                                       ? "paxter-alert paxter-alert-red border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                                       : alert.kind === "under"
                                       ? "paxter-alert paxter-alert-amber border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
-                                      : "bevel-3d border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300"
+                                      : "bevel-3d bevel-3d-ok text-emerald-700 dark:text-emerald-300"
                                   }`}>
                                     <span className="flex items-center gap-2 text-left">
                                       <span className={`paxter-led shrink-0 ${alert.kind === "over" ? "paxter-led-red paxter-led-on" : alert.kind === "under" ? "paxter-led-amber paxter-led-on" : "paxter-led-green"}`} aria-hidden="true" />

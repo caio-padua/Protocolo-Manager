@@ -17,7 +17,7 @@ A tela exibe a dose no CABECALHO do item (read-only, vinda do catalogo de substa
 ## Relevo 3D: classes UNLAYERED para vencer utilitarios Tailwind/shadcn
 As classes de relevo (`panel-3d`, `panel-3d-sub`, `panel-3d-hero`, `panel-3d-active`, `field-engraved`, `incentive-banner`, mais o par `concave-3d`/`screen-3d`) ficam no FIM de `index.css` FORA de qualquer `@layer`, com variante `.dark` correspondente. CSS sem layer vence todas as camadas do Tailwind v4, entao sobrepoe `bg-card`/`shadow-sm`/`rounded-*`/`border` do shadcn `Card` de forma previsivel sem `!important`.
 **Why:** aplicar relevo direto num `<Card>` shadcn falha por utilitario (camada utilities venceria); unlayered resolve. `panel-3d-active` vem DEPOIS de `panel-3d` para vencer no cascade.
-**How to apply:** so atuam onde a classe e aplicada explicitamente (sem efeito global). Nao misturar com `shadow-*`/`bg-*`/`rounded-*` conflitantes no mesmo elemento.
+**How to apply:** so atuam onde a classe e aplicada explicitamente (sem efeito global). Nao misturar com `shadow-*`/`bg-*`/`rounded-*` conflitantes no mesmo elemento — eles SILENCIOSAMENTE nao aplicam (sem erro de build). Para TINGIR um bloco em relevo (ex.: fundo verde do alerta "dentro do alvo"), crie uma classe companheira UNLAYERED (padrao `.bevel-3d-ok`) que sobrescreve so `background`/`border-color`; nunca confie em `bg-emerald-50`/`border-emerald-300` sobre um `bevel-3d`.
 
 ## Raio dos cantos: ~6px (quadrado da marca), NAO 14px premium
 As classes de relevo em `index.css` usam border-radius 0.25–0.5rem (4–8px), cantos retos alinhados a marca.
@@ -51,9 +51,10 @@ Decisao estetica do CEO para a tela de orcamento: ROTULOS/titulos de bloco e o c
 **Why:** o CEO itera muito no banner; a cada rodada troca a metafora (X -> selo -> risco fino; pulso piscante -> underglow estavel). A fonte-da-verdade VIVA dos padroes Paxter e a skill `skill-layout-paxter` — atualizar a skill a cada rodada, nao so o codigo.
 **How to apply:** LED para "voce esta aqui"/meta/atingido; `bevel-3d` onde o CEO quer botao que salta; `paxter-attention` (hover) usa `outline` (nunca `box-shadow`); em bloco interativo que precisa chamar atencao sem piscar use `paxter-underglow`; alerta clinico (excede teto/abaixo do minimo) usa `paxter-alert` + variante de cor. Icone da substancia = frasco-ampola flat (`Ampola` em VitrineCard.tsx), mesmo estilo do porquinho.
 
-## Alerta clinico (teto/minimo mensal) em DUAS pontas, sem barra
-`clinicalAlert(r)` retorna `{kind, left, right}` (nao `{kind, msg}`); o render usa `justify-between` com a regra a esquerda ("Excede o teto clinico de N por mes" / "Abaixo do minimo de N por mes") e a acao a direita ("Espace para no minimo X dias" / "Use no maximo X dias"). Texto por extenso "por mes" (nunca "/mes") e sem "(cerca de X)".
-**Why:** Art.44 (sem barra/abreviacao) + leitura tipo planilha pedida pelo CEO.
+## Alerta clinico TRI-ESTADO: mesma fala-base "limite terapeutico" + faixa
+`clinicalAlert(r)` retorna `{kind, left, right}` com kind = `over` | `under` | `ok`. Os TRES estados usam a MESMA fala-base "limite terapeutico" + a FAIXA entre parenteses por extenso ("N a M por mes"; degrada para "ate M por mes" so-max ou "a partir de N por mes" so-min): left = "Acima/Abaixo/Dentro do limite terapeutico (faixa)"; right = "Espace para no minimo X dias" / "Use no maximo X dias entre aplicacoes" / "Posologia no alvo". Render `justify-between`, "por mes" por extenso.
+**Why:** decisao do CEO (19/06/2026, Art.50): antes cada estado tinha frase DIFERENTE ("teto", "minimo", "faixa terapeutica") e o estado "dentro" quase nao aparecia no desktop; unificar a fala-base reduz carga cognitiva. "teto" continua PROIBIDO no contexto clinico.
+**How to apply:** o estado "ok"/dentro NAO ganha cor por `bg-emerald-50` (utilitario perde para o `bevel-3d` unlayered) — usa a classe companheira unlayered `.bevel-3d-ok` (tinge fundo+borda esmeralda mantendo o relevo). Ver secao do relevo 3D.
 
 ## Chip de dose: so a magnitude, com guarda de overflow
 No cabecalho, `doseMain = doseDisplay.split("—")[0].trim() || doseDisplay` mostra so a magnitude (ex.: "200 MG"), cortando a parte apos o travessao em-dash. O chip tem `max-w-[180px] truncate` + `title={doseDisplay}` para posologia longa sem travessao.

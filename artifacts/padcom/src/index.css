@@ -517,6 +517,19 @@
     0 16px 24px -10px rgba(0, 0, 0, 0.62),
     0 7px 12px -4px rgba(0, 0, 0, 0.5);
 }
+/* Bevel OK — variante VERDE CALMA do bevel (alerta clinico "dentro do alvo").
+   Mantem relevo/sombra do .bevel-3d e so TINGE fundo + borda de esmeralda.
+   SEM @layer de proposito: vence os utilitarios "bg" e "border" do Tailwind
+   (que ficam em @layer utilities), como o bevel-3d base. Usar SEMPRE junto
+   de .bevel-3d (este so sobrepoe background e border). */
+.bevel-3d-ok {
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 55%, #a7f3d0 100%);
+  border-color: #6ee7b7;
+}
+.dark .bevel-3d-ok {
+  background: linear-gradient(180deg, hsl(155 38% 15%) 0%, hsl(155 42% 10%) 100%);
+  border-color: hsl(155 28% 28%);
+}
 
 /* Pulso de ATENCAO no hover — acende/apaga via outline, sem apagar o relevo. */
 .paxter-attention {
