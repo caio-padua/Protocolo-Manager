@@ -54,6 +54,8 @@ export const substancesTable = pgTable("substances", {
   exigeValidacaoHumana: boolean("exige_validacao_humana"),
   unidadeId: integer("unidade_id"),
   posologiaEstruturada: jsonb("posologia_estruturada"),
+  concentrationMg: text("concentration_mg"),
+  volumeAmpola: text("volume_ampola"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

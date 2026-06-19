@@ -8,6 +8,7 @@ export const stockItemsTable = pgTable("stock_items", {
   quantity: real("quantity").notNull().default(0),
   unit: text("unit").notNull(),
   minimumStock: real("minimum_stock").notNull().default(0),
+  maximumStock: real("maximum_stock"),
   lot: text("lot"),
   expirationDate: text("expiration_date"),
   supplier: text("supplier"),

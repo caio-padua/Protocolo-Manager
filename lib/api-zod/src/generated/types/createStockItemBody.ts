@@ -11,6 +11,7 @@ export interface CreateStockItemBody {
   quantity: number;
   unit: string;
   minimumStock: number;
+  maximumStock?: number | null;
   lot?: string | null;
   expirationDate?: string | null;
   supplier?: string | null;

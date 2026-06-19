@@ -2422,12 +2422,21 @@ components:
           type: string
         substanceColor:
           type: string
+        substanceMg:
+          type: string
+          nullable: true
+        substanceVolume:
+          type: string
+          nullable: true
         quantity:
           type: number
         unit:
           type: string
         minimumStock:
           type: number
+        maximumStock:
+          type: number
+          nullable: true
         lot:
           type: string
           nullable: true
@@ -2442,7 +2451,7 @@ components:
           nullable: true
         status:
           type: string
-          enum: [ok, low, critical, expired]
+          enum: [critical, low, normal, overflow, expired]
         updatedAt:
           type: string
       required:
@@ -2467,6 +2476,9 @@ components:
           type: string
         minimumStock:
           type: number
+        maximumStock:
+          type: number
+          nullable: true
         lot:
           type: string
           nullable: true

@@ -12,9 +12,12 @@ export interface StockItem {
   substanceId: number;
   substanceName: string;
   substanceColor: string;
+  substanceMg?: string | null;
+  substanceVolume?: string | null;
   quantity: number;
   unit: string;
   minimumStock: number;
+  maximumStock?: number | null;
   lot?: string | null;
   expirationDate?: string | null;
   supplier?: string | null;

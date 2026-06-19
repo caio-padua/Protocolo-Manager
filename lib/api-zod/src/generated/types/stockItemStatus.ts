@@ -10,8 +10,9 @@ export type StockItemStatus =
   (typeof StockItemStatus)[keyof typeof StockItemStatus];
 
 export const StockItemStatus = {
-  ok: "ok",
-  low: "low",
   critical: "critical",
+  low: "low",
+  normal: "normal",
+  overflow: "overflow",
   expired: "expired",
 } as const;

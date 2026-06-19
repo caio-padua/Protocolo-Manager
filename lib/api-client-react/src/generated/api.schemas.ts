@@ -564,9 +564,10 @@ export type StockItemStatus =
   (typeof StockItemStatus)[keyof typeof StockItemStatus];
 
 export const StockItemStatus = {
-  ok: "ok",
-  low: "low",
   critical: "critical",
+  low: "low",
+  normal: "normal",
+  overflow: "overflow",
   expired: "expired",
 } as const;
 
@@ -575,9 +576,12 @@ export interface StockItem {
   substanceId: number;
   substanceName: string;
   substanceColor: string;
+  substanceMg?: string | null;
+  substanceVolume?: string | null;
   quantity: number;
   unit: string;
   minimumStock: number;
+  maximumStock?: number | null;
   lot?: string | null;
   expirationDate?: string | null;
   supplier?: string | null;
@@ -591,6 +595,7 @@ export interface CreateStockItemBody {
   quantity: number;
   unit: string;
   minimumStock: number;
+  maximumStock?: number | null;
   lot?: string | null;
   expirationDate?: string | null;
   supplier?: string | null;

@@ -12,13 +12,15 @@ const router: IRouter = Router();
 async function formatStockItem(item: typeof stockItemsTable.$inferSelect) {
   const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
 
-  let status: "ok" | "low" | "critical" | "expired" = "ok";
+  let status: "normal" | "low" | "critical" | "overflow" | "expired" = "normal";
   if (item.expirationDate && new Date(item.expirationDate) < new Date()) {
     status = "expired";
   } else if (item.quantity <= 0) {
     status = "critical";
   } else if (item.quantity <= item.minimumStock) {
     status = "low";
+  } else if (item.maximumStock != null && item.quantity > item.maximumStock) {
+    status = "overflow";
   }
 
   return {
@@ -26,9 +28,12 @@ async function formatStockItem(item: typeof stockItemsTable.$inferSelect) {
     substanceId: item.substanceId,
     substanceName: substance?.name ?? "",
     substanceColor: substance?.color ?? "#888888",
+    substanceMg: substance?.concentrationMg ?? null,
+    substanceVolume: substance?.volumeAmpola ?? null,
     quantity: item.quantity,
     unit: item.unit,
     minimumStock: item.minimumStock,
+    maximumStock: item.maximumStock ?? null,
     lot: item.lot ?? null,
     expirationDate: item.expirationDate ?? null,
     supplier: item.supplier ?? null,

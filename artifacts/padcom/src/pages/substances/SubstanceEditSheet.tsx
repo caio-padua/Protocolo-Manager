@@ -347,6 +347,8 @@ export function SubstanceEditSheet({
       categoryMeters: form.categoryMeters ?? {},
       composicao: emptyToNull(form.composicao),
       posologia: emptyToNull(form.posologia),
+      concentrationMg: emptyToNull(form.concentrationMg),
+      volumeAmpola: emptyToNull(form.volumeAmpola),
     };
     for (const { key } of ALL_TEXTAREAS) payload[key] = emptyToNull(form[key]);
 
@@ -452,7 +454,21 @@ export function SubstanceEditSheet({
               onActivate={go("posologia")}
               accent={{ bg: "bg-sky-500/10", text: "text-sky-600", band: "bg-sky-500/5", ring: "ring-sky-400/60 border-sky-300/50 shadow-sky-500/10" }}
             >
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Field label="Concentração (mg)">
+                  <Input
+                    placeholder="ex.: 500mg"
+                    value={form.concentrationMg ?? ""}
+                    onChange={(e) => setField("concentrationMg", e.target.value)}
+                  />
+                </Field>
+                <Field label="Volume da Ampola (mL)">
+                  <Input
+                    placeholder="ex.: 10mL"
+                    value={form.volumeAmpola ?? ""}
+                    onChange={(e) => setField("volumeAmpola", e.target.value)}
+                  />
+                </Field>
                 <Field label="Dose padrão">
                   <Input value={form.defaultDose ?? ""} onChange={(e) => setField("defaultDose", e.target.value)} />
                 </Field>
