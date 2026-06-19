@@ -16,10 +16,11 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/componentes-3d.md` | criar/redesenhar qualquer botao/controle 3D (receita + JSX de cada um) |
 | `references/alinhamento-espacamento.md` | alinhar por linhas-guia visiveis e definir espacamento (respiro 3D) |
 | `references/revisao-final.md` | ao TERMINAR uma tela: checklist "como cliente" + paridade celular x desktop |
+| `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
 
-Fluxo de uso: escolher o controle por INTENCAO (secao 4) -> montar com a receita
-(`componentes-3d.md`) -> alinhar e espacar (`alinhamento-espacamento.md`) -> revisar como cliente e
-conferir celular x desktop (`revisao-final.md`).
+Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
+INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar
+(`alinhamento-espacamento.md`) -> revisar como cliente e conferir celular x desktop (`revisao-final.md`).
 
 ## 1. Vocabulario oficial (fala -> codigo)
 
@@ -188,7 +189,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   Apresentacao (preview do cliente), vai em sulco `concave-3d` (Padrao 5). Selects que acompanham
   o toggle recebem `field-engraved` para a linha inteira parecer gravada.
 - **Padrao 12 — POSICAO FIXA + CAMPO VAZIO ROTULADO (lei promulgada pela Agenda Semanal,
-  19/06/2026)**: vale para TODAS as telas do sistema, nao so orcamento. Todo dado de um card/linha
+  19/06/2026) — ver `references/grade-imaginaria.md` (modelo completo, receita JSX, checklist)**: vale para TODAS as telas do sistema, nao so orcamento. Todo dado de um card/linha
   ocupa um SLOT em posicao FIXA: o olho do CEO (TDAH) sempre acha o mesmo dado no mesmo lugar,
   card a card. (a) NUNCA usar `flex-wrap` para os dados-chave do cabecalho — `flex-wrap` faz a
   posicao deslizar conforme o tamanho do texto. Em vez disso, ancorar: titulo (nome) `truncate`
@@ -199,7 +200,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   rotulo em `bevel`/uppercase fixo + valor gravado ou "—". Grade de slots = `grid` de N colunas
   fixas (`grid-cols-2 lg:grid-cols-3`), nao `flex-wrap`.
 - **Padrao 13 — LINHA DE ITEM EM COLUNAS FIXAS COM SULCO (lei promulgada pela Agenda Semanal,
-  19/06/2026)**: lista de itens repetidos (substancias, parcelas, exames) usa UM `grid` de template
+  19/06/2026) — ver `references/grade-imaginaria.md` (template de colunas + receita comentada)**: lista de itens repetidos (substancias, parcelas, exames) usa UM `grid` de template
   de colunas FIXO (`grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem]` e similares) para que
   TODAS as linhas aliem ao pixel. Cada coluna tem funcao unica e ordem estavel: (1) QUADRADINHO de
   COR identitario (`h-3.5 w-3.5 rounded-[3px] ring-1`, cor da entidade) — cor pertencendo ao ITEM

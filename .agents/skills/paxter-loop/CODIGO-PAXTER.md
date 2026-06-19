@@ -209,6 +209,19 @@ LED — LED só para status binário), sulco côncavo divisor, e CAIXINHA (`Chec
 "CONFIRMAR" (individual e "marcar todas"); todo checkbox sem texto ao lado leva `aria-label`. Detalhe na
 skill `skill-layout-paxter` (Padrões 12 e 13). (19/06/2026 — memória: skill-layout-paxter)
 
+**Art. 54** GRADE IMAGINÁRIA — MODELO MENTAL DE CARD (promulgado pelo Paxter Loop em 19/06/2026): todo
+card de informação deve criar linhas horizontais e verticais implícitas pela REGULARIDADE das suas zonas —
+não por bordas visíveis. O CEO pousa o olhar UMA VEZ e extrai TUDO. As 5 zonas canônicas são: (1) TOP BAR
+de altura fixa com horário/timestamp + identificador de sequência + menu de ações (ml-auto) — nunca cresce;
+(2) TÍTULO com nome truncado em linha própria; (3) IDENTIDADE com [ID/CPF] + [BADGE STATUS] na MESMA linha,
+ambos shrink-0 — badge NUNCA ao lado do nome (posição varia com o comprimento do nome); (4) META GRID em
+`grid-cols-N` fixo com MetaField que sempre existe (vazio = "—"); (5) CONTEÚDO em sulco côncavo com linhas
+de `grid-cols-[template fixo]`. Faixa lateral de status: máximo 4–6px (w-1/w-1.5), nunca bloco largo que
+comprime o conteúdo. LED animado (`paxter-led-on`) PROIBIDO em contagens e títulos de seção — confunde "1
+sessão" com "primeira sessão"; LED somente para status binário on/off de item. Referência completa com
+diagrama ASCII, receita JSX comentada, tabela anti-padrão→padrão e checklist de 10 pontos:
+`skill-layout-paxter/references/grade-imaginaria.md`. Vale para Manager, IHE e TODOS os sistemas primos.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -218,3 +231,4 @@ skill `skill-layout-paxter` (Padrões 12 e 13). (19/06/2026 — memória: skill-
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
 | 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |
+| 19/06/2026 | Art. 54 (Título X) | Grade Imaginária — modelo mental completo de layout de card: 5 zonas canônicas (top bar fixo / título / identidade / meta grid / conteúdo), badge de status ao lado do ID nunca do nome, faixa lateral ≤6px, LED proibido em contagem/título. Referência em `grade-imaginaria.md` com diagrama ASCII + receita JSX + anti-padrões + checklist 10 pontos. |
