@@ -9,6 +9,18 @@ Linguagem visual do Manager, definida pelo CEO Dr. Caio. Mantida pelo Dr. Replit
 Regra mae: **nunca perca a essencia dos paineis e sub-paineis 3D. So incorpore beneficios.**
 Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca mudam por estetica.
 
+## 0. Arquivos de referencia (ler conforme a tarefa)
+
+| Arquivo | Quando ler |
+|---|---|
+| `references/componentes-3d.md` | criar/redesenhar qualquer botao/controle 3D (receita + JSX de cada um) |
+| `references/alinhamento-espacamento.md` | alinhar por linhas-guia visiveis e definir espacamento (respiro 3D) |
+| `references/revisao-final.md` | ao TERMINAR uma tela: checklist "como cliente" + paridade celular x desktop |
+
+Fluxo de uso: escolher o controle por INTENCAO (secao 4) -> montar com a receita
+(`componentes-3d.md`) -> alinhar e espacar (`alinhamento-espacamento.md`) -> revisar como cliente e
+conferir celular x desktop (`revisao-final.md`).
+
 ## 1. Vocabulario oficial (fala -> codigo)
 
 Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes existentes.
@@ -44,6 +56,10 @@ As definicoes vivem em `artifacts/padcom/src/index.css` (procurar `.panel-3d`, `
 | Branco | `#FFFFFF` | Fundo de paineis claros |
 | Cantos | radius 6px a 8px (`0.25rem`–`0.375rem`) | SEMPRE quadrados; nunca pill/arredondado infantil |
 | Labels KPI | MAIUSCULO + `tracking` expandido | Rotulos de indicador |
+
+Toggle quadrado (decisao do CEO, 19/06/2026): o `Switch` usa cantos bem quadrados — trilho
+`rounded-[3px]`, thumb `rounded-[2px]`, nunca a pilula arredondada padrao. Mexer so no componente base
+`artifacts/padcom/src/components/ui/switch.tsx`, que propaga a todos os toggles do sistema.
 
 Estilo: elegante, empirico, sem infantilidades. Tema escuro tem variantes `.dark` para
 todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.

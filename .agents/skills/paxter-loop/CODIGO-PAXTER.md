@@ -187,8 +187,23 @@ estoura o `.split`. (19/06/2026 — memória: ras-pdf-coercao-texto)
 
 ---
 
+## TÍTULO X — DO DESIGN E DA REVISÃO VISUAL
+
+**Art. 51** O sistema de design do Manager é a skill `skill-layout-paxter` (linguagem 3D skeuomórfica).
+A referência viva é o Console de Orçamento — principalmente a tela "Montagem do Orçamento"
+(`pages/orcamentos/novo.tsx`) e a "Parametrização" (`pages/orcamentos/parametrizacao.tsx`). Toda tela
+nova ou reformada CLONA esse vocabulário 3D; nunca inventa estilo próprio. (19/06/2026)
+
+**Art. 52** Revisão final "como cliente" e paridade celular x desktop: ao terminar QUALQUER tela,
+revisar olhando como se fosse o próprio cliente (alinhamento por linhas-guia, espaçamento, clareza) e
+conferir SEMPRE no celular E no desktop, tanto no LAYOUT quanto na FUNCIONALIDADE dos botões (clique,
+alvo de toque, toggle responde). (19/06/2026 — skill `skill-layout-paxter/references/revisao-final.md`)
+
+---
+
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
+| 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
