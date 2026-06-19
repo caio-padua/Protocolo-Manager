@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
-  CalendarDays, Wallet, FlaskConical, FileText, Upload, ClipboardList,
-  CheckCircle, Download, Clock, FileUp,
+  CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
+  FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ---------------------------------------------------------------------------
-// Helpers de formatacao (padrao Brasil)
+// Helpers
 // ---------------------------------------------------------------------------
 function formatCpf(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -17,36 +17,37 @@ function formatCpf(value: string): string {
   if (digits.length <= 9) return digits.slice(0, 3) + "." + digits.slice(3, 6) + "." + digits.slice(6);
   return digits.slice(0, 3) + "." + digits.slice(3, 6) + "." + digits.slice(6, 9) + "-" + digits.slice(9);
 }
-
 function formatDateInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return digits.slice(0, 2) + "/" + digits.slice(2);
   return digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
 }
-
 function brDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   return iso;
 }
-
 function brMoney(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function firstName(name: string): string {
+  return name.split(" ")[0] ?? name;
 }
 
 const METHOD_LABELS: Record<string, string> = {
   pix: "PIX", credit: "CARTÃO DE CRÉDITO", debit: "CARTÃO DE DÉBITO",
   boleto: "BOLETO", cash: "DINHEIRO",
 };
-
 const STATUS_LABELS: Record<string, string> = {
   scheduled: "AGENDADA", confirmed: "CONFIRMADA", completed: "REALIZADA",
-  applied: "APLICADA", missed: "FALTOU", cancelled: "CANCELADA", pending: "PENDENTE",
-  paid: "PAGO", active: "ATIVO", suggested: "SUGERIDO",
+  applied: "APLICADA", missed: "FALTOU", cancelled: "CANCELADA",
+  pending: "PENDENTE", paid: "PAGO", active: "ATIVO", suggested: "SUGERIDO",
 };
-
+const PROC_LABELS: Record<string, string> = {
+  iv: "ENDOVENOSO", im: "INTRAMUSCULAR", implant: "IMPLANTE", sc: "SUBCUTÂNEO",
+};
 const FILE_TYPES = [
   { value: "exame_sangue", label: "EXAME DE SANGUE / BIOQUÍMICA" },
   { value: "ultrassom", label: "ULTRASSOM" },
@@ -60,7 +61,6 @@ const FILE_TYPES = [
   { value: "atestado", label: "ATESTADO" },
   { value: "outro", label: "OUTRO" },
 ];
-
 const BODY_REGIONS = [
   "ABDOME", "CABECA", "COLUNA", "FACE", "FIGADO", "JOELHO", "MAMAS", "MAO",
   "OMBRO", "PELVE", "PESCOCO", "RINS", "TIREOIDE", "TORAX", "QUADRIL",
@@ -71,20 +71,19 @@ const TYPES_WITH_BODY = ["ultrassom", "tomografia", "ressonancia", "densitometri
 // Tipos
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
-
-type TabKey = "inicio" | "protocolo" | "agenda" | "financeiro" | "exames" | "documentos" | "enviar";
+type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
-  { key: "inicio", label: "INÍCIO", icon: Home },
-  { key: "protocolo", label: "PROTOCOLO", icon: Syringe },
-  { key: "agenda", label: "AGENDA", icon: CalendarDays },
-  { key: "financeiro", label: "FINANCEIRO", icon: Wallet },
-  { key: "exames", label: "EXAMES", icon: FlaskConical },
-  { key: "documentos", label: "DOCUMENTOS", icon: FileText },
-  { key: "enviar", label: "ENVIAR", icon: Upload },
+  { key: "inicio",     label: "INÍCIO",      icon: Home },
+  { key: "protocolos", label: "PROTOCOLOS",  icon: Syringe },
+  { key: "agenda",     label: "AGENDA",      icon: CalendarDays },
+  { key: "documentos", label: "DOCUMENTOS",  icon: FileText },
+  { key: "enviar",     label: "ENVIAR",      icon: Upload },
 ];
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
+// Root
+// ---------------------------------------------------------------------------
 export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
@@ -94,33 +93,47 @@ export default function Area() {
     setTab("inicio");
   }, []);
 
-  if (!client) {
-    return <LoginScreen onSuccess={setClient} />;
-  }
+  if (!client) return <LoginScreen onSuccess={setClient} />;
 
   return (
-    <div className="min-h-screen bg-[#142e2e] flex flex-col">
-      <header className="bg-[#0d1f1f] border-b border-[#1e4a4a] px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
+      <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 bg-[#1a4040] rounded flex items-center justify-center flex-shrink-0">
-            <span className="text-[#d4ae35] font-bold text-lg">P</span>
+          <div className="w-9 h-9 bg-teal-700 rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-black text-base">P</span>
           </div>
           <div className="min-w-0">
-            <h1 className="text-white font-bold text-sm tracking-wide uppercase truncate">PADCON CONECT</h1>
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest truncate">{client.name}</p>
+            <h1 className="text-teal-900 font-black text-sm tracking-widest uppercase leading-none">
+              Pad<span className="text-cyan-500">con</span>
+            </h1>
+            <div className="concave-3d mt-0.5 px-2 py-0.5 inline-block rounded">
+              <span className="text-teal-600 text-[9px] font-bold uppercase tracking-widest truncate">
+                {client.name.toUpperCase()}
+              </span>
+            </div>
           </div>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 text-[#8fbfbf] text-xs hover:text-white px-2 py-1.5 rounded hover:bg-[#1e4a4a] transition-colors flex-shrink-0"
+          className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5 flex-shrink-0"
         >
-          <LogOut className="w-4 h-4" /> SAIR
+          <LogOut className="w-3.5 h-3.5" /> SAIR
         </button>
       </header>
 
-      {/* Abas horizontais com rolagem */}
-      <nav className="bg-[#0d1f1f] border-b border-[#1e4a4a] sticky top-[57px] z-10">
-        <div className="flex overflow-x-auto no-scrollbar">
+      {/* Conteúdo principal com padding-bottom para a barra inferior */}
+      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
+        {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
+        {tab === "protocolos" && <ProtocolosTab client={client} />}
+        {tab === "agenda"     && <AgendaTab     client={client} />}
+        {tab === "documentos" && <DocumentosTab client={client} />}
+        {tab === "enviar"     && <EnviarTab     client={client} />}
+      </main>
+
+      {/* Bottom navigation — mobile-first */}
+      <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-teal-200/60">
+        <div className="flex max-w-lg mx-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
@@ -128,46 +141,25 @@ export default function Area() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-b-2 transition-colors ${
-                  active
-                    ? "text-[#d4ae35] border-[#d4ae35]"
-                    : "text-[#6b9b9b] border-transparent hover:text-[#8fbfbf]"
+                className={`flex-1 flex flex-col items-center gap-0.5 py-3 px-1 transition-colors ${
+                  active ? "text-cyan-500" : "text-teal-400 hover:text-teal-600"
                 }`}
               >
-                <Icon className="w-4 h-4" /> {t.label}
+                <div className={`p-1.5 rounded-lg ${active ? "concave-3d" : ""}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider">{t.label}</span>
               </button>
             );
           })}
         </div>
       </nav>
-
-      <main className="flex-1 px-4 py-5 max-w-2xl w-full mx-auto">
-        {tab === "inicio" && <InicioTab client={client} onGo={setTab} />}
-        {tab === "protocolo" && <ProtocoloTab client={client} />}
-        {tab === "agenda" && <AgendaTab client={client} />}
-        {tab === "financeiro" && <FinanceiroTab client={client} />}
-        {tab === "exames" && <ExamesTab client={client} />}
-        {tab === "documentos" && <DocumentosTab client={client} />}
-        {tab === "enviar" && <EnviarTab client={client} />}
-      </main>
-
-      <footer className="px-4 py-4 text-center">
-        <a
-          href={`${API_BASE}/anamnese`}
-          className="inline-flex items-center gap-2 text-[#8fbfbf] text-xs uppercase tracking-wider hover:text-white"
-        >
-          <ClipboardList className="w-4 h-4" /> Preencher ficha de anamnese
-        </a>
-        <p className="text-[#3a6666] text-[10px] mt-3 uppercase tracking-wider">
-          Clínica Padua — Padcon Conect
-        </p>
-      </footer>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Login
+// LOGIN
 // ---------------------------------------------------------------------------
 function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   const [cpf, setCpf] = useState("");
@@ -180,9 +172,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     if (cleanCpf.length !== 11) { setError("Digite os 11 dígitos do CPF"); return; }
     const cleanDate = birthDate.replace(/\D/g, "");
     if (cleanDate.length !== 8) { setError("Digite a data completa (DD/MM/AAAA)"); return; }
-
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const res = await fetch(`${API_BASE}/api/client-portal/identify`, {
         method: "POST",
@@ -192,78 +182,86 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erro ao identificar"); return; }
       onSuccess(data);
-    } catch {
-      setError("Erro de conexão. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setLoading(false); }
   }, [cpf, birthDate, onSuccess]);
 
   return (
-    <div className="min-h-screen bg-[#142e2e] flex flex-col">
-      <header className="bg-[#0d1f1f] border-b border-[#1e4a4a] px-4 py-4 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header login */}
+      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-teal-200/60">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#1a4040] rounded flex items-center justify-center">
-            <span className="text-[#d4ae35] font-bold text-lg">P</span>
+          <div className="w-12 h-12 bg-teal-700 rounded-xl flex items-center justify-center shadow-md">
+            <span className="text-white font-black text-xl">P</span>
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg tracking-wide uppercase">PADCON CONECT</h1>
-            <p className="text-[#6b9b9b] text-xs uppercase tracking-widest">ÁREA DO PACIENTE</p>
+            <h1 className="text-teal-900 font-black text-xl tracking-wide uppercase leading-none">
+              Pad<span className="text-cyan-500">con</span> <span className="text-teal-700">CONECT</span>
+            </h1>
+            <p className="text-teal-500 text-[10px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex items-start justify-center px-4 py-8">
-        <div className="w-full max-w-md">
-          <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md overflow-hidden">
-            <div className="bg-[#0d1f1f] px-5 py-4 border-b border-[#1e4a4a]">
+      <main className="flex-1 flex items-start justify-center px-4 py-10">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="panel-3d rounded-xl overflow-hidden">
+            {/* Zona 1 — TOP BAR */}
+            <div className="bg-teal-700 px-5 py-4">
               <div className="flex items-center gap-3">
-                <User className="w-5 h-5 text-[#d4ae35]" />
-                <h2 className="text-white font-semibold text-sm uppercase tracking-wide">IDENTIFICAÇÃO</h2>
+                <User className="w-5 h-5 text-cyan-300" />
+                <h2 className="text-white font-black text-sm uppercase tracking-widest">IDENTIFICAÇÃO</h2>
               </div>
-              <p className="text-[#6b9b9b] text-xs mt-1">
-                Digite seu CPF e data de nascimento para entrar
+              <p className="text-teal-200 text-xs mt-1">
+                CPF + data de nascimento para entrar
               </p>
             </div>
 
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">CPF</label>
+                <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">CPF</label>
                 <input
                   type="tel" inputMode="numeric" placeholder="000.000.000-00" value={cpf}
                   onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
-                  className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-lg placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
                 />
               </div>
               <div>
-                <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">DATA DE NASCIMENTO</label>
+                <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DATA DE NASCIMENTO</label>
                 <input
                   type="tel" inputMode="numeric" placeholder="DD/MM/AAAA" value={birthDate}
                   onChange={(e) => { setBirthDate(formatDateInput(e.target.value)); setError(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") handleIdentify(); }}
-                  className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-lg placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
                 />
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-md px-3 py-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                  <p className="text-red-300 text-sm">{error}</p>
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-red-600 text-sm">{error}</p>
                 </div>
               )}
 
               <button
                 onClick={handleIdentify}
                 disabled={loading || cpf.replace(/\D/g, "").length !== 11 || birthDate.replace(/\D/g, "").length !== 8}
-                className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
               </button>
             </div>
           </div>
-          <p className="text-center text-[#3a6666] text-xs mt-6 uppercase tracking-wider">
+
+          <p className="text-center text-teal-400 text-[10px] uppercase tracking-widest">
             Clínica Padua — Padcon Conect
           </p>
+          <div className="text-center">
+            <a href={`${API_BASE}/anamnese`}
+              className="inline-flex items-center gap-1.5 text-teal-500 text-xs uppercase tracking-wider hover:text-teal-700">
+              <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
+            </a>
+          </div>
         </div>
       </main>
     </div>
@@ -271,17 +269,15 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Hook generico de fetch com token
+// Hook genérico de fetch com token
 // ---------------------------------------------------------------------------
 function useApi<T>(client: ClientInfo, path: string) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     fetch(`${API_BASE}/api/area-paciente/${path}`, {
       headers: { Authorization: `Bearer ${client.token}` },
     })
@@ -297,44 +293,80 @@ function useApi<T>(client: ClientInfo, path: string) {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [client.token, path]);
-
   return { data, loading, error };
 }
 
+// ---------------------------------------------------------------------------
+// Componentes base Paxter
+// ---------------------------------------------------------------------------
 function Loading() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="w-7 h-7 text-[#d4ae35] animate-spin" />
+      <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
     </div>
   );
 }
-
 function ErrorBox({ msg }: { msg: string }) {
   return (
-    <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-md px-4 py-3">
-      <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-      <p className="text-red-300 text-sm">{msg}</p>
+    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+      <p className="text-red-600 text-sm">{msg}</p>
+    </div>
+  );
+}
+function Empty({ msg }: { msg: string }) {
+  return (
+    <div className="panel-3d-sub rounded-xl p-8 text-center">
+      <p className="text-teal-400 text-sm">{msg}</p>
     </div>
   );
 }
 
-function Empty({ msg }: { msg: string }) {
-  return <p className="text-[#6b9b9b] text-sm text-center py-10">{msg}</p>;
+// MetaField canônico — slot fixo, vazio = "—", nunca some
+function MetaField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="concave-3d rounded-lg px-3 py-2">
+      <p className="text-teal-500 text-[9px] font-black uppercase tracking-widest leading-none mb-1">{label}</p>
+      <p className="text-teal-900 text-xs font-semibold truncate">{value || "—"}</p>
+    </div>
+  );
 }
 
-function Card({ children, accent }: { children: React.ReactNode; accent?: string }) {
+// Separador de seção
+function SecLabel({ label, count }: { label: string; count?: number }) {
   return (
-    <div
-      className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md overflow-hidden"
-      style={accent ? { borderLeft: `4px solid ${accent}` } : undefined}
-    >
-      {children}
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-teal-700 text-[10px] font-black uppercase tracking-widest">{label}</span>
+      {count !== undefined && (
+        <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded">{count}</span>
+      )}
+      <div className="flex-1 h-px bg-teal-200/60" />
     </div>
+  );
+}
+
+// Badge de status
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    active:    "bg-cyan-100 text-cyan-700 border-cyan-200",
+    completed: "bg-green-100 text-green-700 border-green-200",
+    cancelled: "bg-slate-100 text-slate-500 border-slate-200",
+    scheduled: "bg-teal-100 text-teal-700 border-teal-200",
+    confirmed: "bg-cyan-100 text-cyan-700 border-cyan-200",
+    missed:    "bg-red-100 text-red-600 border-red-200",
+    paid:      "bg-green-100 text-green-700 border-green-200",
+    pending:   "bg-amber-100 text-amber-700 border-amber-200",
+  };
+  const cls = map[status] ?? "bg-slate-100 text-slate-500 border-slate-200";
+  return (
+    <span className={`inline-block border text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${cls}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
   );
 }
 
 // ---------------------------------------------------------------------------
-// INICIO
+// INÍCIO
 // ---------------------------------------------------------------------------
 type Resumo = {
   client: { name: string };
@@ -344,6 +376,82 @@ type Resumo = {
   completedSessions: number;
   nextSession: { id: number; scheduledDate: string; scheduledTime: string; unit: string | null; status: string } | null;
 };
+
+function ValidarCodigo({ client }: { client: ClientInfo }) {
+  const [codigo, setCodigo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resultado, setResultado] = useState<{ ok: boolean; mensagem: string } | null>(null);
+
+  const handleValidar = async () => {
+    if (codigo.trim().length < 4) return;
+    setLoading(true); setResultado(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/validar-codigo`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${client.token}`,
+        },
+        body: JSON.stringify({ codigo: codigo.trim().toUpperCase() }),
+      });
+      const data = await res.json();
+      setResultado({ ok: res.ok, mensagem: data.mensagem || data.error || "Erro desconhecido" });
+    } catch {
+      setResultado({ ok: false, mensagem: "Erro de conexão" });
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden">
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between px-4 py-3 bg-teal-700/10 border-b border-teal-200/40">
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-teal-600" />
+          <span className="text-teal-700 text-xs font-black uppercase tracking-widest">VALIDAR PRESENÇA</span>
+        </div>
+        <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded uppercase tracking-wider">
+          CÓDIGO DO DIA
+        </span>
+      </div>
+      <div className="p-4 space-y-3">
+        {resultado ? (
+          <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${resultado.ok ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+            {resultado.ok
+              ? <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+              : <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
+            <p className={`text-sm font-semibold ${resultado.ok ? "text-green-700" : "text-red-600"}`}>{resultado.mensagem}</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-teal-500 text-xs">Digite o código enviado pelo WhatsApp ou sua senha permanente do protocolo.</p>
+            <div className="flex gap-2">
+              <input
+                type="text" inputMode="text" placeholder="Ex: A7K3M2"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase().slice(0, 12))}
+                onKeyDown={(e) => { if (e.key === "Enter") handleValidar(); }}
+                className="concave-3d flex-1 h-11 px-3 text-teal-900 text-base font-mono tracking-widest placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+              />
+              <button
+                onClick={handleValidar}
+                disabled={loading || codigo.trim().length < 4}
+                className="btn-3d px-5 h-11 text-sm font-black uppercase tracking-wider disabled:opacity-40"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK"}
+              </button>
+            </div>
+          </>
+        )}
+        {resultado && (
+          <button onClick={() => { setCodigo(""); setResultado(null); }}
+            className="text-teal-500 text-xs underline">
+            Tentar outro código
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => void }) {
   const { data, loading, error } = useApi<Resumo>(client, "resumo");
@@ -355,68 +463,66 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
 
   return (
     <div className="space-y-4">
-      <Card accent="#d4ae35">
-        <div className="p-5">
-          <p className="text-[#6b9b9b] text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
-          <h2 className="text-white font-bold text-xl mt-1">{data.client.name}</h2>
+      {/* Saudação */}
+      <div className="panel-3d rounded-xl overflow-hidden">
+        <div className="bg-teal-700 px-5 py-4">
+          <p className="text-teal-200 text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
+          <h2 className="text-white font-black text-2xl mt-0.5">{firstName(data.client.name)}</h2>
         </div>
-      </Card>
-
-      {data.nextSession ? (
-        <Card accent="#45B8CC">
-          <div className="p-5">
-            <p className="text-[#6b9b9b] text-xs uppercase tracking-widest mb-2">PRÓXIMA SESSÃO</p>
-            <div className="flex items-center gap-3">
-              <CalendarDays className="w-8 h-8 text-[#45B8CC]" />
-              <div>
-                <p className="text-white font-bold text-lg">{brDate(data.nextSession.scheduledDate)} às {data.nextSession.scheduledTime}</p>
-                <p className="text-[#8fbfbf] text-sm">{data.nextSession.unit || "—"}</p>
-              </div>
-            </div>
+        {/* Meta grid 2×2 */}
+        <div className="grid grid-cols-2 gap-2 p-3">
+          <MetaField label="PROTOCOLOS ATIVOS" value={data.activeProtocolsCount} />
+          <MetaField label="ATENDIMENTOS REALIZADOS" value={`${data.completedSessions} / ${data.totalSessions}`} />
+        </div>
+        {/* Barra de progresso */}
+        <div className="px-3 pb-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
+            <p className="text-cyan-500 font-black text-sm">{pct}%</p>
           </div>
-        </Card>
-      ) : (
-        <Card>
-          <div className="p-5 flex items-center gap-3">
-            <Clock className="w-6 h-6 text-[#6b9b9b]" />
-            <p className="text-[#8fbfbf] text-sm">Nenhuma sessão futura agendada no momento.</p>
+          <div className="concave-3d h-3 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <div className="p-4">
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">PROTOCOLOS ATIVOS</p>
-            <p className="text-white font-bold text-3xl mt-1">{data.activeProtocolsCount}</p>
-          </div>
-        </Card>
-        <Card>
-          <div className="p-4">
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">SESSÕES REALIZADAS</p>
-            <p className="text-white font-bold text-3xl mt-1">{data.completedSessions}<span className="text-[#6b9b9b] text-lg">/{data.totalSessions}</span></p>
-          </div>
-        </Card>
+        </div>
       </div>
 
-      <Card>
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
-            <p className="text-[#d4ae35] font-bold text-sm">{pct}%</p>
+      {/* Próximo atendimento */}
+      {data.nextSession ? (
+        <div className="panel-3d rounded-xl overflow-hidden">
+          {/* TOP BAR */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-teal-200/40">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-cyan-500" />
+              <span className="text-teal-700 text-xs font-black uppercase tracking-widest">PRÓXIMO ATENDIMENTO</span>
+            </div>
+            <StatusBadge status={data.nextSession.status} />
           </div>
-          <div className="h-3 bg-[#0d1f1f] rounded-full overflow-hidden">
-            <div className="h-full bg-[#45B8CC] rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="p-4 grid grid-cols-2 gap-2">
+            <MetaField label="DATA" value={brDate(data.nextSession.scheduledDate)} />
+            <MetaField label="HORA" value={data.nextSession.scheduledTime} />
+            <MetaField label="LOCAL" value={data.nextSession.unit} />
+            <MetaField label="CÓDIGO DE ACESSO" value="Ver WhatsApp" />
           </div>
         </div>
-      </Card>
+      ) : (
+        <div className="panel-3d-sub rounded-xl p-4 flex items-center gap-3">
+          <Clock className="w-5 h-5 text-teal-400 flex-shrink-0" />
+          <p className="text-teal-500 text-sm">Nenhum atendimento futuro agendado.</p>
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-3 pt-1">
-        <button onClick={() => onGo("agenda")} className="flex items-center justify-center gap-2 h-12 bg-[#1a3a3a] border border-[#1e4a4a] rounded-md text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider hover:border-[#d4ae35] transition-colors">
-          <CalendarDays className="w-4 h-4" /> Minha Agenda
+      {/* Validação de código */}
+      <ValidarCodigo client={client} />
+
+      {/* Atalhos */}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => onGo("protocolos")}
+          className="btn-3d-soft flex items-center justify-center gap-2 h-12 text-xs font-black uppercase tracking-wider">
+          <Syringe className="w-4 h-4" /> Protocolos
         </button>
-        <button onClick={() => onGo("documentos")} className="flex items-center justify-center gap-2 h-12 bg-[#1a3a3a] border border-[#1e4a4a] rounded-md text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider hover:border-[#d4ae35] transition-colors">
-          <FileText className="w-4 h-4" /> Meus Documentos
+        <button onClick={() => onGo("documentos")}
+          className="btn-3d-soft flex items-center justify-center gap-2 h-12 text-xs font-black uppercase tracking-wider">
+          <FileText className="w-4 h-4" /> Documentos
         </button>
       </div>
     </div>
@@ -424,7 +530,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
 }
 
 // ---------------------------------------------------------------------------
-// PROTOCOLO
+// PROTOCOLOS — Grade Imaginária aplicada
 // ---------------------------------------------------------------------------
 type ProtoItem = {
   id: number; substanceName: string; color: string; procedureType: string; dose: string;
@@ -437,43 +543,125 @@ type Proto = {
   totalValue: number; items: ProtoItem[];
 };
 
-const PROC_LABELS: Record<string, string> = { iv: "ENDOVENOSO", im: "INTRAMUSCULAR", implant: "IMPLANTE", sc: "SUBCUTÂNEO" };
+function ProtocolCard({ p }: { p: Proto }) {
+  const [expanded, setExpanded] = useState(p.status === "active");
+  const pct = p.totalSessions > 0 ? Math.round((p.completedSessions / p.totalSessions) * 100) : 0;
 
-function ProtocoloTab({ client }: { client: ClientInfo }) {
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden">
+      {/* ZONA 1 — TOP BAR: status + data */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-teal-200/40">
+        <div className="flex items-center gap-2 shrink-0">
+          <StatusBadge status={p.status} />
+        </div>
+        <span className="text-teal-400 text-[10px] font-semibold shrink-0">Início {brDate(p.startDate)}</span>
+      </div>
+
+      {/* ZONA 2 — TÍTULO */}
+      <div className="px-4 pt-3 pb-1">
+        <h3 className="text-teal-900 font-black text-base uppercase truncate">{p.title}</h3>
+      </div>
+
+      {/* ZONA 3 — IDENTIDADE: progresso concave + badge tipo */}
+      <div className="flex items-center gap-2 px-4 pb-3">
+        <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
+          <span className="text-teal-700 text-xs font-black">{p.completedSessions} / {p.totalSessions} atendimentos</span>
+        </div>
+        <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
+          <span className="text-teal-600 text-[10px] font-black uppercase tracking-wider">{PROC_LABELS[p.serviceType] ?? p.serviceType}</span>
+        </div>
+      </div>
+
+      {/* ZONA 4 — META GRID 2×2 */}
+      <div className="grid grid-cols-2 gap-2 px-4 pb-3">
+        <MetaField label="LOCAL" value={p.unit} />
+        <MetaField label="CONCLUSÃO" value={brDate(p.endDate)} />
+      </div>
+
+      {/* ZONA 5 — BARRA DE PROGRESSO */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
+          <span className="text-cyan-500 text-xs font-black">{pct}%</span>
+        </div>
+        <div className="concave-3d h-2.5 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Substâncias — colapsável */}
+      <div className="border-t border-teal-200/40">
+        <button
+          onClick={() => setExpanded((x) => !x)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-teal-600 hover:text-teal-800 transition-colors"
+        >
+          <span className="text-[10px] font-black uppercase tracking-widest">
+            {p.items.length} {p.items.length === 1 ? "substância" : "substâncias"}
+          </span>
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {expanded && (
+          <div className="concave-3d mx-4 mb-4 rounded-xl p-3 space-y-2">
+            {p.items.map((it) => (
+              <div key={it.id} className="panel-3d-sub rounded-lg p-3 border-l-4 flex flex-col gap-1.5"
+                style={{ borderLeftColor: it.color }}>
+                {/* Grade interna da substância */}
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-teal-900 font-black text-sm leading-tight min-w-0 truncate">{it.substanceName}</p>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-teal-500 shrink-0">
+                    {PROC_LABELS[it.procedureType] ?? it.procedureType}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <div className="concave-3d rounded px-2 py-1">
+                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">DOSE</p>
+                    <p className="text-teal-900 text-xs font-semibold">{it.dose || "—"}</p>
+                  </div>
+                  <div className="concave-3d rounded px-2 py-1">
+                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">SESSÕES</p>
+                    <p className="text-teal-900 text-xs font-semibold">{it.completedSessions}/{it.totalSessions}</p>
+                  </div>
+                  <div className="concave-3d rounded px-2 py-1">
+                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">INTERVALO</p>
+                    <p className="text-teal-900 text-xs font-semibold">A cada {it.intervalDays}d</p>
+                  </div>
+                </div>
+                {it.mainFunction && (
+                  <p className="text-teal-500 text-xs leading-snug">{it.mainFunction}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProtocolosTab({ client }: { client: ClientInfo }) {
   const { data, loading, error } = useApi<Proto[]>(client, "protocolos");
   if (loading) return <Loading />;
   if (error) return <ErrorBox msg={error} />;
   if (!data || data.length === 0) return <Empty msg="Você ainda não possui protocolos." />;
 
+  const ativos    = data.filter((p) => p.status === "active");
+  const outros    = data.filter((p) => p.status !== "active");
+
   return (
-    <div className="space-y-4">
-      {data.map((p) => (
-        <Card key={p.id} accent="#3D7A7A">
-          <div className="bg-[#0d1f1f] px-5 py-3 border-b border-[#1e4a4a] flex items-center justify-between">
-            <div>
-              <h3 className="text-white font-bold text-sm">{p.title}</h3>
-              <p className="text-[#6b9b9b] text-xs mt-0.5">Início {brDate(p.startDate)} · {p.unit || "—"}</p>
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0d1f1f] bg-[#45B8CC] px-2 py-1 rounded">{STATUS_LABELS[p.status] || p.status}</span>
-          </div>
-          <div className="p-4 space-y-3">
-            {p.items.map((it) => (
-              <div key={it.id} className="bg-[#0d1f1f] rounded-md p-3 border-l-4" style={{ borderColor: it.color }}>
-                <div className="flex items-center justify-between flex-wrap gap-1">
-                  <p className="text-white font-semibold text-sm">{it.substanceName}</p>
-                  <span className="text-[#6b9b9b] text-[10px] uppercase tracking-wider">{PROC_LABELS[it.procedureType] || it.procedureType}</span>
-                </div>
-                <div className="flex items-center gap-3 mt-1.5 text-xs text-[#8fbfbf] flex-wrap">
-                  <span>Dose: <span className="text-white">{it.dose}</span></span>
-                  <span>Sessões: <span className="text-white">{it.completedSessions}/{it.totalSessions}</span></span>
-                  <span>A cada <span className="text-white">{it.intervalDays}</span> dias</span>
-                </div>
-                {it.mainFunction && <p className="text-[#6b9b9b] text-xs mt-2 leading-snug">{it.mainFunction}</p>}
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+    <div className="space-y-5">
+      {ativos.length > 0 && (
+        <div className="space-y-3">
+          <SecLabel label="PROTOCOLOS ATIVOS" count={ativos.length} />
+          {ativos.map((p) => <ProtocolCard key={p.id} p={p} />)}
+        </div>
+      )}
+      {outros.length > 0 && (
+        <div className="space-y-3">
+          <SecLabel label="HISTÓRICO" count={outros.length} />
+          {outros.map((p) => <ProtocolCard key={p.id} p={p} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -487,216 +675,63 @@ type Sess = {
   unit: string | null; serviceType: string; weekNumber: number; substances: SessSubstance[];
 };
 
-const SESS_BORDER: Record<string, string> = {
-  completed: "#22c55e", confirmed: "#45B8CC", scheduled: "#3D7A7A", missed: "#ef4444", cancelled: "#6b7280",
+const SESS_ACCENT: Record<string, string> = {
+  completed: "border-green-400", confirmed: "border-cyan-400",
+  scheduled: "border-teal-400", missed: "border-red-400", cancelled: "border-slate-300",
 };
 
 function AgendaTab({ client }: { client: ClientInfo }) {
   const { data, loading, error } = useApi<Sess[]>(client, "sessoes");
   if (loading) return <Loading />;
   if (error) return <ErrorBox msg={error} />;
-  if (!data || data.length === 0) return <Empty msg="Você ainda não possui sessões agendadas." />;
+  if (!data || data.length === 0) return <Empty msg="Você ainda não possui atendimentos agendados." />;
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = data.filter((s) => s.scheduledDate >= today);
-  const past = data.filter((s) => s.scheduledDate < today).reverse();
+  const past     = data.filter((s) => s.scheduledDate < today).reverse();
 
   const renderSession = (s: Sess) => (
-    <Card key={s.id} accent={SESS_BORDER[s.status] || "#3D7A7A"}>
-      <div className="p-4">
-        <div className="flex items-center justify-between flex-wrap gap-1">
-          <p className="text-white font-bold text-sm">{brDate(s.scheduledDate)} · {s.scheduledTime}</p>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbfbf]">{STATUS_LABELS[s.status] || s.status}</span>
-        </div>
-        <p className="text-[#6b9b9b] text-xs mt-0.5">{s.unit || "—"}</p>
-        {s.substances.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {s.substances.map((sub, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-[11px] text-white bg-[#0d1f1f] px-2 py-1 rounded border-l-2" style={{ borderColor: sub.color }}>
-                {sub.status === "applied" && <CheckCircle className="w-3 h-3 text-green-400" />}
-                {sub.substanceName} <span className="text-[#6b9b9b]">{sub.dose}</span>
-              </span>
-            ))}
-          </div>
-        )}
+    <div key={s.id} className={`panel-3d rounded-xl overflow-hidden border-l-4 ${SESS_ACCENT[s.status] ?? "border-teal-300"}`}>
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-teal-200/40">
+        <span className="text-teal-700 text-xs font-black">{brDate(s.scheduledDate)} · {s.scheduledTime}</span>
+        <StatusBadge status={s.status} />
       </div>
-    </Card>
-  );
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-[#d4ae35] text-xs font-bold uppercase tracking-widest mb-2">PRÓXIMAS SESSÕES</p>
-        {upcoming.length === 0 ? <Empty msg="Sem sessões futuras." /> : <div className="space-y-3">{upcoming.map(renderSession)}</div>}
+      {/* Meta grid */}
+      <div className="grid grid-cols-2 gap-2 p-3">
+        <MetaField label="LOCAL" value={s.unit} />
+        <MetaField label="PROCEDIMENTO" value={PROC_LABELS[s.serviceType] ?? s.serviceType} />
       </div>
-      {past.length > 0 && (
-        <div>
-          <p className="text-[#6b9b9b] text-xs font-bold uppercase tracking-widest mb-2">SESSÕES ANTERIORES</p>
-          <div className="space-y-3">{past.map(renderSession)}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// FINANCEIRO
-// ---------------------------------------------------------------------------
-type Pay = {
-  id: number; amount: number; method: string; status: string; dueDate: string | null;
-  paidAt: string | null; description: string | null; installments: number | null; cardLabel: string | null;
-};
-type Financeiro = { totalPago: number; totalPendente: number; payments: Pay[] };
-
-function FinanceiroTab({ client }: { client: ClientInfo }) {
-  const { data, loading, error } = useApi<Financeiro>(client, "financeiro");
-  if (loading) return <Loading />;
-  if (error) return <ErrorBox msg={error} />;
-  if (!data) return null;
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Card accent="#22c55e">
-          <div className="p-4">
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">TOTAL PAGO</p>
-            <p className="text-green-400 font-bold text-xl mt-1">{brMoney(data.totalPago)}</p>
-          </div>
-        </Card>
-        <Card accent="#d4ae35">
-          <div className="p-4">
-            <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">PENDENTE</p>
-            <p className="text-[#d4ae35] font-bold text-xl mt-1">{brMoney(data.totalPendente)}</p>
-          </div>
-        </Card>
-      </div>
-
-      {data.payments.length === 0 ? (
-        <Empty msg="Nenhum pagamento registrado." />
-      ) : (
-        <div className="space-y-3">
-          {data.payments.map((p) => (
-            <Card key={p.id} accent={p.status === "paid" ? "#22c55e" : "#d4ae35"}>
-              <div className="p-4">
-                <div className="flex items-center justify-between flex-wrap gap-1">
-                  <p className="text-white font-bold text-base">{brMoney(p.amount)}</p>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${p.status === "paid" ? "bg-green-900/40 text-green-300" : "bg-[#d4ae35]/20 text-[#d4ae35]"}`}>{STATUS_LABELS[p.status] || p.status}</span>
-                </div>
-                <div className="flex items-center gap-3 mt-1.5 text-xs text-[#8fbfbf] flex-wrap">
-                  <span>{METHOD_LABELS[p.method] || p.method.toUpperCase()}</span>
-                  {p.installments && p.installments > 1 && <span>{p.installments}x</span>}
-                  {p.cardLabel && <span>{p.cardLabel}</span>}
-                </div>
-                {p.description && <p className="text-[#6b9b9b] text-xs mt-1.5">{p.description}</p>}
-                <p className="text-[#6b9b9b] text-[11px] mt-1.5">
-                  {p.status === "paid" ? `Pago em ${brDate(p.paidAt)}` : `Vence em ${brDate(p.dueDate)}`}
-                </p>
-              </div>
-            </Card>
+      {/* Substâncias */}
+      {s.substances.length > 0 && (
+        <div className="concave-3d mx-3 mb-3 rounded-xl p-2.5 flex flex-wrap gap-1.5">
+          {s.substances.map((sub, i) => (
+            <span key={i}
+              className="inline-flex items-center gap-1 text-[11px] text-teal-800 bg-white/60 px-2 py-1 rounded border-l-2"
+              style={{ borderLeftColor: sub.color }}>
+              {sub.status === "applied" && <CheckCircle className="w-3 h-3 text-green-500" />}
+              {sub.substanceName}
+              {sub.dose && <span className="text-teal-400">{sub.dose}</span>}
+            </span>
           ))}
         </div>
       )}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// EXAMES
-// ---------------------------------------------------------------------------
-type Exam = { id: number; token: string; tipo: string; fileName: string; examCount: number; observacao: string | null; createdAt: string };
-
-function ExamesTab({ client }: { client: ClientInfo }) {
-  const { data, loading, error } = useApi<Exam[]>(client, "exames");
-  if (loading) return <Loading />;
-  if (error) return <ErrorBox msg={error} />;
-  if (!data || data.length === 0) return <Empty msg="Nenhuma solicitação de exame disponível." />;
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[#6b9b9b] text-xs">Solicitações de exames emitidas pela clínica. Toque para abrir o PDF.</p>
-      {data.map((e) => (
-        <Card key={e.id} accent="#45B8CC">
-          <a
-            href={`${API_BASE}/api/exam-requests/file/${e.token}`}
-            target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 hover:bg-[#1e4a4a]/40 transition-colors"
-          >
-            <FlaskConical className="w-6 h-6 text-[#45B8CC] flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-white font-semibold text-sm truncate">{e.tipo}</p>
-              <p className="text-[#6b9b9b] text-xs">{e.examCount} exame(s) · {brDate(e.createdAt)}</p>
-            </div>
-            <Download className="w-5 h-5 text-[#8fbfbf] flex-shrink-0" />
-          </a>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// DOCUMENTOS
-// ---------------------------------------------------------------------------
-type RasDoc = { id: number; serviceDate: string; unit: string; serviceType: string; professionalName: string };
-type ProtoDoc = { id: number; title: string; startDate: string; status: string };
-type Documentos = { ras: RasDoc[]; protocols: ProtoDoc[] };
-
-function DocumentosTab({ client }: { client: ClientInfo }) {
-  const { data, loading, error } = useApi<Documentos>(client, "documentos");
-  if (loading) return <Loading />;
-  if (error) return <ErrorBox msg={error} />;
-  if (!data) return null;
-
-  const noDocs = data.ras.length === 0 && data.protocols.length === 0;
-  if (noDocs) return <Empty msg="Nenhum documento disponível ainda." />;
 
   return (
     <div className="space-y-5">
-      {data.protocols.length > 0 && (
-        <div>
-          <p className="text-[#d4ae35] text-xs font-bold uppercase tracking-widest mb-2">PROTOCOLOS COMPLETOS</p>
-          <div className="space-y-3">
-            {data.protocols.map((p) => (
-              <Card key={p.id} accent="#3D7A7A">
-                <a
-                  href={`${API_BASE}/api/area-paciente/protocolo/${p.id}/pdf?token=${client.token}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 hover:bg-[#1e4a4a]/40 transition-colors"
-                >
-                  <FileText className="w-6 h-6 text-[#3D7A7A] flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-semibold text-sm truncate">{p.title}</p>
-                    <p className="text-[#6b9b9b] text-xs">Documento completo · {brDate(p.startDate)}</p>
-                  </div>
-                  <Download className="w-5 h-5 text-[#8fbfbf] flex-shrink-0" />
-                </a>
-              </Card>
-            ))}
-          </div>
+      {upcoming.length > 0 && (
+        <div className="space-y-3">
+          <SecLabel label="PRÓXIMOS ATENDIMENTOS" count={upcoming.length} />
+          {upcoming.map(renderSession)}
         </div>
       )}
-
-      {data.ras.length > 0 && (
-        <div>
-          <p className="text-[#d4ae35] text-xs font-bold uppercase tracking-widest mb-2">RAS — REGISTROS DE APLICAÇÃO ASSINADOS</p>
-          <div className="space-y-3">
-            {data.ras.map((r) => (
-              <Card key={r.id} accent="#45B8CC">
-                <a
-                  href={`${API_BASE}/api/area-paciente/ras/${r.id}/pdf?token=${client.token}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 hover:bg-[#1e4a4a]/40 transition-colors"
-                >
-                  <FileText className="w-6 h-6 text-[#45B8CC] flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-semibold text-sm">RAS {brDate(r.serviceDate)}</p>
-                    <p className="text-[#6b9b9b] text-xs truncate">{r.professionalName} · {r.unit}</p>
-                  </div>
-                  <Download className="w-5 h-5 text-[#8fbfbf] flex-shrink-0" />
-                </a>
-              </Card>
-            ))}
-          </div>
+      {upcoming.length === 0 && <Empty msg="Sem atendimentos futuros agendados." />}
+      {past.length > 0 && (
+        <div className="space-y-3">
+          <SecLabel label="HISTÓRICO" count={past.length} />
+          {past.map(renderSession)}
         </div>
       )}
     </div>
@@ -704,24 +739,177 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 }
 
 // ---------------------------------------------------------------------------
-// ENVIAR DOCUMENTO (reusa logica do portal)
+// DOCUMENTOS — categorias colapsáveis + Financeiro + Exames
+// ---------------------------------------------------------------------------
+type RasDoc    = { id: number; serviceDate: string; unit: string; serviceType: string; professionalName: string };
+type ProtoDoc  = { id: number; title: string; startDate: string; status: string };
+type Documentos = { ras: RasDoc[]; protocols: ProtoDoc[] };
+type Pay = { id: number; amount: number; method: string; status: string; dueDate: string | null; paidAt: string | null; description: string | null; installments: number | null; cardLabel: string | null };
+type Financeiro = { totalPago: number; totalPendente: number; payments: Pay[] };
+type Exam = { id: number; token: string; tipo: string; fileName: string; examCount: number; observacao: string | null; createdAt: string };
+
+function CategorySection({ label, count, defaultOpen, children }: {
+  label: string; count: number; defaultOpen?: boolean; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen((x) => !x)}
+        className="w-full flex items-center justify-between px-4 py-3 border-b border-teal-200/40"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-teal-700 text-xs font-black uppercase tracking-widest">{label}</span>
+          <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded">{count}</span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-teal-400" /> : <ChevronDown className="w-4 h-4 text-teal-400" />}
+      </button>
+      {open && <div className="p-3 space-y-2">{children}</div>}
+    </div>
+  );
+}
+
+function DocumentosTab({ client }: { client: ClientInfo }) {
+  const docs = useApi<Documentos>(client, "documentos");
+  const fin  = useApi<Financeiro>(client,  "financeiro");
+  const exams = useApi<Exam[]>(client,     "exames");
+
+  if (docs.loading || fin.loading || exams.loading) return <Loading />;
+  if (docs.error) return <ErrorBox msg={docs.error} />;
+
+  const d = docs.data;
+  const f = fin.data;
+  const e = exams.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* RAS */}
+      {d && d.ras.length > 0 && (
+        <CategorySection label="REGISTROS DE APLICAÇÃO (RAS)" count={d.ras.length} defaultOpen>
+          {d.ras.map((r) => (
+            <a key={r.id}
+              href={`${API_BASE}/api/area-paciente/ras/${r.id}/pdf?token=${client.token}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+            >
+              <FileText className="w-5 h-5 text-cyan-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-teal-900 font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
+                <p className="text-teal-400 text-xs truncate">{r.professionalName} · {r.unit}</p>
+              </div>
+              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+            </a>
+          ))}
+        </CategorySection>
+      )}
+
+      {/* Protocolos PDF */}
+      {d && d.protocols.length > 0 && (
+        <CategorySection label="PROTOCOLOS COMPLETOS (PDF)" count={d.protocols.length} defaultOpen>
+          {d.protocols.map((p) => (
+            <a key={p.id}
+              href={`${API_BASE}/api/area-paciente/protocolo/${p.id}/pdf?token=${client.token}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+            >
+              <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-teal-900 font-semibold text-sm truncate">{p.title}</p>
+                <p className="text-teal-400 text-xs">Documento completo · {brDate(p.startDate)}</p>
+              </div>
+              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+            </a>
+          ))}
+        </CategorySection>
+      )}
+
+      {/* Exames solicitados */}
+      {e.length > 0 && (
+        <CategorySection label="SOLICITAÇÕES DE EXAMES" count={e.length} defaultOpen={false}>
+          {e.map((ex) => (
+            <a key={ex.id}
+              href={`${API_BASE}/api/exam-requests/file/${ex.token}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+            >
+              <FlaskConical className="w-5 h-5 text-teal-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-teal-900 font-semibold text-sm truncate">{ex.tipo}</p>
+                <p className="text-teal-400 text-xs">{ex.examCount} exame(s) · {brDate(ex.createdAt)}</p>
+              </div>
+              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+            </a>
+          ))}
+        </CategorySection>
+      )}
+
+      {/* Contratos — slot permanente */}
+      <CategorySection label="CONTRATOS E PAGAMENTOS" count={f?.payments.length ?? 0} defaultOpen={false}>
+        {f ? (
+          <>
+            {/* Resumo financeiro */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="concave-3d rounded-lg px-3 py-2">
+                <p className="text-[9px] font-black text-teal-500 uppercase tracking-widest">TOTAL PAGO</p>
+                <p className="text-green-600 font-black text-base">{brMoney(f.totalPago)}</p>
+              </div>
+              <div className="concave-3d rounded-lg px-3 py-2">
+                <p className="text-[9px] font-black text-teal-500 uppercase tracking-widest">PENDENTE</p>
+                <p className="text-amber-600 font-black text-base">{brMoney(f.totalPendente)}</p>
+              </div>
+            </div>
+            {f.payments.length === 0 && <p className="text-teal-400 text-xs text-center py-2">Nenhum pagamento registrado.</p>}
+            {f.payments.map((p) => (
+              <div key={p.id} className="panel-3d-sub rounded-lg p-3 border-l-4"
+                style={{ borderLeftColor: p.status === "paid" ? "#22c55e" : "#f59e0b" }}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-teal-900 font-black text-base">{brMoney(p.amount)}</p>
+                  <StatusBadge status={p.status} />
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-teal-400 flex-wrap">
+                  <span>{METHOD_LABELS[p.method] ?? p.method.toUpperCase()}</span>
+                  {p.installments && p.installments > 1 && <span>{p.installments}x</span>}
+                  {p.cardLabel && <span>{p.cardLabel}</span>}
+                </div>
+                {p.description && <p className="text-teal-400 text-xs mt-1">{p.description}</p>}
+                <p className="text-teal-400 text-[11px] mt-1">
+                  {p.status === "paid" ? `Pago em ${brDate(p.paidAt)}` : `Vence em ${brDate(p.dueDate)}`}
+                </p>
+              </div>
+            ))}
+          </>
+        ) : fin.error ? (
+          <p className="text-red-400 text-xs">{fin.error}</p>
+        ) : (
+          <p className="text-teal-400 text-xs text-center py-2">—</p>
+        )}
+      </CategorySection>
+
+      {(!d || (d.ras.length === 0 && d.protocols.length === 0)) && e.length === 0 && !f?.payments.length && (
+        <Empty msg="Nenhum documento disponível ainda." />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ENVIAR DOCUMENTO
 // ---------------------------------------------------------------------------
 function EnviarTab({ client }: { client: ClientInfo }) {
-  const [fileType, setFileType] = useState("");
-  const [bodyRegion, setBodyRegion] = useState("");
+  const [fileType, setFileType]       = useState("");
+  const [bodyRegion, setBodyRegion]   = useState("");
   const [description, setDescription] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState<{ fileName: string } | null>(null);
+  const [uploading, setUploading]     = useState(false);
+  const [error, setError]             = useState("");
+  const [done, setDone]               = useState<{ fileName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile || !fileType) return;
-    setUploading(true);
-    setError("");
+    setUploading(true); setError("");
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -729,16 +917,12 @@ function EnviarTab({ client }: { client: ClientInfo }) {
       formData.append("fileType", fileType);
       if (bodyRegion) formData.append("bodyRegion", bodyRegion);
       if (description) formData.append("description", description);
-
       const res = await fetch(`${API_BASE}/api/client-portal/upload`, { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erro ao enviar"); return; }
       setDone(data);
-    } catch {
-      setError("Erro de conexão. Tente novamente.");
-    } finally {
-      setUploading(false);
-    }
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setUploading(false); }
   }, [selectedFile, fileType, bodyRegion, description, client.token]);
 
   const reset = () => {
@@ -747,40 +931,37 @@ function EnviarTab({ client }: { client: ClientInfo }) {
 
   if (done) {
     return (
-      <Card>
-        <div className="p-8 flex flex-col items-center text-center space-y-4">
-          <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center">
-            <CheckCircle className="w-8 h-8 text-green-400" />
-          </div>
-          <h2 className="text-white font-bold text-lg uppercase">ARQUIVO ENVIADO!</h2>
-          <p className="text-[#8fbfbf] text-sm">Seu arquivo foi recebido e será processado pela equipe.</p>
-          <div className="bg-[#0d1f1f] rounded-md px-4 py-3 w-full text-left">
-            <p className="text-[#6b9b9b] text-xs uppercase">Arquivo</p>
-            <p className="text-white text-sm font-mono truncate">{done.fileName}</p>
-          </div>
-          <button onClick={reset} className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md transition-colors">
-            ENVIAR OUTRO ARQUIVO
-          </button>
+      <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4">
+        <div className="w-16 h-16 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
+          <CheckCircle className="w-8 h-8 text-green-500" />
         </div>
-      </Card>
+        <h2 className="text-teal-900 font-black text-lg uppercase">ARQUIVO ENVIADO!</h2>
+        <p className="text-teal-500 text-sm">Seu arquivo foi recebido e será processado pela equipe.</p>
+        <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
+          <p className="text-teal-400 text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
+          <p className="text-teal-900 text-sm font-mono truncate">{done.fileName}</p>
+        </div>
+        <button onClick={reset} className="btn-3d w-full h-12 text-sm font-black uppercase tracking-wider">
+          ENVIAR OUTRO ARQUIVO
+        </button>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <div className="bg-[#0d1f1f] px-5 py-4 border-b border-[#1e4a4a]">
-        <div className="flex items-center gap-3">
-          <FileUp className="w-5 h-5 text-[#d4ae35]" />
-          <h2 className="text-white font-semibold text-sm uppercase tracking-wide">ENVIAR ARQUIVO</h2>
-        </div>
+    <div className="panel-3d rounded-xl overflow-hidden">
+      {/* TOP BAR */}
+      <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
+        <FileUp className="w-5 h-5 text-cyan-300" />
+        <h2 className="text-white font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>
-          <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">TIPO DO ARQUIVO</label>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">TIPO DO ARQUIVO</label>
           <select
             value={fileType}
             onChange={(e) => { setFileType(e.target.value); setBodyRegion(""); setError(""); }}
-            className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent appearance-none"
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg appearance-none"
           >
             <option value="" disabled>Selecione o tipo...</option>
             {FILE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -789,11 +970,11 @@ function EnviarTab({ client }: { client: ClientInfo }) {
 
         {showBodyRegion && (
           <div>
-            <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">REGIÃO DO CORPO <span className="text-[#3a6666]">(OPCIONAL)</span></label>
+            <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">REGIÃO DO CORPO <span className="text-teal-300">(OPCIONAL)</span></label>
             <select
               value={bodyRegion}
               onChange={(e) => setBodyRegion(e.target.value)}
-              className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent appearance-none"
+              className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg appearance-none"
             >
               <option value="">Selecione a região...</option>
               {BODY_REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -802,35 +983,37 @@ function EnviarTab({ client }: { client: ClientInfo }) {
         )}
 
         <div>
-          <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">DESCRIÇÃO <span className="text-[#3a6666]">(OPCIONAL)</span></label>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DESCRIÇÃO <span className="text-teal-300">(OPCIONAL)</span></label>
           <input
-            type="text" placeholder="Ex: hemograma completo, raio-x do joelho..." value={description}
+            type="text" placeholder="Ex: hemograma completo, raio-x do joelho..."
+            value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
           />
         </div>
 
         <div>
-          <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">ARQUIVO</label>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">ARQUIVO</label>
           <input
-            ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"
+            ref={fileInputRef} type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"
             onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); setError(""); }}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full h-24 bg-[#0d1f1f] border-2 border-dashed border-[#1e4a4a] rounded-md flex flex-col items-center justify-center gap-2 hover:border-[#d4ae35] transition-colors"
+            className="concave-3d w-full h-24 rounded-xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-teal-200 hover:border-cyan-400 transition-colors"
           >
             {selectedFile ? (
               <>
-                <CheckCircle className="w-6 h-6 text-green-400" />
-                <span className="text-white text-sm font-medium truncate max-w-[90%]">{selectedFile.name}</span>
-                <span className="text-[#6b9b9b] text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
+                <CheckCircle className="w-6 h-6 text-green-500" />
+                <span className="text-teal-900 text-sm font-semibold truncate max-w-[90%]">{selectedFile.name}</span>
+                <span className="text-teal-400 text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
               </>
             ) : (
               <>
-                <Upload className="w-6 h-6 text-[#6b9b9b]" />
-                <span className="text-[#6b9b9b] text-sm">Toque para selecionar arquivo</span>
+                <Upload className="w-6 h-6 text-teal-400" />
+                <span className="text-teal-500 text-sm">Toque para selecionar arquivo</span>
               </>
             )}
           </button>
@@ -841,11 +1024,11 @@ function EnviarTab({ client }: { client: ClientInfo }) {
         <button
           onClick={handleUpload}
           disabled={uploading || !selectedFile || !fileType}
-          className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {uploading ? <><Loader2 className="w-5 h-5 animate-spin" /> ENVIANDO...</> : <><Upload className="w-5 h-5" /> ENVIAR ARQUIVO</>}
         </button>
       </div>
-    </Card>
+    </div>
   );
 }

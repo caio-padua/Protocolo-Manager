@@ -1,5 +1,5 @@
 import { Router, type IRouter, Request, Response } from "express";
-import { eq, and, gte, asc, desc } from "drizzle-orm";
+import { eq, and, gte, lte, asc, desc } from "drizzle-orm";
 import {
   db,
   clientsTable,
@@ -12,6 +12,7 @@ import {
   rasTable,
   examRequestPdfsTable,
   professionalsTable,
+  validationCodesTable,
 } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
@@ -492,4 +493,72 @@ router.get("/area-paciente/protocolo/:id/pdf", async (req: Request, res: Respons
   }
 });
 
+// --- VALIDAR CÓDIGO DE PRESENÇA -----------------------------------------
+// Aceita: código do dia (validation_codes) OU senha permanente (clients.validationPassword)
+// Retorna { ok, mensagem, sessaoId? }
+router.post("/area-paciente/validar-codigo", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+
+  const { codigo } = req.body as { codigo?: string };
+  if (!codigo || typeof codigo !== "string" || codigo.trim().length === 0) {
+    res.status(400).json({ ok: false, error: "Código obrigatório" });
+    return;
+  }
+
+  const codigoLimpo = codigo.trim().toUpperCase();
+
+  try {
+    // 1) Verificar se é a senha permanente do protocolo (validationPassword do cliente)
+    const [client] = await db
+      .select({ id: clientsTable.id, validationPassword: clientsTable.validationPassword })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, clientId));
+
+    if (!client) { unauthorized(res); return; }
+
+    if (client.validationPassword && client.validationPassword.toUpperCase() === codigoLimpo) {
+      res.json({ ok: true, mensagem: "Senha permanente verificada. Obrigado!" });
+      return;
+    }
+
+    // 2) Verificar nos códigos diários (tabela validation_codes)
+    // Aceita código não expirado e ainda não utilizado
+    const now = new Date();
+    const [vcode] = await db
+      .select()
+      .from(validationCodesTable)
+      .where(
+        and(
+          eq(validationCodesTable.clientId, clientId),
+          eq(validationCodesTable.code, codigoLimpo),
+          eq(validationCodesTable.used, false),
+          gte(validationCodesTable.expiresAt, now)
+        )
+      )
+      .limit(1);
+
+    if (!vcode) {
+      res.status(400).json({ ok: false, mensagem: "Código inválido ou expirado. Verifique o WhatsApp e tente novamente." });
+      return;
+    }
+
+    // Marcar como usado
+    await db
+      .update(validationCodesTable)
+      .set({ used: true, usedAt: now })
+      .where(eq(validationCodesTable.id, vcode.id));
+
+    res.json({
+      ok: true,
+      sessaoId: vcode.sessionId,
+      mensagem: "Presença confirmada com sucesso. Bom atendimento!",
+    });
+  } catch (err: any) {
+    req.log?.error({ err }, "[AreaPaciente] validar-codigo error");
+    res.status(500).json({ ok: false, error: "Erro interno" });
+  }
+});
+
 export default router;
+
