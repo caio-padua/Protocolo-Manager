@@ -385,12 +385,12 @@ export default function ExamesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary">
+      <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
+        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
           <ClipboardList className="w-6 h-6" />
         </div>
-        <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Prescritor de Exames</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Prescritor de Exames</h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
             Separa SANGUE e IMAGEM e gera PDF por tipo, sem misturar.
           </p>
@@ -428,7 +428,7 @@ export default function ExamesPage() {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Select value={categoria} onValueChange={setCategoria}>
-                  <SelectTrigger className="rounded-md">
+                  <SelectTrigger className="field-engraved">
                     <SelectValue placeholder="Categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -441,9 +441,9 @@ export default function ExamesPage() {
                   </SelectContent>
                 </Select>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    className="pl-9 rounded-md"
+                    className="pl-9 field-engraved"
                     placeholder="Buscar exame..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -464,9 +464,9 @@ export default function ExamesPage() {
                   const Meta = TIPO_META[tipo];
                   const Icon = Meta.icon;
                   return (
-                    <div key={tipo} className="border rounded-md overflow-hidden">
+                    <div key={tipo} className="panel-3d overflow-hidden">
                       <div
-                        className="px-4 py-2 flex items-center gap-2 text-white text-xs font-bold uppercase tracking-wider"
+                        className="px-4 py-2.5 flex items-center gap-2 text-white text-xs font-black uppercase tracking-wider"
                         style={{ background: Meta.color }}
                       >
                         <Icon className="w-4 h-4" />
@@ -477,7 +477,7 @@ export default function ExamesPage() {
                         {list.map((e) => (
                           <label
                             key={e.id}
-                            className="flex items-start gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer"
+                            className="flex items-start gap-3 px-4 py-2 neon-hover cursor-pointer"
                           >
                             <Checkbox
                               checked={!!cart[e.id]}
@@ -485,8 +485,8 @@ export default function ExamesPage() {
                               className="mt-0.5"
                             />
                             <div className="min-w-0">
-                              <div className="text-sm text-slate-800">{e.nomeExame}</div>
-                              <div className="text-xs text-slate-400">
+                              <div className="text-sm text-foreground">{e.nomeExame}</div>
+                              <div className="text-xs text-muted-foreground">
                                 {[e.codigoExame, e.grupoPrincipal].filter(Boolean).join(" • ")}
                               </div>
                             </div>
@@ -501,18 +501,21 @@ export default function ExamesPage() {
           ) : (
             <>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  className="pl-9 rounded-md"
+                  className="pl-9 field-engraved"
                   placeholder="Buscar bloco..."
                   value={blocoSearch}
                   onChange={(e) => setBlocoSearch(e.target.value)}
                 />
               </div>
-              <p className="text-xs text-slate-500">
-                Escolha um bloco e clique em um grau (Básica, Intermediária ou Sofisticada) para adicionar todos os
-                exames daquele painel ao carrinho de uma vez.
-              </p>
+              <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-xs text-muted-foreground">
+                <Layers className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                <span>
+                  Escolha um bloco e clique em um grau (Básica, Intermediária ou Sofisticada) para adicionar todos os
+                  exames daquele painel ao carrinho de uma vez.
+                </span>
+              </div>
 
               {blocosLoading ? (
                 <div className="space-y-2">
@@ -526,12 +529,11 @@ export default function ExamesPage() {
                     <AccordionItem
                       key={b.codigoBloco}
                       value={b.codigoBloco}
-                      className="border rounded-md px-4"
-                      style={{ borderLeft: "3px solid #3D7A7A" }}
+                      className="panel-3d-sub border-l-4 border-primary/50 px-4"
                     >
-                      <AccordionTrigger className="hover:no-underline">
+                      <AccordionTrigger className="hover:no-underline neon-hover">
                         <div className="flex flex-1 items-center justify-between pr-3">
-                          <span className="text-sm font-semibold text-slate-800">{b.nomeBloco}</span>
+                          <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
                           <div className="flex items-center gap-2">
                             {b.tipoMacro && (
                               <Badge variant="secondary" className="text-[10px] uppercase">
@@ -547,21 +549,20 @@ export default function ExamesPage() {
                       <AccordionContent>
                         <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-3">
                           {b.graus.map((g) => (
-                            <div key={g.grau} className="rounded-md border bg-slate-50/60 p-3 flex flex-col">
-                              <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[#3D7A7A]">
+                            <div key={g.grau} className="panel-3d-sub p-3 flex flex-col">
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
                                 {g.grau} ({g.exames.length})
                               </div>
                               <ul className="space-y-0.5 mb-3 flex-1">
                                 {g.exames.map((ex, i) => (
-                                  <li key={i} className="text-xs text-slate-600">
+                                  <li key={i} className="text-xs text-muted-foreground">
                                     {ex.nomeExame}
                                   </li>
                                 ))}
                               </ul>
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="rounded-md w-full text-[#3D7A7A] border-[#3D7A7A]/40 hover:bg-[#3D7A7A]/5"
+                                className="btn-3d-soft w-full"
                                 onClick={() => addBlocoGrau(b, g)}
                               >
                                 <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar painel
@@ -595,7 +596,7 @@ export default function ExamesPage() {
                 Médico solicitante (opcional)
               </label>
               <Select value={professionalId} onValueChange={setProfessionalId}>
-                <SelectTrigger className="rounded-md">
+                <SelectTrigger className="field-engraved">
                   <SelectValue placeholder="Selecionar médico" />
                 </SelectTrigger>
                 <SelectContent>
@@ -616,7 +617,7 @@ export default function ExamesPage() {
               <span className="screen-3d text-xs font-black px-2 py-0.5">{cartList.length}</span>
             </div>
             {cartList.length === 0 ? (
-              <p className="text-sm text-slate-400">Marque os exames à esquerda.</p>
+              <p className="text-sm text-muted-foreground">Marque os exames à esquerda.</p>
             ) : (
               (Object.keys(TIPO_META) as Tipo[]).map((tipo) => {
                 const list = cartByTipo[tipo];
@@ -628,11 +629,11 @@ export default function ExamesPage() {
                       {Meta.label} ({list.length})
                     </div>
                     {list.map((i) => (
-                      <div key={i.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <div key={i.id} className="flex items-center gap-2 text-sm text-foreground/80">
                         <span className="truncate flex-1">{i.nomeExame}</span>
                         <button
                           onClick={() => removeFromCart(i.id)}
-                          className="text-slate-400 hover:text-red-600"
+                          className="text-muted-foreground hover:text-red-600"
                           aria-label="Remover"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -652,15 +653,15 @@ export default function ExamesPage() {
               placeholder="Jejum, instruções, etc."
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
-              className="rounded-md"
+              className="field-engraved"
             />
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
               <Checkbox checked={sendEmail} onCheckedChange={(v) => setSendEmail(!!v)} />
-              <Mail className="w-4 h-4 text-slate-500" /> Enviar por e-mail ao paciente
+              <Mail className="w-4 h-4 text-muted-foreground" /> Enviar por e-mail ao paciente
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
               <Checkbox checked={sendWhatsapp} onCheckedChange={(v) => setSendWhatsapp(!!v)} />
-              <MessageCircle className="w-4 h-4 text-slate-500" /> Enviar por WhatsApp ao paciente
+              <MessageCircle className="w-4 h-4 text-muted-foreground" /> Enviar por WhatsApp ao paciente
             </label>
             <Button
               className="btn-3d w-full"

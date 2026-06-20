@@ -84,8 +84,6 @@ interface Categoria {
   total: number;
 }
 
-const PETROLEO = "#3D7A7A";
-
 type FormState = {
   id: number | null;
   codigoExame: string;
@@ -243,12 +241,12 @@ function ExamesTab() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar exame..."
-            className="pl-9"
+            className="pl-9 field-engraved"
           />
         </div>
         <div className="flex items-center gap-3">
           <Select value={categoria} onValueChange={setCategoria}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-[220px] field-engraved">
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
@@ -260,9 +258,9 @@ function ExamesTab() {
               ))}
             </SelectContent>
           </Select>
-          <Badge variant="outline" className="whitespace-nowrap text-xs font-semibold">
+          <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
             {isLoading ? "..." : `${filtered.length} de ${exams?.length ?? 0}`}
-          </Badge>
+          </div>
           <Button onClick={openNew} className="btn-3d">
             <Plus className="mr-1.5 h-4 w-4" /> Novo exame
           </Button>
@@ -330,66 +328,74 @@ function ExamesTab() {
           </DialogHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Código *</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Código *</label>
               <Input
                 value={form.codigoExame}
                 disabled={form.id !== null}
                 onChange={(e) => setForm((f) => ({ ...f, codigoExame: e.target.value }))}
                 placeholder="EX: EXAMSANGUE0001"
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Nome do exame *</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Nome do exame *</label>
               <Input
                 value={form.nomeExame}
                 onChange={(e) => setForm((f) => ({ ...f, nomeExame: e.target.value }))}
                 placeholder="Ex.: Hemograma completo"
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Grupo / Categoria</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Grupo / Categoria</label>
               <Input
                 value={form.grupoPrincipal}
                 onChange={(e) => setForm((f) => ({ ...f, grupoPrincipal: e.target.value }))}
                 placeholder="Ex.: HEMATOLOGICO"
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Subgrupo</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Subgrupo</label>
               <Input
                 value={form.subgrupo}
                 onChange={(e) => setForm((f) => ({ ...f, subgrupo: e.target.value }))}
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Modalidade</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Modalidade</label>
               <Input
                 value={form.modalidade}
                 onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))}
                 placeholder="Ex.: USG, TC, RM (vazio = sangue)"
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Material / Setor</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Material / Setor</label>
               <Input
                 value={form.materialOuSetor}
                 onChange={(e) => setForm((f) => ({ ...f, materialOuSetor: e.target.value }))}
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Finalidade principal</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Finalidade principal</label>
               <Input
                 value={form.finalidadePrincipal}
                 onChange={(e) => setForm((f) => ({ ...f, finalidadePrincipal: e.target.value }))}
+                className="field-engraved"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Preparo</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Preparo</label>
               <Textarea
                 rows={2}
                 value={form.preparo}
                 onChange={(e) => setForm((f) => ({ ...f, preparo: e.target.value }))}
                 placeholder="Ex.: Jejum de 8 horas"
+                className="field-engraved"
               />
             </div>
           </div>
@@ -452,17 +458,20 @@ function BlocosTab() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar bloco..."
-            className="pl-9"
+            className="pl-9 field-engraved"
           />
         </div>
-        <Badge variant="outline" className="whitespace-nowrap text-xs font-semibold">
+        <div className="screen-3d px-3 py-1.5 text-xs font-black whitespace-nowrap tracking-wide">
           {filtered.length} blocos
-        </Badge>
+        </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada). No Prescritor de Exames você
-        adiciona um painel inteiro de uma só vez.
-      </p>
+      <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
+        <Boxes className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+        <span>
+          Cada bloco é um painel de exames com graus (Básica, Intermediária, Sofisticada). No Prescritor de Exames você
+          adiciona um painel inteiro de uma só vez.
+        </span>
+      </div>
 
       <Accordion type="multiple" className="space-y-2">
         {filtered.map((b) => (
@@ -495,7 +504,7 @@ function BlocosTab() {
                     </div>
                     <ul className="space-y-0.5">
                       {g.exames.map((ex, i) => (
-                        <li key={i} className="text-xs text-slate-600">
+                        <li key={i} className="text-xs text-muted-foreground">
                           {ex.nomeExame}
                         </li>
                       ))}
@@ -534,9 +543,12 @@ function CategoriasTab() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Categorias são o campo "Grupo" de cada exame. Para mover um exame de categoria, edite o exame na aba Exames.
-      </p>
+      <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
+        <Tags className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+        <span>
+          Categorias são o campo "Grupo" de cada exame. Para mover um exame de categoria, edite o exame na aba Exames.
+        </span>
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
         {(data ?? []).map((c) => (
           <div
@@ -556,12 +568,12 @@ function CategoriasTab() {
 export default function CadastroExames() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="bevel-3d w-11 h-11 flex items-center justify-center text-primary">
+      <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
+        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
           <FolderTree className="h-6 w-6" />
         </div>
-        <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Cadastro de Exames</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Cadastro de Exames</h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
             Cadastre e organize exames, blocos e categorias do sistema.
           </p>
