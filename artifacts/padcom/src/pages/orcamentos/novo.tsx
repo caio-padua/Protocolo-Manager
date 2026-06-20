@@ -78,7 +78,7 @@ function TierTrack({ tiers, currentSessions }: { tiers: { minSessions: number; d
               <div
                 className={`h-4 rounded-[2px] transition-all duration-200 ${
                   reached ? "" : "bg-black/[0.06] shadow-[inset_0_1px_2px_rgba(7,22,43,0.10)] dark:bg-white/10"
-                } ${isCurrent ? "paxter-tier-live ring-2 ring-cyan-400" : ""}`}
+                } ${isCurrent ? "paxter-tier-live ring-2 ring-accent" : ""}`}
                 style={reached ? TIER_FILL : undefined}
               />
             </div>
@@ -327,7 +327,7 @@ export default function MontagemOrcamento() {
                                       <div className="max-w-full truncate whitespace-nowrap text-[9px] leading-tight text-muted-foreground">{f.spell}</div>
                                     </div>
                                     <FrequencyBar days={r.frequencyDays} />
-                                    <div className="flex h-4 items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">{FREQ_LEGEND}</div>
+                                    <div className="flex h-4 items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-primary dark:text-primary">{FREQ_LEGEND}</div>
                                     <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
                                       <Lock className="h-3 w-3" /> definido no catálogo
                                     </div>

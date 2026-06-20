@@ -146,7 +146,7 @@ export default function ApresentacaoOrcamento() {
       </div>
 
       {/* HERO ECONOMIA */}
-      <Card className="bg-gradient-to-br from-primary to-cyan-600 text-white border-0 shadow-xl rounded-[8px]">
+      <Card className="bg-gradient-to-br from-primary to-accent text-white border-0 shadow-xl rounded-[8px]">
         <CardContent className="p-8 text-center">
           <div className="flex items-center justify-center gap-2 text-white/80 uppercase tracking-widest text-xs mb-2">
             <TrendingDown className="h-4 w-4" /> Economia a vista
@@ -332,7 +332,7 @@ function CaminhoCard(props: {
       )}
       {!props.destaque && props.decoy && (
         <div className="absolute -top-3.5 left-1/2 z-10 -translate-x-1/2">
-          <span className="bevel-3d inline-flex whitespace-nowrap px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
+          <span className="bevel-3d inline-flex whitespace-nowrap px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
             Mais escolhido
           </span>
         </div>

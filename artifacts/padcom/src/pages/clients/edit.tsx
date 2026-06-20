@@ -225,7 +225,7 @@ export default function EditClient() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => setLocation(`/clients/${id}`)} className="btn-3d-soft rounded-full">
+        <Button variant="outline" size="icon" onClick={() => setLocation(`/clients/${id}`)} className="btn-3d-soft rounded-[4px]">
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>

@@ -102,7 +102,7 @@ export function ClientCombobox({
               className={cn(
                 "rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors",
                 letter === null
-                  ? "border-cyan-500 bg-cyan-500 text-white"
+                  ? "border-primary bg-primary text-white"
                   : "border-border bg-background hover:bg-muted",
               )}
             >
@@ -120,7 +120,7 @@ export function ClientCombobox({
                   className={cn(
                     "h-6 w-6 rounded-md border text-xs font-semibold transition-colors",
                     active
-                      ? "border-cyan-500 bg-cyan-500 text-white"
+                      ? "border-primary bg-primary text-white"
                       : has
                         ? "border-border bg-background hover:bg-muted"
                         : "cursor-not-allowed border-transparent text-muted-foreground/30",
@@ -161,7 +161,7 @@ export function ClientCombobox({
                         <span className="ml-2 text-xs text-muted-foreground">{c.cpf}</span>
                       ) : null}
                     </span>
-                    {isSel ? <Check className="h-4 w-4 shrink-0 text-cyan-600" /> : null}
+                    {isSel ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
                   </button>
                 );
               })}

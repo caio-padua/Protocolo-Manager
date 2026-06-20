@@ -207,7 +207,7 @@ export default function ProtocolDetail() {
       </div>
 
       {/* R2 — Painel-herói de identidade (ATUAL x PASSADO) */}
-      <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: isPast ? "#94a3b8" : "#45B8CC" }}>
+      <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: isPast ? "#94a3b8" : "#16294a" }}>
         <CardContent className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
@@ -234,8 +234,8 @@ export default function ProtocolDetail() {
                 <span className="text-muted-foreground text-sm">/</span>
                 <span className="text-lg font-bold text-muted-foreground tabular-nums">{protocol.totalSessions}</span>
               </div>
-              <div className="mt-2 h-2 w-28 bg-muted/30 rounded-full shadow-inner overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, hsl(180 30% 28%) 0%, hsl(187 72% 48%) 100%)" }} />
+              <div className="mt-2 h-2 w-28 bg-muted/30 rounded-[2px] shadow-inner overflow-hidden">
+                <div className="h-full rounded-[2px]" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, hsl(214 54% 19%) 0%, hsl(39 41% 51%) 100%)" }} />
               </div>
             </div>
           </div>
@@ -251,8 +251,8 @@ export default function ProtocolDetail() {
             <span className="text-muted-foreground text-sm">/</span>
             <span className="text-lg font-semibold text-muted-foreground tabular-nums">{protocol.totalSessions}</span>
           </div>
-          <div className="mt-3 h-2 bg-muted/30 rounded-full shadow-inner overflow-hidden">
-            <div className="h-full bg-primary rounded-full" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, hsl(180 30% 28%) 0%, hsl(187 72% 48%) 100%)" }} />
+          <div className="mt-3 h-2 bg-muted/30 rounded-[2px] shadow-inner overflow-hidden">
+            <div className="h-full bg-primary rounded-[2px]" style={{ width: `${progressPct}%`, background: "linear-gradient(90deg, hsl(214 54% 19%) 0%, hsl(39 41% 51%) 100%)" }} />
           </div>
         </CardContent></Card>
         <Card className="panel-3d-sub"><CardContent className="p-4">
@@ -381,8 +381,8 @@ export default function ProtocolDetail() {
                         <span className="text-foreground font-extrabold">R$ {item.lineTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                       </div>
                     )}
-                    <div className="h-2 bg-muted/30 rounded-full overflow-hidden shadow-inner">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${itemPct}%`, backgroundColor: item.substanceColor || FALLBACK_COLOR }} />
+                    <div className="h-2 bg-muted/30 rounded-[2px] overflow-hidden shadow-inner">
+                      <div className="h-full rounded-[2px] transition-all" style={{ width: `${itemPct}%`, backgroundColor: item.substanceColor || FALLBACK_COLOR }} />
                     </div>
                     <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-2">
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Intervalo: {item.intervalDays}d</span>
@@ -398,7 +398,7 @@ export default function ProtocolDetail() {
 
       {/* R9 — Orçamento (colapsável) */}
       {protocol.items.some(i => i.unitPrice > 0) && (
-        <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: "#3D7A7A" }}>
+        <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: "#16294a" }}>
           <CardHeader>
             <button
               type="button"

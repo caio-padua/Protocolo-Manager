@@ -121,7 +121,7 @@ export function FrequencyBar({
       ref={trackRef}
       className={
         interactive
-          ? `${common} cursor-pointer touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400`
+          ? `${common} cursor-pointer touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`
           : common
       }
       onPointerDown={interactive ? handleDown : undefined}
@@ -242,7 +242,7 @@ export function FrequencyDial({
       <FrequencyBar days={value} onPick={onChange} />
 
       {/* LEGENDA (h-4). */}
-      <div className="flex h-4 items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">
+      <div className="flex h-4 items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-primary dark:text-primary">
         {FREQ_LEGEND}
       </div>
 
@@ -268,7 +268,7 @@ export function FrequencyDial({
         <button
           type="button"
           onClick={() => onChange(10)}
-          className="mx-auto flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition hover:text-cyan-600"
+          className="mx-auto flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition hover:text-primary"
         >
           <Pencil className="h-3 w-3" />
           Eu digito um intervalo

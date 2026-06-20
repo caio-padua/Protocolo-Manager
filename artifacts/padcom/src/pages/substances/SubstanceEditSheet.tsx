@@ -491,7 +491,7 @@ export function SubstanceEditSheet({
               subtitle="Separe os ativos por vírgula. Ex.: L-CARNITINA 1 G, INOSITOL 500 MG."
               active={is("composicao")}
               onActivate={go("composicao")}
-              accent={{ bg: "bg-teal-500/10", text: "text-teal-600", band: "bg-teal-500/5", ring: "ring-teal-400/60 border-teal-300/50 shadow-teal-500/10" }}
+              accent={{ bg: "bg-amber-500/10", text: "text-amber-600", band: "bg-amber-500/5", ring: "ring-amber-400/60 border-amber-300/50 shadow-amber-500/10" }}
             >
               <Textarea
                 value={form.composicao ?? ""}

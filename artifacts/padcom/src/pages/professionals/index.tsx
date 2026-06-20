@@ -157,13 +157,13 @@ export default function Professionals() {
                     <div className="space-y-1 mt-2">
                       {pro.phone && (
                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                          <Phone className="h-3 w-3 text-cyan-500" />
+                          <Phone className="h-3 w-3 text-primary" />
                           {pro.phone}
                         </div>
                       )}
                       {pro.email && (
                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                          <Mail className="h-3 w-3 text-cyan-500" />
+                          <Mail className="h-3 w-3 text-primary" />
                           <span className="truncate">{pro.email}</span>
                         </div>
                       )}

@@ -277,7 +277,7 @@ export default function Agenda() {
       ) : !sessions?.length ? (
         <Card className="panel-3d">
           <CardContent className="flex flex-col items-center justify-center py-20">
-            <div className="concave-3d p-6 rounded-full mb-4">
+            <div className="concave-3d p-6 rounded-[6px] mb-4">
               <Calendar className="h-12 w-12 text-muted-foreground opacity-30" />
             </div>
             <p className="text-lg font-black uppercase tracking-tight text-primary">Nenhuma sessão esta semana</p>
@@ -300,9 +300,9 @@ export default function Agenda() {
 
                 {/* ── SEPARADOR DE DIA — sólido, bem delimitado ── */}
                 <div className="flex items-center gap-3 pt-3">
-                  <div className={`panel-3d-active flex items-center gap-3 px-4 py-2 rounded-[6px] ${isToday ? "ring-2 ring-cyan-400/70" : isPast ? "opacity-60" : ""}`}>
+                  <div className={`panel-3d-active flex items-center gap-3 px-4 py-2 rounded-[6px] ${isToday ? "ring-2 ring-accent/70" : isPast ? "opacity-60" : ""}`}>
                     <div className="flex flex-col items-center min-w-[2.25rem]">
-                      <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${isToday ? "text-cyan-500" : "text-muted-foreground"}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                         {format(day, "EEE", { locale: ptBR })}
                       </span>
                       <span className={`text-2xl font-black leading-none mt-0.5 tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
@@ -315,7 +315,7 @@ export default function Agenda() {
                       </div>
                     )}
                   </div>
-                  <div className={`flex-1 h-0.5 ${isToday ? "bg-cyan-400/30" : "bg-foreground/8"}`} />
+                  <div className={`flex-1 h-0.5 ${isToday ? "bg-accent/30" : "bg-foreground/8"}`} />
                 </div>
 
                 {/* ── CARDS DE SESSÃO ── */}
@@ -338,10 +338,10 @@ export default function Agenda() {
                       session.status === "missed" ? "bg-red-500/80" :
                       session.status === "cancelled" ? "bg-slate-400/80" :
                       someConfirmed ? "bg-amber-500/80" :
-                      isToday ? "bg-cyan-500/80" : "bg-slate-300/60";
+                      isToday ? "bg-accent/80" : "bg-slate-300/60";
 
                     return (
-                      <Card key={session.id} className={`panel-3d-sub overflow-hidden transition-all ${isToday ? "ring-1 ring-cyan-400/30" : ""}`}>
+                      <Card key={session.id} className={`panel-3d-sub overflow-hidden transition-all ${isToday ? "ring-1 ring-accent/30" : ""}`}>
                         <div className="flex h-full">
 
                           {/* Faixa de status lateral */}
@@ -351,7 +351,7 @@ export default function Agenda() {
 
                             {/* ── TOP BAR: HORÁRIO · SEMANA · ⋯ ── */}
                             <div className="flex items-center gap-2 px-3 py-2 border-b border-muted/20 bg-muted/8">
-                              <Clock className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                              <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                               <span className="text-sm font-black text-primary tabular-nums">{session.scheduledTime}</span>
                               <span className="text-muted-foreground/30 text-xs select-none">·</span>
                               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Sem. {session.weekNumber}</span>
@@ -366,7 +366,7 @@ export default function Agenda() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="w-60 panel-3d">
                                     <DropdownMenuItem onClick={() => { setAssessmentSession(session); setAssessmentModalOpen(true); }} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
-                                      <ClipboardList className="h-4 w-4 text-teal-600" /> Avaliação de Enfermagem
+                                      <ClipboardList className="h-4 w-4 text-primary" /> Avaliação de Enfermagem
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => generateValidationCode(session)} className="gap-2 font-bold uppercase tracking-widest text-[10px]">

@@ -480,8 +480,8 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
             <p className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
             <p className="text-cyan-500 font-black text-sm">{pct}%</p>
           </div>
-          <div className="concave-3d h-3 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="concave-3d h-3 rounded-[2px] overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-[2px] transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       </div>
@@ -584,8 +584,8 @@ function ProtocolCard({ p }: { p: Proto }) {
           <span className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
           <span className="text-cyan-500 text-xs font-black">{pct}%</span>
         </div>
-        <div className="concave-3d h-2.5 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="concave-3d h-2.5 rounded-[2px] overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-[2px] transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 

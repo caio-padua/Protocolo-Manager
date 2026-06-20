@@ -73,9 +73,9 @@ export function BodySystemBar({ system, score }: { system: string; score: number
     <div className="flex items-center gap-2">
       <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${info.color}`} />
       <span className="text-xs w-24 truncate font-medium">{info.label}</span>
-      <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden">
+      <div className="flex-1 h-2.5 bg-muted rounded-[2px] overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+          className={`h-full rounded-[2px] transition-all duration-700 ${barColor}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -232,9 +232,9 @@ export function CategoryMetersShowcase({
               <div key={key} className="flex items-center gap-3">
                 <Icon className={`h-4 w-4 flex-shrink-0 ${def.text}`} />
                 <span className="text-xs font-semibold w-36 truncate">{def.label}</span>
-                <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden ring-1 ring-black/5">
+                <div className="flex-1 h-3 rounded-[2px] bg-muted overflow-hidden ring-1 ring-black/5">
                   <div
-                    className={`h-full rounded-full bg-gradient-to-r ${def.from} ${def.to} transition-all duration-700`}
+                    className={`h-full rounded-[2px] bg-gradient-to-r ${def.from} ${def.to} transition-all duration-700`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>

@@ -235,7 +235,7 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
       <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
-            <ClipboardList className="h-5 w-5 text-teal-600" />
+            <ClipboardList className="h-5 w-5 text-primary" />
             AVALIAÇÃO DE ENFERMAGEM
           </DialogTitle>
           <DialogDescription>
@@ -245,7 +245,7 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
 
         {checkingExisting ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : existingAssessment ? (
           <div className="space-y-4">
@@ -349,7 +349,7 @@ export function NursingAssessmentForm({ open, onOpenChange, session, onSuccess }
                           : "border-muted hover:border-muted-foreground/30"
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-full ${color.color} flex items-center justify-center`}>
+                      <div className={`w-8 h-8 rounded-[3px] ${color.color} flex items-center justify-center`}>
                         <Icon className="h-4 w-4 text-white" />
                       </div>
                       <span className={`text-xs font-bold tracking-wider ${isSelected ? color.textColor : "text-muted-foreground"}`}>

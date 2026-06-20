@@ -140,7 +140,7 @@ export default function Substances() {
                                   {getProcedureLabel(substance.procedureType)}
                                 </span>
                                 {hasBlend && (
-                                  <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-teal-700">
+                                  <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">
                                     BLEND
                                   </span>
                                 )}
@@ -267,10 +267,10 @@ export default function Substances() {
                     </div>
 
                     {substance.perceivedEffects && (
-                      <div className="panel-3d-sub border-l-4 border-cyan-400 p-4">
+                      <div className="panel-3d-sub border-l-4 border-accent p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <Eye className="h-4 w-4 text-cyan-600" />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-cyan-700">Efeitos Percebidos pelo Cliente</span>
+                          <Eye className="h-4 w-4 text-primary" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Efeitos Percebidos pelo Cliente</span>
                         </div>
                         <p className="text-sm">{substance.perceivedEffects}</p>
                       </div>

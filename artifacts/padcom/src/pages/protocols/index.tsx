@@ -105,7 +105,7 @@ export default function Protocols() {
                         {protocol.items.map(item => (
                           <span
                             key={item.id}
-                            className="concave-3d inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full text-white font-extrabold shadow-sm"
+                            className="concave-3d inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-[3px] text-white font-extrabold shadow-sm"
                             style={{ backgroundColor: item.substanceColor }}
                           >
                             {item.substanceName}
@@ -118,12 +118,12 @@ export default function Protocols() {
                       </div>
                     </div>
                     {protocol.totalSessions > 0 && (
-                      <div className="mt-3 h-2 bg-muted/30 rounded-full overflow-hidden shadow-inner">
+                      <div className="mt-3 h-2 bg-muted/30 rounded-[2px] overflow-hidden shadow-inner">
                         <div
-                          className="h-full bg-primary rounded-full transition-all"
+                          className="h-full bg-primary rounded-[2px] transition-all"
                           style={{ 
                             width: `${(protocol.completedSessions / protocol.totalSessions) * 100}%`,
-                            background: "linear-gradient(90deg, hsl(180 30% 28%) 0%, hsl(187 72% 48%) 100%)"
+                            background: "linear-gradient(90deg, hsl(214 54% 19%) 0%, hsl(39 41% 51%) 100%)"
                           }}
                         />
                       </div>

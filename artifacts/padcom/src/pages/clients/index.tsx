@@ -102,11 +102,11 @@ export default function Clients() {
 
                   <div className="space-y-2 mb-6">
                     <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      <Phone className="w-3 h-3 text-cyan-500" />
+                      <Phone className="w-3 h-3 text-primary" />
                       <span className="tabular-nums">{client.phone}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      <Mail className="w-3 h-3 text-cyan-500" />
+                      <Mail className="w-3 h-3 text-primary" />
                       <span className="line-clamp-1 lowercase">{client.email}</span>
                     </div>
                   </div>

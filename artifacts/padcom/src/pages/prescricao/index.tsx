@@ -15,8 +15,8 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 
-const PETROLEO = "#3D7A7A";
-const CIANO = "#45B8CC";
+const PETROLEO = "#16294a";
+const CIANO = "#b8924d";
 
 // Cor interna = organização clínica do desmembramento. A manipulação é separada
 // em uma receita por cor interna (campo enviado ao motor de desmembramento).
@@ -448,7 +448,7 @@ export default function PrescricaoPage() {
             {allProtocolos.map((p) => (
               <div key={p.id} className="panel-3d-sub p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-accent" />{p.nome}</h3>
+                  <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-primary" />{p.nome}</h3>
                   <button onClick={() => addProtocolo(p)} className="btn-3d shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
@@ -461,7 +461,7 @@ export default function PrescricaoPage() {
       {/* BLOCO 1 — RECEITA SELECIONADA / EDIÇÃO */}
       <section className="no-print panel-3d p-5">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <BlockTitle icon={FileSignature} color="text-accent">Receita Selecionada ({selected.length})</BlockTitle>
+          <BlockTitle icon={FileSignature} color="text-primary">Receita Selecionada ({selected.length})</BlockTitle>
           <div className="flex gap-3">
             {selected.length > 0 && <button onClick={saveAsProtocolo} className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 font-semibold"><FolderPlus className="w-4 h-4" />Salvar protocolo</button>}
             {selected.length > 0 && <button onClick={handleClear} className="text-xs text-destructive hover:opacity-80 flex items-center gap-1 font-semibold"><Trash2 className="w-3.5 h-3.5" />Limpar</button>}
@@ -541,7 +541,7 @@ export default function PrescricaoPage() {
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button onClick={handleCopy} disabled={!selected.length} className="btn-3d-soft font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
-            {copied ? <CheckCircle2 className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4" />}
+            {copied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             {copied ? "Copiado!" : "Copiar texto"}
           </button>
           <button onClick={handlePrint} disabled={!selected.length} className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
@@ -553,7 +553,7 @@ export default function PrescricaoPage() {
       {/* BLOCO 2 — PDF VISUAL MODEL */}
       {selected.length > 0 && (
         <section className="no-print panel-3d p-5">
-          <BlockTitle icon={Eye} color="text-accent">Modelo Visual do PDF</BlockTitle>
+          <BlockTitle icon={Eye} color="text-primary">Modelo Visual do PDF</BlockTitle>
           <div className="bg-white border border-border rounded-md p-6 max-h-[720px] overflow-y-auto rx-scroll shadow-inner max-w-3xl mx-auto mt-4">
             <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} />
           </div>
@@ -669,7 +669,7 @@ export default function PrescricaoPage() {
                             {INTERNAL_COLORS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                           </select>
                           {r.internalColor && (
-                            <span className="w-3.5 h-3.5 rounded-full border border-border shrink-0" style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }} />
+                            <span className="w-3.5 h-3.5 rounded-[2px] border border-border shrink-0" style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }} />
                           )}
                           <span className="text-[10px] text-muted-foreground">A manipulação é desmembrada em uma receita por cor interna.</span>
                         </div>
@@ -705,7 +705,7 @@ export default function PrescricaoPage() {
                     {previewPlans.map((plan, i) => (
                       <div key={i} className="panel-3d-sub p-3 flex items-start gap-3">
                         {plan.anvisaColor ? (
-                          <span className="mt-0.5 w-3 h-3 rounded-full border border-border shrink-0" style={{ background: plan.anvisaColor }} />
+                          <span className="mt-0.5 w-3 h-3 rounded-[2px] border border-border shrink-0" style={{ background: plan.anvisaColor }} />
                         ) : (
                           <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                         )}
@@ -753,7 +753,7 @@ export default function PrescricaoPage() {
                             <FileText className="w-3.5 h-3.5" />Abrir PDF
                           </a>
                           {rec.driveWebViewLink && (
-                            <a href={rec.driveWebViewLink} target="_blank" rel="noreferrer" className="text-xs font-semibold text-accent hover:underline flex items-center gap-1">
+                            <a href={rec.driveWebViewLink} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
                               <ExternalLink className="w-3.5 h-3.5" />Drive
                             </a>
                           )}

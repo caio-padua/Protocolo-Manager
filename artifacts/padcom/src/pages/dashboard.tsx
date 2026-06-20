@@ -255,7 +255,7 @@ export default function Dashboard() {
                         {session.substanceApplications?.map((app, i) => (
                           <div 
                             key={i} 
-                            className="w-6 h-6 rounded-full border-2 border-background flex items-center justify-center shadow-md scale-110"
+                            className="w-6 h-6 rounded-[3px] border-2 border-background flex items-center justify-center shadow-md scale-110"
                             style={{ backgroundColor: app.substanceColor }}
                             title={app.substanceName}
                           />

@@ -10,7 +10,7 @@ import { fmt } from "./money";
 // substancia), bulbo, ombro e corpo cilindrico com liquido + menisco e
 // brilhos de vidro. Assinatura preservada: Ampola({ color, width }).
 export function Ampola({ color, width = 40 }: { color: string; width?: number }) {
-  const c = color || "#45B8CC";
+  const c = color || "#16294a";
   const cid = c.replace(/[^a-zA-Z0-9]/g, "");
   const height = Math.round(width * 1.7);
   // Corpo: ombro -> cilindro -> fundo arredondado.
@@ -76,7 +76,7 @@ export function VitrineCard({ substance, priceCents, sessions }: { substance: Su
   const stars = substance.starRating ?? 0;
 
   return (
-    <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: substance.color || "#45B8CC" }}>
+    <Card className="overflow-hidden border-l-4" style={{ borderLeftColor: substance.color || "#16294a" }}>
       <CardContent className="p-4">
         <div className="flex gap-4">
           <Ampola color={substance.color} />
@@ -118,7 +118,7 @@ export function VitrineCard({ substance, priceCents, sessions }: { substance: Su
                 {benefits.slice(0, open ? benefits.length : 4).map((b) => {
                   const Icon = b.icon;
                   return (
-                    <span key={String(b.key)} className="inline-flex items-center gap-1 text-[11px] bg-muted px-2 py-0.5 rounded-full">
+                    <span key={String(b.key)} className="inline-flex items-center gap-1 text-[11px] bg-muted px-2 py-0.5 rounded-[3px]">
                       <Icon className="h-3 w-3" /> {b.label}
                     </span>
                   );

@@ -114,7 +114,7 @@ export default function ClientDetail() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-4">
         <Link href="/clients">
-          <Button className="btn-3d-soft rounded-full h-10 w-10 p-0">
+          <Button className="btn-3d-soft rounded-[4px] h-10 w-10 p-0">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
@@ -166,20 +166,20 @@ export default function ClientDetail() {
             <CardContent className="pt-8 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <Phone className="w-3 h-3 text-cyan-500" /> Celular
+                  <Phone className="w-3 h-3 text-primary" /> Celular
                 </span>
                 <span className="font-bold tabular-nums text-sm">{client.phone}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <Mail className="w-3 h-3 text-cyan-500" /> Email
+                  <Mail className="w-3 h-3 text-primary" /> Email
                 </span>
                 <span className="font-bold text-sm lowercase truncate max-w-[150px]">{client.email}</span>
               </div>
               {client.birthDate && (
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Calendar className="w-3 h-3 text-cyan-500" /> Nascimento
+                    <Calendar className="w-3 h-3 text-primary" /> Nascimento
                   </span>
                   <span className="font-bold tabular-nums text-sm">{format(new Date(client.birthDate), "dd/MM/yyyy")}</span>
                 </div>
@@ -187,7 +187,7 @@ export default function ClientDetail() {
               {client.address && (
                 <div className="pt-2 border-t mt-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-2">
-                    <MapPin className="w-3 h-3 text-cyan-500" /> Endereço
+                    <MapPin className="w-3 h-3 text-primary" /> Endereço
                   </span>
                   <p className="text-xs font-semibold leading-relaxed text-foreground/80 bg-muted/20 p-2 rounded-[4px] border border-dashed">
                     {client.address}
@@ -198,7 +198,7 @@ export default function ClientDetail() {
               {client.notes && (
                 <div className="pt-4 border-t mt-4">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-2">
-                    <FileText className="w-3 h-3 text-cyan-500" /> Observações Clínicas
+                    <FileText className="w-3 h-3 text-primary" /> Observações Clínicas
                   </span>
                   <div className="concave-3d p-3 text-xs font-medium leading-relaxed whitespace-pre-wrap">
                     {client.notes}
@@ -266,7 +266,7 @@ export default function ClientDetail() {
                       <CardContent className="p-5">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="text-lg font-black text-primary uppercase tracking-tight group-hover:text-accent transition-colors">{protocol.title}</h3>
+                            <h3 className="text-lg font-black text-primary uppercase tracking-tight group-hover:text-primary transition-colors">{protocol.title}</h3>
                             <div className="flex items-center gap-2 mt-1">
                               <Calendar className="w-3 h-3 text-muted-foreground" />
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -292,7 +292,7 @@ export default function ClientDetail() {
                               {protocol.items.map((item, i) => (
                                 <div 
                                   key={i}
-                                  className="w-5 h-5 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5"
+                                  className="w-5 h-5 rounded-[3px] border-2 border-white shadow-sm ring-1 ring-black/5"
                                   style={{ backgroundColor: item.substanceColor }}
                                   title={item.substanceName}
                                 />
@@ -331,14 +331,14 @@ export default function ClientDetail() {
                           </div>
                           <div>
                             <p className="font-bold text-primary flex items-center gap-2 uppercase tracking-tight">
-                              <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                              <Clock className="w-3.5 h-3.5 text-primary" />
                               {session.scheduledTime}
                             </p>
                             <div className="flex flex-wrap items-center gap-2 mt-2">
                               {session.substanceApplications?.map((app, i) => (
                                 <Badge key={i} variant="secondary" className="rounded-[4px] bg-muted/50 border-none text-[9px] py-0.5 px-2 font-extrabold uppercase tracking-wider text-muted-foreground shadow-sm">
                                   <div 
-                                    className="w-1.5 h-1.5 rounded-full mr-1.5 shadow-sm"
+                                    className="w-1.5 h-1.5 rounded-[2px] mr-1.5 shadow-sm"
                                     style={{ backgroundColor: app.substanceColor }}
                                   />
                                   {app.substanceName}
