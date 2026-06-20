@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import {
   createCalendarEvent,
+  updateCalendarEvent,
   updateCalendarEventDescription,
   deleteCalendarEvent,
   listCalendars,
@@ -162,20 +163,10 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
   }
 
   try {
-    if (session.googleEventId) {
-      // Eventos legados sem calendarId salvo ficaram na AGENDA GERAL (primary): remove de la para nao orfanar.
-      const oldCalendarId = session.googleCalendarId || "primary";
-      try {
-        await deleteCalendarEvent(session.googleEventId, oldCalendarId);
-      } catch (delErr: any) {
-        console.warn("Could not delete old calendar event:", delErr.message);
-      }
-    }
-
     const protocolSessions = await db.select({ id: sessionsTable.id }).from(sessionsTable)
       .where(eq(sessionsTable.protocolId, session.protocolId));
 
-    const eventId = await createCalendarEvent({
+    const eventData: CalendarEventData = {
       sessionId: session.id,
       clientName: client.name,
       clientCpf: client.cpf,
@@ -189,13 +180,35 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       calendarId: targetCalendarId,
       procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
-      // Só os procedimentos EXECUTAVEIS nesta ida (DISP/aplicados): evita 👍 e
+      // Só os procedimentos EXECUTAVEIS nesta ida (DISP/aplicados): evita ✅ e
       // Duração Total inflados por substancia PROX de outro tipo.
       activeProcedureTypes: Array.from(dispProcTypes),
       substances,
       clientEmail: client.email || undefined,
       sessionStatus: session.status,
-    });
+    };
+
+    // Convite B: se ja existe evento NO MESMO calendario, ATUALIZA no lugar (nao apaga+recria,
+    // nao dispara "Evento cancelado"). Só quando o calendario MUDA (ou legado sem calendarId)
+    // apagamos (sem notificar) e recriamos no calendario novo.
+    let eventId: string | null = session.googleEventId;
+    // Normaliza null/undefined -> "primary" para nao cair em apagar+recriar quando ambos sao o primario.
+    const oldCal = session.googleCalendarId || "primary";
+    const newCal = targetCalendarId || "primary";
+    const sameCalendar = !!session.googleEventId && oldCal === newCal;
+
+    if (sameCalendar && session.googleEventId) {
+      await updateCalendarEvent(session.googleEventId, oldCal, eventData);
+    } else {
+      if (session.googleEventId) {
+        try {
+          await deleteCalendarEvent(session.googleEventId, oldCal);
+        } catch (delErr: any) {
+          console.warn("Could not delete old calendar event:", delErr.message);
+        }
+      }
+      eventId = await createCalendarEvent(eventData);
+    }
 
     if (eventId) {
       await db.update(sessionsTable).set({
@@ -304,18 +317,10 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
     }
 
     try {
-      if (session.googleEventId) {
-        // Eventos legados sem calendarId salvo ficaram na AGENDA GERAL (primary): remove de la para nao orfanar.
-        const oldCal = session.googleCalendarId || "primary";
-        try {
-          await deleteCalendarEvent(session.googleEventId, oldCal);
-        } catch (_delErr: any) {}
-      }
-
       const protocolSessions2 = await db.select({ id: sessionsTable.id }).from(sessionsTable)
         .where(eq(sessionsTable.protocolId, session.protocolId));
 
-      const eventId = await createCalendarEvent({
+      const eventData2: CalendarEventData = {
         sessionId: session.id,
         clientName: client.name,
         clientCpf: client.cpf,
@@ -333,7 +338,25 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         substances,
         clientEmail: client.email || undefined,
         sessionStatus: session.status,
-      });
+      };
+
+      // Convite B: mesmo calendario -> atualiza no lugar; calendario novo -> apaga (sem notificar) e recria.
+      let eventId: string | null = session.googleEventId;
+      // Normaliza null/undefined -> "primary" para nao cair em apagar+recriar quando ambos sao o primario.
+      const oldCal2 = session.googleCalendarId || "primary";
+      const newCal2 = targetCal || "primary";
+      const sameCal = !!session.googleEventId && oldCal2 === newCal2;
+
+      if (sameCal && session.googleEventId) {
+        await updateCalendarEvent(session.googleEventId, oldCal2, eventData2);
+      } else {
+        if (session.googleEventId) {
+          try {
+            await deleteCalendarEvent(session.googleEventId, oldCal2);
+          } catch (_delErr: any) {}
+        }
+        eventId = await createCalendarEvent(eventData2);
+      }
 
       if (eventId) {
         await db.update(sessionsTable).set({

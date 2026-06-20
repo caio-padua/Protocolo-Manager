@@ -121,7 +121,7 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
     rua = parts[0].replace(/CEP\s*[\d\-\.]+/i, "").trim();
   }
 
-  let block = `\uD83D\uDCCD ENDERECO\n${(rua + (numero ? ", " + numero : "")).toUpperCase()}`;
+  let block = `\uD83D\uDCCD ENDEREÇO\n${(rua + (numero ? ", " + numero : "")).toUpperCase()}`;
   if (bairro) block += `\n${bairro.toUpperCase()}`;
   if (cidadeEstado) block += `\n${cidadeEstado.toUpperCase()}`;
   if (cep) block += `\nCEP ${cep}`;
@@ -140,8 +140,37 @@ const PROCEDURE_ROWS: Array<{ key: string; label: string; min: number }> = [
   { key: "implant", label: "Implante", min: 60 },
 ];
 
-const THUMBS_UP = "\uD83D\uDC4D"; // 👍
-const THUMBS_DOWN = "\uD83D\uDC4E"; // 👎
+const MARK_OK = "\u2705"; // ✅ ocorre
+const MARK_NO = "\u274C"; // ❌ não ocorre
+
+// Emoji de relógio para um horário "HH:MM". Os emojis existem de 30 em 30 min,
+// entao arredondamos para o mais proximo (minuto<15 -> :00; 15..44 -> :30; >=45 -> :00 da hora seguinte).
+function clockEmojiForTime(time: string): string {
+  const [hRaw, mRaw] = time.split(":").map(Number);
+  let h = hRaw % 24;
+  const m = mRaw;
+  let half = false;
+  if (m < 15) {
+    half = false;
+  } else if (m < 45) {
+    half = true;
+  } else {
+    half = false;
+    h = (h + 1) % 24;
+  }
+  const h12 = (h % 12) || 12; // 1..12
+  const base = half ? 0x1f55c : 0x1f550; // 🕜.. ou 🕐..
+  return String.fromCodePoint(base + (h12 - 1));
+}
+
+// Soma minutos a "HH:MM" e devolve "HH:MM" (24h).
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = ((h * 60 + m + minutes) % (24 * 60) + 24 * 60) % (24 * 60);
+  const hh = Math.floor(total / 60);
+  const mm = total % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
 
 const STATUS_SQUARE: Record<SubstanceStatus, string> = {
   disp: "\uD83D\uDFE9", // 🟩 verde
@@ -158,7 +187,7 @@ const STATUS_ABBR: Record<SubstanceStatus, string> = {
 };
 
 const SUBSTANCE_LEGEND =
-  "Legenda:\n" +
+  "LEGENDA:\n" +
   `${STATUS_SQUARE.disp} Disponível para Aplicação [DISP]\n` +
   `${STATUS_SQUARE.prox} Disponível Próxima Sessão [PROX]\n` +
   `${STATUS_SQUARE.applied} Substância Aplicada [APLI]\n` +
@@ -177,7 +206,7 @@ function computeActiveDuration(activeProcTypes: string[]): number {
 function buildProcedureChecklist(activeProcTypes: string[]): string {
   const active = new Set(activeProcTypes);
   return PROCEDURE_ROWS.map(row => {
-    const mark = active.has(row.key) ? THUMBS_UP : THUMBS_DOWN;
+    const mark = active.has(row.key) ? MARK_OK : MARK_NO;
     return `${mark} ${row.label} [${row.min}min]`;
   }).join("\n");
 }
@@ -224,17 +253,26 @@ function buildDescriptionBody(data: CalendarEventData): string {
   const wazeLink = data.locationAddress
     ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
     : null;
+  const appleMapsLink = data.locationAddress
+    ? `https://maps.apple.com/?q=${encodeURIComponent(data.locationAddress)}`
+    : null;
+
+  const horaInicio = data.scheduledTime;
+  const horaFim = addMinutesToTime(horaInicio, durationTotal);
+  const relogio = clockEmojiForTime(horaInicio);
+  const horarioBlock = `HORÁRIO:\n${relogio} ${horaInicio} às ${horaFim}`;
 
   let desc =
     `Developed by: Pawards MedCore\n\n` +
     `${data.clientName}\n` +
     `CPF.: ${data.clientCpf || "-"}\n` +
     `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +
-    `Unidade: ${data.unit}\n\n` +
-    `Procedimentos:\n${procedureChecklist}\n` +
-    `Duração Total: ${durationTotal}min\n\n` +
-    `Status:\n${statusLine}\n\n` +
-    `Substâncias Protocolo:\n${substanceList}\n\n` +
+    `UNIDADE: ${data.unit}\n\n` +
+    `${horarioBlock}\n\n` +
+    `PROCEDIMENTOS:\n${procedureChecklist}\n` +
+    `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
+    `STATUS:\n${statusLine}\n\n` +
+    `SUBSTÂNCIAS PROTOCOLO:\n${substanceList}\n\n` +
     `${SUBSTANCE_LEGEND}`;
 
   if (addressBlock) {
@@ -242,10 +280,13 @@ function buildDescriptionBody(data: CalendarEventData): string {
   }
 
   if (mapsLink) {
-    desc += `\n\nNavegação:`;
+    desc += `\n\nNAVEGAÇÃO:`;
     desc += `\nGoogle Maps: ${mapsLink}`;
     if (wazeLink) {
       desc += `\nWaze: ${wazeLink}`;
+    }
+    if (appleMapsLink) {
+      desc += `\nApple Maps: ${appleMapsLink}`;
     }
   }
 
@@ -256,55 +297,66 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
   try {
     const calendar = await getUncachableGoogleCalendarClient();
 
-    const [h, m] = data.scheduledTime.split(":").map(Number);
-    const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
-    const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
-    const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
+    // Mesmo corpo usado na atualizacao (convite B): 1 so verdade, sem drift create vs update.
+    const event: any = buildEventRequestBody(data);
 
-    const cpfFormatted = data.clientCpf || "";
-    const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
-
-    const descriptionBody = buildDescriptionBody(data);
-
-    const locationField = data.locationAddress || data.unit;
-
-    const event: any = {
-      summary: buildEventTitle(data.clientName, cpfFormatted, prefix),
-      description: descriptionBody,
-      location: locationField,
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-      colorId: getColorIdForProcedure(data.procedureType || "iv"),
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 60 },
-          { method: 'popup', minutes: 15 },
-        ],
-      },
-    };
-
-    if (data.clientEmail) {
-      event.attendees = [{ email: data.clientEmail, displayName: data.clientName }];
-    }
-
+    // Convite A (decisao CEO): o evento vive nos calendarios da clinica e NAO depende de
+    // aceite do cliente. Nao adicionamos participante (attendee) nem disparamos convite/RSVP.
+    // A entrega ao cliente (arquivo .ics "Adicionar"/feed) e do proximo loop.
     const targetCalendarId = data.calendarId || 'primary';
 
     const result = await calendar.events.insert({
       calendarId: targetCalendarId,
       requestBody: event,
-      sendUpdates: data.clientEmail ? 'all' : 'none',
+      sendUpdates: 'none',
     });
 
     return result.data.id ?? null;
   } catch (err: any) {
     console.error("Failed to create calendar event:", err.message);
+    throw err;
+  }
+}
+
+// Constroi o corpo completo do evento (titulo, descricao, horarios, lembretes, cor).
+// Usado tanto na criacao quanto na atualizacao completa (convite B) para manter 1 so verdade.
+function buildEventRequestBody(data: CalendarEventData) {
+  const [h, m] = data.scheduledTime.split(":").map(Number);
+  const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
+  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
+  const cpfFormatted = data.clientCpf || "";
+  const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
+  return {
+    summary: buildEventTitle(data.clientName, cpfFormatted, prefix),
+    description: buildDescriptionBody(data),
+    location: data.locationAddress || data.unit,
+    start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+    end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+    colorId: getColorIdForProcedure(data.procedureType || "iv"),
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup', minutes: 1440 },
+        { method: 'popup', minutes: 120 },
+      ],
+    },
+  };
+}
+
+// Convite B (decisao CEO): atualiza o MESMO evento (events.update, corpo completo) em vez de
+// apagar+recriar. Mantem o evento no celular de quem ja salvou; NAO dispara "Evento cancelado".
+export async function updateCalendarEvent(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {
+  try {
+    const calendar = await getUncachableGoogleCalendarClient();
+    await calendar.events.update({
+      calendarId: calendarId || 'primary',
+      eventId,
+      requestBody: buildEventRequestBody(data),
+      sendUpdates: 'none',
+    });
+  } catch (err: any) {
+    console.error("Failed to update calendar event:", err.message);
     throw err;
   }
 }
@@ -331,6 +383,8 @@ export async function deleteCalendarEvent(eventId: string, calendarId?: string):
   await calendar.events.delete({
     calendarId: calendarId || 'primary',
     eventId,
+    // Nao dispara "Evento cancelado" ao mover de calendario.
+    sendUpdates: 'none',
   });
 }
 

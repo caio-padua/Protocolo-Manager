@@ -8,8 +8,22 @@ description: Como o evento do Google Calendar e montado a partir da ida/sessao; 
 O evento do Google (lib/google-calendar.ts: buildEventTitle/buildDescriptionBody) segue o
 layout "Pawards MedCore" dos prints do CEO: titulo "NOME CPF xxx [SESS]"; corpo com
 "Developed by: Pawards MedCore", nome, CPF, "Agendamento Número: N/Total", Unidade,
-checklist fixo de 6 procedimentos (👍/👎 + [Nmin]), "Duração Total", Status (quadrado+texto),
-"Substâncias Protocolo" (🟩/🟨/🟦/⬜ + [n/total] + [ESTADO]) e Legenda. Acentos PRESERVADOS.
+checklist fixo de 6 procedimentos (✅ ocorre / ❌ não ocorre + [Nmin]), bloco HORÁRIO
+(emoji de relógio arredondado p/ 30min + "HH:MM às HH:MM", entre Unidade e Procedimentos),
+"Duração Total", Status (quadrado+texto), "Substâncias Protocolo" (🟩/🟨/🟦/⬜ + [n/total]
++ [ESTADO]), Legenda e bloco NAVEGAÇÃO (Google Maps + Waze + Apple Maps). Títulos de seção em
+MAIÚSCULAS (destaque universal, SEM HTML). Acentos do conteúdo PRESERVADOS. Lembretes: 1 dia
+(1440min) + 2h (120min).
+
+## Convite A/B (entrega do evento) — decisão CEO 20/06/2026
+**Regra:** o evento vive nos calendários da clínica e NÃO depende de aceite do cliente —
+`createCalendarEvent`/`updateCalendarEvent`/`deleteCalendarEvent` usam `sendUpdates: 'none'` e
+NÃO há attendee (Convite A). Na sincronização, se já existe `googleEventId` e o calendário não
+muda, ATUALIZA o mesmo evento (`updateCalendarEvent` = events.update, corpo completo via
+`buildEventRequestBody`); só apaga+recria quando o calendário MUDA (Convite B). **Why:** o
+antigo apaga+recria disparava "Evento cancelado" no celular do cliente. **How to apply:**
+normalizar `googleCalendarId`/target com `|| "primary"` ANTES de comparar — senão sessão no
+primário (calendar null) sempre cai em apaga+recria.
 
 ## Regra critica: activeProcedureTypes = só executavel na ida
 **Regra:** o campo `activeProcedureTypes` (que pinta o 👍 e calcula a Duração Total via

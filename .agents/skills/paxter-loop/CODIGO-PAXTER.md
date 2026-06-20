@@ -232,6 +232,18 @@ sessão" com "primeira sessão"; LED somente para status binário on/off de item
 diagrama ASCII, receita JSX comentada, tabela anti-padrão→padrão e checklist de 10 pontos:
 `skill-layout-paxter/references/grade-imaginaria.md`. Vale para Manager, IHE e TODOS os sistemas primos.
 
+**Art. 56** EVENTO É DA CLÍNICA, NÃO CONVITE (promulgado pelo Pacote B da Agenda Google em 20/06/2026):
+o evento no Google Agenda existe para a OPERAÇÃO da clínica e NÃO pode depender de aceite do cliente nem
+poluir o celular dele. Logo: (1) criar/atualizar/apagar evento sempre com `sendUpdates: 'none'` e SEM
+attendee (Convite A) — a entrega ao cliente é canal próprio (e-mail/feed .ics), nunca o RSVP do Google; (2)
+sincronizar = ATUALIZAR o mesmo evento (events.update, corpo completo por um único builder compartilhado
+entre create e update, sem drift) quando o calendário não muda; só apagar+recriar quando o calendário MUDA
+(Convite B) — apagar+recriar à toa dispara "Evento cancelado" no aparelho de quem já salvou; (3) ao comparar
+calendário de origem x destino, normalizar `null/undefined -> "primary"` ANTES de comparar (senão evento no
+primário sempre cai no ramo errado). Linguagem do evento segue a marca: ✅ ocorre / ❌ não ocorre (nunca dois
+ícones de mesma silhueta), títulos de seção em MAIÚSCULAS como negrito universal (sem injetar HTML, que vaza
+tag crua/quebra layout em cliente texto-puro). Memória: `.agents/memory/agenda-evento-google-padrao.md`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -243,3 +255,4 @@ diagrama ASCII, receita JSX comentada, tabela anti-padrão→padrão e checklist
 | 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |
 | 19/06/2026 | Art. 54 (Título X) | Grade Imaginária — modelo mental completo de layout de card: 5 zonas canônicas (top bar fixo / título / identidade / meta grid / conteúdo), badge de status ao lado do ID nunca do nome, faixa lateral ≤6px, LED proibido em contagem/título. Referência em `grade-imaginaria.md` com diagrama ASCII + receita JSX + anti-padrões + checklist 10 pontos. |
 | 20/06/2026 | Art. 55 (Título IX) | Fonte de dado de fase futura + fuso da clínica, promulgado pelo Motor de Agenda: proibido inventar fonte semanticamente errada quando o vínculo real é de fase futura (usar entrada explícita e marcar a fonte real); horário sempre ancorado no fuso da clínica (BRT, UTC-3 fixo), nunca no fuso implícito do servidor. |
+| 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
