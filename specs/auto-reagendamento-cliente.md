@@ -1,4 +1,4 @@
-# Spec — Auto-reagendamento da cliente (portal)
+# Spec — Auto-reagendamento da cliente (area do cliente)
 
 Data: 20/06/2026
 Autor: Dr. Replit Paxter
@@ -6,22 +6,31 @@ Metodo: Paxter Loop (Especificar -> Construir -> Revisar)
 
 ## Objetivo (uma frase)
 
-Permitir que a propria cliente, pelo portal no celular, remarque a DATA (e horario) de uma sessao
-futura do seu protocolo, com regras de seguranca e de negocio, e que a mudanca valha no sistema e no
-Google Calendar imediatamente.
+Permitir que a propria cliente, pela AREA DO CLIENTE (rota `/area`, aba AGENDA) no celular, remarque a
+DATA e horario de uma sessao futura ja existente do seu protocolo, com regras de seguranca e de
+negocio, e que a mudanca valha no sistema e no Google Calendar imediatamente.
 
 ## Contexto ja existente (reaproveitar, nao reinventar)
 
-1. Portal publico `/portal` (mobile-first) ja identifica a cliente por CPF + data de nascimento e
-   devolve um TOKEN assinado (HMAC, validade 30 minutos). Rota: `POST /api/client-portal/identify`.
-2. A sessao ja tem data (`scheduled_date`, texto AAAA-MM-DD), horario (`scheduled_time`), status,
+1. AREA DO CLIENTE `/area` (mobile-first, "centrinho de operacoes") ja identifica a cliente por
+   CPF + data de nascimento e devolve um TOKEN assinado (HMAC, validade 30 minutos). Rota:
+   `POST /api/client-portal/identify`. A area tem abas INICIO, PROTOCOLOS, AGENDA, DOCUMENTOS, ENVIAR.
+2. A aba AGENDA da area JA permite a cliente AGENDAR um novo atendimento sozinha: rotas
+   `GET /api/area-paciente/agenda-recursos` (locais), `GET /api/area-paciente/agenda-slots` (horarios
+   livres) e `POST /api/area-paciente/agendar`. O agendar usa o helper compartilhado `bookSession`
+   (faz a marcacao + sincroniza o Google Calendar e devolve `googleSyncWarning`).
+3. A aba AGENDA tambem ja lista as sessoes da cliente: `GET /api/area-paciente/sessoes`.
+4. A sessao ja tem data (`scheduled_date`, texto AAAA-MM-DD), horario (`scheduled_time`), status,
    profissional, unidade e os campos do Google Calendar (`google_event_id`, `google_calendar_id`).
-3. A rota interna `PUT /api/sessions/:id` ja altera a data de uma sessao (uso administrativo).
+5. O que FALTA e o REAGENDAR: mover uma sessao que JA existe para nova data/horario (hoje so existe
+   o `PUT /api/sessions/:id` administrativo, sem tela para a cliente).
 
 ## Requisitos exatos (numerados)
 
-R1. Nova secao no portal: "Minhas sessoes / Reagendar", visivel so apos a cliente se identificar
-    (reusar o token existente; nao criar novo login).
+R1. Na AREA DO CLIENTE (`/area`), aba AGENDA: cada sessao futura listada ganha um botao "REAGENDAR"
+    ao lado do "AGENDAR ATENDIMENTO" que ja existe. Visivel so apos a cliente se identificar (reusar o
+    token existente; nao criar novo login). Reusar o seletor de local/horario que o agendar ja usa
+    (agenda-recursos + agenda-slots).
 
 R2. Listar SOMENTE as sessoes futuras reagendaveis da cliente do token: status = "scheduled" e
     `scheduled_date` >= hoje. Mostrar data (formato 24/06/2026), horario, protocolo e unidade.
@@ -29,9 +38,10 @@ R2. Listar SOMENTE as sessoes futuras reagendaveis da cliente do token: status =
 R3. Reagendar: a cliente escolhe UMA sessao e informa a nova data; o horario pode ser mantido ou
     escolhido entre faixas da clinica (08:00 a 18:00, passo de 30 min).
 
-R4. Endpoint novo `POST /api/client-portal/reschedule` exige o token e o id da sessao. DEVE verificar
-    que a sessao pertence a cliente do token (bloqueio de IDOR — impedir que uma cliente mexa na
-    sessao de outra trocando o numero).
+R4. Endpoint novo `POST /api/area-paciente/reagendar` (mesma familia do agendar) exige o token e o id
+    da sessao + nova data/horario. DEVE verificar que a sessao pertence a cliente do token (bloqueio de
+    IDOR — impedir que uma cliente mexa na sessao de outra trocando o numero). Reaproveitar a logica do
+    helper `bookSession` para a sincronizacao do Google Calendar.
 
 R5. Regras de negocio (valores recomendados; o CEO confirma ou ajusta):
     R5.1 Antecedencia minima: so reagenda sessao que esteja a pelo menos 24 horas de distancia
@@ -56,6 +66,12 @@ R8. Mensagens claras e seguras (padrao do portal): erros genericos (nunca dizer 
     outra pessoa"); confirmacao visivel com a data nova em formato brasileiro.
 
 R9. Comunicacao final ao CEO em Densidade B; explicar siglas; fechar com "RESUMO EM 1 LINHA".
+
+R10. (OPCIONAL — so se o CEO confirmar) Tornar a area do cliente um PWA (Progressive Web App = site
+     que instala como aplicativo na tela inicial do celular e abre em tela cheia, sem barra do
+     navegador). Hoje a area NAO e PWA (falta o `manifest` e o `service worker`). Entregavel: manifesto
+     com nome/icone/cores Padcon Conect + service worker minimo, para a cliente "Adicionar a tela
+     inicial" e abrir como app. NAO exige loja de aplicativo.
 
 ## Casos extremos a tratar
 
