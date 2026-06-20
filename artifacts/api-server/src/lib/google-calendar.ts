@@ -77,6 +77,26 @@ export interface CalendarEventData {
   summaryPrefix?: string;
   // Total de idas (sessoes) do protocolo. Alimenta "Agendamento Número: N/Total".
   totalAppointments?: number;
+  // Telefone da clínica da sessão (SUB-05). Vira blocos LIGAR/WHATSAPP no evento.
+  locationPhone?: string;
+}
+
+// Número oficial da clínica (SUB-05). Fallback quando a clínica não tem telefone próprio.
+const OFFICIAL_CLINIC_PHONE = "+5511977154000";
+
+// Normaliza um telefone para E.164 (+DDI...). Respeita o DDI informado (não força +55
+// quando já vem com sinal de mais); assume Brasil (+55) só para números locais sem DDI.
+function normalizePhoneE164(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+  if (hasPlus) return "+" + digits; // já internacional: respeita o DDI
+  if (digits.length === 10 || digits.length === 11) return "+55" + digits; // DDD + número
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) return "+" + digits;
+  return "+" + digits; // fallback genérico
 }
 
 function getColorIdForProcedure(procType: string): string {
@@ -290,6 +310,16 @@ function buildDescriptionBody(data: CalendarEventData): string {
     }
   }
 
+  // CONTATO (SUB-05): telefone da clínica da sessão; fallback para o número oficial.
+  // Só omite se não houver telefone nem fallback (evita link quebrado).
+  const phoneE164 = normalizePhoneE164(data.locationPhone) ?? OFFICIAL_CLINIC_PHONE;
+  if (phoneE164) {
+    const waNumber = phoneE164.replace(/^\+/, "");
+    desc += `\n\nCONTATO:`;
+    desc += `\n\uD83D\uDCDE LIGAR: tel:${phoneE164}`;
+    desc += `\n\uD83D\uDCAC WHATSAPP: https://wa.me/${waNumber}`;
+  }
+
   return desc;
 }
 
@@ -392,6 +422,66 @@ export async function listCalendars(): Promise<any[]> {
   const calendar = await getUncachableGoogleCalendarClient();
   const res = await calendar.calendarList.list();
   return res.data.items ?? [];
+}
+
+// ── CRUD de CALENDÁRIOS (agendas) na conta da clínica ──────────────────────
+// Usa o mesmo cliente/autenticação dos eventos. Escopos já concedidos:
+// auth/calendar, calendar.calendars, calendar.acls, calendar.calendarlist.
+
+export interface CreateCalendarOpts {
+  timeZone?: string;
+  description?: string;
+}
+
+// Cria uma agenda nova na conta da clínica. Retorna o id do calendário criado.
+export async function createCalendar(summary: string, opts: CreateCalendarOpts = {}): Promise<string> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  const res = await calendar.calendars.insert({
+    requestBody: {
+      summary,
+      timeZone: opts.timeZone || "America/Sao_Paulo",
+      description: opts.description,
+    },
+  });
+  const id = res.data.id;
+  if (!id) throw new Error("Google não retornou id do calendário criado");
+  return id;
+}
+
+// Renomeia / atualiza summary, timeZone e description de uma agenda existente.
+export async function renameCalendar(
+  calendarId: string,
+  newSummary: string,
+  opts: CreateCalendarOpts = {},
+): Promise<void> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  await calendar.calendars.patch({
+    calendarId,
+    requestBody: {
+      summary: newSummary,
+      ...(opts.timeZone ? { timeZone: opts.timeZone } : {}),
+      ...(opts.description !== undefined ? { description: opts.description } : {}),
+    },
+  });
+}
+
+// Apaga a agenda inteira (todos os eventos dentro são perdidos).
+export async function deleteCalendar(calendarId: string): Promise<void> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  await calendar.calendars.delete({ calendarId });
+}
+
+// Compartilha a agenda com um e-mail. role "writer" torna editável; "reader" só leitura.
+export async function shareCalendar(
+  calendarId: string,
+  email: string,
+  role: "reader" | "writer" | "owner" = "writer",
+): Promise<void> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  await calendar.acl.insert({
+    calendarId,
+    requestBody: { role, scope: { type: "user", value: email } },
+  });
 }
 
 // Conta Google oficial da clinica. So empurramos eventos quando a conta

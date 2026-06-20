@@ -9,7 +9,9 @@ import {
   shareWithClient,
   isDriveConnected,
 } from "../lib/google-drive";
-import { sendProtocolEmail } from "../lib/email-service";
+import { sendProtocolEmail, sendProtocolOnboardingEmail } from "../lib/email-service";
+import { buildEventsForSessions } from "../lib/session-ics";
+import { buildVCalendar } from "../lib/ics";
 import { isGmailConnected } from "../lib/google-gmail";
 import {
   ListProtocolsQueryParams,
@@ -601,6 +603,34 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
     .where(eq(protocolsTable.id, params.data.id))
     .returning();
 
+  // SUB-04 item 5: onboarding ao fechar/validar o protocolo — e-mail de boas-vindas
+  // com o .ics consolidado das sessões recém-geradas. Best-effort: cliente sem
+  // e-mail ou falha no envio NÃO quebra a validação (caso extremo 1).
+  try {
+    if (await isGmailConnected()) {
+      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+      if (client?.email) {
+        const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+        sessions.sort((a, b) =>
+          a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
+        );
+        const events = await buildEventsForSessions(sessions, client.name);
+        const onboarding = await sendProtocolOnboardingEmail({
+          clientName: client.name,
+          clientEmail: client.email,
+          events,
+        });
+        if (!onboarding.success) {
+          req.log.warn({ protocolId: protocol.id, error: onboarding.error }, "Onboarding email não enviado");
+        }
+      } else {
+        req.log.info({ protocolId: protocol.id }, "Cliente sem e-mail — onboarding pulado");
+      }
+    }
+  } catch (err) {
+    req.log.warn({ protocolId: protocol.id, err }, "Falha ao enviar onboarding (ignorada)");
+  }
+
   const result = await buildProtocolResponse(updatedProtocol);
   res.json(result);
 });
@@ -621,62 +651,13 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+  sessions.sort((a, b) =>
+    a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
+  );
 
-  const lines: string[] = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//PADCOM//Protocolo Injetavel//PT",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-  ];
-
-  for (const session of sessions) {
-    const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
-
-    const dispApps = applications.filter(a => a.availability === "disp");
-    const proxApps = applications.filter(a => a.availability === "prox");
-
-    const substanceNames: Record<number, string> = {};
-    for (const app of applications) {
-      if (!substanceNames[app.substanceId]) {
-        const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
-        if (s) substanceNames[app.substanceId] = s.name;
-      }
-    }
-
-    const dispLines = dispApps
-      .filter(a => a.sessionNumber > 0)
-      .map(a => `${substanceNames[a.substanceId] ?? "Substância"} ${a.sessionNumber}/${a.totalSessions} (DISP)`)
-      .join("\\n");
-
-    const proxLines = proxApps
-      .map(a => `${substanceNames[a.substanceId] ?? "Substância"} (PROX)`)
-      .join("\\n");
-
-    const description = [dispLines, proxLines].filter(Boolean).join("\\n");
-
-    const dateStr = session.scheduledDate.replace(/-/g, "");
-    const [h, m] = session.scheduledTime.split(":").map(Number);
-    const endH = String(h + 1).padStart(2, "0");
-    const dtStart = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
-    const dtEnd = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-
-    const uid = `padcom-session-${session.id}@padcom.clinic`;
-    const summary = `${client?.name ?? "Cliente"} - ${client?.cpf ?? ""} | Semana ${session.weekNumber}`;
-
-    lines.push("BEGIN:VEVENT");
-    lines.push(`UID:${uid}`);
-    lines.push(`DTSTART:${dtStart}`);
-    lines.push(`DTEND:${dtEnd}`);
-    lines.push(`SUMMARY:${summary}`);
-    lines.push(`DESCRIPTION:${description}`);
-    lines.push(`LOCATION:${session.unit ?? "Clínica"}`);
-    lines.push("END:VEVENT");
-  }
-
-  lines.push("END:VCALENDAR");
-
-  const icsContent = lines.join("\r\n");
+  // SUB-04: motor de .ics ÚNICO (lib/ics.ts) — sem duplicar a geração.
+  const events = await buildEventsForSessions(sessions, client?.name ?? "Cliente");
+  const icsContent = buildVCalendar(events, { calName: `PADCOM — ${client?.name ?? "Cliente"}` });
   const filename = `protocolo_${protocol.id}_${client?.name?.replace(/\s+/g, "_") ?? "cliente"}.ics`;
 
   res.json({ icsContent, filename });

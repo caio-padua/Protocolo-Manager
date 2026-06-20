@@ -9,6 +9,8 @@ import {
   locationsTable,
   professionalsTable,
   agendaResourcesTable,
+  agendaCalendarsTable,
+  locationProfessionalsTable,
 } from "@workspace/db";
 import {
   createCalendarEvent,
@@ -50,13 +52,48 @@ function calculateTotalDuration(dispProcedureTypes: Set<string>): number {
   return total;
 }
 
-async function findLocationByUnit(unitName: string | null): Promise<{ address: string | null; googleCalendarId: string | null }> {
-  if (!unitName) return { address: null, googleCalendarId: null };
+async function findLocationByUnit(
+  unitName: string | null,
+  professionalId?: number | null,
+): Promise<{ address: string | null; phone: string | null; googleCalendarId: string | null; pairCalendarId: string | null }> {
+  if (!unitName) return { address: null, phone: null, googleCalendarId: null, pairCalendarId: null };
   const locations = await db.select().from(locationsTable);
   const match = locations.find(l => l.name.toLowerCase().includes(unitName.toLowerCase()) || unitName.toLowerCase().includes(l.name.toLowerCase()));
+  let googleCalendarId = match?.googleCalendarId ?? null;
+  // Fonte adicional (SUB-02): se a clínica não tem calendário próprio gravado,
+  // usa a agenda vinculada em agenda_calendars (preferindo kind "geral").
+  // NÃO sobrepõe a prioridade do recurso da agenda (Pacote B), que vem depois.
+  if (!googleCalendarId && match) {
+    const cals = await db.select().from(agendaCalendarsTable).where(eq(agendaCalendarsTable.locationId, match.id));
+    const usable = cals.filter(c => c.active);
+    const chosen = usable.find(c => c.kind === "geral") ?? usable[0];
+    if (chosen) googleCalendarId = chosen.googleCalendarId;
+  }
+  // SUB-03 (item 4.b): agenda do PAR profissional+clínica tem prioridade sobre a da clínica.
+  // Só resolve a agenda concreta (googleCalendarId) a partir do vínculo location_professionals.
+  let pairCalendarId: string | null = null;
+  if (match && professionalId) {
+    const [link] = await db
+      .select()
+      .from(locationProfessionalsTable)
+      .where(
+        eq(locationProfessionalsTable.professionalId, professionalId),
+      );
+    // Filtra pelo par exato (mesma clínica) sem exigir índice composto.
+    const pair = link && link.locationId === match.id
+      ? link
+      : (await db.select().from(locationProfessionalsTable).where(eq(locationProfessionalsTable.locationId, match.id)))
+          .find(l => l.professionalId === professionalId);
+    if (pair?.agendaCalendarId) {
+      const [cal] = await db.select().from(agendaCalendarsTable).where(eq(agendaCalendarsTable.id, pair.agendaCalendarId));
+      if (cal?.active) pairCalendarId = cal.googleCalendarId;
+    }
+  }
   return {
     address: match?.address ?? null,
-    googleCalendarId: match?.googleCalendarId ?? null,
+    phone: match?.phone ?? null,
+    googleCalendarId,
+    pairCalendarId,
   };
 }
 
@@ -136,7 +173,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
 
   const totalDuration = calculateTotalDuration(dispProcTypes);
 
-  const location = await findLocationByUnit(session.unit);
+  const location = await findLocationByUnit(session.unit, session.professionalId);
 
   const isDomiciliar = location.address?.toLowerCase().includes("itinerante") ||
     session.unit?.toLowerCase().includes("domiciliar") ||
@@ -146,8 +183,10 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
     : location.address ?? undefined;
 
   const isDoctor = primaryProcType === "implant" || primaryProcType === "consultation";
-  let targetCalendarId = location.googleCalendarId ?? undefined;
-  if (isDoctor && location.googleCalendarId) {
+  // Cadeia (SUB-03 item 5): par profissional+clínica > clínica > heurística MÉDICO > primary.
+  // O recurso da agenda (Pacote B) ainda sobrescreve no final, mantendo a prioridade existente.
+  let targetCalendarId = location.pairCalendarId ?? location.googleCalendarId ?? undefined;
+  if (!location.pairCalendarId && isDoctor && location.googleCalendarId) {
     const allLocations = await db.select().from(locationsTable);
     const doctorCal = allLocations.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
     if (doctorCal?.googleCalendarId) {
@@ -177,6 +216,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       totalAppointments: protocolSessions.length,
       unit: session.unit ?? "Clinica Padua",
       locationAddress: resolvedAddress,
+      locationPhone: location.phone ?? undefined,
       calendarId: targetCalendarId,
       procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
@@ -290,7 +330,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
     const totalDuration2 = calculateTotalDuration(dispProcTypes2);
 
-    const location = await findLocationByUnit(session.unit);
+    const location = await findLocationByUnit(session.unit, session.professionalId);
 
     const isDomiciliar2 = location.address?.toLowerCase().includes("itinerante") ||
       session.unit?.toLowerCase().includes("domiciliar") ||
@@ -300,8 +340,10 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
       : location.address ?? undefined;
 
     const isDoctor2 = primaryProcType === "implant" || primaryProcType === "consultation";
-    let targetCal = location.googleCalendarId ?? undefined;
-    if (isDoctor2 && location.googleCalendarId) {
+    // Cadeia (SUB-03 item 5): par profissional+clínica > clínica > heurística MÉDICO > primary.
+    // O recurso da agenda (Pacote B) ainda sobrescreve no final, mantendo a prioridade existente.
+    let targetCal = location.pairCalendarId ?? location.googleCalendarId ?? undefined;
+    if (!location.pairCalendarId && isDoctor2 && location.googleCalendarId) {
       const allLocs = await db.select().from(locationsTable);
       const doctorCal = allLocs.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
       if (doctorCal?.googleCalendarId) {
@@ -331,6 +373,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         totalAppointments: protocolSessions2.length,
         unit: session.unit ?? "Clinica Padua",
         locationAddress: resolvedAddr,
+        locationPhone: location.phone ?? undefined,
         calendarId: targetCal,
         procedureType: primaryProcType,
         procedureLabel: procedureTypeLabel(primaryProcType),

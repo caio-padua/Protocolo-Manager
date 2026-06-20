@@ -33,6 +33,8 @@ import budgetCatalogRouter from "./budget-catalog";
 import budgetSettingsRouter from "./budget-settings";
 import budgetsRouter from "./budgets";
 import agendaRouter from "./agenda";
+import agendaCalendarsRouter from "./agenda-calendars";
+import icalRouter from "./ical";
 
 const router: IRouter = Router();
 
@@ -70,5 +72,7 @@ router.use(budgetCatalogRouter);
 router.use(budgetSettingsRouter);
 router.use(budgetsRouter);
 router.use(agendaRouter);
+router.use(agendaCalendarsRouter);
+router.use(icalRouter);
 
 export default router;

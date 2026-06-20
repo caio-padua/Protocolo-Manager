@@ -14,4 +14,5 @@ export interface CreateProfessionalBody {
   phone?: string | null;
   unit?: string | null;
   serviceTypes: string[];
+  category?: string | null;
 }

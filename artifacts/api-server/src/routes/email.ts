@@ -84,7 +84,7 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     sessionId,
     clientId: session.clientId,
     code,
-    expiresAt: expiresAt.toISOString(),
+    expiresAt,
   });
 
   const isFirstSession = dispApps.every(a => a.sessionNumber <= 1);
@@ -136,10 +136,120 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     unit: session.unit ?? "Clinica Padua",
     locationAddress,
     isFirstSession,
+    sessionId: session.id,
+    weekNumber: session.weekNumber,
+    sessionStatus: session.status,
   });
 
   if (result.success) {
     res.json({ success: true, code, message: "Pre-session email sent" });
+  } else {
+    res.status(500).json({ success: false, error: result.error });
+  }
+});
+
+// SUB-04 item 4: reenvio manual do convite .ics (e-mail pré-sessão).
+// NÃO duplica: reaproveita o código de validação válido mais recente da sessão;
+// só gera um novo se não houver nenhum vigente. O .ics tem UID estável + SEQUENCE,
+// então reimportar ATUALIZA o evento no celular do cliente (não cria duplicata).
+router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
+  const sessionId = parseInt(req.params.sessionId);
+  if (isNaN(sessionId)) {
+    res.status(400).json({ error: "Invalid session id" });
+    return;
+  }
+
+  if (!(await isEmailConfigured())) {
+    res.status(503).json({ error: "Gmail not connected via Replit integration." });
+    return;
+  }
+
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!session) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+  if (!client || !client.email) {
+    res.status(400).json({ error: "Client has no email address" });
+    return;
+  }
+
+  const applications = await db.select().from(substanceApplicationsTable)
+    .where(eq(substanceApplicationsTable.sessionId, sessionId));
+  const dispApps = applications.filter(a => a.availability === "disp");
+  if (dispApps.length === 0) {
+    res.status(400).json({ error: "No substances scheduled for this session" });
+    return;
+  }
+
+  const now = new Date();
+  const existingCodes = await db.select().from(validationCodesTable)
+    .where(and(
+      eq(validationCodesTable.sessionId, sessionId),
+      gte(validationCodesTable.expiresAt, now),
+    ));
+  existingCodes.sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime());
+
+  let code = existingCodes[0]?.code;
+  let reusedCode = true;
+  if (!code) {
+    code = generateCode();
+    reusedCode = false;
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+    await db.insert(validationCodesTable).values({
+      sessionId,
+      clientId: session.clientId,
+      code,
+      expiresAt,
+    });
+  }
+
+  const isFirstSession = dispApps.every(a => a.sessionNumber <= 1);
+
+  const substances: PreSessionEmailData["substances"] = [];
+  for (const app of dispApps) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+    if (substance) {
+      substances.push({
+        name: substance.name,
+        dose: app.dose,
+        color: substance.color,
+        procedureType: substance.procedureType ?? "iv",
+        sessionNumber: app.sessionNumber,
+        totalSessions: app.totalSessions,
+      });
+    }
+  }
+
+  let locationAddress: string | undefined;
+  if (session.unit) {
+    const locations = await db.select().from(locationsTable);
+    const loc = locations.find(l => l.name.toLowerCase().includes(session.unit!.toLowerCase()) || session.unit!.toLowerCase().includes(l.name.toLowerCase()));
+    if (loc?.address) locationAddress = loc.address;
+  }
+
+  const primaryProcType = substances[0]?.procedureType ?? "iv";
+  const result = await sendPreSessionEmail({
+    clientName: client.name,
+    clientEmail: client.email,
+    validationCode: code,
+    scheduledDate: session.scheduledDate,
+    scheduledTime: session.scheduledTime,
+    procedureLabel: procedureTypeLabel(primaryProcType),
+    substances,
+    unit: session.unit ?? "Clinica Padua",
+    locationAddress,
+    isFirstSession,
+    sessionId: session.id,
+    weekNumber: session.weekNumber,
+    sessionStatus: session.status,
+  });
+
+  if (result.success) {
+    res.json({ success: true, code, reusedCode, message: "Convite .ics reenviado" });
   } else {
     res.status(500).json({ success: false, error: result.error });
   }
@@ -261,7 +371,7 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       sessionId: session.id,
       clientId: session.clientId,
       code,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt,
     });
 
     const isFirstSession = dispApps.every(a => a.sessionNumber <= 1);
@@ -312,6 +422,9 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       unit: session.unit ?? "Clinica Padua",
       locationAddress,
       isFirstSession,
+      sessionId: session.id,
+      weekNumber: session.weekNumber,
+      sessionStatus: session.status,
     });
 
     results.push({

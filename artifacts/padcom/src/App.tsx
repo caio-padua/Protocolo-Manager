@@ -29,6 +29,9 @@ import Catalogos from "@/pages/catalogos";
 import Exames from "@/pages/exames";
 import CadastroExames from "@/pages/cadastros/exames";
 import CadastroListas from "@/pages/cadastros/listas";
+import CadastroClinicas from "@/pages/cadastros/clinicas";
+import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
+import CadastroEquipe from "@/pages/cadastros/equipe";
 import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
@@ -97,6 +100,9 @@ function Router() {
             <Route path="/exames" component={Exames} />
             <Route path="/cadastros/exames" component={CadastroExames} />
             <Route path="/cadastros/listas" component={CadastroListas} />
+            <Route path="/cadastros/clinicas" component={CadastroClinicas} />
+            <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
+            <Route path="/cadastros/equipe" component={CadastroEquipe} />
             
             <Route component={NotFound} />
           </Switch>

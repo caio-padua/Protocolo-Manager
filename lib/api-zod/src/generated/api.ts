@@ -1237,6 +1237,7 @@ export const ListProfessionalsResponseItem = zod.object({
   phone: zod.string().nullish(),
   unit: zod.string().nullish(),
   serviceTypes: zod.array(zod.string()),
+  category: zod.string().nullish(),
   createdAt: zod.string(),
 });
 export const ListProfessionalsResponse = zod.array(
@@ -1254,6 +1255,7 @@ export const CreateProfessionalBody = zod.object({
   phone: zod.string().nullish(),
   unit: zod.string().nullish(),
   serviceTypes: zod.array(zod.string()),
+  category: zod.string().nullish(),
 });
 
 /**

@@ -22,6 +22,7 @@ import {
   TestTube,
   Calculator,
   CalendarCog,
+  CalendarDays,
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,13 +50,15 @@ const navigation: NavEntry[] = [
   { name: "RAS", href: "/ras", icon: FileText },
   { name: "Estoque", href: "/stock", icon: Box },
   { name: "Financeiro", href: "/payments", icon: CreditCard },
-  { name: "Profissionais", href: "/professionals", icon: Stethoscope },
   { name: "Substâncias", href: "/substances", icon: Beaker },
   { name: "Catálogos", href: "/catalogos", icon: Library },
   {
     name: "Cadastros",
     icon: FolderTree,
     children: [
+      { name: "Equipe", href: "/cadastros/equipe", icon: Stethoscope },
+      { name: "Clínicas", href: "/cadastros/clinicas", icon: Building2 },
+      { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
     ],

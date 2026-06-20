@@ -244,6 +244,19 @@ primário sempre cai no ramo errado). Linguagem do evento segue a marca: ✅ oco
 ícones de mesma silhueta), títulos de seção em MAIÚSCULAS como negrito universal (sem injetar HTML, que vaza
 tag crua/quebra layout em cliente texto-puro). Memória: `.agents/memory/agenda-evento-google-padrao.md`.
 
+**Art. 57** UM FORMATO, UM MOTOR + FEED ASSINADO (promulgado pela SUB-04 "Convite .ics" em 20/06/2026):
+todo formato de serialização (`.ics`, PDF, etc.) tem UM único motor compartilhado; rotas que produzem o
+mesmo formato CHAMAM o motor, nunca remontam o formato à mão (gerador paralelo gera drift silencioso —
+ex.: um .ics sem `VTIMEZONE`/`SEQUENCE` enquanto o oficial tem). O convite de agenda ao cliente é
+`.ics` com `METHOD:PUBLISH` e `UID` ESTÁVEL por sessão (reimportar não duplica); reenvio manual REUSA o
+código de validação ainda válido (idempotente), só gera novo se expirou. Feed iCal privado = URL assinada
+por HMAC (mesmo segredo do portal), escopo próprio, e responde 401 GENÉRICO tanto para token inválido
+quanto para cliente inexistente (anti-enumeração); o feed leva apenas sessões FUTURAS. Coluna `timestamp`
+do Drizzle em modo Date EXIGE objeto `Date` no insert/where — passar `.toISOString()` (string) estoura
+`value.toISOString is not a function` em runtime (o `tsc` pré-quebrado não pega). O que exigir
+cron/scheduler + coluna nova (ex.: reforço mensal recorrente) DEFERE-SE explicitamente — nunca criar
+coluna morta nem anunciar como pronto (Art. 47). Memória: `.agents/memory/ics-motor-unico.md`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -256,3 +269,4 @@ tag crua/quebra layout em cliente texto-puro). Memória: `.agents/memory/agenda-
 | 19/06/2026 | Art. 54 (Título X) | Grade Imaginária — modelo mental completo de layout de card: 5 zonas canônicas (top bar fixo / título / identidade / meta grid / conteúdo), badge de status ao lado do ID nunca do nome, faixa lateral ≤6px, LED proibido em contagem/título. Referência em `grade-imaginaria.md` com diagrama ASCII + receita JSX + anti-padrões + checklist 10 pontos. |
 | 20/06/2026 | Art. 55 (Título IX) | Fonte de dado de fase futura + fuso da clínica, promulgado pelo Motor de Agenda: proibido inventar fonte semanticamente errada quando o vínculo real é de fase futura (usar entrada explícita e marcar a fonte real); horário sempre ancorado no fuso da clínica (BRT, UTC-3 fixo), nunca no fuso implícito do servidor. |
 | 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
+| 20/06/2026 | Art. 57 (Título IX) | "Um formato, um motor + feed assinado", promulgado pela SUB-04 Convite .ics: motor único de serialização (rotas chamam, não remontam à mão); .ics PUBLISH com UID estável; reenvio idempotente; feed iCal HMAC com 401 genérico anti-enumeração e só sessões futuras; coluna timestamp Drizzle modo Date exige objeto Date; defer explícito do que pede cron/coluna nova. |

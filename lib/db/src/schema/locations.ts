@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,16 +10,34 @@ export const locationsTable = pgTable("locations", {
   googleCalendarId: text("google_calendar_id"),
   color: text("color").notNull().default("#3B82F6"),
   active: text("active").notNull().default("true"),
+  phone: text("phone"),
+  cep: text("cep"),
+  logradouro: text("logradouro"),
+  numero: text("numero"),
+  complemento: text("complemento"),
+  bairro: text("bairro"),
+  cidade: text("cidade"),
+  estado: text("estado"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const locationProfessionalsTable = pgTable("location_professionals", {
-  id: serial("id").primaryKey(),
-  locationId: integer("location_id").notNull(),
-  professionalId: integer("professional_id").notNull(),
-  role: text("role").notNull().default("executor"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const locationProfessionalsTable = pgTable(
+  "location_professionals",
+  {
+    id: serial("id").primaryKey(),
+    locationId: integer("location_id").notNull(),
+    professionalId: integer("professional_id").notNull(),
+    role: text("role").notNull().default("executor"),
+    // Agenda Google preferida para o par profissional+clínica (SUB-03, item 4.b).
+    // FK lógica para agenda_calendars.id; opcional.
+    agendaCalendarId: integer("agenda_calendar_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Um par profissional+clínica é único (evita vínculos duplicados — SUB-03 architect).
+    pairUnique: uniqueIndex("location_professionals_pair_unique").on(t.professionalId, t.locationId),
+  }),
+);
 
 export const insertLocationSchema = createInsertSchema(locationsTable).omit({ id: true, createdAt: true });
 export const insertLocationProfessionalSchema = createInsertSchema(locationProfessionalsTable).omit({ id: true, createdAt: true });

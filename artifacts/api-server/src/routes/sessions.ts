@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
+import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -57,6 +58,7 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
       substanceName: substanceMap[app.substanceId]?.name ?? "",
       substanceColor: substanceMap[app.substanceId]?.color ?? "#888888",
       dose: app.dose,
+      procedureType: substanceMap[app.substanceId]?.procedureType ?? "iv",
       sessionNumber: app.sessionNumber,
       totalSessions: app.totalSessions,
       status: app.status,
@@ -68,47 +70,36 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
   };
 }
 
-function buildICSEvent(session: Awaited<ReturnType<typeof buildSessionResponse>>): string[] {
-  const lines: string[] = [];
-
+// Converte a resposta de sessão para a entrada do motor único de .ics (lib/ics.ts).
+// Duração correta por tipo (IV 30 / IM 15 / Implante 60) somando os tipos das
+// substâncias DISP desta ida; fallback para a duração mínima do motor.
+export function sessionToIcsInput(
+  session: Awaited<ReturnType<typeof buildSessionResponse>>,
+  sequence?: number,
+): IcsEventInput {
   const dispApps = session.substanceApplications.filter(a => a.availability === "disp");
   const proxApps = session.substanceApplications.filter(a => a.availability === "prox");
 
   const dispLines = dispApps
     .filter(a => a.sessionNumber > 0)
-    .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions} (DISP)`)
-    .join("\\n");
+    .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions} (DISP)`);
+  const proxLines = proxApps.map(a => `${a.substanceName} (PROX)`);
+  const descriptionLines = [...dispLines, ...proxLines];
 
-  const proxLines = proxApps
-    .map(a => `${a.substanceName} (PROX)`)
-    .join("\\n");
+  const durationMinutes = durationFromProcedureTypes(dispApps.map(a => a.procedureType));
 
-  const description = [dispLines, proxLines].filter(Boolean).join("\\n---\\n");
-
-  const dateStr = session.scheduledDate.replace(/-/g, "");
-  const [h, m] = session.scheduledTime.split(":").map(Number);
-  const endH = String(h + 1).padStart(2, "0");
-  const dtStart = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
-  const dtEnd = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-
-  const uid = `padcom-session-${session.id}@padcom.clinic`;
-  const summary = `PADCOM: ${session.clientName} — Semana ${session.weekNumber}`;
-
-  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "Z");
-
-  lines.push("BEGIN:VEVENT");
-  lines.push(`UID:${uid}`);
-  lines.push(`DTSTAMP:${now}`);
-  lines.push(`DTSTART:${dtStart}`);
-  lines.push(`DTEND:${dtEnd}`);
-  lines.push(`SUMMARY:${summary}`);
-  if (description) lines.push(`DESCRIPTION:${description}`);
-  lines.push(`LOCATION:${session.unit ?? "Clínica"}`);
-  if (session.clientEmail) lines.push(`ATTENDEE;CN="${session.clientName}";RSVP=FALSE:mailto:${session.clientEmail}`);
-  lines.push(`STATUS:${session.status === "completed" ? "COMPLETED" : "CONFIRMED"}`);
-  lines.push("END:VEVENT");
-
-  return lines;
+  return {
+    sessionId: session.id,
+    clientName: session.clientName,
+    scheduledDate: session.scheduledDate,
+    scheduledTime: session.scheduledTime,
+    weekNumber: session.weekNumber,
+    unit: session.unit,
+    status: session.status,
+    durationMinutes,
+    descriptionLines,
+    sequence,
+  };
 }
 
 router.get("/sessions", async (req, res): Promise<void> => {
@@ -147,23 +138,7 @@ router.get("/sessions/ics", async (req, res): Promise<void> => {
 
   const results = await Promise.all(sessions.map(buildSessionResponse));
 
-  const lines: string[] = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//PADCOM Protocolos Injetáveis//BR",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "X-WR-CALNAME:PADCOM Agenda",
-    "X-WR-TIMEZONE:America/Sao_Paulo",
-  ];
-
-  for (const session of results) {
-    lines.push(...buildICSEvent(session));
-  }
-
-  lines.push("END:VCALENDAR");
-
-  const icsContent = lines.join("\r\n");
+  const icsContent = buildVCalendar(results.map(s => sessionToIcsInput(s)));
   const label = dateFrom && dateTo ? `${dateFrom}_a_${dateTo}` : "agenda";
   const filename = `padcom_${label}.ics`;
 
@@ -188,17 +163,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
 
   const result = await buildSessionResponse(session);
 
-  const lines: string[] = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//PADCOM Protocolos Injetáveis//BR",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    ...buildICSEvent(result),
-    "END:VCALENDAR",
-  ];
-
-  const icsContent = lines.join("\r\n");
+  const icsContent = buildVCalendar([sessionToIcsInput(result)]);
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   const clientSlug = client?.name?.replace(/\s+/g, "_") ?? "cliente";
   const filename = `padcom_sessao_${id}_${clientSlug}.ics`;

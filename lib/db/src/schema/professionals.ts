@@ -11,6 +11,7 @@ export const professionalsTable = pgTable("professionals", {
   phone: text("phone"),
   unit: text("unit"),
   serviceTypes: text("service_types").array().notNull().default(["clinic"]),
+  category: text("category").notNull().default("outro"),
   role: text("role").notNull().default("executor"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
