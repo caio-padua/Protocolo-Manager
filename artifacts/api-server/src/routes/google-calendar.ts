@@ -8,6 +8,7 @@ import {
   substanceApplicationsTable,
   locationsTable,
   professionalsTable,
+  agendaResourcesTable,
 } from "@workspace/db";
 import {
   createCalendarEvent,
@@ -152,11 +153,20 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       targetCalendarId = doctorCal.googleCalendarId;
     }
   }
+  // Preferencia: calendario do recurso da agenda (Enf. Local, Medico Local, etc.).
+  if (session.resourceId) {
+    const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
+    if (resource?.googleCalendarId) {
+      targetCalendarId = resource.googleCalendarId;
+    }
+  }
 
   try {
     if (session.googleEventId) {
+      // Eventos legados sem calendarId salvo ficaram na AGENDA GERAL (primary): remove de la para nao orfanar.
+      const oldCalendarId = session.googleCalendarId || "primary";
       try {
-        await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || targetCalendarId);
+        await deleteCalendarEvent(session.googleEventId, oldCalendarId);
       } catch (delErr: any) {
         console.warn("Could not delete old calendar event:", delErr.message);
       }
@@ -279,11 +289,20 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         targetCal = doctorCal.googleCalendarId;
       }
     }
+    // Preferencia: calendario do recurso da agenda (Enf. Local, Medico Local, etc.).
+    if (session.resourceId) {
+      const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
+      if (resource?.googleCalendarId) {
+        targetCal = resource.googleCalendarId;
+      }
+    }
 
     try {
       if (session.googleEventId) {
+        // Eventos legados sem calendarId salvo ficaram na AGENDA GERAL (primary): remove de la para nao orfanar.
+        const oldCal = session.googleCalendarId || "primary";
         try {
-          await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || targetCal);
+          await deleteCalendarEvent(session.googleEventId, oldCal);
         } catch (_delErr: any) {}
       }
 

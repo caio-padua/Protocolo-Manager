@@ -11,6 +11,7 @@ export const agendaResourcesTable = pgTable("agenda_resources", {
   slotMinutes: integer("slot_minutes").notNull().default(30),
   professionalId: integer("professional_id"),
   locationId: integer("location_id"),
+  googleCalendarId: text("google_calendar_id"),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

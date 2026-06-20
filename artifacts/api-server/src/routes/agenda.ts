@@ -79,11 +79,17 @@ function parseOr400<T>(schema: z.ZodType<T>, body: unknown, res: Response): T | 
   return r.data;
 }
 
+// Calendarios da conta Google da clinica (clinica.padua.agenda@gmail.com) por papel+modalidade.
+const CAL_ENFERMAGEM_LOCAL = "725448b07b742a3022b74e566c86ae646a7389a52a862c6cf8bda4e45df36037@group.calendar.google.com";
+const CAL_ENFERMAGEM_REMOTO = "65fbeb905e7ed638c1b44ddf8378e8c112865f0d5225e5a244c7f9f566ec6841@group.calendar.google.com";
+const CAL_MEDICO_LOCAL = "146251b9421c476ed8fb0cc915a5537b08aec836b12923d7ba2105c4cac80751@group.calendar.google.com";
+const CAL_MEDICO_REMOTO = "5b85fa12fb9ee122a815921c838d9df16c789985b93b9921fd94e1571f36eb7c@group.calendar.google.com";
+
 const DEFAULT_RESOURCES = [
-  { name: "Enfermeira Domiciliar", kind: "enfermagem", modality: "domiciliar", color: "#45B8CC", sortOrder: 0 },
-  { name: "Enfermeira Local", kind: "enfermagem", modality: "local", color: "#3D7A7A", sortOrder: 1 },
-  { name: "Médico Local", kind: "medico", modality: "local", color: "#2F6060", sortOrder: 2 },
-  { name: "Médico Online", kind: "medico", modality: "online", color: "#5BC8B0", sortOrder: 3 },
+  { name: "Enfermeira Domiciliar", kind: "enfermagem", modality: "domiciliar", color: "#45B8CC", sortOrder: 0, googleCalendarId: CAL_ENFERMAGEM_REMOTO },
+  { name: "Enfermeira Local", kind: "enfermagem", modality: "local", color: "#3D7A7A", sortOrder: 1, googleCalendarId: CAL_ENFERMAGEM_LOCAL },
+  { name: "Médico Local", kind: "medico", modality: "local", color: "#2F6060", sortOrder: 2, googleCalendarId: CAL_MEDICO_LOCAL },
+  { name: "Médico Online", kind: "medico", modality: "online", color: "#5BC8B0", sortOrder: 3, googleCalendarId: CAL_MEDICO_REMOTO },
 ];
 
 function defaultWindowsFor(resourceId: number) {
@@ -98,7 +104,18 @@ function defaultWindowsFor(resourceId: number) {
 
 async function ensureSeed(): Promise<void> {
   const existing = await db.select().from(agendaResourcesTable);
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    // Backfill idempotente do calendario Google por nome do recurso (recursos legados sem vinculo).
+    for (const r of DEFAULT_RESOURCES) {
+      const match = existing.find((e) => e.name === r.name);
+      if (match && !match.googleCalendarId) {
+        await db.update(agendaResourcesTable)
+          .set({ googleCalendarId: r.googleCalendarId })
+          .where(eq(agendaResourcesTable.id, match.id));
+      }
+    }
+    return;
+  }
   for (const r of DEFAULT_RESOURCES) {
     const [created] = await db.insert(agendaResourcesTable).values(r).returning();
     await db.insert(agendaWindowsTable).values(defaultWindowsFor(created.id));

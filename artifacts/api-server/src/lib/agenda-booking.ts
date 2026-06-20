@@ -184,6 +184,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
         : "Sincronização Google indisponível: conta da clínica não confirmada. Marcação salva apenas no sistema.";
     } else {
     try {
+      const resourceCalendarId = computed.resource.googleCalendarId || undefined;
       googleEventId = await createCalendarEvent({
         sessionId: session.id,
         clientName: client.name,
@@ -200,9 +201,12 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
         clientEmail: client.email || undefined,
         sessionStatus: "scheduled",
         summaryPrefix: simulate ? SIM_TAG : undefined,
+        calendarId: resourceCalendarId,
       });
       if (googleEventId) {
-        await db.update(sessionsTable).set({ googleEventId }).where(eq(sessionsTable.id, session.id));
+        await db.update(sessionsTable)
+          .set({ googleEventId, googleCalendarId: resourceCalendarId ?? null })
+          .where(eq(sessionsTable.id, session.id));
       }
     } catch (err: any) {
       // Nao quebra a marcacao: a sessao fica criada no sistema; sincronizacao falha em silencio controlado.
