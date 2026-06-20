@@ -32,6 +32,7 @@ import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
 import PawardsDemo from "@/pages/pawards-demo";
+import TipografiaDemo from "@/pages/tipografia";
 import OrcamentosList from "@/pages/orcamentos";
 import MontagemOrcamento from "@/pages/orcamentos/novo";
 import Parametrizacao from "@/pages/orcamentos/parametrizacao";
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/anamnese" component={Anamnese} />
       <Route path="/area" component={Area} />
       <Route path="/pawards" component={PawardsDemo} />
+      <Route path="/tipografia" component={TipografiaDemo} />
       <Route>
         <Layout>
           <Switch>
