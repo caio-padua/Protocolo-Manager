@@ -26,3 +26,4 @@ export * from "./agenda-motor";
 export * from "./agenda-calendars";
 export * from "./site-content";
 export * from "./scheduling";
+export * from "./collaborator-audit";

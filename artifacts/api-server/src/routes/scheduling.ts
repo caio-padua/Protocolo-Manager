@@ -11,8 +11,30 @@ import {
   UpdateSchedulingRequestBody,
 } from "@workspace/api-zod";
 import { computeResourceSlots } from "../lib/agenda-booking.js";
+import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp.js";
 
 const router: IRouter = Router();
+
+// Monta a mensagem de lembrete a partir da solicitacao. So texto; nao envia.
+function buildReminderMessage(
+  o: typeof schedulingRequestsTable.$inferSelect,
+  professionalName: string | null,
+): string {
+  const nome = o.patientName?.trim() || "Cliente";
+  const linhas: string[] = [`Olá, ${nome}! Lembrete do seu atendimento na Clínica Pádua.`];
+  const dataBr = (iso: string): string => {
+    const [y, m, d] = iso.split("-");
+    return d && m && y ? `${d}/${m}/${y}` : iso;
+  };
+  if (o.chosenDate) {
+    linhas.push(`Data: ${dataBr(o.chosenDate)}${o.chosenTime ? ` às ${o.chosenTime}` : ""}.`);
+  } else if (o.earliestDate) {
+    linhas.push(`Data desejada: ${dataBr(o.earliestDate)}.`);
+  }
+  if (professionalName) linhas.push(`Profissional: ${professionalName}.`);
+  linhas.push("Qualquer dúvida, é só responder esta mensagem.");
+  return linhas.join("\n");
+}
 
 const ENTRADAS = ["estetico", "dr_caio", "assistente"] as const;
 type Entrada = (typeof ENTRADAS)[number];
@@ -303,5 +325,48 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
     .returning();
   res.json(formatRequest(row));
 });
+
+// POST /scheduling/requests/:id/send-reminder — monta o lembrete e envia por
+// WhatsApp/Twilio SE houver credenciais. Sem credenciais: responde sent:false
+// com o texto pronto (preview) e o link wa.me manual. Nunca cobra, nunca quebra.
+router.post(
+  "/scheduling/requests/:id/send-reminder",
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    const [reqRow] = await db
+      .select()
+      .from(schedulingRequestsTable)
+      .where(eq(schedulingRequestsTable.id, id))
+      .limit(1);
+    if (!reqRow) {
+      res.status(404).json({ error: "Solicitação não encontrada" });
+      return;
+    }
+    let professionalName: string | null = null;
+    if (reqRow.professionalId != null) {
+      const [prof] = await db
+        .select({ name: professionalsTable.name })
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, reqRow.professionalId))
+        .limit(1);
+      professionalName = prof?.name ?? null;
+    }
+    const message = buildReminderMessage(reqRow, professionalName);
+    const result = await sendWhatsapp(reqRow.patientPhone, message);
+    res.json({
+      sent: result.sent,
+      via: result.via,
+      configured: isWhatsappConfigured(),
+      reason: result.sent ? undefined : "twilio_nao_configurado",
+      link: result.link,
+      preview: message,
+      error: result.error,
+    });
+  },
+);
 
 export default router;

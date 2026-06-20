@@ -37,8 +37,15 @@ import agendaCalendarsRouter from "./agenda-calendars";
 import icalRouter from "./ical";
 import siteContentRouter from "./site-content";
 import schedulingRouter from "./scheduling";
+import storageRouter from "./storage";
+import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 
 const router: IRouter = Router();
+
+// Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
+// (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
+// protegidas. Leituras seguem livres.
+router.use(collaboratorGuard);
 
 router.use(healthRouter);
 router.use(clientsRouter);
@@ -78,5 +85,7 @@ router.use(agendaCalendarsRouter);
 router.use(icalRouter);
 router.use(siteContentRouter);
 router.use(schedulingRouter);
+router.use(storageRouter);
+router.use(collaboratorRouter);
 
 export default router;

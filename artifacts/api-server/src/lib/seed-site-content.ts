@@ -38,6 +38,27 @@ const SEED_ITEMS: SeedItem[] = [
     sortOrder: 30,
   },
   {
+    contentKey: "pay_link_estetico",
+    category: "payment_link",
+    title: "Link de Pagamento — Estético (paga depois)",
+    body: null,
+    sortOrder: 10,
+  },
+  {
+    contentKey: "pay_link_concierge",
+    category: "payment_link",
+    title: "Link de Pagamento — Concierge (Dr. Caio, antecipado)",
+    body: null,
+    sortOrder: 20,
+  },
+  {
+    contentKey: "pay_link_assistente",
+    category: "payment_link",
+    title: "Link de Pagamento — Sinal de 25% (Assistentes)",
+    body: null,
+    sortOrder: 30,
+  },
+  {
     contentKey: "btn_entrada_injetavel",
     category: "button_phrase",
     title: "Botão — Entrada Protocolos Injetáveis",

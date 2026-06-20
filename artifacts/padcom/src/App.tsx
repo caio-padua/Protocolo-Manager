@@ -33,6 +33,9 @@ import CadastroClinicas from "@/pages/cadastros/clinicas";
 import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
+import CadastroAuditoria from "@/pages/cadastros/auditoria";
+import { CollaboratorGate } from "@/components/CollaboratorGate";
+import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
 import Agendar from "@/pages/agendar";
 import Anamnese from "@/pages/anamnese";
@@ -53,6 +56,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Portao do Colaborador (Onda 8.2): injeta o token HMAC do colaborador em toda
+// chamada da API gerada (rotas protegidas exigem; demais ignoram).
+registerCollabTokenGetter();
 
 function Router() {
   return (
@@ -101,12 +108,20 @@ function Router() {
             <Route path="/mega-anamnese" component={MegaAnamnese} />
             <Route path="/catalogos" component={Catalogos} />
             <Route path="/exames" component={Exames} />
-            <Route path="/cadastros/exames" component={CadastroExames} />
-            <Route path="/cadastros/listas" component={CadastroListas} />
-            <Route path="/cadastros/clinicas" component={CadastroClinicas} />
-            <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
-            <Route path="/cadastros/equipe" component={CadastroEquipe} />
-            <Route path="/cadastros/textos" component={CadastroTextos} />
+            <Route path="/cadastros/:rest*">
+              <CollaboratorGate>
+                <Switch>
+                  <Route path="/cadastros/exames" component={CadastroExames} />
+                  <Route path="/cadastros/listas" component={CadastroListas} />
+                  <Route path="/cadastros/clinicas" component={CadastroClinicas} />
+                  <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
+                  <Route path="/cadastros/equipe" component={CadastroEquipe} />
+                  <Route path="/cadastros/textos" component={CadastroTextos} />
+                  <Route path="/cadastros/auditoria" component={CadastroAuditoria} />
+                  <Route component={NotFound} />
+                </Switch>
+              </CollaboratorGate>
+            </Route>
             
             <Route component={NotFound} />
           </Switch>

@@ -19,7 +19,7 @@ import {
   Star,
   User,
   Clock,
-  Video
+  CreditCard
 } from "lucide-react";
 
 // --- Helpers ---
@@ -60,6 +60,11 @@ export default function Agendar() {
     return item?.body || fallback;
   };
 
+  const getLink = (key: string) => {
+    const item = contents.find((c) => c.category === "payment_link" && c.contentKey === key);
+    return (item?.body || "").trim();
+  };
+
   const videoItem = contents.find((c) => c.category === "video" && c.contentKey === "video_apresentacao_geral");
 
   const btnInjetavel = getPhrase("btn_entrada_injetavel", "PROTOCOLOS INJETÁVEIS");
@@ -70,6 +75,10 @@ export default function Agendar() {
   const txtEstetico = getText("pay_text_estetico", "Procedimentos estéticos são acertados presencialmente.");
   const txtConcierge = getText("pay_text_concierge", "O serviço Concierge garante encaixe prioritário.");
   const txtAssistente = getText("pay_text_assistente", "Sinal de 25% para reserva da agenda.");
+
+  const linkEstetico = getLink("pay_link_estetico");
+  const linkConcierge = getLink("pay_link_concierge");
+  const linkAssistente = getLink("pay_link_assistente");
 
   if (isLoadingContents) {
     return (
@@ -106,13 +115,7 @@ export default function Agendar() {
               <p className="text-sm text-teal-600">Escolha o serviço desejado para iniciar seu atendimento.</p>
             </div>
 
-            {videoItem?.mediaUrl && (
-              <div className="panel-3d rounded-xl overflow-hidden aspect-video bg-black relative flex items-center justify-center">
-                <Video className="w-12 h-12 text-white/50" />
-                {/* Aqui seria o player, mock apenas com a url */}
-                <div className="absolute bottom-4 left-4 right-4 text-white text-xs opacity-70 truncate">{videoItem.mediaUrl}</div>
-              </div>
-            )}
+            {videoItem?.mediaUrl && <VideoPlayer url={videoItem.mediaUrl} />}
 
             <div className="space-y-4">
               {/* Door 3: Dr Caio - Maximum Emphasis */}
@@ -221,6 +224,7 @@ export default function Agendar() {
             onBack={() => setFlow("menu")}
             title={btnEstetico}
             payText={txtEstetico}
+            payLink={linkEstetico}
           />
         )}
 
@@ -229,6 +233,7 @@ export default function Agendar() {
             onBack={() => setFlow("menu")}
             title={btnDrCaio}
             payTextConcierge={txtConcierge}
+            payLink={linkConcierge}
           />
         )}
 
@@ -237,6 +242,7 @@ export default function Agendar() {
             onBack={() => setFlow("menu")}
             title={btnAssistente}
             payText={txtAssistente}
+            payLink={linkAssistente}
           />
         )}
       </main>
@@ -245,7 +251,7 @@ export default function Agendar() {
 }
 
 // --- DOOR 2: ESTETICOS ---
-function EsteticoFlow({ onBack, title, payText }: { onBack: () => void; title: string; payText: string }) {
+function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void; title: string; payText: string; payLink: string }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -289,6 +295,7 @@ function EsteticoFlow({ onBack, title, payText }: { onBack: () => void; title: s
       <div className="panel-3d-sub p-5 space-y-4">
         <div className="bg-slate-50/50 p-4 rounded border border-teal-100">
           <p className="text-xs text-teal-800 leading-relaxed">{payText}</p>
+          <PaymentLinkButton url={payLink} label="Combinar pagamento" />
         </div>
 
         <div className="space-y-3">
@@ -351,7 +358,7 @@ function EsteticoFlow({ onBack, title, payText }: { onBack: () => void; title: s
 }
 
 // --- DOOR 3: DR CAIO ---
-function DrCaioFlow({ onBack, title, payTextConcierge }: { onBack: () => void; title: string; payTextConcierge: string }) {
+function DrCaioFlow({ onBack, title, payTextConcierge, payLink }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -535,6 +542,10 @@ function DrCaioFlow({ onBack, title, payTextConcierge }: { onBack: () => void; t
                   <p className="text-xs text-teal-100 leading-relaxed">{payTextConcierge}</p>
                 </button>
 
+                {path === "concierge" && (
+                  <PaymentLinkButton url={payLink} label="Garantir encaixe (Concierge)" dark />
+                )}
+
                 <button
                   onClick={() => setPath("fila")}
                   className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
@@ -572,7 +583,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge }: { onBack: () => void; t
 }
 
 // --- DOOR 4: ASSISTENTES ---
-function AssistenteFlow({ onBack, title, payText }: { onBack: () => void; title: string; payText: string }) {
+function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => void; title: string; payText: string; payLink: string }) {
   const { data: doctors = [], isLoading: isLoadingDocs } = useListSchedulingDoctors();
   
   const [docId, setDocId] = useState<number | null>(null);
@@ -736,6 +747,7 @@ function AssistenteFlow({ onBack, title, payText }: { onBack: () => void; title:
               <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">3. SEUS DADOS</label>
               <div className="bg-slate-50/50 p-4 rounded border border-teal-100 mb-4">
                 <p className="text-xs text-teal-800 leading-relaxed">{payText}</p>
+                <PaymentLinkButton url={payLink} label="Pagar sinal de 25%" />
               </div>
 
               <div className="space-y-3">
@@ -763,6 +775,92 @@ function AssistenteFlow({ onBack, title, payText }: { onBack: () => void; title:
 }
 
 // --- Common UI Components ---
+
+// Player do vídeo de apresentação. Escolhe o modo pela URL:
+// 1) arquivo de vídeo ou Object Storage (nosso /api/storage) -> <video> nativo;
+// 2) YouTube/Vimeo -> iframe embarcado; 3) qualquer outra -> link clicável.
+function VideoPlayer({ url }: { url: string }) {
+  const raw = (url || "").trim();
+  if (!raw) return null;
+
+  const embed = toEmbedUrl(raw);
+  if (embed) {
+    return (
+      <div className="panel-3d rounded-xl overflow-hidden aspect-video bg-black">
+        <iframe
+          src={embed}
+          title="Vídeo de apresentação"
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  const isFile = /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(raw) || raw.includes("/api/storage/objects/");
+  if (isFile) {
+    return (
+      <div className="panel-3d rounded-xl overflow-hidden bg-black">
+        <video src={raw} controls playsInline className="w-full aspect-video" />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={raw}
+      target="_blank"
+      rel="noreferrer"
+      className="panel-3d rounded-xl aspect-video bg-black flex items-center justify-center text-white/80 text-sm font-bold uppercase tracking-widest"
+    >
+      Assistir ao vídeo de apresentação
+    </a>
+  );
+}
+
+// Converte links de YouTube/Vimeo para a URL de incorporação (embed).
+function toEmbedUrl(url: string): string | null {
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{6,})/i);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return null;
+}
+
+function PaymentLinkButton({ url, label, dark = false }: { url: string; label: string; dark?: boolean }) {
+  const enabled = /^https?:\/\//i.test((url || "").trim());
+
+  if (!enabled) {
+    return (
+      <div
+        aria-disabled="true"
+        className={`w-full h-11 mt-3 flex items-center justify-center gap-2 rounded-md font-black uppercase tracking-widest text-xs opacity-60 cursor-not-allowed ${
+          dark
+            ? "border border-[#2d5252] text-teal-300/70"
+            : "border border-teal-200 bg-slate-50 text-teal-500"
+        }`}
+      >
+        <CreditCard className="w-4 h-4" /> Pagamento em breve
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url.trim()}
+      target="_blank"
+      rel="noreferrer"
+      className={`w-full h-11 mt-3 flex items-center justify-center gap-2 rounded-md font-black uppercase tracking-widest text-xs transition-all active:translate-y-px ${
+        dark
+          ? "bg-gradient-to-b from-[#c2a05a] to-[#a3803c] text-[#152b2b] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.3)] hover:brightness-110"
+          : "btn-3d"
+      }`}
+    >
+      <CreditCard className="w-4 h-4" /> {label}
+    </a>
+  );
+}
 
 function Field({ label, value, onChange, placeholder, type = "text", dark = false }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; dark?: boolean }) {
   return (
