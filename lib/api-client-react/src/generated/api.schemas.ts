@@ -119,6 +119,51 @@ export interface AgendaSlotsResponse {
   slots: AgendaSlot[];
 }
 
+export interface BookAgendaSessionBody {
+  resourceId: number;
+  clientId: number;
+  protocolId: number;
+  date: string;
+  time: string;
+  serviceType?: string;
+  unit?: string;
+  syncGoogle?: boolean;
+  simulate?: boolean;
+}
+
+export interface AgendaBookedSession {
+  id: number;
+  protocolId: number;
+  clientId: number;
+  resourceId?: number | null;
+  scheduledDate: string;
+  scheduledTime: string;
+  status: string;
+  unit?: string | null;
+  serviceType?: string;
+  weekNumber?: number;
+  googleEventId?: string | null;
+}
+
+export interface BookAgendaSessionResponse {
+  session: AgendaBookedSession;
+  googleEventId?: string | null;
+  /** Presente quando a marcação foi salva mas a sincronização Google foi pulada (conta errada) ou falhou. */
+  googleSyncWarning?: string;
+}
+
+export interface ClearAgendaSimulationsResponse {
+  removed: number;
+  googleRemoved: number;
+}
+
+export interface ClearAgendaSimulationsBody {
+  /** Limita a limpeza às simulações deste cliente. */
+  clientId?: number;
+  /** Limita a limpeza às simulações deste protocolo. */
+  protocolId?: number;
+}
+
 export interface HealthStatus {
   status: string;
 }

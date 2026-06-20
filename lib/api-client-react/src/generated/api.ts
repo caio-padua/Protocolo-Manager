@@ -31,6 +31,8 @@ import type {
   AnamnesePerguntaUpdate,
   AnamneseSintoma,
   BatchResult,
+  BookAgendaSessionBody,
+  BookAgendaSessionResponse,
   Budget,
   BudgetCalcInput,
   BudgetCalcResult,
@@ -43,6 +45,8 @@ import type {
   BudgetSettingsUpdate,
   BudgetUpdate,
   CatalogOption,
+  ClearAgendaSimulationsBody,
+  ClearAgendaSimulationsResponse,
   Client,
   ConfirmSubstanceApplicationBody,
   CreateAgendaExceptionBody,
@@ -7016,3 +7020,263 @@ export function useGetAgendaSlots<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Mark a real session into an open slot (validated by the engine)
+ */
+export const getBookAgendaSessionUrl = () => {
+  return `/api/agenda/book`;
+};
+
+export const bookAgendaSession = async (
+  bookAgendaSessionBody: BookAgendaSessionBody,
+  options?: RequestInit,
+): Promise<BookAgendaSessionResponse> => {
+  return customFetch<BookAgendaSessionResponse>(getBookAgendaSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bookAgendaSessionBody),
+  });
+};
+
+export const getBookAgendaSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaSession>>,
+    TError,
+    { data: BodyType<BookAgendaSessionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bookAgendaSession>>,
+  TError,
+  { data: BodyType<BookAgendaSessionBody> },
+  TContext
+> => {
+  const mutationKey = ["bookAgendaSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bookAgendaSession>>,
+    { data: BodyType<BookAgendaSessionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bookAgendaSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BookAgendaSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bookAgendaSession>>
+>;
+export type BookAgendaSessionMutationBody = BodyType<BookAgendaSessionBody>;
+export type BookAgendaSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a real session into an open slot (validated by the engine)
+ */
+export const useBookAgendaSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaSession>>,
+    TError,
+    { data: BodyType<BookAgendaSessionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bookAgendaSession>>,
+  TError,
+  { data: BodyType<BookAgendaSessionBody> },
+  TContext
+> => {
+  return useMutation(getBookAgendaSessionMutationOptions(options));
+};
+
+/**
+ * @summary Cancel a booked session (removes its Google event if any)
+ */
+export const getCancelAgendaBookingUrl = (id: number) => {
+  return `/api/agenda/book/${id}`;
+};
+
+export const cancelAgendaBooking = async (
+  id: number,
+  options?: RequestInit,
+): Promise<BookAgendaSessionResponse> => {
+  return customFetch<BookAgendaSessionResponse>(getCancelAgendaBookingUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getCancelAgendaBookingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelAgendaBooking>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelAgendaBooking>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["cancelAgendaBooking"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelAgendaBooking>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelAgendaBooking(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelAgendaBookingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelAgendaBooking>>
+>;
+
+export type CancelAgendaBookingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cancel a booked session (removes its Google event if any)
+ */
+export const useCancelAgendaBooking = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelAgendaBooking>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelAgendaBooking>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCancelAgendaBookingMutationOptions(options));
+};
+
+/**
+ * @summary Remove all sessions tagged as simulation and their Google events
+ */
+export const getClearAgendaSimulationsUrl = () => {
+  return `/api/agenda/limpar-simulacao`;
+};
+
+export const clearAgendaSimulations = async (
+  clearAgendaSimulationsBody?: ClearAgendaSimulationsBody,
+  options?: RequestInit,
+): Promise<ClearAgendaSimulationsResponse> => {
+  return customFetch<ClearAgendaSimulationsResponse>(
+    getClearAgendaSimulationsUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clearAgendaSimulationsBody),
+    },
+  );
+};
+
+export const getClearAgendaSimulationsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAgendaSimulations>>,
+    TError,
+    { data: BodyType<ClearAgendaSimulationsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAgendaSimulations>>,
+  TError,
+  { data: BodyType<ClearAgendaSimulationsBody> },
+  TContext
+> => {
+  const mutationKey = ["clearAgendaSimulations"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAgendaSimulations>>,
+    { data: BodyType<ClearAgendaSimulationsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return clearAgendaSimulations(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAgendaSimulationsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAgendaSimulations>>
+>;
+export type ClearAgendaSimulationsMutationBody =
+  BodyType<ClearAgendaSimulationsBody>;
+export type ClearAgendaSimulationsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove all sessions tagged as simulation and their Google events
+ */
+export const useClearAgendaSimulations = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAgendaSimulations>>,
+    TError,
+    { data: BodyType<ClearAgendaSimulationsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearAgendaSimulations>>,
+  TError,
+  { data: BodyType<ClearAgendaSimulationsBody> },
+  TContext
+> => {
+  return useMutation(getClearAgendaSimulationsMutationOptions(options));
+};

@@ -74,6 +74,7 @@ export interface CalendarEventData {
   substances: CalendarSubstance[];
   clientEmail?: string;
   sessionStatus?: string;
+  summaryPrefix?: string;
 }
 
 function getColorIdForProcedure(procType: string): string {
@@ -249,8 +250,9 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     const locationField = data.locationAddress || data.unit;
 
+    const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
     const event: any = {
-      summary: `${clientNameUpper} ${cpfFormatted} - Atend ${data.weekNumber} - ${data.procedureLabel}`,
+      summary: `${prefix}${clientNameUpper} ${cpfFormatted} - Atend ${data.weekNumber} - ${data.procedureLabel}`,
       description: descriptionBody,
       location: locationField,
       start: {
@@ -341,4 +343,33 @@ export async function listCalendars(): Promise<any[]> {
   const calendar = await getUncachableGoogleCalendarClient();
   const res = await calendar.calendarList.list();
   return res.data.items ?? [];
+}
+
+// Conta Google oficial da clinica. So empurramos eventos quando a conta
+// conectada e exatamente esta (a agenda primaria identifica a conta logada).
+export const CLINIC_GOOGLE_ACCOUNT = "clinica.padua.agenda@gmail.com";
+
+let _clinicCheck: { ok: boolean; account: string | null; at: number } | null = null;
+const CLINIC_CHECK_TTL = 5 * 60 * 1000;
+
+/**
+ * Confirma, via listCalendars(), que a conta Google conectada e a da clinica
+ * ANTES de empurrar qualquer evento. Cacheia por 5 min. Se a conta nao for a
+ * da clinica (ou nao der para confirmar), retorna ok:false e NAO se deve empurrar.
+ */
+export async function verifyClinicAccount(): Promise<{ ok: boolean; account: string | null }> {
+  if (_clinicCheck && Date.now() - _clinicCheck.at < CLINIC_CHECK_TTL) {
+    return { ok: _clinicCheck.ok, account: _clinicCheck.account };
+  }
+  try {
+    const cals = await listCalendars();
+    const primary = cals.find((c) => c.primary);
+    const account = (primary?.id as string | undefined) ?? null;
+    const ok = account === CLINIC_GOOGLE_ACCOUNT;
+    _clinicCheck = { ok, account, at: Date.now() };
+    return { ok, account };
+  } catch {
+    _clinicCheck = { ok: false, account: null, at: Date.now() };
+    return { ok: false, account: null };
+  }
 }

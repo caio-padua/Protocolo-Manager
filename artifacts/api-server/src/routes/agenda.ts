@@ -8,7 +8,12 @@ import {
   agendaExceptionsTable,
   agendaSettingsTable,
 } from "@workspace/db";
-import { computeAgendaSlots } from "../lib/agenda-motor.js";
+import {
+  computeResourceSlots,
+  bookSession,
+  cancelBooking,
+  clearSimulations,
+} from "../lib/agenda-booking.js";
 
 const router: IRouter = Router();
 
@@ -274,57 +279,93 @@ router.get("/agenda/slots", async (req, res): Promise<void> => {
     res.status(400).json({ error: "resourceId e date (YYYY-MM-DD) são obrigatórios" });
     return;
   }
-  const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, resourceId));
-  if (!resource) {
+
+  // Ocupacao: por padrao vem das sessoes REAIS marcadas neste recurso+data (F2.3).
+  // O parametro `occupied` (CSV HH:mm) e um OVERRIDE para a Prova Viva demonstrar a liberacao em cadeia.
+  const occupiedParam = String(req.query.occupied ?? "").trim();
+  let override: Set<string> | null = null;
+  if (occupiedParam) {
+    override = new Set<string>(
+      occupiedParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => HHMM.test(s)),
+    );
+  }
+
+  const computed = await computeResourceSlots(resourceId, date, override);
+  if (!computed) {
     res.status(404).json({ error: "Recurso não encontrado" });
     return;
   }
-  const settings = await ensureSettings();
-  // weekday timezone-safe: meio-dia UTC evita qualquer borda de fuso (getUTCDay determinista).
-  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
 
-  const windows = await db
-    .select()
-    .from(agendaWindowsTable)
-    .where(and(eq(agendaWindowsTable.resourceId, resourceId), eq(agendaWindowsTable.weekday, weekday)));
-
-  const exceptions = await db
-    .select()
-    .from(agendaExceptionsTable)
-    .where(
-      and(
-        eq(agendaExceptionsTable.date, date),
-        or(isNull(agendaExceptionsTable.resourceId), eq(agendaExceptionsTable.resourceId, resourceId)),
-      ),
-    );
-
-  // Ocupacao via query `occupied` (CSV HH:mm). A ocupacao REAL (sessao<->recurso) chega na marcacao (F2.3);
-  // aqui o parametro serve a Prova Viva para demonstrar a liberacao em cadeia.
-  const occupiedParam = String(req.query.occupied ?? "").trim();
-  const occupiedTimes = new Set<string>(
-    occupiedParam
-      ? occupiedParam
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => HHMM.test(s))
-      : [],
-  );
-
-  const result = computeAgendaSlots({
-    windows: windows.map((w) => ({ startTime: w.startTime, endTime: w.endTime })),
-    slotMinutes: resource.slotMinutes,
-    settings: {
-      blockMinutes: settings.blockMinutes,
-      triggerPercent: settings.triggerPercent,
-      minLeadHours: settings.minLeadHours,
-    },
-    occupiedTimes,
-    now: new Date(),
+  res.json({
+    resourceId,
     date,
-    isException: exceptions.length > 0,
+    reason: computed.result.reason,
+    subBlocks: computed.result.subBlocks,
+    slots: computed.result.slots,
   });
+});
 
-  res.json({ resourceId, date, reason: result.reason, subBlocks: result.subBlocks, slots: result.slots });
+// ---- Marcacao real (F2.3 recepcao) ----
+const bookSchema = z.object({
+  resourceId: z.number().int().positive(),
+  clientId: z.number().int().positive(),
+  protocolId: z.number().int().positive(),
+  date: z.string().regex(ISO_DATE, "date inválida (YYYY-MM-DD)"),
+  time: z.string().regex(HHMM, "horário inválido (HH:mm)"),
+  serviceType: z.string().trim().max(40).optional(),
+  unit: z.string().trim().max(200).optional(),
+  syncGoogle: z.boolean().optional(),
+  simulate: z.boolean().optional(),
+});
+
+router.post("/agenda/book", async (req, res): Promise<void> => {
+  const data = parseOr400(bookSchema, req.body, res);
+  if (!data) return;
+  const r = await bookSession({
+    resourceId: data.resourceId,
+    clientId: data.clientId,
+    protocolId: data.protocolId,
+    date: data.date,
+    time: data.time,
+    serviceType: data.serviceType,
+    unit: data.unit,
+    syncGoogle: data.syncGoogle ?? false,
+    simulate: data.simulate ?? false,
+  });
+  if (!r.ok) {
+    res.status(r.status).json({ error: r.error });
+    return;
+  }
+  res.status(201).json({ session: r.session, googleEventId: r.googleEventId ?? null, googleSyncWarning: r.googleSyncWarning });
+});
+
+router.delete("/agenda/book/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "id inválido" });
+    return;
+  }
+  const r = await cancelBooking(id);
+  if (!r.ok) {
+    res.status(r.status).json({ error: r.error });
+    return;
+  }
+  res.json({ session: r.session });
+});
+
+const limparSchema = z.object({
+  clientId: z.number().int().positive().optional(),
+  protocolId: z.number().int().positive().optional(),
+});
+
+router.post("/agenda/limpar-simulacao", async (req, res): Promise<void> => {
+  const parsed = limparSchema.safeParse(req.body ?? {});
+  const scope = parsed.success ? parsed.data : {};
+  const r = await clearSimulations(scope);
+  res.json(r);
 });
 
 export default router;

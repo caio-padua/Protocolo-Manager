@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./agendaBookedSession";
 export * from "./agendaException";
 export * from "./agendaResource";
 export * from "./agendaSettings";
@@ -27,6 +28,8 @@ export * from "./anamnesePergunta";
 export * from "./anamnesePerguntaUpdate";
 export * from "./anamneseSintoma";
 export * from "./batchResult";
+export * from "./bookAgendaSessionBody";
+export * from "./bookAgendaSessionResponse";
 export * from "./budget";
 export * from "./budgetCalcInput";
 export * from "./budgetCalcResult";
@@ -52,6 +55,8 @@ export * from "./calcItemInput";
 export * from "./cardFee";
 export * from "./cashScenario";
 export * from "./catalogOption";
+export * from "./clearAgendaSimulationsBody";
+export * from "./clearAgendaSimulationsResponse";
 export * from "./client";
 export * from "./clientStatus";
 export * from "./confirmSubstanceApplicationBody";

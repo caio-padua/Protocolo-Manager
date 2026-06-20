@@ -13,9 +13,12 @@ import {
   examRequestPdfsTable,
   professionalsTable,
   validationCodesTable,
+  agendaResourcesTable,
 } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
+import { computeResourceSlots, bookSession } from "../lib/agenda-booking";
+import { z } from "zod/v4";
 
 // ===========================================================================
 // AREA DO PACIENTE (token-bound, sem auth de admin)
@@ -557,6 +560,121 @@ router.post("/area-paciente/validar-codigo", async (req: Request, res: Response)
   } catch (err: any) {
     req.log?.error({ err }, "[AreaPaciente] validar-codigo error");
     res.status(500).json({ ok: false, error: "Erro interno" });
+  }
+});
+
+// --- AGENDA: recursos disponiveis para o paciente escolher (F4) -------------
+router.get("/area-paciente/agenda-recursos", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+
+  try {
+    const rows = await db
+      .select()
+      .from(agendaResourcesTable)
+      .where(eq(agendaResourcesTable.active, true))
+      .orderBy(asc(agendaResourcesTable.sortOrder));
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        modality: r.modality,
+        color: r.color,
+      })),
+    );
+  } catch (err: any) {
+    console.error("[AreaPaciente] agenda-recursos:", err.message);
+    res.status(500).json({ error: "Erro ao carregar recursos" });
+  }
+});
+
+// --- AGENDA: horarios abertos de um recurso/data (F4) -----------------------
+router.get("/area-paciente/agenda-slots", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+
+  const resourceId = parseInt(String(req.query.resourceId ?? ""), 10);
+  const date = String(req.query.date ?? "");
+  if (isNaN(resourceId) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "resourceId e date (YYYY-MM-DD) são obrigatórios" });
+    return;
+  }
+
+  try {
+    const computed = await computeResourceSlots(resourceId, date, null);
+    if (!computed) { res.status(404).json({ error: "Recurso não encontrado" }); return; }
+    // Paciente so enxerga horarios ABERTOS (nunca ocupados/bloqueados de outros).
+    const slots = computed.result.slots
+      .filter((s) => s.state === "aberto")
+      .map((s) => ({ time: s.time }));
+    res.json({ resourceId, date, reason: computed.result.reason, slots });
+  } catch (err: any) {
+    console.error("[AreaPaciente] agenda-slots:", err.message);
+    res.status(500).json({ error: "Erro ao carregar horários" });
+  }
+});
+
+// --- AGENDA: autoagendamento do paciente (F4) -------------------------------
+// O protocolo NUNCA vem do corpo (anti-IDOR): derivamos o protocolo ativo do cliente do token.
+const agendarSchema = z.object({
+  resourceId: z.number().int().positive(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date inválida (YYYY-MM-DD)"),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "horário inválido (HH:mm)"),
+  simulate: z.boolean().optional(),
+});
+
+router.post("/area-paciente/agendar", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+
+  const parsed = agendarSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "dados inválidos" });
+    return;
+  }
+  const { resourceId, date, time, simulate } = parsed.data;
+
+  try {
+    const protocols = await db
+      .select()
+      .from(protocolsTable)
+      .where(eq(protocolsTable.clientId, clientId))
+      .orderBy(desc(protocolsTable.startDate));
+    const active = protocols.find((p) => p.status !== "cancelled" && p.status !== "completed");
+    if (!active) {
+      res.status(409).json({ error: "Nenhum protocolo ativo para agendar. Fale com a recepção." });
+      return;
+    }
+
+    const r = await bookSession({
+      resourceId,
+      clientId,
+      protocolId: active.id,
+      date,
+      time,
+      syncGoogle: true,
+      simulate: simulate ?? false,
+    });
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
+      return;
+    }
+    res.status(201).json({
+      session: {
+        id: r.session!.id,
+        scheduledDate: r.session!.scheduledDate,
+        scheduledTime: r.session!.scheduledTime,
+        unit: r.session!.unit,
+        status: r.session!.status,
+      },
+      googleEventId: r.googleEventId ?? null,
+      googleSyncWarning: r.googleSyncWarning,
+      mensagem: "Agendamento confirmado. Até lá!",
+    });
+  } catch (err: any) {
+    console.error("[AreaPaciente] agendar:", err.message);
+    res.status(500).json({ error: "Erro ao agendar" });
   }
 });
 

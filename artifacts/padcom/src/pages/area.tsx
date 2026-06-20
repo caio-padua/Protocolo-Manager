@@ -271,7 +271,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
 // ---------------------------------------------------------------------------
 // Hook genérico de fetch com token
 // ---------------------------------------------------------------------------
-function useApi<T>(client: ClientInfo, path: string) {
+function useApi<T>(client: ClientInfo, path: string, refreshKey: number = 0) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -292,7 +292,7 @@ function useApi<T>(client: ClientInfo, path: string) {
       .catch((e) => { if (alive) setError(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [client.token, path]);
+  }, [client.token, path, refreshKey]);
   return { data, loading, error };
 }
 
@@ -681,14 +681,12 @@ const SESS_ACCENT: Record<string, string> = {
 };
 
 function AgendaTab({ client }: { client: ClientInfo }) {
-  const { data, loading, error } = useApi<Sess[]>(client, "sessoes");
-  if (loading) return <Loading />;
-  if (error) return <ErrorBox msg={error} />;
-  if (!data || data.length === 0) return <Empty msg="Você ainda não possui atendimentos agendados." />;
+  const [tick, setTick] = useState(0);
+  const { data, loading, error } = useApi<Sess[]>(client, "sessoes", tick);
 
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = data.filter((s) => s.scheduledDate >= today);
-  const past     = data.filter((s) => s.scheduledDate < today).reverse();
+  const upcoming = (data ?? []).filter((s) => s.scheduledDate >= today);
+  const past     = (data ?? []).filter((s) => s.scheduledDate < today).reverse();
 
   const renderSession = (s: Sess) => (
     <div key={s.id} className={`panel-3d rounded-xl overflow-hidden border-l-4 ${SESS_ACCENT[s.status] ?? "border-teal-300"}`}>
@@ -721,19 +719,207 @@ function AgendaTab({ client }: { client: ClientInfo }) {
 
   return (
     <div className="space-y-5">
-      {upcoming.length > 0 && (
-        <div className="space-y-3">
-          <SecLabel label="PRÓXIMOS ATENDIMENTOS" count={upcoming.length} />
-          {upcoming.map(renderSession)}
-        </div>
+      <SelfScheduler client={client} onBooked={() => setTick((t) => t + 1)} />
+
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorBox msg={error} />
+      ) : (
+        <>
+          {upcoming.length > 0 && (
+            <div className="space-y-3">
+              <SecLabel label="PRÓXIMOS ATENDIMENTOS" count={upcoming.length} />
+              {upcoming.map(renderSession)}
+            </div>
+          )}
+          {upcoming.length === 0 && <Empty msg="Sem atendimentos futuros agendados." />}
+          {past.length > 0 && (
+            <div className="space-y-3">
+              <SecLabel label="HISTÓRICO" count={past.length} />
+              {past.map(renderSession)}
+            </div>
+          )}
+        </>
       )}
-      {upcoming.length === 0 && <Empty msg="Sem atendimentos futuros agendados." />}
-      {past.length > 0 && (
-        <div className="space-y-3">
-          <SecLabel label="HISTÓRICO" count={past.length} />
-          {past.map(renderSession)}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AUTOAGENDAMENTO DO PACIENTE (F4)
+// ---------------------------------------------------------------------------
+type AgendaRecurso = { id: number; name: string; kind: string; modality: string; color: string };
+const MODALITY_PT: Record<string, string> = { domiciliar: "Domiciliar", local: "Na clínica", online: "Online" };
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [recursos, setRecursos] = useState<AgendaRecurso[]>([]);
+  const [resourceId, setResourceId] = useState<number | null>(null);
+  const [date, setDate] = useState<string>(todayISO());
+  const [slots, setSlots] = useState<string[]>([]);
+  const [time, setTime] = useState<string>("");
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [done, setDone] = useState<{ date: string; time: string } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch(`${API_BASE}/api/area-paciente/agenda-recursos`, {
+      headers: { Authorization: `Bearer ${client.token}` },
+    })
+      .then((r) => r.json())
+      .then((d: AgendaRecurso[]) => {
+        setRecursos(d);
+        if (d.length > 0) setResourceId((prev) => prev ?? d[0].id);
+      })
+      .catch(() => setError("Não foi possível carregar os locais de atendimento."));
+  }, [open, client.token]);
+
+  useEffect(() => {
+    if (!open || !resourceId || !date) { setSlots([]); return; }
+    setLoadingSlots(true); setError(""); setTime("");
+    fetch(`${API_BASE}/api/area-paciente/agenda-slots?resourceId=${resourceId}&date=${date}`, {
+      headers: { Authorization: `Bearer ${client.token}` },
+    })
+      .then((r) => r.json())
+      .then((d: { slots: { time: string }[] }) => setSlots((d.slots ?? []).map((s) => s.time)))
+      .catch(() => setError("Não foi possível carregar os horários."))
+      .finally(() => setLoadingSlots(false));
+  }, [open, resourceId, date, client.token, reloadKey]);
+
+  const confirmar = useCallback(async () => {
+    if (!resourceId || !date || !time) return;
+    setSaving(true); setError(""); setWarning("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/agendar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${client.token}` },
+        body: JSON.stringify({ resourceId, date, time }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Não foi possível agendar.");
+        setTime("");
+        setReloadKey((k) => k + 1); // régua pode ter mudado (slot encheu/cadeia)
+        return;
+      }
+      if (data.googleSyncWarning) setWarning(data.googleSyncWarning);
+      setDone({ date, time });
+      setTime("");
+      onBooked();
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setSaving(false); }
+  }, [resourceId, date, time, client.token, onBooked]);
+
+  if (done) {
+    return (
+      <div className="panel-3d rounded-xl p-6 flex flex-col items-center text-center space-y-3">
+        <div className="w-14 h-14 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
+          <CheckCircle className="w-7 h-7 text-green-500" />
         </div>
-      )}
+        <h2 className="text-teal-900 font-black text-base uppercase">AGENDAMENTO CONFIRMADO</h2>
+        <p className="text-teal-600 text-sm">{brDate(done.date)} às {done.time}. Até lá!</p>
+        {warning && (
+          <p className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{warning}</p>
+        )}
+        <button
+          onClick={() => { setDone(null); setOpen(true); }}
+          className="btn-3d w-full h-11 text-sm font-black uppercase tracking-wider"
+        >
+          AGENDAR OUTRO
+        </button>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="btn-3d w-full h-12 text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2"
+      >
+        <CalendarDays className="w-4 h-4" /> AGENDAR ATENDIMENTO
+      </button>
+    );
+  }
+
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden">
+      <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
+        <CalendarDays className="w-5 h-5 text-cyan-300" />
+        <h2 className="text-white font-black text-sm uppercase tracking-widest">AGENDAR ATENDIMENTO</h2>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">LOCAL / TIPO</label>
+          <select
+            value={resourceId ?? ""}
+            onChange={(e) => setResourceId(Number(e.target.value))}
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
+          >
+            {recursos.map((r) => (
+              <option key={r.id} value={r.id}>{r.name} · {MODALITY_PT[r.modality] ?? r.modality}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DATA</label>
+          <input
+            type="date" min={todayISO()} value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">HORÁRIO DISPONÍVEL</label>
+          {loadingSlots ? (
+            <p className="text-teal-400 text-sm py-2">Carregando horários…</p>
+          ) : slots.length === 0 ? (
+            <p className="text-teal-400 text-sm py-2">Nenhum horário disponível neste dia. Tente outra data.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {slots.map((t) => (
+                <button
+                  key={t} type="button" onClick={() => setTime(t)}
+                  className={`px-3 py-2 text-sm font-bold tabular-nums rounded-lg transition ${
+                    time === t ? "bg-cyan-500 text-white ring-2 ring-cyan-300" : "concave-3d text-teal-800 hover:text-teal-950"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <p className="text-red-500 text-xs font-semibold">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setOpen(false)}
+            className="flex-1 h-12 text-sm font-black uppercase tracking-wider text-teal-600 rounded-lg border border-teal-200"
+          >
+            CANCELAR
+          </button>
+          <button
+            onClick={confirmar}
+            disabled={saving || !time}
+            className="btn-3d flex-1 h-12 text-sm font-black uppercase tracking-wider disabled:opacity-50"
+          >
+            {saving ? "AGENDANDO…" : "CONFIRMAR"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

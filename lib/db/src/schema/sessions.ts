@@ -7,6 +7,7 @@ export const sessionsTable = pgTable("sessions", {
   protocolId: integer("protocol_id").notNull(),
   clientId: integer("client_id").notNull(),
   professionalId: integer("professional_id"),
+  resourceId: integer("resource_id"),
   scheduledDate: text("scheduled_date").notNull(),
   scheduledTime: text("scheduled_time").notNull(),
   status: text("status").notNull().default("scheduled"),

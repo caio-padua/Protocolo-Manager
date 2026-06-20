@@ -1622,6 +1622,63 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgendaSlotsResponse"
 
+  /agenda/book:
+    post:
+      operationId: bookAgendaSession
+      tags: [agenda]
+      summary: Mark a real session into an open slot (validated by the engine)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookAgendaSessionBody"
+      responses:
+        "201":
+          description: Session booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookAgendaSessionResponse"
+
+  /agenda/book/{id}:
+    delete:
+      operationId: cancelAgendaBooking
+      tags: [agenda]
+      summary: Cancel a booked session (removes its Google event if any)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookAgendaSessionResponse"
+
+  /agenda/limpar-simulacao:
+    post:
+      operationId: clearAgendaSimulations
+      tags: [agenda]
+      summary: Remove all sessions tagged as simulation and their Google events
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearAgendaSimulationsBody"
+      responses:
+        "200":
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearAgendaSimulationsResponse"
+
 components:
   schemas:
     AgendaResource:
@@ -1839,6 +1896,91 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgendaSlot"
+
+    BookAgendaSessionBody:
+      type: object
+      required: [resourceId, clientId, protocolId, date, time]
+      properties:
+        resourceId:
+          type: integer
+        clientId:
+          type: integer
+        protocolId:
+          type: integer
+        date:
+          type: string
+        time:
+          type: string
+        serviceType:
+          type: string
+        unit:
+          type: string
+        syncGoogle:
+          type: boolean
+        simulate:
+          type: boolean
+
+    AgendaBookedSession:
+      type: object
+      required: [id, protocolId, clientId, scheduledDate, scheduledTime, status]
+      properties:
+        id:
+          type: integer
+        protocolId:
+          type: integer
+        clientId:
+          type: integer
+        resourceId:
+          type: integer
+          nullable: true
+        scheduledDate:
+          type: string
+        scheduledTime:
+          type: string
+        status:
+          type: string
+        unit:
+          type: string
+          nullable: true
+        serviceType:
+          type: string
+        weekNumber:
+          type: integer
+        googleEventId:
+          type: string
+          nullable: true
+
+    BookAgendaSessionResponse:
+      type: object
+      required: [session]
+      properties:
+        session:
+          $ref: "#/components/schemas/AgendaBookedSession"
+        googleEventId:
+          type: string
+          nullable: true
+        googleSyncWarning:
+          type: string
+          description: Presente quando a marcação foi salva mas a sincronização Google foi pulada (conta errada) ou falhou.
+
+    ClearAgendaSimulationsResponse:
+      type: object
+      required: [removed, googleRemoved]
+      properties:
+        removed:
+          type: integer
+        googleRemoved:
+          type: integer
+
+    ClearAgendaSimulationsBody:
+      type: object
+      properties:
+        clientId:
+          type: integer
+          description: Limita a limpeza às simulações deste cliente.
+        protocolId:
+          type: integer
+          description: Limita a limpeza às simulações deste protocolo.
 
     HealthStatus:
       type: object

@@ -11,6 +11,9 @@ import {
   useGetAgendaSettings,
   useUpdateAgendaSettings,
   useGetAgendaSlots,
+  useBookAgendaSession,
+  useListClients,
+  useListProtocols,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,7 +194,7 @@ export default function AgendaMotor() {
     setOccupied(new Set());
   }, [slotResource, slotDate]);
 
-  const { data: slotsData, isFetching: slotsFetching } = useGetAgendaSlots(
+  const { data: slotsData, isFetching: slotsFetching, refetch: refetchSlots } = useGetAgendaSlots(
     {
       resourceId: slotResource ?? 0,
       date: slotDate,
@@ -199,6 +202,70 @@ export default function AgendaMotor() {
     },
     { query: { enabled: !!slotResource && !!slotDate } },
   );
+
+  // ---- Marcacao real (F2.3 recepcao) ----
+  const [bookClient, setBookClient] = useState<number | null>(null);
+  const [bookProtocol, setBookProtocol] = useState<number | null>(null);
+  const [bookTime, setBookTime] = useState<string>("");
+  const [bookSimulate, setBookSimulate] = useState<boolean>(true);
+  const [bookSync, setBookSync] = useState<boolean>(true);
+
+  const { data: clients } = useListClients();
+  const { data: bookProtocols } = useListProtocols(
+    { clientId: bookClient ?? 0 },
+    { query: { enabled: !!bookClient } },
+  );
+
+  useEffect(() => {
+    setBookProtocol(null);
+  }, [bookClient]);
+
+  useEffect(() => {
+    setBookTime("");
+  }, [slotResource, slotDate]);
+
+  const openTimes = useMemo(
+    () => (slotsData?.slots ?? []).filter((s) => s.state === "aberto").map((s) => s.time),
+    [slotsData],
+  );
+
+  const bookSession = useBookAgendaSession({
+    mutation: {
+      onSuccess: (resp: unknown) => {
+        const warn = (resp as { googleSyncWarning?: string })?.googleSyncWarning;
+        const desc = warn ?? (bookSimulate ? "Evento etiquetado [SIMULACAO]." : undefined);
+        toast({ title: "Cliente marcado", description: desc, variant: warn ? "destructive" : undefined });
+        setBookTime("");
+        refetchSlots();
+      },
+      onError: (err: unknown) => {
+        const msg =
+          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          "Não foi possível marcar.";
+        toast({ title: "Marcação recusada", description: msg, variant: "destructive" });
+        // 409 e afins: a régua pode ter mudado (slot encheu/cadeia). Recarrega.
+        refetchSlots();
+      },
+    },
+  });
+
+  function confirmBooking() {
+    if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime) {
+      toast({ title: "Faltam dados", description: "Escolha recurso, data, cliente, protocolo e horário.", variant: "destructive" });
+      return;
+    }
+    bookSession.mutate({
+      data: {
+        resourceId: slotResource,
+        clientId: bookClient,
+        protocolId: bookProtocol,
+        date: slotDate,
+        time: bookTime,
+        syncGoogle: bookSync,
+        simulate: bookSimulate,
+      },
+    });
+  }
 
   function toggleOccupied(time: string, state: string) {
     if (state !== "aberto" && state !== "ocupado") return;
@@ -842,6 +909,105 @@ export default function AgendaMotor() {
         ) : (
           <p className="text-sm text-muted-foreground">{slotsFetching ? "Calculando…" : "Selecione recurso e data."}</p>
         )}
+      </div>
+
+      {/* MARCAR CLIENTE (F2.3 — recepção) */}
+      <div className="panel-3d p-4 space-y-4 paxter-underglow">
+        <BlockTitle icon={CalendarDays}>Marcar Cliente</BlockTitle>
+        <p className="text-[11px] text-muted-foreground">
+          Usa o recurso e a data escolhidos acima. Só horários <strong>abertos</strong> pelo motor podem ser
+          marcados — a cadeia anti-ilha continua valendo.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="panel-3d-sub p-3 space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Cliente</Label>
+            <Select
+              value={bookClient ? String(bookClient) : ""}
+              onValueChange={(v) => setBookClient(Number(v))}
+            >
+              <SelectTrigger className="field-engraved w-full">
+                <SelectValue placeholder="Selecione o cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {(clients ?? []).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="panel-3d-sub p-3 space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Protocolo</Label>
+            <Select
+              value={bookProtocol ? String(bookProtocol) : ""}
+              onValueChange={(v) => setBookProtocol(Number(v))}
+              disabled={!bookClient}
+            >
+              <SelectTrigger className="field-engraved w-full">
+                <SelectValue placeholder={bookClient ? "Selecione o protocolo" : "Escolha o cliente antes"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(bookProtocols ?? []).map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="panel-3d-sub p-3 space-y-2">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Horário aberto</Label>
+          {openTimes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum horário aberto para este recurso/data.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {openTimes.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setBookTime(t)}
+                  className={`px-2.5 py-1 text-xs font-medium tabular-nums transition ${
+                    bookTime === t
+                      ? "bg-cyan-500 text-white ring-2 ring-cyan-300"
+                      : "bg-emerald-500 text-white hover:brightness-110"
+                  }`}
+                  style={{ borderRadius: "3px" }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+            <Switch id="book-sim" checked={bookSimulate} onCheckedChange={setBookSimulate} />
+            <Label htmlFor="book-sim" className="text-sm">
+              Marcar como simulação <span className="text-muted-foreground">([SIMULACAO])</span>
+            </Label>
+          </div>
+          <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+            <Switch id="book-sync" checked={bookSync} onCheckedChange={setBookSync} />
+            <Label htmlFor="book-sync" className="text-sm">
+              Sincronizar com Google Agenda
+            </Label>
+          </div>
+        </div>
+
+        <Button
+          className="btn-3d w-full sm:w-auto"
+          onClick={confirmBooking}
+          disabled={bookSession.isPending || !bookTime}
+        >
+          <CalendarDays className="mr-2 h-4 w-4" />
+          {bookSession.isPending ? "Marcando…" : "Confirmar marcação"}
+        </Button>
       </div>
     </div>
   );

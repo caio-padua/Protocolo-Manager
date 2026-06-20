@@ -2679,3 +2679,67 @@ export const GetAgendaSlotsResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Mark a real session into an open slot (validated by the engine)
+ */
+export const BookAgendaSessionBody = zod.object({
+  resourceId: zod.number(),
+  clientId: zod.number(),
+  protocolId: zod.number(),
+  date: zod.string(),
+  time: zod.string(),
+  serviceType: zod.string().optional(),
+  unit: zod.string().optional(),
+  syncGoogle: zod.boolean().optional(),
+  simulate: zod.boolean().optional(),
+});
+
+/**
+ * @summary Cancel a booked session (removes its Google event if any)
+ */
+export const CancelAgendaBookingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelAgendaBookingResponse = zod.object({
+  session: zod.object({
+    id: zod.number(),
+    protocolId: zod.number(),
+    clientId: zod.number(),
+    resourceId: zod.number().nullish(),
+    scheduledDate: zod.string(),
+    scheduledTime: zod.string(),
+    status: zod.string(),
+    unit: zod.string().nullish(),
+    serviceType: zod.string().optional(),
+    weekNumber: zod.number().optional(),
+    googleEventId: zod.string().nullish(),
+  }),
+  googleEventId: zod.string().nullish(),
+  googleSyncWarning: zod
+    .string()
+    .optional()
+    .describe(
+      "Presente quando a marcação foi salva mas a sincronização Google foi pulada (conta errada) ou falhou.",
+    ),
+});
+
+/**
+ * @summary Remove all sessions tagged as simulation and their Google events
+ */
+export const ClearAgendaSimulationsBody = zod.object({
+  clientId: zod
+    .number()
+    .optional()
+    .describe("Limita a limpeza às simulações deste cliente."),
+  protocolId: zod
+    .number()
+    .optional()
+    .describe("Limita a limpeza às simulações deste protocolo."),
+});
+
+export const ClearAgendaSimulationsResponse = zod.object({
+  removed: zod.number(),
+  googleRemoved: zod.number(),
+});
