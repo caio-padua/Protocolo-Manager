@@ -93,6 +93,11 @@ export default function Area() {
     setTab("inicio");
   }, []);
 
+  // Ao trocar de aba, volta ao topo para a acao principal ficar visivel (sem rolar)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [tab]);
+
   if (!client) return <LoginScreen onSuccess={setClient} />;
 
   return (
@@ -844,9 +849,16 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
     return (
       <button
         onClick={() => setOpen(true)}
-        className="btn-3d w-full h-12 text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2"
+        className="btn-3d w-full px-4 py-4 flex items-center gap-3 text-left"
       >
-        <CalendarDays className="w-4 h-4" /> AGENDAR ATENDIMENTO
+        <div className="w-11 h-11 bg-cyan-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+          <CalendarDays className="w-6 h-6 text-cyan-300" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block text-sm font-black uppercase tracking-widest leading-tight">GERENCIAR AGENDA</span>
+          <span className="block text-[11px] font-semibold tracking-wide opacity-80 leading-tight mt-0.5">Marcar ou remarcar seu atendimento</span>
+        </div>
+        <ChevronRight className="w-5 h-5 flex-shrink-0 opacity-80" />
       </button>
     );
   }
@@ -855,7 +867,7 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
     <div className="panel-3d rounded-xl overflow-hidden">
       <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
         <CalendarDays className="w-5 h-5 text-cyan-300" />
-        <h2 className="text-white font-black text-sm uppercase tracking-widest">AGENDAR ATENDIMENTO</h2>
+        <h2 className="text-white font-black text-sm uppercase tracking-widest">GERENCIAR AGENDA</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>
