@@ -65,3 +65,9 @@ id = "UDBu1boKmm2IexyBxiOYX"
 uri = "file://attached_assets/demo_caio/anamnese_video_ajuda.png"
 type = "image"
 title = "Anamnese — modal de VIDEO DE AJUDA por pergunta"
+
+[[outputs]]
+id = "CsE3HnJPc3aMjE6OvyrJd"
+uri = "file://screenshots/tipografia-grife.jpg"
+type = "image"
+title = "Comparativo de 4 serifadas de grife (tela real, acabamento creme/dourado)"
