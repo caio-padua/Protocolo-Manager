@@ -1,0 +1,43 @@
+{
+  "name": "Paxter Pack",
+  "version": "1.0.0",
+  "generatedAt": "20/06/2026",
+  "skillsRoot": ".agents/skills",
+  "files": [
+    {
+      "path": "paxter-loop/CODIGO-PAXTER.md",
+      "sha256": "ee80825a6e2c066d525599c05030b159edcbfd7c6ccef0d9ba1abf57dad7cbe3",
+      "lines": 312
+    },
+    {
+      "path": "paxter-loop/SKILL.md",
+      "sha256": "98af0bbb4e93ad7d4ca4ccb3f5cab822b2acabea0be5030f1d24c9f8901f2ddb",
+      "lines": 118
+    },
+    {
+      "path": "skill-layout-paxter/references/alinhamento-espacamento.md",
+      "sha256": "34bd3efb266da32c8f45fc6154bb6f10e526a1c7167786fac63fb8c03e19177a",
+      "lines": 61
+    },
+    {
+      "path": "skill-layout-paxter/references/componentes-3d.md",
+      "sha256": "aa1afa7efcb2f116e1d3c06910eac22b4bda90fa28c161d37517c2583831f200",
+      "lines": 101
+    },
+    {
+      "path": "skill-layout-paxter/references/grade-imaginaria.md",
+      "sha256": "cce028fbf41aa2407f36186420911f40eb1cd38df0b9be520a281582d91c180f",
+      "lines": 256
+    },
+    {
+      "path": "skill-layout-paxter/references/revisao-final.md",
+      "sha256": "d4ae5b2e4166ece4ab963775ae263fc23ec5131f868a5337c56746e09420e834",
+      "lines": 43
+    },
+    {
+      "path": "skill-layout-paxter/SKILL.md",
+      "sha256": "bad28ba8f00e0eb28587172d5a0c10656eb957add0f48491ffb032b2746153c1",
+      "lines": 303
+    }
+  ]
+}

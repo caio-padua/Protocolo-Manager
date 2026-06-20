@@ -282,6 +282,18 @@ agente ou sistema (Dr. Replit IHE, Dr. Claude, Dr. Manus, Dr. Obsidian) é DOCUM
 salva-se em `cartas/`, em ASCII puro (Art. 48 do replit.md), com índice em `cartas/INDEX.md`. Nome:
 `AAAA-MM-DD_DESTINO_ASSUNTO.md`. Carta só falada no chat é considerada perdida.
 
+**Art. 61** DO PAXTER PACK — PORTABILIDADE DUPLA, CERTIFICAÇÃO E AUDITORIA (promulgado a pedido do
+CEO em 20/06/2026): a linguagem Paxter (método + design) é empacotada num PACK portável para que
+qualquer sistema novo (primo) nasça idêntico. Quatro pilares: ARQUITETURA (o conteúdo das skills),
+DESENVOLVIMENTO (semear um sistema novo + atualizar o pack), CERTIFICAÇÃO (selo com versão + hash
+SHA-256 por arquivo) e AUDITORIA (acusa drift entre um sistema e o selo). Casa-mestra DUPLA, decisão
+A+B do CEO: (A) cofre Obsidian do Dr. Brain como backup-mestre humano; (B) repositório GitHub
+`paxter-pack` como mestre versionado de onde cada sistema semeia. REGRA DE OURO: `.agents/skills/` é a
+FONTE viva; `paxter-pack/` é ESPELHO gerado pelo build — nunca inverter. LIMITES: o agente não cria
+repositório GitHub nem dá push (ato do CEO pela aba Git) e não escreve no cofre Obsidian (entrega a
+pasta pronta). Ferramentas: `paxter:pack` (gera selo) e `paxter:audit` (certifica/acusa drift) em
+`@workspace/scripts`. Detalhe operacional em `paxter-pack/README.md` e `paxter-pack/SEED.md`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -296,3 +308,4 @@ salva-se em `cartas/`, em ASCII puro (Art. 48 do replit.md), com índice em `car
 | 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
 | 20/06/2026 | Art. 57 (Título IX) | "Um formato, um motor + feed assinado", promulgado pela SUB-04 Convite .ics: motor único de serialização (rotas chamam, não remontam à mão); .ics PUBLISH com UID estável; reenvio idempotente; feed iCal HMAC com 401 genérico anti-enumeração e só sessões futuras; coluna timestamp Drizzle modo Date exige objeto Date; defer explícito do que pede cron/coluna nova. |
 | 20/06/2026 | Art. 58 a 60 (Título XI) | Aprendizado contínuo e memória distribuída, a pedido do CEO: roteamento de cada aprendizado ao destino durável (Código/skill de layout/memória/specs/cartas); Lei do Layout (toda modelagem registrada na skill `skill-layout-paxter` antes de a tela ficar pronta); cartas entre primos viram documento versionado em `cartas/` com índice. |
+| 20/06/2026 | Art. 61 (Título XI) | Paxter Pack — portabilidade dupla, certificação e auditoria, a pedido do CEO (decisão A+B): pack portável das skills para semear sistemas-primos idênticos; casa-mestra dupla (Obsidian + GitHub `paxter-pack`); fonte viva `.agents/skills/` x espelho gerado `paxter-pack/`; ferramentas `paxter:pack` (selo SHA-256) e `paxter:audit` (acusa drift); agente não cria repo nem dá push, não escreve no cofre. |

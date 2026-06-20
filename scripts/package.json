@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "paxter:pack": "tsx ./src/paxter-pack-build.ts",
+    "paxter:audit": "tsx ./src/paxter-pack-audit.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

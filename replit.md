@@ -20,6 +20,7 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
 | Alvo escrito de cada funcionalidade | `specs/<nome>.md` | Ao especificar/construir uma onda |
 | Cartas para outros primos (IHE, Claude, Manus) | `cartas/` (índice em `cartas/INDEX.md`) | Ao comunicar outro sistema/agente |
+| Pack portável das skills (semear/certificar primos) | `paxter-pack/` (README, SEED, MANIFEST) + `scripts` `paxter:pack`/`paxter:audit` | Ao criar um sistema novo ou auditar um existente |
 | Briefing técnico longo do PADCOM | `PADCOM_TECHNICAL_BRIEFING.md`, `PADCOM_FULL_TECHNICAL_DOC.md`, `PADCOM_HANDOFF.md` | Handoff/visão geral profunda |
 | Diretrizes centrais do CEO (Bíblia) | `DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO_*.md` | Referência das decisões-raiz |
 
