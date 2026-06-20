@@ -17,6 +17,9 @@ export const sessionsTable = pgTable("sessions", {
   notes: text("notes"),
   googleEventId: text("google_event_id"),
   googleCalendarId: text("google_calendar_id"),
+  rescheduleCount: integer("reschedule_count").notNull().default(0),
+  rescheduledAt: text("rescheduled_at"),
+  rescheduledBy: text("rescheduled_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

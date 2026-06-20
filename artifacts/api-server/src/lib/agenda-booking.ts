@@ -219,6 +219,129 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
   return { ok: true, status: 201, session: { ...session, googleEventId }, googleEventId, googleSyncWarning };
 }
 
+export interface RescheduleParams {
+  sessionId: number;
+  clientId: number; // dono esperado (anti-IDOR: defesa em profundidade)
+  resourceId: number;
+  date: string;
+  time: string;
+  syncGoogle?: boolean;
+}
+
+/**
+ * Move uma sessao JA existente (status "scheduled") para novo recurso/data/horario.
+ * Valida pelo motor que o slot esta ABERTO, ignora a propria sessao na guarda de corrida,
+ * grava a auditoria (contagem, quando, por quem) e MOVE o evento no Google Calendar
+ * (remove o antigo + cria o novo). Falha de Google nunca trava a remarcacao.
+ */
+export async function rescheduleSession(params: RescheduleParams): Promise<BookResult> {
+  const { sessionId, clientId, resourceId, date, time, syncGoogle } = params;
+
+  if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
+
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  if (!session || session.clientId !== clientId) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (session.status !== "scheduled") return { ok: false, status: 409, error: "Só é possível remarcar sessões agendadas." };
+
+  const computed = await computeResourceSlots(resourceId, date, null);
+  if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
+
+  const slot = computed.result.slots.find((s) => s.time === time);
+  if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
+  if (slot.state === "ocupado") return { ok: false, status: 409, error: "Horário já ocupado" };
+  if (slot.state === "bloqueado") {
+    const motivo = slot.reason === "antecedencia" ? "dentro da antecedência mínima" : "ainda não liberado (cadeia)";
+    return { ok: false, status: 409, error: `Horário bloqueado: ${motivo}` };
+  }
+
+  // Guarda de corrida: ocupacao no exato recurso+data+hora, IGNORANDO a propria sessao.
+  const clashRows = await db
+    .select({ id: sessionsTable.id })
+    .from(sessionsTable)
+    .where(
+      and(
+        eq(sessionsTable.resourceId, resourceId),
+        eq(sessionsTable.scheduledDate, date),
+        eq(sessionsTable.scheduledTime, time),
+        inArray(sessionsTable.status, ["scheduled", "completed"]),
+      ),
+    );
+  if (clashRows.some((r) => r.id !== sessionId)) return { ok: false, status: 409, error: "Horário já ocupado" };
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) return { ok: false, status: 404, error: "Cliente não encontrado" };
+
+  const resourceName = computed.resource.name;
+  const newServiceType = computed.resource.modality === "domiciliar" ? "home" : "clinic";
+
+  // MOVE no Google: remove o antigo e cria o novo. So empurra se a conta for a da clinica.
+  let googleEventId: string | null = session.googleEventId ?? null;
+  let googleCalendarId: string | null = session.googleCalendarId ?? null;
+  let googleSyncWarning: string | undefined;
+  if (syncGoogle) {
+    const acct = await verifyClinicAccount();
+    if (!acct.ok) {
+      googleSyncWarning = acct.account
+        ? `Sincronização Google ignorada: a conta conectada (${acct.account}) não é a da clínica. Remarcação salva apenas no sistema.`
+        : "Sincronização Google indisponível: conta da clínica não confirmada. Remarcação salva apenas no sistema.";
+    } else {
+      try {
+        if (session.googleEventId) {
+          try {
+            await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
+          } catch {
+            /* evento ja removido ou Google indisponivel: segue */
+          }
+        }
+        const resourceCalendarId = computed.resource.googleCalendarId || undefined;
+        googleEventId = await createCalendarEvent({
+          sessionId: session.id,
+          clientName: client.name,
+          clientCpf: client.cpf,
+          scheduledDate: date,
+          scheduledTime: time,
+          durationMinutes: computed.resource.slotMinutes,
+          weekNumber: session.weekNumber,
+          unit: resourceName,
+          procedureLabel: resourceName,
+          procedureType: computed.resource.kind === "medico" ? "consultation" : "iv",
+          activeProcedureTypes: [computed.resource.kind === "medico" ? "consultation" : "iv"],
+          substances: [],
+          clientEmail: client.email || undefined,
+          sessionStatus: "scheduled",
+          calendarId: resourceCalendarId,
+        });
+        googleCalendarId = resourceCalendarId ?? null;
+      } catch {
+        // O evento antigo ja foi (ou pode ter sido) removido acima e o novo nao foi criado:
+        // limpar o ponteiro evita deixar um google_event_id orfao para sincronizacoes futuras.
+        googleEventId = null;
+        googleCalendarId = null;
+        googleSyncWarning = "Remarcação salva, mas a sincronização com o Google Agenda falhou.";
+      }
+    }
+  }
+
+  const [updated] = await db
+    .update(sessionsTable)
+    .set({
+      resourceId,
+      scheduledDate: date,
+      scheduledTime: time,
+      unit: resourceName,
+      serviceType: newServiceType,
+      googleEventId,
+      googleCalendarId,
+      rescheduleCount: (session.rescheduleCount ?? 0) + 1,
+      rescheduledAt: new Date().toISOString(),
+      rescheduledBy: "cliente",
+    })
+    .where(eq(sessionsTable.id, sessionId))
+    .returning();
+
+  return { ok: true, status: 200, session: updated, googleEventId, googleSyncWarning };
+}
+
 export async function cancelBooking(sessionId: number): Promise<BookResult> {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
   if (!session) return { ok: false, status: 404, error: "Sessão não encontrada" };

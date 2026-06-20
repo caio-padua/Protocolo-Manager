@@ -678,6 +678,7 @@ type SessSubstance = { substanceName: string; color: string; dose: string; statu
 type Sess = {
   id: number; scheduledDate: string; scheduledTime: string; status: string;
   unit: string | null; serviceType: string; weekNumber: number; substances: SessSubstance[];
+  protocolTitle?: string | null;
 };
 
 const SESS_ACCENT: Record<string, string> = {
@@ -687,9 +688,11 @@ const SESS_ACCENT: Record<string, string> = {
 
 function AgendaTab({ client }: { client: ClientInfo }) {
   const [tick, setTick] = useState(0);
+  const [reagendarAlvo, setReagendarAlvo] = useState<Sess | null>(null);
   const { data, loading, error } = useApi<Sess[]>(client, "sessoes", tick);
 
   const today = new Date().toISOString().slice(0, 10);
+  const tmrw = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   const upcoming = (data ?? []).filter((s) => s.scheduledDate >= today);
   const past     = (data ?? []).filter((s) => s.scheduledDate < today).reverse();
 
@@ -700,6 +703,11 @@ function AgendaTab({ client }: { client: ClientInfo }) {
         <span className="text-teal-700 text-xs font-black">{brDate(s.scheduledDate)} · {s.scheduledTime}</span>
         <StatusBadge status={s.status} />
       </div>
+      {s.protocolTitle && (
+        <div className="px-4 pt-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+          {s.protocolTitle}
+        </div>
+      )}
       {/* Meta grid */}
       <div className="grid grid-cols-2 gap-2 p-3">
         <MetaField label="LOCAL" value={s.unit} />
@@ -719,12 +727,31 @@ function AgendaTab({ client }: { client: ClientInfo }) {
           ))}
         </div>
       )}
+      {/* Reagendar (Onda 2) — so para sessoes agendadas a partir de amanha */}
+      {s.status === "scheduled" && s.scheduledDate >= tmrw && (
+        <div className="px-3 pb-3">
+          <button
+            onClick={() => setReagendarAlvo(s)}
+            className="w-full h-10 text-xs font-black uppercase tracking-widest text-teal-700 rounded-lg border border-teal-200 hover:bg-teal-50"
+          >
+            REAGENDAR
+          </button>
+        </div>
+      )}
     </div>
   );
 
   return (
     <div className="space-y-5">
       <SelfScheduler client={client} onBooked={() => setTick((t) => t + 1)} />
+      {reagendarAlvo && (
+        <SelfScheduler
+          client={client}
+          reagendar={{ id: reagendarAlvo.id, scheduledDate: reagendarAlvo.scheduledDate }}
+          onBooked={() => setTick((t) => t + 1)}
+          onClose={() => setReagendarAlvo(null)}
+        />
+      )}
 
       {loading ? (
         <Loading />
@@ -761,11 +788,16 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () => void }) {
-  const [open, setOpen] = useState(false);
+function tomorrowISO(): string {
+  return new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+}
+
+function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: ClientInfo; onBooked: () => void; reagendar?: { id: number; scheduledDate: string } | null; onClose?: () => void }) {
+  const isReagendar = !!reagendar;
+  const [open, setOpen] = useState(isReagendar);
   const [recursos, setRecursos] = useState<AgendaRecurso[]>([]);
   const [resourceId, setResourceId] = useState<number | null>(null);
-  const [date, setDate] = useState<string>(todayISO());
+  const [date, setDate] = useState<string>(isReagendar ? tomorrowISO() : todayISO());
   const [slots, setSlots] = useState<string[]>([]);
   const [time, setTime] = useState<string>("");
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -804,14 +836,14 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
     if (!resourceId || !date || !time) return;
     setSaving(true); setError(""); setWarning("");
     try {
-      const res = await fetch(`${API_BASE}/api/area-paciente/agendar`, {
+      const res = await fetch(`${API_BASE}/api/area-paciente/${isReagendar ? "reagendar" : "agendar"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${client.token}` },
-        body: JSON.stringify({ resourceId, date, time }),
+        body: JSON.stringify(isReagendar ? { sessionId: reagendar!.id, resourceId, date, time } : { resourceId, date, time }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Não foi possível agendar.");
+        setError(data.error || (isReagendar ? "Não foi possível remarcar." : "Não foi possível agendar."));
         setTime("");
         setReloadKey((k) => k + 1); // régua pode ter mudado (slot encheu/cadeia)
         return;
@@ -822,7 +854,7 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
       onBooked();
     } catch { setError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }
-  }, [resourceId, date, time, client.token, onBooked]);
+  }, [resourceId, date, time, client.token, onBooked, isReagendar, reagendar]);
 
   if (done) {
     return (
@@ -830,22 +862,22 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
         <div className="w-14 h-14 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
           <CheckCircle className="w-7 h-7 text-green-500" />
         </div>
-        <h2 className="text-teal-900 font-black text-base uppercase">AGENDAMENTO CONFIRMADO</h2>
+        <h2 className="text-teal-900 font-black text-base uppercase">{isReagendar ? "REMARCAÇÃO CONFIRMADA" : "AGENDAMENTO CONFIRMADO"}</h2>
         <p className="text-teal-600 text-sm">{brDate(done.date)} às {done.time}. Até lá!</p>
         {warning && (
           <p className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{warning}</p>
         )}
         <button
-          onClick={() => { setDone(null); setOpen(true); }}
+          onClick={() => { if (isReagendar) { onClose?.(); } else { setDone(null); setOpen(true); } }}
           className="btn-3d w-full h-11 text-sm font-black uppercase tracking-wider"
         >
-          AGENDAR OUTRO
+          {isReagendar ? "FECHAR" : "AGENDAR OUTRO"}
         </button>
       </div>
     );
   }
 
-  if (!open) {
+  if (!open && !isReagendar) {
     return (
       <button
         onClick={() => setOpen(true)}
@@ -867,9 +899,14 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
     <div className="panel-3d rounded-xl overflow-hidden">
       <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
         <CalendarDays className="w-5 h-5 text-cyan-300" />
-        <h2 className="text-white font-black text-sm uppercase tracking-widest">GERENCIAR AGENDA</h2>
+        <h2 className="text-white font-black text-sm uppercase tracking-widest">{isReagendar ? "REMARCAR ATENDIMENTO" : "GERENCIAR AGENDA"}</h2>
       </div>
       <div className="p-5 space-y-4">
+        {isReagendar && (
+          <p className="text-teal-600 text-xs bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+            Atendimento atual: <strong>{brDate(reagendar!.scheduledDate)}</strong>. Escolha o novo local, data e horário.
+          </p>
+        )}
         <div>
           <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">LOCAL / TIPO</label>
           <select
@@ -886,7 +923,7 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
         <div>
           <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DATA</label>
           <input
-            type="date" min={todayISO()} value={date}
+            type="date" min={isReagendar ? tomorrowISO() : todayISO()} value={date}
             onChange={(e) => setDate(e.target.value)}
             className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
           />
@@ -918,7 +955,7 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
 
         <div className="flex gap-2">
           <button
-            onClick={() => setOpen(false)}
+            onClick={() => { if (isReagendar) onClose?.(); else setOpen(false); }}
             className="flex-1 h-12 text-sm font-black uppercase tracking-wider text-teal-600 rounded-lg border border-teal-200"
           >
             CANCELAR
@@ -928,7 +965,7 @@ function SelfScheduler({ client, onBooked }: { client: ClientInfo; onBooked: () 
             disabled={saving || !time}
             className="btn-3d flex-1 h-12 text-sm font-black uppercase tracking-wider disabled:opacity-50"
           >
-            {saving ? "AGENDANDO…" : "CONFIRMAR"}
+            {saving ? (isReagendar ? "REMARCANDO…" : "AGENDANDO…") : (isReagendar ? "REMARCAR" : "CONFIRMAR")}
           </button>
         </div>
       </div>

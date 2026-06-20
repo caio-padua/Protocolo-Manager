@@ -17,7 +17,8 @@ import {
 } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
-import { computeResourceSlots, bookSession } from "../lib/agenda-booking";
+import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
+import { sendGmailMessage } from "../lib/google-gmail";
 import { z } from "zod/v4";
 
 // ===========================================================================
@@ -165,6 +166,12 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
     const allSubstances = await db.select().from(substancesTable);
     const subMap = new Map(allSubstances.map((s) => [s.id, s]));
 
+    const protos = await db
+      .select({ id: protocolsTable.id, title: protocolsTable.title })
+      .from(protocolsTable)
+      .where(eq(protocolsTable.clientId, clientId));
+    const protoMap = new Map(protos.map((p) => [p.id, p.title]));
+
     const result = [];
     for (const s of sessions) {
       const apps = await db
@@ -179,6 +186,7 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
         unit: s.unit,
         serviceType: s.serviceType,
         weekNumber: s.weekNumber,
+        protocolTitle: protoMap.get(s.protocolId) ?? null,
         substances: apps.map((a) => {
           const sub = subMap.get(a.substanceId);
           return {
@@ -675,6 +683,122 @@ router.post("/area-paciente/agendar", async (req: Request, res: Response): Promi
   } catch (err: any) {
     console.error("[AreaPaciente] agendar:", err.message);
     res.status(500).json({ error: "Erro ao agendar" });
+  }
+});
+
+// --- AGENDA: reagendamento pela cliente (Onda 2) ---------------------------
+// A cliente move UMA sessao futura sua para nova data/horario. O id da sessao vem
+// do corpo, mas a posse e checada contra o clientId do TOKEN (anti-IDOR). Regras de
+// negocio (antecedencia, janela, limite) recusam com mensagem clara.
+const REAGENDAR_MIN_LEAD_H = 24; // antecedencia minima da sessao ATUAL
+const REAGENDAR_JANELA_DIAS = 90; // nova data ate 90 dias a frente
+const REAGENDAR_LIMITE = 2; // maximo de remarcacoes pela cliente
+
+const reagendarSchema = z.object({
+  sessionId: z.number().int().positive(),
+  resourceId: z.number().int().positive(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date inválida (YYYY-MM-DD)"),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "horário inválido (HH:mm)"),
+});
+
+router.post("/area-paciente/reagendar", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+
+  const parsed = reagendarSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "dados inválidos" });
+    return;
+  }
+  const { sessionId, resourceId, date, time } = parsed.data;
+
+  try {
+    const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+    // Mensagem generica (nao revela se a sessao existe nem que e de outra cliente) -> anti-IDOR
+    if (!session || session.clientId !== clientId) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+    if (session.status !== "scheduled") {
+      res.status(409).json({ error: "Só é possível remarcar atendimentos agendados." });
+      return;
+    }
+
+    // R5.3 limite de remarcacoes feitas pela cliente
+    if ((session.rescheduleCount ?? 0) >= REAGENDAR_LIMITE) {
+      res.status(409).json({ error: `Limite de ${REAGENDAR_LIMITE} remarcações atingido. Fale com a clínica.` });
+      return;
+    }
+
+    // R5.1 antecedencia minima da sessao ATUAL (nao remarcar em cima da hora)
+    // Ancorar o horario da sessao no fuso da clinica (BRT = UTC-3) para nao errar a borda de 24h
+    // quando o servidor roda em UTC.
+    const agora = new Date();
+    const inicioAtual = new Date(`${session.scheduledDate}T${(session.scheduledTime || "00:00").slice(0, 5)}:00-03:00`);
+    const horasAteAtual = (inicioAtual.getTime() - agora.getTime()) / 36e5;
+    if (horasAteAtual < REAGENDAR_MIN_LEAD_H) {
+      res.status(409).json({ error: `A remarcação exige ao menos ${REAGENDAR_MIN_LEAD_H} horas de antecedência. Fale com a clínica.` });
+      return;
+    }
+
+    // R5.2 nova data: de amanha ate a janela permitida
+    const hoje = todayISO();
+    if (date <= hoje) {
+      res.status(409).json({ error: "Escolha uma data futura (a partir de amanhã)." });
+      return;
+    }
+    const limite = new Date(agora);
+    limite.setDate(limite.getDate() + REAGENDAR_JANELA_DIAS);
+    if (date > limite.toISOString().slice(0, 10)) {
+      res.status(409).json({ error: `Escolha uma data dentro dos próximos ${REAGENDAR_JANELA_DIAS} dias.` });
+      return;
+    }
+
+    // R5.2 nova data nao pode cair depois do fim do protocolo (quando o protocolo tem fim definido)
+    const [proto] = await db
+      .select({ endDate: protocolsTable.endDate })
+      .from(protocolsTable)
+      .where(eq(protocolsTable.id, session.protocolId));
+    if (proto?.endDate && /^\d{4}-\d{2}-\d{2}/.test(proto.endDate) && date > proto.endDate.slice(0, 10)) {
+      res.status(409).json({ error: "A nova data não pode ser depois do fim do protocolo. Fale com a clínica." });
+      return;
+    }
+
+    const r = await rescheduleSession({ sessionId, clientId, resourceId, date, time, syncGoogle: true });
+    if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+
+    // R7.2 e-mail de confirmacao (best-effort; nunca trava a remarcacao)
+    try {
+      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+      if (client?.email) {
+        const dataBr = date.split("-").reverse().join("/");
+        await sendGmailMessage({
+          to: client.email,
+          subject: `Clinica Padua | Remarcacao confirmada | ${dataBr} ${time}`,
+          html: `<p>Olá, ${client.name}.</p><p>Seu atendimento foi remarcado para <strong>${dataBr} às ${time}</strong>${r.session?.unit ? ` (${r.session.unit})` : ""}.</p><p>Se não foi você quem solicitou, entre em contato com a clínica.</p>`,
+        });
+      }
+    } catch (e: any) {
+      req.log?.warn({ err: e }, "[AreaPaciente] reagendar: e-mail de confirmacao falhou");
+    }
+
+    // R7.3 log da clinica (notificacao simples; cartao/Trello fica para onda futura)
+    req.log?.info({ sessionId, clientId, date, time, by: "cliente" }, "[AreaPaciente] sessao remarcada pela cliente");
+
+    res.json({
+      session: {
+        id: r.session!.id,
+        scheduledDate: r.session!.scheduledDate,
+        scheduledTime: r.session!.scheduledTime,
+        unit: r.session!.unit,
+        status: r.session!.status,
+      },
+      googleSyncWarning: r.googleSyncWarning,
+      mensagem: "Remarcação confirmada.",
+    });
+  } catch (err: any) {
+    console.error("[AreaPaciente] reagendar:", err.message);
+    res.status(500).json({ error: "Erro ao remarcar" });
   }
 });
 
