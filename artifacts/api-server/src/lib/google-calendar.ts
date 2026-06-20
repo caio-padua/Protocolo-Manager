@@ -75,6 +75,8 @@ export interface CalendarEventData {
   clientEmail?: string;
   sessionStatus?: string;
   summaryPrefix?: string;
+  // Total de idas (sessoes) do protocolo. Alimenta "Agendamento Número: N/Total".
+  totalAppointments?: number;
 }
 
 function getColorIdForProcedure(procType: string): string {
@@ -85,10 +87,6 @@ function getColorIdForProcedure(procType: string): string {
     case "consultation": return "9";
     default: return "5";
   }
-}
-
-function removeAccents(str: string): string {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function buildAddressBlock(address: string | undefined, unitName: string): string | null {
@@ -131,65 +129,93 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
-function getDurationLabel(procKey: string): string {
-  switch (procKey) {
-    case "iv": return "30 MIN";
-    case "im": return "15 MIN";
-    case "implant": return "60 MIN";
-    case "consultation": return "60 MIN";
-    default: return "30 MIN";
+// Lista FIXA de procedimentos exibida no evento (padrao Pawards MedCore dos prints).
+// Cada linha leva polegar (ativo/inativo) e a contagem de tempo entre colchetes.
+const PROCEDURE_ROWS: Array<{ key: string; label: string; min: number }> = [
+  { key: "im", label: "Aplicação Intramuscular", min: 15 },
+  { key: "iv", label: "Aplicação Endovenosa", min: 30 },
+  { key: "consultation", label: "Consulta", min: 60 },
+  { key: "__retorno", label: "Retorno ou Avaliação", min: 30 },
+  { key: "__especifico", label: "Procedimento Específico", min: 60 },
+  { key: "implant", label: "Implante", min: 60 },
+];
+
+const THUMBS_UP = "\uD83D\uDC4D"; // 👍
+const THUMBS_DOWN = "\uD83D\uDC4E"; // 👎
+
+const STATUS_SQUARE: Record<SubstanceStatus, string> = {
+  disp: "\uD83D\uDFE9", // 🟩 verde
+  prox: "\uD83D\uDFE8", // 🟨 amarelo
+  applied: "\uD83D\uDFE6", // 🟦 azul
+  missed: "\u2B1C", // ⬜ branco
+};
+
+const STATUS_ABBR: Record<SubstanceStatus, string> = {
+  disp: "DISP",
+  prox: "PROX",
+  applied: "APLI",
+  missed: "INDI",
+};
+
+const SUBSTANCE_LEGEND =
+  "Legenda:\n" +
+  `${STATUS_SQUARE.disp} Disponível para Aplicação [DISP]\n` +
+  `${STATUS_SQUARE.prox} Disponível Próxima Sessão [PROX]\n` +
+  `${STATUS_SQUARE.applied} Substância Aplicada [APLI]\n` +
+  `${STATUS_SQUARE.missed} Substância Indisponível [INDI]`;
+
+/** Soma das duracoes (min) so dos procedimentos ATIVOS, sem repetir tipo. */
+function computeActiveDuration(activeProcTypes: string[]): number {
+  const active = new Set(activeProcTypes);
+  let total = 0;
+  for (const row of PROCEDURE_ROWS) {
+    if (active.has(row.key)) total += row.min;
   }
+  return total;
 }
 
-function buildProcedureChecklist(activeProcTypes: string[], totalDurationMinutes: number): string {
-  const allProcedures = [
-    { key: "consultation", label: "CONSULTA" },
-    { key: "iv", label: "APLICACAO ENDOVENOSA" },
-    { key: "im", label: "APLICACAO INTRAMUSCULAR" },
-    { key: "implant", label: "IMPLANTE" },
-  ];
-  const lines = allProcedures
-    .map(p => {
-      const isActive = activeProcTypes.includes(p.key);
-      if (isActive) {
-        return `${p.label} ${getDurationLabel(p.key)} \u2705`;
-      }
-      return `${p.label} \u274C`;
-    })
-    .join("\n");
-
-  const horas = Math.floor(totalDurationMinutes / 60);
-  const minutos = totalDurationMinutes % 60;
-  let totalLabel: string;
-  if (horas > 0 && minutos > 0) {
-    totalLabel = `${horas}H${String(minutos).padStart(2, '0')}MIN`;
-  } else if (horas > 0) {
-    totalLabel = `${horas}H00`;
-  } else {
-    totalLabel = `${totalDurationMinutes} MINUTOS`;
-  }
-
-  return `${lines}\n\nDURACAO TOTAL: ${totalLabel}`;
+function buildProcedureChecklist(activeProcTypes: string[]): string {
+  const active = new Set(activeProcTypes);
+  return PROCEDURE_ROWS.map(row => {
+    const mark = active.has(row.key) ? THUMBS_UP : THUMBS_DOWN;
+    return `${mark} ${row.label} [${row.min}min]`;
+  }).join("\n");
 }
 
 function getSessionStatusLine(sessionStatus?: string): string {
   if (sessionStatus === "completed") {
-    return "STATUS: REALIZADO \uD83D\uDD35";
-  } else if (sessionStatus === "missed" || sessionStatus === "cancelled") {
-    return "STATUS: NAO REALIZADO \u26AB";
+    return `${STATUS_SQUARE.applied} Aplicação Realizada`;
   }
-  return "STATUS: A REALIZAR \uD83D\uDFE1";
+  if (sessionStatus === "missed" || sessionStatus === "cancelled") {
+    return `${STATUS_SQUARE.missed} Não Realizada`;
+  }
+  return `${STATUS_SQUARE.prox} Aplicação Programada`;
 }
 
-function buildDescriptionBody(
-  data: CalendarEventData,
-  clientNameUpper: string,
-  cpfFormatted: string,
-  substanceList: string,
-  legend: string,
-): string {
-  const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes, data.durationMinutes);
+function buildSubstanceList(substances: CalendarSubstance[]): string {
+  if (substances.length === 0) return "(sem substâncias nesta sessão)";
+  return substances
+    .map(s => {
+      const idx = s.sessionNumber > 0 ? `${s.sessionNumber}/${s.totalSessions}` : `–/${s.totalSessions}`;
+      const square = STATUS_SQUARE[s.status] ?? STATUS_SQUARE.prox;
+      const abbr = STATUS_ABBR[s.status] ?? "PROX";
+      return `${square} [${idx}] ${s.name} ${s.dose} [${abbr}]`;
+    })
+    .join("\n");
+}
+
+function buildEventTitle(clientName: string, cpf: string, prefix: string): string {
+  const nameUpper = clientName.toUpperCase();
+  const cpfPart = cpf ? ` CPF ${cpf}` : "";
+  return `${prefix}${nameUpper}${cpfPart} [SESS]`;
+}
+
+function buildDescriptionBody(data: CalendarEventData): string {
+  const totalAppointments = data.totalAppointments ?? data.weekNumber;
+  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
   const statusLine = getSessionStatusLine(data.sessionStatus);
+  const substanceList = buildSubstanceList(data.substances);
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
   const mapsLink = data.locationAddress
@@ -199,14 +225,24 @@ function buildDescriptionBody(
     ? `https://waze.com/ul?q=${encodeURIComponent(data.locationAddress)}`
     : null;
 
-  let desc = `PADCON CONECT - Protocolos Injetaveis\n\nCLIENTE ${clientNameUpper}\nCPF ${cpfFormatted}\nATENDIMENTO ${data.weekNumber}\nUNIDADE ${data.unit}\n\nPROCEDIMENTOS:\n${procedureChecklist}\n\n${statusLine}\n\nSUBSTANCIAS DO PROTOCOLO:\n${substanceList}${legend}`;
+  let desc =
+    `Developed by: Pawards MedCore\n\n` +
+    `${data.clientName}\n` +
+    `CPF.: ${data.clientCpf || "-"}\n` +
+    `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +
+    `Unidade: ${data.unit}\n\n` +
+    `Procedimentos:\n${procedureChecklist}\n` +
+    `Duração Total: ${durationTotal}min\n\n` +
+    `Status:\n${statusLine}\n\n` +
+    `Substâncias Protocolo:\n${substanceList}\n\n` +
+    `${SUBSTANCE_LEGEND}`;
 
   if (addressBlock) {
     desc += `\n\n${addressBlock}`;
   }
 
   if (mapsLink) {
-    desc += `\n\nNAVEGACAO:`;
+    desc += `\n\nNavegação:`;
     desc += `\nGoogle Maps: ${mapsLink}`;
     if (wazeLink) {
       desc += `\nWaze: ${wazeLink}`;
@@ -222,37 +258,18 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     const [h, m] = data.scheduledTime.split(":").map(Number);
     const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
-    const endDate = new Date(startDate.getTime() + data.durationMinutes * 60 * 1000);
+    const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+    const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
 
-    const clientNameUpper = removeAccents(data.clientName).toUpperCase();
     const cpfFormatted = data.clientCpf || "";
+    const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
 
-    const statusDot: Record<SubstanceStatus, string> = {
-      disp: "\uD83D\uDFE2",
-      applied: "\uD83D\uDD35",
-      prox: "\uD83D\uDFE4",
-      missed: "\u26AB",
-    };
-    const statusTag: Record<SubstanceStatus, string> = {
-      disp: "(DISP)",
-      applied: "(APLICADA)",
-      prox: "(PROX)",
-      missed: "(N/A)",
-    };
-
-    const substanceList = data.substances
-      .map(s => `${statusDot[s.status]} ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions}) ${statusTag[s.status]}`)
-      .join("\n");
-
-    const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
-
-    const descriptionBody = buildDescriptionBody(data, clientNameUpper, cpfFormatted, substanceList, legend);
+    const descriptionBody = buildDescriptionBody(data);
 
     const locationField = data.locationAddress || data.unit;
 
-    const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
     const event: any = {
-      summary: `${prefix}${clientNameUpper} ${cpfFormatted} - Atend ${data.weekNumber} - ${data.procedureLabel}`,
+      summary: buildEventTitle(data.clientName, cpfFormatted, prefix),
       description: descriptionBody,
       location: locationField,
       start: {
@@ -296,29 +313,7 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
   try {
     const calendar = await getUncachableGoogleCalendarClient();
 
-    const clientNameUpper = removeAccents(data.clientName).toUpperCase();
-    const cpfFormatted = data.clientCpf || "";
-
-    const statusDot: Record<SubstanceStatus, string> = {
-      disp: "\uD83D\uDFE2",
-      applied: "\uD83D\uDD35",
-      prox: "\uD83D\uDFE4",
-      missed: "\u26AB",
-    };
-    const statusTag: Record<SubstanceStatus, string> = {
-      disp: "(DISP)",
-      applied: "(APLICADA)",
-      prox: "(PROX)",
-      missed: "(N/A)",
-    };
-
-    const substanceList = data.substances
-      .map(s => `${statusDot[s.status]} ${s.name} ${s.dose} (${s.sessionNumber}/${s.totalSessions}) ${statusTag[s.status]}`)
-      .join("\n");
-
-    const legend = `\n\n---\nLEGENDA\n\uD83D\uDFE2 DISP - DISPONIVEL PARA APLICACAO HOJE\n\uD83D\uDD35 APLICADA - SUBSTANCIA JA APLICADA\n\uD83D\uDFE4 PROX - PROXIMA APLICACAO (OUTRA DATA)\n\u26AB N/A - NAO DISPONIVEL`;
-
-    const description = buildDescriptionBody(data, clientNameUpper, cpfFormatted, substanceList, legend);
+    const description = buildDescriptionBody(data);
 
     await calendar.events.patch({
       calendarId: calendarId || 'primary',

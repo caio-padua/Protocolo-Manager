@@ -172,6 +172,9 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       }
     }
 
+    const protocolSessions = await db.select({ id: sessionsTable.id }).from(sessionsTable)
+      .where(eq(sessionsTable.protocolId, session.protocolId));
+
     const eventId = await createCalendarEvent({
       sessionId: session.id,
       clientName: client.name,
@@ -180,12 +183,15 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       scheduledTime: session.scheduledTime,
       durationMinutes: totalDuration,
       weekNumber: session.weekNumber,
+      totalAppointments: protocolSessions.length,
       unit: session.unit ?? "Clinica Padua",
       locationAddress: resolvedAddress,
       calendarId: targetCalendarId,
       procedureType: primaryProcType,
       procedureLabel: procedureTypeLabel(primaryProcType),
-      activeProcedureTypes: Array.from(activeProcTypes),
+      // Só os procedimentos EXECUTAVEIS nesta ida (DISP/aplicados): evita 👍 e
+      // Duração Total inflados por substancia PROX de outro tipo.
+      activeProcedureTypes: Array.from(dispProcTypes),
       substances,
       clientEmail: client.email || undefined,
       sessionStatus: session.status,
@@ -306,6 +312,9 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         } catch (_delErr: any) {}
       }
 
+      const protocolSessions2 = await db.select({ id: sessionsTable.id }).from(sessionsTable)
+        .where(eq(sessionsTable.protocolId, session.protocolId));
+
       const eventId = await createCalendarEvent({
         sessionId: session.id,
         clientName: client.name,
@@ -314,12 +323,13 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         scheduledTime: session.scheduledTime,
         durationMinutes: totalDuration2,
         weekNumber: session.weekNumber,
+        totalAppointments: protocolSessions2.length,
         unit: session.unit ?? "Clinica Padua",
         locationAddress: resolvedAddr,
         calendarId: targetCal,
         procedureType: primaryProcType,
         procedureLabel: procedureTypeLabel(primaryProcType),
-        activeProcedureTypes: Array.from(activeProcTypes2),
+        activeProcedureTypes: Array.from(dispProcTypes2),
         substances,
         clientEmail: client.email || undefined,
         sessionStatus: session.status,
