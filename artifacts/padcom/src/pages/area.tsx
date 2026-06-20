@@ -96,7 +96,7 @@ export default function Area() {
   if (!client) return <LoginScreen onSuccess={setClient} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
       {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
       <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60">
         <div className="flex items-center gap-3 min-w-0">
@@ -187,7 +187,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   }, [cpf, birthDate, onSuccess]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
       {/* Header login */}
       <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-teal-200/60">
         <div className="flex items-center gap-3">
@@ -223,7 +223,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
                 <input
                   type="tel" inputMode="numeric" placeholder="000.000.000-00" value={cpf}
                   onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
-                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
                 />
               </div>
               <div>
@@ -232,7 +232,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
                   type="tel" inputMode="numeric" placeholder="DD/MM/AAAA" value={birthDate}
                   onChange={(e) => { setBirthDate(formatDateInput(e.target.value)); setError(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") handleIdentify(); }}
-                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
                 />
               </div>
 
@@ -430,7 +430,7 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value.toUpperCase().slice(0, 12))}
                 onKeyDown={(e) => { if (e.key === "Enter") handleValidar(); }}
-                className="concave-3d flex-1 h-11 px-3 text-teal-900 text-base font-mono tracking-widest placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+                className="concave-3d flex-1 h-11 px-3 text-teal-900 text-base font-mono tracking-widest placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
               />
               <button
                 onClick={handleValidar}
@@ -481,7 +481,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
             <p className="text-cyan-500 font-black text-sm">{pct}%</p>
           </div>
           <div className="concave-3d h-3 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       </div>
@@ -585,7 +585,7 @@ function ProtocolCard({ p }: { p: Proto }) {
           <span className="text-cyan-500 text-xs font-black">{pct}%</span>
         </div>
         <div className="concave-3d h-2.5 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
@@ -961,7 +961,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
           <select
             value={fileType}
             onChange={(e) => { setFileType(e.target.value); setBodyRegion(""); setError(""); }}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg appearance-none"
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
           >
             <option value="" disabled>Selecione o tipo...</option>
             {FILE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -974,7 +974,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
             <select
               value={bodyRegion}
               onChange={(e) => setBodyRegion(e.target.value)}
-              className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg appearance-none"
+              className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
             >
               <option value="">Selecione a região...</option>
               {BODY_REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -988,7 +988,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
             type="text" placeholder="Ex: hemograma completo, raio-x do joelho..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
           />
         </div>
 
