@@ -882,6 +882,70 @@ export interface UpdateSiteContentBody {
   sortOrder?: number;
 }
 
+export interface SchedulingDoctor {
+  id: number;
+  name: string;
+  specialty?: string | null;
+  crm?: string | null;
+  resourceId?: number | null;
+}
+
+export interface SchedulingRequest {
+  id: number;
+  entrada: string;
+  path?: string | null;
+  patientName: string;
+  patientPhone: string;
+  patientCpf?: string | null;
+  patientEmail?: string | null;
+  desire?: string | null;
+  preferredWeekday?: number | null;
+  preferredPeriod?: string | null;
+  earliestDate?: string | null;
+  professionalId?: number | null;
+  resourceId?: number | null;
+  chosenDate?: string | null;
+  chosenTime?: string | null;
+  paymentArm?: string | null;
+  paymentStatus: string;
+  status: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type CreateSchedulingRequestBodyEntrada =
+  (typeof CreateSchedulingRequestBodyEntrada)[keyof typeof CreateSchedulingRequestBodyEntrada];
+
+export const CreateSchedulingRequestBodyEntrada = {
+  estetico: "estetico",
+  dr_caio: "dr_caio",
+  assistente: "assistente",
+} as const;
+
+export interface CreateSchedulingRequestBody {
+  entrada: CreateSchedulingRequestBodyEntrada;
+  path?: string | null;
+  patientName: string;
+  patientPhone: string;
+  patientCpf?: string | null;
+  patientEmail?: string | null;
+  desire?: string | null;
+  preferredWeekday?: number | null;
+  preferredPeriod?: string | null;
+  earliestDate?: string | null;
+  professionalId?: number | null;
+  resourceId?: number | null;
+  chosenDate?: string | null;
+  chosenTime?: string | null;
+  paymentArm?: string | null;
+}
+
+export interface UpdateSchedulingRequestBody {
+  status?: string;
+  notes?: string | null;
+  paymentStatus?: string;
+}
+
 export interface CatalogOption {
   id: number;
   kind: string;
@@ -1513,6 +1577,11 @@ export type ListPaymentsParams = {
 
 export type ListSiteContentParams = {
   category?: string;
+};
+
+export type ListSchedulingRequestsParams = {
+  entrada?: string;
+  status?: string;
 };
 
 export type ListCatalogOptionsParams = {

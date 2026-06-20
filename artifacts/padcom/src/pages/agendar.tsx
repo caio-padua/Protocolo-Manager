@@ -1,0 +1,813 @@
+import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
+import {
+  useListSiteContent,
+  useListSchedulingDoctors,
+  useGetAgendaSlots,
+  useCreateSchedulingRequest,
+  getGetAgendaSlotsQueryKey,
+} from "@workspace/api-client-react";
+import {
+  Loader2,
+  ChevronRight,
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle,
+  AlertCircle,
+  Syringe,
+  Sparkles,
+  Star,
+  User,
+  Clock,
+  Video
+} from "lucide-react";
+
+// --- Helpers ---
+function addMonths(date: Date, months: number) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+const formatCpf = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+};
+
+const formatPhone = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
+
+export default function Agendar() {
+  const [, setLocation] = useLocation();
+  const [flow, setFlow] = useState<"menu" | "estetico" | "drcaio" | "assistente">("menu");
+
+  const { data: contents = [], isLoading: isLoadingContents } = useListSiteContent();
+
+  const getPhrase = (key: string, fallback: string) => {
+    const item = contents.find((c) => c.category === "button_phrase" && c.contentKey === key);
+    return item?.body || fallback;
+  };
+
+  const getText = (key: string, fallback: string) => {
+    const item = contents.find((c) => c.category === "payment_text" && c.contentKey === key);
+    return item?.body || fallback;
+  };
+
+  const videoItem = contents.find((c) => c.category === "video" && c.contentKey === "video_apresentacao_geral");
+
+  const btnInjetavel = getPhrase("btn_entrada_injetavel", "PROTOCOLOS INJETÁVEIS");
+  const btnEstetico = getPhrase("btn_entrada_estetico", "PROTOCOLOS ESTÉTICOS");
+  const btnDrCaio = getPhrase("btn_entrada_drcaio", "DR. CAIO HENRIQUE FERNANDES PÁDUA");
+  const btnAssistente = getPhrase("btn_entrada_assistentes", "MÉDICOS ASSISTENTES");
+
+  const txtEstetico = getText("pay_text_estetico", "Procedimentos estéticos são acertados presencialmente.");
+  const txtConcierge = getText("pay_text_concierge", "O serviço Concierge garante encaixe prioritário.");
+  const txtAssistente = getText("pay_text_assistente", "Sinal de 25% para reserva da agenda.");
+
+  if (isLoadingContents) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-slate-50 font-sans flex flex-col">
+      {/* Header Público */}
+      <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60 rounded-none rounded-b-lg">
+        <div className="flex items-center gap-3 min-w-0 max-w-5xl mx-auto w-full">
+          <div className="w-10 h-10 bg-teal-800 rounded flex items-center justify-center flex-shrink-0 shadow-inner">
+            <span className="text-white font-black text-lg">P</span>
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-teal-900 font-black text-sm tracking-widest uppercase leading-none">
+              Pad<span className="text-cyan-600">con</span>
+            </h1>
+            <p className="text-teal-600 text-[10px] font-bold uppercase tracking-widest truncate mt-0.5">
+              AGENDAMENTO
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
+        {flow === "menu" && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center space-y-2 mt-4">
+              <h2 className="text-2xl font-serif text-teal-900">Como podemos ajudar?</h2>
+              <p className="text-sm text-teal-600">Escolha o serviço desejado para iniciar seu atendimento.</p>
+            </div>
+
+            {videoItem?.mediaUrl && (
+              <div className="panel-3d rounded-xl overflow-hidden aspect-video bg-black relative flex items-center justify-center">
+                <Video className="w-12 h-12 text-white/50" />
+                {/* Aqui seria o player, mock apenas com a url */}
+                <div className="absolute bottom-4 left-4 right-4 text-white text-xs opacity-70 truncate">{videoItem.mediaUrl}</div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Door 3: Dr Caio - Maximum Emphasis */}
+              <button
+                onClick={() => setFlow("drcaio")}
+                className="w-full relative group text-left"
+              >
+                <div className="panel-3d-hero rounded-xl p-6 transition-all duration-300 group-hover:panel-3d-active overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#c2a05a] to-yellow-600" />
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Star className="w-4 h-4 text-yellow-600 fill-yellow-600" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-yellow-700">
+                          ATENDIMENTO EXCLUSIVO
+                        </span>
+                      </div>
+                      <h3 className="font-serif text-xl text-teal-950 font-medium leading-tight">
+                        {btnDrCaio}
+                      </h3>
+                      <p className="text-xs text-teal-700 mt-2">Consulta premium e protocolos avançados com o Dr. Caio.</p>
+                    </div>
+                    <ChevronRight className="w-6 h-6 text-teal-400 group-hover:text-cyan-600 transition-colors shrink-0" />
+                  </div>
+                </div>
+              </button>
+
+              {/* Door 4: Assistentes - Subordinate to Dr Caio */}
+              <button
+                onClick={() => setFlow("assistente")}
+                className="w-full relative group text-left pl-6"
+              >
+                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <User className="w-4 h-4 text-teal-600" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-600">
+                          CORPO CLÍNICO
+                        </span>
+                      </div>
+                      <h3 className="font-serif text-lg text-teal-900">{btnAssistente}</h3>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-teal-400 group-hover:text-cyan-600 transition-colors shrink-0" />
+                  </div>
+                </div>
+              </button>
+
+              <div className="pt-4 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-teal-200/50" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-teal-600/70">
+                    OUTROS SERVIÇOS
+                  </span>
+                  <div className="flex-1 h-px bg-teal-200/50" />
+                </div>
+              </div>
+
+              {/* Door 1: Injetaveis */}
+              <button
+                onClick={() => setLocation("/anamnese")}
+                className="w-full relative group text-left"
+              >
+                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Syringe className="w-4 h-4 text-cyan-600" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-cyan-700">
+                          INJETÁVEIS
+                        </span>
+                      </div>
+                      <h3 className="font-sans text-sm font-bold text-teal-900 uppercase tracking-wide">{btnInjetavel}</h3>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-teal-400 group-hover:text-cyan-600 transition-colors shrink-0" />
+                  </div>
+                </div>
+              </button>
+
+              {/* Door 2: Esteticos */}
+              <button
+                onClick={() => setFlow("estetico")}
+                className="w-full relative group text-left"
+              >
+                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-4 h-4 text-teal-600" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-600">
+                          ESTÉTICA
+                        </span>
+                      </div>
+                      <h3 className="font-sans text-sm font-bold text-teal-900 uppercase tracking-wide">{btnEstetico}</h3>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-teal-400 group-hover:text-cyan-600 transition-colors shrink-0" />
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {flow === "estetico" && (
+          <EsteticoFlow
+            onBack={() => setFlow("menu")}
+            title={btnEstetico}
+            payText={txtEstetico}
+          />
+        )}
+
+        {flow === "drcaio" && (
+          <DrCaioFlow
+            onBack={() => setFlow("menu")}
+            title={btnDrCaio}
+            payTextConcierge={txtConcierge}
+          />
+        )}
+
+        {flow === "assistente" && (
+          <AssistenteFlow
+            onBack={() => setFlow("menu")}
+            title={btnAssistente}
+            payText={txtAssistente}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// --- DOOR 2: ESTETICOS ---
+function EsteticoFlow({ onBack, title, payText }: { onBack: () => void; title: string; payText: string }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [desire, setDesire] = useState("");
+  const [prefWeekday, setPrefWeekday] = useState<string>("");
+  const [prefPeriod, setPrefPeriod] = useState<string>("");
+
+  const createReq = useCreateSchedulingRequest();
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = () => {
+    if (!name || phone.replace(/\D/g,"").length < 10) return;
+    createReq.mutate({
+      data: {
+        entrada: "estetico",
+        patientName: name,
+        patientPhone: phone.replace(/\D/g,""),
+        patientEmail: email || undefined,
+        patientCpf: cpf.replace(/\D/g,"") || undefined,
+        desire: desire || undefined,
+        preferredWeekday: prefWeekday ? parseInt(prefWeekday, 10) : undefined,
+        preferredPeriod: prefPeriod || undefined,
+      }
+    }, {
+      onSuccess: () => setSuccess(true)
+    });
+  };
+
+  if (success) return <SuccessState onBack={onBack} />;
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="w-8 h-8 rounded-md bg-white border border-teal-200 flex items-center justify-center text-teal-700 hover:bg-slate-50 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <h2 className="font-serif text-xl text-teal-900">{title}</h2>
+      </div>
+
+      <div className="panel-3d-sub p-5 space-y-4">
+        <div className="bg-slate-50/50 p-4 rounded border border-teal-100">
+          <p className="text-xs text-teal-800 leading-relaxed">{payText}</p>
+        </div>
+
+        <div className="space-y-3">
+          <Field label="NOME COMPLETO *" value={name} onChange={setName} placeholder="Seu nome" />
+          <Field label="TELEFONE (WHATSAPP) *" value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="(00) 00000-0000" type="tel" />
+          <Field label="CPF (OPCIONAL)" value={cpf} onChange={(v) => setCpf(formatCpf(v))} placeholder="000.000.000-00" type="tel" />
+          <Field label="EMAIL (OPCIONAL)" value={email} onChange={setEmail} placeholder="seu@email.com" type="email" />
+          
+          <div className="pt-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-1.5">O QUE VOCÊ DESEJA FAZER?</label>
+            <textarea
+              className="field-engraved w-full p-3 rounded-md text-sm text-teal-900 placeholder:text-teal-400 focus:outline-none min-h-[80px]"
+              placeholder="Ex: botox, preenchimento..."
+              value={desire}
+              onChange={(e) => setDesire(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-1.5">DIA PREFERIDO</label>
+              <select 
+                className="field-engraved w-full h-10 px-3 rounded-md text-sm text-teal-900 focus:outline-none bg-transparent"
+                value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}
+              >
+                <option value="">Qualquer dia</option>
+                <option value="1">Segunda-feira</option>
+                <option value="2">Terça-feira</option>
+                <option value="3">Quarta-feira</option>
+                <option value="4">Quinta-feira</option>
+                <option value="5">Sexta-feira</option>
+                <option value="6">Sábado</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-1.5">PERÍODO</label>
+              <select 
+                className="field-engraved w-full h-10 px-3 rounded-md text-sm text-teal-900 focus:outline-none bg-transparent"
+                value={prefPeriod} onChange={(e) => setPrefPeriod(e.target.value)}
+              >
+                <option value="">Qualquer horário</option>
+                <option value="manha">Manhã</option>
+                <option value="tarde">Tarde</option>
+                <option value="noite">Noite</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={!name || phone.replace(/\D/g,"").length < 10 || createReq.isPending}
+        className="btn-3d w-full h-12 flex items-center justify-center gap-2 font-black uppercase tracking-widest text-sm disabled:opacity-50"
+      >
+        {createReq.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "SOLICITAR ATENDIMENTO"}
+      </button>
+    </div>
+  );
+}
+
+// --- DOOR 3: DR CAIO ---
+function DrCaioFlow({ onBack, title, payTextConcierge }: { onBack: () => void; title: string; payTextConcierge: string }) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [desire, setDesire] = useState("");
+  
+  const [earliestDate, setEarliestDate] = useState("");
+  const [prefWeekday, setPrefWeekday] = useState("");
+  const [prefPeriod, setPrefPeriod] = useState("");
+  
+  const [path, setPath] = useState<"concierge" | "fila" | "">("");
+
+  const createReq = useCreateSchedulingRequest();
+  const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // Data minima dinamica: hoje + 3 meses, calculada em runtime (Regra de Ouro).
+  // Nunca hardcoded, para nao "congelar" com o passar do tempo.
+  const MIN_DATE_CAIO = useMemo(
+    () => addMonths(new Date(), 3).toISOString().split("T")[0],
+    [],
+  );
+
+  const handleNext = () => {
+    if (!name || phone.replace(/\D/g,"").length < 10) return;
+    if (!earliestDate) return;
+    const picked = new Date(earliestDate);
+    const min = new Date(MIN_DATE_CAIO);
+    if (picked < min) {
+      setErrorMsg("A data deve ser a partir de " + MIN_DATE_CAIO.split("-").reverse().join("/"));
+      return;
+    }
+    setErrorMsg("");
+    setStep(2);
+  };
+
+  const handleSubmit = () => {
+    if (!path) return;
+    setErrorMsg("");
+    createReq.mutate({
+      data: {
+        entrada: "dr_caio",
+        path: path as "concierge" | "fila",
+        patientName: name,
+        patientPhone: phone.replace(/\D/g,""),
+        patientEmail: email || undefined,
+        patientCpf: cpf.replace(/\D/g,"") || undefined,
+        desire: desire || undefined,
+        earliestDate: earliestDate,
+        preferredWeekday: prefWeekday ? parseInt(prefWeekday, 10) : undefined,
+        preferredPeriod: prefPeriod || undefined,
+      }
+    }, {
+      onSuccess: () => setSuccess(true),
+      onError: (err: any) => {
+        setErrorMsg(err.message || "Erro ao processar solicitação.");
+      }
+    });
+  };
+
+  if (success) return <SuccessState onBack={onBack} isExclusive />;
+
+  return (
+    <div className="space-y-6 animate-in zoom-in-95 duration-500">
+      {/* Visual mais cerimonial: fundo escuro no card */}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={step === 1 ? onBack : () => setStep(1)} className="w-8 h-8 rounded-md bg-transparent border border-teal-300 flex items-center justify-center text-teal-800 hover:bg-teal-100 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="min-w-0">
+          <h2 className="font-serif text-2xl text-teal-950 truncate leading-none">{title}</h2>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#b8924d] mt-1">Acesso Exclusivo</p>
+        </div>
+      </div>
+
+      <div className="panel-3d-hero bg-slate-900 rounded-xl overflow-hidden text-slate-100">
+        <div className="bg-gradient-to-b from-[#112a2a] to-[#0a1818] p-6 space-y-5">
+          {step === 1 ? (
+            <div className="space-y-4 animate-in fade-in">
+              <p className="text-sm text-teal-200 font-serif mb-6 leading-relaxed">
+                Nossa agenda possui uma carência mínima de 3 meses para novas avaliações, garantindo a excelência do acompanhamento de nossos pacientes.
+              </p>
+              
+              <Field dark label="NOME COMPLETO *" value={name} onChange={setName} placeholder="Seu nome" />
+              <Field dark label="TELEFONE (WHATSAPP) *" value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="(00) 00000-0000" type="tel" />
+              
+              <div className="grid grid-cols-2 gap-3">
+                <Field dark label="CPF (OPCIONAL)" value={cpf} onChange={(v) => setCpf(formatCpf(v))} placeholder="000.000.000-00" type="tel" />
+                <Field dark label="EMAIL (OPCIONAL)" value={email} onChange={setEmail} placeholder="seu@email.com" type="email" />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">O QUE MOTIVA SUA BUSCA?</label>
+                <textarea
+                  className="field-engraved w-full p-3 rounded-md text-sm text-teal-900 placeholder:text-teal-400 focus:outline-none min-h-[60px]"
+                  style={{ background: "linear-gradient(180deg, #1b3535 0%, #152b2b 28%)", color: "#e2e8f0", borderColor: "#2d5252" }}
+                  placeholder="Escreva brevemente..."
+                  value={desire}
+                  onChange={(e) => setDesire(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2 border-t border-[#2d5252]">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">
+                  A PARTIR DE QUAL DATA? (MIN. 3 MESES) *
+                </label>
+                <input
+                  type="date"
+                  min={MIN_DATE_CAIO}
+                  value={earliestDate}
+                  onChange={(e) => setEarliestDate(e.target.value)}
+                  className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none"
+                  style={{ background: "linear-gradient(180deg, #1b3535 0%, #152b2b 28%)", color: "#e2e8f0", borderColor: "#2d5252", colorScheme: "dark" }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">DIA PREFERIDO</label>
+                  <select 
+                    className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none appearance-none"
+                    style={{ background: "linear-gradient(180deg, #1b3535 0%, #152b2b 28%)", color: "#e2e8f0", borderColor: "#2d5252" }}
+                    value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}
+                  >
+                    <option value="">Qualquer dia</option>
+                    <option value="1">Segunda-feira</option>
+                    <option value="2">Terça-feira</option>
+                    <option value="3">Quarta-feira</option>
+                    <option value="4">Quinta-feira</option>
+                    <option value="5">Sexta-feira</option>
+                    <option value="6">Sábado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">PERÍODO</label>
+                  <select 
+                    className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none appearance-none"
+                    style={{ background: "linear-gradient(180deg, #1b3535 0%, #152b2b 28%)", color: "#e2e8f0", borderColor: "#2d5252" }}
+                    value={prefPeriod} onChange={(e) => setPrefPeriod(e.target.value)}
+                  >
+                    <option value="">Qualquer horário</option>
+                    <option value="manha">Manhã</option>
+                    <option value="tarde">Tarde</option>
+                    <option value="noite">Noite</option>
+                  </select>
+                </div>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-red-950/40 border border-red-900 rounded text-red-400 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p>{errorMsg}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleNext}
+                disabled={!name || phone.replace(/\D/g,"").length < 10 || !earliestDate}
+                className="w-full h-12 mt-4 bg-gradient-to-b from-[#c2a05a] to-[#a3803c] text-[#152b2b] rounded-md font-black uppercase tracking-widest text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.3)] hover:brightness-110 active:translate-y-px transition-all disabled:opacity-50"
+              >
+                PROSSEGUIR
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+              <div className="text-center space-y-2">
+                <h3 className="font-serif text-xl text-[#c2a05a]">Lista de Espera</h3>
+                <p className="text-xs text-teal-300">Escolha como deseja aguardar a disponibilidade.</p>
+              </div>
+
+              <div className="space-y-4">
+                <button
+                  onClick={() => setPath("concierge")}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
+                    path === "concierge" ? "border-[#c2a05a] bg-[#1a3a3a]" : "border-[#2d5252] bg-[#152b2b] hover:border-[#c2a05a]/50"
+                  }`}
+                >
+                  {path === "concierge" && <div className="absolute top-0 right-0 w-8 h-8 bg-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#152b2b]" /></div>}
+                  <h4 className="font-black text-sm uppercase tracking-widest text-[#c2a05a] mb-2">VIA CONCIERGE</h4>
+                  <p className="text-xs text-teal-100 leading-relaxed">{payTextConcierge}</p>
+                </button>
+
+                <button
+                  onClick={() => setPath("fila")}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
+                    path === "fila" ? "border-teal-400 bg-[#1a3a3a]" : "border-[#2d5252] bg-[#152b2b] hover:border-teal-400/50"
+                  }`}
+                >
+                  {path === "fila" && <div className="absolute top-0 right-0 w-8 h-8 bg-teal-400 rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#152b2b]" /></div>}
+                  <h4 className="font-black text-sm uppercase tracking-widest text-teal-400 mb-2">FILA COMUM</h4>
+                  <p className="text-xs text-teal-200/70 leading-relaxed">
+                    Aguarde o prazo estipulado gratuitamente. A clínica fará contato apenas se houver viabilidade de encaixe após o período de 3 meses.
+                  </p>
+                </button>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-red-950/40 border border-red-900 rounded text-red-400 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p>{errorMsg}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSubmit}
+                disabled={!path || createReq.isPending}
+                className="w-full h-12 mt-4 bg-gradient-to-b from-[#c2a05a] to-[#a3803c] text-[#152b2b] rounded-md font-black uppercase tracking-widest text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.3)] hover:brightness-110 active:translate-y-px transition-all disabled:opacity-50 flex items-center justify-center"
+              >
+                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONFIRMAR SOLICITAÇÃO"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- DOOR 4: ASSISTENTES ---
+function AssistenteFlow({ onBack, title, payText }: { onBack: () => void; title: string; payText: string }) {
+  const { data: doctors = [], isLoading: isLoadingDocs } = useListSchedulingDoctors();
+  
+  const [docId, setDocId] = useState<number | null>(null);
+  const [date, setDate] = useState("");
+  
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  
+  const [time, setTime] = useState("");
+
+  const doctor = useMemo(() => doctors.find(d => d.id === docId), [doctors, docId]);
+
+  const { data: agendaData, isLoading: isLoadingAgenda } = useGetAgendaSlots(
+    { resourceId: doctor?.resourceId ?? 0, date },
+    { query: { enabled: !!doctor?.resourceId && !!date, queryKey: getGetAgendaSlotsQueryKey({ resourceId: doctor?.resourceId ?? 0, date }) } }
+  );
+
+  const createReq = useCreateSchedulingRequest();
+  const [success, setSuccess] = useState(false);
+
+  const handleDocChange = (id: number) => {
+    setDocId(id);
+    setDate("");
+    setTime("");
+  };
+
+  const handleDateChange = (d: string) => {
+    setDate(d);
+    setTime("");
+  };
+
+  const handleSubmit = () => {
+    if (!doctor || !date || !time || !name || phone.replace(/\D/g,"").length < 10) return;
+    createReq.mutate({
+      data: {
+        entrada: "assistente",
+        professionalId: doctor.id,
+        resourceId: doctor.resourceId,
+        chosenDate: date,
+        chosenTime: time,
+        patientName: name,
+        patientPhone: phone.replace(/\D/g,""),
+        patientEmail: email || undefined,
+        patientCpf: cpf.replace(/\D/g,"") || undefined,
+      }
+    }, {
+      onSuccess: () => setSuccess(true)
+    });
+  };
+
+  if (success) return <SuccessState onBack={onBack} />;
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="w-8 h-8 rounded-md bg-white border border-teal-200 flex items-center justify-center text-teal-700 hover:bg-slate-50 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <h2 className="font-serif text-xl text-teal-900">{title}</h2>
+      </div>
+
+      {isLoadingDocs ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
+      ) : doctors.length === 0 ? (
+        <div className="panel-3d-sub p-8 text-center text-teal-600">
+          Nenhum médico assistente disponível no momento.
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* Doctor Selection */}
+          <div className="panel-3d-sub p-5">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-3">1. ESCOLHA O PROFISSIONAL</label>
+            <div className="space-y-2">
+              {doctors.map(d => (
+                <button
+                  key={d.id}
+                  onClick={() => handleDocChange(d.id)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors flex items-center justify-between ${
+                    docId === d.id ? "border-cyan-500 bg-cyan-50" : "border-teal-200 bg-white hover:border-teal-400"
+                  }`}
+                >
+                  <div>
+                    <div className="font-sans font-bold text-teal-950 text-sm">{d.name}</div>
+                    {(d.specialty || d.crm) && (
+                      <div className="text-xs text-teal-600 mt-0.5">
+                        {d.specialty} {d.crm && `(CRM ${d.crm})`}
+                      </div>
+                    )}
+                  </div>
+                  {docId === d.id && <CheckCircle className="w-5 h-5 text-cyan-600" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Agenda Selection */}
+          {doctor && (
+            <div className="panel-3d-sub p-5 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700">2. ESCOLHA O HORÁRIO</label>
+              
+              {!doctor.resourceId ? (
+                <div className="p-3 bg-slate-100 border border-slate-200 rounded text-sm text-slate-500 text-center">
+                  Sem horários disponíveis para este profissional.
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().split("T")[0]}
+                    value={date}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="field-engraved w-full h-11 px-3 rounded-md text-sm text-teal-900 focus:outline-none"
+                  />
+
+                  {date && (
+                    <div className="pt-2">
+                      {isLoadingAgenda ? (
+                        <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-teal-600 animate-spin" /></div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2">
+                          {!agendaData?.slots?.length ? (
+                            <div className="col-span-3 text-center py-4 text-xs text-teal-600">Nenhum horário livre neste dia.</div>
+                          ) : (
+                            agendaData.slots.map((s, i) => {
+                              const isFree = ["free", "livre", "available"].includes(s.state.toLowerCase());
+                              const isSel = time === s.time;
+                              if (!isFree) {
+                                return (
+                                  <div key={i} className="h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-xs line-through opacity-70">
+                                    {s.time}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => setTime(s.time)}
+                                  className={`h-10 rounded border text-sm font-semibold transition-colors ${
+                                    isSel ? "border-cyan-500 bg-cyan-600 text-white" : "border-teal-200 bg-white text-teal-800 hover:border-teal-400"
+                                  }`}
+                                >
+                                  {s.time}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Patient Details */}
+          {time && (
+            <div className="panel-3d-sub p-5 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">3. SEUS DADOS</label>
+              <div className="bg-slate-50/50 p-4 rounded border border-teal-100 mb-4">
+                <p className="text-xs text-teal-800 leading-relaxed">{payText}</p>
+              </div>
+
+              <div className="space-y-3">
+                <Field label="NOME COMPLETO *" value={name} onChange={setName} placeholder="Seu nome" />
+                <Field label="TELEFONE (WHATSAPP) *" value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="(00) 00000-0000" type="tel" />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="CPF (OPCIONAL)" value={cpf} onChange={(v) => setCpf(formatCpf(v))} placeholder="000.000.000-00" type="tel" />
+                  <Field label="EMAIL (OPCIONAL)" value={email} onChange={setEmail} placeholder="seu@email.com" type="email" />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSubmit}
+                disabled={!name || phone.replace(/\D/g,"").length < 10 || createReq.isPending}
+                className="btn-3d w-full h-12 mt-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest text-sm disabled:opacity-50"
+              >
+                {createReq.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "CONFIRMAR RESERVA"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Common UI Components ---
+
+function Field({ label, value, onChange, placeholder, type = "text", dark = false }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; dark?: boolean }) {
+  return (
+    <div>
+      <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${dark ? "text-[#c2a05a]" : "text-teal-700"}`}>{label}</label>
+      <input
+        type={type}
+        className={`w-full h-11 px-3 rounded-md text-sm focus:outline-none ${
+          dark 
+            ? "field-engraved placeholder:text-teal-600"
+            : "field-engraved text-teal-900 placeholder:text-teal-400"
+        }`}
+        style={dark ? { background: "linear-gradient(180deg, #1b3535 0%, #152b2b 28%)", color: "#e2e8f0", borderColor: "#2d5252" } : undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+function SuccessState({ onBack, isExclusive }: { onBack: () => void; isExclusive?: boolean }) {
+  return (
+    <div className={`rounded-xl p-8 text-center space-y-6 animate-in zoom-in-95 duration-500 ${isExclusive ? "bg-slate-900 text-slate-100 border border-[#2d5252]" : "panel-3d"}`}>
+      <div className="flex justify-center">
+        <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isExclusive ? "bg-[#c2a05a]/20" : "bg-cyan-100"}`}>
+          <CheckCircle className={`w-8 h-8 ${isExclusive ? "text-[#c2a05a]" : "text-cyan-600"}`} />
+        </div>
+      </div>
+      <div>
+        <h3 className={`font-serif text-2xl mb-2 ${isExclusive ? "text-[#c2a05a]" : "text-teal-900"}`}>Solicitação Recebida</h3>
+        <p className={`text-sm ${isExclusive ? "text-teal-200/80" : "text-teal-600"}`}>
+          Nossa equipe entrará em contato em breve para confirmar seu atendimento.
+        </p>
+      </div>
+      <button
+        onClick={onBack}
+        className={`h-11 px-6 rounded-md font-black uppercase tracking-widest text-sm transition-all ${
+          isExclusive 
+            ? "bg-transparent border border-[#2d5252] text-teal-300 hover:border-teal-500" 
+            : "btn-3d-soft"
+        }`}
+      >
+        VOLTAR AO INÍCIO
+      </button>
+    </div>
+  );
+}

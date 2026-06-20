@@ -58,6 +58,7 @@ import type {
   CreateProfessionalBody,
   CreateProtocolBody,
   CreateRASBody,
+  CreateSchedulingRequestBody,
   CreateSessionBody,
   CreateSiteContentBody,
   CreateSncrRangeBody,
@@ -77,6 +78,7 @@ import type {
   ListPaymentsParams,
   ListProtocolsParams,
   ListRASParams,
+  ListSchedulingRequestsParams,
   ListSessionsParams,
   ListSiteContentParams,
   Payment,
@@ -90,6 +92,8 @@ import type {
   Ras,
   RecipePlan,
   ReplaceAgendaWindowsBody,
+  SchedulingDoctor,
+  SchedulingRequest,
   SendBatchBody,
   Session,
   SimulacaoInput,
@@ -102,6 +106,7 @@ import type {
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
   UpdateProtocolBody,
+  UpdateSchedulingRequestBody,
   UpdateSessionBody,
   UpdateSiteContentBody,
 } from "./api.schemas";
@@ -3234,6 +3239,359 @@ export const useUpdateSiteContent = <
   TContext
 > => {
   return useMutation(getUpdateSiteContentMutationOptions(options));
+};
+
+/**
+ * @summary List assistant doctors (excludes Dr. Caio) with their agenda resource
+ */
+export const getListSchedulingDoctorsUrl = () => {
+  return `/api/scheduling/doctors`;
+};
+
+export const listSchedulingDoctors = async (
+  options?: RequestInit,
+): Promise<SchedulingDoctor[]> => {
+  return customFetch<SchedulingDoctor[]>(getListSchedulingDoctorsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSchedulingDoctorsQueryKey = () => {
+  return [`/api/scheduling/doctors`] as const;
+};
+
+export const getListSchedulingDoctorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSchedulingDoctors>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingDoctors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSchedulingDoctorsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSchedulingDoctors>>
+  > = ({ signal }) => listSchedulingDoctors({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingDoctors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSchedulingDoctorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSchedulingDoctors>>
+>;
+export type ListSchedulingDoctorsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List assistant doctors (excludes Dr. Caio) with their agenda resource
+ */
+
+export function useListSchedulingDoctors<
+  TData = Awaited<ReturnType<typeof listSchedulingDoctors>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingDoctors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSchedulingDoctorsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List scheduling requests (admin), optionally filtered by entrada/status
+ */
+export const getListSchedulingRequestsUrl = (
+  params?: ListSchedulingRequestsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/scheduling/requests?${stringifiedParams}`
+    : `/api/scheduling/requests`;
+};
+
+export const listSchedulingRequests = async (
+  params?: ListSchedulingRequestsParams,
+  options?: RequestInit,
+): Promise<SchedulingRequest[]> => {
+  return customFetch<SchedulingRequest[]>(
+    getListSchedulingRequestsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSchedulingRequestsQueryKey = (
+  params?: ListSchedulingRequestsParams,
+) => {
+  return [`/api/scheduling/requests`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSchedulingRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSchedulingRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSchedulingRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSchedulingRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSchedulingRequestsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSchedulingRequests>>
+  > = ({ signal }) =>
+    listSchedulingRequests(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSchedulingRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSchedulingRequests>>
+>;
+export type ListSchedulingRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List scheduling requests (admin), optionally filtered by entrada/status
+ */
+
+export function useListSchedulingRequests<
+  TData = Awaited<ReturnType<typeof listSchedulingRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSchedulingRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSchedulingRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSchedulingRequestsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a scheduling request from a patient entrada (2, 3 or 4)
+ */
+export const getCreateSchedulingRequestUrl = () => {
+  return `/api/scheduling/requests`;
+};
+
+export const createSchedulingRequest = async (
+  createSchedulingRequestBody: CreateSchedulingRequestBody,
+  options?: RequestInit,
+): Promise<SchedulingRequest> => {
+  return customFetch<SchedulingRequest>(getCreateSchedulingRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSchedulingRequestBody),
+  });
+};
+
+export const getCreateSchedulingRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSchedulingRequest>>,
+    TError,
+    { data: BodyType<CreateSchedulingRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSchedulingRequest>>,
+  TError,
+  { data: BodyType<CreateSchedulingRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["createSchedulingRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSchedulingRequest>>,
+    { data: BodyType<CreateSchedulingRequestBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSchedulingRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSchedulingRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSchedulingRequest>>
+>;
+export type CreateSchedulingRequestMutationBody =
+  BodyType<CreateSchedulingRequestBody>;
+export type CreateSchedulingRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a scheduling request from a patient entrada (2, 3 or 4)
+ */
+export const useCreateSchedulingRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSchedulingRequest>>,
+    TError,
+    { data: BodyType<CreateSchedulingRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSchedulingRequest>>,
+  TError,
+  { data: BodyType<CreateSchedulingRequestBody> },
+  TContext
+> => {
+  return useMutation(getCreateSchedulingRequestMutationOptions(options));
+};
+
+/**
+ * @summary Update a scheduling request status/notes (admin)
+ */
+export const getUpdateSchedulingRequestUrl = (id: number) => {
+  return `/api/scheduling/requests/${id}`;
+};
+
+export const updateSchedulingRequest = async (
+  id: number,
+  updateSchedulingRequestBody: UpdateSchedulingRequestBody,
+  options?: RequestInit,
+): Promise<SchedulingRequest> => {
+  return customFetch<SchedulingRequest>(getUpdateSchedulingRequestUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSchedulingRequestBody),
+  });
+};
+
+export const getUpdateSchedulingRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSchedulingRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateSchedulingRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSchedulingRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateSchedulingRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSchedulingRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSchedulingRequest>>,
+    { id: number; data: BodyType<UpdateSchedulingRequestBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSchedulingRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSchedulingRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSchedulingRequest>>
+>;
+export type UpdateSchedulingRequestMutationBody =
+  BodyType<UpdateSchedulingRequestBody>;
+export type UpdateSchedulingRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a scheduling request status/notes (admin)
+ */
+export const useUpdateSchedulingRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSchedulingRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateSchedulingRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSchedulingRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateSchedulingRequestBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSchedulingRequestMutationOptions(options));
 };
 
 /**

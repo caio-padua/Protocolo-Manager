@@ -1432,6 +1432,111 @@ export const UpdateSiteContentResponse = zod.object({
 });
 
 /**
+ * @summary List assistant doctors (excludes Dr. Caio) with their agenda resource
+ */
+export const ListSchedulingDoctorsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  specialty: zod.string().nullish(),
+  crm: zod.string().nullish(),
+  resourceId: zod.number().nullish(),
+});
+export const ListSchedulingDoctorsResponse = zod.array(
+  ListSchedulingDoctorsResponseItem,
+);
+
+/**
+ * @summary List scheduling requests (admin), optionally filtered by entrada/status
+ */
+export const ListSchedulingRequestsQueryParams = zod.object({
+  entrada: zod.coerce.string().optional(),
+  status: zod.coerce.string().optional(),
+});
+
+export const ListSchedulingRequestsResponseItem = zod.object({
+  id: zod.number(),
+  entrada: zod.string(),
+  path: zod.string().nullish(),
+  patientName: zod.string(),
+  patientPhone: zod.string(),
+  patientCpf: zod.string().nullish(),
+  patientEmail: zod.string().nullish(),
+  desire: zod.string().nullish(),
+  preferredWeekday: zod.number().nullish(),
+  preferredPeriod: zod.string().nullish(),
+  earliestDate: zod.string().nullish(),
+  professionalId: zod.number().nullish(),
+  resourceId: zod.number().nullish(),
+  chosenDate: zod.string().nullish(),
+  chosenTime: zod.string().nullish(),
+  paymentArm: zod.string().nullish(),
+  paymentStatus: zod.string(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const ListSchedulingRequestsResponse = zod.array(
+  ListSchedulingRequestsResponseItem,
+);
+
+/**
+ * @summary Create a scheduling request from a patient entrada (2, 3 or 4)
+ */
+export const CreateSchedulingRequestBody = zod.object({
+  entrada: zod.enum(["estetico", "dr_caio", "assistente"]),
+  path: zod.string().nullish(),
+  patientName: zod.string(),
+  patientPhone: zod.string(),
+  patientCpf: zod.string().nullish(),
+  patientEmail: zod.string().nullish(),
+  desire: zod.string().nullish(),
+  preferredWeekday: zod.number().nullish(),
+  preferredPeriod: zod.string().nullish(),
+  earliestDate: zod.string().nullish(),
+  professionalId: zod.number().nullish(),
+  resourceId: zod.number().nullish(),
+  chosenDate: zod.string().nullish(),
+  chosenTime: zod.string().nullish(),
+  paymentArm: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a scheduling request status/notes (admin)
+ */
+export const UpdateSchedulingRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSchedulingRequestBody = zod.object({
+  status: zod.string().optional(),
+  notes: zod.string().nullish(),
+  paymentStatus: zod.string().optional(),
+});
+
+export const UpdateSchedulingRequestResponse = zod.object({
+  id: zod.number(),
+  entrada: zod.string(),
+  path: zod.string().nullish(),
+  patientName: zod.string(),
+  patientPhone: zod.string(),
+  patientCpf: zod.string().nullish(),
+  patientEmail: zod.string().nullish(),
+  desire: zod.string().nullish(),
+  preferredWeekday: zod.number().nullish(),
+  preferredPeriod: zod.string().nullish(),
+  earliestDate: zod.string().nullish(),
+  professionalId: zod.number().nullish(),
+  resourceId: zod.number().nullish(),
+  chosenDate: zod.string().nullish(),
+  chosenTime: zod.string().nullish(),
+  paymentArm: zod.string().nullish(),
+  paymentStatus: zod.string(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
  * @summary List catalog options (optionally filtered by kind)
  */
 export const ListCatalogOptionsQueryParams = zod.object({

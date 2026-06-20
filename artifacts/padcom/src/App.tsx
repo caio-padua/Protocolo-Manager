@@ -34,6 +34,7 @@ import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
 import Portal from "@/pages/portal";
+import Agendar from "@/pages/agendar";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
 import PawardsDemo from "@/pages/pawards-demo";
@@ -57,6 +58,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/portal" component={Portal} />
+      <Route path="/agendar" component={Agendar} />
       <Route path="/anamnese" component={Anamnese} />
       <Route path="/area" component={Area} />
       <Route path="/pawards" component={PawardsDemo} />

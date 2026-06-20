@@ -13,6 +13,10 @@ export const professionalsTable = pgTable("professionals", {
   serviceTypes: text("service_types").array().notNull().default(["clinic"]),
   category: text("category").notNull().default("outro"),
   role: text("role").notNull().default("executor"),
+  // Marca o medico PRINCIPAL (Dr. Caio). Usado para separar a Entrada 3
+  // (exclusiva) da Entrada 4 (assistentes) sem depender do nome. Default false:
+  // quem nao for marcado entra como assistente.
+  isPrimaryDoctor: boolean("is_primary_doctor").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
