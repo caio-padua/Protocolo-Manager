@@ -259,6 +259,31 @@ coluna morta nem anunciar como pronto (Art. 47). Memória: `.agents/memory/ics-m
 
 ---
 
+## TÍTULO XI — DO APRENDIZADO CONTÍNUO E DA MEMÓRIA DISTRIBUÍDA
+
+**Art. 58** APRENDIZADO CONTÍNUO — ROTEAMENTO (promulgado a pedido do CEO em 20/06/2026): ao fim de
+CADA pedido, o que se aprendeu é classificado e gravado no destino durável certo, nunca deixado só na
+conversa (que é volátil). Roteamento: (a) diretriz ou método de trabalho -> novo artigo NESTE Código;
+(b) padrão visual ou modelagem de tela/componente -> skill `skill-layout-paxter` (Art. 59); (c) detalhe
+técnico fino ou armadilha de implementação -> `.agents/memory`; (d) alvo de uma funcionalidade ->
+`specs/<nome>.md`; (e) comunicação com outro primo -> `cartas/` (Art. 60). Toda inserção é ANUNCIADA
+ao CEO (Título VIII). Só o arquivo persiste; a conversa some.
+
+**Art. 59** LEI DO LAYOUT — TODA MODELAGEM VIRA SKILL (promulgado a pedido do CEO em 20/06/2026):
+nenhuma tela, card, controle ou padrão visual novo nasce "solto". Antes de criar, LER
+`skill-layout-paxter`; ao criar algo novo ou ao o CEO aprovar uma decisão de design, REGISTRAR o
+padrão na skill (vocabulário, token, Padrão numerado ou tabela de controle por intenção) ANTES de dar
+a tela por pronta. Motivo: o CEO construirá dezenas ou centenas de sistemas e TODOS herdam a mesma
+linguagem; padrão que fica só no código de uma tela não se propaga aos primos. A skill é a
+fonte-da-verdade do design; o código é só a aplicação dela. (Detalhe operacional na seção 0.1 da skill.)
+
+**Art. 60** DAS CARTAS ENTRE PRIMOS (promulgado a pedido do CEO em 20/06/2026): carta para outro
+agente ou sistema (Dr. Replit IHE, Dr. Claude, Dr. Manus, Dr. Obsidian) é DOCUMENTO, não fala de chat —
+salva-se em `cartas/`, em ASCII puro (Art. 48 do replit.md), com índice em `cartas/INDEX.md`. Nome:
+`AAAA-MM-DD_DESTINO_ASSUNTO.md`. Carta só falada no chat é considerada perdida.
+
+---
+
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
@@ -270,3 +295,4 @@ coluna morta nem anunciar como pronto (Art. 47). Memória: `.agents/memory/ics-m
 | 20/06/2026 | Art. 55 (Título IX) | Fonte de dado de fase futura + fuso da clínica, promulgado pelo Motor de Agenda: proibido inventar fonte semanticamente errada quando o vínculo real é de fase futura (usar entrada explícita e marcar a fonte real); horário sempre ancorado no fuso da clínica (BRT, UTC-3 fixo), nunca no fuso implícito do servidor. |
 | 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
 | 20/06/2026 | Art. 57 (Título IX) | "Um formato, um motor + feed assinado", promulgado pela SUB-04 Convite .ics: motor único de serialização (rotas chamam, não remontam à mão); .ics PUBLISH com UID estável; reenvio idempotente; feed iCal HMAC com 401 genérico anti-enumeração e só sessões futuras; coluna timestamp Drizzle modo Date exige objeto Date; defer explícito do que pede cron/coluna nova. |
+| 20/06/2026 | Art. 58 a 60 (Título XI) | Aprendizado contínuo e memória distribuída, a pedido do CEO: roteamento de cada aprendizado ao destino durável (Código/skill de layout/memória/specs/cartas); Lei do Layout (toda modelagem registrada na skill `skill-layout-paxter` antes de a tela ficar pronta); cartas entre primos viram documento versionado em `cartas/` com índice. |

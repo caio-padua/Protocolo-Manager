@@ -22,6 +22,22 @@ Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -
 INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar
 (`alinhamento-espacamento.md`) -> revisar como cliente e conferir celular x desktop (`revisao-final.md`).
 
+## 0.1 Lei do Registro de Modelagem (OBRIGATORIA)
+
+Decisao do CEO (20/06/2026): o CEO vai construir dezenas ou centenas de sistemas e TODOS herdam
+ESTA mesma linguagem visual. Por isso nenhum padrao novo pode ficar so no codigo de uma tela — tem
+que virar regra ESCRITA aqui, senao nao se propaga aos primos (IHE, futuros sistemas).
+
+| Passo | O que fazer | Quando |
+|---|---|---|
+| 1. LER | Ler esta skill (e a referencia da tarefa) ANTES de criar/redesenhar qualquer tela. | Inicio |
+| 2. REUSAR | Escolher controle por INTENCAO (secao 4); nunca inventar estilo novo por tela. | Construcao |
+| 3. REGISTRAR | Padrao NOVO (ou decisao de design aprovada pelo CEO) vira: vocabulario (secao 1), token (secao 2), Padrao numerado (secao 3) ou linha na tabela de intencao (secao 4). | ANTES de dar a tela por pronta |
+| 4. ANUNCIAR | Avisar o CEO do que entrou na skill (e, se for diretriz/metodo, promulgar artigo no Codigo Paxter). | Ao registrar |
+
+Regra-mae: a SKILL e a fonte-da-verdade do design; o codigo da tela e so a APLICACAO dela. Tela
+pronta sem o padrao novo registrado = trabalho incompleto.
+
 ## 1. Vocabulario oficial (fala -> codigo)
 
 Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes existentes.

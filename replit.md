@@ -6,6 +6,26 @@ Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica d
 
 Agente da plataforma: **Dr. Replit Paxter** (renomeado de Dr. Replit Manager em 18/06/2026, decisao do CEO Dr. Caio). Sistema de design proprio documentado na skill `skill-layout-paxter`.
 
+## MAPA DA MEMORIA (sempre ler primeiro)
+
+Este mapa fica SEMPRE carregado no contexto do agente. Cada bloco de conhecimento durável tem
+um dono; o agente vai ao dono certo em vez de guardar tudo aqui. Removido do `replit.md` != perdido:
+mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
+
+| Conhecimento | Dono (arquivo) | Quando consultar |
+|---|---|---|
+| Método de trabalho, conduta, decisões de diretriz | `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (arquitetura viva em artigos) | Antes de toda tarefa não-trivial |
+| Loop Especificar→Construir→Revisar | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
+| Sistema de design (3D, tokens, padrões, controles) | `.agents/skills/skill-layout-paxter/SKILL.md` + `references/` | Antes de criar/redesenhar QUALQUER tela |
+| Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
+| Alvo escrito de cada funcionalidade | `specs/<nome>.md` | Ao especificar/construir uma onda |
+| Cartas para outros primos (IHE, Claude, Manus) | `cartas/` (índice em `cartas/INDEX.md`) | Ao comunicar outro sistema/agente |
+| Briefing técnico longo do PADCOM | `PADCOM_TECHNICAL_BRIEFING.md`, `PADCOM_FULL_TECHNICAL_DOC.md`, `PADCOM_HANDOFF.md` | Handoff/visão geral profunda |
+| Diretrizes centrais do CEO (Bíblia) | `DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO_*.md` | Referência das decisões-raiz |
+
+Regra de aprendizado contínuo (Art. 58-60 do Código Paxter): ao fim de cada pedido, o aprendizado
+vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anunciada ao CEO.
+
 ## Branding
 
 - **Nome**: Padcon Conect (1 N — decisao de marca)
