@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, User, Phone, Mail, Activity } from "lucide-react";
 import { formatStatus, getStatusColor } from "@/lib/status";
+import { tituloProprio } from "@/lib/utils";
 
 const MAX_RENDER = 60;
 
@@ -90,7 +91,7 @@ export default function Clients() {
                 <CardContent className="p-5 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-4">
                     <div className="space-y-1">
-                      <h3 className="text-lg font-bold leading-none text-primary uppercase tracking-tight line-clamp-1">{client.name}</h3>
+                      <h3 className="text-lg font-bold leading-none text-primary tracking-tight line-clamp-1">{tituloProprio(client.name)}</h3>
                       <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums">
                         {client.cpf}
                       </div>

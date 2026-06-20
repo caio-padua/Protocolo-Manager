@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Package, Printer, MessageCircle, CloudUpload } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { tituloProprio } from "@/lib/utils";
 
 type TabId = "expired" | "expiring_soon" | "low" | "normal" | "overflow";
 
@@ -228,8 +229,8 @@ export default function Stock() {
                             className="flex-shrink-0 w-4 h-4 rounded-[3px] mt-[2px]"
                             style={{ backgroundColor: item.substanceColor }}
                           />
-                          <h3 className="font-black text-foreground uppercase tracking-tight text-base leading-snug break-words flex-1">
-                            {fullName}
+                          <h3 className="font-black text-foreground tracking-tight text-base leading-snug break-words flex-1">
+                            {tituloProprio(fullName, { preservarTecnicos: true })}
                           </h3>
                         </div>
 
