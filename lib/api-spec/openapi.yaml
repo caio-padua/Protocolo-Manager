@@ -33,6 +33,8 @@ tags:
     description: Numeração SNCR de medicamentos controlados
   - name: catalog-options
     description: Opções gerenciáveis de listas (categorias, tipos)
+  - name: agenda
+    description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
   /healthz:
@@ -1409,8 +1411,435 @@ paths:
         "204":
           description: Deleted
 
+  # AGENDA — MOTOR DE AGENDA
+  /agenda/resources:
+    get:
+      operationId: listAgendaResources
+      tags: [agenda]
+      summary: List agenda resources (seeds defaults if empty)
+      responses:
+        "200":
+          description: List of agenda resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaResource"
+    post:
+      operationId: createAgendaResource
+      tags: [agenda]
+      summary: Create an agenda resource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgendaResourceBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaResource"
+
+  /agenda/resources/{id}:
+    put:
+      operationId: updateAgendaResource
+      tags: [agenda]
+      summary: Update an agenda resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgendaResourceBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaResource"
+
+  /agenda/resources/{id}/windows:
+    get:
+      operationId: listAgendaWindows
+      tags: [agenda]
+      summary: List windows of a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of windows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaWindow"
+    put:
+      operationId: replaceAgendaWindows
+      tags: [agenda]
+      summary: Replace the whole weekly window set of a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceAgendaWindowsBody"
+      responses:
+        "200":
+          description: Replaced
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaWindow"
+
+  /agenda/exceptions:
+    get:
+      operationId: listAgendaExceptions
+      tags: [agenda]
+      summary: List agenda exceptions (holidays/blocks)
+      responses:
+        "200":
+          description: List of exceptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaException"
+    post:
+      operationId: createAgendaException
+      tags: [agenda]
+      summary: Create an agenda exception
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgendaExceptionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaException"
+
+  /agenda/exceptions/{id}:
+    delete:
+      operationId: deleteAgendaException
+      tags: [agenda]
+      summary: Delete an agenda exception
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /agenda/settings:
+    get:
+      operationId: getAgendaSettings
+      tags: [agenda]
+      summary: Get the singleton agenda settings (creates defaults if missing)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaSettings"
+    put:
+      operationId: updateAgendaSettings
+      tags: [agenda]
+      summary: Update the agenda settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgendaSettingsBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaSettings"
+
+  /agenda/slots:
+    get:
+      operationId: getAgendaSlots
+      tags: [agenda]
+      summary: Compute released/blocked/occupied slots for a resource on a date (anti-island engine)
+      parameters:
+        - name: resourceId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: occupied
+          in: query
+          required: false
+          description: CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaSlotsResponse"
+
 components:
   schemas:
+    AgendaResource:
+      type: object
+      required: [id, name, kind, modality, color, slotMinutes, active, sortOrder]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          type: string
+        modality:
+          type: string
+        color:
+          type: string
+        slotMinutes:
+          type: integer
+        professionalId:
+          type: integer
+          nullable: true
+        locationId:
+          type: integer
+          nullable: true
+        active:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    CreateAgendaResourceBody:
+      type: object
+      required: [name, kind, modality]
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+        modality:
+          type: string
+        color:
+          type: string
+        slotMinutes:
+          type: integer
+        professionalId:
+          type: integer
+          nullable: true
+        locationId:
+          type: integer
+          nullable: true
+        sortOrder:
+          type: integer
+
+    UpdateAgendaResourceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+        modality:
+          type: string
+        color:
+          type: string
+        slotMinutes:
+          type: integer
+        professionalId:
+          type: integer
+          nullable: true
+        locationId:
+          type: integer
+          nullable: true
+        active:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    AgendaWindow:
+      type: object
+      required: [id, resourceId, weekday, startTime, endTime]
+      properties:
+        id:
+          type: integer
+        resourceId:
+          type: integer
+        weekday:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+
+    AgendaWindowInput:
+      type: object
+      required: [weekday, startTime, endTime]
+      properties:
+        weekday:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+
+    ReplaceAgendaWindowsBody:
+      type: object
+      required: [windows]
+      properties:
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaWindowInput"
+
+    AgendaException:
+      type: object
+      required: [id, date, kind]
+      properties:
+        id:
+          type: integer
+        resourceId:
+          type: integer
+          nullable: true
+        date:
+          type: string
+        kind:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    CreateAgendaExceptionBody:
+      type: object
+      required: [date, kind]
+      properties:
+        resourceId:
+          type: integer
+          nullable: true
+        date:
+          type: string
+        kind:
+          type: string
+          enum: [feriado, bloqueio]
+        description:
+          type: string
+          nullable: true
+
+    AgendaSettings:
+      type: object
+      required: [id, blockMinutes, triggerPercent, minLeadHours]
+      properties:
+        id:
+          type: integer
+        blockMinutes:
+          type: integer
+        triggerPercent:
+          type: integer
+        minLeadHours:
+          type: integer
+
+    UpdateAgendaSettingsBody:
+      type: object
+      properties:
+        blockMinutes:
+          type: integer
+        triggerPercent:
+          type: integer
+        minLeadHours:
+          type: integer
+
+    AgendaSubBlock:
+      type: object
+      required: [startTime, endTime, released, total, occupied, occupancy]
+      properties:
+        startTime:
+          type: string
+        endTime:
+          type: string
+        released:
+          type: boolean
+        total:
+          type: integer
+        occupied:
+          type: integer
+        occupancy:
+          type: integer
+
+    AgendaSlot:
+      type: object
+      required: [time, state, subBlockIndex]
+      properties:
+        time:
+          type: string
+        state:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        subBlockIndex:
+          type: integer
+
+    AgendaSlotsResponse:
+      type: object
+      required: [resourceId, date, slots, subBlocks]
+      properties:
+        resourceId:
+          type: integer
+        date:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        subBlocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaSubBlock"
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaSlot"
+
     HealthStatus:
       type: object
       properties:

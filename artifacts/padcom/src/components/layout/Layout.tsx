@@ -21,6 +21,7 @@ import {
   ChevronDown,
   TestTube,
   Calculator,
+  CalendarCog,
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const navigation: NavEntry[] = [
   { name: "Protocolos", href: "/protocols", icon: FlaskConical },
   { name: "Orçamentos", href: "/orcamentos", icon: Calculator },
   { name: "Agenda", href: "/agenda", icon: Calendar },
+  { name: "Motor de Agenda", href: "/agenda/motor", icon: CalendarCog },
   { name: "RAS", href: "/ras", icon: FileText },
   { name: "Estoque", href: "/stock", icon: Box },
   { name: "Financeiro", href: "/payments", icon: CreditCard },

@@ -185,6 +185,16 @@ postgres-null-unique-idempotencia)
 **Art. 50** Geradores de PDF devem coagir não-strings para texto antes de manipular; campo jsonb numérico
 estoura o `.split`. (19/06/2026 — memória: ras-pdf-coercao-texto)
 
+**Art. 55** FONTE DE DADO DE FASE FUTURA + FUSO DA CLÍNICA (promulgado pelo Motor de Agenda em
+20/06/2026): (a) quando o vínculo real de um dado pertence a uma fase futura ainda não construída, é
+PROIBIDO inventar uma fonte semanticamente errada só para "ter dado" (ex.: usar o profissional do recurso
+como fonte de ocupação quando a sessão ainda não se liga ao recurso) — usa-se entrada explícita
+(parâmetro/seed) e marca-se no código e no contrato que a fonte real chega na fase X; (b) horário de
+clínica é BRT (Brasília, UTC-3 fixo, sem horário de verão) — todo instante de horário deve ser ancorado no
+fuso da clínica (sufixo `-03:00`) ou calculado de forma determinística em UTC (meio-dia UTC para dia da
+semana), NUNCA no fuso implícito do servidor, sob pena de erro de um dia/uma hora nas bordas. (20/06/2026 —
+memória: motor-agenda-fuso-fonte)
+
 ---
 
 ## TÍTULO X — DO DESIGN E DA REVISÃO VISUAL
@@ -232,3 +242,4 @@ diagrama ASCII, receita JSX comentada, tabela anti-padrão→padrão e checklist
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
 | 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |
 | 19/06/2026 | Art. 54 (Título X) | Grade Imaginária — modelo mental completo de layout de card: 5 zonas canônicas (top bar fixo / título / identidade / meta grid / conteúdo), badge de status ao lado do ID nunca do nome, faixa lateral ≤6px, LED proibido em contagem/título. Referência em `grade-imaginaria.md` com diagrama ASCII + receita JSX + anti-padrões + checklist 10 pontos. |
+| 20/06/2026 | Art. 55 (Título IX) | Fonte de dado de fase futura + fuso da clínica, promulgado pelo Motor de Agenda: proibido inventar fonte semanticamente errada quando o vínculo real é de fase futura (usar entrada explícita e marcar a fonte real); horário sempre ancorado no fuso da clínica (BRT, UTC-3 fixo), nunca no fuso implícito do servidor. |

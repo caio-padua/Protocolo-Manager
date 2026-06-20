@@ -2473,3 +2473,209 @@ export const UpdateBudgetResponse = zod.object({
 export const DeleteBudgetParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * @summary List agenda resources (seeds defaults if empty)
+ */
+export const ListAgendaResourcesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  kind: zod.string(),
+  modality: zod.string(),
+  color: zod.string(),
+  slotMinutes: zod.number(),
+  professionalId: zod.number().nullish(),
+  locationId: zod.number().nullish(),
+  active: zod.boolean(),
+  sortOrder: zod.number(),
+});
+export const ListAgendaResourcesResponse = zod.array(
+  ListAgendaResourcesResponseItem,
+);
+
+/**
+ * @summary Create an agenda resource
+ */
+export const CreateAgendaResourceBody = zod.object({
+  name: zod.string(),
+  kind: zod.string(),
+  modality: zod.string(),
+  color: zod.string().optional(),
+  slotMinutes: zod.number().optional(),
+  professionalId: zod.number().nullish(),
+  locationId: zod.number().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update an agenda resource
+ */
+export const UpdateAgendaResourceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateAgendaResourceBody = zod.object({
+  name: zod.string().optional(),
+  kind: zod.string().optional(),
+  modality: zod.string().optional(),
+  color: zod.string().optional(),
+  slotMinutes: zod.number().optional(),
+  professionalId: zod.number().nullish(),
+  locationId: zod.number().nullish(),
+  active: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateAgendaResourceResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  kind: zod.string(),
+  modality: zod.string(),
+  color: zod.string(),
+  slotMinutes: zod.number(),
+  professionalId: zod.number().nullish(),
+  locationId: zod.number().nullish(),
+  active: zod.boolean(),
+  sortOrder: zod.number(),
+});
+
+/**
+ * @summary List windows of a resource
+ */
+export const ListAgendaWindowsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAgendaWindowsResponseItem = zod.object({
+  id: zod.number(),
+  resourceId: zod.number(),
+  weekday: zod.number(),
+  startTime: zod.string(),
+  endTime: zod.string(),
+});
+export const ListAgendaWindowsResponse = zod.array(
+  ListAgendaWindowsResponseItem,
+);
+
+/**
+ * @summary Replace the whole weekly window set of a resource
+ */
+export const ReplaceAgendaWindowsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReplaceAgendaWindowsBody = zod.object({
+  windows: zod.array(
+    zod.object({
+      weekday: zod.number(),
+      startTime: zod.string(),
+      endTime: zod.string(),
+    }),
+  ),
+});
+
+export const ReplaceAgendaWindowsResponseItem = zod.object({
+  id: zod.number(),
+  resourceId: zod.number(),
+  weekday: zod.number(),
+  startTime: zod.string(),
+  endTime: zod.string(),
+});
+export const ReplaceAgendaWindowsResponse = zod.array(
+  ReplaceAgendaWindowsResponseItem,
+);
+
+/**
+ * @summary List agenda exceptions (holidays/blocks)
+ */
+export const ListAgendaExceptionsResponseItem = zod.object({
+  id: zod.number(),
+  resourceId: zod.number().nullish(),
+  date: zod.string(),
+  kind: zod.string(),
+  description: zod.string().nullish(),
+});
+export const ListAgendaExceptionsResponse = zod.array(
+  ListAgendaExceptionsResponseItem,
+);
+
+/**
+ * @summary Create an agenda exception
+ */
+export const CreateAgendaExceptionBody = zod.object({
+  resourceId: zod.number().nullish(),
+  date: zod.string(),
+  kind: zod.enum(["feriado", "bloqueio"]),
+  description: zod.string().nullish(),
+});
+
+/**
+ * @summary Delete an agenda exception
+ */
+export const DeleteAgendaExceptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get the singleton agenda settings (creates defaults if missing)
+ */
+export const GetAgendaSettingsResponse = zod.object({
+  id: zod.number(),
+  blockMinutes: zod.number(),
+  triggerPercent: zod.number(),
+  minLeadHours: zod.number(),
+});
+
+/**
+ * @summary Update the agenda settings
+ */
+export const UpdateAgendaSettingsBody = zod.object({
+  blockMinutes: zod.number().optional(),
+  triggerPercent: zod.number().optional(),
+  minLeadHours: zod.number().optional(),
+});
+
+export const UpdateAgendaSettingsResponse = zod.object({
+  id: zod.number(),
+  blockMinutes: zod.number(),
+  triggerPercent: zod.number(),
+  minLeadHours: zod.number(),
+});
+
+/**
+ * @summary Compute released/blocked/occupied slots for a resource on a date (anti-island engine)
+ */
+export const GetAgendaSlotsQueryParams = zod.object({
+  resourceId: zod.coerce.number(),
+  date: zod.coerce.string(),
+  occupied: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)",
+    ),
+});
+
+export const GetAgendaSlotsResponse = zod.object({
+  resourceId: zod.number(),
+  date: zod.string(),
+  reason: zod.string().nullish(),
+  subBlocks: zod.array(
+    zod.object({
+      startTime: zod.string(),
+      endTime: zod.string(),
+      released: zod.boolean(),
+      total: zod.number(),
+      occupied: zod.number(),
+      occupancy: zod.number(),
+    }),
+  ),
+  slots: zod.array(
+    zod.object({
+      time: zod.string(),
+      state: zod.string(),
+      reason: zod.string().nullish(),
+      subBlockIndex: zod.number(),
+    }),
+  ),
+});

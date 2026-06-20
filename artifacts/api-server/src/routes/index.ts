@@ -32,6 +32,7 @@ import catalogOptionsRouter from "./catalog-options";
 import budgetCatalogRouter from "./budget-catalog";
 import budgetSettingsRouter from "./budget-settings";
 import budgetsRouter from "./budgets";
+import agendaRouter from "./agenda";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(catalogOptionsRouter);
 router.use(budgetCatalogRouter);
 router.use(budgetSettingsRouter);
 router.use(budgetsRouter);
+router.use(agendaRouter);
 
 export default router;

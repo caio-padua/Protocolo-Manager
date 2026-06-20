@@ -5,6 +5,120 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface AgendaResource {
+  id: number;
+  name: string;
+  kind: string;
+  modality: string;
+  color: string;
+  slotMinutes: number;
+  professionalId?: number | null;
+  locationId?: number | null;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface CreateAgendaResourceBody {
+  name: string;
+  kind: string;
+  modality: string;
+  color?: string;
+  slotMinutes?: number;
+  professionalId?: number | null;
+  locationId?: number | null;
+  sortOrder?: number;
+}
+
+export interface UpdateAgendaResourceBody {
+  name?: string;
+  kind?: string;
+  modality?: string;
+  color?: string;
+  slotMinutes?: number;
+  professionalId?: number | null;
+  locationId?: number | null;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+export interface AgendaWindow {
+  id: number;
+  resourceId: number;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface AgendaWindowInput {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ReplaceAgendaWindowsBody {
+  windows: AgendaWindowInput[];
+}
+
+export interface AgendaException {
+  id: number;
+  resourceId?: number | null;
+  date: string;
+  kind: string;
+  description?: string | null;
+}
+
+export type CreateAgendaExceptionBodyKind =
+  (typeof CreateAgendaExceptionBodyKind)[keyof typeof CreateAgendaExceptionBodyKind];
+
+export const CreateAgendaExceptionBodyKind = {
+  feriado: "feriado",
+  bloqueio: "bloqueio",
+} as const;
+
+export interface CreateAgendaExceptionBody {
+  resourceId?: number | null;
+  date: string;
+  kind: CreateAgendaExceptionBodyKind;
+  description?: string | null;
+}
+
+export interface AgendaSettings {
+  id: number;
+  blockMinutes: number;
+  triggerPercent: number;
+  minLeadHours: number;
+}
+
+export interface UpdateAgendaSettingsBody {
+  blockMinutes?: number;
+  triggerPercent?: number;
+  minLeadHours?: number;
+}
+
+export interface AgendaSubBlock {
+  startTime: string;
+  endTime: string;
+  released: boolean;
+  total: number;
+  occupied: number;
+  occupancy: number;
+}
+
+export interface AgendaSlot {
+  time: string;
+  state: string;
+  reason?: string | null;
+  subBlockIndex: number;
+}
+
+export interface AgendaSlotsResponse {
+  resourceId: number;
+  date: string;
+  reason?: string | null;
+  subBlocks: AgendaSubBlock[];
+  slots: AgendaSlot[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -1335,4 +1449,13 @@ export type ListAnamnesePerguntasParams = {
 export type ListBudgetsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type GetAgendaSlotsParams = {
+  resourceId: number;
+  date: string;
+  /**
+   * CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)
+   */
+  occupied?: string;
 };
