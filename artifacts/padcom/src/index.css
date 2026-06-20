@@ -848,3 +848,13 @@
 .pw-home .neon-hover::after {
   background: radial-gradient(60% 100% at 50% 0%, rgba(184, 146, 77, 0.55) 0%, transparent 72%);
 }
+
+/* Nome do cliente nos cards da tela inicial: serifa classica (Cormorant)
+   no lugar do Inter pesado/maiusculo — refinado, mesmo espaco visual. */
+.pw-home .pw-client-name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  color: hsl(var(--foreground));
+  text-transform: none;
+}

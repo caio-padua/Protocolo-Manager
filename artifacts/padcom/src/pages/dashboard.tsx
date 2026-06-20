@@ -86,7 +86,7 @@ function FilaValidacao() {
                   return (
                     <div key={item.id} className="panel-3d-sub p-3 flex items-center justify-between gap-3 neon-hover">
                       <div className="min-w-0">
-                        <p className="font-bold text-sm truncate uppercase tracking-tight">{item.clientName ?? `Cliente #${item.clienteId ?? "?"}`}</p>
+                        <p className="pw-client-name text-base truncate tracking-tight">{item.clientName ?? `Cliente #${item.clienteId ?? "?"}`}</p>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground mt-1">
                           <span className="concave-3d px-1.5 py-0.5">{format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
                           {item.resumo?.gradeGlobal && (
@@ -235,7 +235,7 @@ export default function Dashboard() {
                         <span className="text-xl font-black text-primary">{format(new Date(session.scheduledDate), "dd")}</span>
                       </div>
                       <div>
-                        <p className="font-bold text-sm uppercase tracking-tight">{session.clientName}</p>
+                        <p className="pw-client-name text-base tracking-tight">{session.clientName}</p>
                         <div className="flex items-center gap-3 mt-1">
                           <div className="concave-3d flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
                             <Clock className="w-3.5 h-3.5" />
