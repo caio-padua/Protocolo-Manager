@@ -2,14 +2,10 @@ import { useEffect, useState } from "react";
 import { useUpdateSubstance, getListSubstancesQueryKey, useListCatalogOptions } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -296,14 +292,12 @@ const TEXTAREAS_SAFETY: { key: string; label: string }[] = [
 
 const ALL_TEXTAREAS = [...TEXTAREAS_DESC, ...TEXTAREAS_BENEFIT, ...TEXTAREAS_SAFETY];
 
-export function SubstanceEditSheet({
+export function SubstanceEditForm({
   substance,
-  open,
-  onOpenChange,
+  onClose,
 }: {
-  substance: any | null;
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
+  substance: any;
+  onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const update = useUpdateSubstance();
@@ -358,7 +352,7 @@ export function SubstanceEditSheet({
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListSubstancesQueryKey() });
           toast.success("Substância atualizada");
-          onOpenChange(false);
+          onClose();
         },
         onError: (e: any) => toast.error("Erro ao salvar", { description: String(e?.message ?? e) }),
       },
@@ -369,29 +363,25 @@ export function SubstanceEditSheet({
   const go = (id: string) => () => setActiveSection(id);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col p-0 gap-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-br from-primary/5 to-transparent">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
-              style={{ backgroundColor: form.color ?? substance.color ?? "#3D7A7A" }}
-            >
-              <Beaker className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <SheetTitle className="text-lg leading-tight truncate">
-                {form.name || substance.name || "Editar substância"}
-              </SheetTitle>
-              <SheetDescription className="text-xs leading-snug">
-                Tudo que você ajustar aqui entra no informativo do cliente e no RAS.
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+    <div className="border-t pt-5 px-6 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+          style={{ backgroundColor: form.color ?? substance.color ?? "#3D7A7A" }}
+        >
+          <Beaker className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-base font-bold leading-tight truncate">
+            {form.name || substance.name || "Editar substância"}
+          </h3>
+          <p className="text-xs text-muted-foreground leading-snug">
+            Tudo que você ajustar aqui entra no informativo do cliente e no RAS.
+          </p>
+        </div>
+      </div>
 
-        <ScrollArea className="flex-1 px-5">
-          <div className="space-y-4 py-5">
+      <div className="space-y-4">
             {/* 1 — IDENTIFICACAO */}
             <SectionCard
               icon={Beaker}
@@ -594,17 +584,15 @@ export function SubstanceEditSheet({
               </div>
             </SectionCard>
           </div>
-        </ScrollArea>
 
-        <SheetFooter className="px-6 py-4 border-t flex-row justify-end gap-2 bg-muted/30">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={update.isPending}>
-            Cancelar
-          </Button>
-          <Button onClick={onSave} disabled={update.isPending}>
-            {update.isPending ? "Salvando..." : "Salvar alterações"}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <div className="mt-5 flex flex-row justify-end gap-2 border-t pt-4">
+        <Button variant="outline" onClick={onClose} disabled={update.isPending}>
+          Cancelar
+        </Button>
+        <Button onClick={onSave} disabled={update.isPending}>
+          {update.isPending ? "Salvando..." : "Salvar alterações"}
+        </Button>
+      </div>
+    </div>
   );
 }

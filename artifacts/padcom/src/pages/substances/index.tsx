@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useListSubstances } from "@workspace/api-client-react";
 import { CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,7 @@ import {
   BODY_SYSTEM_LABELS, getProcedureLabel, getProcedureColor, getCategoryStyle,
   BodySystemBar, BlendComposition, parseComposicao, CategoryMetersShowcase,
 } from "./shared";
-import { SubstanceEditSheet } from "./SubstanceEditSheet";
+import { SubstanceEditForm } from "./SubstanceEditForm";
 
 function BenefitItem({ icon: Icon, label, value, color }: {
   icon: typeof Heart;
@@ -36,13 +36,25 @@ function BenefitItem({ icon: Icon, label, value, color }: {
 export default function Substances() {
   const { data: substances, isLoading } = useListSubstances();
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
+  // Gaveta vertical: abrir edicao fecha os detalhes (e vice-versa); so um por vez.
+  // Ao abrir, rola a tela ate o card em edicao.
   const openEdit = (substance: any) => {
-    setEditing(substance);
-    setSheetOpen(true);
+    setExpanded(null);
+    const willOpen = editingId !== substance.id;
+    setEditingId(willOpen ? substance.id : null);
+    if (willOpen) {
+      requestAnimationFrame(() =>
+        cardRefs.current[substance.id]?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
+  };
+  const toggleDetails = (substance: any) => {
+    setEditingId(null);
+    setExpanded((cur) => (cur === substance.id ? null : substance.id));
   };
 
   const q = query.trim().toLowerCase();
@@ -98,6 +110,7 @@ export default function Substances() {
         <div className="space-y-4">
           {filtered.map((substance: any) => {
             const isOpen = expanded === substance.id;
+            const isEditing = editingId === substance.id;
             const catStyle = getCategoryStyle(substance.categoryType || substance.category);
             const CatIcon = catStyle.icon;
             const bodyEffects = substance.bodySystemEffects && typeof substance.bodySystemEffects === "object"
@@ -108,7 +121,8 @@ export default function Substances() {
             return (
               <div
                 key={substance.id}
-                className={`panel-3d overflow-hidden transition-all duration-300`}
+                ref={(el) => { cardRefs.current[substance.id] = el; }}
+                className={`panel-3d overflow-hidden transition-all duration-300 scroll-mt-4`}
                 style={{
                   borderLeftWidth: "5px",
                   borderLeftColor: substance.color,
@@ -117,7 +131,7 @@ export default function Substances() {
                 <div className="flex items-start">
                   <div
                     className="cursor-pointer flex-1 min-w-0 neon-hover"
-                    onClick={() => setExpanded(isOpen ? null : substance.id)}
+                    onClick={() => toggleDetails(substance)}
                   >
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-start gap-3">
@@ -217,12 +231,28 @@ export default function Substances() {
                     <Button
                       className="btn-3d-soft"
                       size="sm"
+                      variant={isEditing ? "secondary" : "default"}
+                      aria-expanded={isEditing}
+                      aria-controls={`subs-edit-${substance.id}`}
                       onClick={() => openEdit(substance)}
                     >
-                      <Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar
+                      {isEditing ? (
+                        <><ChevronUp className="h-3.5 w-3.5 mr-1.5" /> Fechar</>
+                      ) : (
+                        <><Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar</>
+                      )}
                     </Button>
                   </div>
                 </div>
+
+                {isEditing && (
+                  <div id={`subs-edit-${substance.id}`}>
+                    <SubstanceEditForm
+                      substance={substance}
+                      onClose={() => setEditingId(null)}
+                    />
+                  </div>
+                )}
 
                 {isOpen && (
                   <div className="px-6 pb-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 border-t pt-5">
@@ -313,8 +343,6 @@ export default function Substances() {
           })}
         </div>
       )}
-
-      <SubstanceEditSheet substance={editing} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>
   );
 }
