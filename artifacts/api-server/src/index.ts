@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startCronJobs } from "./lib/cron";
+import { runSeedSiteContent } from "./lib/seed-site-content";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startCronJobs();
+  runSeedSiteContent((m) => logger.info({ seed: "site-content" }, m)).catch((e) =>
+    logger.error({ err: e }, "Falha ao semear site-content"),
+  );
 });

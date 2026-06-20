@@ -33,6 +33,8 @@ tags:
     description: Numeração SNCR de medicamentos controlados
   - name: catalog-options
     description: Opções gerenciáveis de listas (categorias, tipos)
+  - name: site-content
+    description: Conteúdo editável (fraseologia de botões, textos de pagamento, vídeos)
   - name: agenda
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
@@ -734,6 +736,69 @@ paths:
                 $ref: "#/components/schemas/ProtocolStats"
 
   # PHARMACIES
+  /site-content:
+    get:
+      operationId: listSiteContent
+      tags: [site-content]
+      summary: List editable content (optionally filtered by category)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of editable content items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SiteContent"
+    post:
+      operationId: createSiteContent
+      tags: [site-content]
+      summary: Create an editable content item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSiteContentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteContent"
+
+  /site-content/{id}:
+    patch:
+      operationId: updateSiteContent
+      tags: [site-content]
+      summary: Update an editable content item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSiteContentBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteContent"
+
   /catalog-options:
     get:
       operationId: listCatalogOptions
@@ -3206,6 +3271,71 @@ components:
       required:
         - name
         - serviceTypes
+
+    SiteContent:
+      type: object
+      properties:
+        id:
+          type: integer
+        contentKey:
+          type: string
+        category:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        mediaUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        updatedAt:
+          type: string
+      required:
+        - id
+        - contentKey
+        - category
+        - title
+        - sortOrder
+        - updatedAt
+
+    CreateSiteContentBody:
+      type: object
+      properties:
+        contentKey:
+          type: string
+        category:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        mediaUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+      required:
+        - contentKey
+        - category
+        - title
+
+    UpdateSiteContentBody:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        mediaUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
 
     CatalogOption:
       type: object

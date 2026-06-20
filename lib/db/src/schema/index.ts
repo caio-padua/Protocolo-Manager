@@ -24,3 +24,4 @@ export * from "./catalog-options";
 export * from "./budget";
 export * from "./agenda-motor";
 export * from "./agenda-calendars";
+export * from "./site-content";

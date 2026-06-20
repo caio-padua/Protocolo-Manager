@@ -59,6 +59,7 @@ import type {
   CreateProtocolBody,
   CreateRASBody,
   CreateSessionBody,
+  CreateSiteContentBody,
   CreateSncrRangeBody,
   CreateStockItemBody,
   CreateSubstanceBody,
@@ -77,6 +78,7 @@ import type {
   ListProtocolsParams,
   ListRASParams,
   ListSessionsParams,
+  ListSiteContentParams,
   Payment,
   Pharmacy,
   Prescription,
@@ -92,6 +94,7 @@ import type {
   Session,
   SimulacaoInput,
   SimulacaoResultado,
+  SiteContent,
   SncrQuota,
   SncrRange,
   StockItem,
@@ -100,6 +103,7 @@ import type {
   UpdateAgendaSettingsBody,
   UpdateProtocolBody,
   UpdateSessionBody,
+  UpdateSiteContentBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2964,6 +2968,273 @@ export function useGetProtocolStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List editable content (optionally filtered by category)
+ */
+export const getListSiteContentUrl = (params?: ListSiteContentParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/site-content?${stringifiedParams}`
+    : `/api/site-content`;
+};
+
+export const listSiteContent = async (
+  params?: ListSiteContentParams,
+  options?: RequestInit,
+): Promise<SiteContent[]> => {
+  return customFetch<SiteContent[]>(getListSiteContentUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSiteContentQueryKey = (params?: ListSiteContentParams) => {
+  return [`/api/site-content`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSiteContentQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSiteContent>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSiteContentParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSiteContent>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSiteContentQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSiteContent>>> = ({
+    signal,
+  }) => listSiteContent(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSiteContent>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSiteContentQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSiteContent>>
+>;
+export type ListSiteContentQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List editable content (optionally filtered by category)
+ */
+
+export function useListSiteContent<
+  TData = Awaited<ReturnType<typeof listSiteContent>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSiteContentParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSiteContent>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSiteContentQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an editable content item
+ */
+export const getCreateSiteContentUrl = () => {
+  return `/api/site-content`;
+};
+
+export const createSiteContent = async (
+  createSiteContentBody: CreateSiteContentBody,
+  options?: RequestInit,
+): Promise<SiteContent> => {
+  return customFetch<SiteContent>(getCreateSiteContentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSiteContentBody),
+  });
+};
+
+export const getCreateSiteContentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSiteContent>>,
+    TError,
+    { data: BodyType<CreateSiteContentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSiteContent>>,
+  TError,
+  { data: BodyType<CreateSiteContentBody> },
+  TContext
+> => {
+  const mutationKey = ["createSiteContent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSiteContent>>,
+    { data: BodyType<CreateSiteContentBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSiteContent(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSiteContentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSiteContent>>
+>;
+export type CreateSiteContentMutationBody = BodyType<CreateSiteContentBody>;
+export type CreateSiteContentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create an editable content item
+ */
+export const useCreateSiteContent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSiteContent>>,
+    TError,
+    { data: BodyType<CreateSiteContentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSiteContent>>,
+  TError,
+  { data: BodyType<CreateSiteContentBody> },
+  TContext
+> => {
+  return useMutation(getCreateSiteContentMutationOptions(options));
+};
+
+/**
+ * @summary Update an editable content item
+ */
+export const getUpdateSiteContentUrl = (id: number) => {
+  return `/api/site-content/${id}`;
+};
+
+export const updateSiteContent = async (
+  id: number,
+  updateSiteContentBody: UpdateSiteContentBody,
+  options?: RequestInit,
+): Promise<SiteContent> => {
+  return customFetch<SiteContent>(getUpdateSiteContentUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSiteContentBody),
+  });
+};
+
+export const getUpdateSiteContentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    TError,
+    { id: number; data: BodyType<UpdateSiteContentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSiteContent>>,
+  TError,
+  { id: number; data: BodyType<UpdateSiteContentBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSiteContent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    { id: number; data: BodyType<UpdateSiteContentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSiteContent(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSiteContentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSiteContent>>
+>;
+export type UpdateSiteContentMutationBody = BodyType<UpdateSiteContentBody>;
+export type UpdateSiteContentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update an editable content item
+ */
+export const useUpdateSiteContent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    TError,
+    { id: number; data: BodyType<UpdateSiteContentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSiteContent>>,
+  TError,
+  { id: number; data: BodyType<UpdateSiteContentBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSiteContentMutationOptions(options));
+};
 
 /**
  * @summary List catalog options (optionally filtered by kind)

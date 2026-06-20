@@ -32,6 +32,7 @@ import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
 import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
+import CadastroTextos from "@/pages/cadastros/textos";
 import Portal from "@/pages/portal";
 import Anamnese from "@/pages/anamnese";
 import Area from "@/pages/area";
@@ -103,6 +104,7 @@ function Router() {
             <Route path="/cadastros/clinicas" component={CadastroClinicas} />
             <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
             <Route path="/cadastros/equipe" component={CadastroEquipe} />
+            <Route path="/cadastros/textos" component={CadastroTextos} />
             
             <Route component={NotFound} />
           </Switch>

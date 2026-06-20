@@ -23,6 +23,7 @@ import {
   Calculator,
   CalendarCog,
   CalendarDays,
+  MessageSquareText,
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ const navigation: NavEntry[] = [
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
+      { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
     ],
   },
   { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },

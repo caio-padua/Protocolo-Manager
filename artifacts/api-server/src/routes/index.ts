@@ -35,6 +35,7 @@ import budgetsRouter from "./budgets";
 import agendaRouter from "./agenda";
 import agendaCalendarsRouter from "./agenda-calendars";
 import icalRouter from "./ical";
+import siteContentRouter from "./site-content";
 
 const router: IRouter = Router();
 
@@ -74,5 +75,6 @@ router.use(budgetsRouter);
 router.use(agendaRouter);
 router.use(agendaCalendarsRouter);
 router.use(icalRouter);
+router.use(siteContentRouter);
 
 export default router;

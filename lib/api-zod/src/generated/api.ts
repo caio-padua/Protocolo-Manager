@@ -1376,6 +1376,62 @@ export const GetProtocolStatsResponse = zod.object({
 });
 
 /**
+ * @summary List editable content (optionally filtered by category)
+ */
+export const ListSiteContentQueryParams = zod.object({
+  category: zod.coerce.string().optional(),
+});
+
+export const ListSiteContentResponseItem = zod.object({
+  id: zod.number(),
+  contentKey: zod.string(),
+  category: zod.string(),
+  title: zod.string(),
+  body: zod.string().nullish(),
+  mediaUrl: zod.string().nullish(),
+  sortOrder: zod.number(),
+  updatedAt: zod.string(),
+});
+export const ListSiteContentResponse = zod.array(ListSiteContentResponseItem);
+
+/**
+ * @summary Create an editable content item
+ */
+export const CreateSiteContentBody = zod.object({
+  contentKey: zod.string(),
+  category: zod.string(),
+  title: zod.string(),
+  body: zod.string().nullish(),
+  mediaUrl: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update an editable content item
+ */
+export const UpdateSiteContentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSiteContentBody = zod.object({
+  title: zod.string().optional(),
+  body: zod.string().nullish(),
+  mediaUrl: zod.string().nullish(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateSiteContentResponse = zod.object({
+  id: zod.number(),
+  contentKey: zod.string(),
+  category: zod.string(),
+  title: zod.string(),
+  body: zod.string().nullish(),
+  mediaUrl: zod.string().nullish(),
+  sortOrder: zod.number(),
+  updatedAt: zod.string(),
+});
+
+/**
  * @summary List catalog options (optionally filtered by kind)
  */
 export const ListCatalogOptionsQueryParams = zod.object({

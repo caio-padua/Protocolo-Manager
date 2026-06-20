@@ -855,6 +855,33 @@ export interface CreateProfessionalBody {
   category?: string | null;
 }
 
+export interface SiteContent {
+  id: number;
+  contentKey: string;
+  category: string;
+  title: string;
+  body?: string | null;
+  mediaUrl?: string | null;
+  sortOrder: number;
+  updatedAt: string;
+}
+
+export interface CreateSiteContentBody {
+  contentKey: string;
+  category: string;
+  title: string;
+  body?: string | null;
+  mediaUrl?: string | null;
+  sortOrder?: number;
+}
+
+export interface UpdateSiteContentBody {
+  title?: string;
+  body?: string | null;
+  mediaUrl?: string | null;
+  sortOrder?: number;
+}
+
 export interface CatalogOption {
   id: number;
   kind: string;
@@ -1482,6 +1509,10 @@ export type ListRASParams = {
 export type ListPaymentsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type ListSiteContentParams = {
+  category?: string;
 };
 
 export type ListCatalogOptionsParams = {
