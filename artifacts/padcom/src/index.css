@@ -773,3 +773,78 @@
 .area-elite .hover\:text-teal-600:hover  { color:#365a80; }
 .area-elite .hover\:text-teal-700:hover  { color:#274265; }
 .area-elite .hover\:text-teal-800:hover  { color:#1c3252; }
+
+/* ====================================================================== */
+/* TEMA PAWARDS — escopo EXCLUSIVO da TELA INICIAL (dashboard.tsx, rota /) */
+/* Decisao CEO Dr. Caio (20/06/2026, opcao A — identidade completa).       */
+/* REGRA: muda SO a COR (superficie + tokens) e a TIPOGRAFIA dos titulos.  */
+/* Relevo 3D (panel/bevel/concave/screen/btn), estrutura e comportamento   */
+/* Paxter permanecem 100% intactos (box-shadow preservado). Bloco          */
+/* UNLAYERED de proposito: vence utilities Tailwind v4 e os blocos .dark .X */
+/* por ordem de fonte + especificidade classe+classe.                      */
+/* ====================================================================== */
+.pw-home {
+  /* tokens de marca remapeados (status verde/vermelho/ambar ficam intactos) */
+  --primary: 214 54% 19%;          /* verde-petroleo -> marinho #16294a */
+  --accent: 39 41% 51%;            /* ciano -> dourado champanhe #b8924d */
+  --foreground: 214 54% 19%;       /* texto base -> marinho ink */
+  --muted-foreground: 213 21% 49%; /* texto secundario -> slate #647c97 */
+  --card-border: 41 38% 70%;       /* fio dourado claro */
+  --border: 41 38% 70%;
+  --ring: 214 54% 19%;
+  --pw-title: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(circle at 88% 1%, rgba(184, 146, 77, 0.10), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8f9fb 50%, #faf6ec 100%);
+}
+
+/* Titulos classicos (Cinzel caixa-alta de x-height baixa: tamanho igual ao
+   atual, so ajusto o espacamento para ocupar o MESMO espaco visual). */
+.pw-home .pw-title-serif {
+  font-family: var(--pw-title);
+  font-weight: 600;
+  letter-spacing: 0.045em;
+}
+
+/* --- PECAS 3D: troca SO background + border-color; relevo (box-shadow) intacto --- */
+.pw-home .panel-3d,
+.pw-home .panel-3d-sub,
+.pw-home .panel-3d-hero {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border-color: rgba(184, 146, 77, 0.42);
+}
+.pw-home .bevel-3d {
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+.pw-home .concave-3d {
+  background: linear-gradient(160deg, #ece6d7 0%, #f6f1e6 100%);
+  border-color: rgba(184, 146, 77, 0.40);
+}
+.pw-home .screen-3d {
+  background: linear-gradient(150deg, #ffffff 0%, #f8f4ea 100%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+.pw-home .field-engraved {
+  background: linear-gradient(180deg, #efe9da 0%, #ffffff 28%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+
+/* Botao primario 3D -> tecla MARINHO com fio dourado (relevo intacto). */
+.pw-home .btn-3d {
+  border-color: rgba(184, 146, 77, 0.55);
+  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  color: #ffffff;
+}
+/* Botao secundario 3D -> marfim com texto marinho. */
+.pw-home .btn-3d-soft {
+  border-color: rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f1e6 55%, #ece4d2 100%);
+  color: #16294a;
+}
+
+/* Brilho hover (neon) ciano -> dourado, so na tela inicial. */
+.pw-home .neon-hover::after {
+  background: radial-gradient(60% 100% at 50% 0%, rgba(184, 146, 77, 0.55) 0%, transparent 72%);
+}

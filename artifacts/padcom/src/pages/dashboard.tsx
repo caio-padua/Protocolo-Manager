@@ -59,7 +59,7 @@ function FilaValidacao() {
         <div className="w-1 shrink-0" style={{ backgroundColor: "hsl(38, 92%, 50%)" }} />
         <div className="flex-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div className="bevel-3d px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
+            <div className="bevel-3d pw-title-serif px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" style={{ color: "hsl(38, 92%, 50%)" }} />
               Fila de Validação — Anamnese
             </div>
@@ -133,10 +133,10 @@ export default function Dashboard() {
   const { data: stats, isLoading: loadingStats } = useGetProtocolStats();
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="pw-home -m-4 md:-m-8 p-4 md:p-8 min-h-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight">Painel de Controle</h1>
+          <h1 className="pw-title-serif text-2xl font-bold tracking-tight">Painel de Controle</h1>
           <p className="text-sm text-muted-foreground">Visao geral operacional — Padcon Conect</p>
         </div>
         <div className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest border border-border px-3 py-1.5 bevel-3d">
@@ -159,21 +159,21 @@ export default function Dashboard() {
               value: summary.sessionsTodayCount,
               sub: `${summary.sessionsThisWeekCount} esta semana`,
               icon: CalendarIcon,
-              color: "hsl(187, 72%, 48%)",
+              color: "hsl(39, 41%, 51%)",
             },
             {
               label: "Protocolos Ativos",
               value: summary.activeProtocols,
               sub: `${summary.totalClients} clientes no total`,
               icon: Activity,
-              color: "hsl(180, 30%, 28%)",
+              color: "hsl(214, 54%, 19%)",
             },
             {
               label: "Receita do Mes",
               value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summary.revenueThisMonth),
               sub: `${summary.pendingPaymentsCount} pagamentos pendentes`,
               icon: TrendingUp,
-              color: "hsl(38, 92%, 50%)",
+              color: "hsl(39, 46%, 41%)",
             },
             {
               label: "Taxa de Conclusao",
@@ -209,7 +209,7 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4 panel-3d">
           <CardHeader>
-            <div className="bevel-3d px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
+            <div className="bevel-3d pw-title-serif px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
               <CalendarIcon className="h-4 w-4" /> Sessões Agendadas
             </div>
           </CardHeader>
@@ -272,7 +272,7 @@ export default function Dashboard() {
         <div className="lg:col-span-3 space-y-6">
           <Card className="panel-3d">
             <CardHeader>
-              <div className="bevel-3d px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
+              <div className="bevel-3d pw-title-serif px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" /> Alertas Operacionais
               </div>
             </CardHeader>
@@ -315,7 +315,7 @@ export default function Dashboard() {
 
           <Card className="panel-3d">
             <CardHeader>
-              <div className="bevel-3d px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
+              <div className="bevel-3d pw-title-serif px-3 py-1.5 uppercase tracking-wide text-sm font-semibold inline-flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" /> Receita Recente
               </div>
             </CardHeader>
