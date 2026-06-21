@@ -294,6 +294,13 @@ repositório GitHub nem dá push (ato do CEO pela aba Git) e não escreve no cof
 pasta pronta). Ferramentas: `paxter:pack` (gera selo) e `paxter:audit` (certifica/acusa drift) em
 `@workspace/scripts`. Detalhe operacional em `paxter-pack/README.md` e `paxter-pack/SEED.md`.
 
+**Art. 62** LINGUAGEM DE ESTADO — GLOW RARO E INTENCIONAL (promulgado pela onda Experiencia do Paciente
+em 21/06/2026, queixa do CEO de "luzes muito expandidas"): o brilho (glow) NAO e decoracao global; um
+bloco so acende quando ha ESTADO REAL (atencao=ambar, atraso/critico=vermelho, sucesso=verde,
+info/foco=ciano) ou no HOVER de desktop — no celular nunca depende de hover (guarda `@media (hover:none)`).
+Calibra-se so a LUZ (blur, alcance, opacidade), nunca o relevo 3D (essencia). Antes de criar classe de
+luz nova, reusar as existentes. Detalhe e tabela de classes na skill `skill-layout-paxter`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
@@ -308,4 +315,5 @@ pasta pronta). Ferramentas: `paxter:pack` (gera selo) e `paxter:audit` (certific
 | 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
 | 20/06/2026 | Art. 57 (Título IX) | "Um formato, um motor + feed assinado", promulgado pela SUB-04 Convite .ics: motor único de serialização (rotas chamam, não remontam à mão); .ics PUBLISH com UID estável; reenvio idempotente; feed iCal HMAC com 401 genérico anti-enumeração e só sessões futuras; coluna timestamp Drizzle modo Date exige objeto Date; defer explícito do que pede cron/coluna nova. |
 | 20/06/2026 | Art. 58 a 60 (Título XI) | Aprendizado contínuo e memória distribuída, a pedido do CEO: roteamento de cada aprendizado ao destino durável (Código/skill de layout/memória/specs/cartas); Lei do Layout (toda modelagem registrada na skill `skill-layout-paxter` antes de a tela ficar pronta); cartas entre primos viram documento versionado em `cartas/` com índice. |
+| 21/06/2026 | Art. 62 (Título X) | Linguagem de estado — glow raro e intencional, promulgado pela onda Experiência do Paciente (PWA): glow não é decoração global (só acende em estado real ou hover desktop, nunca depende de hover no celular), calibra-se a luz nunca o relevo 3D; tabela de classes de estado na skill `skill-layout-paxter`. |
 | 20/06/2026 | Art. 61 (Título XI) | Paxter Pack — portabilidade dupla, certificação e auditoria, a pedido do CEO (decisão A+B): pack portável das skills para semear sistemas-primos idênticos; casa-mestra dupla (Obsidian + GitHub `paxter-pack`); fonte viva `.agents/skills/` x espelho gerado `paxter-pack/`; ferramentas `paxter:pack` (selo SHA-256) e `paxter:audit` (acusa drift); agente não cria repo nem dá push, não escreve no cofre. |

@@ -68,3 +68,31 @@ export function isAnswered(v: Valor | undefined): boolean {
 export function isDiscrete(kind: ControlKind): boolean {
   return kind === "boolean" || kind === "single" || kind === "escala";
 }
+
+// Verdadeiro se o valor respondido "inclui" qualquer um dos alvos (usado por
+// dependeDe). Compara rotulos e valores; trata booleano como sim/nao.
+export function valorIncludesAny(v: Valor | undefined, inclui: unknown[]): boolean {
+  if (!v) return false;
+  const wanted = inclui.map((x) => (typeof x === "string" ? x.toLowerCase() : x));
+  const has = (cand: unknown): boolean => {
+    if (cand == null) return false;
+    if (typeof cand === "string") return wanted.includes(cand.toLowerCase());
+    return wanted.includes(cand);
+  };
+  switch (v.tipo) {
+    case "boolean":
+      return wanted.includes(v.bool) || wanted.includes(v.bool ? "sim" : "nao");
+    case "single":
+      return has(v.opcao) || has(v.valor);
+    case "multi":
+      return v.selecionados.some((s) => has(s));
+    case "escala":
+      return has(v.escala);
+    case "number":
+      return has(v.numero);
+    case "texto":
+      return has(v.texto);
+    default:
+      return false;
+  }
+}

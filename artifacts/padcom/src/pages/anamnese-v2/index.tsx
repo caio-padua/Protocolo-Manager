@@ -8,8 +8,11 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Home,
+  Info,
   Loader2,
   ListChecks,
+  Play,
   Save,
   Shield,
   SkipForward,
@@ -29,11 +32,16 @@ import {
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
-import { controlKind, isAnswered, isDiscrete, type Valor } from "./types";
+import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
 
 const PETROLEO = "#3D7A7A";
 const CIANO = "#45B8CC";
 const TOKEN_KEY = "anamnese_v2_token";
+const DEMO_KEY = "anamnese_v2_demo";
+const AREA_URL = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/area`;
+// R1 — modo teste reversivel: VITE_OPEN_ACCESS="1" libera o acesso aberto (sem
+// senha de colaborador) com faixa visivel "MODO TESTE". Default DESLIGADO.
+const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 
 export default function AnamneseV2() {
   const { toast } = useToast();
@@ -47,6 +55,7 @@ export default function AnamneseV2() {
   const [saving, setSaving] = useState(false);
   const [finished, setFinished] = useState(false);
   const [findings, setFindings] = useState<AnamneseFinding[]>([]);
+  const [demo, setDemo] = useState<boolean>(() => localStorage.getItem(DEMO_KEY) === "1");
 
   const startRef = useRef<number>(Date.now());
   const milestoneRef = useRef<Set<number>>(new Set());
@@ -74,6 +83,9 @@ export default function AnamneseV2() {
         {
           onSuccess: (s) => {
             localStorage.setItem(TOKEN_KEY, s.token);
+            const isDemo = !portalToken;
+            localStorage.setItem(DEMO_KEY, isDemo ? "1" : "0");
+            setDemo(isDemo);
             setToken(s.token);
           },
           onError: () => {
@@ -105,11 +117,35 @@ export default function AnamneseV2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionState?.session.id]);
 
-  // agrupa por bloco preservando a ordem
+  // agrupa por bloco preservando a ordem; aplica visibilidade condicional por
+  // sexo biologico (A04) e por dependencia de outra resposta (dependeDe).
+  // Recalcula quando as respostas mudam (revela/esconde perguntas dependentes).
   const groups = useMemo(() => {
+    const byPid = new Map<string, AnamneseQuestion>();
+    for (const q of questions ?? []) if (q.perguntaId) byPid.set(q.perguntaId, q);
+    const sexoQ = byPid.get("A04");
+    const sexoVal = sexoQ ? answers[sexoQ.id] : undefined;
+    const sexo =
+      sexoVal?.tipo === "single" ? String(sexoVal.valor ?? sexoVal.opcao) : undefined;
+
+    const isVisible = (q: AnamneseQuestion): boolean => {
+      const ap = q.aplicavelEm as { sexo?: "M" | "F" } | null | undefined;
+      // Caso extremo: antes de A04 ser respondida (sexo indefinido), NAO esconder
+      // perguntas de sexo precipitadamente — so filtra quando o sexo e conhecido.
+      if (ap?.sexo && sexo && sexo !== ap.sexo) return false;
+      const dep = q.dependeDe as { perguntaId?: string; inclui?: unknown[] } | null | undefined;
+      if (dep?.perguntaId && Array.isArray(dep.inclui)) {
+        const refQ = byPid.get(dep.perguntaId);
+        const refVal = refQ ? answers[refQ.id] : undefined;
+        if (!valorIncludesAny(refVal, dep.inclui)) return false;
+      }
+      return true;
+    };
+
     const list: { bloco: string; questions: AnamneseQuestion[] }[] = [];
     const idx = new Map<string, number>();
     for (const q of questions ?? []) {
+      if (!isVisible(q)) continue;
       const b = q.bloco || "Outros";
       if (!idx.has(b)) {
         idx.set(b, list.length);
@@ -118,7 +154,7 @@ export default function AnamneseV2() {
       list[idx.get(b)!].questions.push(q);
     }
     return list;
-  }, [questions]);
+  }, [questions, answers]);
 
   const isRefused = useCallback((bloco: string) => refused.has(`bloco:${bloco}`), [refused]);
 
@@ -159,6 +195,11 @@ export default function AnamneseV2() {
       }
     }
   }, [pct, respondidas, toast]);
+
+  // R2: rolar para o topo ao trocar de grupo ou de pergunta (modo foco).
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [groupIdx, focusIdx, focusMode]);
 
   // gravacao (upsert) com debounce p/ texto/numero, imediata p/ escolhas
   const persist = useCallback(
@@ -319,14 +360,27 @@ export default function AnamneseV2() {
     return <CenterLoader label="Preparando sua anamnese..." />;
   }
   if (finished) {
-    return <FinishScreen findings={findings} respondidas={respondidas} total={totalAtivas} />;
+    return <FinishScreen findings={findings} respondidas={respondidas} total={totalAtivas} demo={demo} />;
   }
 
-  const group = groups[groupIdx];
-  const isLastGroup = groupIdx >= groups.length - 1;
+  const safeGroupIdx = Math.min(groupIdx, Math.max(0, groups.length - 1));
+  const group = groups[safeGroupIdx];
+  const isLastGroup = safeGroupIdx >= groups.length - 1;
+  if (!group) {
+    return <CenterLoader label="Preparando sua anamnese..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f1f5f5] pb-28" style={{ ["--brand" as any]: PETROLEO }}>
+      {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
+      {(demo || OPEN_ACCESS) && (
+        <div className="flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {OPEN_ACCESS
+            ? "Modo teste — acesso aberto, respostas não são de um cliente real"
+            : "Modo demonstração — respostas não são de um cliente real"}
+        </div>
+      )}
       {/* HEADER / TIMELINE */}
       <header className="sticky top-0 z-20 border-b border-[#d7e0e0] bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl">
@@ -504,6 +558,7 @@ function QuestionCard({
   onAnswer: (q: AnamneseQuestion, v: Valor, opts?: { commit?: boolean }) => void;
 }) {
   const answered = isAnswered(value);
+  const [showVideo, setShowVideo] = useState(false);
   return (
     <div
       className="panel-3d rounded-md p-4"
@@ -522,7 +577,45 @@ function QuestionCard({
           {answered && <Check className="h-4 w-4" style={{ color: CIANO }} />}
         </div>
       </div>
+
+      {/* Ajuda em linguagem leiga (observacao) */}
+      {q.observacao && (
+        <div className="mb-3 flex gap-2 rounded-md px-3 py-2" style={{ background: "#eef6f6" }}>
+          <Info className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PETROLEO }} />
+          <p className="whitespace-pre-line text-[13px] leading-relaxed text-gray-600">
+            {q.observacao}
+          </p>
+        </div>
+      )}
+
+      {/* Video explicativo opcional */}
+      {q.videoUrl && (
+        <div className="mb-3">
+          {showVideo ? (
+            <video
+              src={q.videoUrl}
+              controls
+              autoPlay
+              className="w-full rounded-md"
+              style={{ maxHeight: 220 }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowVideo(true)}
+              className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold"
+              style={{ color: PETROLEO }}
+            >
+              <Play className="h-4 w-4" /> Ver vídeo explicativo
+            </button>
+          )}
+        </div>
+      )}
+
       <ControlRenderer question={q} value={value} onChange={(v, o) => onAnswer(q, v, o)} />
+
+      {/* Exemplo de preenchimento */}
+      {q.exemplo && <p className="mt-2 text-[12px] italic text-gray-400">{q.exemplo}</p>}
     </div>
   );
 }
@@ -679,10 +772,12 @@ function FinishScreen({
   findings,
   respondidas,
   total,
+  demo,
 }: {
   findings: AnamneseFinding[];
   respondidas: number;
   total: number;
+  demo: boolean;
 }) {
   const diag = findings.filter((f) => f.tipo === "diagnosticado");
   const susp = findings.filter((f) => f.tipo === "suspeito");
@@ -719,6 +814,16 @@ function FinishScreen({
               Este resumo NÃO é um diagnóstico. É um apoio para a sua equipe clínica revisar com você na consulta.
             </p>
           </div>
+        )}
+
+        {/* R13 — ao concluir, caminho de volta para a area do cliente */}
+        {!demo && (
+          <a
+            href={AREA_URL}
+            className="btn-3d mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-md text-sm font-black uppercase tracking-widest text-white"
+          >
+            <Home className="h-4 w-4" /> Voltar à minha área
+          </a>
         )}
       </div>
     </div>

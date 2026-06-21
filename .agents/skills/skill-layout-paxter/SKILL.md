@@ -136,6 +136,20 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   `paxter-led-green` SEM `-on`. A faixa entre parenteses
   degrada para "ate M por mes" (so max) ou "a partir de N por mes" (so min). Cor do neon via
   `--alert-glow`. No mobile o alerta empilha (`flex-col` -> `sm:flex-row`). Variante `.dark` incluida.
+- **LINGUAGEM DE ESTADO (glow raro e intencional)** — calibracao promulgada em 21/06/2026 (queixa do
+  CEO de "luzes muito expandidas" + diagnostico do Dr. Chat). REGRA: o glow NAO e decoracao global; um
+  bloco so "acende" quando ha ESTADO REAL (atencao, atraso, alerta, sucesso) ou no HOVER de desktop.
+  No celular nunca depende de hover. O relevo 3D nunca e apagado — calibra-se so a LUZ (blur, alcance,
+  opacidade), nunca o bevel. Classes e quando usar:
+  | Classe | Quando acende | Cor (significado unico, secao 4.3) |
+  |---|---|---|
+  | `pw-hover-luxury` | hover de desktop apenas (tem guarda `@media (hover:none)`) | luz neutra/ciano discreta |
+  | `is-attention` | bloco pede atencao agora | ambar |
+  | `has-side-beacon` + `beacon-amber`/`beacon-red`/`beacon-green`/`beacon-blue` | farol lateral de estado | ambar=atencao, vermelho=atraso/critico, verde=sucesso, ciano=info/foco |
+  | `pw-urgent` (keyframe `pwUrgent`) | urgencia real que precisa pulsar | vermelho |
+  Calibracao aplicada (referencia): `paxter-underglow::after` mais calmo; `paxter-alert` glow de
+  18px/2px -> 10px/1px e opacidade .55 -> .42 (claro e escuro); `neon-hover::after` reduzido. ANTES de
+  criar classe de luz nova, reusar estas + `paxter-underglow`/`paxter-attention`/`paxter-alert`/LEDs.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).

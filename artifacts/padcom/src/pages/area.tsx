@@ -262,7 +262,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             Clínica Padua — Padcon Conect
           </p>
           <div className="text-center">
-            <a href={`${API_BASE}/anamnese`}
+            <a href={`${API_BASE}/anamnese/v2`}
               className="inline-flex items-center gap-1.5 text-teal-500 text-xs uppercase tracking-wider hover:text-teal-700">
               <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
             </a>

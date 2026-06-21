@@ -16,6 +16,11 @@ export function ControlRenderer({ question, value, onChange }: ControlProps) {
   const kind = controlKind(question);
   const opcoes = parseOpcoes(question.opcoes);
 
+  // Escala validada "macos-ano": dois campos (cigarros/dia + anos) -> numero.
+  if (question.escalaValidada === "MACOS_ANO") {
+    return <MacosAnoControl value={value} onChange={onChange} />;
+  }
+
   // single/multi sem opcoes no banco -> degrada para texto (nunca trava o fluxo)
   if ((kind === "single" || kind === "multi") && opcoes.length === 0) {
     return <TextoControl question={question} value={value} onChange={onChange} />;
@@ -115,7 +120,17 @@ function MultiControl({
 }) {
   const sel = value?.tipo === "multi" ? value.selecionados : [];
   const toggle = (label: string) => {
-    const next = sel.includes(label) ? sel.filter((s) => s !== label) : [...sel, label];
+    const isNenhum = /nunca|nenhum/i.test(label);
+    let next: string[];
+    if (sel.includes(label)) {
+      next = sel.filter((s) => s !== label);
+    } else if (isNenhum) {
+      // "Nunca / Nenhum" e exclusivo: limpa as demais selecoes.
+      next = [label];
+    } else {
+      // qualquer outra opcao desmarca o "Nunca / Nenhum".
+      next = [...sel.filter((s) => !/nunca|nenhum/i.test(s)), label];
+    }
     onChange({ tipo: "multi", selecionados: next });
   };
   return (
@@ -153,7 +168,20 @@ function EscalaControl({
     .filter((n) => Number.isFinite(n));
   const ladder = nums.length > 0 ? nums : [0, 1, 2, 3, 4, 5];
   const max = Math.max(...ladder);
+  const minN = Math.min(...ladder);
   const cur = value?.tipo === "escala" ? value.escala : undefined;
+
+  // Rotulo de texto por degrau (so quando difere do proprio numero).
+  const labelByNum = new Map<number, string>();
+  for (const o of opcoes) {
+    const n = Number(o.valor);
+    if (Number.isFinite(n) && o.label && o.label !== String(o.valor)) {
+      labelByNum.set(n, o.label);
+    }
+  }
+  const hasTextLabels = labelByNum.size > 0;
+  const curLabel = cur != null ? labelByNum.get(cur) : undefined;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
@@ -165,7 +193,7 @@ function EscalaControl({
               key={n}
               type="button"
               onClick={() => onChange({ tipo: "escala", escala: n, max }, { commit: true })}
-              className="concave-3d flex h-12 w-12 items-center justify-center rounded-md text-base font-bold transition-all"
+              className="concave-3d flex h-12 min-w-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
               style={{
                 boxShadow: active ? `0 0 0 3px ${CIANO}` : undefined,
                 background: filled ? PETROLEO : undefined,
@@ -177,9 +205,97 @@ function EscalaControl({
           );
         })}
       </div>
-      <div className="flex justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-        <span>Menos / ausente</span>
-        <span>Mais / intenso</span>
+      {hasTextLabels ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <span>{labelByNum.get(minN) ?? "Menos"}</span>
+            <span>{labelByNum.get(max) ?? "Mais"}</span>
+          </div>
+          {curLabel && (
+            <div
+              className="concave-3d rounded-md px-3 py-2 text-center text-sm font-semibold"
+              style={{ color: PETROLEO }}
+            >
+              {curLabel}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <span>Menos / ausente</span>
+          <span>Mais / intenso</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Escala "macos-ano": cigarros/dia + anos -> numero (macos-ano). O valor salvo
+// e SEMPRE o numero calculado; os dois campos sao auxiliares de entrada.
+function MacosAnoControl({
+  value,
+  onChange,
+}: {
+  value: Valor | undefined;
+  onChange: ControlProps["onChange"];
+}) {
+  const saved = value?.tipo === "number" ? value.numero : undefined;
+  const [cigs, setCigs] = useState("");
+  const [anos, setAnos] = useState("");
+
+  const calc = (c: string, a: string) => {
+    const cc = Number(c.replace(/[^0-9]/g, "")) || 0;
+    const aa = Number(a.replace(/[^0-9]/g, "")) || 0;
+    return Math.round((cc / 20) * aa * 10) / 10;
+  };
+  const macosAno = calc(cigs, anos);
+  const emit = (c: string, a: string) => onChange({ tipo: "number", numero: calc(c, a) });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Cigarros por dia
+          </label>
+          <input
+            inputMode="numeric"
+            value={cigs}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9]/g, "");
+              setCigs(v);
+              emit(v, anos);
+            }}
+            placeholder="ex.: 20"
+            className="field-engraved h-12 rounded-md text-center text-xl font-bold"
+            style={{ color: PETROLEO }}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Por quantos anos
+          </label>
+          <input
+            inputMode="numeric"
+            value={anos}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9]/g, "");
+              setAnos(v);
+              emit(cigs, v);
+            }}
+            placeholder="ex.: 10"
+            className="field-engraved h-12 rounded-md text-center text-xl font-bold"
+            style={{ color: PETROLEO }}
+          />
+        </div>
+      </div>
+      <div className="concave-3d flex items-center justify-between rounded-md px-3 py-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Maços-ano (cálculo automático)
+        </span>
+        <span className="text-lg font-bold" style={{ color: PETROLEO }}>
+          {cigs || anos ? macosAno : saved != null ? saved : "—"}
+        </span>
       </div>
     </div>
   );
