@@ -5,6 +5,142 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface ErrorResponse {
+  error: string;
+  /** @nullable */
+  message?: string | null;
+}
+
+export interface AnamneseQuestion {
+  id: number;
+  /** @nullable */
+  perguntaId?: string | null;
+  /** @nullable */
+  bloco?: string | null;
+  /** @nullable */
+  sistema?: string | null;
+  /** @nullable */
+  pergunta?: string | null;
+  /** @nullable */
+  tipoResposta?: string | null;
+  opcoes?: unknown;
+  /** @nullable */
+  eSinalAlarme?: boolean | null;
+  /** @nullable */
+  obrigatorio?: string | null;
+  /** @nullable */
+  ordem?: number | null;
+  /** @nullable */
+  pesoGravidade?: number | null;
+}
+
+export interface AnamneseSessionInput {
+  /** @nullable */
+  clientId?: number | null;
+  mode?: string;
+}
+
+export interface AnamneseSession {
+  id: number;
+  token: string;
+  /** @nullable */
+  clientId?: number | null;
+  mode: string;
+  /** @nullable */
+  conductedBy?: number | null;
+  status: string;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  tempoTotalSeg?: number;
+}
+
+export interface AnamneseAnswer {
+  id: number;
+  sessionId: number;
+  questionRowId: number;
+  /** @nullable */
+  perguntaId?: string | null;
+  valor: unknown;
+  tempoSeg?: number;
+  /** @nullable */
+  respondidoEm?: string | null;
+}
+
+export interface AnamneseAnswerInput {
+  questionRowId: number;
+  perguntaId?: string;
+  valor: unknown;
+  tempoSeg?: number;
+}
+
+export interface AnamneseRefusal {
+  id: number;
+  sessionId: number;
+  escopo: string;
+  alvo: string;
+  /** @nullable */
+  motivo?: string | null;
+  /** @nullable */
+  registradoEm?: string | null;
+}
+
+export interface AnamneseRefusalInput {
+  escopo: string;
+  alvo: string;
+  motivo?: string;
+}
+
+export interface AnamneseRefusalTarget {
+  escopo: string;
+  alvo: string;
+}
+
+export interface AnamneseFinding {
+  id: number;
+  sessionId: number;
+  tipo: string;
+  rotulo: string;
+  /** @nullable */
+  origemPerguntaId?: string | null;
+  /** @nullable */
+  severidade?: string | null;
+  /** @nullable */
+  criadoEm?: string | null;
+}
+
+export interface AnamneseGroupNote {
+  id: number;
+  sessionId: number;
+  grupo: string;
+  /** @nullable */
+  autorProfId?: number | null;
+  observacao: string;
+  /** @nullable */
+  criadoEm?: string | null;
+}
+
+export interface AnamneseGroupNoteInput {
+  grupo: string;
+  observacao: string;
+  autorProfId?: number;
+}
+
+export interface AnamneseSessionState {
+  session: AnamneseSession;
+  answers: AnamneseAnswer[];
+  refusals: AnamneseRefusal[];
+  findings: AnamneseFinding[];
+  notes: AnamneseGroupNote[];
+}
+
+export interface SimpleOk {
+  ok: boolean;
+}
+
 export interface AgendaResource {
   id: number;
   name: string;

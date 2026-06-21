@@ -26,9 +26,20 @@ import type {
   AmarracaoSintomaInput,
   AnamneseAmarracaoSintoma,
   AnamneseAmarracoes,
+  AnamneseAnswer,
+  AnamneseAnswerInput,
   AnamneseBloco,
+  AnamneseGroupNote,
+  AnamneseGroupNoteInput,
   AnamnesePergunta,
   AnamnesePerguntaUpdate,
+  AnamneseQuestion,
+  AnamneseRefusal,
+  AnamneseRefusalInput,
+  AnamneseRefusalTarget,
+  AnamneseSession,
+  AnamneseSessionInput,
+  AnamneseSessionState,
   AnamneseSintoma,
   BatchResult,
   BookAgendaSessionBody,
@@ -68,6 +79,7 @@ import type {
   DeleteResult,
   EmitBody,
   EmitResult,
+  ErrorResponse,
   GenerateProtocolICS200,
   GetAgendaSlotsParams,
   HealthStatus,
@@ -103,6 +115,7 @@ import type {
   SchedulingRequest,
   SendBatchBody,
   Session,
+  SimpleOk,
   SimulacaoInput,
   SimulacaoResultado,
   SiteContent,
@@ -8396,4 +8409,688 @@ export const useClearAgendaSimulations = <
   TContext
 > => {
   return useMutation(getClearAgendaSimulationsMutationOptions(options));
+};
+
+/**
+ * @summary Lista o questionario (perguntas + bloco/ordem/sistema/alarme)
+ */
+export const getListAnamneseQuestionsUrl = () => {
+  return `/api/anamnese-v2/questions`;
+};
+
+export const listAnamneseQuestions = async (
+  options?: RequestInit,
+): Promise<AnamneseQuestion[]> => {
+  return customFetch<AnamneseQuestion[]>(getListAnamneseQuestionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAnamneseQuestionsQueryKey = () => {
+  return [`/api/anamnese-v2/questions`] as const;
+};
+
+export const getListAnamneseQuestionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAnamneseQuestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseQuestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAnamneseQuestionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAnamneseQuestions>>
+  > = ({ signal }) => listAnamneseQuestions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseQuestions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAnamneseQuestionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAnamneseQuestions>>
+>;
+export type ListAnamneseQuestionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista o questionario (perguntas + bloco/ordem/sistema/alarme)
+ */
+
+export function useListAnamneseQuestions<
+  TData = Awaited<ReturnType<typeof listAnamneseQuestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAnamneseQuestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAnamneseQuestionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cria uma sessao de anamnese e retorna o token
+ */
+export const getCreateAnamneseSessionUrl = () => {
+  return `/api/anamnese-v2/sessions`;
+};
+
+export const createAnamneseSession = async (
+  anamneseSessionInput: AnamneseSessionInput,
+  options?: RequestInit,
+): Promise<AnamneseSession> => {
+  return customFetch<AnamneseSession>(getCreateAnamneseSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseSessionInput),
+  });
+};
+
+export const getCreateAnamneseSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAnamneseSession>>,
+    TError,
+    { data: BodyType<AnamneseSessionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAnamneseSession>>,
+  TError,
+  { data: BodyType<AnamneseSessionInput> },
+  TContext
+> => {
+  const mutationKey = ["createAnamneseSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAnamneseSession>>,
+    { data: BodyType<AnamneseSessionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAnamneseSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAnamneseSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAnamneseSession>>
+>;
+export type CreateAnamneseSessionMutationBody = BodyType<AnamneseSessionInput>;
+export type CreateAnamneseSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cria uma sessao de anamnese e retorna o token
+ */
+export const useCreateAnamneseSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAnamneseSession>>,
+    TError,
+    { data: BodyType<AnamneseSessionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAnamneseSession>>,
+  TError,
+  { data: BodyType<AnamneseSessionInput> },
+  TContext
+> => {
+  return useMutation(getCreateAnamneseSessionMutationOptions(options));
+};
+
+/**
+ * @summary Estado completo da sessao (sessao + respostas + recusas + achados)
+ */
+export const getGetAnamneseSessionUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}`;
+};
+
+export const getAnamneseSession = async (
+  token: string,
+  options?: RequestInit,
+): Promise<AnamneseSessionState> => {
+  return customFetch<AnamneseSessionState>(getGetAnamneseSessionUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAnamneseSessionQueryKey = (token: string) => {
+  return [`/api/anamnese-v2/sessions/${token}`] as const;
+};
+
+export const getGetAnamneseSessionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAnamneseSession>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAnamneseSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAnamneseSessionQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAnamneseSession>>
+  > = ({ signal }) => getAnamneseSession(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAnamneseSession>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAnamneseSessionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAnamneseSession>>
+>;
+export type GetAnamneseSessionQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Estado completo da sessao (sessao + respostas + recusas + achados)
+ */
+
+export function useGetAnamneseSession<
+  TData = Awaited<ReturnType<typeof getAnamneseSession>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAnamneseSession>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAnamneseSessionQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Grava (upsert) a resposta de uma pergunta
+ */
+export const getUpsertAnamneseAnswerUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}/answers`;
+};
+
+export const upsertAnamneseAnswer = async (
+  token: string,
+  anamneseAnswerInput: AnamneseAnswerInput,
+  options?: RequestInit,
+): Promise<AnamneseAnswer> => {
+  return customFetch<AnamneseAnswer>(getUpsertAnamneseAnswerUrl(token), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseAnswerInput),
+  });
+};
+
+export const getUpsertAnamneseAnswerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertAnamneseAnswer>>,
+    TError,
+    { token: string; data: BodyType<AnamneseAnswerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertAnamneseAnswer>>,
+  TError,
+  { token: string; data: BodyType<AnamneseAnswerInput> },
+  TContext
+> => {
+  const mutationKey = ["upsertAnamneseAnswer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertAnamneseAnswer>>,
+    { token: string; data: BodyType<AnamneseAnswerInput> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return upsertAnamneseAnswer(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertAnamneseAnswerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertAnamneseAnswer>>
+>;
+export type UpsertAnamneseAnswerMutationBody = BodyType<AnamneseAnswerInput>;
+export type UpsertAnamneseAnswerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Grava (upsert) a resposta de uma pergunta
+ */
+export const useUpsertAnamneseAnswer = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertAnamneseAnswer>>,
+    TError,
+    { token: string; data: BodyType<AnamneseAnswerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertAnamneseAnswer>>,
+  TError,
+  { token: string; data: BodyType<AnamneseAnswerInput> },
+  TContext
+> => {
+  return useMutation(getUpsertAnamneseAnswerMutationOptions(options));
+};
+
+/**
+ * @summary Registra a recusa de um bloco/grupo
+ */
+export const getRefuseAnamneseBlockUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}/refusals`;
+};
+
+export const refuseAnamneseBlock = async (
+  token: string,
+  anamneseRefusalInput: AnamneseRefusalInput,
+  options?: RequestInit,
+): Promise<AnamneseRefusal> => {
+  return customFetch<AnamneseRefusal>(getRefuseAnamneseBlockUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseRefusalInput),
+  });
+};
+
+export const getRefuseAnamneseBlockMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refuseAnamneseBlock>>,
+    TError,
+    { token: string; data: BodyType<AnamneseRefusalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refuseAnamneseBlock>>,
+  TError,
+  { token: string; data: BodyType<AnamneseRefusalInput> },
+  TContext
+> => {
+  const mutationKey = ["refuseAnamneseBlock"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refuseAnamneseBlock>>,
+    { token: string; data: BodyType<AnamneseRefusalInput> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return refuseAnamneseBlock(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefuseAnamneseBlockMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refuseAnamneseBlock>>
+>;
+export type RefuseAnamneseBlockMutationBody = BodyType<AnamneseRefusalInput>;
+export type RefuseAnamneseBlockMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Registra a recusa de um bloco/grupo
+ */
+export const useRefuseAnamneseBlock = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refuseAnamneseBlock>>,
+    TError,
+    { token: string; data: BodyType<AnamneseRefusalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refuseAnamneseBlock>>,
+  TError,
+  { token: string; data: BodyType<AnamneseRefusalInput> },
+  TContext
+> => {
+  return useMutation(getRefuseAnamneseBlockMutationOptions(options));
+};
+
+/**
+ * @summary Desfaz a recusa de um bloco/grupo
+ */
+export const getRemoveAnamneseRefusalUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}/refusals/remove`;
+};
+
+export const removeAnamneseRefusal = async (
+  token: string,
+  anamneseRefusalTarget: AnamneseRefusalTarget,
+  options?: RequestInit,
+): Promise<SimpleOk> => {
+  return customFetch<SimpleOk>(getRemoveAnamneseRefusalUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseRefusalTarget),
+  });
+};
+
+export const getRemoveAnamneseRefusalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeAnamneseRefusal>>,
+    TError,
+    { token: string; data: BodyType<AnamneseRefusalTarget> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeAnamneseRefusal>>,
+  TError,
+  { token: string; data: BodyType<AnamneseRefusalTarget> },
+  TContext
+> => {
+  const mutationKey = ["removeAnamneseRefusal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeAnamneseRefusal>>,
+    { token: string; data: BodyType<AnamneseRefusalTarget> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return removeAnamneseRefusal(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveAnamneseRefusalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeAnamneseRefusal>>
+>;
+export type RemoveAnamneseRefusalMutationBody = BodyType<AnamneseRefusalTarget>;
+export type RemoveAnamneseRefusalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Desfaz a recusa de um bloco/grupo
+ */
+export const useRemoveAnamneseRefusal = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeAnamneseRefusal>>,
+    TError,
+    { token: string; data: BodyType<AnamneseRefusalTarget> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeAnamneseRefusal>>,
+  TError,
+  { token: string; data: BodyType<AnamneseRefusalTarget> },
+  TContext
+> => {
+  return useMutation(getRemoveAnamneseRefusalMutationOptions(options));
+};
+
+/**
+ * @summary Observacao por grupo (modo conduzido enfermeira/medico)
+ */
+export const getAddAnamneseGroupNoteUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}/notes`;
+};
+
+export const addAnamneseGroupNote = async (
+  token: string,
+  anamneseGroupNoteInput: AnamneseGroupNoteInput,
+  options?: RequestInit,
+): Promise<AnamneseGroupNote> => {
+  return customFetch<AnamneseGroupNote>(getAddAnamneseGroupNoteUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseGroupNoteInput),
+  });
+};
+
+export const getAddAnamneseGroupNoteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addAnamneseGroupNote>>,
+    TError,
+    { token: string; data: BodyType<AnamneseGroupNoteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addAnamneseGroupNote>>,
+  TError,
+  { token: string; data: BodyType<AnamneseGroupNoteInput> },
+  TContext
+> => {
+  const mutationKey = ["addAnamneseGroupNote"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addAnamneseGroupNote>>,
+    { token: string; data: BodyType<AnamneseGroupNoteInput> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return addAnamneseGroupNote(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddAnamneseGroupNoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addAnamneseGroupNote>>
+>;
+export type AddAnamneseGroupNoteMutationBody = BodyType<AnamneseGroupNoteInput>;
+export type AddAnamneseGroupNoteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Observacao por grupo (modo conduzido enfermeira/medico)
+ */
+export const useAddAnamneseGroupNote = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addAnamneseGroupNote>>,
+    TError,
+    { token: string; data: BodyType<AnamneseGroupNoteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addAnamneseGroupNote>>,
+  TError,
+  { token: string; data: BodyType<AnamneseGroupNoteInput> },
+  TContext
+> => {
+  return useMutation(getAddAnamneseGroupNoteMutationOptions(options));
+};
+
+/**
+ * @summary Conclui a sessao (idempotente) e gera os achados
+ */
+export const getCompleteAnamneseSessionUrl = (token: string) => {
+  return `/api/anamnese-v2/sessions/${token}/complete`;
+};
+
+export const completeAnamneseSession = async (
+  token: string,
+  options?: RequestInit,
+): Promise<AnamneseSessionState> => {
+  return customFetch<AnamneseSessionState>(
+    getCompleteAnamneseSessionUrl(token),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCompleteAnamneseSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeAnamneseSession>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeAnamneseSession>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  const mutationKey = ["completeAnamneseSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeAnamneseSession>>,
+    { token: string }
+  > = (props) => {
+    const { token } = props ?? {};
+
+    return completeAnamneseSession(token, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteAnamneseSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeAnamneseSession>>
+>;
+
+export type CompleteAnamneseSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Conclui a sessao (idempotente) e gera os achados
+ */
+export const useCompleteAnamneseSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeAnamneseSession>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeAnamneseSession>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  return useMutation(getCompleteAnamneseSessionMutationOptions(options));
 };

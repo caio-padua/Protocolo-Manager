@@ -1935,8 +1935,317 @@ paths:
               schema:
                 $ref: "#/components/schemas/ClearAgendaSimulationsResponse"
 
+  # ANAMNESE V2 (sessao dinamica do portal do paciente)
+  /anamnese-v2/questions:
+    get:
+      operationId: listAnamneseQuestions
+      tags: [anamnese-v2]
+      summary: Lista o questionario (perguntas + bloco/ordem/sistema/alarme)
+      responses:
+        "200":
+          description: Perguntas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnamneseQuestion"
+  /anamnese-v2/sessions:
+    post:
+      operationId: createAnamneseSession
+      tags: [anamnese-v2]
+      summary: Cria uma sessao de anamnese e retorna o token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseSessionInput"
+      responses:
+        "201":
+          description: Sessao criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseSession"
+  /anamnese-v2/sessions/{token}:
+    get:
+      operationId: getAnamneseSession
+      tags: [anamnese-v2]
+      summary: Estado completo da sessao (sessao + respostas + recusas + achados)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Estado da sessao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseSessionState"
+        "404":
+          description: Sessao nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /anamnese-v2/sessions/{token}/answers:
+    patch:
+      operationId: upsertAnamneseAnswer
+      tags: [anamnese-v2]
+      summary: Grava (upsert) a resposta de uma pergunta
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseAnswerInput"
+      responses:
+        "200":
+          description: Resposta gravada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseAnswer"
+  /anamnese-v2/sessions/{token}/refusals:
+    post:
+      operationId: refuseAnamneseBlock
+      tags: [anamnese-v2]
+      summary: Registra a recusa de um bloco/grupo
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseRefusalInput"
+      responses:
+        "200":
+          description: Recusa registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseRefusal"
+  /anamnese-v2/sessions/{token}/refusals/remove:
+    post:
+      operationId: removeAnamneseRefusal
+      tags: [anamnese-v2]
+      summary: Desfaz a recusa de um bloco/grupo
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseRefusalTarget"
+      responses:
+        "200":
+          description: Recusa removida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleOk"
+  /anamnese-v2/sessions/{token}/notes:
+    post:
+      operationId: addAnamneseGroupNote
+      tags: [anamnese-v2]
+      summary: Observacao por grupo (modo conduzido enfermeira/medico)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseGroupNoteInput"
+      responses:
+        "200":
+          description: Observacao gravada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseGroupNote"
+  /anamnese-v2/sessions/{token}/complete:
+    post:
+      operationId: completeAnamneseSession
+      tags: [anamnese-v2]
+      summary: Conclui a sessao (idempotente) e gera os achados
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessao concluida + estado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamneseSessionState"
+
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: ["string", "null"] }
+    AnamneseQuestion:
+      type: object
+      required: [id]
+      properties:
+        id: { type: integer }
+        perguntaId: { type: ["string", "null"] }
+        bloco: { type: ["string", "null"] }
+        sistema: { type: ["string", "null"] }
+        pergunta: { type: ["string", "null"] }
+        tipoResposta: { type: ["string", "null"] }
+        opcoes: {}
+        eSinalAlarme: { type: ["boolean", "null"] }
+        obrigatorio: { type: ["string", "null"] }
+        ordem: { type: ["integer", "null"] }
+        pesoGravidade: { type: ["integer", "null"] }
+    AnamneseSessionInput:
+      type: object
+      properties:
+        clientId: { type: ["integer", "null"] }
+        mode: { type: string }
+    AnamneseSession:
+      type: object
+      required: [id, token, mode, status]
+      properties:
+        id: { type: integer }
+        token: { type: string }
+        clientId: { type: ["integer", "null"] }
+        mode: { type: string }
+        conductedBy: { type: ["integer", "null"] }
+        status: { type: string }
+        startedAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        lastSeenAt: { type: ["string", "null"] }
+        tempoTotalSeg: { type: integer }
+    AnamneseAnswer:
+      type: object
+      required: [id, sessionId, questionRowId, valor]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        questionRowId: { type: integer }
+        perguntaId: { type: ["string", "null"] }
+        valor: {}
+        tempoSeg: { type: integer }
+        respondidoEm: { type: ["string", "null"] }
+    AnamneseAnswerInput:
+      type: object
+      required: [questionRowId, valor]
+      properties:
+        questionRowId: { type: integer }
+        perguntaId: { type: string }
+        valor: {}
+        tempoSeg: { type: integer }
+    AnamneseRefusal:
+      type: object
+      required: [id, sessionId, escopo, alvo]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        escopo: { type: string }
+        alvo: { type: string }
+        motivo: { type: ["string", "null"] }
+        registradoEm: { type: ["string", "null"] }
+    AnamneseRefusalInput:
+      type: object
+      required: [escopo, alvo]
+      properties:
+        escopo: { type: string }
+        alvo: { type: string }
+        motivo: { type: string }
+    AnamneseRefusalTarget:
+      type: object
+      required: [escopo, alvo]
+      properties:
+        escopo: { type: string }
+        alvo: { type: string }
+    AnamneseFinding:
+      type: object
+      required: [id, sessionId, tipo, rotulo]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        tipo: { type: string }
+        rotulo: { type: string }
+        origemPerguntaId: { type: ["string", "null"] }
+        severidade: { type: ["string", "null"] }
+        criadoEm: { type: ["string", "null"] }
+    AnamneseGroupNote:
+      type: object
+      required: [id, sessionId, grupo, observacao]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        grupo: { type: string }
+        autorProfId: { type: ["integer", "null"] }
+        observacao: { type: string }
+        criadoEm: { type: ["string", "null"] }
+    AnamneseGroupNoteInput:
+      type: object
+      required: [grupo, observacao]
+      properties:
+        grupo: { type: string }
+        observacao: { type: string }
+        autorProfId: { type: integer }
+    AnamneseSessionState:
+      type: object
+      required: [session, answers, refusals, findings, notes]
+      properties:
+        session:
+          $ref: "#/components/schemas/AnamneseSession"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseAnswer"
+        refusals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseRefusal"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseFinding"
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseGroupNote"
+    SimpleOk:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
     AgendaResource:
       type: object
       required: [id, name, kind, modality, color, slotMinutes, active, sortOrder]

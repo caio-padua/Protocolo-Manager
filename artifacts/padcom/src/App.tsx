@@ -39,6 +39,7 @@ import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
 import Agendar from "@/pages/agendar";
 import Anamnese from "@/pages/anamnese";
+import AnamneseV2 from "@/pages/anamnese-v2";
 import Area from "@/pages/area";
 import PawardsDemo from "@/pages/pawards-demo";
 import TipografiaDemo from "@/pages/tipografia";
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/portal" component={Portal} />
       <Route path="/agendar" component={Agendar} />
       <Route path="/anamnese" component={Anamnese} />
+      <Route path="/anamnese/v2" component={AnamneseV2} />
       <Route path="/area" component={Area} />
       <Route path="/pawards" component={PawardsDemo} />
       <Route path="/tipografia" component={TipografiaDemo} />

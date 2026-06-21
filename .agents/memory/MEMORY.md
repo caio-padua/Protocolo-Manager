@@ -14,6 +14,7 @@
 - [API admin sem auth (Manager)](admin-api-sem-auth.md) — todos os routers admin nao tem authz (single-tenant, proxy); nao inventar auth p/ 1-2 rotas em revisao, e condicao do app inteiro.
 - [Motor da anamnese: bracos](motor-anamnese-bracos.md) — exames ja liga; formulas/injetaveis pre-cabeados (item_doenca); antes de ativar, definir tipo do item_ref e migrar bloco_motor texto->id.
 - [Anamnese skip-logic (modo dinamico)](anamnese-skip-logic.md) — gateway por `sistema` (2+ perguntas, comeca fechado); alarme nunca escondido; fechar porteira limpa respostas; ausencia != negacao no motor (divida).
+- [Anamnese V2 LINHA VERMELHA + flush rascunho](anamnese-v2-linha-vermelha.md) — alarme defendido em 3 camadas (UI/POST 409/loadState filtra recusas legadas); flush debounced antes de concluir + keepalive no pagehide/unmount; valor JSONB por uniao discriminada; adapter nunca importa motor.
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn; role="slider" sem filhos focaveis.
 - [Orcamento volume: consistencia Montagem x Apresentacao](orcamento-volume-consistencia.md) — Apresentacao deve reidratar itemVolumeTiers do catalogo por catalogId; snapshot do orcamento nao persiste override.
 - [Canvas move exige coordenada inteira](canvas-move-coordenadas.md) — applyCanvasActions "move" em lote falha (procedure init failed validation) com x/y fracionario; arredondar p/ inteiro (Math.round); se falhar, dividir por cluster.

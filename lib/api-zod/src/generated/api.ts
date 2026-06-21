@@ -3049,3 +3049,243 @@ export const ClearAgendaSimulationsResponse = zod.object({
   removed: zod.number(),
   googleRemoved: zod.number(),
 });
+
+/**
+ * @summary Lista o questionario (perguntas + bloco/ordem/sistema/alarme)
+ */
+export const ListAnamneseQuestionsResponseItem = zod.object({
+  id: zod.number(),
+  perguntaId: zod.string().nullish(),
+  bloco: zod.string().nullish(),
+  sistema: zod.string().nullish(),
+  pergunta: zod.string().nullish(),
+  tipoResposta: zod.string().nullish(),
+  opcoes: zod.unknown().optional(),
+  eSinalAlarme: zod.boolean().nullish(),
+  obrigatorio: zod.string().nullish(),
+  ordem: zod.number().nullish(),
+  pesoGravidade: zod.number().nullish(),
+});
+export const ListAnamneseQuestionsResponse = zod.array(
+  ListAnamneseQuestionsResponseItem,
+);
+
+/**
+ * @summary Cria uma sessao de anamnese e retorna o token
+ */
+export const CreateAnamneseSessionBody = zod.object({
+  clientId: zod.number().nullish(),
+  mode: zod.string().optional(),
+});
+
+/**
+ * @summary Estado completo da sessao (sessao + respostas + recusas + achados)
+ */
+export const GetAnamneseSessionParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetAnamneseSessionResponse = zod.object({
+  session: zod.object({
+    id: zod.number(),
+    token: zod.string(),
+    clientId: zod.number().nullish(),
+    mode: zod.string(),
+    conductedBy: zod.number().nullish(),
+    status: zod.string(),
+    startedAt: zod.string().nullish(),
+    completedAt: zod.string().nullish(),
+    lastSeenAt: zod.string().nullish(),
+    tempoTotalSeg: zod.number().optional(),
+  }),
+  answers: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      questionRowId: zod.number(),
+      perguntaId: zod.string().nullish(),
+      valor: zod.unknown(),
+      tempoSeg: zod.number().optional(),
+      respondidoEm: zod.string().nullish(),
+    }),
+  ),
+  refusals: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      escopo: zod.string(),
+      alvo: zod.string(),
+      motivo: zod.string().nullish(),
+      registradoEm: zod.string().nullish(),
+    }),
+  ),
+  findings: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      tipo: zod.string(),
+      rotulo: zod.string(),
+      origemPerguntaId: zod.string().nullish(),
+      severidade: zod.string().nullish(),
+      criadoEm: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      grupo: zod.string(),
+      autorProfId: zod.number().nullish(),
+      observacao: zod.string(),
+      criadoEm: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Grava (upsert) a resposta de uma pergunta
+ */
+export const UpsertAnamneseAnswerParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const UpsertAnamneseAnswerBody = zod.object({
+  questionRowId: zod.number(),
+  perguntaId: zod.string().optional(),
+  valor: zod.unknown(),
+  tempoSeg: zod.number().optional(),
+});
+
+export const UpsertAnamneseAnswerResponse = zod.object({
+  id: zod.number(),
+  sessionId: zod.number(),
+  questionRowId: zod.number(),
+  perguntaId: zod.string().nullish(),
+  valor: zod.unknown(),
+  tempoSeg: zod.number().optional(),
+  respondidoEm: zod.string().nullish(),
+});
+
+/**
+ * @summary Registra a recusa de um bloco/grupo
+ */
+export const RefuseAnamneseBlockParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const RefuseAnamneseBlockBody = zod.object({
+  escopo: zod.string(),
+  alvo: zod.string(),
+  motivo: zod.string().optional(),
+});
+
+export const RefuseAnamneseBlockResponse = zod.object({
+  id: zod.number(),
+  sessionId: zod.number(),
+  escopo: zod.string(),
+  alvo: zod.string(),
+  motivo: zod.string().nullish(),
+  registradoEm: zod.string().nullish(),
+});
+
+/**
+ * @summary Desfaz a recusa de um bloco/grupo
+ */
+export const RemoveAnamneseRefusalParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const RemoveAnamneseRefusalBody = zod.object({
+  escopo: zod.string(),
+  alvo: zod.string(),
+});
+
+export const RemoveAnamneseRefusalResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Observacao por grupo (modo conduzido enfermeira/medico)
+ */
+export const AddAnamneseGroupNoteParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AddAnamneseGroupNoteBody = zod.object({
+  grupo: zod.string(),
+  observacao: zod.string(),
+  autorProfId: zod.number().optional(),
+});
+
+export const AddAnamneseGroupNoteResponse = zod.object({
+  id: zod.number(),
+  sessionId: zod.number(),
+  grupo: zod.string(),
+  autorProfId: zod.number().nullish(),
+  observacao: zod.string(),
+  criadoEm: zod.string().nullish(),
+});
+
+/**
+ * @summary Conclui a sessao (idempotente) e gera os achados
+ */
+export const CompleteAnamneseSessionParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const CompleteAnamneseSessionResponse = zod.object({
+  session: zod.object({
+    id: zod.number(),
+    token: zod.string(),
+    clientId: zod.number().nullish(),
+    mode: zod.string(),
+    conductedBy: zod.number().nullish(),
+    status: zod.string(),
+    startedAt: zod.string().nullish(),
+    completedAt: zod.string().nullish(),
+    lastSeenAt: zod.string().nullish(),
+    tempoTotalSeg: zod.number().optional(),
+  }),
+  answers: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      questionRowId: zod.number(),
+      perguntaId: zod.string().nullish(),
+      valor: zod.unknown(),
+      tempoSeg: zod.number().optional(),
+      respondidoEm: zod.string().nullish(),
+    }),
+  ),
+  refusals: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      escopo: zod.string(),
+      alvo: zod.string(),
+      motivo: zod.string().nullish(),
+      registradoEm: zod.string().nullish(),
+    }),
+  ),
+  findings: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      tipo: zod.string(),
+      rotulo: zod.string(),
+      origemPerguntaId: zod.string().nullish(),
+      severidade: zod.string().nullish(),
+      criadoEm: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.array(
+    zod.object({
+      id: zod.number(),
+      sessionId: zod.number(),
+      grupo: zod.string(),
+      autorProfId: zod.number().nullish(),
+      observacao: zod.string(),
+      criadoEm: zod.string().nullish(),
+    }),
+  ),
+});
