@@ -33,6 +33,10 @@ router.get("/anamnese-portal/questionario", async (_req: Request, res: Response)
       tipoResposta: anamneseQuestionarioTable.tipoResposta,
       opcoes: anamneseQuestionarioTable.opcoes,
       ordem: anamneseQuestionarioTable.ordem,
+      sistema: anamneseQuestionarioTable.sistema,
+      escalaValidada: anamneseQuestionarioTable.escalaValidada,
+      eSinalAlarme: anamneseQuestionarioTable.eSinalAlarme,
+      obrigatorio: anamneseQuestionarioTable.obrigatorio,
     })
     .from(anamneseQuestionarioTable)
     .orderBy(asc(anamneseQuestionarioTable.bloco), asc(anamneseQuestionarioTable.ordem));
