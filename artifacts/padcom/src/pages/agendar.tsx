@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   useListSiteContent,
-  useListSchedulingDoctors,
+  useListSchedulingAreas,
+  useListSchedulingProfessionals,
   useGetAgendaSlots,
   useCreateSchedulingRequest,
   getGetAgendaSlotsQueryKey,
@@ -19,7 +20,9 @@ import {
   Star,
   User,
   Clock,
-  CreditCard
+  CreditCard,
+  Stethoscope,
+  HeartPulse
 } from "lucide-react";
 
 // --- Helpers ---
@@ -70,7 +73,7 @@ export default function Agendar() {
   const btnInjetavel = getPhrase("btn_entrada_injetavel", "PROTOCOLOS INJETÁVEIS");
   const btnEstetico = getPhrase("btn_entrada_estetico", "PROTOCOLOS ESTÉTICOS");
   const btnDrCaio = getPhrase("btn_entrada_drcaio", "DR. CAIO HENRIQUE FERNANDES PÁDUA");
-  const btnAssistente = getPhrase("btn_entrada_assistentes", "MÉDICOS ASSISTENTES");
+  const btnAssistente = getPhrase("btn_entrada_assistentes", "Corpo Clínico / Profissionais");
 
   const txtEstetico = getText("pay_text_estetico", "Procedimentos estéticos são acertados presencialmente.");
   const txtConcierge = getText("pay_text_concierge", "O serviço Concierge garante encaixe prioritário.");
@@ -582,32 +585,57 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink }: { onBack: () =
   );
 }
 
-// --- DOOR 4: ASSISTENTES ---
+// --- DOOR 4: CORPO CLÍNICO / PROFISSIONAIS ---
+// Fluxo estratificado em 4 passos: Área -> Especialização -> Profissional -> Horário.
 function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => void; title: string; payText: string; payLink: string }) {
-  const { data: doctors = [], isLoading: isLoadingDocs } = useListSchedulingDoctors();
-  
-  const [docId, setDocId] = useState<number | null>(null);
+  const { data: areas = [], isLoading: isLoadingAreas } = useListSchedulingAreas();
+  const { data: professionals = [], isLoading: isLoadingPros } = useListSchedulingProfessionals();
+
+  const [areaId, setAreaId] = useState<number | null>(null);
+  const [specialtyId, setSpecialtyId] = useState<number | null>(null);
+  const [proId, setProId] = useState<number | null>(null);
   const [date, setDate] = useState("");
-  
+  const [time, setTime] = useState("");
+
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
-  
-  const [time, setTime] = useState("");
 
-  const doctor = useMemo(() => doctors.find(d => d.id === docId), [doctors, docId]);
+  const area = useMemo(() => areas.find((a) => a.id === areaId), [areas, areaId]);
+  const specialties = area?.specialties ?? [];
+
+  const prosForSelection = useMemo(
+    () => professionals.filter((p) => p.areaId === areaId && p.specialtyId === specialtyId),
+    [professionals, areaId, specialtyId],
+  );
+  const pro = useMemo(() => professionals.find((p) => p.id === proId), [professionals, proId]);
 
   const { data: agendaData, isLoading: isLoadingAgenda } = useGetAgendaSlots(
-    { resourceId: doctor?.resourceId ?? 0, date },
-    { query: { enabled: !!doctor?.resourceId && !!date, queryKey: getGetAgendaSlotsQueryKey({ resourceId: doctor?.resourceId ?? 0, date }) } }
+    { resourceId: pro?.resourceId ?? 0, date },
+    { query: { enabled: !!pro?.resourceId && !!date, queryKey: getGetAgendaSlotsQueryKey({ resourceId: pro?.resourceId ?? 0, date }) } },
   );
 
   const createReq = useCreateSchedulingRequest();
   const [success, setSuccess] = useState(false);
 
-  const handleDocChange = (id: number) => {
-    setDocId(id);
+  const handleAreaChange = (id: number) => {
+    setAreaId(id);
+    setSpecialtyId(null);
+    setProId(null);
+    setDate("");
+    setTime("");
+  };
+
+  const handleSpecialtyChange = (id: number) => {
+    setSpecialtyId(id);
+    setProId(null);
+    setDate("");
+    setTime("");
+  };
+
+  const handleProChange = (id: number) => {
+    setProId(id);
     setDate("");
     setTime("");
   };
@@ -618,25 +646,27 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
   };
 
   const handleSubmit = () => {
-    if (!doctor || !date || !time || !name || phone.replace(/\D/g,"").length < 10) return;
+    if (!pro || !date || !time || !name || phone.replace(/\D/g, "").length < 10) return;
     createReq.mutate({
       data: {
         entrada: "assistente",
-        professionalId: doctor.id,
-        resourceId: doctor.resourceId,
+        professionalId: pro.id,
+        resourceId: pro.resourceId,
         chosenDate: date,
         chosenTime: time,
         patientName: name,
-        patientPhone: phone.replace(/\D/g,""),
+        patientPhone: phone.replace(/\D/g, ""),
         patientEmail: email || undefined,
-        patientCpf: cpf.replace(/\D/g,"") || undefined,
-      }
+        patientCpf: cpf.replace(/\D/g, "") || undefined,
+      },
     }, {
-      onSuccess: () => setSuccess(true)
+      onSuccess: () => setSuccess(true),
     });
   };
 
   if (success) return <SuccessState onBack={onBack} />;
+
+  const isLoading = isLoadingAreas || isLoadingPros;
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
@@ -644,49 +674,123 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
         <button onClick={onBack} className="w-8 h-8 rounded-md bg-white border border-teal-200 flex items-center justify-center text-teal-700 hover:bg-slate-50 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <h2 className="font-serif text-xl text-teal-900">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="font-serif text-xl text-teal-900 leading-none truncate">{title}</h2>
+          <p className="text-[10px] font-black uppercase tracking-widest text-teal-600 mt-1">Corpo Clínico / Profissionais</p>
+        </div>
       </div>
 
-      {isLoadingDocs ? (
+      {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
-      ) : doctors.length === 0 ? (
+      ) : areas.length === 0 ? (
         <div className="panel-3d-sub p-8 text-center text-teal-600">
-          Nenhum médico assistente disponível no momento.
+          Nenhuma área disponível para agendamento no momento.
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Doctor Selection */}
+          {/* Passo 1: Área */}
           <div className="panel-3d-sub p-5">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-3">1. ESCOLHA O PROFISSIONAL</label>
-            <div className="space-y-2">
-              {doctors.map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => handleDocChange(d.id)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors flex items-center justify-between ${
-                    docId === d.id ? "border-cyan-500 bg-cyan-50" : "border-teal-200 bg-white hover:border-teal-400"
-                  }`}
-                >
-                  <div>
-                    <div className="font-sans font-bold text-teal-950 text-sm">{d.name}</div>
-                    {(d.specialty || d.crm) && (
-                      <div className="text-xs text-teal-600 mt-0.5">
-                        {d.specialty} {d.crm && `(CRM ${d.crm})`}
-                      </div>
-                    )}
-                  </div>
-                  {docId === d.id && <CheckCircle className="w-5 h-5 text-cyan-600" />}
-                </button>
-              ))}
+            <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-3">1. ESCOLHA A ÁREA</label>
+            <div className="grid grid-cols-2 gap-2">
+              {areas.map((a) => {
+                const sel = areaId === a.id;
+                const isMedico = a.professionalType === "medico";
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => handleAreaChange(a.id)}
+                    className={`text-left p-3 rounded-lg border transition-colors flex items-center gap-2 ${
+                      sel ? "border-cyan-500 bg-cyan-50" : "border-teal-200 bg-white hover:border-teal-400"
+                    }`}
+                  >
+                    {isMedico ? <Stethoscope className="w-4 h-4 text-teal-600 shrink-0" /> : <HeartPulse className="w-4 h-4 text-cyan-600 shrink-0" />}
+                    <span className="font-sans font-bold text-teal-950 text-sm leading-tight">{a.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Agenda Selection */}
-          {doctor && (
+          {/* Passo 2: Especialização */}
+          {area && (
+            <div className="panel-3d-sub p-5 animate-in fade-in slide-in-from-top-4 duration-300">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-3">
+                2. ESCOLHA A {area.professionalType === "medico" ? "ESPECIALIDADE" : "ESPECIALIZAÇÃO"}
+              </label>
+              {specialties.length === 0 ? (
+                <div className="p-3 bg-slate-100 border border-slate-200 rounded text-sm text-slate-500 text-center">
+                  Nenhuma especialização cadastrada nesta área.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {specialties.map((s) => {
+                    const sel = specialtyId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => handleSpecialtyChange(s.id)}
+                        className={`px-3 py-2 rounded-md border text-sm font-semibold transition-colors ${
+                          sel ? "border-cyan-500 bg-cyan-600 text-white" : "border-teal-200 bg-white text-teal-800 hover:border-teal-400"
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Passo 3: Profissional */}
+          {specialtyId && (
+            <div className="panel-3d-sub p-5 animate-in fade-in slide-in-from-top-4 duration-300">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-3">3. ESCOLHA O PROFISSIONAL</label>
+              {prosForSelection.length === 0 ? (
+                <div className="p-3 bg-slate-100 border border-slate-200 rounded text-sm text-slate-500 text-center">
+                  Nenhum profissional disponível nesta especialização.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {prosForSelection.map((p) => {
+                    const sel = proId === p.id;
+                    const registro = [p.registrationCouncil, p.registrationNumber].filter(Boolean).join(" ");
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleProChange(p.id)}
+                        className={`w-full text-left p-3 rounded-lg border transition-colors flex items-center justify-between ${
+                          sel ? "border-cyan-500 bg-cyan-50" : "border-teal-200 bg-white hover:border-teal-400"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-sans font-bold text-teal-950 text-sm">{p.name}</span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                              p.professionalType === "medico" ? "bg-teal-100 text-teal-700" : "bg-cyan-100 text-cyan-700"
+                            }`}>
+                              {p.professionalType === "medico" ? "Médico" : "Não-médico"}
+                            </span>
+                          </div>
+                          <div className="text-xs text-teal-600 mt-0.5">
+                            {p.specialtyName}{registro ? ` (${registro})` : ""}
+                          </div>
+                        </div>
+                        {sel && <CheckCircle className="w-5 h-5 text-cyan-600" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Passo 4: Horário */}
+          {pro && (
             <div className="panel-3d-sub p-5 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700">2. ESCOLHA O HORÁRIO</label>
-              
-              {!doctor.resourceId ? (
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700">4. ESCOLHA O HORÁRIO</label>
+
+              {!pro.resourceId ? (
                 <div className="p-3 bg-slate-100 border border-slate-200 rounded text-sm text-slate-500 text-center">
                   Sem horários disponíveis para este profissional.
                 </div>
@@ -741,10 +845,10 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
             </div>
           )}
 
-          {/* Patient Details */}
+          {/* Passo 5: Dados do paciente */}
           {time && (
             <div className="panel-3d-sub p-5 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">3. SEUS DADOS</label>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-teal-700 mb-2">5. SEUS DADOS</label>
               <div className="bg-slate-50/50 p-4 rounded border border-teal-100 mb-4">
                 <p className="text-xs text-teal-800 leading-relaxed">{payText}</p>
                 <PaymentLinkButton url={payLink} label="Pagar sinal de 25%" />
@@ -761,7 +865,7 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
 
               <button
                 onClick={handleSubmit}
-                disabled={!name || phone.replace(/\D/g,"").length < 10 || createReq.isPending}
+                disabled={!name || phone.replace(/\D/g, "").length < 10 || createReq.isPending}
                 className="btn-3d w-full h-12 mt-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest text-sm disabled:opacity-50"
               >
                 {createReq.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "CONFIRMAR RESERVA"}

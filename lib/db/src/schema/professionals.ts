@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -16,6 +16,15 @@ export const professionalsTable = pgTable(
     serviceTypes: text("service_types").array().notNull().default(["clinic"]),
     category: text("category").notNull().default("outro"),
     role: text("role").notNull().default("executor"),
+    // Estratificacao do corpo clinico (decisao do CEO 21/06/2026): TIPO
+    // (medico/nao_medico) + AREA profissional + ESPECIALIZACAO (ids do catalogo
+    // professional_areas/professional_specialties) + numero de registro do
+    // conselho (CRM/COREN/CRP/CRN). crm/specialty antigos ficam para compat.
+    professionalType: text("professional_type").notNull().default("medico"),
+    areaId: integer("area_id"),
+    specialtyId: integer("specialty_id"),
+    registrationCouncil: text("registration_council"),
+    registrationNumber: text("registration_number"),
     // Marca o medico PRINCIPAL (Dr. Caio). Usado para separar a Entrada 3
     // (exclusiva) da Entrada 4 (assistentes) sem depender do nome. Default false:
     // quem nao for marcado entra como assistente.

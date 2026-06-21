@@ -678,6 +678,73 @@ paths:
               schema:
                 $ref: "#/components/schemas/Professional"
 
+  /professionals/{id}:
+    put:
+      operationId: updateProfessional
+      tags: [clients]
+      summary: Update a professional
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfessionalBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Professional"
+
+  /professional-areas:
+    get:
+      operationId: listProfessionalAreas
+      tags: [clients]
+      summary: List professional areas (catalog)
+      parameters:
+        - name: professionalType
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of professional areas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProfessionalArea"
+
+  /professional-specialties:
+    get:
+      operationId: listProfessionalSpecialties
+      tags: [clients]
+      summary: List professional specialties (catalog), optionally filtered by area
+      parameters:
+        - name: areaId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of professional specialties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProfessionalSpecialty"
+
   # DASHBOARD
   /dashboard/summary:
     get:
@@ -813,6 +880,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SchedulingDoctor"
+
+  /scheduling/areas:
+    get:
+      operationId: listSchedulingAreas
+      tags: [scheduling]
+      summary: List professional areas that have bookable professionals, with their specialties
+      responses:
+        "200":
+          description: Bookable areas with nested specialties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SchedulingArea"
+
+  /scheduling/professionals:
+    get:
+      operationId: listSchedulingProfessionals
+      tags: [scheduling]
+      summary: List bookable professionals, optionally filtered by area/specialty
+      parameters:
+        - name: areaId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: specialtyId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bookable professionals with agenda resource
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SchedulingProfessional"
 
   /scheduling/requests:
     get:
@@ -3316,6 +3424,33 @@ components:
         category:
           type: string
           nullable: true
+        professionalType:
+          type: string
+          nullable: true
+        areaId:
+          type: integer
+          nullable: true
+        specialtyId:
+          type: integer
+          nullable: true
+        registrationCouncil:
+          type: string
+          nullable: true
+        registrationNumber:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          nullable: true
+        isPrimaryDoctor:
+          type: boolean
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        specialtyName:
+          type: string
+          nullable: true
         createdAt:
           type: string
       required:
@@ -3351,9 +3486,116 @@ components:
         category:
           type: string
           nullable: true
+        professionalType:
+          type: string
+          nullable: true
+        areaId:
+          type: integer
+          nullable: true
+        specialtyId:
+          type: integer
+          nullable: true
+        registrationCouncil:
+          type: string
+          nullable: true
+        registrationNumber:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          nullable: true
       required:
         - name
         - serviceTypes
+
+    UpdateProfessionalBody:
+      type: object
+      properties:
+        name:
+          type: string
+        crm:
+          type: string
+          nullable: true
+        specialty:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        serviceTypes:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+          nullable: true
+        professionalType:
+          type: string
+          nullable: true
+        areaId:
+          type: integer
+          nullable: true
+        specialtyId:
+          type: integer
+          nullable: true
+        registrationCouncil:
+          type: string
+          nullable: true
+        registrationNumber:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          nullable: true
+
+    ProfessionalArea:
+      type: object
+      properties:
+        id:
+          type: integer
+        professionalType:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        defaultPaymentArm:
+          type: string
+        active:
+          type: boolean
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - professionalType
+        - name
+
+    ProfessionalSpecialty:
+      type: object
+      properties:
+        id:
+          type: integer
+        areaId:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - areaId
+        - name
 
     SiteContent:
       type: object
@@ -3431,6 +3673,71 @@ components:
           type: string
           nullable: true
         crm:
+          type: string
+          nullable: true
+        resourceId:
+          type: integer
+          nullable: true
+      required:
+        - id
+        - name
+
+    SchedulingArea:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        professionalType:
+          type: string
+        defaultPaymentArm:
+          type: string
+          nullable: true
+        specialties:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+            required:
+              - id
+              - name
+      required:
+        - id
+        - name
+        - professionalType
+        - specialties
+
+    SchedulingProfessional:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        professionalType:
+          type: string
+          nullable: true
+        areaId:
+          type: integer
+          nullable: true
+        specialtyId:
+          type: integer
+          nullable: true
+        areaName:
+          type: string
+          nullable: true
+        specialtyName:
+          type: string
+          nullable: true
+        registrationCouncil:
+          type: string
+          nullable: true
+        registrationNumber:
           type: string
           nullable: true
         resourceId:

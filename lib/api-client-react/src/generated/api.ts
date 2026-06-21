@@ -76,8 +76,11 @@ import type {
   ListCatalogOptionsParams,
   ListClientsParams,
   ListPaymentsParams,
+  ListProfessionalAreasParams,
+  ListProfessionalSpecialtiesParams,
   ListProtocolsParams,
   ListRASParams,
+  ListSchedulingProfessionalsParams,
   ListSchedulingRequestsParams,
   ListSessionsParams,
   ListSiteContentParams,
@@ -87,12 +90,16 @@ import type {
   PrescriptionDetail,
   PreviewBody,
   Professional,
+  ProfessionalArea,
+  ProfessionalSpecialty,
   Protocol,
   ProtocolStats,
   Ras,
   RecipePlan,
   ReplaceAgendaWindowsBody,
+  SchedulingArea,
   SchedulingDoctor,
+  SchedulingProfessional,
   SchedulingRequest,
   SendBatchBody,
   Session,
@@ -105,6 +112,7 @@ import type {
   Substance,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
+  UpdateProfessionalBody,
   UpdateProtocolBody,
   UpdateSchedulingRequestBody,
   UpdateSessionBody,
@@ -2675,6 +2683,302 @@ export const useCreateProfessional = <
 };
 
 /**
+ * @summary Update a professional
+ */
+export const getUpdateProfessionalUrl = (id: number) => {
+  return `/api/professionals/${id}`;
+};
+
+export const updateProfessional = async (
+  id: number,
+  updateProfessionalBody: UpdateProfessionalBody,
+  options?: RequestInit,
+): Promise<Professional> => {
+  return customFetch<Professional>(getUpdateProfessionalUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateProfessionalBody),
+  });
+};
+
+export const getUpdateProfessionalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProfessional>>,
+    TError,
+    { id: number; data: BodyType<UpdateProfessionalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProfessional>>,
+  TError,
+  { id: number; data: BodyType<UpdateProfessionalBody> },
+  TContext
+> => {
+  const mutationKey = ["updateProfessional"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProfessional>>,
+    { id: number; data: BodyType<UpdateProfessionalBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateProfessional(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProfessionalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProfessional>>
+>;
+export type UpdateProfessionalMutationBody = BodyType<UpdateProfessionalBody>;
+export type UpdateProfessionalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a professional
+ */
+export const useUpdateProfessional = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProfessional>>,
+    TError,
+    { id: number; data: BodyType<UpdateProfessionalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProfessional>>,
+  TError,
+  { id: number; data: BodyType<UpdateProfessionalBody> },
+  TContext
+> => {
+  return useMutation(getUpdateProfessionalMutationOptions(options));
+};
+
+/**
+ * @summary List professional areas (catalog)
+ */
+export const getListProfessionalAreasUrl = (
+  params?: ListProfessionalAreasParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/professional-areas?${stringifiedParams}`
+    : `/api/professional-areas`;
+};
+
+export const listProfessionalAreas = async (
+  params?: ListProfessionalAreasParams,
+  options?: RequestInit,
+): Promise<ProfessionalArea[]> => {
+  return customFetch<ProfessionalArea[]>(getListProfessionalAreasUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListProfessionalAreasQueryKey = (
+  params?: ListProfessionalAreasParams,
+) => {
+  return [`/api/professional-areas`, ...(params ? [params] : [])] as const;
+};
+
+export const getListProfessionalAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProfessionalAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProfessionalAreasParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProfessionalAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProfessionalAreasQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProfessionalAreas>>
+  > = ({ signal }) =>
+    listProfessionalAreas(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProfessionalAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProfessionalAreas>>
+>;
+export type ListProfessionalAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List professional areas (catalog)
+ */
+
+export function useListProfessionalAreas<
+  TData = Awaited<ReturnType<typeof listProfessionalAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProfessionalAreasParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProfessionalAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProfessionalAreasQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List professional specialties (catalog), optionally filtered by area
+ */
+export const getListProfessionalSpecialtiesUrl = (
+  params?: ListProfessionalSpecialtiesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/professional-specialties?${stringifiedParams}`
+    : `/api/professional-specialties`;
+};
+
+export const listProfessionalSpecialties = async (
+  params?: ListProfessionalSpecialtiesParams,
+  options?: RequestInit,
+): Promise<ProfessionalSpecialty[]> => {
+  return customFetch<ProfessionalSpecialty[]>(
+    getListProfessionalSpecialtiesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProfessionalSpecialtiesQueryKey = (
+  params?: ListProfessionalSpecialtiesParams,
+) => {
+  return [
+    `/api/professional-specialties`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListProfessionalSpecialtiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProfessionalSpecialties>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProfessionalSpecialtiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProfessionalSpecialties>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProfessionalSpecialtiesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProfessionalSpecialties>>
+  > = ({ signal }) =>
+    listProfessionalSpecialties(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalSpecialties>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProfessionalSpecialtiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProfessionalSpecialties>>
+>;
+export type ListProfessionalSpecialtiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List professional specialties (catalog), optionally filtered by area
+ */
+
+export function useListProfessionalSpecialties<
+  TData = Awaited<ReturnType<typeof listProfessionalSpecialties>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProfessionalSpecialtiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProfessionalSpecialties>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProfessionalSpecialtiesQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Get dashboard summary stats
  */
 export const getGetDashboardSummaryUrl = () => {
@@ -3308,6 +3612,190 @@ export function useListSchedulingDoctors<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListSchedulingDoctorsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List professional areas that have bookable professionals, with their specialties
+ */
+export const getListSchedulingAreasUrl = () => {
+  return `/api/scheduling/areas`;
+};
+
+export const listSchedulingAreas = async (
+  options?: RequestInit,
+): Promise<SchedulingArea[]> => {
+  return customFetch<SchedulingArea[]>(getListSchedulingAreasUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSchedulingAreasQueryKey = () => {
+  return [`/api/scheduling/areas`] as const;
+};
+
+export const getListSchedulingAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSchedulingAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSchedulingAreasQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSchedulingAreas>>
+  > = ({ signal }) => listSchedulingAreas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSchedulingAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSchedulingAreas>>
+>;
+export type ListSchedulingAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List professional areas that have bookable professionals, with their specialties
+ */
+
+export function useListSchedulingAreas<
+  TData = Awaited<ReturnType<typeof listSchedulingAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSchedulingAreasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List bookable professionals, optionally filtered by area/specialty
+ */
+export const getListSchedulingProfessionalsUrl = (
+  params?: ListSchedulingProfessionalsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/scheduling/professionals?${stringifiedParams}`
+    : `/api/scheduling/professionals`;
+};
+
+export const listSchedulingProfessionals = async (
+  params?: ListSchedulingProfessionalsParams,
+  options?: RequestInit,
+): Promise<SchedulingProfessional[]> => {
+  return customFetch<SchedulingProfessional[]>(
+    getListSchedulingProfessionalsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSchedulingProfessionalsQueryKey = (
+  params?: ListSchedulingProfessionalsParams,
+) => {
+  return [
+    `/api/scheduling/professionals`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListSchedulingProfessionalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSchedulingProfessionals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSchedulingProfessionalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSchedulingProfessionals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSchedulingProfessionalsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSchedulingProfessionals>>
+  > = ({ signal }) =>
+    listSchedulingProfessionals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSchedulingProfessionals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSchedulingProfessionalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSchedulingProfessionals>>
+>;
+export type ListSchedulingProfessionalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List bookable professionals, optionally filtered by area/specialty
+ */
+
+export function useListSchedulingProfessionals<
+  TData = Awaited<ReturnType<typeof listSchedulingProfessionals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSchedulingProfessionalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSchedulingProfessionals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSchedulingProfessionalsQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

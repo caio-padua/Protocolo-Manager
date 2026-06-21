@@ -841,6 +841,15 @@ export interface Professional {
   unit?: string | null;
   serviceTypes: string[];
   category?: string | null;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
+  active?: boolean | null;
+  isPrimaryDoctor?: boolean | null;
+  areaName?: string | null;
+  specialtyName?: string | null;
   createdAt: string;
 }
 
@@ -853,6 +862,48 @@ export interface CreateProfessionalBody {
   unit?: string | null;
   serviceTypes: string[];
   category?: string | null;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
+  active?: boolean | null;
+}
+
+export interface UpdateProfessionalBody {
+  name?: string;
+  crm?: string | null;
+  specialty?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  unit?: string | null;
+  serviceTypes?: string[];
+  category?: string | null;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
+  active?: boolean | null;
+}
+
+export interface ProfessionalArea {
+  id: number;
+  professionalType: string;
+  name: string;
+  slug?: string;
+  defaultPaymentArm?: string;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+export interface ProfessionalSpecialty {
+  id: number;
+  areaId: number;
+  name: string;
+  slug?: string | null;
+  active?: boolean;
+  sortOrder?: number;
 }
 
 export interface SiteContent {
@@ -887,6 +938,32 @@ export interface SchedulingDoctor {
   name: string;
   specialty?: string | null;
   crm?: string | null;
+  resourceId?: number | null;
+}
+
+export type SchedulingAreaSpecialtiesItem = {
+  id: number;
+  name: string;
+};
+
+export interface SchedulingArea {
+  id: number;
+  name: string;
+  professionalType: string;
+  defaultPaymentArm?: string | null;
+  specialties: SchedulingAreaSpecialtiesItem[];
+}
+
+export interface SchedulingProfessional {
+  id: number;
+  name: string;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  areaName?: string | null;
+  specialtyName?: string | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
   resourceId?: number | null;
 }
 
@@ -1575,8 +1652,21 @@ export type ListPaymentsParams = {
   status?: string;
 };
 
+export type ListProfessionalAreasParams = {
+  professionalType?: string;
+};
+
+export type ListProfessionalSpecialtiesParams = {
+  areaId?: number;
+};
+
 export type ListSiteContentParams = {
   category?: string;
+};
+
+export type ListSchedulingProfessionalsParams = {
+  areaId?: number;
+  specialtyId?: number;
 };
 
 export type ListSchedulingRequestsParams = {

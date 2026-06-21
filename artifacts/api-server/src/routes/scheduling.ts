@@ -4,6 +4,8 @@ import {
   professionalsTable,
   agendaResourcesTable,
   schedulingRequestsTable,
+  professionalAreasTable,
+  professionalSpecialtiesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc } from "drizzle-orm";
 import {
@@ -103,6 +105,138 @@ router.get("/scheduling/doctors", async (_req, res): Promise<void> => {
   res.json(out);
 });
 
+// Profissionais AGENDAVEIS (Entrada 4 / "Corpo Clinico"): ativos, NAO principais
+// (Dr. Caio fica fora — ele e a Entrada 3 exclusiva) e que tenham recurso de
+// agenda ativo. Inclui medico E nao-medico (enfermagem, psicologia, nutricao).
+// Retorna o primeiro recurso ativo do profissional como resourceId.
+async function loadBookableProfessionals(): Promise<
+  Array<{
+    prof: typeof professionalsTable.$inferSelect;
+    resourceId: number;
+  }>
+> {
+  const profs = await db
+    .select()
+    .from(professionalsTable)
+    .where(and(eq(professionalsTable.active, true), eq(professionalsTable.isPrimaryDoctor, false)))
+    .orderBy(asc(professionalsTable.name));
+
+  const resources = await db
+    .select({ id: agendaResourcesTable.id, professionalId: agendaResourcesTable.professionalId })
+    .from(agendaResourcesTable)
+    .where(eq(agendaResourcesTable.active, true));
+
+  const resByProf = new Map<number, number>();
+  for (const r of resources) {
+    if (r.professionalId != null && !resByProf.has(r.professionalId)) {
+      resByProf.set(r.professionalId, r.id);
+    }
+  }
+
+  const out: Array<{ prof: typeof professionalsTable.$inferSelect; resourceId: number }> = [];
+  for (const p of profs) {
+    const resourceId = resByProf.get(p.id);
+    if (resourceId != null) out.push({ prof: p, resourceId });
+  }
+  return out;
+}
+
+// GET /scheduling/areas — areas com pelo menos um profissional agendavel, com as
+// especializacoes que tem profissional agendavel aninhadas. Alimenta o passo 1
+// (area) e passo 2 (especializacao) do fluxo do paciente, sem misturar entradas.
+router.get("/scheduling/areas", async (_req, res): Promise<void> => {
+  const [bookable, areas, specialties] = await Promise.all([
+    loadBookableProfessionals(),
+    db.select().from(professionalAreasTable),
+    db.select().from(professionalSpecialtiesTable),
+  ]);
+
+  // Catálogo inativo não aparece para o paciente (Spec 2 — só ativos).
+  const areaById = new Map(areas.filter((a) => a.active).map((a) => [a.id, a]));
+  const specById = new Map(specialties.filter((s) => s.active).map((s) => [s.id, s]));
+
+  // areaId -> set de specialtyIds com profissional agendavel.
+  const specsByArea = new Map<number, Set<number>>();
+  const areaIdsWithBookable = new Set<number>();
+  for (const { prof } of bookable) {
+    if (prof.areaId == null) continue;
+    areaIdsWithBookable.add(prof.areaId);
+    if (prof.specialtyId != null) {
+      if (!specsByArea.has(prof.areaId)) specsByArea.set(prof.areaId, new Set());
+      specsByArea.get(prof.areaId)!.add(prof.specialtyId);
+    }
+  }
+
+  const out = Array.from(areaIdsWithBookable)
+    .map((areaId) => {
+      const area = areaById.get(areaId);
+      if (!area) return null;
+      const specIds = Array.from(specsByArea.get(areaId) ?? []);
+      const specs = specIds
+        .map((sid) => specById.get(sid))
+        .filter((s): s is typeof professionalSpecialtiesTable.$inferSelect => !!s)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+        .map((s) => ({ id: s.id, name: s.name }));
+      return {
+        id: area.id,
+        name: area.name,
+        professionalType: area.professionalType,
+        defaultPaymentArm: area.defaultPaymentArm ?? null,
+        specialties: specs,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => !!a)
+    .sort((a, b) => {
+      const oa = areaById.get(a.id)?.sortOrder ?? 0;
+      const ob = areaById.get(b.id)?.sortOrder ?? 0;
+      return oa - ob || a.name.localeCompare(b.name);
+    });
+
+  res.json(out);
+});
+
+// GET /scheduling/professionals?areaId&specialtyId — profissionais agendaveis,
+// opcionalmente filtrados por area/especializacao, ja com resourceId do motor.
+router.get("/scheduling/professionals", async (req, res): Promise<void> => {
+  const areaId =
+    typeof req.query.areaId === "string" && req.query.areaId ? parseInt(req.query.areaId) : undefined;
+  const specialtyId =
+    typeof req.query.specialtyId === "string" && req.query.specialtyId
+      ? parseInt(req.query.specialtyId)
+      : undefined;
+
+  const [bookable, areas, specialties] = await Promise.all([
+    loadBookableProfessionals(),
+    db.select({ id: professionalAreasTable.id, name: professionalAreasTable.name }).from(professionalAreasTable),
+    db
+      .select({ id: professionalSpecialtiesTable.id, name: professionalSpecialtiesTable.name })
+      .from(professionalSpecialtiesTable),
+  ]);
+  const areaNames = new Map(areas.map((a) => [a.id, a.name]));
+  const specNames = new Map(specialties.map((s) => [s.id, s.name]));
+
+  const out = bookable
+    .filter(({ prof }) => {
+      if (areaId !== undefined && !Number.isNaN(areaId) && prof.areaId !== areaId) return false;
+      if (specialtyId !== undefined && !Number.isNaN(specialtyId) && prof.specialtyId !== specialtyId) return false;
+      return true;
+    })
+    .map(({ prof, resourceId }) => ({
+      id: prof.id,
+      name: prof.name,
+      professionalType: prof.professionalType ?? null,
+      areaId: prof.areaId ?? null,
+      specialtyId: prof.specialtyId ?? null,
+      areaName: prof.areaId != null ? (areaNames.get(prof.areaId) ?? null) : null,
+      specialtyName: prof.specialtyId != null ? (specNames.get(prof.specialtyId) ?? null) : null,
+      registrationCouncil: prof.registrationCouncil ?? null,
+      registrationNumber: prof.registrationNumber ?? null,
+      resourceId,
+    }));
+
+  res.json(out);
+});
+
 // Lista solicitacoes (admin). Filtros opcionais entrada/status.
 router.get("/scheduling/requests", async (req, res): Promise<void> => {
   const entrada =
@@ -183,6 +317,8 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
 
   // Recurso de agenda validado no servidor para a Entrada 4 (assistente).
   let assistantResourceId: number | null = null;
+  // Braco de pagamento herdado da AREA do profissional (estrutura; sem cobranca).
+  let assistantPaymentArm: string | null = null;
 
   // Entrada 4 (assistente): exige medico + slot real escolhido. Validamos no
   // servidor (nao confiar no cliente): o profissional precisa existir, estar
@@ -204,14 +340,12 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
       .where(eq(professionalsTable.id, data.professionalId))
       .limit(1);
 
-    if (
-      !prof ||
-      !prof.active ||
-      prof.category !== "medico" ||
-      prof.isPrimaryDoctor
-    ) {
+    // Entrada 4 = "Corpo Clinico": aceita QUALQUER profissional ativo e NAO
+    // principal (medico assistente OU nao-medico: enfermagem/psicologia/nutricao).
+    // Dr. Caio (principal) nunca entra aqui — ele e a Entrada 3 exclusiva.
+    if (!prof || !prof.active || prof.isPrimaryDoctor) {
       res.status(400).json({
-        error: "Médico assistente inválido ou indisponível",
+        error: "Profissional inválido ou indisponível",
       });
       return;
     }
@@ -253,6 +387,16 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
 
     // Fixa o recurso validado no servidor; nunca confiar no resourceId do cliente.
     assistantResourceId = resource.id;
+
+    // Braco de pagamento herdado da AREA do profissional (sem cobranca real).
+    if (prof.areaId != null) {
+      const [area] = await db
+        .select({ defaultPaymentArm: professionalAreasTable.defaultPaymentArm })
+        .from(professionalAreasTable)
+        .where(eq(professionalAreasTable.id, prof.areaId))
+        .limit(1);
+      assistantPaymentArm = area?.defaultPaymentArm ?? null;
+    }
   }
 
   // Braco de pagamento default por entrada (estrutura; sem cobranca real).
@@ -261,7 +405,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     (entrada === "dr_caio" && data.path === "concierge"
       ? "concierge"
       : entrada === "assistente"
-        ? "sinal25"
+        ? (assistantPaymentArm ?? "sinal25")
         : entrada === "estetico"
           ? "estetico_pos"
           : null);

@@ -1,6 +1,7 @@
 export * from "./clients";
 export * from "./substances";
 export * from "./professionals";
+export * from "./professional-taxonomy";
 export * from "./locations";
 export * from "./protocols";
 export * from "./sessions";

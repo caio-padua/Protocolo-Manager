@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, professionalsTable, locationProfessionalsTable, sessionsTable, locationsTable, agendaCalendarsTable } from "@workspace/db";
+import { db, professionalsTable, locationProfessionalsTable, sessionsTable, locationsTable, agendaCalendarsTable, professionalAreasTable, professionalSpecialtiesTable } from "@workspace/db";
 import { CreateProfessionalBody } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
 
@@ -13,7 +13,11 @@ function normalizeCategory(raw: unknown): Category {
   return (CATEGORIES as readonly string[]).includes(s) ? (s as Category) : "outro";
 }
 
-function formatProfessional(p: typeof professionalsTable.$inferSelect) {
+function formatProfessional(
+  p: typeof professionalsTable.$inferSelect,
+  areaNames?: Map<number, string>,
+  specialtyNames?: Map<number, string>,
+) {
   return {
     ...p,
     crm: p.crm ?? null,
@@ -23,13 +27,68 @@ function formatProfessional(p: typeof professionalsTable.$inferSelect) {
     unit: p.unit ?? null,
     serviceTypes: p.serviceTypes ?? ["clinic"],
     category: p.category ?? "outro",
+    professionalType: p.professionalType ?? "medico",
+    areaId: p.areaId ?? null,
+    specialtyId: p.specialtyId ?? null,
+    registrationCouncil: p.registrationCouncil ?? null,
+    registrationNumber: p.registrationNumber ?? null,
+    active: p.active,
+    isPrimaryDoctor: p.isPrimaryDoctor,
+    areaName: p.areaId != null ? (areaNames?.get(p.areaId) ?? null) : null,
+    specialtyName: p.specialtyId != null ? (specialtyNames?.get(p.specialtyId) ?? null) : null,
     createdAt: p.createdAt.toISOString(),
   };
 }
 
+// Mapas id->nome do catalogo, para enriquecer a resposta sem N+1.
+async function loadTaxonomyNames(): Promise<{ areas: Map<number, string>; specialties: Map<number, string> }> {
+  const [areas, specialties] = await Promise.all([
+    db.select({ id: professionalAreasTable.id, name: professionalAreasTable.name }).from(professionalAreasTable),
+    db.select({ id: professionalSpecialtiesTable.id, name: professionalSpecialtiesTable.name }).from(professionalSpecialtiesTable),
+  ]);
+  return {
+    areas: new Map(areas.map((a) => [a.id, a.name])),
+    specialties: new Map(specialties.map((s) => [s.id, s.name])),
+  };
+}
+
 router.get("/professionals", async (_req, res): Promise<void> => {
-  const professionals = await db.select().from(professionalsTable);
-  res.json(professionals.map(formatProfessional));
+  const [professionals, names] = await Promise.all([
+    db.select().from(professionalsTable),
+    loadTaxonomyNames(),
+  ]);
+  res.json(professionals.map((p) => formatProfessional(p, names.areas, names.specialties)));
+});
+
+// ---- Catalogo de areas e especializacoes (somente leitura) ----
+
+router.get("/professional-areas", async (req, res): Promise<void> => {
+  const professionalType =
+    typeof req.query.professionalType === "string" && req.query.professionalType
+      ? req.query.professionalType
+      : undefined;
+  const rows = professionalType
+    ? await db
+        .select()
+        .from(professionalAreasTable)
+        .where(and(eq(professionalAreasTable.active, true), eq(professionalAreasTable.professionalType, professionalType)))
+    : await db.select().from(professionalAreasTable).where(eq(professionalAreasTable.active, true));
+  rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  res.json(rows);
+});
+
+router.get("/professional-specialties", async (req, res): Promise<void> => {
+  const areaId =
+    typeof req.query.areaId === "string" && req.query.areaId ? parseInt(req.query.areaId) : undefined;
+  const rows =
+    areaId !== undefined && !Number.isNaN(areaId)
+      ? await db
+          .select()
+          .from(professionalSpecialtiesTable)
+          .where(and(eq(professionalSpecialtiesTable.active, true), eq(professionalSpecialtiesTable.areaId, areaId)))
+      : await db.select().from(professionalSpecialtiesTable).where(eq(professionalSpecialtiesTable.active, true));
+  rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  res.json(rows.map((r) => ({ ...r, slug: r.slug ?? null })));
 });
 
 router.post("/professionals", async (req, res): Promise<void> => {
@@ -50,9 +109,13 @@ router.post("/professionals", async (req, res): Promise<void> => {
   const values = {
     ...parsed.data,
     category: normalizeCategory(parsed.data.category),
+    ...(parsed.data.professionalType !== undefined && parsed.data.professionalType !== null
+      ? { professionalType: String(parsed.data.professionalType) }
+      : {}),
   };
   const [professional] = await db.insert(professionalsTable).values(values).returning();
-  res.status(201).json(formatProfessional(professional));
+  const names = await loadTaxonomyNames();
+  res.status(201).json(formatProfessional(professional, names.areas, names.specialties));
 });
 
 router.put("/professionals/:id", async (req, res): Promise<void> => {
@@ -67,7 +130,10 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, crm, specialty, email, phone, unit, serviceTypes, category, role, active } = req.body as {
+  const {
+    name, crm, specialty, email, phone, unit, serviceTypes, category, role, active,
+    professionalType, areaId, specialtyId, registrationCouncil, registrationNumber,
+  } = req.body as {
     name?: string;
     crm?: string | null;
     specialty?: string | null;
@@ -78,6 +144,11 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
     category?: string;
     role?: string;
     active?: boolean;
+    professionalType?: string | null;
+    areaId?: number | null;
+    specialtyId?: number | null;
+    registrationCouncil?: string | null;
+    registrationNumber?: string | null;
   };
 
   if (name !== undefined && !String(name).trim()) {
@@ -88,6 +159,32 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
     const s = String(category).trim().toLowerCase();
     if (!(CATEGORIES as readonly string[]).includes(s)) {
       res.status(400).json({ error: `Categoria inválida. Use uma de: ${CATEGORIES.join(", ")}` });
+      return;
+    }
+  }
+
+  // Integridade do catálogo: área/especialização precisam existir e ser compatíveis.
+  let areaRow: typeof professionalAreasTable.$inferSelect | undefined;
+  if (areaId !== undefined && areaId !== null) {
+    [areaRow] = await db.select().from(professionalAreasTable).where(eq(professionalAreasTable.id, Number(areaId)));
+    if (!areaRow) {
+      res.status(400).json({ error: "Área inexistente" });
+      return;
+    }
+  }
+  if (specialtyId !== undefined && specialtyId !== null) {
+    const [spec] = await db
+      .select()
+      .from(professionalSpecialtiesTable)
+      .where(eq(professionalSpecialtiesTable.id, Number(specialtyId)));
+    if (!spec) {
+      res.status(400).json({ error: "Especialização inexistente" });
+      return;
+    }
+    // A especialização deve pertencer à área enviada (ou à área atual, se a área não mudou).
+    const targetAreaId = areaId !== undefined && areaId !== null ? Number(areaId) : row.areaId;
+    if (targetAreaId != null && spec.areaId !== targetAreaId) {
+      res.status(400).json({ error: "Especialização não pertence à área informada" });
       return;
     }
   }
@@ -105,10 +202,18 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
       ...(category !== undefined ? { category: normalizeCategory(category) } : {}),
       ...(role !== undefined ? { role } : {}),
       ...(active !== undefined ? { active: !!active } : {}),
+      ...(professionalType !== undefined && professionalType !== null
+        ? { professionalType: String(professionalType) }
+        : {}),
+      ...(areaId !== undefined ? { areaId: areaId === null ? null : Number(areaId) } : {}),
+      ...(specialtyId !== undefined ? { specialtyId: specialtyId === null ? null : Number(specialtyId) } : {}),
+      ...(registrationCouncil !== undefined ? { registrationCouncil } : {}),
+      ...(registrationNumber !== undefined ? { registrationNumber } : {}),
     })
     .where(eq(professionalsTable.id, id))
     .returning();
-  res.json(formatProfessional(updated));
+  const names = await loadTaxonomyNames();
+  res.json(formatProfessional(updated, names.areas, names.specialties));
 });
 
 router.delete("/professionals/:id", async (req, res): Promise<void> => {

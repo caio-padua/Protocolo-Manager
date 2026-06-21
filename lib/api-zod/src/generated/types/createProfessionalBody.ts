@@ -15,4 +15,10 @@ export interface CreateProfessionalBody {
   unit?: string | null;
   serviceTypes: string[];
   category?: string | null;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
+  active?: boolean | null;
 }

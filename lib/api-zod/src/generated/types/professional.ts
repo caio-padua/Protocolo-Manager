@@ -16,5 +16,14 @@ export interface Professional {
   unit?: string | null;
   serviceTypes: string[];
   category?: string | null;
+  professionalType?: string | null;
+  areaId?: number | null;
+  specialtyId?: number | null;
+  registrationCouncil?: string | null;
+  registrationNumber?: string | null;
+  active?: boolean | null;
+  isPrimaryDoctor?: boolean | null;
+  areaName?: string | null;
+  specialtyName?: string | null;
   createdAt: string;
 }

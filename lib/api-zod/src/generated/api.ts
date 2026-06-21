@@ -1238,6 +1238,15 @@ export const ListProfessionalsResponseItem = zod.object({
   unit: zod.string().nullish(),
   serviceTypes: zod.array(zod.string()),
   category: zod.string().nullish(),
+  professionalType: zod.string().nullish(),
+  areaId: zod.number().nullish(),
+  specialtyId: zod.number().nullish(),
+  registrationCouncil: zod.string().nullish(),
+  registrationNumber: zod.string().nullish(),
+  active: zod.boolean().nullish(),
+  isPrimaryDoctor: zod.boolean().nullish(),
+  areaName: zod.string().nullish(),
+  specialtyName: zod.string().nullish(),
   createdAt: zod.string(),
 });
 export const ListProfessionalsResponse = zod.array(
@@ -1256,7 +1265,98 @@ export const CreateProfessionalBody = zod.object({
   unit: zod.string().nullish(),
   serviceTypes: zod.array(zod.string()),
   category: zod.string().nullish(),
+  professionalType: zod.string().nullish(),
+  areaId: zod.number().nullish(),
+  specialtyId: zod.number().nullish(),
+  registrationCouncil: zod.string().nullish(),
+  registrationNumber: zod.string().nullish(),
+  active: zod.boolean().nullish(),
 });
+
+/**
+ * @summary Update a professional
+ */
+export const UpdateProfessionalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateProfessionalBody = zod.object({
+  name: zod.string().optional(),
+  crm: zod.string().nullish(),
+  specialty: zod.string().nullish(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  unit: zod.string().nullish(),
+  serviceTypes: zod.array(zod.string()).optional(),
+  category: zod.string().nullish(),
+  professionalType: zod.string().nullish(),
+  areaId: zod.number().nullish(),
+  specialtyId: zod.number().nullish(),
+  registrationCouncil: zod.string().nullish(),
+  registrationNumber: zod.string().nullish(),
+  active: zod.boolean().nullish(),
+});
+
+export const UpdateProfessionalResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  crm: zod.string().nullish(),
+  specialty: zod.string().nullish(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  unit: zod.string().nullish(),
+  serviceTypes: zod.array(zod.string()),
+  category: zod.string().nullish(),
+  professionalType: zod.string().nullish(),
+  areaId: zod.number().nullish(),
+  specialtyId: zod.number().nullish(),
+  registrationCouncil: zod.string().nullish(),
+  registrationNumber: zod.string().nullish(),
+  active: zod.boolean().nullish(),
+  isPrimaryDoctor: zod.boolean().nullish(),
+  areaName: zod.string().nullish(),
+  specialtyName: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List professional areas (catalog)
+ */
+export const ListProfessionalAreasQueryParams = zod.object({
+  professionalType: zod.coerce.string().optional(),
+});
+
+export const ListProfessionalAreasResponseItem = zod.object({
+  id: zod.number(),
+  professionalType: zod.string(),
+  name: zod.string(),
+  slug: zod.string().optional(),
+  defaultPaymentArm: zod.string().optional(),
+  active: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+});
+export const ListProfessionalAreasResponse = zod.array(
+  ListProfessionalAreasResponseItem,
+);
+
+/**
+ * @summary List professional specialties (catalog), optionally filtered by area
+ */
+export const ListProfessionalSpecialtiesQueryParams = zod.object({
+  areaId: zod.coerce.number().optional(),
+});
+
+export const ListProfessionalSpecialtiesResponseItem = zod.object({
+  id: zod.number(),
+  areaId: zod.number(),
+  name: zod.string(),
+  slug: zod.string().nullish(),
+  active: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+});
+export const ListProfessionalSpecialtiesResponse = zod.array(
+  ListProfessionalSpecialtiesResponseItem,
+);
 
 /**
  * @summary Get dashboard summary stats
@@ -1443,6 +1543,49 @@ export const ListSchedulingDoctorsResponseItem = zod.object({
 });
 export const ListSchedulingDoctorsResponse = zod.array(
   ListSchedulingDoctorsResponseItem,
+);
+
+/**
+ * @summary List professional areas that have bookable professionals, with their specialties
+ */
+export const ListSchedulingAreasResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  professionalType: zod.string(),
+  defaultPaymentArm: zod.string().nullish(),
+  specialties: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+    }),
+  ),
+});
+export const ListSchedulingAreasResponse = zod.array(
+  ListSchedulingAreasResponseItem,
+);
+
+/**
+ * @summary List bookable professionals, optionally filtered by area/specialty
+ */
+export const ListSchedulingProfessionalsQueryParams = zod.object({
+  areaId: zod.coerce.number().optional(),
+  specialtyId: zod.coerce.number().optional(),
+});
+
+export const ListSchedulingProfessionalsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  professionalType: zod.string().nullish(),
+  areaId: zod.number().nullish(),
+  specialtyId: zod.number().nullish(),
+  areaName: zod.string().nullish(),
+  specialtyName: zod.string().nullish(),
+  registrationCouncil: zod.string().nullish(),
+  registrationNumber: zod.string().nullish(),
+  resourceId: zod.number().nullish(),
+});
+export const ListSchedulingProfessionalsResponse = zod.array(
+  ListSchedulingProfessionalsResponseItem,
 );
 
 /**
