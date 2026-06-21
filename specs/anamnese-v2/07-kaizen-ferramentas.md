@@ -3,6 +3,7 @@
 > Secao viva: o Dr. Replit Paxter PROPOE novas ferramentas de tela que facilitam o paciente
 > responder e, ao serem manipuladas, entregam dado mais rico ao back-end. Cada ferramenta diz
 > COMO ajuda o paciente e O QUE amarra no motor. CEO aprova item a item.
+> CONTINUA em `10-aceleradores-e-surpresas.md` (aceleradores de velocidade + surpresas Kaizen, incl. o Gemeo de Saude).
 
 ## 1. Matriz de Medicacao (aprovada na ideia pelo CEO — carta do Pactor)
 - Linha = um remedio. Colunas: NOME · MG (miligramagem) · MANHA · TARDE · NOITE · DOENCA.

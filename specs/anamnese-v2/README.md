@@ -15,6 +15,7 @@ Construir SO o que esta aqui. Loop Paxter: especificar -> construir -> revisar (
 | 07-kaizen-ferramentas.md | matriz de medicacao + catalogo de ferramentas novas de front-end |
 | 08-tarefas-ondas.md | ondas (O0..O11), aceite por onda, plano de teste, autocritica |
 | 09-hardening-e-compatibilidade.md | O0: contrato do valor, idempotencia, seguranca do token, tempo medio, ajuda, coexistencia com legado |
+| 10-aceleradores-e-surpresas.md | filosofia Kaizen (eliminar muda), 7 aceleradores de velocidade, 7 surpresas (Gemeo de Saude, voz, boneco do corpo, Rajada...) + guardas de seguranca |
 
 Fontes mineradas: Pactor (mockups premium StepWithHelp/MobileStep/HelpModal + carta PARA_MANAGER)
 e padcom-saas (AnamneseIntegrativa: timeline, microtexto, score, demo profiles, autosave).

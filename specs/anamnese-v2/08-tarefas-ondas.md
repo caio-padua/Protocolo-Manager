@@ -14,11 +14,12 @@
 | O2 — Casca + cabecalho + mapa | top bar, 4 medidores, titulo/subtitulo/microtexto, rodape sticky, MAPA de grupos + ordem livre (navegacao base) | O1 |
 | O3 — Motor de paginas + ramificacao | 1 grupo=1 pagina que vira, porteiras (real+sintetica), colapso, alarmes sempre visiveis | O2, spec 03 |
 | O4 — Controles ricos | sim/nao cartao, multipla tappable, dial de intensidade direcional, stepper, queixa livre | O3 |
-| O5 — Explicacao + video | HelpModal por pergunta, video nas dificeis, config por perguntaId | O4 |
-| O6 — Liberdade (pular/recusar) | pular e voltar, recusar bloco (registro + selo no mapa) | O2 |
+| O4b — Aceleradores + Surpresas | A1,A2,A3,A4,A6,A7 (auto-avanco, pre-preench. com whitelist, teclado, foco, tempo vivo, selo salvo) + S1,S3,S4,S6 (voz, boneco do corpo, Rajada, marcos) — ver 10 | O4 |
+| O5 — Explicacao + video | HelpModal por pergunta, video nas dificeis, config por perguntaId; + S2 (leitura em voz alta) e S7 (Modo Conversa) | O4 |
+| O6 — Liberdade (pular/recusar) | pular e voltar, recusar bloco (registro + selo no mapa); + A5 (Salto inteligente) | O2 |
 | O7a — Modo paciente (link) | gerar/abrir link, retoma, perfis de pre-preenchimento | O1, O6 |
 | O7b — Cockpit enfermeira/medico | enfermeira(conduzir + observacao por grupo), medico(atalho rapido) | O7a |
-| O8 — Diagnosticado/Suspeito + findings | adapter pos-motor grava findings ao concluir, tela do medico separando os dois | O1, O3 |
+| O8 — Diagnosticado/Suspeito + findings | adapter pos-motor grava findings ao concluir, tela do medico separando os dois; Gemeo de Saude ao vivo (S5, visual) | O1, O3 |
 | O9 — Matriz de medicacao | linha remedio x manha/tarde/noite x doenca (Kaizen 07) | O4 |
 | O10 — Relatorios | RAS de relatorio (PDF+Drive) + relatorio juridico + motor de sugestoes | O8, O9 |
 | O11 — Pack | exportar skills/specs para paxter-pack | todas |
