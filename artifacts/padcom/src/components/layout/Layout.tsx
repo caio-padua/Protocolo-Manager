@@ -67,6 +67,7 @@ const navigation: NavEntry[] = [
   },
   { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
   { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
+  { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
   { name: "Farmácias", href: "/pharmacies", icon: Building2 },
   { name: "SNCR", href: "/sncr", icon: Hash },

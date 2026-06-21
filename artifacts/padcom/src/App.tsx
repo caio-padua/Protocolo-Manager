@@ -40,6 +40,7 @@ import Portal from "@/pages/portal";
 import Agendar from "@/pages/agendar";
 import Anamnese from "@/pages/anamnese";
 import AnamneseV2 from "@/pages/anamnese-v2";
+import AnamneseRevisao from "@/pages/anamnese-v2/revisao";
 import Area from "@/pages/area";
 import PawardsDemo from "@/pages/pawards-demo";
 import TipografiaDemo from "@/pages/tipografia";
@@ -108,6 +109,11 @@ function Router() {
             <Route path="/pharmacies" component={Pharmacies} />
             <Route path="/sncr" component={Sncr} />
             <Route path="/mega-anamnese" component={MegaAnamnese} />
+            <Route path="/anamnese/revisao">
+              <CollaboratorGate>
+                <AnamneseRevisao />
+              </CollaboratorGate>
+            </Route>
             <Route path="/catalogos" component={Catalogos} />
             <Route path="/exames" component={Exames} />
             <Route path="/cadastros/:rest*">

@@ -13,13 +13,17 @@ import {
   type AnamneseSessionRow,
 } from "@workspace/db";
 import { buildFindings, type AdapterQuestion } from "../lib/anamnese-findings-adapter";
+import { verifyPortalToken } from "../lib/portal-token";
 
 const router: IRouter = Router();
 
 // ---- validacao local (espelha os schemas do OpenAPI) ----
 const sessionInput = z.object({
+  // `clientId` cru do corpo NAO e confiavel no fluxo publico (anti-IDOR): a
+  // amarracao ao cliente vem SOMENTE de um `portalToken` HMAC verificado.
   clientId: z.number().int().nullable().optional(),
   mode: z.string().optional(),
+  portalToken: z.string().optional(),
 });
 // Contrato de valor: uniao discriminada por `tipo` (blinda o JSONB e o adapter).
 const valorSchema = z.discriminatedUnion("tipo", [
@@ -108,20 +112,51 @@ router.get("/anamnese-v2/questions", async (req, res) => {
   return res.json(rows);
 });
 
-// POST /anamnese-v2/sessions — cria sessao
+// POST /anamnese-v2/sessions — cria (ou retoma) sessao.
+// Amarracao ao cliente: SO via `portalToken` HMAC verificado (anti-IDOR). Um
+// `clientId` cru no corpo e ignorado de proposito no fluxo publico.
 router.post("/anamnese-v2/sessions", async (req, res) => {
   const parsed = sessionInput.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+
+  let clientId: number | null = null;
+  if (parsed.data.portalToken) {
+    const verified = verifyPortalToken(parsed.data.portalToken);
+    if (verified === null) {
+      return res.status(401).json({ error: "Identificacao expirada. Identifique-se novamente." });
+    }
+    clientId = verified;
+  }
+
+  // Retomar rascunho: se ja existe sessao NAO concluida deste cliente, devolve-a.
+  if (clientId !== null) {
+    const [existing] = await db
+      .select()
+      .from(anamneseSessionsTable)
+      .where(
+        and(
+          eq(anamneseSessionsTable.clientId, clientId),
+          eq(anamneseSessionsTable.status, "rascunho"),
+        ),
+      )
+      .orderBy(asc(anamneseSessionsTable.id))
+      .limit(1);
+    if (existing) {
+      req.log.info({ sessionId: existing.id }, "anamnese-v2 session resumed");
+      return res.status(200).json(existing);
+    }
+  }
+
   const token = randomBytes(24).toString("hex");
   const [s] = await db
     .insert(anamneseSessionsTable)
     .values({
       token,
-      clientId: parsed.data.clientId ?? null,
+      clientId,
       mode: parsed.data.mode ?? "paciente",
     })
     .returning();
-  req.log.info({ sessionId: s.id, mode: s.mode }, "anamnese-v2 session created");
+  req.log.info({ sessionId: s.id, mode: s.mode, bound: clientId !== null }, "anamnese-v2 session created");
   return res.status(201).json(s);
 });
 

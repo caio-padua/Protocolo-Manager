@@ -64,20 +64,30 @@ export default function AnamneseV2() {
   const unrefuse = useRemoveAnamneseRefusal();
   const complete = useCompleteAnamneseSession();
 
-  // cria sessao se nao houver token
-  useEffect(() => {
-    if (token || createSession.isPending) return;
-    createSession.mutate(
-      { data: { mode: "paciente" } },
-      {
-        onSuccess: (s) => {
-          localStorage.setItem(TOKEN_KEY, s.token);
-          setToken(s.token);
+  // Inicia a sessao APOS identificacao (Opcao A). O `portalToken` amarra a
+  // sessao ao cliente no servidor (anti-IDOR); sem ele, sessao de demonstracao.
+  const startSession = useCallback(
+    (portalToken?: string) => {
+      if (createSession.isPending) return;
+      createSession.mutate(
+        { data: { mode: "paciente", ...(portalToken ? { portalToken } : {}) } },
+        {
+          onSuccess: (s) => {
+            localStorage.setItem(TOKEN_KEY, s.token);
+            setToken(s.token);
+          },
+          onError: () => {
+            toast({
+              title: "Não foi possível iniciar",
+              description: "Identifique-se novamente, por favor.",
+              variant: "destructive",
+            });
+          },
         },
-      },
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+      );
+    },
+    [createSession, toast],
+  );
 
   // hidrata respostas/recusas do servidor (retomada)
   useEffect(() => {
@@ -301,6 +311,10 @@ export default function AnamneseV2() {
   };
 
   // ---------- RENDER ----------
+  // Opcao A: sem sessao iniciada -> exige identificacao (ou demonstracao).
+  if (!token) {
+    return <IdentifyGate onStart={startSession} pending={createSession.isPending} />;
+  }
   if (loadingQ || !questions) {
     return <CenterLoader label="Preparando sua anamnese..." />;
   }
@@ -739,6 +753,186 @@ function CenterLoader({ label }: { label: string }) {
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: PETROLEO }} />
         <p className="text-sm font-medium text-gray-500">{label}</p>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Opcao A — Portao de identificacao do paciente (CPF + nascimento).
+// Reusa POST /api/client-portal/identify; o token devolvido amarra a sessao.
+// ---------------------------------------------------------------------------
+function IdentifyGate({
+  onStart,
+  pending,
+}: {
+  onStart: (portalToken?: string) => void;
+  pending: boolean;
+}) {
+  const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [cpf, setCpf] = useState("");
+  const [birth, setBirth] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fmtCpf = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 11);
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  };
+  const fmtDate = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 8);
+    return d.replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})(\d)/, "$1/$2");
+  };
+
+  const handleIdentify = useCallback(async () => {
+    const cleanCpf = cpf.replace(/\D/g, "");
+    const cleanDate = birth.replace(/\D/g, "");
+    if (cleanCpf.length !== 11) {
+      setError("Digite os 11 dígitos do CPF");
+      return;
+    }
+    if (cleanDate.length !== 8) {
+      setError("Digite a data completa (DD/MM/AAAA)");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/client-portal/identify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf: cleanCpf, birthDate: cleanDate }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setError("CPF ou data de nascimento incorretos");
+        return;
+      }
+      onStart(data.token as string);
+    } catch {
+      setError("Erro de conexão. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, [cpf, birth, API_BASE, onStart]);
+
+  const busy = loading || pending;
+
+  return (
+    <div
+      className="area-elite flex min-h-screen flex-col bg-[#f1f5f5]"
+      style={{ ["--brand" as any]: PETROLEO }}
+    >
+      <header className="panel-3d flex items-center justify-center border-b border-teal-200/60 px-4 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-700 shadow-md">
+            <span className="text-xl font-black text-white">P</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-black uppercase leading-none tracking-wide text-teal-900">
+              Pad<span className="text-cyan-500">con</span>{" "}
+              <span className="text-teal-700">CONECT</span>
+            </h1>
+            <p className="mt-0.5 text-[10px] uppercase tracking-widest text-teal-500">
+              Ficha de Saúde — Anamnese
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-start justify-center px-4 py-10">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="panel-3d overflow-hidden rounded-xl">
+            <div className="bg-teal-700 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <Shield className="h-5 w-5 text-cyan-300" />
+                <h2 className="text-sm font-black uppercase tracking-widest text-white">
+                  Identificação
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-teal-200">
+                CPF e data de nascimento para começar sua anamnese
+              </p>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-teal-700">
+                  CPF
+                </label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => {
+                    setCpf(fmtCpf(e.target.value));
+                    setError("");
+                  }}
+                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-teal-900 placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#45B8CC]"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-teal-700">
+                  Data de nascimento
+                </label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  value={birth}
+                  onChange={(e) => {
+                    setBirth(fmtDate(e.target.value));
+                    setError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleIdentify();
+                  }}
+                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-teal-900 placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#45B8CC]"
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-500" />
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleIdentify}
+                disabled={
+                  busy ||
+                  cpf.replace(/\D/g, "").length !== 11 ||
+                  birth.replace(/\D/g, "").length !== 8
+                }
+                className="btn-3d flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-black uppercase tracking-widest text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    Começar <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => onStart()}
+              disabled={busy}
+              className="text-[11px] uppercase tracking-widest text-teal-400 hover:text-teal-600 disabled:opacity-40"
+            >
+              Entrar como demonstração (sem identificar)
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

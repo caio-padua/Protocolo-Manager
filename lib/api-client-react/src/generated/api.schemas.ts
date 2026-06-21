@@ -38,6 +38,7 @@ export interface AnamneseSessionInput {
   /** @nullable */
   clientId?: number | null;
   mode?: string;
+  portalToken?: string;
 }
 
 export interface AnamneseSession {

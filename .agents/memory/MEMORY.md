@@ -27,3 +27,4 @@
 - [Padrao do evento Google Agenda](agenda-evento-google-padrao.md) — checklist 👍/👎 e Duração Total devem vir de tipos DISP-only (dispProcTypes), nunca PROX; verificar evento real via listConnections token + Calendar API.
 - [Motor de Agenda — fuso e fonte](motor-agenda-fuso-fonte.md) — horario ancora no fuso da clinica (BRT UTC-3, sufixo -03:00 / getUTCDay meio-dia UTC); nao inventar fonte de ocupacao de fase futura (sessions sem resourceId), usar entrada explicita.
 - [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passos valida tipo so no presign.
+- [Anamnese acesso/revisao](anamnese-acesso-revisao.md) — fluxo publico amarra client_id SO por token verificado (anti-IDOR), nunca id cru do corpo; GET de PII clinica exige requireCollaborator (guard global so cobre escrita); cuidado ao remover simbolo de import compartilhado.

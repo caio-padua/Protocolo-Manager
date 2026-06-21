@@ -3076,6 +3076,7 @@ export const ListAnamneseQuestionsResponse = zod.array(
 export const CreateAnamneseSessionBody = zod.object({
   clientId: zod.number().nullish(),
   mode: zod.string().optional(),
+  portalToken: zod.string().optional(),
 });
 
 /**

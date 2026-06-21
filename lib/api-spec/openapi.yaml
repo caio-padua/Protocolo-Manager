@@ -2135,6 +2135,7 @@ components:
       properties:
         clientId: { type: ["integer", "null"] }
         mode: { type: string }
+        portalToken: { type: string }
     AnamneseSession:
       type: object
       required: [id, token, mode, status]

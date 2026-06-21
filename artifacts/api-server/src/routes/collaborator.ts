@@ -1,6 +1,15 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { db, professionalsTable, collaboratorAuditTable } from "@workspace/db";
-import { eq, sql, desc, isNotNull } from "drizzle-orm";
+import {
+  db,
+  professionalsTable,
+  collaboratorAuditTable,
+  clientsTable,
+  anamneseSessionsTable,
+  anamneseFindingsTable,
+  anamneseRefusalsTable,
+  anamneseGroupNotesTable,
+} from "@workspace/db";
+import { eq, sql, desc, and, inArray, isNotNull } from "drizzle-orm";
 import {
   createCollaboratorToken,
   verifyCollaboratorToken,
@@ -332,5 +341,156 @@ router.get("/collaborator/audit", requireCollaborator, async (req, res): Promise
     })),
   );
 });
+
+// ----------------------------------------------------------------------------
+// Revisao da Anamnese (PII clinica) — SO colaborador autenticado
+// ----------------------------------------------------------------------------
+
+// GET /collaborator/anamnese/sessions — lista com resumo + nome do cliente
+router.get(
+  "/collaborator/anamnese/sessions",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const filterClientId = req.query.clientId ? Number(req.query.clientId) : null;
+    const filterStatus = typeof req.query.status === "string" ? req.query.status : null;
+
+    const conds = [] as ReturnType<typeof eq>[];
+    if (filterClientId !== null && Number.isFinite(filterClientId)) {
+      conds.push(eq(anamneseSessionsTable.clientId, filterClientId));
+    }
+    if (filterStatus) {
+      conds.push(eq(anamneseSessionsTable.status, filterStatus));
+    }
+
+    const rows = await db
+      .select({
+        id: anamneseSessionsTable.id,
+        clientId: anamneseSessionsTable.clientId,
+        clientName: clientsTable.name,
+        mode: anamneseSessionsTable.mode,
+        status: anamneseSessionsTable.status,
+        startedAt: anamneseSessionsTable.startedAt,
+        completedAt: anamneseSessionsTable.completedAt,
+      })
+      .from(anamneseSessionsTable)
+      .leftJoin(clientsTable, eq(clientsTable.id, anamneseSessionsTable.clientId))
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(desc(anamneseSessionsTable.completedAt), desc(anamneseSessionsTable.startedAt));
+
+    const ids = rows.map((r) => r.id);
+    const findings = ids.length
+      ? await db
+          .select({
+            sessionId: anamneseFindingsTable.sessionId,
+            tipo: anamneseFindingsTable.tipo,
+            severidade: anamneseFindingsTable.severidade,
+          })
+          .from(anamneseFindingsTable)
+          .where(inArray(anamneseFindingsTable.sessionId, ids))
+      : [];
+
+    const bySession = new Map<number, { diagnosticado: number; suspeito: number; temAlarme: boolean }>();
+    for (const f of findings) {
+      const cur = bySession.get(f.sessionId) ?? { diagnosticado: 0, suspeito: 0, temAlarme: false };
+      if (f.tipo === "diagnosticado") cur.diagnosticado += 1;
+      else if (f.tipo === "suspeito") cur.suspeito += 1;
+      if ((f.severidade ?? "").toLowerCase() === "alta") cur.temAlarme = true;
+      bySession.set(f.sessionId, cur);
+    }
+
+    res.json(
+      rows.map((r) => {
+        const c = bySession.get(r.id) ?? { diagnosticado: 0, suspeito: 0, temAlarme: false };
+        return {
+          id: r.id,
+          clientId: r.clientId,
+          clientName: r.clientName ?? null,
+          mode: r.mode,
+          status: r.status,
+          startedAt: r.startedAt.toISOString(),
+          completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+          diagnosticado: c.diagnosticado,
+          suspeito: c.suspeito,
+          temAlarme: c.temAlarme,
+        };
+      }),
+    );
+  },
+);
+
+// GET /collaborator/anamnese/sessions/:id — detalhe completo por id da sessao
+router.get(
+  "/collaborator/anamnese/sessions/:id",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "id invalido" });
+      return;
+    }
+    const [session] = await db
+      .select({
+        id: anamneseSessionsTable.id,
+        clientId: anamneseSessionsTable.clientId,
+        clientName: clientsTable.name,
+        mode: anamneseSessionsTable.mode,
+        status: anamneseSessionsTable.status,
+        startedAt: anamneseSessionsTable.startedAt,
+        completedAt: anamneseSessionsTable.completedAt,
+      })
+      .from(anamneseSessionsTable)
+      .leftJoin(clientsTable, eq(clientsTable.id, anamneseSessionsTable.clientId))
+      .where(eq(anamneseSessionsTable.id, id))
+      .limit(1);
+    if (!session) {
+      res.status(404).json({ error: "Sessao nao encontrada" });
+      return;
+    }
+
+    const [findings, refusals, notes] = await Promise.all([
+      db
+        .select()
+        .from(anamneseFindingsTable)
+        .where(eq(anamneseFindingsTable.sessionId, id))
+        .orderBy(desc(anamneseFindingsTable.tipo)),
+      db
+        .select()
+        .from(anamneseRefusalsTable)
+        .where(eq(anamneseRefusalsTable.sessionId, id)),
+      db
+        .select()
+        .from(anamneseGroupNotesTable)
+        .where(eq(anamneseGroupNotesTable.sessionId, id)),
+    ]);
+
+    res.json({
+      id: session.id,
+      clientId: session.clientId,
+      clientName: session.clientName ?? null,
+      mode: session.mode,
+      status: session.status,
+      startedAt: session.startedAt.toISOString(),
+      completedAt: session.completedAt ? session.completedAt.toISOString() : null,
+      findings: findings.map((f) => ({
+        id: f.id,
+        tipo: f.tipo,
+        rotulo: f.rotulo,
+        severidade: f.severidade ?? null,
+        origemPerguntaId: f.origemPerguntaId,
+      })),
+      refusals: refusals.map((r) => ({
+        id: r.id,
+        escopo: r.escopo,
+        alvo: r.alvo,
+        motivo: r.motivo ?? null,
+      })),
+      notes: notes.map((n) => ({
+        id: n.id,
+        grupo: n.grupo,
+        observacao: n.observacao,
+      })),
+    });
+  },
+);
 
 export default router;
