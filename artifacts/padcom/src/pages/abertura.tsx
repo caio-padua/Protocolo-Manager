@@ -1,126 +1,308 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { ChevronRight, UserRound, ClipboardList, ShieldCheck, LayoutDashboard } from "lucide-react";
+import {
+  Menu, X, ChevronRight, ArrowRight,
+  Activity, HeartPulse, Moon, ShieldPlus, Dna, Sparkles,
+  UserRound, ClipboardList, CalendarCheck, Upload,
+  Phone, Mail, MapPin,
+} from "lucide-react";
 import paxterSymbol from "@/assets/paxter-symbol.png";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+// Site de abertura (porta de entrada publica). Modelo de layout inspirado na
+// estrutura de uma clinica (heroi/proposito -> condicoes -> jornada 3 fases),
+// porem com as cores da marca (navy + dourado Paxter + verde-petroleo/ciano) e
+// MENU LATERAL ESQUERDO. A logo e o simbolo recortado (transparente) inserido
+// SOBRE o fundo navy do menu — nunca um quadrado colado por cima.
 
-// Site de abertura (porta de entrada da plataforma). Marca Paxter — monograma
-// dourado no canto superior esquerdo, fundo navy 3D, dourado de destaque.
-type Entrada = {
-  href: string;
-  titulo: string;
-  descricao: string;
-  Icone: typeof UserRound;
-  externo?: boolean;
-};
+const SECOES = [
+  { id: "inicio", label: "Início" },
+  { id: "tratamentos", label: "Tratamentos" },
+  { id: "como-funciona", label: "Como Funciona" },
+  { id: "clinica", label: "A Clínica" },
+  { id: "contato", label: "Contato" },
+];
 
-const ENTRADAS: Entrada[] = [
-  {
-    href: `${BASE}/area`,
-    titulo: "Área do Paciente",
-    descricao: "Acompanhe seu protocolo, agenda e exames.",
-    Icone: UserRound,
-  },
-  {
-    href: `${BASE}/anamnese/v2`,
-    titulo: "Ficha de Saúde",
-    descricao: "Preencha sua anamnese antes da consulta.",
-    Icone: ClipboardList,
-  },
-  {
-    href: `${BASE}/cadastros/clinicas`,
-    titulo: "Portão da Equipe",
-    descricao: "Acesso restrito aos colaboradores.",
-    Icone: ShieldCheck,
-  },
-  {
-    href: "/",
-    titulo: "Painel Clínico",
-    descricao: "Dashboard de gestão da clínica.",
-    Icone: LayoutDashboard,
-    externo: true,
-  },
+const ACESSOS = [
+  { href: "/area", label: "Área do Cliente", Icone: UserRound, destaque: true },
+  { href: "/anamnese/v2", label: "Ficha de Saúde", Icone: ClipboardList },
+  { href: "/agendar", label: "Agendar Consulta", Icone: CalendarCheck },
+  { href: "/portal", label: "Enviar Exames", Icone: Upload },
+];
+
+const TRATAMENTOS = [
+  { Icone: Dna, titulo: "Longevidade & Performance", texto: "Protocolos para energia, vitalidade e desempenho físico e mental." },
+  { Icone: HeartPulse, titulo: "Reposição Hormonal", texto: "Equilíbrio hormonal individualizado com acompanhamento clínico." },
+  { Icone: ShieldPlus, titulo: "Imunidade", texto: "Suporte imunológico com nutrientes e protocolos endovenosos." },
+  { Icone: Moon, titulo: "Sono & Bem-estar", texto: "Melhora do sono, do humor e da qualidade de vida." },
+  { Icone: Activity, titulo: "Metabolismo", texto: "Manejo de peso, composição corporal e saúde metabólica." },
+  { Icone: Sparkles, titulo: "Estética Injetável", texto: "Procedimentos injetáveis com segurança e registro completo." },
+];
+
+const FASES = [
+  { n: "Fase I", titulo: "Cadastro & Anamnese", texto: "Você preenche sua ficha de saúde online antes da consulta." },
+  { n: "Fase II", titulo: "Avaliação & Protocolo", texto: "Avaliação clínica, exames e montagem do protocolo individualizado." },
+  { n: "Fase III", titulo: "Aplicação & Acompanhamento", texto: "Aplicações agendadas, registro assinado e acompanhamento contínuo." },
 ];
 
 export default function Abertura() {
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0d1830] text-white">
-      {/* Brilho ambiente dourado/navy */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(1200px 600px at 18% 12%, rgba(194,160,90,0.18), transparent 60%), radial-gradient(900px 500px at 85% 100%, rgba(34,72,128,0.45), transparent 60%)",
-        }}
-      />
+  const [menuAberto, setMenuAberto] = useState(false);
 
-      {/* Logo no canto superior esquerdo */}
-      <header className="relative z-10 flex items-center gap-3 px-6 py-5 sm:px-10">
-        <img
-          src={paxterSymbol}
-          alt="Paxter"
-          className="h-12 w-12 object-contain drop-shadow-[0_4px_14px_rgba(194,160,90,0.45)] sm:h-14 sm:w-14"
-        />
-        <div className="leading-tight">
-          <div className="font-serif text-xl tracking-[0.18em] text-[#e8cf95] sm:text-2xl">
-            PAXTER
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-white/55">
-            Clinical Intelligence System
-          </div>
+  function irPara(id: string) {
+    setMenuAberto(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0d1830] text-white lg:flex">
+      {/* Barra superior (somente mobile) */}
+      <header className="flex items-center justify-between border-b border-white/10 bg-[#0b1426] px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-2">
+          <img src={paxterSymbol} alt="Paxter" className="h-9 w-9 object-contain" />
+          <span className="font-serif text-lg tracking-[0.16em] text-[#e8cf95]">PAXTER</span>
         </div>
+        <button
+          type="button"
+          aria-label="Abrir menu"
+          onClick={() => setMenuAberto((v) => !v)}
+          className="rounded-md border border-white/15 p-2 text-white/80"
+        >
+          {menuAberto ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </header>
 
-      {/* Hero */}
-      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-6 pb-16 pt-10 text-center sm:pt-16">
-        <span className="mb-5 inline-block rounded-full border border-[#c2a05a]/40 bg-[#c2a05a]/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e8cf95]">
-          Padcon Conect — Motor Clínico
-        </span>
-
-        <h1 className="max-w-3xl font-serif text-4xl leading-tight text-white sm:text-6xl">
-          Precisão em{" "}
-          <span className="bg-gradient-to-b from-[#f1dca6] to-[#b8924d] bg-clip-text text-transparent">
-            cuidado integrativo
-          </span>
-        </h1>
-
-        <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/65 sm:text-base">
-          Prescrições, exames e protocolos injetáveis guiados por inteligência
-          clínica. Escolha por onde deseja entrar.
-        </p>
-
-        {/* Cartões de entrada */}
-        <div className="mt-12 grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-          {ENTRADAS.map(({ href, titulo, descricao, Icone, externo }) => {
-            const conteudo = (
-              <div className="group flex h-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left transition-all hover:-translate-y-0.5 hover:border-[#c2a05a]/50 hover:bg-white/[0.07]">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-[#c2a05a]/30 bg-[#c2a05a]/10 text-[#e8cf95]">
-                  <Icone className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-base font-semibold text-white">{titulo}</div>
-                  <div className="text-xs text-white/55">{descricao}</div>
-                </div>
-                <ChevronRight className="h-5 w-5 flex-shrink-0 text-white/30 transition-colors group-hover:text-[#e8cf95]" />
+      {/* ---------------------------------------------------------------- */}
+      {/* MENU LATERAL ESQUERDO — logo integrada sobre o fundo navy        */}
+      {/* ---------------------------------------------------------------- */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-[#c2a05a]/15
+          transition-transform duration-300 lg:static lg:translate-x-0
+          ${menuAberto ? "translate-x-0" : "-translate-x-full"}
+        `}
+        style={{
+          background:
+            "linear-gradient(180deg, #0b1426 0%, #0d1830 55%, #11203c 100%)",
+        }}
+      >
+        {/* Brilho dourado atras da logo */}
+        <div className="relative border-b border-white/10 px-6 py-7">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(220px 140px at 30% 30%, rgba(194,160,90,0.20), transparent 70%)",
+            }}
+          />
+          <div className="relative flex items-center gap-3">
+            <img
+              src={paxterSymbol}
+              alt="Paxter"
+              className="h-14 w-14 object-contain drop-shadow-[0_4px_16px_rgba(194,160,90,0.45)]"
+            />
+            <div className="leading-tight">
+              <div className="font-serif text-2xl tracking-[0.16em] text-[#e8cf95]">PAXTER</div>
+              <div className="text-[9px] uppercase tracking-[0.22em] text-white/55">
+                Clinical Intelligence
               </div>
-            );
-            return externo ? (
-              <a key={titulo} href={href}>
-                {conteudo}
-              </a>
-            ) : (
-              <Link key={titulo} href={href}>
-                {conteudo}
-              </Link>
-            );
-          })}
+            </div>
+          </div>
         </div>
-      </main>
 
-      {/* Rodapé */}
-      <footer className="relative z-10 px-6 pb-8 text-center text-[11px] uppercase tracking-[0.2em] text-white/35">
-        Clínica Padua · Padcon Conect · Powered by Paxter
-      </footer>
+        {/* Navegacao de secoes */}
+        <nav className="flex-1 overflow-y-auto px-4 py-5">
+          <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
+            Navegação
+          </div>
+          {SECOES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => irPara(s.id)}
+              className="group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              {s.label}
+              <ChevronRight className="h-4 w-4 text-white/20 transition-colors group-hover:text-[#e8cf95]" />
+            </button>
+          ))}
+
+          <div className="mt-6 px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
+            Acesso
+          </div>
+          {ACESSOS.map(({ href, label, Icone, destaque }) => (
+            <Link
+              key={label}
+              href={href}
+              onClick={() => setMenuAberto(false)}
+              className={`mb-1.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
+                destaque
+                  ? "border border-[#c2a05a]/45 bg-gradient-to-r from-[#c2a05a]/20 to-[#c2a05a]/5 font-semibold text-[#f1dca6] hover:from-[#c2a05a]/30"
+                  : "text-white/75 hover:bg-white/[0.06] hover:text-white"
+              }`}
+            >
+              <Icone className="h-4 w-4 flex-shrink-0" />
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/10 px-6 py-4 text-[10px] uppercase tracking-[0.18em] text-white/35">
+          Clínica Padua · Padcon Conect
+        </div>
+      </aside>
+
+      {/* Fundo escuro ao abrir o menu no mobile */}
+      {menuAberto && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMenuAberto(false)}
+        />
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* CONTEUDO PRINCIPAL                                               */}
+      {/* ---------------------------------------------------------------- */}
+      <main className="relative min-w-0 flex-1 overflow-x-hidden">
+        {/* HERO */}
+        <section id="inicio" className="relative overflow-hidden px-6 py-20 sm:px-12 lg:py-28">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(900px 460px at 80% -10%, rgba(194,160,90,0.16), transparent 60%), radial-gradient(700px 420px at 0% 110%, rgba(34,72,128,0.5), transparent 60%)",
+            }}
+          />
+          <div className="relative max-w-2xl">
+            <span className="mb-5 inline-block rounded-full border border-[#c2a05a]/40 bg-[#c2a05a]/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e8cf95]">
+              Padcon Conect — Motor Clínico
+            </span>
+            <h1 className="font-serif text-4xl leading-tight sm:text-6xl">
+              Precisão em{" "}
+              <span className="bg-gradient-to-b from-[#f1dca6] to-[#b8924d] bg-clip-text text-transparent">
+                cuidado integrativo
+              </span>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/65 sm:text-base">
+              Protocolos injetáveis, longevidade e performance guiados por inteligência
+              clínica — com avaliação individualizada, registro assinado e acompanhamento
+              contínuo da nossa equipe.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/area"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#d9bd7e] to-[#b8924d] px-6 py-3 text-sm font-semibold text-[#1a1206] shadow-lg transition-transform hover:-translate-y-0.5"
+              >
+                <UserRound className="h-4 w-4" /> Área do Cliente
+              </Link>
+              <Link
+                href="/agendar"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition-colors hover:border-[#c2a05a]/60 hover:text-[#f1dca6]"
+              >
+                Agendar Consulta <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* TRATAMENTOS */}
+        <section id="tratamentos" className="border-t border-white/10 bg-white/[0.02] px-6 py-16 sm:px-12">
+          <div className="mb-10 max-w-xl">
+            <h2 className="font-serif text-3xl text-white">O que tratamos</h2>
+            <p className="mt-3 text-sm text-white/60">
+              Áreas de atuação com protocolos personalizados para cada cliente.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {TRATAMENTOS.map(({ Icone, titulo, texto }) => (
+              <div
+                key={titulo}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition-all hover:-translate-y-0.5 hover:border-[#c2a05a]/40"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-[#c2a05a]/30 bg-[#c2a05a]/10 text-[#e8cf95]">
+                  <Icone className="h-5 w-5" />
+                </div>
+                <div className="text-base font-semibold text-white">{titulo}</div>
+                <p className="mt-2 text-sm leading-relaxed text-white/55">{texto}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* COMO FUNCIONA — jornada em 3 fases (blueprint com setas) */}
+        <section id="como-funciona" className="border-t border-white/10 px-6 py-16 sm:px-12">
+          <div className="mb-10 max-w-xl">
+            <h2 className="font-serif text-3xl text-white">Como funciona</h2>
+            <p className="mt-3 text-sm text-white/60">
+              Sua jornada do primeiro contato ao acompanhamento, em três fases.
+            </p>
+          </div>
+          <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-center">
+            {FASES.map((f, i) => (
+              <div key={f.n} className="flex flex-1 items-center gap-4 lg:flex-col lg:items-stretch">
+                <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+                  <div className="mb-2 inline-block rounded-md border border-[#c2a05a]/40 bg-[#c2a05a]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#e8cf95]">
+                    {f.n}
+                  </div>
+                  <div className="text-base font-semibold text-white">{f.titulo}</div>
+                  <p className="mt-2 text-sm leading-relaxed text-white/55">{f.texto}</p>
+                </div>
+                {i < FASES.length - 1 && (
+                  <ArrowRight className="h-6 w-6 flex-shrink-0 rotate-90 text-[#c2a05a]/60 lg:rotate-0" />
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* A CLINICA */}
+        <section id="clinica" className="border-t border-white/10 bg-white/[0.02] px-6 py-16 sm:px-12">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <div>
+              <h2 className="font-serif text-3xl text-white">A Clínica</h2>
+              <p className="mt-4 text-sm leading-relaxed text-white/65">
+                Mais do que uma clínica, somos um time dedicado a unir ciência, tecnologia
+                e cuidado humano. Cada protocolo é montado de forma individualizada, com
+                rastreabilidade completa — da avaliação à última aplicação.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-white/65">
+                Equipe multidisciplinar, registros assinados digitalmente e acompanhamento
+                próximo em cada etapa do seu tratamento.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { k: "Protocolos", v: "Individualizados" },
+                { k: "Registro", v: "Assinado digital" },
+                { k: "Equipe", v: "Multidisciplinar" },
+                { k: "Acompanhamento", v: "Contínuo" },
+              ].map(({ k, v }) => (
+                <div key={k} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">{k}</div>
+                  <div className="mt-1 text-lg font-semibold text-[#f1dca6]">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CONTATO / RODAPE */}
+        <section id="contato" className="border-t border-white/10 px-6 py-14 sm:px-12">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div className="flex items-center gap-3 text-sm text-white/70">
+              <Phone className="h-5 w-5 text-[#e8cf95]" /> Atendimento por WhatsApp
+            </div>
+            <div className="flex items-center gap-3 text-sm text-white/70">
+              <Mail className="h-5 w-5 text-[#e8cf95]" /> contato@clinicapadua.com.br
+            </div>
+            <div className="flex items-center gap-3 text-sm text-white/70">
+              <MapPin className="h-5 w-5 text-[#e8cf95]" /> Tatuapé · Mooca · Domiciliar
+            </div>
+          </div>
+        </section>
+
+        <footer className="border-t border-white/10 px-6 py-8 text-center text-[11px] uppercase tracking-[0.2em] text-white/35 sm:px-12">
+          Clínica Padua · Padcon Conect · Powered by Paxter
+        </footer>
+      </main>
     </div>
   );
 }
