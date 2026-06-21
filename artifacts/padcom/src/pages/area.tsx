@@ -191,6 +191,24 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     finally { setLoading(false); }
   }, [cpf, birthDate, onSuccess]);
 
+  // MODO TESTE (apenas ambiente de desenvolvimento): entra com 1 clique como um
+  // cliente real de teste, sem digitar CPF nem data. Some no app publicado.
+  const modoTeste = import.meta.env.DEV;
+  const quickEnter = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/client-portal/identify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf: "12345678901", birthDate: "15051982" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Cliente de teste indisponível"); return; }
+      onSuccess(data);
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setLoading(false); }
+  }, [onSuccess]);
+
   return (
     <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
       {/* Header login */}
@@ -255,6 +273,19 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
               </button>
+
+              {modoTeste && (
+                <div className="border-t border-dashed border-amber-400/60 pt-3">
+                  <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700 mb-2">Modo Teste</span>
+                  <button
+                    onClick={quickEnter}
+                    disabled={loading}
+                    className="w-full h-11 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border border-amber-500 text-amber-700 rounded-lg hover:bg-amber-50 disabled:opacity-40"
+                  >
+                    ENTRAR SEM CÓDIGO (1 clique)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
