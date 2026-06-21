@@ -176,6 +176,9 @@ export const anamneseQuestionarioTable = pgTable("anamnese_questionario", {
   pesoGravidade: integer("peso_gravidade"),
   eSinalAlarme: boolean("e_sinal_alarme").default(false),
   opcoes: jsonb("opcoes"),
+  // --- Humanizacao (colunas novas, aditivas) ---
+  videoUrl: text("video_url"),
+  dependeDe: jsonb("depende_de"),
   ordem: integer("ordem"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -32,6 +32,16 @@ export interface AnamneseQuestion {
   ordem?: number | null;
   /** @nullable */
   pesoGravidade?: number | null;
+  /** @nullable */
+  exemplo?: string | null;
+  /** @nullable */
+  observacao?: string | null;
+  /** @nullable */
+  escalaValidada?: string | null;
+  aplicavelEm?: unknown;
+  /** @nullable */
+  videoUrl?: string | null;
+  dependeDe?: unknown;
 }
 
 export interface AnamneseSessionInput {

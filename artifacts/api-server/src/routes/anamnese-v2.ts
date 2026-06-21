@@ -106,6 +106,12 @@ router.get("/anamnese-v2/questions", async (req, res) => {
       obrigatorio: anamneseQuestionarioTable.obrigatorio,
       ordem: anamneseQuestionarioTable.ordem,
       pesoGravidade: anamneseQuestionarioTable.pesoGravidade,
+      exemplo: anamneseQuestionarioTable.exemplo,
+      observacao: anamneseQuestionarioTable.observacao,
+      escalaValidada: anamneseQuestionarioTable.escalaValidada,
+      aplicavelEm: anamneseQuestionarioTable.aplicavelEm,
+      videoUrl: anamneseQuestionarioTable.videoUrl,
+      dependeDe: anamneseQuestionarioTable.dependeDe,
     })
     .from(anamneseQuestionarioTable)
     .orderBy(asc(anamneseQuestionarioTable.bloco), asc(anamneseQuestionarioTable.ordem), asc(anamneseQuestionarioTable.id));

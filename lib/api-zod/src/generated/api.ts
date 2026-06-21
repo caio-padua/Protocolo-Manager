@@ -3065,6 +3065,12 @@ export const ListAnamneseQuestionsResponseItem = zod.object({
   obrigatorio: zod.string().nullish(),
   ordem: zod.number().nullish(),
   pesoGravidade: zod.number().nullish(),
+  exemplo: zod.string().nullish(),
+  observacao: zod.string().nullish(),
+  escalaValidada: zod.string().nullish(),
+  aplicavelEm: zod.unknown().optional(),
+  videoUrl: zod.string().nullish(),
+  dependeDe: zod.unknown().optional(),
 });
 export const ListAnamneseQuestionsResponse = zod.array(
   ListAnamneseQuestionsResponseItem,

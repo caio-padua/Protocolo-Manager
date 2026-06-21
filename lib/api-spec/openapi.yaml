@@ -2130,6 +2130,12 @@ components:
         obrigatorio: { type: ["string", "null"] }
         ordem: { type: ["integer", "null"] }
         pesoGravidade: { type: ["integer", "null"] }
+        exemplo: { type: ["string", "null"] }
+        observacao: { type: ["string", "null"] }
+        escalaValidada: { type: ["string", "null"] }
+        aplicavelEm: {}
+        videoUrl: { type: ["string", "null"] }
+        dependeDe: {}
     AnamneseSessionInput:
       type: object
       properties:

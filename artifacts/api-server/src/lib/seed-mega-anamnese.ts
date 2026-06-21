@@ -38,6 +38,10 @@ export const BLOCOS = {
 } as const;
 
 type Opcao = { label: string; valor: string | number; peso: number };
+// Condicao de exibicao por dependencia: a pergunta so aparece se a resposta da
+// pergunta-ancora (`perguntaId`) contiver/igualar algum valor de `inclui`.
+type DependeDe = { perguntaId: string; inclui: (string | number | boolean)[] };
+type AplicavelEm = { sexo?: "M" | "F" };
 interface Pergunta {
   idIhe: number;
   bloco: string;
@@ -51,6 +55,11 @@ interface Pergunta {
   opcoes?: Opcao[];
   ordem: number;
   obrigatorio?: string;
+  exemplo?: string;
+  observacao?: string;
+  aplicavelEm?: AplicavelEm;
+  videoUrl?: string;
+  dependeDe?: DependeDe;
 }
 
 // Opcoes padrao reutilizaveis
@@ -179,7 +188,21 @@ add({ idIhe: 1302, bloco: BLOCOS.D, perguntaId: "D04", pergunta: "TEM HIPERTENSA
 add({ idIhe: 1303, bloco: BLOCOS.D, perguntaId: "D05", pergunta: "ANO DO DIAGNOSTICO PRINCIPAL E NIVEL DE CONTROLE", tipoResposta: "TEXTO" });
 
 // ---- BLOCO E — CIRURGIAS E INTERNACOES ----
-add({ idIhe: 8, bloco: BLOCOS.E, perguntaId: "Q015", pergunta: "CIRURGIAS PREVIAS (QUAL E QUANDO)", tipoResposta: "TEXTO LONGO" });
+add({ idIhe: 8, bloco: BLOCOS.E, perguntaId: "Q015", pergunta: "VOCE JA FEZ ALGUMA CIRURGIA? MARQUE AS QUE SE APLICAM", tipoResposta: "MULTISELECAO", observacao: "Toque em todas as cirurgias que voce ja fez.\nSe nunca operou, toque em \"Nunca operei\".\nSe fez uma que nao esta na lista, toque em \"Outra\" e descreva no campo seguinte.", opcoes: [
+  { label: "Nunca operei", valor: "nenhuma", peso: 0 },
+  { label: "Cesarea (parto por corte)", valor: "cesarea", peso: 0 },
+  { label: "Vesicula (retirada da vesicula)", valor: "vesicula", peso: 0 },
+  { label: "Apendice (retirada do apendice)", valor: "apendice", peso: 0 },
+  { label: "Hernia (correcao de hernia)", valor: "hernia", peso: 0 },
+  { label: "Utero (retirada do utero)", valor: "utero", peso: 0 },
+  { label: "Amigdalas (retirada das amigdalas)", valor: "amigdalas", peso: 0 },
+  { label: "Joelho (cirurgia do joelho)", valor: "joelho", peso: 0 },
+  { label: "Coluna (cirurgia de coluna)", valor: "coluna", peso: 0 },
+  { label: "Catarata (cirurgia do olho)", valor: "catarata", peso: 0 },
+  { label: "Coracao (cirurgia cardiaca)", valor: "coracao", peso: 0 },
+  { label: "Outra", valor: "outra", peso: 0 },
+] });
+add({ idIhe: 1401, bloco: BLOCOS.E, perguntaId: "Q015B", pergunta: "QUAL OUTRA CIRURGIA, E EM QUE ANO?", tipoResposta: "TEXTO LONGO", dependeDe: { perguntaId: "Q015", inclui: ["Outra"] }, exemplo: "Exemplo: cirurgia no ombro direito em 2021" });
 add({ idIhe: 9, bloco: BLOCOS.E, perguntaId: "Q016", pergunta: "INTERNACOES PREVIAS", tipoResposta: "TEXTO LONGO" });
 add({ idIhe: 1400, bloco: BLOCOS.E, perguntaId: "E03", pergunta: "JA TEVE COMPLICACAO COM ANESTESIA?", tipoResposta: "SIM NAO", pesoGravidade: 2, opcoes: SIM_NAO });
 
@@ -197,7 +220,7 @@ add({ idIhe: 1700, bloco: BLOCOS.H, perguntaId: "H01", pergunta: "VACINAS EM DIA
 
 // ---- BLOCO I — HABITOS E ESTILO DE VIDA (+ escalas AUDIT-C, CAGE, Epworth, Bristol) ----
 add({ idIhe: 1800, bloco: BLOCOS.I, perguntaId: "I-TAB01", pergunta: "TABAGISMO: STATUS", tipoResposta: "LISTA", sistema: "Tabagismo", pesoGravidade: 2, opcoes: [{ label: "Nunca fumou", valor: "nunca", peso: 0 }, { label: "Ex-fumante", valor: "ex", peso: 1 }, { label: "Fumante atual", valor: "atual", peso: 3 }] });
-add({ idIhe: 1801, bloco: BLOCOS.I, perguntaId: "I-TAB02", pergunta: "TABAGISMO: MACOS-ANO (CIGARROS/DIA / 20 x ANOS)", tipoResposta: "NUMERO", sistema: "Tabagismo", pesoGravidade: 2 });
+add({ idIhe: 1801, bloco: BLOCOS.I, perguntaId: "I-TAB02", pergunta: "TABAGISMO: QUANTO VOCE FUMA (OU FUMAVA)?", tipoResposta: "NUMERO", sistema: "Tabagismo", escalaValidada: "MACOS_ANO", pesoGravidade: 2, dependeDe: { perguntaId: "I-TAB01", inclui: ["ex", "atual"] }, observacao: "Informe quantos cigarros por dia e por quantos anos.\nO sistema faz sozinho a conta dos \"macos-ano\" (cigarros por dia, dividido por 20, vezes os anos)." });
 // AUDIT-C
 add({ idIhe: 1810, bloco: BLOCOS.I, perguntaId: "AUDITC1", pergunta: "AUDIT-C 1: COM QUE FREQUENCIA BEBE ALCOOL?", tipoResposta: "ESCALA", sistema: "Etilismo", escalaValidada: "AUDITC", pesoGravidade: 1, opcoes: [{ label: "Nunca", valor: 0, peso: 0 }, { label: "1x/mes ou menos", valor: 1, peso: 0 }, { label: "2-4x/mes", valor: 2, peso: 1 }, { label: "2-3x/semana", valor: 3, peso: 1 }, { label: "4+/semana", valor: 4, peso: 2 }] });
 add({ idIhe: 1811, bloco: BLOCOS.I, perguntaId: "AUDITC2", pergunta: "AUDIT-C 2: QUANTAS DOSES EM DIA TIPICO?", tipoResposta: "ESCALA", sistema: "Etilismo", escalaValidada: "AUDITC", opcoes: [{ label: "1-2", valor: 0, peso: 0 }, { label: "3-4", valor: 1, peso: 0 }, { label: "5-6", valor: 2, peso: 1 }, { label: "7-9", valor: 3, peso: 1 }, { label: "10+", valor: 4, peso: 2 }] });
@@ -207,6 +230,9 @@ add({ idIhe: 1820, bloco: BLOCOS.I, perguntaId: "CAGE1", pergunta: "CAGE 1: JA S
 add({ idIhe: 1821, bloco: BLOCOS.I, perguntaId: "CAGE2", pergunta: "CAGE 2: PESSOAS JA O INCOMODARAM CRITICANDO SUA BEBIDA?", tipoResposta: "SIM NAO", sistema: "Etilismo", escalaValidada: "CAGE", opcoes: SIM_NAO });
 add({ idIhe: 1822, bloco: BLOCOS.I, perguntaId: "CAGE3", pergunta: "CAGE 3: JA SE SENTIU CULPADO POR BEBER?", tipoResposta: "SIM NAO", sistema: "Etilismo", escalaValidada: "CAGE", opcoes: SIM_NAO });
 add({ idIhe: 1823, bloco: BLOCOS.I, perguntaId: "CAGE4", pergunta: "CAGE 4: JA BEBEU LOGO AO ACORDAR PARA SE ACALMAR?", tipoResposta: "SIM NAO", sistema: "Etilismo", escalaValidada: "CAGE", pesoGravidade: 1, opcoes: SIM_NAO });
+// Desdobramento condicional do CAGE 2 (so aparece se a resposta foi "sim")
+add({ idIhe: 1824, bloco: BLOCOS.I, perguntaId: "CAGE2-QUEM", pergunta: "QUEM JA COMENTOU OU CRITICOU SUA BEBIDA?", tipoResposta: "MULTISELECAO", sistema: "Etilismo", dependeDe: { perguntaId: "CAGE2", inclui: ["sim", true] }, opcoes: [{ label: "Parente", valor: "parente", peso: 0 }, { label: "Amigo", valor: "amigo", peso: 0 }, { label: "Colega de trabalho", valor: "colega", peso: 0 }, { label: "Medico", valor: "medico", peso: 0 }, { label: "Outro", valor: "outro", peso: 0 }] });
+add({ idIhe: 1825, bloco: BLOCOS.I, perguntaId: "CAGE2-PARENTE", pergunta: "QUAL PARENTE COMENTOU?", tipoResposta: "MULTISELECAO", sistema: "Etilismo", dependeDe: { perguntaId: "CAGE2-QUEM", inclui: ["Parente"] }, opcoes: [{ label: "Conjuge", valor: "conjuge", peso: 0 }, { label: "Filho ou filha", valor: "filho", peso: 0 }, { label: "Mae", valor: "mae", peso: 0 }, { label: "Pai", valor: "pai", peso: 0 }, { label: "Irmao ou irma", valor: "irmao", peso: 0 }, { label: "Outro", valor: "outro", peso: 0 }] });
 // Atividade / sedentarismo
 add({ idIhe: 1830, bloco: BLOCOS.I, perguntaId: "I-ATV01", pergunta: "PRATICA ATIVIDADE FISICA?", tipoResposta: "LISTA", sistema: "Atividade", pesoGravidade: 1, opcoes: [{ label: "Regular (3+/semana)", valor: "regular", peso: 0 }, { label: "As vezes", valor: "asvezes", peso: 1 }, { label: "Sedentario", valor: "sedentario", peso: 2 }] });
 // Sono / Epworth (resumido em itens-chave)
@@ -281,6 +307,46 @@ add({ idIhe: 16, bloco: BLOCOS.N, perguntaId: "Q041", pergunta: "CONFORTO FINANC
 add({ idIhe: 19, bloco: BLOCOS.N, perguntaId: "Q042", pergunta: "PERFIL FINANCEIRO", tipoResposta: "LISTA FECHADA" });
 // pergunta 5 (sintomas atuais) fica no bloco C como entrada generica
 add({ idIhe: 5, bloco: BLOCOS.C, perguntaId: "Q012", pergunta: "SINTOMAS ATUAIS (LISTA LIVRE)", tipoResposta: "MULTISELECAO", sistema: "Geral" });
+
+// --- Humanizacao: ajuda em linguagem leiga, exemplo, sexo aplicavel e video ---
+// Aplicado por perguntaId; nunca sobrescreve campo ja definido na propria add().
+const DOSE_HINT =
+  "Uma dose = 1 lata de cerveja (cerca de 350 ml), 1 taca de vinho (cerca de 150 ml) ou 1 dose de destilado (cerca de 40 ml).";
+const META: Record<
+  string,
+  { observacao?: string; exemplo?: string; videoUrl?: string; aplicavelEm?: AplicavelEm }
+> = {
+  // Sexo biologico — so aparece para o sexo correspondente
+  "L-GIN01": { aplicavelEm: { sexo: "F" }, observacao: "Pergunta sobre o ciclo menstrual." },
+  "L-GIN02": { aplicavelEm: { sexo: "F" }, observacao: "Quantas vezes voce engravidou (incluindo partos, cesareas e perdas)." },
+  IPSS1: { aplicavelEm: { sexo: "M" }, observacao: "Avalia se voce sente que a bexiga nao esvazia por completo ao urinar." },
+  "L-AND01": { aplicavelEm: { sexo: "M" } },
+  // Bebida (AUDIT-C / CAGE): explicar o que e uma "dose"
+  AUDITC1: { observacao: DOSE_HINT },
+  AUDITC2: { observacao: DOSE_HINT, exemplo: "Conte quantas doses costuma tomar num dia em que bebe." },
+  AUDITC3: { observacao: DOSE_HINT },
+  CAGE1: { observacao: "Estas 4 perguntas ajudam a entender sua relacao com a bebida. Responda com tranquilidade; e sigiloso." },
+  // Escalas validadas com video curto de apoio
+  BRISTOL: {
+    observacao: "A escala de Bristol descreve o formato das fezes do tipo 1 (muito duras) ao tipo 7 (liquidas).\nEscolha o que mais se parece com o seu habitual.",
+    videoUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+  },
+  EPW1: { observacao: "Escala de Epworth: o quanto voce cochilaria nessa situacao no dia a dia." },
+  // Sinais de alarme e campos sensiveis
+  F02: { observacao: "Anafilaxia e uma reacao alergica grave (inchaco, falta de ar, queda de pressao). Se ja teve, e muito importante avisar." },
+  Q017: { exemplo: "Exemplo: alergia a dipirona, a camarao, a poeira." },
+  G01: { exemplo: "Exemplo: Losartana 50 mg, 1 comprimido de manha." },
+  "I-SON01": { exemplo: "Exemplo: 7" },
+  Q012: { observacao: "Marque tudo o que voce vem sentindo. Pode escolher mais de um." },
+};
+for (const p of P) {
+  const m = META[p.perguntaId];
+  if (!m) continue;
+  if (m.observacao && p.observacao === undefined) p.observacao = m.observacao;
+  if (m.exemplo && p.exemplo === undefined) p.exemplo = m.exemplo;
+  if (m.videoUrl && p.videoUrl === undefined) p.videoUrl = m.videoUrl;
+  if (m.aplicavelEm && p.aplicavelEm === undefined) p.aplicavelEm = m.aplicavelEm;
+}
 
 // --- Amarracao pergunta -> sintoma (gatilho = valor que dispara) ---
 const AMARRA_SINTOMA: { perguntaId: string; sintomaCodigo: string; gatilho: string; peso: number }[] = [
@@ -375,6 +441,11 @@ export async function runSeedMegaAnamnese(log: Logger = noopLog) {
         pesoGravidade: q.pesoGravidade ?? 0,
         eSinalAlarme: q.eSinalAlarme ?? false,
         opcoes: q.opcoes ?? null,
+        exemplo: q.exemplo ?? null,
+        observacao: q.observacao ?? null,
+        aplicavelEm: q.aplicavelEm ?? null,
+        videoUrl: q.videoUrl ?? null,
+        dependeDe: q.dependeDe ?? null,
         ordem: q.ordem,
       })
       .onConflictDoUpdate({
@@ -389,6 +460,11 @@ export async function runSeedMegaAnamnese(log: Logger = noopLog) {
           pesoGravidade: q.pesoGravidade ?? 0,
           eSinalAlarme: q.eSinalAlarme ?? false,
           opcoes: q.opcoes ?? null,
+          exemplo: q.exemplo ?? null,
+          observacao: q.observacao ?? null,
+          aplicavelEm: q.aplicavelEm ?? null,
+          videoUrl: q.videoUrl ?? null,
+          dependeDe: q.dependeDe ?? null,
           ordem: q.ordem,
         },
       })
