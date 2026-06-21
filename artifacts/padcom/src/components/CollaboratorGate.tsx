@@ -148,6 +148,31 @@ function LoginScreen() {
   }, []);
 
   const isBootstrap = status?.needsBootstrap === true;
+  // MODO TESTE (apenas ambiente de desenvolvimento): atalho de 1 clique que
+  // entra com o acesso do dono (00000000000) sem precisar digitar nada. NUNCA
+  // aparece no app publicado (import.meta.env.DEV e falso em producao).
+  const modoTeste = import.meta.env.DEV && !isBootstrap;
+
+  async function quickEnter() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await postJson("/api/collaborator/login", {
+        username: "00000000000",
+        password: "4000",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error ?? "Falha ao entrar.");
+        setBusy(false);
+        return;
+      }
+      setCollabSession(data.token, data.professional);
+    } catch {
+      setError("Erro de conexão. Tente novamente.");
+      setBusy(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -246,6 +271,26 @@ function LoginScreen() {
             {busy ? "Entrando…" : isBootstrap ? "Criar acesso" : "Entrar"}
           </Button>
         </form>
+        {modoTeste ? (
+          <div className="mt-5 border-t border-dashed border-amber-400/60 pt-4">
+            <div className="mb-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-700">
+              Modo Teste
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-amber-500 text-amber-700 hover:bg-amber-50"
+              disabled={busy}
+              onClick={quickEnter}
+              data-testid="button-entrar-sem-senha"
+            >
+              {busy ? "Entrando…" : "ENTRAR SEM SENHA (1 clique)"}
+            </Button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Atalho só do ambiente de teste. Entra como o dono, sem digitar nada.
+            </p>
+          </div>
+        ) : null}
       </Card>
     </div>
   );
