@@ -1,11 +1,25 @@
 // Service worker do Padcon Conect (PWA instalavel).
 // Estrategia network-first: busca sempre a versao fresca; so cai no cache
 // quando offline. Nunca cacheia /api (dados sempre frescos).
-const CACHE = "padcon-conect-v1";
-const OFFLINE_FALLBACK = "/";
+const CACHE = "padcon-conect-v2";
+// A porta de entrada do app instalado e /entrada (start_url do manifest), entao
+// o fallback offline precisa ser /entrada — e nao / (que pode nunca ser cacheado).
+const OFFLINE_FALLBACK = "/entrada";
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+self.addEventListener("install", (event) => {
+  // Pre-cacheia a porta de entrada na instalacao para garantir abertura offline
+  // deterministica (best-effort: se falhar, o app ainda funciona online).
+  event.waitUntil(
+    (async () => {
+      try {
+        const c = await caches.open(CACHE);
+        await c.add(OFFLINE_FALLBACK);
+      } catch {
+        /* best-effort */
+      }
+      await self.skipWaiting();
+    })(),
+  );
 });
 
 self.addEventListener("activate", (event) => {
