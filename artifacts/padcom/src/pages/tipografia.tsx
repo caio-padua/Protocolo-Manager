@@ -61,7 +61,7 @@ function Amostra({ serif }: { serif: Serif }) {
             Painel de Controle
           </h2>
           <p style={{ fontFamily: BODY }} className="text-[11px] text-muted-foreground mt-0.5">
-            Visão geral operacional — Padcon Conect
+            Visão geral operacional — Paxter
           </p>
         </div>
 

@@ -220,7 +220,7 @@ function buildPreSessionHTML(data: PreSessionEmailData): string {
           
           <tr>
             <td style="background: linear-gradient(135deg, #1e40af, #3b82f6); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">CLINICA PADUA</h1>
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">INSTITUTO PADUA</h1>
               <p style="margin: 8px 0 0; color: #bfdbfe; font-size: 14px;">Protocolos Injetaveis</p>
             </td>
           </tr>
@@ -243,7 +243,7 @@ function buildPreSessionHTML(data: PreSessionEmailData): string {
               ${data.sessionId != null ? `
               <div style="background: #ecfeff; border: 2px solid #a5f3fc; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 24px;">
                 <p style="margin: 0 0 4px; color: #155e75; font-size: 15px; font-weight: 700;">Adicione a sua agenda</p>
-                <p style="margin: 0; color: #475569; font-size: 13px;">O convite <strong>agenda-padcom.ics</strong> esta anexado a este e-mail. Toque nele para salvar a sessao no calendario do seu celular.</p>
+                <p style="margin: 0; color: #475569; font-size: 13px;">O convite <strong>agenda-paxter.ics</strong> esta anexado a este e-mail. Toque nele para salvar a sessao no calendario do seu celular.</p>
               </div>
               ` : ""}
 
@@ -307,8 +307,8 @@ function buildPreSessionHTML(data: PreSessionEmailData): string {
           <tr>
             <td style="background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                Clinica Padua -- Protocolos Injetaveis<br>
-                Este e-mail foi enviado automaticamente pelo sistema PADCOM.
+                Instituto Padua -- Protocolos Injetaveis<br>
+                Desenvolvido pela Padcon | Paxter -- enviado automaticamente.
               </p>
             </td>
           </tr>
@@ -349,7 +349,7 @@ function buildPostSessionHTML(data: PostSessionEmailData): string {
           
           <tr>
             <td style="background: linear-gradient(135deg, #059669, #10b981); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">CLINICA PADUA</h1>
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">INSTITUTO PADUA</h1>
               <p style="margin: 8px 0 0; color: #a7f3d0; font-size: 14px;">Sessao Concluida</p>
             </td>
           </tr>
@@ -389,8 +389,8 @@ function buildPostSessionHTML(data: PostSessionEmailData): string {
           <tr>
             <td style="background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                Clinica Padua -- Protocolos Injetaveis<br>
-                Este e-mail foi enviado automaticamente pelo sistema PADCOM.
+                Instituto Padua -- Protocolos Injetaveis<br>
+                Desenvolvido pela Padcon | Paxter -- enviado automaticamente.
               </p>
             </td>
           </tr>
@@ -405,7 +405,7 @@ function buildPostSessionHTML(data: PostSessionEmailData): string {
 
 export async function sendPreSessionEmail(data: PreSessionEmailData): Promise<{ success: boolean; error?: string }> {
   const procType = data.substances[0]?.procedureType ?? "iv";
-  const subject = `Clinica Padua | ${procedureTypeLabel(procType)} | ${data.validationCode}`;
+  const subject = `Instituto Padua | ${procedureTypeLabel(procType)} | ${data.validationCode}`;
 
   // SUB-04: anexa o convite .ics (PUBLISH, UID estável, SEQUENCE, fuso BRT) para
   // o cliente ADICIONAR à própria agenda. Só anexa quando há sessionId.
@@ -426,7 +426,7 @@ export async function sendPreSessionEmail(data: PreSessionEmailData): Promise<{ 
       },
     ]);
     attachments.push({
-      filename: "agenda-padcom.ics",
+      filename: "agenda-paxter.ics",
       content: Buffer.from(ics, "utf-8"),
       contentType: "text/calendar; charset=utf-8; method=PUBLISH",
     });
@@ -453,8 +453,8 @@ export async function sendProtocolOnboardingEmail(data: OnboardingEmailData): Pr
   if (data.events.length === 0) {
     return { success: false, error: "no sessions to onboard" };
   }
-  const ics = buildVCalendar(data.events, { calName: `PADCOM — ${data.clientName}` });
-  const subject = `Clinica Padua | Bem-vindo ao seu protocolo | Agenda anexada`;
+  const ics = buildVCalendar(data.events, { calName: `Instituto Pádua — ${data.clientName}` });
+  const subject = `Instituto Padua | Bem-vindo ao seu protocolo | Agenda anexada`;
   const html = buildOnboardingHTML(data);
   return sendGmailMessage({
     to: data.clientEmail,
@@ -462,7 +462,7 @@ export async function sendProtocolOnboardingEmail(data: OnboardingEmailData): Pr
     html,
     attachments: [
       {
-        filename: "agenda-completa-padcom.ics",
+        filename: "agenda-completa-paxter.ics",
         content: Buffer.from(ics, "utf-8"),
         contentType: "text/calendar; charset=utf-8; method=PUBLISH",
       },
@@ -475,7 +475,7 @@ function buildOnboardingHTML(data: OnboardingEmailData): string {
     <tr>
       <td style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; color: #1e293b;"><strong>Semana ${ev.weekNumber}</strong></td>
       <td style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; color: #475569;">${formatDateBR(ev.scheduledDate)} as ${ev.scheduledTime}</td>
-      <td style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; color: #64748b;">${ev.unit ?? "Clinica Padua"}</td>
+      <td style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; color: #64748b;">${ev.unit ?? "Instituto Pádua"}</td>
     </tr>
   `).join("");
 
@@ -490,7 +490,7 @@ function buildOnboardingHTML(data: OnboardingEmailData): string {
         <table width="640" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
           <tr>
             <td style="background: linear-gradient(135deg, #1e40af, #3b82f6); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">CLINICA PADUA</h1>
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">INSTITUTO PADUA</h1>
               <p style="margin: 8px 0 0; color: #bfdbfe; font-size: 14px;">Protocolos Injetaveis</p>
             </td>
           </tr>
@@ -502,7 +502,7 @@ function buildOnboardingHTML(data: OnboardingEmailData): string {
               </p>
               <div style="background: #ecfeff; border: 2px solid #a5f3fc; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 24px;">
                 <p style="margin: 0 0 4px; color: #155e75; font-size: 15px; font-weight: 700;">Adicione a sua agenda</p>
-                <p style="margin: 0; color: #475569; font-size: 13px;">O convite <strong>agenda-completa-padcom.ics</strong> esta anexado: toque nele para salvar TODAS as sessoes no calendario do seu celular de uma vez.</p>
+                <p style="margin: 0; color: #475569; font-size: 13px;">O convite <strong>agenda-completa-paxter.ics</strong> esta anexado: toque nele para salvar TODAS as sessoes no calendario do seu celular de uma vez.</p>
               </div>
               <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                 <thead>
@@ -525,7 +525,7 @@ function buildOnboardingHTML(data: OnboardingEmailData): string {
 }
 
 export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<{ success: boolean; error?: string }> {
-  const subject = `Clinica Padua | Sessao Concluida | ${formatDateBR(data.scheduledDate)}`;
+  const subject = `Instituto Padua | Sessao Concluida | ${formatDateBR(data.scheduledDate)}`;
 
   const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
   if (data.rasPdfBuffer && data.rasId) {
@@ -626,7 +626,7 @@ function buildProtocolEmailHTML(data: ProtocolEmailData): string {
             <td style="background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0; color: #94a3b8; font-size: 12px;">
                 Instituto Padua -- Protocolos Injetaveis<br>
-                Este e-mail foi enviado automaticamente pelo sistema PADCOM.
+                Desenvolvido pela Padcon | Paxter -- enviado automaticamente.
               </p>
             </td>
           </tr>

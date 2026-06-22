@@ -38,13 +38,13 @@ function buildGoogleCalendarLink(session: {
   const startDt = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
   const endH = String(h + 1).padStart(2, "0");
   const endDt = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-  const title = encodeURIComponent(`PADCOM: ${session.clientName} — Semana ${session.weekNumber}`);
+  const title = encodeURIComponent(`Instituto Pádua: ${session.clientName} — Semana ${session.weekNumber}`);
   const dispNames = session.substanceApplications
     .filter(a => a.availability === "disp")
     .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions}`)
     .join(", ");
   const details = encodeURIComponent(`Substâncias: ${dispNames}`);
-  const location = encodeURIComponent(session.unit ?? "Clínica PADCOM");
+  const location = encodeURIComponent(session.unit ?? "Instituto Pádua");
   return `https://calendar.google.com/calendar/r/eventedit?text=${title}&dates=${startDt}/${endDt}&details=${details}&location=${location}`;
 }
 
@@ -60,7 +60,7 @@ function buildWhatsAppLink(session: {
   const phone = session.clientPhone.replace(/\D/g, "");
   const dateFormatted = format(new Date(session.scheduledDate + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR });
   const msg = encodeURIComponent(
-    `Olá ${session.clientName.split(" ")[0]}! 👋\n\nLembramos que você tem uma sessão agendada:\n\n📅 *${dateFormatted}* às *${session.scheduledTime}*\n📍 ${session.unit ?? "Clínica PADCOM"}\n\nProtocolo: ${session.protocolTitle ?? "Injetáveis"}\n\nQualquer dúvida, estamos à disposição. ✨`
+    `Olá ${session.clientName.split(" ")[0]}! 👋\n\nLembramos que você tem uma sessão agendada:\n\n📅 *${dateFormatted}* às *${session.scheduledTime}*\n📍 ${session.unit ?? "Instituto Pádua"}\n\nProtocolo: ${session.protocolTitle ?? "Injetáveis"}\n\nQualquer dúvida, estamos à disposição. ✨`
   );
   return `https://wa.me/55${phone}?text=${msg}`;
 }
@@ -129,14 +129,14 @@ export default function Agenda() {
   function downloadWeekICS() {
     const url = `/api/sessions/ics?dateFrom=${dateFrom}&dateTo=${dateTo}`;
     const a = document.createElement("a");
-    a.href = url; a.download = `padcom_${dateFrom}_a_${dateTo}.ics`; a.click();
+    a.href = url; a.download = `paxter_${dateFrom}_a_${dateTo}.ics`; a.click();
     toast({ title: "ICS da semana baixado!", description: "Importe no Google Agenda ou Apple Calendar." });
   }
 
   function downloadSessionICS(sessionId: number, clientName: string) {
     const url = `/api/sessions/${sessionId}/ics`;
     const a = document.createElement("a");
-    a.href = url; a.download = `padcom_sessao_${sessionId}.ics`; a.click();
+    a.href = url; a.download = `paxter_sessao_${sessionId}.ics`; a.click();
     toast({ title: "ICS baixado!", description: `Sessão de ${clientName}.` });
   }
 
@@ -571,7 +571,7 @@ export default function Agenda() {
                     if (!phone) { toast({ title: "Cliente sem telefone", variant: "destructive" }); return; }
                     const dateStr = codeModalSession?.scheduledDate ? format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy") : "";
                     const proc = getProcedureLabel(codeModalSession);
-                    const msg = encodeURIComponent(`Clínica Pádua | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.\n\nClínica Pádua — Protocolos Injetáveis`);
+                    const msg = encodeURIComponent(`Instituto Pádua | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.\n\nInstituto Pádua — Protocolos Injetáveis`);
                     window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
                   }}
                 >

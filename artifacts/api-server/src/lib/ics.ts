@@ -1,4 +1,4 @@
-// Motor ÚNICO de iCalendar (.ics) do PADCOM (SUB-04).
+// Motor ÚNICO de iCalendar (.ics) do Paxter (SUB-04).
 // Tanto os downloads (sessions.ts) quanto o anexo de e-mail e o feed assinado
 // usam ESTE arquivo — para não existirem dois motores de .ics (linha vermelha SUB-04).
 
@@ -95,7 +95,7 @@ export function buildVEvent(ev: IcsEventInput): string[] {
   const dtStart = `${dateStr}T${pad2(h)}${pad2(m)}00`;
   const dtEnd = `${dateStr}T${pad2(Math.floor(endMinutes / 60) % 24)}${pad2(endMinutes % 60)}00`;
 
-  const summary = `PADCOM: ${ev.clientName} — Semana ${ev.weekNumber}`;
+  const summary = `Instituto Pádua: ${ev.clientName} — Semana ${ev.weekNumber}`;
   const description = (ev.descriptionLines ?? []).filter(Boolean).join("\\n");
 
   const lines: string[] = [
@@ -123,10 +123,10 @@ export function buildVCalendar(
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//PADCOM Protocolos Injetáveis//BR",
+    "PRODID:-//Paxter Protocolos Injetáveis//BR",
     "CALSCALE:GREGORIAN",
     `METHOD:${opts?.method ?? "PUBLISH"}`,
-    `X-WR-CALNAME:${opts?.calName ?? "PADCOM Agenda"}`,
+    `X-WR-CALNAME:${opts?.calName ?? "Instituto Pádua — Agenda"}`,
     `X-WR-TIMEZONE:${CLINIC_TZID}`,
     ...vtimezoneLines(),
   ];

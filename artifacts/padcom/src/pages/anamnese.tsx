@@ -13,6 +13,8 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
+import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PAXTER_SITE_URL } from "@/lib/brand";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -469,15 +471,21 @@ export default function Anamnese() {
   return (
     <div className="min-h-screen bg-[#142e2e] flex flex-col">
       <header className="h-16 bg-[#0d1f1f] border-b border-[#1e4a4a] px-4 flex items-center justify-center sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#1a4040] rounded flex items-center justify-center">
-            <span className="text-[#d4ae35] font-bold text-lg">P</span>
+        <a
+          href={PAXTER_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="PAXTER — site institucional"
+          className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 transition-opacity hover:opacity-90"
+        >
+          <div className="w-10 h-10 bg-[#0d1830] border border-[#c2a05a]/55 rounded flex items-center justify-center">
+            <img src={paxterSymbol} alt="" className="w-6 h-6 object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-bold text-base tracking-wide uppercase leading-tight">PADCON CONECT</h1>
+            <h1 className="text-white font-bold text-base tracking-[0.16em] uppercase leading-tight">PAXTER</h1>
             <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">FICHA DE ANAMNESE</p>
           </div>
-        </div>
+        </a>
       </header>
 
       {/* Linha do tempo fixa no topo (apenas no preenchimento) */}
@@ -658,7 +666,7 @@ export default function Anamnese() {
 
           {step !== "fill" && (
             <p className="text-center text-[#3a6666] text-xs mt-6 uppercase tracking-wider">
-              Clínica Padua — Padcon Conect
+              Instituto Pádua · Paxter — desenvolvido pela Padcon
             </p>
           )}
         </div>

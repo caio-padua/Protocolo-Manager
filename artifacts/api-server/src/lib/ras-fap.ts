@@ -1,5 +1,5 @@
 /**
- * RAS FAP — gerador (Padcon Conect).
+ * RAS FAP — gerador (Paxter).
  *
  * RAS = Registro de Administracao de Substancias (titulo impresso do documento).
  * FAP = Formulario de Auditoria de Procedimentos (papel fisico, preenchido a
@@ -20,6 +20,11 @@
  * Motor pdfkit (controle exato de tabela; puppeteer nao roda neste ambiente).
  */
 import PDFDocument from "pdfkit";
+import QRCode from "qrcode";
+
+// Site institucional do Paxter (placeholder). QR no rodape do RAS FAP aponta aqui
+// para que medicos/farmacias achem o sistema. Trocar so esta linha quando o site existir.
+const PAXTER_SITE_URL = "https://paxter.com.br";
 
 // ---------------------------------------------------------------------------
 // Tipos (NAO renomear — regra de ferro do CEO)
@@ -255,7 +260,7 @@ const PALETAS: Record<ModoRasFap, Paleta> = {
     cell: "tick",
     frameW: 1.2,
   },
-  // Tema B — MARCA PADCON CONECT: verde-petroleo (#3D7A7A) + ciano (#45B8CC).
+  // Tema B — MARCA PAXTER/PADCON: verde-petroleo (#3D7A7A) + ciano (#45B8CC).
   MARCA: {
     ink: "#14342f",
     brand: "#3D7A7A",
@@ -451,7 +456,7 @@ function rotulo(doc: Doc, pal: Paleta, texto: string, x: number, y: number) {
 function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const rEnd = PAGE_W - M;
 
-  // --- Cabecalho-titulo: RAS FAP (esquerda) e marcas PAWARDS/PADCON (direita)
+  // --- Cabecalho-titulo: RAS FAP (esquerda) e marcas PAXTER/PADCON (direita)
   //     no MESMO NIVEL, centralizados verticalmente um ao outro (pedido do CEO).
   const bandH = 30;
   const yc = y + bandH / 2; // linha de centro comum aos dois lados
@@ -464,12 +469,12 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
   doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yc + 2.5, { lineBreak: false, characterSpacing: 0.3 });
 
-  // Direita: PAWARDS e PADCON lado a lado, cada um com tagline em ingles
+  // Direita: PAXTER e PADCON lado a lado, cada um com tagline em ingles
   // DESTACADA (cor de acento). Bloco (marca + tagline) centralizado em yc, no
-  // MESMO NIVEL do wordmark. PAWARDS = sistema clinico; PADCON = empresa-raiz
+  // MESMO NIVEL do wordmark. PAXTER = sistema clinico; PADCON = empresa-raiz
   // de tecnologia (holding que cria varias empresas de tecnologia).
   const colW = 190;
-  const colAx = rEnd - 400; // coluna PAWARDS (borda direita em rEnd-210)
+  const colAx = rEnd - 400; // coluna PAXTER (borda direita em rEnd-210)
   const colBx = rEnd - colW; // coluna PADCON (borda direita em rEnd)
   const brandSize = 9.5;
   const tagSize = 6.5;
@@ -477,10 +482,10 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const blockH = brandSize * 0.72 + gapBT + tagSize * 0.72;
   const yBrand = yc - blockH / 2;
   const yTag = yBrand + brandSize * 0.72 + gapBT;
-  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAWARDS", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXTER", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PADCON", colBx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
-  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEMS", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
-  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("TECHNOLOGY VENTURE BUILDER", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("ADVANCED SYSTEMS ARCHITECTURE", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
 
   // Fio unico fino de ponta a ponta.
   const yl = y + bandH + 4;
@@ -751,16 +756,35 @@ function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, 
   doc.restore();
 }
 
-function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number): void {
+function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number, qrBuf: Buffer | null): void {
   const yb = PAGE_H - M + 2;
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
-  doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, PAGE_W - M - 90, yb, { width: 90, align: "right", lineBreak: false });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PAXTER  \u00b7  DESENVOLVIDO PELA PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
+  const pagX = PAGE_W - M - 90;
+  doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, pagX, yb, { width: 90, align: "right", lineBreak: false });
+  // Selo QR PAXTER (best-effort): pequeno, a esquerda do indicador de pagina.
+  if (qrBuf) {
+    const qrSize = 18;
+    const qx = pagX - qrSize - 56;
+    const qy = yb - (qrSize - 8);
+    try {
+      doc.image(qrBuf, qx, qy, { width: qrSize, height: qrSize });
+      doc.font("Helvetica-Bold").fontSize(5).fillColor(pal.labelInk).text("PAXTER", qx + qrSize + 3, qy + 2, { lineBreak: false, characterSpacing: 0.3 });
+      doc.font("Helvetica").fontSize(4.5).fillColor(pal.labelInk).text("paxter.com.br", qx + qrSize + 3, qy + 9, { lineBreak: false, characterSpacing: 0.2 });
+    } catch { /* nunca derruba a emissao */ }
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Geracao
 // ---------------------------------------------------------------------------
-export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM"): Promise<Buffer> {
+export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM"): Promise<Buffer> {
+  // QR do rodape gerado uma vez (best-effort): se falhar, documento sai sem QR.
+  let qrBuf: Buffer | null = null;
+  try {
+    qrBuf = await QRCode.toBuffer(PAXTER_SITE_URL, { width: 120, margin: 0, color: { dark: "#0d1830ff", light: "#ffffffff" } });
+  } catch {
+    qrBuf = null;
+  }
   return new Promise((resolve, reject) => {
     const pal = PALETAS[modo] ?? PALETAS.PREMIUM;
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0 });
@@ -795,7 +819,7 @@ export function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PREMIUM")
       const yRodape = yAssin - 8;
       desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
       desenharAssinaturas(doc, pal, yAssin, assinH);
-      desenharRodape(doc, pal, idx + 1, totalPages);
+      desenharRodape(doc, pal, idx + 1, totalPages, qrBuf);
       desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M);
       aplicBase += LINHAS_POR_PAGINA;
     });

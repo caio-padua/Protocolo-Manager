@@ -407,7 +407,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
       const withDdi = digits.startsWith("55") ? digits : `55${digits}`;
       const firstName = name.split(" ")[0] || name;
       const msg =
-        `Olá, ${firstName}! Aqui é da Clínica Padua (Padcon Conect). ` +
+        `Olá, ${firstName}! Aqui é do Instituto Pádua (Paxter). ` +
         `Antes da sua sessão, preencha sua ficha de saúde (anamnese) neste link: ` +
         `${anamneseUrl}\n\n` +
         `Você vai se identificar com CPF e data de nascimento. Leva poucos minutos. Obrigado!`;

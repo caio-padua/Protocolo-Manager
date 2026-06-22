@@ -830,8 +830,8 @@ function PdfModel({ patient, idade, today, duracao, cid, selected, print }: PdfM
   return (
     <div style={{ fontSize: print ? "11pt" : "12px", color: "#0f172a" }}>
       <div style={{ textAlign: "center", borderBottom: `3px solid ${PETROLEO}`, paddingBottom: "8px", marginBottom: "14px" }}>
-        <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: PETROLEO, letterSpacing: "0.04em" }}>CLÍNICA PADUA</div>
-        <div style={{ fontSize: print ? "8pt" : "9px", color: CIANO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Padcon Conect</div>
+        <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: PETROLEO, letterSpacing: "0.04em" }}>INSTITUTO PÁDUA</div>
+        <div style={{ fontSize: print ? "8pt" : "9px", color: CIANO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Paxter — desenvolvido pela Padcon</div>
         <div style={{ fontSize: print ? "10pt" : "11px", color: "#475569", marginTop: "2px" }}>Dr. Caio Henrique Pádua — CRM-SP 125475</div>
       </div>
       {patient.nome && (

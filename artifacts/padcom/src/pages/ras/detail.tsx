@@ -314,7 +314,7 @@ export default function RASDetail() {
 
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-800 text-[10px] font-bold text-gray-400 dark:text-gray-600 text-center uppercase tracking-widest">
-          Documento gerado pelo sistema PADCOM — Protocolos Injetáveis · {format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+          Documento gerado pelo Paxter — desenvolvido pela Padcon · {format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}
         </div>
       </div>
     </div>

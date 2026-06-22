@@ -27,7 +27,7 @@ import {
   ClipboardList as ClipboardListIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PadconLogo } from "./PadconLogo";
+import { PaxterLogo } from "./PaxterLogo";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -81,7 +81,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <div className="md:hidden flex items-center justify-between p-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <PadconLogo size="sm" />
+        <PaxterLogo size="sm" tone="dark" />
         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="text-sidebar-foreground">
           {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </Button>
@@ -93,7 +93,7 @@ export function Layout({ children }: LayoutProps) {
       `}>
         <div className="h-full flex flex-col">
           <div className="p-5 hidden md:block border-b border-sidebar-border">
-            <PadconLogo size="md" />
+            <PaxterLogo size="md" tone="dark" />
             <div className="mt-3 pl-1">
               <span className="text-[10px] font-semibold tracking-[0.25em] uppercase text-sidebar-primary opacity-90">
                 Motor Clinico

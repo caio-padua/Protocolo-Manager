@@ -471,7 +471,7 @@ router.get("/area-paciente/protocolo/:id/pdf", async (req: Request, res: Respons
       professionalName,
       professionalCrm,
       nurseName,
-      unit: protocol.unit ?? "Clinica Padua",
+      unit: protocol.unit ?? "Instituto Pádua",
       serviceType: protocol.serviceType,
       startDate: protocol.startDate,
       endDate: protocol.endDate,
@@ -774,7 +774,7 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
         const dataBr = date.split("-").reverse().join("/");
         await sendGmailMessage({
           to: client.email,
-          subject: `Clinica Padua | Remarcacao confirmada | ${dataBr} ${time}`,
+          subject: `Instituto Padua | Remarcacao confirmada | ${dataBr} ${time}`,
           html: `<p>Olá, ${client.name}.</p><p>Seu atendimento foi remarcado para <strong>${dataBr} às ${time}</strong>${r.session?.unit ? ` (${r.session.unit})` : ""}.</p><p>Se não foi você quem solicitou, entre em contato com a clínica.</p>`,
         });
       }

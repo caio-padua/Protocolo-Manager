@@ -64,10 +64,10 @@ router.get("/ical/feed/:token", async (req, res): Promise<void> => {
   );
 
   const events = await buildEventsForSessions(sessions, client.name);
-  const icsContent = buildVCalendar(events, { calName: `PADCOM — ${client.name}` });
+  const icsContent = buildVCalendar(events, { calName: `Instituto Pádua — ${client.name}` });
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-  res.setHeader("Content-Disposition", `inline; filename="padcom-${clientId}.ics"`);
+  res.setHeader("Content-Disposition", `inline; filename="paxter-${clientId}.ics"`);
   res.send(icsContent);
 });
 

@@ -4,6 +4,8 @@ import {
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
 } from "lucide-react";
+import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PAXTER_SITE_URL } from "@/lib/brand";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -105,12 +107,19 @@ export default function Area() {
       {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
       <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 bg-teal-700 rounded flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-base">P</span>
-          </div>
+          <a
+            href={PAXTER_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="PAXTER — site institucional"
+            className="w-9 h-9 rounded flex items-center justify-center flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+            style={{ background: "linear-gradient(180deg,#16284a,#0d1830)", border: "1px solid rgba(194,160,90,0.55)" }}
+          >
+            <img src={paxterSymbol} alt="" className="w-5 h-5 object-contain" />
+          </a>
           <div className="min-w-0">
-            <h1 className="text-teal-900 font-black text-sm tracking-widest uppercase leading-none">
-              Pad<span className="text-cyan-500">con</span>
+            <h1 className="text-teal-900 font-black text-sm tracking-[0.16em] uppercase leading-none">
+              PAXTER
             </h1>
             <div className="concave-3d mt-0.5 px-2 py-0.5 inline-block rounded">
               <span className="text-teal-600 text-[9px] font-bold uppercase tracking-widest truncate">
@@ -214,12 +223,19 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
       {/* Header login */}
       <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-teal-200/60">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-teal-700 rounded-xl flex items-center justify-center shadow-md">
-            <span className="text-white font-black text-xl">P</span>
-          </div>
+          <a
+            href={PAXTER_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="PAXTER — site institucional"
+            className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+            style={{ background: "linear-gradient(180deg,#16284a,#0d1830)", border: "1px solid rgba(194,160,90,0.55)" }}
+          >
+            <img src={paxterSymbol} alt="" className="w-7 h-7 object-contain" />
+          </a>
           <div>
-            <h1 className="text-teal-900 font-black text-xl tracking-wide uppercase leading-none">
-              Pad<span className="text-cyan-500">con</span> <span className="text-teal-700">CONECT</span>
+            <h1 className="text-teal-900 font-black text-xl tracking-[0.16em] uppercase leading-none">
+              PAXTER
             </h1>
             <p className="text-teal-500 text-[10px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
           </div>
@@ -290,7 +306,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
           </div>
 
           <p className="text-center text-teal-400 text-[10px] uppercase tracking-widest">
-            Clínica Padua — Padcon Conect
+            Instituto Pádua · Paxter — desenvolvido pela Padcon
           </p>
           <div className="text-center">
             <a href={`${API_BASE}/anamnese/v2`}

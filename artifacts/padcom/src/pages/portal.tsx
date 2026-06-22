@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Upload, CheckCircle, Loader2, AlertCircle, FileUp, User, ChevronRight } from "lucide-react";
+import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PAXTER_SITE_URL } from "@/lib/brand";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -172,15 +174,21 @@ export default function Portal() {
   return (
     <div className="min-h-screen bg-[#142e2e] flex flex-col">
       <header className="bg-[#0d1f1f] border-b border-[#1e4a4a] px-4 py-4 flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#1a4040] rounded flex items-center justify-center">
-            <span className="text-[#d4ae35] font-bold text-lg">P</span>
+        <a
+          href={PAXTER_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="PAXTER — site institucional"
+          className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 transition-opacity hover:opacity-90"
+        >
+          <div className="w-10 h-10 bg-[#0d1830] border border-[#c2a05a]/55 rounded flex items-center justify-center">
+            <img src={paxterSymbol} alt="" className="w-6 h-6 object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg tracking-wide uppercase">PADCON CONECT</h1>
+            <h1 className="text-white font-bold text-lg tracking-[0.16em] uppercase">PAXTER</h1>
             <p className="text-[#6b9b9b] text-xs uppercase tracking-widest">PORTAL DO CLIENTE</p>
           </div>
-        </div>
+        </a>
       </header>
 
       <main className="flex-1 flex items-start justify-center px-4 py-6">
@@ -415,7 +423,7 @@ export default function Portal() {
           )}
 
           <p className="text-center text-[#3a6666] text-xs mt-6 uppercase tracking-wider">
-            Clínica Padua — Padcon Conect
+            Instituto Pádua · Paxter — desenvolvido pela Padcon
           </p>
         </div>
       </main>

@@ -322,7 +322,7 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       professionalName,
       professionalCrm,
       nurseName,
-      unit: protocol.unit ?? "Clinica Padua",
+      unit: protocol.unit ?? "Instituto Pádua",
       serviceType: protocol.serviceType,
       startDate: protocol.startDate,
       endDate: protocol.endDate,
@@ -657,7 +657,7 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
 
   // SUB-04: motor de .ics ÚNICO (lib/ics.ts) — sem duplicar a geração.
   const events = await buildEventsForSessions(sessions, client?.name ?? "Cliente");
-  const icsContent = buildVCalendar(events, { calName: `PADCOM — ${client?.name ?? "Cliente"}` });
+  const icsContent = buildVCalendar(events, { calName: `Instituto Pádua — ${client?.name ?? "Cliente"}` });
   const filename = `protocolo_${protocol.id}_${client?.name?.replace(/\s+/g, "_") ?? "cliente"}.ics`;
 
   res.json({ icsContent, filename });

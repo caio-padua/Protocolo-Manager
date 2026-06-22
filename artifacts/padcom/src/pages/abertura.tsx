@@ -7,6 +7,7 @@ import {
   Phone, Mail, MapPin,
 } from "lucide-react";
 import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PAXTER_SITE_URL } from "@/lib/brand";
 
 // Site de abertura (porta de entrada publica). Modelo de layout inspirado na
 // estrutura de uma clinica (heroi/proposito -> condicoes -> jornada 3 fases),
@@ -56,10 +57,16 @@ export default function Abertura() {
     <div className="min-h-screen bg-[#0d1830] text-white lg:flex">
       {/* Barra superior (somente mobile) */}
       <header className="flex items-center justify-between border-b border-white/10 bg-[#0b1426] px-4 py-3 lg:hidden">
-        <div className="flex items-center gap-2">
+        <a
+          href={PAXTER_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2"
+          aria-label="Abrir site do Paxter"
+        >
           <img src={paxterSymbol} alt="Paxter" className="h-9 w-9 object-contain" />
           <span className="font-serif text-lg tracking-[0.16em] text-[#e8cf95]">PAXTER</span>
-        </div>
+        </a>
         <button
           type="button"
           aria-label="Abrir menu"
@@ -93,7 +100,13 @@ export default function Abertura() {
                 "radial-gradient(220px 140px at 30% 30%, rgba(194,160,90,0.20), transparent 70%)",
             }}
           />
-          <div className="relative flex items-center gap-3">
+          <a
+            href={PAXTER_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative flex items-center gap-3"
+            aria-label="Abrir site do Paxter"
+          >
             <img
               src={paxterSymbol}
               alt="Paxter"
@@ -105,7 +118,7 @@ export default function Abertura() {
                 Clinical Intelligence
               </div>
             </div>
-          </div>
+          </a>
         </div>
 
         {/* Navegacao de secoes */}
@@ -146,7 +159,7 @@ export default function Abertura() {
         </nav>
 
         <div className="border-t border-white/10 px-6 py-4 text-[10px] uppercase tracking-[0.18em] text-white/35">
-          Clínica Padua · Padcon Conect
+          Instituto Pádua · Paxter
         </div>
       </aside>
 
@@ -173,7 +186,7 @@ export default function Abertura() {
           />
           <div className="relative max-w-2xl">
             <span className="mb-5 inline-block rounded-full border border-[#c2a05a]/40 bg-[#c2a05a]/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e8cf95]">
-              Padcon Conect — Motor Clínico
+              Paxter — Motor Clínico
             </span>
             <h1 className="font-serif text-4xl leading-tight sm:text-6xl">
               Precisão em{" "}
@@ -300,7 +313,7 @@ export default function Abertura() {
         </section>
 
         <footer className="border-t border-white/10 px-6 py-8 text-center text-[11px] uppercase tracking-[0.2em] text-white/35 sm:px-12">
-          Clínica Padua · Padcon Conect · Powered by Paxter
+          Instituto Pádua · Paxter — desenvolvido pela Padcon
         </footer>
       </main>
     </div>

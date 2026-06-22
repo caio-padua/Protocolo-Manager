@@ -1,5 +1,5 @@
-// Página de Prescrição de Fórmulas — dados e parser (PADCOM)
-// Catálogo + parser adaptados para TypeScript e identidade Padcon Conect.
+// Página de Prescrição de Fórmulas — dados e parser (Paxter)
+// Catálogo + parser adaptados para TypeScript e identidade Paxter.
 import {
   Pill, Activity, Leaf, Sparkles, Zap, Brain, Flame, Wind, Bone, Heart,
   Shield, Dumbbell, Droplet, Eye, Moon, FlaskConical, Coffee,

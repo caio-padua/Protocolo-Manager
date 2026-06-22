@@ -140,7 +140,7 @@ router.get("/sessions/ics", async (req, res): Promise<void> => {
 
   const icsContent = buildVCalendar(results.map(s => sessionToIcsInput(s)));
   const label = dateFrom && dateTo ? `${dateFrom}_a_${dateTo}` : "agenda";
-  const filename = `padcom_${label}.ics`;
+  const filename = `paxter_${label}.ics`;
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -166,7 +166,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
   const icsContent = buildVCalendar([sessionToIcsInput(result)]);
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   const clientSlug = client?.name?.replace(/\s+/g, "_") ?? "cliente";
-  const filename = `padcom_sessao_${id}_${clientSlug}.ics`;
+  const filename = `paxter_sessao_${id}_${clientSlug}.ics`;
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

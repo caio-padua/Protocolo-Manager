@@ -23,7 +23,7 @@ function buildReminderMessage(
   professionalName: string | null,
 ): string {
   const nome = o.patientName?.trim() || "Cliente";
-  const linhas: string[] = [`Olá, ${nome}! Lembrete do seu atendimento na Clínica Pádua.`];
+  const linhas: string[] = [`Olá, ${nome}! Lembrete do seu atendimento no Instituto Pádua.`];
   const dataBr = (iso: string): string => {
     const [y, m, d] = iso.split("-");
     return d && m && y ? `${d}/${m}/${y}` : iso;

@@ -149,7 +149,7 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
-// Lista FIXA de procedimentos exibida no evento (padrao Pawards MedCore dos prints).
+// Lista FIXA de procedimentos exibida no evento (padrao Paxter dos prints).
 // Cada linha leva polegar (ativo/inativo) e a contagem de tempo entre colchetes.
 const PROCEDURE_ROWS: Array<{ key: string; label: string; min: number }> = [
   { key: "im", label: "Aplicação Intramuscular", min: 15 },
@@ -283,7 +283,7 @@ function buildDescriptionBody(data: CalendarEventData): string {
   const horarioBlock = `HORÁRIO:\n${relogio} ${horaInicio} às ${horaFim}`;
 
   let desc =
-    `Developed by: Pawards MedCore\n\n` +
+    `Developed by: Padcon \u00b7 Paxter\n\n` +
     `${data.clientName}\n` +
     `CPF.: ${data.clientCpf || "-"}\n` +
     `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +

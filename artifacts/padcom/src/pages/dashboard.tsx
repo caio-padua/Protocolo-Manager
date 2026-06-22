@@ -137,7 +137,7 @@ export default function Dashboard() {
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-1">
           <h1 className="pw-title-serif text-2xl font-bold tracking-tight">Painel de Controle</h1>
-          <p className="text-sm text-muted-foreground">Visao geral operacional — Padcon Conect</p>
+          <p className="text-sm text-muted-foreground">Visão geral operacional — Paxter</p>
         </div>
         <div className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest border border-border px-3 py-1.5 bevel-3d">
           <CalendarIcon className="w-3.5 h-3.5" />

@@ -396,7 +396,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       clientAge,
       professionalName,
       nurseName: nurseName || undefined,
-      unit: protocol.unit ?? "Clinica Padua",
+      unit: protocol.unit ?? "Instituto Pádua",
       startDate: protocol.startDate,
       protocolNumber: protocol.id,
       valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -575,12 +575,12 @@ function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string):
           <div style="font-size:10px;color:#9fb6c6;letter-spacing:2px;margin-top:4px;">FORMULARIO DE AUDITORIA DE PROCEDIMENTOS &middot; FAP</div>
         </div>
         <div style="margin-top:14px;display:flex;justify-content:space-between;">
-          <span style="font-size:12px;color:#cfe0ea;">PAWARDS &middot; Clinical Intelligence System</span>
+          <span style="font-size:12px;color:#cfe0ea;">PAXTER &middot; Clinical Intelligence</span>
           <span style="font-size:12px;color:#cfe0ea;float:right;">PADCON &middot; Advanced Systems Architecture</span>
         </div>
       </div>
       <div style="padding:30px 36px;">
-        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Padcon Conect</strong></p>
+        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Paxter</strong></p>
         <p style="font-size:13px;color:#475569;line-height:1.6;margin:0 0 22px 0;font-family:Arial,Helvetica,sans-serif;">
           Segue o modelo premium do <strong>RAS FAP</strong> (planilha de auditoria de procedimentos, em PDF paisagem, anexa a este e-mail).
           Abaixo, o resumo do protocolo-exemplo com as substancias, vias, frequencias e numero de aplicacoes.
@@ -604,11 +604,11 @@ function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string):
           <tbody>${rows}</tbody>
         </table>
         <p style="font-size:11px;color:#94a3b8;margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-style:italic;">
-          Documento gerado automaticamente pelo Padcon Conect &mdash; Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
+          Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
         </p>
       </div>
       <div style="background:#0e1c2e;padding:16px 36px;text-align:center;">
-        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PADCON CONECT &middot; PADCOM / PAWARDS</span>
+        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PAXTER &middot; desenvolvido pela PADCON</span>
       </div>
     </div>
   </body></html>`;
@@ -684,7 +684,7 @@ router.get("/ras-fap-demo", async (req, res) => {
           if (await isGmailConnected()) {
             const r = await sendGmailMessage({
               to,
-              subject: "Padcon Conect | RAS FAP - Modelo Premium (Demonstracao)",
+              subject: "Paxter | RAS FAP - Modelo Premium (Demonstracao)",
               html: buildDemoEmailHtml(demoSubs, clientName, valor),
               attachments: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
             });
@@ -767,12 +767,12 @@ function buildFichasEmailHtml(
           <div style="font-size:10px;color:#9fb6c6;letter-spacing:2px;margin-top:4px;">FICHAS DE SUBSTANCIA &middot; UMA POR FOLHA</div>
         </div>
         <div style="margin-top:14px;">
-          <span style="font-size:12px;color:#cfe0ea;">PAWARDS &middot; Clinical Intelligence System</span>
+          <span style="font-size:12px;color:#cfe0ea;">PAXTER &middot; Clinical Intelligence</span>
           <span style="font-size:12px;color:#cfe0ea;float:right;">PADCON &middot; Advanced Systems Architecture</span>
         </div>
       </div>
       <div style="padding:30px 36px;">
-        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Padcon Conect</strong></p>
+        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Paxter</strong></p>
         <p style="font-size:13px;color:#475569;line-height:1.6;margin:0 0 22px 0;font-family:Arial,Helvetica,sans-serif;">
           Segue o modelo premium do <strong>RAS assinado</strong> com as <strong>fichas de substancia</strong> (uma folha por substancia, em PDF retrato, anexo a este e-mail).
           Cada ficha traz: o que e a substancia, sua funcao principal, o impacto por sistema do corpo em barras, os efeitos percebidos e o tempo para perceber o efeito &mdash; tudo a partir da base de dados clinica.
@@ -793,11 +793,11 @@ function buildFichasEmailHtml(
           <tbody>${cards}</tbody>
         </table>
         <p style="font-size:11px;color:#94a3b8;margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-style:italic;">
-          Documento gerado automaticamente pelo Padcon Conect &mdash; Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
+          Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
         </p>
       </div>
       <div style="background:#0e1c2e;padding:16px 36px;text-align:center;">
-        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PADCON CONECT &middot; PADCOM / PAWARDS</span>
+        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PAXTER &middot; desenvolvido pela PADCON</span>
       </div>
     </div>
   </body></html>`;
@@ -888,7 +888,7 @@ router.get("/ras-fichas-demo", async (req, res) => {
           if (await isGmailConnected()) {
             const r = await sendGmailMessage({
               to,
-              subject: "Padcon Conect | RAS - Fichas de Substancia (Modelo Premium)",
+              subject: "Paxter | RAS - Fichas de Substancia (Modelo Premium)",
               html: buildFichasEmailHtml(emailItems, clientName),
               attachments: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
             });

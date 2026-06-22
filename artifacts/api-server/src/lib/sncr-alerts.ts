@@ -49,7 +49,7 @@ function buildHtml(input: SncrAlertInput, urgent: boolean): string {
         <tr><td style="padding:4px 10px;color:#666">Prescrição</td><td style="padding:4px 10px">#${input.prescriptionId ?? "-"}</td></tr>
         <tr><td style="padding:4px 10px;color:#666">Médico</td><td style="padding:4px 10px">${input.professionalName ?? "-"}</td></tr>
       </table>
-      <p style="margin-top:16px;font-size:12px;color:#666">Mensagem automática do PADCOM. A emissão NÃO foi bloqueada.</p>
+      <p style="margin-top:16px;font-size:12px;color:#666">Mensagem automática do Paxter. A emissão NÃO foi bloqueada.</p>
     </div>`;
 }
 
@@ -103,7 +103,7 @@ export async function handleSncrAlert(input: SncrAlertInput): Promise<void> {
       // Escalonamento ao CEO + cartões para adm e médico.
       await sendMail(
         ceoEmail(),
-        `PADCOM | URGENTE | SNCR esgotado ${input.controlledType}/${input.uf}`,
+        `Paxter | URGENTE | SNCR esgotado ${input.controlledType}/${input.uf}`,
         buildHtml(input, true),
       );
       await createCard({
@@ -126,7 +126,7 @@ export async function handleSncrAlert(input: SncrAlertInput): Promise<void> {
       // low: e-mail para administração + cartão interno.
       await sendMail(
         adminEmail(),
-        `PADCOM | SNCR acabando | ${input.controlledType}/${input.uf}`,
+        `Paxter | SNCR acabando | ${input.controlledType}/${input.uf}`,
         buildHtml(input, false),
       );
       await createCard({

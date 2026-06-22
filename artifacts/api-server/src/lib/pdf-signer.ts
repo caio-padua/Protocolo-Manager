@@ -6,8 +6,25 @@ import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
 import { gerarRasFapPdf, type DadosRasFap, type ModoRasFap } from "./ras-fap";
+import QRCode from "qrcode";
 
 const signpdf = new SignPdf();
+
+// Site institucional do Paxter (placeholder). QR no rodape dos documentos emitidos
+// aponta aqui. Trocar so esta linha quando o site real existir.
+const PAXTER_SITE_URL = "https://paxter.com.br";
+
+type QrImage = Awaited<ReturnType<PDFDocument["embedPng"]>> | null;
+
+// Gera+embute o QR uma unica vez (best-effort): se falhar, documento sai sem QR.
+async function embedPaxterQr(pdfDoc: PDFDocument): Promise<QrImage> {
+  try {
+    const buf = await QRCode.toBuffer(PAXTER_SITE_URL, { width: 120, margin: 0, color: { dark: "#0d1830ff", light: "#ffffffff" } });
+    return await pdfDoc.embedPng(buf);
+  } catch {
+    return null;
+  }
+}
 
 const CERT_PATH = process.env.CERT_PATH || path.resolve(import.meta.dirname, "../certs/assinatura.pfx");
 const CERT_PASSWORDS = [process.env.CERT_PASSWORD].filter((p): p is string => Boolean(p));
@@ -165,8 +182,8 @@ interface Fonts {
   bold: Awaited<ReturnType<PDFDocument["embedFont"]>>;
 }
 
-function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number) {
-  const footerText = `PADCOM — Protocolos Injetáveis · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, qrImg: QrImage = null) {
+  const footerText = `Instituto Pádua · Paxter — desenvolvido pela Padcon · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
   page.drawText(footerText, {
     x: MARGIN,
     y: MARGIN - 20,
@@ -174,6 +191,16 @@ function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages
     font: fonts.regular,
     color: GRAY,
   });
+  if (qrImg) {
+    try {
+      const qs = 22;
+      const qx = PAGE_W - MARGIN - qs;
+      const qy = 20;
+      page.drawImage(qrImg, { x: qx, y: qy, width: qs, height: qs });
+      page.drawText("Paxter", { x: qx - 52, y: qy + 13, size: 5.5, font: fonts.bold, color: GRAY });
+      page.drawText("paxter.com.br", { x: qx - 52, y: qy + 5, size: 5, font: fonts.regular, color: GRAY });
+    } catch { /* nunca derruba a emissao */ }
+  }
 }
 
 function wrapText(text: string | number | null | undefined, font: Fonts["regular"], fontSize: number, maxWidth: number): string[] {
@@ -214,9 +241,9 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`RAS ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
-  pdfDoc.setAuthor("PADCOM — Protocolos Injetáveis");
+  pdfDoc.setAuthor("Instituto Pádua — Paxter");
   pdfDoc.setSubject("Registro de Administração de Substâncias");
-  pdfDoc.setCreator("Sistema PADCOM");
+  pdfDoc.setCreator("Sistema Paxter");
 
   const fonts: Fonts = {
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -227,6 +254,8 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   const serifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   // Tom marfim para as caixas de destaque (funcao principal).
   const IVORY = rgb(0.98, 0.97, 0.93);
+
+  const qrImg = await embedPaxterQr(pdfDoc);
 
   const allPages: PDFPage[] = [];
 
@@ -592,7 +621,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       },
       {
         title: "9. ARMAZENAMENTO DIGITAL",
-        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema PADCOM e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
+        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema Paxter e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
       },
       {
         title: "10. DECLARAÇÃO FINAL",
@@ -637,7 +666,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   // Add page numbers to all pages
   for (let i = 0; i < allPages.length; i++) {
-    drawPageFooter(allPages[i], fonts, i + 1, allPages.length);
+    drawPageFooter(allPages[i], fonts, i + 1, allPages.length, qrImg);
   }
 
   // === SIGN THE PDF (PAdES embarcado — selo verde Adobe) ===
@@ -647,7 +676,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: signerName,
     reason: "Assinatura digital do RAS (ICP-Brasil)",
-    location: ras.unit || "PADCOM",
+    location: ras.unit || "Instituto Pádua",
     contactInfo: ras.clientCpf || "",
   });
 
@@ -880,7 +909,7 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `PADCOM - Protocolos Injetaveis | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Padua · Paxter - desenvolvido pela Padcon | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
 }
@@ -1043,9 +1072,9 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} - ${data.clientName}`);
-  pdfDoc.setAuthor("PADCOM - Protocolos Injetaveis");
+  pdfDoc.setAuthor("Instituto Padua - Paxter");
   pdfDoc.setSubject("Protocolo Medico Personalizado");
-  pdfDoc.setCreator("Sistema PADCOM");
+  pdfDoc.setCreator("Sistema Paxter");
 
   const fonts: Fonts = {
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -1064,7 +1093,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 160, width: CONTENT_W + 20, height: 3, color: GOLD_ACCENT });
 
-    page.drawText("PADCOM", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
+    page.drawText("PAXTER", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
     page.drawText("PROTOCOLOS INJETAVEIS", { x: MARGIN, y: PAGE_H - 125, size: 14, font: fonts.regular, color: GOLD_ACCENT });
 
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 175, width: CONTENT_W + 20, height: 1, color: rgb(1, 1, 1, 0.2) });
@@ -1106,7 +1135,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     page.drawText("VALOR DO PROTOCOLO", { x: MARGIN, y, size: 8, font: fonts.regular, color: rgb(0.6, 0.7, 0.7) });
     page.drawText(totalFormatted, { x: MARGIN + 160, y, size: 14, font: fonts.bold, color: GOLD_ACCENT });
 
-    page.drawText("Documento gerado pelo sistema PADCOM", { x: MARGIN, y: 50, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
+    page.drawText("Desenvolvido pela Padcon · Paxter", { x: MARGIN, y: 50, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
     page.drawText(`${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: MARGIN, y: 38, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
   }
 
@@ -1436,7 +1465,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
     const lgpdSection = {
       title: `${baseSections.length + procSections.length + 1}. LEI GERAL DE PROTECAO DE DADOS (LGPD)`,
-      text: "Em conformidade com a Lei n. 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensiveis de saude para fins exclusivos de: execucao do protocolo terapeutico; emissao de documentos clinicos (RAS, receituarios); acompanhamento da evolucao clinica; comunicacao sobre agendamentos e resultados. Autorizo o armazenamento digital no sistema PADCOM e em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado em modo somente leitura. Tenho ciencia do meu direito de solicitar a exclusao, correcao ou portabilidade dos meus dados a qualquer momento.",
+      text: "Em conformidade com a Lei n. 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensiveis de saude para fins exclusivos de: execucao do protocolo terapeutico; emissao de documentos clinicos (RAS, receituarios); acompanhamento da evolucao clinica; comunicacao sobre agendamentos e resultados. Autorizo o armazenamento digital no sistema Paxter e em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado em modo somente leitura. Tenho ciencia do meu direito de solicitar a exclusao, correcao ou portabilidade dos meus dados a qualquer momento.",
     };
 
     const finalSection = {
@@ -1781,7 +1810,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     y -= 60;
     page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.5, color: PETROL, opacity: 0.3 });
     y -= 15;
-    page.drawText("Este documento foi gerado e assinado digitalmente pelo sistema PADCOM.", {
+    page.drawText("Este documento foi gerado e assinado digitalmente pelo sistema Paxter.", {
       x: MARGIN, y, size: 7.5, font: fonts.regular, color: GRAY,
     });
     y -= 12;
@@ -1803,7 +1832,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: sName,
     reason: "Assinatura digital do protocolo (ICP-Brasil)",
-    location: data.unit || "PADCOM",
+    location: data.unit || "Instituto Pádua",
     contactInfo: data.clientCpf || "",
   });
 
