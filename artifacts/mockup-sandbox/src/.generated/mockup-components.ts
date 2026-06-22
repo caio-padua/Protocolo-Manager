@@ -17,6 +17,7 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-fx/QuatroVariacoes.tsx": () => import("../components/mockups/paxter-fx/QuatroVariacoes.tsx"),
   "./components/mockups/paxter-fx/SimboloEscrevendo.tsx": () => import("../components/mockups/paxter-fx/SimboloEscrevendo.tsx"),
   "./components/mockups/paxter-fx/TresModelosSimbolo.tsx": () => import("../components/mockups/paxter-fx/TresModelosSimbolo.tsx"),
+  "./components/mockups/paxter-fx/VariacoesEscrita.tsx": () => import("../components/mockups/paxter-fx/VariacoesEscrita.tsx"),
   "./components/mockups/paxter-logo/LogoMaison.tsx": () => import("../components/mockups/paxter-logo/LogoMaison.tsx"),
   "./components/mockups/paxter-logo/LogoMetal.tsx": () => import("../components/mockups/paxter-logo/LogoMetal.tsx"),
   "./components/mockups/paxter-logo/LogoQuiet.tsx": () => import("../components/mockups/paxter-logo/LogoQuiet.tsx"),
