@@ -5,7 +5,7 @@
 // Recarregar a pagina reinicia as animacoes de abertura (A e B).
 
 import SYMBOL_PNG from "../../../assets/paxter-symbol-cut.png";
-import { TRACE_FLASH_STYLE, PaxterSymbolWriting, TraceFlashGlint } from "../_shared/traceFlash";
+import { TRACE_FLASH_STYLE, PaxterSymbolWriting, PaxterGlintPremium } from "../_shared/traceFlash";
 import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "../_shared/paxterSymbolPath";
 
 const LOCAL = `
@@ -71,12 +71,10 @@ export default function TresModelosSimbolo() {
             className="absolute"
             style={{ width: 150, height: 150, objectFit: "contain", mixBlendMode: "screen" }}
           />
-          <TraceFlashGlint
+          <PaxterGlintPremium
             d={PAXTER_SYMBOL_PATH}
             viewBox={`0 0 ${PAXTER_SYMBOL_VIEWBOX.w} ${PAXTER_SYMBOL_VIEWBOX.h}`}
             size={150}
-            flashWidth={7}
-            flashMs={2600}
             className="absolute"
           />
         </Stage>

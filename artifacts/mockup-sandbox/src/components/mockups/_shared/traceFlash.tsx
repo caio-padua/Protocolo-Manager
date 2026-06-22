@@ -43,9 +43,14 @@ export const TRACE_FLASH_STYLE = `
   }
   @keyframes tfFlash { from { stroke-dashoffset: 107; } to { stroke-dashoffset: 0; } }
 
+  /* varrimento especular (reflexo de luz cruzando o metal polido) */
+  .tf-sweep { animation: tfSweep var(--tf-sweep, 3200ms) cubic-bezier(.45,0,.55,1) infinite; }
+  @keyframes tfSweep { 0% { transform: translateX(-220px); } 100% { transform: translateX(480px); } }
+
   @media (prefers-reduced-motion: reduce) {
     .tf-draw { animation: none; stroke-dashoffset: 0; }
     .tf-flash { display: none; }
+    .tf-sweep { animation: none; opacity: 0; }
   }
 `;
 
@@ -242,6 +247,112 @@ export function TraceFlashGlint({
             ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms`,
           }}
         />
+      ))}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BRILHO DE OURO PREMIUM (A + B em alta fidelidade). Overlay para ficar POR CIMA
+// do PNG 3D dourado. Duas camadas de luz, ambas em OURO (nunca branco chapado):
+//   1) Varrimento especular: uma faixa de luz dourada cruza o metal, recortada
+//      pela SILHUETA do simbolo (so acende o metal, nunca a caixa).
+//   2) Glint de borda: um reflexo dourado quente correndo pelo tracado exato.
+// O modo de mistura "plus-lighter" (aditivo) intensifica o ouro existente em vez
+// de lavar para branco — e o que da a sensacao de metal polido refletindo luz.
+// ---------------------------------------------------------------------------
+type GlintPremiumProps = {
+  d: string | string[];
+  size?: number;
+  viewBox?: string;
+  /** largura do glint de borda (em unidades do viewBox) */
+  glintWidth?: number;
+  sweepMs?: number;
+  flashMs?: number;
+  className?: string;
+  style?: CSSProperties;
+};
+
+export function PaxterGlintPremium({
+  d,
+  size = 150,
+  viewBox = "0 0 381 369",
+  glintWidth = 9,
+  sweepMs = 3400,
+  flashMs = 3000,
+  className,
+  style,
+}: GlintPremiumProps) {
+  const uid = useId().replace(/:/g, "");
+  const maskId = `pmm-${uid}`;
+  const sweepG = `pms-${uid}`;
+  const glow = `pmg-${uid}`;
+  const paths = Array.isArray(d) ? d : [d];
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={viewBox}
+      className={className}
+      style={{ mixBlendMode: "plus-lighter", ...style }}
+      aria-hidden="true"
+    >
+      <defs>
+        <mask id={maskId}>
+          {paths.map((p, i) => (
+            <path key={`m${i}`} d={p} fill="#fff" stroke="#fff" strokeWidth={2} />
+          ))}
+        </mask>
+        <linearGradient id={sweepG} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#ffcf6e" stopOpacity="0" />
+          <stop offset="38%" stopColor="#ffdf95" stopOpacity="0.5" />
+          <stop offset="50%" stopColor="#fff3cf" stopOpacity="0.95" />
+          <stop offset="62%" stopColor="#ffd986" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#ffcf6e" stopOpacity="0" />
+        </linearGradient>
+        <filter id={glow} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.4" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* 1) varrimento especular dourado, recortado no metal do simbolo */}
+      <g mask={`url(#${maskId})`}>
+        <g className="tf-sweep" style={{ ["--tf-sweep" as string]: `${sweepMs}ms` }}>
+          <rect x="-150" y="-60" width="150" height="500" fill={`url(#${sweepG})`} transform="skewX(-20)" />
+        </g>
+      </g>
+
+      {/* 2) glint de borda dourado quente correndo pelo tracado */}
+      {paths.map((p, i) => (
+        <g key={`gl${i}`}>
+          <path
+            d={p}
+            pathLength={100}
+            className="tf-flash"
+            fill="none"
+            stroke="#ffcf73"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={glintWidth + 4}
+            filter={`url(#${glow})`}
+            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${i * 120}ms`, opacity: 0.85 }}
+          />
+          <path
+            d={p}
+            pathLength={100}
+            className="tf-flash"
+            fill="none"
+            stroke="#ffe6a3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={glintWidth - 4}
+            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${i * 120}ms` }}
+          />
+        </g>
       ))}
     </svg>
   );
