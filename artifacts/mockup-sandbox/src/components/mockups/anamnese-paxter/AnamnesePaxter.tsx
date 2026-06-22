@@ -9,7 +9,7 @@ import {
   HeartPulse,
   Check,
 } from "lucide-react";
-import SYMBOL_GOLD from "../../../assets/paxter-symbol-gold.png";
+import SYMBOL_GOLD from "../../../assets/paxter-symbol-cut.png";
 import { PAXTER_STYLE } from "../_shared/paxter3d";
 
 const TOTAL_ETAPAS = 8;
@@ -36,21 +36,15 @@ export default function AnamnesePaxter() {
             className="aura-pulse absolute inset-0"
             style={{
               background:
-                "radial-gradient(circle, rgba(244,226,168,0.45) 0%, transparent 65%)",
-              filter: "blur(6px)",
+                "radial-gradient(circle, rgba(244,226,168,0.40) 0%, transparent 65%)",
+              filter: "blur(7px)",
             }}
             aria-hidden="true"
           />
           <img
             src={SYMBOL_GOLD}
             alt="Paxter"
-            className="absolute inset-0 w-full h-full object-contain filter brightness-75"
-          />
-          <img
-            src={SYMBOL_GOLD}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-contain ray-sweep filter brightness-150 drop-shadow-[0_0_8px_rgba(244,226,168,0.8)]"
+            className="relative w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
           />
         </div>
         <h1 className="text-base font-bold tracking-[0.22em] text-gold">
@@ -221,6 +215,29 @@ export default function AnamnesePaxter() {
             </button>
           </div>
         </div>
+
+        {/* Rodape: identidade da casa (esq) + marca do sistema Paxter (dir) */}
+        <footer className="pt-1 pb-2">
+          <div className="flex items-end justify-between border-t border-white/5 pt-4">
+            <div className="flex flex-col">
+              <span className="font-serif text-[14px] text-slate-200 tracking-wide">
+                Instituto Pádua
+              </span>
+              <span className="text-[9px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
+                Atendimento clínico
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="text-[8px] uppercase tracking-[0.22em] text-slate-500">
+                Powered by
+              </span>
+              <div className="paxter-plate">
+                <span className="paxter-word">PAXTER</span>
+                <span className="paxter-glint" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* Navegacao fixa no rodape */}

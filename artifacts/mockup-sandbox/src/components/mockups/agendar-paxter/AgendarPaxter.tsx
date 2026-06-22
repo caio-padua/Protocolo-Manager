@@ -8,7 +8,7 @@ import {
   MapPin,
   Stethoscope,
 } from "lucide-react";
-import SYMBOL_GOLD from "../../../assets/paxter-symbol-gold.png";
+import SYMBOL_GOLD from "../../../assets/paxter-symbol-cut.png";
 import { PAXTER_STYLE } from "../_shared/paxter3d";
 
 type Door = {
@@ -61,21 +61,15 @@ export default function AgendarPaxter() {
             className="aura-pulse absolute inset-0"
             style={{
               background:
-                "radial-gradient(circle, rgba(244,226,168,0.45) 0%, transparent 65%)",
-              filter: "blur(6px)",
+                "radial-gradient(circle, rgba(244,226,168,0.40) 0%, transparent 65%)",
+              filter: "blur(7px)",
             }}
             aria-hidden="true"
           />
           <img
             src={SYMBOL_GOLD}
             alt="Paxter"
-            className="absolute inset-0 w-full h-full object-contain filter brightness-75"
-          />
-          <img
-            src={SYMBOL_GOLD}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-contain ray-sweep filter brightness-150 drop-shadow-[0_0_8px_rgba(244,226,168,0.8)]"
+            className="relative w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
           />
         </div>
         <h1 className="text-xl font-bold tracking-[0.25em] text-gold mb-1">
@@ -178,14 +172,27 @@ export default function AgendarPaxter() {
           </div>
         </div>
 
-        {/* Rodape */}
-        <footer className="px-6 pb-6 pt-2 text-center anim-enter anim-delay-4">
-          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
-            Instituto Pádua · Paxter
-          </p>
-          <p className="text-[9px] uppercase tracking-wider text-slate-600 mt-1">
-            Desenvolvido pela Padcon
-          </p>
+        {/* Rodape: identidade da casa (esq) + marca do sistema Paxter (dir) */}
+        <footer className="px-6 pb-7 pt-2 anim-enter anim-delay-4">
+          <div className="flex items-end justify-between border-t border-white/5 pt-4">
+            <div className="flex flex-col">
+              <span className="font-serif text-[14px] text-slate-200 tracking-wide">
+                Instituto Pádua
+              </span>
+              <span className="text-[9px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
+                Atendimento clínico
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="text-[8px] uppercase tracking-[0.22em] text-slate-500">
+                Powered by
+              </span>
+              <div className="paxter-plate">
+                <span className="paxter-word">PAXTER</span>
+                <span className="paxter-glint" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
         </footer>
       </main>
 

@@ -4,7 +4,13 @@
 // em marcacao/MarcarConsulta.tsx para manter consistencia visual.
 
 export const PAXTER_STYLE = `
-  .paxter-bg { background: radial-gradient(150% 100% at 50% 0%, #16284a 0%, #0d1830 50%, #070e1c 100%); }
+  /* Azul marinho classico com degrade "camurca" (suede): brilho suave diagonal
+     sobre um marinho profundo. Tom totalmente classico, fundo NUNCA muda de cor. */
+  .paxter-bg {
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 34%, rgba(0,0,0,0.16) 100%),
+      radial-gradient(130% 100% at 50% -12%, #1b3a5f 0%, #122a49 32%, #0b1d37 62%, #07142a 100%);
+  }
   .text-gold { background: linear-gradient(180deg, #f4e2a8 0%, #c2a05a 45%, #8a6d2f 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bg-gold { background: linear-gradient(180deg, #f4e2a8 0%, #c2a05a 45%, #8a6d2f 100%); }
   .border-gold { border-color: #c2a05a; }
@@ -79,14 +85,39 @@ export const PAXTER_STYLE = `
   .anim-delay-3 { animation-delay: 0.3s; }
   .anim-delay-4 { animation-delay: 0.4s; }
 
-  /* Sweep dourado sobre o simbolo */
-  @keyframes shimmerEffect { 0% { -webkit-mask-position: 200% center; mask-position: 200% center; } 100% { -webkit-mask-position: -200% center; mask-position: -200% center; } }
-  .ray-sweep {
-    -webkit-mask-image: linear-gradient(-60deg, transparent 40%, rgba(0,0,0,1) 50%, transparent 60%);
-    mask-image: linear-gradient(-60deg, transparent 40%, rgba(0,0,0,1) 50%, transparent 60%);
-    -webkit-mask-size: 300% 100%; mask-size: 300% 100%;
-    animation: shimmerEffect 4s infinite linear;
+  /* Marca do sistema "PAXTER" — placa boton em ouro polido, chanfros RETOS (nao
+     arredondados), com brilho passando pelo contorno e pelo corpo da escrita a
+     cada 15s por 0,5s. (iOS esta para Apple; Paxter esta para o Padcon.) */
+  .paxter-plate {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6px 13px;
+    background: linear-gradient(180deg, #1b2a45 0%, #0b1729 100%);
+    border: 1px solid rgba(194,160,90,0.55);
+    box-shadow: inset 0 1px 0 rgba(244,226,168,0.28), inset 0 -3px 6px rgba(0,0,0,0.6), 0 6px 14px rgba(0,0,0,0.5);
+    /* chanfros retos nos 4 cantos (corte a 45 graus, sem arredondar) */
+    clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+    overflow: hidden;
+  }
+  .paxter-word {
+    font-weight: 800; letter-spacing: 0.22em; font-size: 13px; line-height: 1;
+    background: linear-gradient(180deg, #f8ecbf 0%, #d8b765 38%, #a07d34 68%, #f1dd9a 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 1px 0 rgba(0,0,0,0.55)) drop-shadow(0 -0.5px 0 rgba(255,250,228,0.45));
+  }
+  .paxter-glint { position: absolute; inset: 0; pointer-events: none; }
+  .paxter-glint::before {
+    content: ""; position: absolute; top: -20%; bottom: -20%; left: 0; width: 45%;
+    background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,250,228,0.0) 30%, rgba(255,252,235,0.85) 50%, rgba(255,250,228,0.0) 70%, rgba(255,255,255,0) 100%);
+    transform: translateX(-220%) skewX(-18deg);
+    animation: paxterGlint 15s ease-in-out infinite;
     mix-blend-mode: screen;
+  }
+  /* travessia de ~0,5s (3,33% de 15s) e depois repouso ate o proximo ciclo */
+  @keyframes paxterGlint {
+    0%    { transform: translateX(-220%) skewX(-18deg); }
+    3.33% { transform: translateX(320%) skewX(-18deg); }
+    100%  { transform: translateX(320%) skewX(-18deg); }
   }
 
   /* Aura dourada pulsante atras do simbolo */

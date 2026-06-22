@@ -26,3 +26,15 @@ Arquivos: `icon-192`, `icon-512`, `icon-maskable-512` (mais padding p/ safe zone
 
 **Fallback:** ambientes sem suporte a mix-blend-mode degradam; se isso virar problema,
 trocar pelo PNG ja recortado (transparente) em vez do blend.
+
+**O "fundo escuro" e INTEGRAL ao logo, nao da p/ recortar:** o simbolo e uma placa/tile
+de moldura dourada com MIOLO escuro (o R/X em ouro sobre fundo escuro DENTRO da moldura).
+Background removal so tira o que esta FORA da moldura; o miolo escuro permanece (faz parte
+do desenho). Por isso "deixar transparente" nao resolve um flash que cruza o tile.
+
+**Nao varrer o tile inteiro com flash/sweep (mix-blend screen + brightness):** um sweep
+movel sobre o simbolo CLAREIA o miolo escuro de forma visivel, dando a impressao de que a
+COR DO FUNDO da tela mudou. CEO reclamou (22/06/2026, "importantissimo"). Correcao: simbolo
+ESTATICO (so aura radial suave atras, que nao levanta o miolo) e colocar o brilho periodico
+numa OUTRA peca (a placa boton "PAXTER" do rodape), nunca sobre o tile.
+**Why:** o miolo escuro vira "tela de cinema" do flash e parece troca de cor de fundo.
