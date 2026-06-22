@@ -1,6 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Play, Check, User, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Check, User, ChevronRight, Play, Pause } from 'lucide-react';
 import SYMBOL_GOLD from '../../../assets/paxter-symbol-gold.png';
+import VID1 from '../../../assets/videos/v1.mp4';
+import VID2 from '../../../assets/videos/v2.mp4';
+import VID3 from '../../../assets/videos/v3.mp4';
+import POSTER1 from '../../../assets/videos/v1.jpg';
+import POSTER2 from '../../../assets/videos/v2.jpg';
+import POSTER3 from '../../../assets/videos/v3.jpg';
+
+const VIDEOS = [
+  { id: 1, title: 'Como Funciona', src: VID1, poster: POSTER1 },
+  { id: 2, title: 'Nossa Clínica', src: VID2, poster: POSTER2 },
+  { id: 3, title: 'Depoimentos', src: VID3, poster: POSTER3 },
+];
 
 export default function MarcarConsulta() {
   const [motivo, setMotivo] = useState('toxina');
@@ -8,8 +20,37 @@ export default function MarcarConsulta() {
   const [dia, setDia] = useState('24');
   const [hora, setHora] = useState('14:00');
   const [mounted, setMounted] = useState(false);
+  const [motionPaused, setMotionPaused] = useState(false);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => setMounted(true), []);
+
+  // Toca apenas o vídeo em foco (economia de bateria/CPU em mobile)
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const vids = videoRefs.current.filter(Boolean) as HTMLVideoElement[];
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          const v = e.target as HTMLVideoElement;
+          if (e.isIntersecting && e.intersectionRatio >= 0.6 && !motionPaused) {
+            v.play().catch(() => {});
+          } else {
+            v.pause();
+          }
+        });
+      },
+      { threshold: [0, 0.6, 1] }
+    );
+    vids.forEach((v) => io.observe(v));
+    return () => io.disconnect();
+  }, [motionPaused]);
+
+  // Pausa global imediata quando o usuário desliga o movimento
+  useEffect(() => {
+    if (!motionPaused) return;
+    (videoRefs.current.filter(Boolean) as HTMLVideoElement[]).forEach((v) => v.pause());
+  }, [motionPaused]);
 
   return (
     <div className="relative min-h-[100dvh] w-full max-w-[430px] mx-auto bg-[#0d1830] text-slate-200 overflow-x-hidden flex flex-col font-sans selection:bg-[#c2a05a]/30 pb-12">
@@ -101,6 +142,72 @@ export default function MarcarConsulta() {
           50% { opacity: 0.6; transform: scale(1.15); }
         }
         .aura-pulse { animation: auraPulse 3s ease-in-out infinite; }
+
+        /* ===== Moldura Neoclássica Dourada (gilt frame) ===== */
+        .gilt-frame {
+          position: relative;
+          padding: 13px;
+          border-radius: 3px;
+          background:
+            linear-gradient(135deg, #6f5421 0%, #f6e6a8 16%, #c9a24e 36%, #8a6d2f 54%, #f1dd9a 74%, #927235 100%);
+          box-shadow:
+            inset 0 0 0 1px rgba(255,243,205,0.55),
+            inset 0 2px 3px rgba(255,247,214,0.6),
+            inset 0 -3px 7px rgba(54,36,8,0.75),
+            0 12px 26px rgba(0,0,0,0.55),
+            0 0 22px rgba(194,160,90,0.22);
+        }
+        /* sulco esculpido interno da moldura */
+        .gilt-frame::before {
+          content: '';
+          position: absolute;
+          inset: 6px;
+          border-radius: 2px;
+          box-shadow:
+            inset 0 0 0 1px rgba(54,36,8,0.85),
+            inset 0 0 0 3px rgba(244,226,168,0.30),
+            inset 0 1px 3px rgba(0,0,0,0.7);
+          pointer-events: none;
+          z-index: 1;
+        }
+        /* paspatur escuro (veludo) + filete dourado */
+        .gilt-mat {
+          position: relative;
+          z-index: 0;
+          padding: 4px;
+          background: #0a0f1c;
+          border: 1px solid rgba(244,226,168,0.5);
+          box-shadow: inset 0 2px 9px rgba(0,0,0,0.85);
+          overflow: hidden;
+          border-radius: 1px;
+        }
+        /* rosetas de canto (toque rococó/neoclássico) */
+        .gilt-corner {
+          position: absolute;
+          width: 22px; height: 22px;
+          z-index: 3;
+          border-radius: 50%;
+          background: radial-gradient(circle at 50% 42%, #f8ecb8 0%, #d9b85e 34%, #8a6d2f 68%, #5a451d 100%);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,250,228,0.85), inset 0 -2px 3px rgba(54,36,8,0.7);
+        }
+        .gilt-corner::after {
+          content: '';
+          position: absolute;
+          inset: 6px;
+          border-radius: 50%;
+          background: radial-gradient(circle, #5a451d 0%, #8a6d2f 60%, transparent 100%);
+        }
+        .gilt-corner-tl { top: -7px; left: -7px; }
+        .gilt-corner-tr { top: -7px; right: -7px; }
+        .gilt-corner-bl { bottom: -7px; left: -7px; }
+        .gilt-corner-br { bottom: -7px; right: -7px; }
+        /* cartela / nameplate de museu */
+        .nameplate {
+          background: linear-gradient(180deg, #f8ecb8 0%, #c9a24e 52%, #8a6d2f 100%);
+          border: 1px solid rgba(54,36,8,0.5);
+          border-radius: 3px;
+          box-shadow: inset 0 1px 1px rgba(255,250,228,0.85), inset 0 -2px 3px rgba(54,36,8,0.6), 0 4px 10px rgba(0,0,0,0.5);
+        }
       `}</style>
 
       <div className="paxter-bg absolute inset-0 z-0 pointer-events-none" />
@@ -148,40 +255,47 @@ export default function MarcarConsulta() {
           </button>
         </div>
 
-        {/* 4. Video Strip */}
-        <div className="anim-enter anim-delay-1 flex flex-col gap-3">
-          <div className="px-6 flex items-center justify-between">
-            <h2 className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Conheça a Experiência</h2>
+        {/* 4. Galeria de Vídeos — Molduras Neoclássicas Douradas */}
+        <div className="anim-enter anim-delay-1 flex flex-col gap-4">
+          <div className="px-6 flex flex-col items-center gap-2">
+            <h2 className="font-serif italic text-lg text-gold tracking-wide">Galeria da Experiência</h2>
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-[#c2a05a] to-transparent" />
+            <button
+              type="button"
+              onClick={() => setMotionPaused((p) => !p)}
+              aria-pressed={motionPaused}
+              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider text-slate-300 border border-white/10 bg-black/30 outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/60 active:scale-95 transition-transform"
+            >
+              {motionPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+              {motionPaused ? 'Reproduzir' : 'Pausar'} animações
+            </button>
           </div>
-          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 px-6 pb-4 hide-scroll">
-            {[
-              { id: 1, title: 'Como funciona', dur: '01:20' },
-              { id: 2, title: 'Conheça a clínica', dur: '02:15' },
-              { id: 3, title: 'Depoimentos', dur: '03:40' }
-            ].map((vid) => (
-              <button
-                key={vid.id}
-                type="button"
-                aria-label={`Assistir vídeo: ${vid.title}, duração ${vid.dur}`}
-                className="snap-start shrink-0 w-[260px] aspect-[16/9] panel-3d relative overflow-hidden group cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1830]"
-              >
-                {/* Placeholder gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[#111d33] to-[#070d1a]" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.05)_0%,_transparent_70%)]" />
-                
-                {/* Play Button */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm border border-[#c2a05a]/40 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-[0_0_15px_rgba(194,160,90,0.2)]">
-                    <Play className="w-5 h-5 text-[#f4e2a8] ml-1 fill-[#f4e2a8]" />
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 px-6 pb-5 pt-2 hide-scroll">
+            {VIDEOS.map((vid, idx) => (
+              <figure key={vid.id} className="snap-center shrink-0 w-[280px] flex flex-col items-center gap-3">
+                <div className="gilt-frame w-full">
+                  <span className="gilt-corner gilt-corner-tl" aria-hidden="true" />
+                  <span className="gilt-corner gilt-corner-tr" aria-hidden="true" />
+                  <span className="gilt-corner gilt-corner-bl" aria-hidden="true" />
+                  <span className="gilt-corner gilt-corner-br" aria-hidden="true" />
+                  <div className="gilt-mat">
+                    <video
+                      ref={(el) => { videoRefs.current[idx] = el; }}
+                      className="w-full aspect-[16/9] object-cover block"
+                      src={vid.src}
+                      poster={vid.poster}
+                      aria-label={`Vídeo de demonstração: ${vid.title}`}
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                    />
                   </div>
                 </div>
-                
-                {/* Captions */}
-                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                  <p className="text-sm font-medium text-slate-100">{vid.title}</p>
-                  <p className="text-[10px] text-gold">{vid.dur}</p>
-                </div>
-              </button>
+                <figcaption className="nameplate px-5 py-1.5">
+                  <span className="font-serif text-sm tracking-wide text-[#3a2a0e]">{vid.title}</span>
+                </figcaption>
+              </figure>
             ))}
           </div>
         </div>

@@ -110,7 +110,7 @@ export default function Entrada() {
           className="entrada-fade flex flex-col items-center gap-7 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b1426]"
         >
           <div className="relative logo-pulse">
-            <img src={paxterSymbol} alt="PAXTER" className="h-32 w-32 sm:h-40 sm:w-40 object-contain logo-glow" />
+            <img src={paxterSymbol} alt="PAXTER" style={{ mixBlendMode: "screen" }} className="h-32 w-32 sm:h-40 sm:w-40 object-contain logo-glow" />
           </div>
 
           <div className="text-center">
@@ -140,7 +140,7 @@ export default function Entrada() {
       ) : (
         <div className="entrada-fade w-full max-w-2xl flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-2">
-            <img src={paxterSymbol} alt="PAXTER" className="h-14 w-14 object-contain logo-glow" />
+            <img src={paxterSymbol} alt="PAXTER" style={{ mixBlendMode: "screen" }} className="h-14 w-14 object-contain logo-glow" />
             <div className="text-xl font-bold tracking-[0.3em] text-[#f1dca6] pl-[0.3em]">PAXTER</div>
             <div className="text-[10px] uppercase tracking-[0.4em] text-[#8aa0c4] pl-[0.4em]">
               Welcome · Selecione seu acesso
