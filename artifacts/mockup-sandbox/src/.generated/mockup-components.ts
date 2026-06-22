@@ -2,8 +2,17 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/agendar-paxter/AgendarPaxter.tsx": () => import("../components/mockups/agendar-paxter/AgendarPaxter.tsx"),
+  "./components/mockups/agendar-paxter/AgendarV1.tsx": () => import("../components/mockups/agendar-paxter/AgendarV1.tsx"),
+  "./components/mockups/agendar-paxter/AgendarV2.tsx": () => import("../components/mockups/agendar-paxter/AgendarV2.tsx"),
+  "./components/mockups/agendar-paxter/AgendarV3.tsx": () => import("../components/mockups/agendar-paxter/AgendarV3.tsx"),
+  "./components/mockups/agendar-paxter/AgendarV4.tsx": () => import("../components/mockups/agendar-paxter/AgendarV4.tsx"),
+  "./components/mockups/agendar-paxter/AgendarV5.tsx": () => import("../components/mockups/agendar-paxter/AgendarV5.tsx"),
   "./components/mockups/anamnese-paxter/AnamnesePaxter.tsx": () => import("../components/mockups/anamnese-paxter/AnamnesePaxter.tsx"),
-  "./components/mockups/marcacao/MarcarConsulta.tsx": () => import("../components/mockups/marcacao/MarcarConsulta.tsx"),
+  "./components/mockups/anamnese-paxter/AnamneseV1.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV1.tsx"),
+  "./components/mockups/anamnese-paxter/AnamneseV2.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV2.tsx"),
+  "./components/mockups/anamnese-paxter/AnamneseV3.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV3.tsx"),
+  "./components/mockups/anamnese-paxter/AnamneseV4.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV4.tsx"),
+  "./components/mockups/anamnese-paxter/AnamneseV5.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV5.tsx"),
   "./components/mockups/paxter-logo/LogoMaison.tsx": () => import("../components/mockups/paxter-logo/LogoMaison.tsx"),
   "./components/mockups/paxter-logo/LogoMetal.tsx": () => import("../components/mockups/paxter-logo/LogoMetal.tsx"),
   "./components/mockups/paxter-logo/LogoQuiet.tsx": () => import("../components/mockups/paxter-logo/LogoQuiet.tsx"),
@@ -15,5 +24,6 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-logo/SidebarMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarMetal.tsx"),
   "./components/mockups/paxter-logo/SidebarQuiet.tsx": () => import("../components/mockups/paxter-logo/SidebarQuiet.tsx"),
   "./components/mockups/paxter-logo/SidebarSceau.tsx": () => import("../components/mockups/paxter-logo/SidebarSceau.tsx"),
-  "./components/mockups/paxter-logo/SidebarSceauMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarSceauMetal.tsx")
+  "./components/mockups/paxter-logo/SidebarSceauMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarSceauMetal.tsx"),
+  "./components/mockups/marcacao/MarcarConsulta.tsx": () => import("../components/mockups/marcacao/MarcarConsulta.tsx")
 };
