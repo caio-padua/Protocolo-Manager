@@ -4,5 +4,7 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-logo/LogoMaison.tsx": () => import("../components/mockups/paxter-logo/LogoMaison.tsx"),
   "./components/mockups/paxter-logo/LogoMetal.tsx": () => import("../components/mockups/paxter-logo/LogoMetal.tsx"),
   "./components/mockups/paxter-logo/LogoQuiet.tsx": () => import("../components/mockups/paxter-logo/LogoQuiet.tsx"),
-  "./components/mockups/paxter-logo/LogoSceau.tsx": () => import("../components/mockups/paxter-logo/LogoSceau.tsx")
+  "./components/mockups/paxter-logo/LogoSceau.tsx": () => import("../components/mockups/paxter-logo/LogoSceau.tsx"),
+  "./components/mockups/paxter-logo/LogoSceauMetal.tsx": () => import("../components/mockups/paxter-logo/LogoSceauMetal.tsx"),
+  "./components/mockups/paxter-logo/LogoSceauMetalLight.tsx": () => import("../components/mockups/paxter-logo/LogoSceauMetalLight.tsx")
 };
