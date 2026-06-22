@@ -1,0 +1,920 @@
+Sim. O que você precisa pedir ao Replit não é “faça igual a imagem”, porque isso dá margem para ele inventar. Você precisa entregar para ele uma **especificação técnica de identidade visual**, com 3 blocos separados:
+
+1. **Símbolo / monograma**
+2. **Nome PAXTER**
+3. **Frases auxiliares**
+
+E com parâmetros de **ouro, relevo, sombra, espessura, altura 3D e acabamento**.
+
+Abaixo deixei um texto pronto para você copiar e colar no Replit.
+
+# ESPECIFICAÇÃO TÉCNICA — LOGO PAXTER
+
+## Objetivo
+
+Implementar no sistema uma versão vetorial/renderizada da identidade visual **PAXTER**, com aparência premium, luxo discreto, ouro polido normal, relevo 3D mais intenso e acabamento sofisticado.
+
+A logo deve ser composta por 3 elementos principais:
+
+1. **Símbolo / monograma superior**
+2. **Nome PAXTER**
+3. **Frases auxiliares renderizadas em 3D**
+
+A estética geral deve seguir o padrão visual de uma marca médica/tecnológica premium: fundo escuro, ouro polido, profundidade, sombra elegante, brilho controlado e acabamento limpo.
+
+---
+
+# 1. SÍMBOLO / MONOGRAMA SUPERIOR
+
+## Descrição visual
+
+O símbolo superior deve parecer um monograma abstrato, geométrico e premium, combinando visualmente as ideias de:
+
+* Letra **P**
+* Letra **X**
+* Símbolo médico/tecnológico sofisticado
+* Forma de emblema em moldura arredondada parcial
+
+O símbolo não deve parecer uma ilustração comum. Ele deve parecer uma peça metálica em ouro, como se fosse uma joia ou emblema de luxo.
+
+## Estrutura geométrica
+
+O símbolo deve ter:
+
+* Formato geral quase quadrado.
+* Cantos superiores arredondados.
+* Traço externo grosso, como uma moldura incompleta.
+* Parte superior com curva arredondada.
+* Lado esquerdo vertical com extremidade inferior chanfrada.
+* Lado direito com curva descendo e abrindo na lateral.
+* Elemento interno curvo lembrando a parte superior de um “P”.
+* Um traço diagonal cruzando o centro, formando leitura de “X”.
+* Base diagonal inferior formando a segunda perna do “X”.
+
+## Proporção
+
+Usar viewBox SVG sugerido:
+
+```svg
+viewBox="0 0 600 500"
+```
+
+O símbolo deve ocupar aproximadamente:
+
+* Largura: 360 a 420 unidades dentro do viewBox.
+* Altura: 300 a 360 unidades.
+* Centro horizontal: 300.
+* Topo: entre 40 e 60.
+* Base: entre 380 e 420.
+
+## Espessura
+
+A espessura visual dos traços deve ser robusta:
+
+* Traço principal: 42 px a 56 px.
+* Cantos arredondados: radius visual de 40 px a 70 px.
+* Bevel aparente: 6 px a 10 px.
+* Extrusão / relevo: 14 px a 20 px.
+
+## Material
+
+Aplicar ouro polido normal, não envelhecido.
+
+Evitar:
+
+* Ouro queimado demais.
+* Bronze.
+* Ouro antigo.
+* Textura suja.
+* Excesso de brilho amarelo estourado.
+* Aparência chamativa demais.
+
+Usar padrão de ouro:
+
+```css
+--gold-base: #D9A441;
+--gold-light: #FFF1A8;
+--gold-mid: #F2C45C;
+--gold-deep: #8C5A13;
+--gold-shadow: #3A2206;
+```
+
+Gradiente sugerido:
+
+```css
+background: linear-gradient(
+  135deg,
+  #7a4a0a 0%,
+  #d9a441 18%,
+  #fff1a8 34%,
+  #f2c45c 48%,
+  #a66b16 65%,
+  #ffd978 82%,
+  #6e4208 100%
+);
+```
+
+## Relevo / sobressalente
+
+O símbolo deve ter relevo mais intenso que a versão anterior.
+
+Aplicar:
+
+```css
+filter:
+  drop-shadow(0px 3px 0px #5f3708)
+  drop-shadow(0px 8px 10px rgba(0,0,0,0.65))
+  drop-shadow(0px 18px 26px rgba(0,0,0,0.45));
+```
+
+Também aplicar brilho superior discreto:
+
+```css
+box-shadow:
+  inset 0 2px 3px rgba(255,255,255,0.85),
+  inset 0 -4px 6px rgba(70,35,0,0.65),
+  0 10px 24px rgba(0,0,0,0.55);
+```
+
+## Acabamento
+
+O símbolo deve parecer:
+
+* Ouro polido.
+* Superfície lisa.
+* Bevel chanfrado.
+* Reflexo controlado.
+* Luxo discreto.
+* Sem brilho exagerado.
+* Sem aparência envelhecida.
+
+---
+
+# 2. NOME “PAXTER”
+
+## Texto exato
+
+O texto principal deve ser:
+
+```text
+PAXTER
+```
+
+## Estilo geral
+
+O nome deve ser em letras maiúsculas, metálicas, geométricas e premium.
+
+A palavra **PAXTER** deve ficar:
+
+* Centralizada.
+* Grande.
+* Em ouro polido normal.
+* Em 3D.
+* Com relevo mais evidente.
+* Um pouco mais grossa que a versão anterior.
+
+## Espessura desejada
+
+A versão anterior ficou levemente fina. Aumentar a espessura do nome **PAXTER** em aproximadamente:
+
+```text
++6% a +9%
+```
+
+Não aumentar muito. O ajuste deve ser sutil.
+
+Parâmetros sugeridos:
+
+```css
+font-weight: 700;
+letter-spacing: 0.08em;
+transform: scaleX(1.04);
+```
+
+Caso seja SVG path manual:
+
+* Aumentar a largura dos traços em 6% a 9%.
+* Manter a altura original.
+* Não deformar a palavra.
+* Não deixar pesada demais.
+
+## Letra P específica
+
+A letra **P** do PAXTER é crítica.
+
+Ela deve seguir o modelo do “P” da referência PACTOR:
+
+* “P” geométrico.
+* Parte superior horizontal longa.
+* Curva direita arredondada.
+* Abertura interna vazada.
+* A parte oposta à curvatura deve parecer “vazia”/recortada.
+* Não usar um P comum de fonte tradicional.
+* Não fechar totalmente o bojo do P.
+* O P deve ter aspecto de peça metálica aberta, elegante e futurista.
+
+Descrição técnica do P:
+
+```text
+O P deve ser construído como uma haste vertical esquerda + barra superior horizontal + curva superior direita parcial, com recorte interno vazado. A área interna do P deve mostrar o fundo escuro, criando um vazio real. A forma não deve parecer uma letra P tradicional fechada; deve parecer uma letra P premium customizada, vazada e geométrica.
+```
+
+## Letras restantes
+
+### A
+
+* Estilo geométrico.
+* Sem barra horizontal tradicional ou com barra muito discreta.
+* Parecer um triângulo aberto premium.
+* Bevel metálico.
+
+### X
+
+* Cruzamento central forte.
+* Duas hastes diagonais com chanfrados.
+* O ponto de cruzamento pode ter destaque de brilho.
+
+### T
+
+* Barra superior reta e forte.
+* Haste central.
+* Bevel nas extremidades.
+
+### E
+
+* Três barras horizontais.
+* Barra vertical esquerda discreta ou integrada.
+* Estilo futurista.
+* Espaço interno escuro visível.
+
+### R
+
+* Curva superior elegante.
+* Perna diagonal inferior.
+* Não parecer fonte comum.
+* Manter linguagem geométrica.
+
+## Ouro do nome
+
+Usar o mesmo padrão do símbolo:
+
+```css
+background: linear-gradient(
+  135deg,
+  #7a4a0a 0%,
+  #d9a441 18%,
+  #fff1a8 34%,
+  #f2c45c 48%,
+  #a66b16 65%,
+  #ffd978 82%,
+  #6e4208 100%
+);
+```
+
+## 3D / sobressalente do nome
+
+A palavra PAXTER deve ter mais relevo.
+
+Usar:
+
+```css
+text-shadow:
+  0 1px 0 #fff0a8,
+  0 2px 0 #b97918,
+  0 4px 0 #6c3f08,
+  0 8px 12px rgba(0,0,0,0.65),
+  0 16px 24px rgba(0,0,0,0.45);
+```
+
+Para SVG:
+
+* Criar camada base escura deslocada 10 px para baixo.
+* Criar camada intermediária em ouro escuro deslocada 5 px.
+* Criar camada superior com gradiente dourado.
+* Criar stroke fino de brilho na borda superior.
+
+Estrutura sugerida:
+
+```svg
+<g class="wordmark-depth" transform="translate(0,10)" opacity="0.55">
+  <!-- paths do PAXTER em dourado escuro -->
+</g>
+
+<g class="wordmark-mid-depth" transform="translate(0,5)" opacity="0.75">
+  <!-- paths do PAXTER em ouro médio escuro -->
+</g>
+
+<g class="wordmark-front">
+  <!-- paths principais do PAXTER com gradiente gold-polished -->
+</g>
+```
+
+---
+
+# 3. FRASES AUXILIARES
+
+A logo terá três linhas auxiliares.
+
+## Linha 1
+
+Texto exato:
+
+```text
+Clinical Intelligence System
+```
+
+## Linha 2
+
+Texto exato:
+
+```text
+PRECISION IN INTEGRATIVE CARE
+```
+
+## Linha 3
+
+Texto exato:
+
+```text
+AI-guided prescriptions, exams and injectable protocols.
+```
+
+---
+
+## Estilo da frase “Clinical Intelligence System”
+
+Essa frase deve ficar abaixo do nome PAXTER.
+
+Ela deve ser:
+
+* Em ouro polido.
+* Em 3D.
+* Sobressalente.
+* Mais fina que PAXTER, porém não plana.
+* Elegante.
+* Com fonte serifada ou semi-serifada premium.
+
+Fonte sugerida:
+
+```css
+font-family: "Cinzel", "Cormorant Garamond", "Trajan Pro", serif;
+font-weight: 500;
+letter-spacing: 0.04em;
+```
+
+Tamanho proporcional:
+
+```text
+Altura da frase = aproximadamente 22% a 28% da altura do nome PAXTER.
+```
+
+3D sugerido:
+
+```css
+text-shadow:
+  0 1px 0 #fff1b0,
+  0 2px 0 #b67a18,
+  0 4px 5px rgba(0,0,0,0.55),
+  0 8px 14px rgba(0,0,0,0.35);
+```
+
+## Estilo da frase “PRECISION IN INTEGRATIVE CARE”
+
+Essa frase deve ser:
+
+* Maiúscula.
+* Bem espaçada.
+* Ouro polido.
+* 3D discreto, mas visível.
+* Mais técnica e institucional.
+* Menor que “Clinical Intelligence System”.
+
+Fonte sugerida:
+
+```css
+font-family: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+font-weight: 500;
+letter-spacing: 0.28em;
+```
+
+3D sugerido:
+
+```css
+text-shadow:
+  0 1px 0 #ffe8a0,
+  0 2px 0 #9b6411,
+  0 5px 8px rgba(0,0,0,0.45);
+```
+
+## Estilo da frase “AI-guided prescriptions…”
+
+Essa frase deve ser:
+
+* Menor.
+* Refinada.
+* Em ouro.
+* 3D sutil.
+* Legível.
+* Não competir com o nome PAXTER.
+
+Fonte sugerida:
+
+```css
+font-family: "Cormorant Garamond", "Cinzel", serif;
+font-weight: 400;
+letter-spacing: 0.03em;
+```
+
+3D sugerido:
+
+```css
+text-shadow:
+  0 1px 0 #ffe8a0,
+  0 2px 3px rgba(0,0,0,0.55),
+  0 5px 8px rgba(0,0,0,0.35);
+```
+
+---
+
+# FUNDO
+
+## Cor
+
+Fundo preto profundo com leve tom azul-marinho:
+
+```css
+--bg-main: #05080B;
+--bg-soft: #0B1118;
+```
+
+## Textura
+
+Usar textura muito discreta, quase imperceptível.
+
+Exemplo CSS:
+
+```css
+background:
+  radial-gradient(circle at 50% 20%, rgba(255,255,255,0.045), transparent 32%),
+  radial-gradient(circle at 50% 60%, rgba(217,164,65,0.06), transparent 38%),
+  linear-gradient(180deg, #0b1118 0%, #05080b 100%);
+```
+
+Adicionar grão sutil:
+
+```css
+.logo-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.09;
+  pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,0.08) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+```
+
+---
+
+# IMPLEMENTAÇÃO REACT / TYPESCRIPT
+
+Criar um componente:
+
+```tsx
+<PaxterLogo variant="hero" />
+```
+
+Arquivo sugerido:
+
+```text
+src/components/branding/PaxterLogo.tsx
+src/components/branding/PaxterLogo.css
+```
+
+## Estrutura do componente
+
+```tsx
+import "./PaxterLogo.css";
+
+export function PaxterLogo() {
+  return (
+    <section className="paxter-logo-bg">
+      <div className="paxter-logo-wrapper">
+
+        <svg
+          className="paxter-symbol"
+          viewBox="0 0 600 500"
+          role="img"
+          aria-label="Paxter monogram"
+        >
+          <defs>
+            <linearGradient id="goldPolished" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#7A4A0A" />
+              <stop offset="18%" stopColor="#D9A441" />
+              <stop offset="34%" stopColor="#FFF1A8" />
+              <stop offset="48%" stopColor="#F2C45C" />
+              <stop offset="65%" stopColor="#A66B16" />
+              <stop offset="82%" stopColor="#FFD978" />
+              <stop offset="100%" stopColor="#6E4208" />
+            </linearGradient>
+
+            <filter id="goldDepth" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="4" stdDeviation="2" floodColor="#5f3708" floodOpacity="0.9" />
+              <feDropShadow dx="0" dy="12" stdDeviation="10" floodColor="#000000" floodOpacity="0.55" />
+              <feDropShadow dx="0" dy="22" stdDeviation="16" floodColor="#000000" floodOpacity="0.35" />
+            </filter>
+          </defs>
+
+          <!-- 
+            Substituir estes paths por paths finais vetoriais do monograma.
+            Manter fill url(#goldPolished), stroke de brilho e filter goldDepth.
+          -->
+
+          <path
+            className="symbol-depth"
+            d="M140 390 L140 110 Q140 70 180 70 H410 Q460 70 460 120 Q460 155 430 190 L330 315 Q300 350 265 320 L190 245"
+          />
+
+          <path
+            className="symbol-main"
+            d="M140 390 L140 110 Q140 70 180 70 H410 Q460 70 460 120 Q460 155 430 190 L330 315 Q300 350 265 320 L190 245"
+          />
+
+          <path
+            className="symbol-main"
+            d="M190 165 H310 Q350 165 350 205 Q350 235 320 250"
+          />
+
+          <path
+            className="symbol-main"
+            d="M210 395 L300 280 L410 395"
+          />
+        </svg>
+
+        <div className="paxter-wordmark" aria-label="PAXTER">
+          <span className="letter-p custom-p">P</span>
+          <span>A</span>
+          <span>X</span>
+          <span>T</span>
+          <span>E</span>
+          <span>R</span>
+        </div>
+
+        <div className="paxter-clinical">
+          Clinical Intelligence System
+        </div>
+
+        <div className="paxter-divider">
+          <span></span>
+          <b>✦</b>
+          <span></span>
+        </div>
+
+        <div className="paxter-tagline">
+          PRECISION IN INTEGRATIVE CARE
+        </div>
+
+        <div className="paxter-description">
+          AI-guided prescriptions, exams and injectable protocols.
+        </div>
+
+      </div>
+    </section>
+  );
+}
+```
+
+---
+
+# CSS SUGERIDO
+
+```css
+.paxter-logo-bg {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.05), transparent 28%),
+    radial-gradient(circle at 50% 55%, rgba(217, 164, 65, 0.055), transparent 36%),
+    linear-gradient(180deg, #0b1118 0%, #05080b 100%);
+}
+
+.paxter-logo-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 25% 25%, rgba(255,255,255,0.08) 0 1px, transparent 1px 4px);
+  mix-blend-mode: overlay;
+}
+
+.paxter-logo-wrapper {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 1100px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 64px 32px;
+  color: #f2c45c;
+}
+
+.paxter-symbol {
+  width: clamp(260px, 34vw, 430px);
+  height: auto;
+  margin-bottom: 42px;
+  overflow: visible;
+}
+
+.symbol-main {
+  fill: none;
+  stroke: url(#goldPolished);
+  stroke-width: 48;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: url(#goldDepth);
+}
+
+.symbol-depth {
+  fill: none;
+  stroke: #5f3708;
+  stroke-width: 52;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translateY(14px);
+  opacity: 0.75;
+}
+
+.paxter-wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.075em;
+  font-family: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+  font-size: clamp(72px, 11vw, 150px);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: 0.045em;
+  transform: scaleX(1.04);
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #7a4a0a 0%,
+    #d9a441 18%,
+    #fff1a8 34%,
+    #f2c45c 48%,
+    #a66b16 65%,
+    #ffd978 82%,
+    #6e4208 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow:
+    0 1px 0 #fff0a8,
+    0 2px 0 #b97918,
+    0 4px 0 #6c3f08,
+    0 8px 12px rgba(0,0,0,0.65),
+    0 16px 24px rgba(0,0,0,0.45);
+}
+
+.paxter-wordmark span {
+  display: inline-block;
+  position: relative;
+}
+
+/* 
+  Atenção:
+  Para produção final, o P deve ser vetor SVG customizado.
+  Esta classe apenas força o P a parecer mais aberto/vazado.
+*/
+.custom-p {
+  font-family: "Cinzel", "Trajan Pro", serif;
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% 28%,
+    32% 28%,
+    32% 48%,
+    88% 48%,
+    88% 68%,
+    32% 68%,
+    32% 100%,
+    0% 100%
+  );
+}
+
+.paxter-clinical {
+  margin-top: 18px;
+  font-family: "Cormorant Garamond", "Cinzel", serif;
+  font-size: clamp(34px, 4.2vw, 62px);
+  font-weight: 500;
+  letter-spacing: 0.045em;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #8c5a13 0%,
+    #f2c45c 35%,
+    #fff1a8 50%,
+    #d9a441 70%,
+    #6e4208 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow:
+    0 1px 0 #fff1b0,
+    0 2px 0 #b67a18,
+    0 4px 5px rgba(0,0,0,0.55),
+    0 8px 14px rgba(0,0,0,0.35);
+}
+
+.paxter-divider {
+  width: min(74%, 760px);
+  margin: 34px 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #d9a441;
+}
+
+.paxter-divider span {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #8c5a13,
+    #f2c45c,
+    transparent
+  );
+}
+
+.paxter-divider b {
+  font-size: 20px;
+  color: #f2c45c;
+  text-shadow:
+    0 1px 0 #fff1b0,
+    0 4px 8px rgba(0,0,0,0.5);
+}
+
+.paxter-tagline {
+  font-family: "Cinzel", "Trajan Pro", serif;
+  font-size: clamp(22px, 2.8vw, 42px);
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-align: center;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #8c5a13 0%,
+    #f2c45c 38%,
+    #fff1a8 52%,
+    #d9a441 75%,
+    #6e4208 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow:
+    0 1px 0 #ffe8a0,
+    0 2px 0 #9b6411,
+    0 5px 8px rgba(0,0,0,0.45);
+}
+
+.paxter-description {
+  margin-top: 18px;
+  font-family: "Cormorant Garamond", "Cinzel", serif;
+  font-size: clamp(20px, 2.1vw, 34px);
+  font-weight: 400;
+  letter-spacing: 0.035em;
+  text-align: center;
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #9b6411 0%,
+    #f2c45c 40%,
+    #fff1a8 52%,
+    #d9a441 72%,
+    #7a4a0a 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow:
+    0 1px 0 #ffe8a0,
+    0 2px 3px rgba(0,0,0,0.55),
+    0 5px 8px rgba(0,0,0,0.35);
+}
+```
+
+---
+
+# REGRAS IMPORTANTES PARA O REPLIT
+
+## Não fazer
+
+Não usar:
+
+* PNG achatado como logo final.
+* Texto comum sem relevo.
+* Ouro envelhecido.
+* Bronze.
+* Dourado laranja.
+* Glow exagerado.
+* Sombra borrada demais.
+* Fonte padrão comum.
+* Letra P tradicional fechada.
+* Frases auxiliares chapadas/sem 3D.
+
+## Fazer
+
+Usar:
+
+* SVG sempre que possível.
+* Texto convertido em path para versão final.
+* Gradiente de ouro polido.
+* Bevel simulado.
+* Camadas de profundidade.
+* Sombras controladas.
+* Fundo preto/navy texturizado.
+* Palavra PAXTER levemente mais grossa.
+* Frases auxiliares também em 3D e sobressalentes.
+* Relevo maior que a imagem anterior.
+
+---
+
+# ESPECIFICAÇÃO FINAL DE INTENSIDADE DO RELEVO
+
+Usar este padrão:
+
+## Símbolo
+
+```text
+Extrusão visual: 16 px
+Sombra principal: 18 px
+Bevel: 8 px
+Brilho: médio controlado
+```
+
+## PAXTER
+
+```text
+Espessura: +6% a +9%
+Extrusão visual: 12 px a 16 px
+Sombra principal: 14 px
+Bevel: 6 px
+Brilho: médio controlado
+```
+
+## Clinical Intelligence System
+
+```text
+Extrusão visual: 5 px a 8 px
+Sombra principal: 8 px
+Bevel: 2 px a 3 px
+Brilho: discreto elegante
+```
+
+## PRECISION IN INTEGRATIVE CARE
+
+```text
+Extrusão visual: 4 px a 6 px
+Sombra principal: 6 px
+Bevel: 2 px
+Brilho: discreto
+```
+
+## AI-guided prescriptions...
+
+```text
+Extrusão visual: 3 px a 5 px
+Sombra principal: 5 px
+Bevel: 1 px a 2 px
+Brilho: muito discreto
+```
+
+---
+
+# RESULTADO ESPERADO
+
+O resultado deve parecer:
+
+```text
+Uma logo premium de sistema clínico inteligente, em ouro polido normal, com relevo 3D mais intenso, fundo escuro sofisticado, nome PAXTER levemente mais encorpado, letra P vazada no estilo da referência PACTOR, e frases auxiliares também em ouro 3D sobressalente.
+```
+
+A logo deve transmitir:
+
+* Luxo.
+* Autoridade.
+* Medicina de precisão.
+* Tecnologia clínica.
+* Sofisticação.
+* Confiança.
+* Riqueza discreta.
+* Alto padrão.
+
+Ponto importante: para o Replit “clonar” de verdade, o ideal é ele **não depender de fonte comum**. A melhor versão final deve ser feita em **SVG com paths**, principalmente o **PAXTER**, porque o “P” vazado é personalizado. O CSS acima entrega uma aproximação funcional, mas a versão premium final deve converter cada letra em vetor.
