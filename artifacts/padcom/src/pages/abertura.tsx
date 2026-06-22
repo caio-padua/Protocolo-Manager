@@ -115,7 +115,7 @@ export default function Abertura() {
             <div className="leading-tight">
               <div className="font-serif text-2xl tracking-[0.16em] text-[#e8cf95]">PAXTER</div>
               <div className="text-[9px] uppercase tracking-[0.22em] text-white/55">
-                Clinical Intelligence
+                Clinical Intelligence System
               </div>
             </div>
           </a>

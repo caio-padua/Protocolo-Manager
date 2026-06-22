@@ -118,7 +118,7 @@ export default function Entrada() {
               PAXTER
             </div>
             <div className="mt-2 text-[11px] sm:text-xs uppercase tracking-[0.45em] text-[#8aa0c4] pl-[0.45em]">
-              Clinical Intelligence
+              Clinical Intelligence System
             </div>
             <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-[#6f86ad]">
               Motor Clínico · Protocolos Injetáveis

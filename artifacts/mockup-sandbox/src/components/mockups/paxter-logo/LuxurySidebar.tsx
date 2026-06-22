@@ -268,14 +268,15 @@ export default function LuxurySidebar({
             <div
               style={{
                 marginTop: 7,
-                fontSize: 8.5,
+                fontSize: 8,
                 fontWeight: 700,
-                letterSpacing: "0.34em",
-                paddingLeft: "0.34em",
+                letterSpacing: "0.16em",
+                paddingLeft: "0.16em",
+                whiteSpace: "nowrap",
                 color: "#e0c17a",
               }}
             >
-              CLINICAL INTELLIGENCE
+              CLINICAL INTELLIGENCE SYSTEM
             </div>
             <div
               style={{

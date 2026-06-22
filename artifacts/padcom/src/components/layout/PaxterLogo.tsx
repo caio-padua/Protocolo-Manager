@@ -24,8 +24,9 @@ export function PaxterLogo({
   subtitle = false,
   href,
 }: PaxterLogoProps) {
-  const medal = size === "sm" ? "h-8 w-8" : size === "md" ? "h-10 w-10" : "h-14 w-14";
-  const img = size === "sm" ? "h-6 w-6" : size === "md" ? "h-7 w-7" : "h-10 w-10";
+  const medal = size === "sm" ? "h-10 w-10" : size === "md" ? "h-12 w-12" : "h-16 w-16";
+  const img = size === "sm" ? "h-7 w-7" : size === "md" ? "h-9 w-9" : "h-12 w-12";
+  const imgDark = size === "sm" ? "h-10 w-10" : size === "md" ? "h-12 w-12" : "h-16 w-16";
   const wordSize = size === "sm" ? "text-base" : size === "md" ? "text-xl" : "text-2xl";
   const subSize = size === "sm" ? "text-[8px]" : size === "md" ? "text-[9px]" : "text-[11px]";
 
@@ -47,15 +48,23 @@ export function PaxterLogo({
           src={paxterSymbol}
           alt="PAXTER"
           className={`${img} object-contain`}
-          style={{ filter: "drop-shadow(0 0 8px rgba(194,160,90,0.45))" }}
+          style={{
+            mixBlendMode: "screen",
+            filter: "brightness(1.12) drop-shadow(0 0 8px rgba(214,176,92,0.5))",
+          }}
         />
       </span>
     ) : (
+      // Fundo escuro (sidebar): mixBlendMode screen apaga o fundo preto do PNG,
+      // deixando so o ouro — simbolo maior e mais brilhante, nao "apagado".
       <img
         src={paxterSymbol}
         alt="PAXTER"
-        className={`${img.replace("h-6", "h-8").replace("h-7", "h-9").replace("h-10", "h-12")} object-contain shrink-0`}
-        style={{ filter: "drop-shadow(0 0 18px rgba(194,160,90,0.45))" }}
+        className={`${imgDark} object-contain shrink-0`}
+        style={{
+          mixBlendMode: "screen",
+          filter: "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
+        }}
       />
     );
 

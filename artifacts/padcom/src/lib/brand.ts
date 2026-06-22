@@ -10,7 +10,7 @@ export const PAXTER_SITE_URL = "https://paxter.com.br";
 
 export const PAXTER = {
   nome: "PAXTER",
-  taglineEn: "Clinical Intelligence",
+  taglineEn: "Clinical Intelligence System",
   subtitulo: "Motor Clínico · Protocolos Injetáveis",
   empresa: "PADCON",
   empresaTagline: "Advanced Systems Architecture",
