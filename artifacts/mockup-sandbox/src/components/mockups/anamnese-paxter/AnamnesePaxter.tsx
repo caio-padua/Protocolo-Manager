@@ -9,8 +9,8 @@ import {
   HeartPulse,
   Check,
 } from "lucide-react";
-import SYMBOL_GOLD from "../../../assets/paxter-symbol-cut.png";
 import { PAXTER_STYLE } from "../_shared/paxter3d";
+import { PaxterSymbolPremium } from "../_shared/PaxterSymbolPremium";
 
 const TOTAL_ETAPAS = 8;
 const ETAPA_ATUAL = 3;
@@ -31,21 +31,8 @@ export default function AnamnesePaxter() {
 
       {/* Header */}
       <header className="relative z-10 pt-10 pb-4 px-6 flex flex-col items-center">
-        <div className="relative w-12 h-12 mb-2">
-          <div
-            className="aura-pulse absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(244,226,168,0.40) 0%, transparent 65%)",
-              filter: "blur(7px)",
-            }}
-            aria-hidden="true"
-          />
-          <img
-            src={SYMBOL_GOLD}
-            alt="Paxter"
-            className="relative w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
-          />
+        <div className="mb-3">
+          <PaxterSymbolPremium size={88} />
         </div>
         <h1 className="text-base font-bold tracking-[0.22em] text-gold">
           FICHA DE ANAMNESE
