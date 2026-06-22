@@ -176,6 +176,78 @@ export function RxWriting({ size = 120, ...rest }: Partial<TraceFlashProps> & { 
 }
 
 // ---------------------------------------------------------------------------
+// GLINT SOBRE O 3D (A + B juntos) — so o FLASH, sem o tracado de base. Feito
+// para ficar POR CIMA do PNG 3D dourado com mix-blend-mode: screen (so clareia),
+// dando a impressao de um reflexo correndo pelo metal real do simbolo.
+// O simbolo 3D continua fixo embaixo; este overlay so passa a luz pelo tracado.
+// ---------------------------------------------------------------------------
+type GlintProps = {
+  d: string | string[];
+  size?: number;
+  viewBox?: string;
+  flashWidth?: number;
+  flashColor?: string;
+  flashMs?: number;
+  flashDelay?: number;
+  className?: string;
+  style?: CSSProperties;
+};
+
+export function TraceFlashGlint({
+  d,
+  size = 150,
+  viewBox = "0 0 120 120",
+  flashWidth = 6,
+  flashColor = "#fffdf0",
+  flashMs = 2600,
+  flashDelay = 0,
+  className,
+  style,
+}: GlintProps) {
+  const uid = useId().replace(/:/g, "");
+  const glow = `tgx-${uid}`;
+  const paths = Array.isArray(d) ? d : [d];
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={viewBox}
+      className={className}
+      style={{ mixBlendMode: "screen", ...style }}
+      aria-hidden="true"
+    >
+      <defs>
+        <filter id={glow} x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.2" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      {paths.map((p, i) => (
+        <path
+          key={`g${i}`}
+          d={p}
+          pathLength={100}
+          className="tf-flash"
+          fill="none"
+          stroke={flashColor}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={flashWidth}
+          filter={`url(#${glow})`}
+          style={{
+            ["--tf-flash" as string]: `${flashMs}ms`,
+            ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms`,
+          }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SIMBOLO EXATO — tracado vetorizado do PNG real (potrace). Aqui o efeito de
 // escrita percorre o CONTORNO real do simbolo Paxter (R + X + moldura), nao um
 // "Rx" digitado. Mesmo motor (TraceFlash), so muda o caminho `d`.

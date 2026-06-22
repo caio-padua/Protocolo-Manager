@@ -5,7 +5,8 @@
 // Recarregar a pagina reinicia as animacoes de abertura (A e B).
 
 import SYMBOL_PNG from "../../../assets/paxter-symbol-cut.png";
-import { TRACE_FLASH_STYLE, PaxterSymbolWriting } from "../_shared/traceFlash";
+import { TRACE_FLASH_STYLE, PaxterSymbolWriting, TraceFlashGlint } from "../_shared/traceFlash";
+import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "../_shared/paxterSymbolPath";
 
 const LOCAL = `
   /* Opcao B — escrita vira PNG */
@@ -56,6 +57,34 @@ export default function TresModelosSimbolo() {
         <h1 className="text-sm font-bold tracking-[0.26em] text-[#d8b765] uppercase">3 Modelos do Símbolo — Comparar</h1>
         <p className="text-[11px] text-slate-400 mt-2 max-w-xs">Recarregue para ver as aberturas (A e B) de novo. Escolha A, B ou C.</p>
       </div>
+
+      {/* A+B — destaque: simbolo 3D fixo com o flash correndo POR CIMA do metal */}
+      <section className="w-full max-w-sm rounded-2xl border-2 border-emerald-400/60 bg-gradient-to-b from-[#10233f] to-[#070f22] p-6 flex flex-col items-center gap-3 shadow-[0_24px_60px_rgba(0,0,0,0.7)]">
+        <div className="flex items-center gap-2">
+          <span className="grid place-items-center px-2 h-7 rounded-md bg-emerald-400 text-[#072018] text-sm font-extrabold">A+B</span>
+          <span className="text-[12px] uppercase tracking-[0.16em] text-emerald-300 font-bold">Flash 3D — o que você pediu</span>
+        </div>
+        <Stage>
+          <img
+            src={SYMBOL_PNG}
+            alt="Paxter 3D"
+            className="absolute"
+            style={{ width: 150, height: 150, objectFit: "contain", mixBlendMode: "screen" }}
+          />
+          <TraceFlashGlint
+            d={PAXTER_SYMBOL_PATH}
+            viewBox={`0 0 ${PAXTER_SYMBOL_VIEWBOX.w} ${PAXTER_SYMBOL_VIEWBOX.h}`}
+            size={150}
+            flashWidth={7}
+            flashMs={2600}
+            className="absolute"
+          />
+        </Stage>
+        <span className="text-[10px] uppercase tracking-[0.28em] text-[#d8b765] font-bold">PAXTER</span>
+        <span className="text-[10px] text-center leading-relaxed text-emerald-200">
+          Seu símbolo em ouro polido 3D fixo, com o reflexo correndo PELO traçado exato (modo só-clareia). É a opção A dentro da opção B.
+        </span>
+      </section>
 
       {/* A — vetor que se escreve (SIMBOLO EXATO) */}
       <Card tag="A" titulo="Vetor que se escreve" vbom veredito="Escreve o SEU símbolo exato (contorno R + X), nítido em qualquer tamanho. Sem o relevo 3D do PNG.">
