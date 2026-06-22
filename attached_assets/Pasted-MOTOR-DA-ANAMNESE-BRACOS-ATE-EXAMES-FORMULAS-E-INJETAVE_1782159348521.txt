@@ -1,0 +1,368 @@
+MOTOR DA ANAMNESE — BRACOS ATE EXAMES, FORMULAS E INJETAVEIS    CLIENTE
+responde a ANAMNESE MOTOR
+calcula escore +
+acende DOENCAS / SINTOMAS EXAMES FORMULAS INJETAVEIS     LIGADO
+chave: bloco_motor ->
+catalogo_bloco_exames PRE-CABEADO
+chave: doenca_id_ihe ->
+item_ref (item_doenca) PRE-CABEADO
+chave: doenca_id_ihe ->
+item_ref (item_doenca) RESUMO
+Verde LIGADO: a anamnese ja gera EXAMES sozinha.
+Laranja PRE-CABEADO: tabelas e chaves de FORMULAS e INJETAVEIS ja existem; falta so ligar a chave no codigo do motor.
+Divida: ligacao por TEXTO (bloco_motor) deve virar id. RAS FAP — FOLHA RETIFICADA (versao ATUAL: faixa lateral RAS/FAP + nomes corrigidos) — 4 versoes A/B/C/D OPCAO A — PETROLEO CLASSICO (atual, aprovado): navy + teal + fio bronze duplo OPCAO B — MARCA PADCON CONECT: verde-petroleo + ciano, celula pintada inteira OPCAO C — CLINICO MINIMAL: monocromatico, leve/arejado, fio hairline, sem pintura OPCAO D — EDITORIAL BRONZE: papel creme, tinta marrom, dourado, serif classico PROVA DA REGRA — 20 linhas por folha; ao passar de 20 aplicacoes, vira pagina automaticamente Folha 1 — 20 linhas (semanas 1 a 20) Folha 2 — sobra: semanas 21 a 26 (6 linhas) RAS FAP — NUMERACAO APLIC (numero da ida a clinica): os 3 casos + prova de que 6+ substancias NAO da erro REGRA BASE: cabem 5 substancias por folha. SESSAO = sessao da substancia (ex.: 3 de 8). APLIC = numero da ida a clinica, contado POR FOLHA. CASO 1 — Ate 5 substancias: tudo cabe em 1 folha Substancias 1 a 5  FOLHA 1
+APLIC 1 ... 20 CASO 2 — 6 ou mais substancias: a 6a TRANSBORDA p/ folha nova e APLIC REINICIA Substancias 1 a 5  FOLHA 1 — APLIC 1 ... 20 Substancia 6 (a 6a)  FOLHA 2 (NOVA)
+APLIC REINICIA em 1 ... 20 CASO 3 — A MESMA substancia com mais de 20 aplicacoes: APLIC CONTINUA (nao reinicia) 1 substancia
+40 aplicacoes  FOLHA 1
+APLIC 1 ... 20  FOLHA 2 (mesma subst.)
+APLIC CONTINUA 21 ... 40 PROVA AO VIVO (17/06/2026) — zero erro, todos HTTP 200:
+5 subs = 1 folha | 6 = 2 | 7 = 2 | 10 = 2 | 11 = 3 | 12 = 3 | 15 = 3 | 20 = 4.
+
+O motor que separa as substancias em grupos de 5 veio COPIADO IDENTICO do sistema IHE (Dr. Replit IHE). Por isso a capacidade de >5 ja nasceu testada. AUDITORIA DA NOVA LEVA — Console de Orcamento + Identidade (18/06/2026)   |   PEDIDO  →  ENTREGUE LEGENDA
+
+Azul = PEDIDO (sistema)
+Verde = ENTREGUE
+Seta = caminho
+Verde claro = garantia
+
+Status desta leva:
+TUDO FEITO.  T1 · IDENTIDADE
+Registrar o nome do agente  Dr. Replit Paxter gravado no replit.md
+(antes Dr. Replit Manager — 18/06/2026)   T2 · SKILL DE DESIGN
+Sistema visual 3D documentado  skill-layout-paxter: Saliente / Concavo / Painel 3D,
+tokens da marca, escada de faixas, regras   T3 · PORQUINHO REALISTA
+Nas cores da marca (opcao A)  Render 3D verde-petroleo + ciano com moeda,
+fundo transparente → public/cofrinho-economia.png   T4 · MONTAGEM (banner)
+Titulo saliente + escada de faixas  Titulo SALIENTE 'Desconto por Volume do Protocolo';
+barra + frase 'faltam' trocadas pela ESCADA (TierLadder)   T5 · PARAMETRIZACAO
+Definir por numero de faixas  Campo 'Numero de faixas' (0–12) cria/encurta faixas;
+inputs gravados (field-engraved)   T6 · VALIDACAO
+Runtime / screenshot  Screenshots OK; /api/budgets/calculate = 200; HMR limpo.
+Typecheck global PRE-QUEBRADO (valida-se por runtime)   T7 · REVISAO
+Code review + memoria + commit  Architect PASS; 1 ajuste de UX aplicado;
+memoria atualizada; commit gerado  GARANTIA AO CEO — o motor /api/budgets/calculate e o payload de salvar() NAO foram tocados.
+So a APRESENTACAO mudou; a essencia dos paineis/sub-paineis 3D foi preservada (opcao A).  PAXTER LOOP — ESPECIFICAR  ->  CONSTRUIR  ->  REVISAR  (repete ate aprovar sem pendencia) Cores:  LARANJA = etapa nova (Especificar)   |   AZUL = sistema (Construir / Revisar)   |   VERDE = resultado (Aprovado)   |   VERMELHO = caminho de correcao IDEIA DO CEO  1. ESPECIFICAR
+
+Entrevista 1 pergunta por vez
+-> escreve specs/<nome>.md  2. CONSTRUIR
+
+Exatamente a spec,
+nada a mais  3. REVISAR
+
+Architect confere
+requisito x requisito  PASSOU?
+zero pendencia  APROVADO
+
+FEITO SIM NAO  REPROVOU -> volta para CONSTRUIR: corrige so o apontado e revisa de novo  NOTA-RESUMO: o que muda no nosso trabalho — (1) escrevo o ALVO (spec) antes de construir; (2) construo so o que esta na spec; (3) o architect (revisor separado) confere e devolve as falhas; repito ate ZERO pendencia. Voce aciona por fala: "rode o loop", "spec isso", "pode buildar", "manda revisar". 1 2 3 4 5 6 ENTREGA 6 — JORNADA DO EMPRESARIO-PACIENTE: 5 fases, 25 pontos de contato O que o paciente (empresario com deficit nutricional) sente, recebe e confirma — da prescricao a renovacao PRE-
+VISITA CHEGADA
+CLINICA DURANTE
+APLICACAO POS-
+APLICACAO ENGAJA-
+MENTO RESULTADO DR. CAIO: adesao alta + seguranca juridica (RAS/ICP-Brasil) + satisfacao = indicacoes + renovacoes + receita recorrente 1. Protocolo
+fechado:
+PDF enviado
+(Drive + email) 2. D-1 WhatsApp:
+'Amanha 09h
+NAD+ Vit.C
+Glutationa' 3. Instrucoes
+de preparo:
+aguafasting
+beba bastante 4. Confirmar
+presenca:
+[SIM] no Zap
+-> auto-registro 5. D-0 manha:
+cod. validacao
++ 'voce recebera
+hoje: [lista]' 6. QR/Codigo
+A7K3M2:
+enfermeira
+confirma id. 7. Paciente
+ve substancias
+no celular:
+o que e por que 8. TCLE
+digital:
+1 clique
+(ICP-Brasil) 9. Timer IV
+30 min visivel
+ao paciente
+(conforto) 10. Enfermeira
+registra inicio:
+hora + sala
++ profissional 11. Cada
+substancia chk
+individualmente:
+DISP confirmado 12. Avaliacao
+enfermeira:
+alerta verde /
+amarelo / vermelho 13. Observacoes
+clinicas:
+tolerancia
+aderencia 14. RAS gerado
+automatiamente
+com substancias
++ horarios 15. Alerta red/yel
+-> card equipe:
+enf.02 + med.02
+je auto-gerado 16. WhatsApp
+imediato:
+'voce recebeu
+hoje: [lista]' 17. RAS assinado
+ICP-Brasil PDF
+no Drive +
+email ao pct 18. O que
+esperar: '48h
+mais energia
+e disposicao' 19. Avaliar
+experiencia:
+1 a 5 estrelas
+(link/app) 20. Nota a
+enfermeira:
+1 a 5 estrelas
+alerta se ≤3 21. D+2 follow
+up: 'como esta
+se sentindo?
+algum sintoma?' 22. Progresso:
+'sessao 3/12
+voce esta a
+25% do ciclo' 23. Antepenult.:
+lembrete exames
+laboratoriais
+(email + Zap) 24. Ultima
+sessao: consulta
+com Dr. Caio
+para renovacao 25. Novo
+protocolo
+fechado:
+ciclo recomeça LEGENDA
+
+GREY = pre-visita
+(sistema automatico)
+
+GREEN = chegada
+(enfermeira)
+
+BLUE = durante
+(enf + sistema)
+
+ORANGE = pos
+(sistema auto)
+
+VIOLET = engajamento
+(sistema auto)
+
+---
+3 PRIORIDADES
+DR. CAIO:
+
+1. Confirmacao
+de presenca
+(D-1)
+
+2. Avaliacao
+pos-atendimento
+(estrelas)
+
+3. Progresso
+do protocolo
+(% concluido) PADCON PLATAFORMA — Blueprint do Medico Empreendedor (Kaizen) 6 bracos de receita | construir 1 de cada vez | voce opera menos, o sistema opera por voce  PACIENTE
+no celular (PWA)  BRACO 1 — AGORA (semana 1) PWA — App no Celular
+/area instalavel
+Envio de exames
+Mensagens + agenda   BRACO 2 — Mes 1-2 PADCON CLUB
+Assinatura R$49-99/mes
+Dietas personalizadas
+Dicas de saude
+Eventos exclusivos
+Palestras fechadas   BRACO 3 — Mes 2-3 AULA PADCON
+Video-aulas pagas
+So visualizacao (sem download)
+Avulso ou incluso no Club   BRACO 4 — Mes 3-4 CONSULTA EXPRESSA
+Solicitacao de exame paga
+R$80-150 por ato
+Fila de validacao medica
+Voce ou seu assistente valida
+Liberado pos pagamento   BRACO 5 — Mes 4-5 PROTOCOLO LIVRE
+Coenzima Q10, PQQ etc
+Renovacao automatica
+Limites terapeuticos fixos
+Menos consulta, mais adesao   BRACO 6 — Mes 5-6 NOTIFICACOES UNIFICADAS
+Espelho WhatsApp + Telegram
+Mensagens exclusivas assinantes
+Retencao do Club   PADCON PLATAFORMA (hub) RECEITA RECORRENTE MENSAL Club R$49-99 x N pacientes + Avulsos (exame, aula, protocolo livre) VALIDACAO MEDICA (seu tempo = seu criterio) Dr. Caio
+(medico titular)  Medico
+Assistente CATEGORIAS DE CONTEUDO (Club) Nutricao
+Integrativa Longevidade
+Pratica Eventos e
+Palestras VIP — acesso
+prioritario         LINHA DO TEMPO KAIZEN SEM 1
+PWA instalavel  MES 1-2
+Padcon Club + pagamento  MES 2-3
+Aula Padcon (video)  MES 3-4
+Consulta Expressa  MES 4-5
+Protocolo Livre  MES 5-6
+Notificacoes FILOSOFIA KAIZEN
+1 braco por vez
+Validar, ajustar, repetir
+Nao comecar o 2 sem o 1 estar rodando
+Voce e o medico; o sistema e o vendedor POTENCIAL DE RENDA RECORRENTE
+50 pacientes x R$79/mes = R$3.950/mes
+100 pacientes x R$79/mes = R$7.900/mes
++ avulsos (exame, aula, protocolo)
+SEM atendimento adicional seu PROXIMOS PASSOS (Dr. Replit)
+1. PWA — manifest.json + service worker
+2. Stripe — checkout de assinatura
+3. Upload de video com player seguro
+4. Fila de validacao medica
+5. Protocolo Livre no cadastro
+6. Canal de mensagens in-app 6 SIMULACAO DE RECEITA — 5 Frentes | Meta R$500k/mes | Dr. Caio | Clinica Padua Base: 15 pacientes/semana presenciais | Precos sugeridos pelo Dr. Replit | Fase 1=agora | Fase 3=36 meses | Filosofia Kaizen: 1 frente por vez  A — CLINICA PRESENCIAL
+(comecando agora) PRODUTO 1: Protocolo IV (Endovenoso)   Duracao: 30 min | Preco: R$800–1.200/sessao PRODUTO 2: Protocolo IM (Intramuscular)   Duracao: 15 min | Preco: R$400–700/sessao PRODUTO 3: Implante Subcutaneo   Duracao: 1h | Preco: R$2.000–4.000/proc. ───────────────────────────── 15 pacientes x 4 semanas = 60 atend/mes Ticket medio por paciente: R$1.200–1.500 Enfermeira executa, voce assina (2x/sem) Protocolo Livre renovado sem nova consulta  RECEITA FASE 1:  R$72.000–90.000/mes  B — TREINAMENTO MEDICO
+(6–12 meses) PRODUTO 1: Workshop presencial 2 dias   Preco: R$15.000–25.000 por medico   Turma de 15–25 medicos | 1x/trimestre PRODUTO 2: Curso online gravado   Preco: R$3.500–5.000 por aluno   Meta: 50 alunos/mes no online ───────────────────────────── Turma piloto: 15 medicos x R$15k = R$225k Turma cheia: 25 medicos x R$20k = R$500k Online: 50 alunos x R$4k = R$200k/mes Credito CME via CRM amplifica inscricoes  RECEITA FASE 2:  R$83.000/mes (media anual)  C — PADCON CLUB + AULAS
+(12–18 meses) PRODUTO 1: Club Basico — R$79/mes/paciente   Inclui: dietas, dicas, mensagens, agenda PRODUTO 2: Club Premium — R$199/mes   Inclui: basico + consulta coletiva mensal PRODUTO 3: Aula avulsa — R$197–497/aula   Video protegido, sem download, 24/7 ───────────────────────────── Palestra fechada VIP: R$800–1.500/pessoa Consulta coletiva online: R$150–300/pessoa Meta ano 1: 200 assinantes → R$15.800/mes Meta ano 2: 800 assinantes → R$159.200/mes  RECEITA FASE 3:  R$100.000/mes (800 assin.)  D — LINHA DE SUPLEMENTOS
+(18–36 meses) PRODUTO 1: PADUA LONGEVIDADE CORE   CoQ10+PQQ+NAD precursor | R$180/frasco PRODUTO 2: PADUA SONO & CORTISOL   Ashwagandha+Magnesio+L-Teanina | R$150 PRODUTO 3: PADUA OMEGA-3 CLINICO   EPA:DHA 3:1 concentrado | R$130/frasco PRODUTO 4: PADUA BLEND PERFORMANCE   Creatina+Beta-Alanina+Citrulina | R$160 ───────────────────────────── 500 assinantes x 2 prod/mes = R$310k fatur. Margem liquida ~50% = R$155k / Marca: PADUA  RECEITA FASE 3:  R$120.000/mes (margem 50%)  E — PADCON B2B SaaS
+(24–36 meses) PLANO STARTER — R$800/mes/clinica   Agenda + Protocolo + RAS + App paciente PLANO PRO — R$1.800/mes/clinica   Starter + Club embarcado + financeiro PLANO ENTERPRISE — R$3.500/mes/clinica   Pro + multi-unidade + BI + suporte prio. ───────────────────────────── Meta ano 2: 50 clinicas → R$72k/mes Meta ano 3: 150 clinicas → R$216k/mes Padcon vira produto independente de voce Maior ativo: sistema com vida propria  RECEITA FASE 3:  R$135.000/mes (150 clinicas) SIMULACAO CONSOLIDADA — Receita mensal por fase  FASE              |  A CLINICA   |  B TREINO   |  C CLUB    |  D SUPLEMENTOS  |  E B2B SaaS  |  TOTAL / MES FASE 1 (0–6 meses)    |  R$75.000    |  —          |  —         |  —              |  —           |  R$ 75.000/mes FASE 2 (6–18 meses)   |  R$75.000    |  R$83.000   |  R$16.000  |  —              |  —           |  R$174.000/mes FASE 3 (18–36 meses)  |  R$75.000    |  R$83.000   |  R$100.000 |  R$120.000      |  R$135.000   |  R$513.000/mes META ATINGIDA NA FASE 3:  R$513.000/mes   (conservador — sem viralizacao de conteudo, sem palestra corporativa, sem eventos VIP) CONTRIBUICAO DE CADA FRENTE PARA OS R$513.000/MES — Como o bolo e dividido  A  CLINICA PRESENCIAL  R$75.000  (14,6%) B  TREINAMENTO MEDICO  R$83.000  (16,2%) C  PADCON CLUB + AULAS  R$100.000  (19,5%) D  LINHA DE SUPLEMENTOS  R$120.000  (23,4%) E  PADCON B2B SaaS  R$135.000  (26,3%) TOTAL MENSAL NA FASE 3:  R$513.000  |  TOTAL ANUAL:  R$6.156.000  |  Fase 3 começa no mes 18 INSIGHT CHAVE: B2B (E) e Suplementos (D) juntos = 49,7% da receita e exigem ZERO atendimento seu. Clinica (A) e a base estavel. Treinamento (B) e o maior ticket por hora trabalhada. CRONOGRAMA DE MONTAGEM — O QUE FAZER E QUANDO (Filosofia Kaizen: 1 passo por vez)  MES 1 — BASE DIGITAL 1. PWA instalavel no celular
+   (/area + manifest + icone)
+
+2. 1o post no Instagram
+   tema: longevidade pratica
+
+3. Listar os 15 pacientes
+   ativos para convite Club
+
+4. Contato com formulador
+   de suplementos (cotacao)
+
+5. Definir nome da marca
+   PADUA LONGEVITY ou
+   PADCON HEALTH
+
+FRENTE ATIVA: A (clinica)  MES 2–3 — CLUB + PAGAMENTO 1. Stripe conectado ao portal
+
+2. Pagina do Padcon Club
+   (basico + premium)
+
+3. 1a aula gravada
+   'Protocolos de Longevidade'
+
+4. Meta: 50 assinantes
+   (convidar pacientes atuais)
+
+5. Email automatico
+   de boas-vindas no Club
+
+6. Consulta Expressa ativa
+   (exame pago online)
+
+FRENTES ATIVAS: A + C  MES 4–6 — TREINAMENTO 1. Pagina de inscricao
+   do workshop presencial
+
+2. Turma piloto (15 medicos)
+   preco reduzido R$12k
+
+3. Gravar modulos do
+   curso online (8 modulos)
+
+4. Parceria CRM/CFM para
+   credito educacao medica
+
+5. 1o produto suplemento
+   LONGEVIDADE CORE lancado
+
+FRENTES ATIVAS: A + B + C  MES 7–12 — SUPLEMENTOS 1. Produto 2: SONO & CORTISOL
+
+2. 200 assinantes Club meta
+
+3. 2a turma medicos
+   preco cheio (R$18k)
+
+4. Instagram: 10k seguidores
+   conteudo 3x/semana
+
+5. 1o evento presencial VIP
+   para pacientes assinantes
+
+6. Palestras corporativas
+   (1 por trimestre, R$30k+)
+
+FRENTES ATIVAS: A+B+C+D  MES 13–24 — B2B + ESCALA 1. Padcon B2B lancado
+   (5 clinicas piloto gratis)
+
+2. Produto 3 e 4 lancados
+
+3. 500 assinantes Club
+
+4. 1 turma medicos/trimestre
+
+5. Receita > R$250k/mes
+
+6. Contratar time:
+   social media + suporte
+   + coordenador de cursos
+
+FRENTES ATIVAS: A+B+C+D+E  MES 24–36 — R$500k META 1. 50–150 clinicas B2B
+
+2. 800+ assinantes Club
+
+3. 500 assinantes suplementos
+
+4. Curso online sempre aberto
+
+5. SUA presenca clinica
+   = opcional (so VIP)
+
+6. META ATINGIDA:
+   R$513.000/mes
+
+7. Revisar: crescer para
+   R$1M/mes na fase 4
+
+VOCE OPERA SO O QUE
+QUER OPERAR.      REGRA KAIZEN DESTE PLANO
+Nao abrir a proxima frente
+sem a anterior estar gerando
+receita real e consistente.
+Se ficar cansado:
+PAUSE a construcao.
+NUNCA pause a clinica.
+O sistema trabalha por voce. FRENTES QUE NAO DEPENDEM
+DE VOCE ESTAR PRESENTE
+B2B SaaS (E): 26% da receita
+Club recorrente (C): 19%
+Suplementos assinatura (D): 23%
+SOMAN: 68% da receita
+SEM consulta sua. E so produto,
+curso e sistema rodando. PROXIMOS PASSOS IMEDIATOS
+(Dr. Replit faz por voce)
+1. PWA instalavel (/area)
+2. Stripe no portal
+3. Pagina do Club
+4. Player de video protegido
+5. Fila de Consulta Expressa
+6. Protocolo Livre no cadastro MARCA DE SUPLEMENTOS
+Nome sugerido: PADUA LONGEVITY
+Alternativa: PADCON HEALTH
+4 produtos fase 1:
+- Longevidade Core R$180
+- Sono & Cortisol R$150
+- Omega-3 Clinico R$130
+- Blend Performance R$160
+Formulador: contato mes 1. 7 ENTREGA 7 — ARQUITETURA: AGENDAMENTO + GOVERNANCA + MULTI-CLINICA (minha proposta, filosofia Kaizen) Ideia-mae: deixar os BRACOS prontos hoje para o SaaS multi-clinicas (Centro de Comando) sem reescrever amanha. FLUXO 1 — AGENDAMENTO DA CLIENTE  (validacao por funcionario e OPCIONAL, liga/desliga por agenda) CLIENTE marca ou REMARCA dentro do card da sessao (Area do Cliente)  Agenda exige validacao?  NAO: confirma na hora  Sincroniza Google Calendar + e-mail / WhatsApp SE SIM (validacao ligada): SOLICITACAO PENDENTE (ainda nao confirma)  Cai na fila do funcionario (ex.: secretaria)  AUTORIZA -> confirma ou SUGERE outro horario -> volta a cliente GOVERNANCA — UM APP DO COLABORADOR, ACESSO POR PAPEL + ESCOPO (RBAC = acesso por cargo) CENTRO DE COMANDO (voce) — enxerga e delega em TODAS as clinicas  ORGANIZACAO / CLINICA — cada clinica com dados isolados (seguranca)  UNIDADE — Tatuape, Mooca, Domiciliar (dentro da clinica)  MEDICO  (ex.: Dra. Fernanda) ENFERMEIRA SECRETARIA / ADM  (autoriza ou sugere) FINANCEIRO BRACOS PRONTOS HOJE — MULTI-CLINICA  (Kaizen: semeia agora, liga quando voce quiser) CENTRO DE COMANDO  (escopo topo do MESMO RBAC)   CLINICA PADUA / PADCOM — HOJE: 1 organizacao, varias unidades CLINICA DRA. FERNANDA — filial futura, mesmo molde, dados isolados Hoje roda como 1 organizacao (zero mudanca para voce). O 'braco' = coluna ORGANIZACAO + ESCOPO no acesso, dormente ate ligar o Centro de Comando. ROADMAP EM ONDAS  (cada onda = especificacao + revisao; metodo Paxter Loop) ONDA 1 (FEITA): UX aba Agenda + nome do botao  ONDA 2: REMARCAR dentro do card da sessao  ONDA 3: Agendas do Google reais + liberar por cliente  ONDA 4: Fluxo de validacao (solicitacao + auditoria)  ONDA 5: Area do Colaborador (RBAC papel + escopo)  BRACO: camada Organizacao (multi-clinica dormente) RESUMO DA MINHA PROPOSTA (Kaizen):
+1) UM app de colaborador com acesso por PAPEL + ESCOPO (nao varias telas).
+2) Agenda = as agendas REAIS do Google, liberadas por cliente no cadastro.
+3) Validacao OPCIONAL por agenda, com fila e AUDITORIA (quem autorizou e quando).
+4) REMARCAR dentro do card da sessao.
+5) Camada ORGANIZACAO semeada agora -> Centro de Comando multi-clinicas nasce SEM reescrever.
+Ordem que te entrego melhor: C (este mapa, agora) -> A (Onda 2) -> 3 -> 4 -> 5, com o BRACO junto da Onda 5. ENTREGA 8 — PORTAO DO COLABORADOR + CONSULTA-DESEJO (REGRA DE OURO) + MULTI-MEDICO/MULTI-LOCAL LADO DO PACIENTE — A CONSULTA COM O DR. CAIO VIRA OBJETO DE DESEJO ABA 'Quero o Dr. Caio' — 1 BOTAO sofisticado (NUNCA a agenda crua)  Ativa o pedido -> sistema so mostra datas a partir de 3 MESES (escassez proposital)  Escolhe DIA DA SEMANA + HORARIO/PERIODO (um toque; no maximo um numero)  ENTRA NA LISTA DE ESPERA   CAMINHO 1 — CONCIERGE (paga antecipado) -> atendente encaixa ANTES dos 3 meses; com regra de devolucao se nao houver vaga CAMINHO 2 — FILA (gratis) -> a secretaria ativa (ou nao) a agenda real, no tempo dela   RESULTADO: desejo de consumo + escassez + receita antecipada LADO DO MEDICO/ADMIN — FERRAMENTA QUE VOCE PEDIU (atender onde quiser, sem local fixo) CADASTRAR MEDICO: Dr. Caio OU outro (Medicos Assistentes) CADASTRAR LOCAL: Tatuape, Joao Pessoa, sala alugada em viagem (add/editar/remover) AGENDAS por medico e por local (add/tirar/editar quando quiser) QUATRO ENTRADAS SEPARADAS — NUNCA MISTURAR CONSULTA MEDICA COM AGENDA DE PROCEDIMENTO ENTRADA 3
+Dr. Caio — CONSULTA EXCLUSIVA
+(tela muda; regra de ouro) ENTRADA 4
+MEDICOS ASSISTENTES
+(escolhe o medico -> agenda muda) Quatro portas que nunca se cruzam: injetaveis, esteticos, consulta Dr. Caio (exclusiva, tela muda) e consulta dos assistentes (escolhe o medico, agenda muda). Seu nome reina no topo; 'Medico Assistente' abaixo. Tom sofisticado. ENTRADA 1
+PROTOCOLOS INJETAVEIS
+(ja existe hoje; intacta) ENTRADA 2
+PROTOCOLOS ESTETICOS
+(botox, preenchimento) — NOVO BRACOS DE PAGAMENTO — JA DEIXADOS PRONTOS PARA ASSOCIAR LINK ESTETICO agendado durante o protocolo -> associa LINK DE PAGAMENTO (paga depois, nao na hora; sem atrito) CONCIERGE (Dr. Caio) -> LINK antecipado
+Desculpa elegante: curadoria + prioridade na lista de espera MEDICO ASSISTENTE -> SINAL de 25%
+Desculpa elegante: valoriza o tempo reservado do profissional Sinal e pagamento antecipado sao ABATIDOS do total no dia do atendimento. Textos educados/elegantes ja escritos (concierge para o Dr. Caio; valorizacao do tempo para o assistente). Para ligar de verdade: provedor de pagamento (Stripe via Replit) — precisa da sua conta. CENTRAL DE CADASTRO (aba CADASTRO) — TUDO EDITAVEL POR VOCE, SEM PROGRAMADOR AGENDAS & HORARIOS
+marca / tira / edita por medico e por local FRASEOLOGIA DOS BOTOES
+texto de cada botao, editavel EXPLICACOES DE PAGAMENTO
+concierge, sinal 25%, estetico (os textos) VIDEOS DE APRESENTACAO
+ESPACO DE UPLOAD (video curto, editavel)     TUDO ISSO ALIMENTA O QUE O PACIENTE VE NAS 4 ENTRADAS (texto + video, ao vivo) Voce edita sem programador: as frases dos botoes, as explicacoes de pagamento, os videos (upload) e as agendas/horarios por medico e por local. O paciente sempre ve a versao mais recente. 9 ENTREGA 9 — IDENTIDADE PAXTER: 4 variacoes de LUXO do logo (simbolo + wordmark). Foco: fazer o dourado transmitir luxo no tamanho do menu lateral. Cada cartao mostra o lockup grande EM CIMA e o mesmo logo no tamanho real do MENU LATERAL embaixo (a duvida do CEO). Tagline EN 'Clinical Intelligence': presente em A e B, ausente em C e D. OPCAO A — MAISON (editorial Dior): fundo marfim, emblema navy com anel dourado, wordmark serif Playfair em ouro foil. COM tagline EN. OPCAO B — METAL (Hermes/foil): fundo navy profundo, simbolo flutuante com brilho, wordmark em dourado metalico + fio luminoso. COM tagline EN. OPCAO C — SCEAU (selo/medalhao): simbolo dentro de selo circular com anel duplo gravado, serif Baskerville. Heranca/luxo. SEM tagline. OPCAO D — QUIET (luxo silencioso): fundo quase preto, simbolo menor, wordmark sans fina com tracking largo, ouro fosco. Restricao = confianca. SEM tagline. HIBRIDOS QUE EU RECOMENDO (selo da C + ouro metalico da B) OPCAO E - SCEAU METAL (escuro): MINHA RECOMENDACAO No 1 OPCAO F - SCEAU METAL CLARO: telas e documentos brancos 10 ENTREGA 10 — MENU LATERAL DE LUXO · 5 variacoes (hover + clique FUNCIONAIS) Cada menu muda SO o simbolo no canto superior esquerdo. Abra o preview, passe o mouse e clique nos itens (estado ativo dourado). Frase em ingles 'CLINICAL INTELLIGENCE' embutida para testar a nitidez. A · SCEAU METAL (recomendado) B · METAL (flutuante) C · SCEAU (selo classico) D · MAISON (placa) E · QUIET (minimo) 11 ENTREGA 11 — TELA DE MARCAÇÃO DE CONSULTA (premium, mobile-first) Identidade Paxter 3D · simbolo com efeito de raio + shimmer dourado · tagline em ingles com entrada deslizante · botao MARCAR CONSULTA preto com bevel alto e ouro polido · faixa de videos com scroll lateral · fluxo motivo->profissional->data->horario->confirmar · endereco Rua Guaxupe, 327, Vila Formosa. Esquerda: iPhone 13/14 (390). Direita: iPhone Pro Max (430). A · iPhone 13/14 (390 x 844) B · iPhone Pro Max (430 x 932) PROTOTIPO (mockup) — ainda nao e a tela real do app. O agendamento real (ligar a Agenda/Google Calendar) e os videos definitivos entram depois da sua aprovacao. Spec em specs/marcacao-consulta.md. 12 ENTREGA 12 — TELAS DE ANAMNESE E AGENDAMENTO (redesign premium PAXTER, mobile) Mesma linguagem da ENTREGA 11 (navy #0d1830 + ouro polido + paineis 3D salientes/concavos, simbolo Paxter com raio e tagline em ingles). ESQUERDA: ANAMNESE — barra de progresso por etapas, porteira por sistema corporal (Nao/Sim), tipos de pergunta (pills, escala, barra de intensidade 0-10) e pergunta de ALARME em vermelho sempre visivel; rodape fixo Voltar + CONTINUAR. DIREITA: AGENDAR — porta-heroi Dr. Caio com moldura dourada (ATENDIMENTO EXCLUSIVO) + 3 portas em painel 3D (Corpo Clinico, Protocolos Injetaveis, Protocolos Esteticos) + endereco. A · ANAMNESE (ficha guiada) B · AGENDAR (portas de atendimento) PROTOTIPO (mockup) — ainda nao e a tela real do app. Sao desenhos para sua aprovacao. As telas reais hoje ainda usam a marca antiga (verde Padcon na de agendar). Depois que voce aprovar, eu transformo as telas reais do app neste padrao e ligo a logica (anamnese com skip-logic + agendamento real). Diga se aprova ou o que mudar. 13 ENTREGA 13 — 5 ANAMNESE + 5 AGENDAR (eixos S/F/B/L para misturar) Cada COLUNA e um exemplo completo (1 a 5). No topo de cada tela o selo mostra os 4 eixos para voce MISTURAR por numero: S=Simbolo, F=Frase, B=Botao 3D (neon/hover), L=Layout. Ex.: 'Simbolo do 2, Frase do 3, Botao do 1, Layout do 4' que eu monto a final. O simbolo foi RECRIADO em vetor (monograma Rx, ouro, relevo alto) nos exemplos 2 a 5 — nao usei seu PNG. EXEMPLO 1 · ANAMNESE EXEMPLO 1 · AGENDAR EXEMPLO 2 · ANAMNESE EXEMPLO 2 · AGENDAR EXEMPLO 3 · ANAMNESE EXEMPLO 3 · AGENDAR EXEMPLO 4 · ANAMNESE EXEMPLO 4 · AGENDAR EXEMPLO 5 · ANAMNESE EXEMPLO 5 · AGENDAR 14 ENTREGA 14 — 3 MODELOS DO SIMBOLO (comparar em vitro: A vetor / B abertura+3D / C brilho) Recarregue a telinha para ver as aberturas A e B escreverem. Escolha A, B ou C — recomendo B. 15 ENTREGA 15 — 4 VARIACOES DO BRILHO DE OURO (faixa +20%, linha -20%, simbolo 3D mais forte) Recarregue a telinha para rever as animacoes. Escolha 1 (Equilibrio), 2 (Faixa Larga), 3 (Reflexo Vivo) ou 4 (Lamina de Luz). 16 ENTREGA 16 — 4 VARIACOES DA ESCRITA (abertura mais natural, sem arame artificial) Recarregue a telinha para rever as aberturas. Escolha 1 (Pincel de Luz), 2 (Cortina de Luz), 3 (Materializar) ou 4 (Contorno Assenta). 17 ENTREGA 17 — 4 VARIACOES DA POLVORA (faisca correndo o contorno em loop continuo) Elas correm sozinhas (loop). Escolha 1 (Pavio Classico), 2 (Polvora Cintilante), 3 (Cometa Duplo) ou 4 (Brasa Lenta). 18 ENTREGA 18 — ANAMNESE (TELA REAL) · SIMBOLO PREMIUM AO VIVO Tela validada (chips + Continuar preto/ouro). Simbolo no topo: ouro 3D + faixa de luz aprovada + faisca fina correndo o contorno, em LOOP. Clique na telinha para rodar ao vivo.

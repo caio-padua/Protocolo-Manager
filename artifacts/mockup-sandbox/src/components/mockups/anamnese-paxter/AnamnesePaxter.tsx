@@ -10,6 +10,7 @@ import {
   Check,
 } from "lucide-react";
 import { PAXTER_STYLE } from "../_shared/paxter3d";
+import { PAXTER_REAL_3D_CSS } from "../_shared/paxterReal3d";
 import { PaxterSymbolPremium } from "../_shared/PaxterSymbolPremium";
 
 const TOTAL_ETAPAS = 8;
@@ -25,8 +26,9 @@ export default function AnamnesePaxter() {
   useEffect(() => setMounted(true), []);
 
   return (
-    <div className="relative min-h-[100dvh] w-full max-w-[430px] mx-auto bg-[#0d1830] text-slate-200 overflow-x-hidden flex flex-col font-sans selection:bg-[#c2a05a]/30 pb-28">
+    <div className="dark relative min-h-[100dvh] w-full max-w-[430px] mx-auto bg-[#0d1830] text-slate-200 overflow-x-hidden flex flex-col font-sans selection:bg-[#c2a05a]/30 pb-28">
       <style>{PAXTER_STYLE}</style>
+      <style>{PAXTER_REAL_3D_CSS}</style>
       <div className="paxter-bg absolute inset-0 z-0 pointer-events-none" />
 
       {/* Header */}
@@ -86,16 +88,20 @@ export default function AnamnesePaxter() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setAberto(false)}
-              data-active={!aberto}
-              className="chip-3d py-3 flex items-center justify-center gap-2 text-sm font-semibold text-slate-300 data-[active=true]:text-gold"
+              className={`py-3 flex items-center justify-center gap-2 text-sm font-semibold ${
+                !aberto
+                  ? "bevel-3d is-selected text-[#e9cf8f]"
+                  : "btn-3d-soft"
+              }`}
             >
               <Minus className="w-4 h-4" />
               Não, nenhuma
             </button>
             <button
               onClick={() => setAberto(true)}
-              data-active={aberto}
-              className="chip-3d py-3 flex items-center justify-center gap-2 text-sm font-semibold text-slate-300 data-[active=true]:text-gold"
+              className={`py-3 flex items-center justify-center gap-2 text-sm font-semibold ${
+                aberto ? "bevel-3d is-selected text-[#e9cf8f]" : "btn-3d-soft"
+              }`}
             >
               <Plus className="w-4 h-4" />
               Sim, tenho
@@ -119,8 +125,11 @@ export default function AnamnesePaxter() {
                     <button
                       key={op}
                       onClick={() => setAtividade(op)}
-                      data-active={atividade === op}
-                      className="chip-3d px-4 py-2 text-sm font-medium text-slate-300 data-[active=true]:text-gold flex items-center gap-1.5"
+                      className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 ${
+                        atividade === op
+                          ? "bevel-3d is-selected text-[#e9cf8f]"
+                          : "btn-3d-soft"
+                      }`}
                     >
                       {atividade === op && <Check className="w-3.5 h-3.5" />}
                       {op}
@@ -144,8 +153,11 @@ export default function AnamnesePaxter() {
                   <button
                     key={op}
                     onClick={() => setSono(op)}
-                    data-active={sono === op}
-                    className="chip-3d py-2.5 text-sm font-medium text-slate-300 data-[active=true]:text-gold text-center"
+                    className={`py-2.5 text-sm font-medium text-center ${
+                      sono === op
+                        ? "bevel-3d is-selected text-[#e9cf8f]"
+                        : "btn-3d-soft"
+                    }`}
                   >
                     {op}
                   </button>
@@ -194,10 +206,10 @@ export default function AnamnesePaxter() {
             pressão alta)?
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <button className="chip-3d py-3 text-sm font-semibold text-slate-300 text-center">
+            <button className="btn-3d-soft py-3 text-sm font-semibold text-center">
               Não
             </button>
-            <button className="chip-3d py-3 text-sm font-semibold text-red-200 text-center border border-red-500/40">
+            <button className="btn-3d-soft py-3 text-sm font-semibold !text-red-200 text-center !border-red-500/50">
               Sim
             </button>
           </div>
@@ -231,12 +243,12 @@ export default function AnamnesePaxter() {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-30 px-6 py-4 bg-[#0b1426]/95 backdrop-blur-md border-t border-white/10 flex items-center gap-3">
         <button
           aria-label="Voltar"
-          className="chip-3d w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+          className="btn-3d-soft w-12 h-12 flex items-center justify-center shrink-0"
         >
-          <ChevronLeft className="w-5 h-5 text-slate-300" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
-        <button className="btn-premium flex-1 py-3.5 rounded-xl flex items-center justify-center gap-2">
-          <span className="text-sm font-bold tracking-widest text-gold uppercase">
+        <button className="btn-3d flex-1 py-3.5 flex items-center justify-center gap-2">
+          <span className="text-sm font-bold tracking-widest uppercase text-gold">
             Continuar
           </span>
           <ChevronRight className="w-4 h-4 text-[#f4e2a8]" />

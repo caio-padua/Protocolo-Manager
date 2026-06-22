@@ -34,3 +34,4 @@
 - [Anamnese acesso/revisao](anamnese-acesso-revisao.md) — fluxo publico amarra client_id SO por token verificado (anti-IDOR), nunca id cru do corpo; GET de PII clinica exige requireCollaborator (guard global so cobre escrita); cuidado ao remover simbolo de import compartilhado.
 - [PWA start_url e fallback do SW](pwa-starturl-sw-fallback.md) — trocar start_url do manifest exige trocar OFFLINE_FALLBACK do sw.js (mesma rota, pre-cache no install) e subir versao do CACHE.
 - [SVG id unico + eixos de variante](svg-id-e-eixos-variantes.md) — gradiente SVG repetido colide entre instancias (use useId()); eixo de variante so existe se TODO shell ramifica por ele (typecheck verde nao prova).
+- [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter (nao palpite de explorer); .text-gold (clip) some sobre fundo 3D concorrente, use dourado solido ou span filho.
