@@ -35,3 +35,4 @@
 - [PWA start_url e fallback do SW](pwa-starturl-sw-fallback.md) — trocar start_url do manifest exige trocar OFFLINE_FALLBACK do sw.js (mesma rota, pre-cache no install) e subir versao do CACHE.
 - [SVG id unico + eixos de variante](svg-id-e-eixos-variantes.md) — gradiente SVG repetido colide entre instancias (use useId()); eixo de variante so existe se TODO shell ramifica por ele (typecheck verde nao prova).
 - [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter (nao palpite de explorer); .text-gold (clip) some sobre fundo 3D concorrente, use dourado solido ou span filho.
+- [Wordmark SVG kerning (desenho a mao)](wordmark-svg-kerning.md) — glifo autoral abre buraco se avanco x > largura real (le "P AXTER"); subagente nao ve o que desenha, principal confere por screenshot.

@@ -71,8 +71,10 @@ export function PaxterSymbolPremium({
         sweepWidth={sweepWidth}
         sweepBright={sweepBright}
         glintWidth={glintWidth}
-        sweepMs={3600}
-        flashMs={3200}
+        sweepMs={12000}
+        flashMs={12000}
+        flashDelay={0}
+        sweepDelay={0}
         className="absolute inset-0"
       />
     </div>

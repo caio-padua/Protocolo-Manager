@@ -35,32 +35,34 @@ export const TRACE_FLASH_STYLE = `
     animation: tfDraw var(--tf-draw, 1800ms) cubic-bezier(.65,0,.35,1) forwards;
   }
   @keyframes tfDraw { to { stroke-dashoffset: 0; } }
-  /* o "flash": tracinho curto e brilhante correndo pelo caminho.
-     CHAVE p/ não dar "choque": o brilho LIGA com fade no começo e DESLIGA (opacity 0)
-     antes do fim; o "rebobinar" do traçado (offset 0 -> 107) acontece INVISÍVEL.
-     A última fatia do ciclo é uma PAUSA de descanso antes da próxima passada. */
+  /* o "flash" = a PÓLVORA correndo o traçado. UM ciclo longo, fase TRAVADA:
+     a pólvora corre LENTO no começo do ciclo e depois descansa o resto do tempo.
+     Como o flash e o varrimento usam a MESMA duração e MESMO atraso (0), eles nunca
+     "derivam" um contra o outro — é isso que elimina o "choque"/piscar irregular. */
   .tf-flash {
     fill: none; stroke-linecap: round; stroke-linejoin: round;
     stroke-dasharray: 7 100; stroke-dashoffset: 107; opacity: 0;
-    animation: tfFlash var(--tf-flash, 3000ms) linear var(--tf-flash-delay, 1800ms) infinite backwards;
+    animation: tfFlash var(--tf-flash, 12000ms) linear var(--tf-flash-delay, 0ms) infinite backwards;
   }
   @keyframes tfFlash {
-    0%   { stroke-dashoffset: 107; opacity: 0; }   /* início invisível (sem pop) */
-    7%   { opacity: 1; }                            /* acende suave */
-    52%  { stroke-dashoffset: 0;   opacity: 1; }    /* terminou de percorrer */
-    60%  { stroke-dashoffset: 0;   opacity: 0; }    /* apaga suave */
-    100% { stroke-dashoffset: 0;   opacity: 0; }    /* PAUSA (descanso) + reset oculto */
+    0%   { stroke-dashoffset: 107; opacity: 0; }   /* parada, invisível */
+    2%   { stroke-dashoffset: 107; opacity: 0; }   /* começa o percurso */
+    5%   { opacity: 1; }                            /* acende suave */
+    21%  { stroke-dashoffset: 0;   opacity: 1; }    /* percorreu LENTO (~2,3s) */
+    24%  { stroke-dashoffset: 0;   opacity: 0; }    /* apaga suave */
+    100% { stroke-dashoffset: 0;   opacity: 0; }    /* DESCANSO longo + reset oculto */
   }
 
-  /* varrimento especular (reflexo de luz cruzando o metal polido) — mesmo princípio:
-     entra e sai com fade, e descansa no fim; nunca "pisca" ao reiniciar. */
-  .tf-sweep { opacity: 0; animation: tfSweep var(--tf-sweep, 3200ms) cubic-bezier(.45,0,.55,1) infinite backwards; }
+  /* varrimento especular = o "SOL" cruzando o metal. Só começa DEPOIS da pólvora
+     passar (fica parado/invisível até ~26% do ciclo), atravessa LENTO e descansa. */
+  .tf-sweep { opacity: 0; animation: tfSweep var(--tf-sweep, 12000ms) cubic-bezier(.45,0,.55,1) infinite backwards; }
   @keyframes tfSweep {
-    0%   { transform: translateX(-220px); opacity: 0; }
-    10%  { opacity: 1; }
-    46%  { transform: translateX(480px);  opacity: 1; }
-    54%  { transform: translateX(480px);  opacity: 0; }
-    100% { transform: translateX(480px);  opacity: 0; }   /* PAUSA + reset oculto */
+    0%   { transform: translateX(-220px); opacity: 0; }   /* parado, esperando o raio */
+    26%  { transform: translateX(-220px); opacity: 0; }   /* a pólvora já passou */
+    30%  { opacity: 1; }                                  /* o sol acende suave */
+    45%  { transform: translateX(480px);  opacity: 1; }   /* atravessou LENTO (~2,3s) */
+    48%  { transform: translateX(480px);  opacity: 0; }   /* apaga suave */
+    100% { transform: translateX(480px);  opacity: 0; }   /* DESCANSO longo */
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -306,9 +308,9 @@ export function PaxterGlintPremium({
   glintWidth = 9,
   sweepWidth = 150,
   sweepBright = 1,
-  sweepMs = 3400,
-  flashMs = 3000,
-  flashDelay = 700,
+  sweepMs = 12000,
+  flashMs = 12000,
+  flashDelay = 0,
   sweepDelay = 0,
   className,
   style,
