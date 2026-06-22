@@ -6,5 +6,11 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-logo/LogoQuiet.tsx": () => import("../components/mockups/paxter-logo/LogoQuiet.tsx"),
   "./components/mockups/paxter-logo/LogoSceau.tsx": () => import("../components/mockups/paxter-logo/LogoSceau.tsx"),
   "./components/mockups/paxter-logo/LogoSceauMetal.tsx": () => import("../components/mockups/paxter-logo/LogoSceauMetal.tsx"),
-  "./components/mockups/paxter-logo/LogoSceauMetalLight.tsx": () => import("../components/mockups/paxter-logo/LogoSceauMetalLight.tsx")
+  "./components/mockups/paxter-logo/LogoSceauMetalLight.tsx": () => import("../components/mockups/paxter-logo/LogoSceauMetalLight.tsx"),
+  "./components/mockups/paxter-logo/LuxurySidebar.tsx": () => import("../components/mockups/paxter-logo/LuxurySidebar.tsx"),
+  "./components/mockups/paxter-logo/SidebarMaison.tsx": () => import("../components/mockups/paxter-logo/SidebarMaison.tsx"),
+  "./components/mockups/paxter-logo/SidebarMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarMetal.tsx"),
+  "./components/mockups/paxter-logo/SidebarQuiet.tsx": () => import("../components/mockups/paxter-logo/SidebarQuiet.tsx"),
+  "./components/mockups/paxter-logo/SidebarSceau.tsx": () => import("../components/mockups/paxter-logo/SidebarSceau.tsx"),
+  "./components/mockups/paxter-logo/SidebarSceauMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarSceauMetal.tsx")
 };
