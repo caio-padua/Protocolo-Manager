@@ -35,17 +35,33 @@ export const TRACE_FLASH_STYLE = `
     animation: tfDraw var(--tf-draw, 1800ms) cubic-bezier(.65,0,.35,1) forwards;
   }
   @keyframes tfDraw { to { stroke-dashoffset: 0; } }
-  /* o "flash": tracinho curto e brilhante correndo pelo caminho para sempre */
+  /* o "flash": tracinho curto e brilhante correndo pelo caminho.
+     CHAVE p/ não dar "choque": o brilho LIGA com fade no começo e DESLIGA (opacity 0)
+     antes do fim; o "rebobinar" do traçado (offset 0 -> 107) acontece INVISÍVEL.
+     A última fatia do ciclo é uma PAUSA de descanso antes da próxima passada. */
   .tf-flash {
     fill: none; stroke-linecap: round; stroke-linejoin: round;
-    stroke-dasharray: 7 100; stroke-dashoffset: 107;
-    animation: tfFlash var(--tf-flash, 3000ms) linear var(--tf-flash-delay, 1800ms) infinite;
+    stroke-dasharray: 7 100; stroke-dashoffset: 107; opacity: 0;
+    animation: tfFlash var(--tf-flash, 3000ms) linear var(--tf-flash-delay, 1800ms) infinite backwards;
   }
-  @keyframes tfFlash { from { stroke-dashoffset: 107; } to { stroke-dashoffset: 0; } }
+  @keyframes tfFlash {
+    0%   { stroke-dashoffset: 107; opacity: 0; }   /* início invisível (sem pop) */
+    7%   { opacity: 1; }                            /* acende suave */
+    52%  { stroke-dashoffset: 0;   opacity: 1; }    /* terminou de percorrer */
+    60%  { stroke-dashoffset: 0;   opacity: 0; }    /* apaga suave */
+    100% { stroke-dashoffset: 0;   opacity: 0; }    /* PAUSA (descanso) + reset oculto */
+  }
 
-  /* varrimento especular (reflexo de luz cruzando o metal polido) */
-  .tf-sweep { animation: tfSweep var(--tf-sweep, 3200ms) cubic-bezier(.45,0,.55,1) infinite; }
-  @keyframes tfSweep { 0% { transform: translateX(-220px); } 100% { transform: translateX(480px); } }
+  /* varrimento especular (reflexo de luz cruzando o metal polido) — mesmo princípio:
+     entra e sai com fade, e descansa no fim; nunca "pisca" ao reiniciar. */
+  .tf-sweep { opacity: 0; animation: tfSweep var(--tf-sweep, 3200ms) cubic-bezier(.45,0,.55,1) infinite backwards; }
+  @keyframes tfSweep {
+    0%   { transform: translateX(-220px); opacity: 0; }
+    10%  { opacity: 1; }
+    46%  { transform: translateX(480px);  opacity: 1; }
+    54%  { transform: translateX(480px);  opacity: 0; }
+    100% { transform: translateX(480px);  opacity: 0; }   /* PAUSA + reset oculto */
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .tf-draw { animation: none; stroke-dashoffset: 0; }
@@ -271,8 +287,14 @@ type GlintPremiumProps = {
   sweepWidth?: number;
   /** multiplicador de brilho da faixa (1 = padrao) */
   sweepBright?: number;
+  /** duracao de UM ciclo da faixa especular (ms) — inclui a pausa de descanso */
   sweepMs?: number;
+  /** duracao de UM ciclo da polvora (ms) — inclui a pausa de descanso */
   flashMs?: number;
+  /** atraso ate a polvora comecar, depois da tela abrir (ms) */
+  flashDelay?: number;
+  /** atraso ate o varrimento comecar (ms) */
+  sweepDelay?: number;
   className?: string;
   style?: CSSProperties;
 };
@@ -286,6 +308,8 @@ export function PaxterGlintPremium({
   sweepBright = 1,
   sweepMs = 3400,
   flashMs = 3000,
+  flashDelay = 700,
+  sweepDelay = 0,
   className,
   style,
 }: GlintPremiumProps) {
@@ -331,7 +355,7 @@ export function PaxterGlintPremium({
 
       {/* 1) varrimento especular dourado, recortado no metal do simbolo */}
       <g mask={`url(#${maskId})`}>
-        <g className="tf-sweep" style={{ ["--tf-sweep" as string]: `${sweepMs}ms` }}>
+        <g className="tf-sweep" style={{ ["--tf-sweep" as string]: `${sweepMs}ms`, animationDelay: `${sweepDelay}ms` }}>
           <rect x={-sweepWidth} y="-60" width={sweepWidth} height="500" fill={`url(#${sweepG})`} transform="skewX(-20)" />
         </g>
       </g>
@@ -348,8 +372,9 @@ export function PaxterGlintPremium({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={glintWidth + 4}
+            strokeOpacity={0.85}
             filter={`url(#${glow})`}
-            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${i * 120}ms`, opacity: 0.85 }}
+            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms` }}
           />
           <path
             d={p}
@@ -360,7 +385,7 @@ export function PaxterGlintPremium({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={glintWidth - 4}
-            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${i * 120}ms` }}
+            style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms` }}
           />
         </g>
       ))}
