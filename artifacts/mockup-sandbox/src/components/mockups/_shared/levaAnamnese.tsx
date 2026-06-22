@@ -14,7 +14,7 @@ import {
   Plus,
   Minus,
   AlertTriangle,
-  HelpCircle,
+  Video,
   HeartPulse,
   Check,
 } from "lucide-react";
@@ -61,14 +61,46 @@ export const LEVA_STYLE = `
   .leva-dark .leva-well { background: rgba(0,0,0,0.32); box-shadow: inset 0 2px 12px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.04); border-radius:12px; }
   .leva-light .leva-well { background: rgba(15,28,53,0.05); box-shadow: inset 0 2px 10px rgba(15,28,53,0.18); border:1px solid rgba(15,28,53,0.06); border-radius:12px; }
 
-  /* ===== CHIP selecionável ===== */
-  .leva-chip { border-radius: 11px; transition: all .18s ease; font-weight:600; }
-  .leva-dark .leva-chip { background: linear-gradient(180deg,#1c3057,#12213d); border:1px solid rgba(255,255,255,0.06); border-top-color: rgba(255,255,255,0.16); box-shadow: 0 3px 8px rgba(0,0,0,0.3); color:#cbd5e1; }
-  .leva-dark .leva-chip[data-active="true"] { border-color:#c2a05a; box-shadow: 0 0 16px rgba(194,160,90,0.25), inset 0 1px 0 rgba(244,226,168,0.3); }
-  .leva-light .leva-chip { background: linear-gradient(180deg,#ffffff,#f1ead9); border:1px solid rgba(138,109,47,0.20); border-top-color:#fff; box-shadow: 0 3px 7px rgba(15,28,53,0.10); color:#3b4860; }
-  .leva-light .leva-chip[data-active="true"] { border-color:#b9923f; box-shadow: 0 0 14px rgba(185,146,63,0.28), inset 0 1px 0 #fff; }
+  /* ===== CHIP selecionável — botão MECÂNICO nítido (pedidos 4 e 5):
+     mesmo TOM da base do cartão; o relevo vem só de luz/sombra (sem salto de cor);
+     ao SELECIONAR, o botão AFUNDA no painel (surpresa tátil). ===== */
+  .leva-chip { border-radius: 11px; transition: transform .14s cubic-bezier(.16,1,.3,1), box-shadow .18s ease; font-weight:600; }
+  .leva-chip:active { transform: translateY(2px); }
+  .leva-dark .leva-chip {
+    background: linear-gradient(180deg,#22355b 0%,#1a2c4f 100%);
+    border:1px solid rgba(0,0,0,0.5); border-top-color: rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -2px 4px rgba(0,0,0,0.4), 0 4px 0 -1px #0a1730, 0 7px 11px -5px rgba(0,0,0,0.55);
+    color:#dbe4f1;
+  }
+  .leva-dark .leva-chip[data-active="true"] {
+    background: linear-gradient(180deg,#13233f 0%,#1a2c4f 100%);
+    border-color:#c2a05a; transform: translateY(2px);
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.55), inset 0 1px 1px rgba(0,0,0,0.4), 0 0 16px rgba(194,160,90,0.30);
+  }
+  .leva-light .leva-chip {
+    background: linear-gradient(180deg,#ffffff 0%,#f3ead7 100%);
+    border:1px solid rgba(138,109,47,0.30); border-top-color:#ffffff;
+    box-shadow: inset 0 1px 0 #ffffff, inset 0 -2px 4px rgba(138,109,47,0.12), 0 4px 0 -1px rgba(15,28,53,0.14), 0 7px 11px -5px rgba(15,28,53,0.22);
+    color:#3b4860;
+  }
+  .leva-light .leva-chip[data-active="true"] {
+    background: linear-gradient(180deg,#efe6d2 0%,#f7f0e1 100%);
+    border-color:#b9923f; transform: translateY(2px);
+    box-shadow: inset 0 3px 6px rgba(138,109,47,0.30), inset 0 1px 1px rgba(138,109,47,0.18), 0 0 14px rgba(185,146,63,0.30);
+  }
   .leva-dark .leva-chip[data-active="true"] .leva-chip-txt { color:#f4e2a8; }
   .leva-light .leva-chip[data-active="true"] .leva-chip-txt { color:#8a6d2f; }
+
+  /* ===== ALARME e VÍDEO: NÃO salientes — selos EMBUTIDOS (pedido 1) ===== */
+  .leva-dark .alarm-badge { background: linear-gradient(180deg,#5b1212 0%,#7f1d1d 100%); border:1px solid rgba(248,113,113,0.40); box-shadow: inset 0 2px 5px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.05); }
+  .leva-light .alarm-badge { background: linear-gradient(180deg,#fdecec 0%,#f7dada 100%); border:1px solid rgba(185,28,28,0.30); box-shadow: inset 0 2px 5px rgba(120,20,20,0.18); color:#9b1c1c; }
+  .leva-video-link { border-radius: 9px; transition: filter .18s ease; }
+  .leva-dark .leva-video-link { color:#5cc4d6; background: rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.05); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+  .leva-light .leva-video-link { color:#0e7d92; background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.07); box-shadow: inset 0 1px 3px rgba(15,28,53,0.14); }
+
+  /* foco visível por teclado (anel de alto contraste, não interfere no relevo) */
+  .leva-chip:focus-visible, .leva-video-link:focus-visible { outline: 2px solid #45B8CC; outline-offset: 2px; }
+  .leva-light .leva-chip:focus-visible, .leva-light .leva-video-link:focus-visible { outline-color: #0e7d92; }
 
   /* ===== BOTÃO B2 (dourado polido, 2D nítido, bevel-up forte, neon + hover) ===== */
   .leva-btn {
@@ -100,8 +132,15 @@ export const LEVA_STYLE = `
   .leva-medallion { position: relative; border-radius: 18px; padding: 2px;
     background: linear-gradient(135deg,#6f5421 0%,#f6e6a8 16%,#c9a24e 38%,#8a6d2f 56%,#f1dd9a 76%,#927235 100%);
     box-shadow: 0 14px 30px rgba(0,0,0,0.45), 0 0 22px rgba(194,160,90,0.30); }
+  /* cúpula de vidro perolizado que ENVOLVE a borda dourada (pedido 3).
+     Brilho restrito ao ARO superior: centro e base transparentes p/ NÃO lavar o símbolo. */
+  .leva-medallion::after { content:""; position:absolute; inset:0; border-radius:18px; pointer-events:none; z-index:3;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.18) 10%, rgba(255,255,255,0.04) 22%, rgba(255,255,255,0) 32%),
+      radial-gradient(80% 30% at 50% 2%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 70%);
+    mix-blend-mode: screen; }
   .leva-medallion-inner { border-radius: 16px; background: linear-gradient(180deg,#102140,#070f22);
-    display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+    display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; z-index:1; }
 
   /* ===== TAGLINE F3 com efeito de "escrita" (revela L->R) + glint ===== */
   .leva-tag { position: relative; display:inline-block; }
@@ -171,6 +210,7 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
   const [sono, setSono] = useState("");
   const [estresse, setEstresse] = useState(6);
   const [atividade, setAtividade] = useState("");
+  const [cardio, setCardio] = useState("");
   useEffect(() => setMounted(true), []);
 
   const TXT = "Clinical Intelligence System";
@@ -251,8 +291,8 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
                   </button>
                 ))}
               </div>
-              <button className="self-start inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[#45B8CC] mt-1">
-                <HelpCircle className="w-3.5 h-3.5" /> Ver explicação
+              <button className="leva-video-link self-start inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider mt-1 px-3 py-1.5">
+                <Video className="w-3.5 h-3.5" /> Vídeo Explicativo
               </button>
             </Card>
 
@@ -291,8 +331,8 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
           </span>
           <p className={`text-[15px] leading-snug ${headInk}`}>Possui histórico de doenças cardiovasculares (infarto, arritmia, pressão alta)?</p>
           <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Histórico cardiovascular">
-            <button role="radio" aria-checked="false" className="leva-chip py-3 text-sm text-center"><span className="leva-chip-txt">Não</span></button>
-            <button role="radio" aria-checked="false" className={`leva-chip py-3 text-sm text-center font-semibold border border-red-500/50 ${c(theme, "text-red-300", "text-red-700")}`}>Sim</button>
+            <button role="radio" onClick={() => setCardio("nao")} data-active={cardio === "nao"} aria-checked={cardio === "nao"} className="leva-chip py-3 text-sm text-center"><span className="leva-chip-txt">Não</span></button>
+            <button role="radio" onClick={() => setCardio("sim")} data-active={cardio === "sim"} aria-checked={cardio === "sim"} className={`leva-chip py-3 text-sm text-center font-semibold ${c(theme, "text-red-300", "text-red-700")}`}>Sim</button>
           </div>
         </Card>
 
