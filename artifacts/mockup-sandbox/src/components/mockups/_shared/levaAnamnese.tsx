@@ -24,37 +24,37 @@ import { TRACE_FLASH_STYLE, PaxterGlintPremium } from "./traceFlash";
 import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "./paxterSymbolPath";
 
 export const LEVA_STYLE = `
-  /* ===== FUNDOS ===== */
+  /* ===== FUNDOS — "solo" UNIFORME e CHAPADO (mesmo p/ todos), p/ os painéis saltarem ===== */
   .leva-dark .leva-bg {
     background:
-      linear-gradient(135deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 34%, rgba(0,0,0,0.16) 100%),
-      radial-gradient(130% 100% at 50% -12%, #1b3a5f 0%, #122a49 32%, #0b1d37 62%, #07142a 100%);
+      radial-gradient(120% 80% at 50% -10%, rgba(70,184,204,0.07) 0%, rgba(70,184,204,0) 42%),
+      linear-gradient(180deg, #0b1d38 0%, #091831 52%, #07142a 100%);
   }
   .leva-light .leva-bg {
     background:
-      linear-gradient(135deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 42%, rgba(150,120,60,0.12) 100%),
-      radial-gradient(130% 100% at 50% -12%, #fcf8ee 0%, #f5edd9 40%, #ece1c6 76%, #e5d7b6 100%);
+      radial-gradient(120% 80% at 50% -10%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 46%),
+      linear-gradient(180deg, #ece1c8 0%, #e6d9bd 54%, #ded0b0 100%);
   }
 
-  /* ===== CARTÃO (Layout L): painel bevel saliente + sombra curta, bem delimitada ===== */
+  /* ===== CARTÃO (Layout L): painel CLARAMENTE destacado do solo (mais contraste) ===== */
   .leva-card { border-radius: 16px; position: relative; }
   .leva-dark .leva-card {
-    background: linear-gradient(180deg, #1a2c4f 0%, #0f1d38 100%);
-    border: 1px solid rgba(255,255,255,0.05); border-top-color: rgba(255,255,255,0.16);
+    background: linear-gradient(180deg, #2a466f 0%, #1d3458 55%, #16294a 100%);
+    border: 1px solid rgba(0,0,0,0.35); border-top-color: rgba(255,255,255,0.26);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.10),
-      inset 0 -3px 8px rgba(0,0,0,0.35),
-      0 6px 0 -2px rgba(0,0,0,0.45),
-      0 9px 14px -8px rgba(0,0,0,0.65);
+      inset 0 1px 0 rgba(255,255,255,0.16),
+      inset 0 -3px 10px rgba(0,0,0,0.4),
+      0 9px 0 -3px rgba(0,0,0,0.5),
+      0 18px 26px -10px rgba(0,0,0,0.72);
   }
   .leva-light .leva-card {
-    background: linear-gradient(180deg, #ffffff 0%, #faf6ec 60%, #f3ead7 100%);
-    border: 1px solid rgba(138,109,47,0.22); border-top-color: rgba(255,255,255,0.95);
+    background: linear-gradient(180deg, #ffffff 0%, #fffdf8 100%);
+    border: 1px solid rgba(138,109,47,0.18); border-top-color: #ffffff;
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.95),
-      inset 0 -3px 7px rgba(138,109,47,0.10),
-      0 6px 0 -2px rgba(15,28,53,0.10),
-      0 9px 14px -8px rgba(15,28,53,0.26);
+      inset 0 1px 0 #ffffff,
+      inset 0 -3px 8px rgba(138,109,47,0.08),
+      0 9px 0 -3px rgba(15,28,53,0.08),
+      0 18px 26px -10px rgba(15,28,53,0.30);
   }
 
   /* ===== POÇO CÔNCAVO ===== */
@@ -67,15 +67,15 @@ export const LEVA_STYLE = `
   .leva-chip { border-radius: 11px; transition: transform .14s cubic-bezier(.16,1,.3,1), box-shadow .18s ease; font-weight:600; }
   .leva-chip:active { transform: translateY(2px); }
   .leva-dark .leva-chip {
-    background: linear-gradient(180deg,#22355b 0%,#1a2c4f 100%);
-    border:1px solid rgba(0,0,0,0.5); border-top-color: rgba(255,255,255,0.22);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -2px 4px rgba(0,0,0,0.4), 0 4px 0 -1px #0a1730, 0 7px 11px -5px rgba(0,0,0,0.55);
-    color:#dbe4f1;
+    background: linear-gradient(180deg,#31507e 0%,#244067 100%);
+    border:1px solid rgba(0,0,0,0.45); border-top-color: rgba(255,255,255,0.26);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), inset 0 -2px 4px rgba(0,0,0,0.38), 0 4px 0 -1px #112444, 0 7px 11px -5px rgba(0,0,0,0.55);
+    color:#e3ebf6;
   }
   .leva-dark .leva-chip[data-active="true"] {
-    background: linear-gradient(180deg,#13233f 0%,#1a2c4f 100%);
+    background: linear-gradient(180deg,#1a3055 0%,#234063 100%);
     border-color:#c2a05a; transform: translateY(2px);
-    box-shadow: inset 0 3px 7px rgba(0,0,0,0.55), inset 0 1px 1px rgba(0,0,0,0.4), 0 0 16px rgba(194,160,90,0.30);
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 1px 1px rgba(0,0,0,0.4), 0 0 16px rgba(194,160,90,0.30);
   }
   .leva-light .leva-chip {
     background: linear-gradient(180deg,#ffffff 0%,#f3ead7 100%);
@@ -177,20 +177,22 @@ function SymbolS1({ size = 60 }: { size?: number }) {
   return (
     <div className="leva-medallion" style={{ width: size, height: size }}>
       <div className="leva-medallion-inner" style={{ width: "100%", height: "100%" }}>
-        <img
-          src={SYMBOL_PNG}
-          alt="Paxter"
-          style={{ width: "78%", height: "78%", objectFit: "contain", mixBlendMode: "screen" }}
-        />
-        {/* flash percorrendo o TRAÇADO real do símbolo (escrita/glint dourado) */}
-        <PaxterGlintPremium
-          d={PAXTER_SYMBOL_PATH}
-          size={size * 0.86}
-          viewBox={`0 0 ${w} ${h}`}
-          glintWidth={9}
-          sweepWidth={150}
-          style={{ position: "absolute", inset: 0, margin: "auto", pointerEvents: "none" }}
-        />
+        {/* PNG e traçado COMPARTILHAM a MESMA caixa (78%, mesma proporção do viewBox):
+            assim o flash de pólvora fica EXATAMENTE sobre os traços do símbolo. */}
+        <div style={{ position: "relative", width: "78%", height: "78%" }}>
+          <img
+            src={SYMBOL_PNG}
+            alt="Paxter"
+            style={{ width: "100%", height: "100%", objectFit: "contain", mixBlendMode: "screen", display: "block" }}
+          />
+          <PaxterGlintPremium
+            d={PAXTER_SYMBOL_PATH}
+            viewBox={`0 0 ${w} ${h}`}
+            glintWidth={9}
+            sweepWidth={150}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+          />
+        </div>
       </div>
     </div>
   );

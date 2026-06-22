@@ -302,6 +302,7 @@ export function PaxterGlintPremium({
       width={size}
       height={size}
       viewBox={viewBox}
+      preserveAspectRatio="xMidYMid meet"
       className={className}
       style={{ mixBlendMode: "plus-lighter", ...style }}
       aria-hidden="true"
