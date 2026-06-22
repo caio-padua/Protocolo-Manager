@@ -267,6 +267,10 @@ type GlintPremiumProps = {
   viewBox?: string;
   /** largura do glint de borda (em unidades do viewBox) */
   glintWidth?: number;
+  /** largura da faixa especular (em unidades do viewBox) */
+  sweepWidth?: number;
+  /** multiplicador de brilho da faixa (1 = padrao) */
+  sweepBright?: number;
   sweepMs?: number;
   flashMs?: number;
   className?: string;
@@ -278,11 +282,16 @@ export function PaxterGlintPremium({
   size = 150,
   viewBox = "0 0 381 369",
   glintWidth = 9,
+  sweepWidth = 150,
+  sweepBright = 1,
   sweepMs = 3400,
   flashMs = 3000,
   className,
   style,
 }: GlintPremiumProps) {
+  const clamp = (n: number) => Math.max(0, Math.min(1, n));
+  const o1 = clamp(0.5 * sweepBright);
+  const o2 = clamp(0.95 * sweepBright);
   const uid = useId().replace(/:/g, "");
   const maskId = `pmm-${uid}`;
   const sweepG = `pms-${uid}`;
@@ -305,9 +314,9 @@ export function PaxterGlintPremium({
         </mask>
         <linearGradient id={sweepG} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#ffcf6e" stopOpacity="0" />
-          <stop offset="38%" stopColor="#ffdf95" stopOpacity="0.5" />
-          <stop offset="50%" stopColor="#fff3cf" stopOpacity="0.95" />
-          <stop offset="62%" stopColor="#ffd986" stopOpacity="0.5" />
+          <stop offset="38%" stopColor="#ffdf95" stopOpacity={o1} />
+          <stop offset="50%" stopColor="#fff3cf" stopOpacity={o2} />
+          <stop offset="62%" stopColor="#ffd986" stopOpacity={o1} />
           <stop offset="100%" stopColor="#ffcf6e" stopOpacity="0" />
         </linearGradient>
         <filter id={glow} x="-50%" y="-50%" width="200%" height="200%">
@@ -322,7 +331,7 @@ export function PaxterGlintPremium({
       {/* 1) varrimento especular dourado, recortado no metal do simbolo */}
       <g mask={`url(#${maskId})`}>
         <g className="tf-sweep" style={{ ["--tf-sweep" as string]: `${sweepMs}ms` }}>
-          <rect x="-150" y="-60" width="150" height="500" fill={`url(#${sweepG})`} transform="skewX(-20)" />
+          <rect x={-sweepWidth} y="-60" width={sweepWidth} height="500" fill={`url(#${sweepG})`} transform="skewX(-20)" />
         </g>
       </g>
 

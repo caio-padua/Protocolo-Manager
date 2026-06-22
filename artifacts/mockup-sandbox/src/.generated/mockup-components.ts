@@ -14,6 +14,7 @@ export const modules: ModuleMap = {
   "./components/mockups/anamnese-paxter/AnamneseV4.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV4.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV5.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV5.tsx"),
   "./components/mockups/marcacao/MarcarConsulta.tsx": () => import("../components/mockups/marcacao/MarcarConsulta.tsx"),
+  "./components/mockups/paxter-fx/QuatroVariacoes.tsx": () => import("../components/mockups/paxter-fx/QuatroVariacoes.tsx"),
   "./components/mockups/paxter-fx/SimboloEscrevendo.tsx": () => import("../components/mockups/paxter-fx/SimboloEscrevendo.tsx"),
   "./components/mockups/paxter-fx/TresModelosSimbolo.tsx": () => import("../components/mockups/paxter-fx/TresModelosSimbolo.tsx"),
   "./components/mockups/paxter-logo/LogoMaison.tsx": () => import("../components/mockups/paxter-logo/LogoMaison.tsx"),
