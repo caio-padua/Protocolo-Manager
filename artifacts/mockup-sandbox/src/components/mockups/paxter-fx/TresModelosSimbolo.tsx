@@ -5,7 +5,7 @@
 // Recarregar a pagina reinicia as animacoes de abertura (A e B).
 
 import SYMBOL_PNG from "../../../assets/paxter-symbol-cut.png";
-import { TRACE_FLASH_STYLE, RxWriting } from "../_shared/traceFlash";
+import { TRACE_FLASH_STYLE, PaxterSymbolWriting } from "../_shared/traceFlash";
 
 const LOCAL = `
   /* Opcao B — escrita vira PNG */
@@ -57,9 +57,9 @@ export default function TresModelosSimbolo() {
         <p className="text-[11px] text-slate-400 mt-2 max-w-xs">Recarregue para ver as aberturas (A e B) de novo. Escolha A, B ou C.</p>
       </div>
 
-      {/* A — vetor que se escreve */}
-      <Card tag="A" titulo="Vetor que se escreve" vbom veredito="Escrita perfeita e nítida em qualquer tamanho. Recomendado se a prioridade é o efeito.">
-        <RxWriting size={150} />
+      {/* A — vetor que se escreve (SIMBOLO EXATO) */}
+      <Card tag="A" titulo="Vetor que se escreve" vbom veredito="Escreve o SEU símbolo exato (contorno R + X), nítido em qualquer tamanho. Sem o relevo 3D do PNG.">
+        <PaxterSymbolWriting size={150} />
       </Card>
 
       {/* B — escrita vira o PNG 3D */}
@@ -68,7 +68,7 @@ export default function TresModelosSimbolo() {
           <img src={SYMBOL_PNG} alt="Paxter 3D" style={{ width: 150, height: 150, objectFit: "contain", mixBlendMode: "screen" }} />
         </div>
         <div className="b-pen absolute inset-0 flex items-center justify-center">
-          <RxWriting size={150} flashMs={2200} />
+          <PaxterSymbolWriting size={150} flashMs={2200} />
         </div>
       </Card>
 

@@ -23,6 +23,7 @@
 // ============================================================================
 
 import { useId, type CSSProperties } from "react";
+import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "./paxterSymbolPath";
 
 export const TRACE_FLASH_STYLE = `
   /* base do simbolo (sempre visivel, suave) */
@@ -172,4 +173,29 @@ export const RX_TRACE_PATHS = [
 
 export function RxWriting({ size = 120, ...rest }: Partial<TraceFlashProps> & { size?: number }) {
   return <TraceFlash d={RX_TRACE_PATHS} size={size} width={9} {...rest} />;
+}
+
+// ---------------------------------------------------------------------------
+// SIMBOLO EXATO — tracado vetorizado do PNG real (potrace). Aqui o efeito de
+// escrita percorre o CONTORNO real do simbolo Paxter (R + X + moldura), nao um
+// "Rx" digitado. Mesmo motor (TraceFlash), so muda o caminho `d`.
+// ---------------------------------------------------------------------------
+export function PaxterSymbolWriting({
+  size = 150,
+  width = 4,
+  ...rest
+}: Partial<TraceFlashProps> & { size?: number }) {
+  const { w, h } = PAXTER_SYMBOL_VIEWBOX;
+  return (
+    <TraceFlash
+      d={PAXTER_SYMBOL_PATH}
+      size={size}
+      viewBox={`0 0 ${w} ${h}`}
+      width={width}
+      flashWidth={width + 2}
+      baseOpacity={0.18}
+      drawMs={2400}
+      {...rest}
+    />
+  );
 }
