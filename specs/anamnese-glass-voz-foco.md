@@ -1,92 +1,68 @@
-# Spec — Anamnese Paxter validada: vidro, contraste, logo original, modo foco, voz e alinhamento
+# Spec — Anamnese Paxter (APP REAL): visual validado, voz premium, videos, modo foco, CRUD de perguntas
 
-Loop Paxter (ESPECIFICAR -> CONSTRUIR -> REVISAR). Alvo: a anamnese VALIDADA (a do
-Paxter confirmado com a faísca), nos DOIS temas — claro ("clara") e escuro ("escura").
-Motor unico: `artifacts/mockup-sandbox/src/components/mockups/_shared/levaAnamnese.tsx`
-(prop `theme` "light"/"dark"), com o medalhao do simbolo em `_shared/PaxterLogo.tsx`
--> `_shared/PaxterSymbolPremium.tsx` e estilos em `_shared/paxter3d.ts`.
+Loop Paxter (ESPECIFICAR -> CONSTRUIR -> REVISAR). Esta spec deixou de ser "mockup": o CEO
+pediu funcionalidade EDITAVEL DE VERDADE (colar videos exatos, gerir vozes, criar/editar/apagar
+perguntas). Logo, o alvo e o APP REAL `artifacts/padcom`, nao o mockup-sandbox.
 
-## Objetivo (uma frase)
+## Onde isso vive no app real (levantado, NAO comecar do zero)
 
-Elevar a anamnese validada do Paxter com vidro sobre o simbolo e a barra, simbolo maior e
-mais destacado (claro e escuro), logo original sem CAPS, modo foco, alto-falante que le cada
-pergunta em voz feminina elegante e gravacao de audio onde fizer sentido, com alinhamento
-travado (posicoes nunca mudam com o tamanho da pergunta) no desktop e nos celulares atuais.
+| Peca | Arquivo / rota | Estado hoje |
+|---|---|---|
+| Tela do cliente (anamnese progressiva) | `artifacts/padcom/src/pages/anamnese-v2/index.tsx` (`/anamnese/v2`) | Typeform-like, JA tem modo foco, barra, render de video, fala-para-texto |
+| Controles de resposta | `artifacts/padcom/src/pages/anamnese-v2/controls.tsx` | binario, escala, multipla, speech-to-text |
+| Tela de administracao | `artifacts/padcom/src/pages/mega-anamnese/index.tsx` (`/mega-anamnese`) | edita TEXTO + peso; NAO tem campo de video_url, NAO tem criar/apagar, NAO tem voz |
+| Tabela das perguntas | `lib/db/src/schema/motor.ts` -> `anamnese_questionario` | tem `pergunta`,`tipo_resposta`,`opcoes`(jsonb),`video_url`,`depende_de`,`ordem`,`e_sinal_alarme` |
+| API perguntas | `GET /anamnese-v2/questions`, `PATCH /mega-anamnese/perguntas/:id` | edicao parcial ja existe |
+| Voz premium | skill media-generation (`searchVoices`/`textToSpeech`, ElevenLabs `eleven_multilingual_v2`) | disponivel nativo, sem chave do CEO |
+
+## Decisoes travadas
+
+1. VOZ = premium ElevenLabs (multilingual v2) via media-generation. Gera MP3 reais em pt-BR,
+   voz feminina jovem/elegante. Sem conta nem custo a configurar pelo CEO.
+2. Construir no APP REAL (anamnese-v2 + mega-anamnese), reaproveitando schema/API existentes.
+   NUNCA duplicar a tela nem o motor.
+3. Aplicar o VISUAL VALIDADO do Paxter (medalhao com vidro, simbolo, barra) a tela real.
 
 ## Requisitos exatos (numerados)
 
-1. VIDRO SOBRE O SIMBOLO (claro e escuro): a cupula de vidro perolizado deve cobrir o medalhao
-   INTEIRO, englobando tambem o ARO dourado em volta do simbolo (como estava antes), nao so o
-   centro. Vidro bonito e sutil; nunca lavar/apagar o ouro do simbolo.
+### A) Tela do cliente (anamnese-v2)
+1. Vidro cobrindo o medalhao INTEIRO (com o aro dourado), claro e escuro.
+2. Simbolo ~72px com respiro dentro do quadradinho.
+3. Escuro: medalhao um tom MAIS ESCURO que o painel abaixo; realcar simbolo+vidro.
+4. Claro: resolver figura-fundo (medalhao champanhe um tom acima + halo + aro definido).
+5. Vidro sutil sobre a barra de evolucao (dois temas).
+6. Logo ORIGINAL (asset de marca), sem CAIXA ALTA tipografica; definir posicao nos dois temas.
+7. Modo foco revisado (ja existe) — garantir liga/desliga sem pulo, centralizando pergunta+respostas.
+8. Alto-falante em TODA pergunta: toca o audio premium da pergunta (estado lendo/parar/repetir).
+9. Gravacao de audio nas perguntas abertas (gravar/parar/regravar + duracao); binaria/multipla so alto-falante.
+10. Alinhamento travado: posicoes nunca mudam com o tamanho da pergunta; grade de opcoes FIXA
+    (sem reflow "3 em cima 1 embaixo"); validar desktop + 360/390/430 px.
+11. Video real: render do `video_url` da pergunta (player), com placeholder claro quando vazio.
 
-2. SIMBOLO MAIOR: aumentar levemente o simbolo dentro do quadradinho (de 64px para ~72px),
-   mantendo respiro interno (o simbolo nao encosta na borda do medalhao).
+### B) Estudio de administracao (mega-anamnese)
+12. Criar, editar e APAGAR pergunta (CRUD completo), respeitando ordem e dependencias.
+13. Campo para colar o VIDEO exato por pergunta (`video_url`) — com pre-visualizacao.
+14. Escolha/edicao de VOZ por pergunta (qual voz le aquela pergunta) + botao "gerar audio".
+15. Onde o audio premium fica salvo e servido (object storage), com regeneracao ao editar texto/voz.
 
-3. CONTRASTE NO ESCURO: o medalhao (botao do simbolo) deve ficar com tom um pouco MAIS ESCURO
-   que o painel logo abaixo dele, para o simbolo + a faisca + o vidro saltarem. O "bege"/tom
-   atual do medalhao no escuro deve ser puxado um tom a mais para realcar simbolo e vidro.
+## Casos extremos
+- Voz indisponivel/erro de geracao -> degradar com aviso, nunca quebrar a tela.
+- Microfone negado -> mensagem clara, fluxo continua.
+- Apagar pergunta usada por dependencia/motor -> avisar e nao corromper o motor.
+- Editar texto da pergunta -> marcar audio como desatualizado ate regenerar.
+- Vidro nunca reduz contraste do texto/ouro; alinhamento nao quebra com texto longo.
 
-4. CONTRASTE NO CLARO (a dor do CEO): no tema claro o simbolo fica pouco destacado sobre o
-   painel branco. Criar uma solucao honesta para destacar — sem mentir sobre o estado atual.
-   Estrategia proposta: medalhao com fundo "champanhe" um tom acima do painel + halo/aura
-   discreta atras do simbolo + aro dourado mais definido, para o simbolo ganhar figura-fundo.
-
-5. VIDRO NA BARRA DE EVOLUCAO: aplicar uma camada de vidro (brilho perolizado sutil) por cima
-   da barrinha de etapas ("ETAPA X DE 8"), nos dois temas, mantendo os segmentos atuais.
-
-6. LOGO ORIGINAL, SEM CAPS: parar de exibir a versao tipografica em CAIXA ALTA; exibir a arte
-   ORIGINAL aprovada do logo (asset de marca), definindo posicao/local. Default proposto:
-   lockup oficial (simbolo + assinatura original) centralizado no topo, sobre fundo escuro no
-   tema escuro; no tema claro, a assinatura em tom escuro legivel.
-
-7. MODO FOCO: adicionar um botao de "modo foco" que reduz distracoes — esconde elementos
-   secundarios (rodape/extras) e centraliza a pergunta atual + respostas, com leve escurecimento
-   do entorno. Toggle visivel e reversivel.
-
-8. VOZ (alto-falante em TODA pergunta): cada pergunta recebe um icone de alto-falante; ao clicar,
-   o texto da pergunta (e opcoes quando fizer sentido) e LIDO em voz feminina elegante, jovem,
-   o mais natural possivel, em portugues do Brasil. Estado visivel de "lendo" (parar/repetir).
-   A FONTE da voz e a decisao travada abaixo (ver "Decisao pendente").
-
-9. GRAVACAO DE AUDIO (onde faz sentido): perguntas abertas/descritivas ganham botao de GRAVAR
-   audio (o cliente responde falando), com gravar/parar/regravar e indicador de duracao. Onde nao
-   faz sentido gravar (escolha binaria/multipla), NAO colocar gravacao — so o alto-falante.
-
-10. ALINHAMENTO TRAVADO (linhas imaginarias): as POSICOES nunca mudam com o tamanho da pergunta;
-    o tamanho do painel pode crescer, as posicoes nao. Os botoes de resposta NAO podem reflowar
-    (proibido "3 em cima e 1 embaixo" ou virar coluna so porque o texto e maior). Grade de
-    colunas FIXA por quantidade de opcoes; validar no desktop e nas larguras dos celulares atuais
-    (referencia 360, 390/393, 430 px de largura).
-
-## Casos extremos a tratar
-
-- Voz: navegador sem voz pt-BR feminina disponivel -> degradar com elegancia (desabilitar com
-  dica), nunca quebrar. Parar a leitura ao trocar de pergunta ou sair.
-- Gravacao: permissao de microfone negada -> mensagem clara, sem travar o fluxo.
-- Vidro: nao reduzir contraste do texto nem do ouro; conferir nos dois temas.
-- Alinhamento: pergunta muito longa nao pode empurrar/quebrar a grade de botoes.
-- Modo foco: ao ligar/desligar, nada de "pulo" de layout; reversao limpa.
-
-## Definicao de PRONTO (conferivel)
-
-- Vidro cobre o medalhao inteiro (com o aro) nos dois temas; barra com vidro nos dois temas.
-- Simbolo ~72px com respiro; medalhao escuro mais escuro que o painel; claro com simbolo
-  destacado (figura-fundo resolvida).
-- Logo original (sem CAPS) posicionado nos dois temas.
-- Modo foco liga/desliga sem pulo.
-- Alto-falante em todas as perguntas lendo em voz feminina pt-BR; gravacao so onde faz sentido.
-- Botoes de resposta com posicao FIXA (sem reflow) validado por screenshot em desktop e em
-  360/390/430 px.
+## Definicao de PRONTO
+- Cada requisito acima conferido por execucao real + screenshot (desktop e celular).
 - Architect aprova requisito por requisito, zero pendencia.
-- Entregue como nova ENTREGA numerada no Canvas (claro + escuro), com presentArtifact.
+- Voz toca de verdade; video real renderiza; CRUD grava no banco.
+- Entregue e demonstrado; comunicacao final em Densidade B.
 
 ## Linhas vermelhas
+- NAO alterar o motor clinico (`computeMotor`), o skip-logic nem o payload de salvar por estetica.
+- NAO duplicar a tela/admin; estender os existentes.
+- NAO inventar auth; usar os guards ja existentes.
+- Mudanca de schema = aditiva (nova coluna), com push controlado; nunca dropar dado.
 
-- NAO alterar o motor de calculo/skip-logic da anamnese nem o payload de salvar por estetica.
-- NAO descaracterizar o simbolo validado com a faisca (so acrescentar vidro/realce).
-- NAO inventar auth nem tocar rotas de API.
-- Mudanca e de APRESENTACAO; preservar identificadores tecnicos.
-
-## Decisao pendente (trava a arquitetura da voz)
-
-Fonte da voz feminina elegante para o alto-falante (requisito 8) — ver pergunta ao CEO.
+## Sequencia (a confirmar com o CEO — uma pergunta)
+Ordem das fatias de entrega: A (tela do cliente) primeiro vs B (estudio) primeiro vs tudo junto.
