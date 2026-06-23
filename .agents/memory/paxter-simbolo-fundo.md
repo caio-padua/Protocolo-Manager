@@ -65,6 +65,19 @@ queixa do CEO). Sheen LENTO (~8s) e simbolo MAIOR/proporcional. Arquivos:
 isso E o pedido de varrer o simbolo. Conferir SEMPRE por screenshot se o cut nao deixou
 mancha escura; se deixar (placa/miolo opaco), voltar ao simbolo estatico.
 
+**Simbolo-botao do app/anamnese = PaxterSymbolPremium DENTRO do vidro (CEO 23/06/2026):**
+no cabecalho da anamnese/app o simbolo NAO pode ser um vidro chapado vazio nem so o PNG
+estatico — tem de ser o componente `_shared/PaxterSymbolPremium.tsx` (aura pulsante + FAIXA
+de luz cruzando o metal + FAISCA fina correndo o contorno, usa `paxter-symbol-cut.png`),
+colocado DENTRO do medalhao de vidro/bevel (o "vidro que engloba a moldura em ouro"). As
+FRASES (PAXTER + Clinical em ouro recortado, com sheen) ficam separadas e seguem como estao.
+No mockup isso vive na variante `appHeader` de `mockup-sandbox/.../_shared/PaxterLogo.tsx`.
+**Why:** ao trocar o logo pelo lockup raster aprovado eu substitui o simbolo-premium por um
+vidro vazio e os "efeitos que passamos o dia criando" sumiram; o CEO cobrou a perda. O
+PaxterSymbolPremium ja e o simbolo canonico aprovado (tambem usado em `anamnese-paxter`).
+**How to apply:** em qualquer header de app/anamnese, simbolo = PaxterSymbolPremium dentro
+do medalhao de vidro; nunca o `.pax-symbol` chapado sozinho. Conferir por screenshot.
+
 **Sidebar do app e PURA (CEO 23/06/2026):** o topo da sidebar mostra SO o lockup oficial
 (simbolo + "PAXTER" + "Clinical Intelligence System"); REMOVIDO o bloco de texto "Motor
 Clinico / Protocolos Injetaveis" ("papagaiada de motor/engine", palavras do CEO). Tagline

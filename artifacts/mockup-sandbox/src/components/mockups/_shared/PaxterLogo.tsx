@@ -1,5 +1,6 @@
 import "./PaxterLogo.css";
 import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PaxterSymbolPremium } from "./PaxterSymbolPremium";
 import headlinePng from "@/assets/brand/paxter-headline.png";
 import headlineWebp from "@/assets/brand/paxter-headline.webp";
 import paxterPng from "@/assets/brand/paxter-paxter.png";
@@ -60,7 +61,26 @@ export function PaxterLogo({ variant = "hero", className = "" }: PaxterLogoProps
   if (variant === "appHeader") {
     return (
       <div className={`pax-lockup pax-lockup--app ${className}`}>
-        {symbol}
+        {/* SIMBOLO PREMIUM (aura + faixa de luz + faisca no contorno) DENTRO do
+            vidro que engloba a moldura em ouro — efeitos aprovados pelo CEO. */}
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 18,
+            padding: 12,
+            background:
+              "linear-gradient(155deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03) 45%, rgba(13,24,48,0.25))",
+            WebkitBackdropFilter: "blur(10px) saturate(130%)",
+            backdropFilter: "blur(10px) saturate(130%)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            boxShadow:
+              "0 10px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -14px 24px rgba(0,0,0,0.28)",
+          }}
+        >
+          <PaxterSymbolPremium size={64} />
+        </span>
         <span className="pax-word">
           <picture>
             <source srcSet={headlineWebp} type="image/webp" />
