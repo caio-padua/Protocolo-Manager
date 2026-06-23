@@ -27,6 +27,14 @@ type Props = {
   sweepBright?: number;
   /** espessura da faisca que corre o contorno (fina por padrao) */
   glintWidth?: number;
+  /**
+   * "dark"  = sobre fundo escuro/navy (mix-blend screen — padrao).
+   * "light" = sobre vidro champanhe/painel claro: o metal recortado e ouro
+   *           transparente, entao usamos blend NORMAL (screen lavaria/sumiria
+   *           no claro). A faisca/faixa continuam (plus-lighter mascarado so no
+   *           ouro), so a aura vira um halo dourado suave em vez de screen.
+   */
+  tone?: "dark" | "light";
   className?: string;
 };
 
@@ -35,22 +43,26 @@ export function PaxterSymbolPremium({
   sweepWidth = 175,
   sweepBright = 1.12,
   glintWidth = 5,
+  tone = "dark",
   className,
 }: Props) {
   const uid = useId().replace(/:/g, "");
+  const light = tone === "light";
   return (
     <div className={`relative ${className ?? ""}`} style={{ width: size, height: size }}>
       <style>{TRACE_FLASH_STYLE + PSP_STYLE}</style>
 
-      {/* aura dourada pulsando suave (alto relevo do metal sobre o escuro) */}
+      {/* aura dourada pulsando suave (alto relevo do metal) */}
       <div
         key={uid}
         className="psp-aura absolute"
         style={{
           inset: -size * 0.2,
-          mixBlendMode: "screen",
-          filter: "blur(9px)",
-          background: "radial-gradient(circle, rgba(255,201,112,0.45), rgba(255,201,112,0.12) 50%, transparent 70%)",
+          mixBlendMode: light ? "multiply" : "screen",
+          filter: light ? "blur(11px)" : "blur(9px)",
+          background: light
+            ? "radial-gradient(circle, rgba(176,134,52,0.34), rgba(176,134,52,0.10) 52%, transparent 72%)"
+            : "radial-gradient(circle, rgba(255,201,112,0.45), rgba(255,201,112,0.12) 50%, transparent 70%)",
         }}
         aria-hidden="true"
       />
@@ -60,7 +72,12 @@ export function PaxterSymbolPremium({
         src={SYMBOL_PNG}
         alt="Paxter"
         className="absolute inset-0 w-full h-full object-contain"
-        style={{ mixBlendMode: "screen", filter: "contrast(1.12) saturate(1.18) brightness(1.06)" }}
+        style={{
+          mixBlendMode: light ? "normal" : "screen",
+          filter: light
+            ? "contrast(1.06) saturate(1.14) brightness(0.95) drop-shadow(0 1px 1px rgba(120,90,30,0.42))"
+            : "contrast(1.12) saturate(1.18) brightness(1.06)",
+        }}
       />
 
       {/* faixa de luz aprovada + faisca fina correndo o contorno (loop continuo) */}

@@ -78,6 +78,22 @@ PaxterSymbolPremium ja e o simbolo canonico aprovado (tambem usado em `anamnese-
 **How to apply:** em qualquer header de app/anamnese, simbolo = PaxterSymbolPremium dentro
 do medalhao de vidro; nunca o `.pax-symbol` chapado sozinho. Conferir por screenshot.
 
+**CORRECAO — `paxter-symbol-cut.png` NAO e line-art puro (23/06/2026):** o cut tem a
+PLACA/TILE ESCURA embutida (borda ~preta `srgba(41,19,1)`, miolo dourado). So os CANTOS sao
+transparentes; o tile em si e OPACO escuro. Logo o simbolo e um ICONE DE TILE ESCURO por
+design da marca — sobre painel claro ele aparece como um quadradinho escuro, sempre. Tornar
+o simbolo "champanhe/claro" exige NOVO asset (recolorir a marca) = Etapa B vetor; NAO fazer
+sem ordem do CEO (marca aprovada e protegida).
+
+**Tom LIGHT do lockup (medalhao champanhe, anamnese clara — CEO 23/06/2026):** prop
+`tone="light"` em `PaxterLogo` (mockup) faz: (1) medalhao de vidro CHAMPANHE um tom ACIMA do
+painel creme (luz no topo + sombra projetada = bevel saliente); (2) metal e palavra em blend
+NORMAL (no claro o `mix-blend screen` LAVA o ouro ate sumir — so serve sobre escuro); a
+palavra (PNG transparente de verdade) fica legivel direto no creme, sem placa azul. O simbolo
+porem continua com seu tile escuro (ver correcao acima). Classe `.pax-tone-light` no lockup
+desliga o screen da palavra. **Why:** o CEO pediu a anamnese clara SEM a placa navy, com o
+botao champanhe saliente; o screen so funciona sobre fundo escuro.
+
 **Sidebar do app e PURA (CEO 23/06/2026):** o topo da sidebar mostra SO o lockup oficial
 (simbolo + "PAXTER" + "Clinical Intelligence System"); REMOVIDO o bloco de texto "Motor
 Clinico / Protocolos Injetaveis" ("papagaiada de motor/engine", palavras do CEO). Tagline

@@ -203,23 +203,11 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />
 
       {/* ===== HEADER: logo PAXTER APROVADA (Opcao A — imagem ouro 3D, brilho percorre) =====
-           Simbolo em vidro + PAXTER/Clinical recortados do anexo aprovado.
-           Tema CLARO recebe placa navy para o ouro (screen blend) saltar. */}
+           Simbolo premium DENTRO do medalhao de vidro + PAXTER/Clinical do anexo.
+           CLARO: medalhao CHAMPANHE (um tom acima do painel), SEM placa azul —
+           ouro pousa direto no creme (blend normal). ESCURO: medalhao navy. */}
       <header className="relative z-10 pt-9 pb-5 px-6 flex flex-col items-center">
-        {theme === "dark" ? (
-          <PaxterLogo variant="appHeader" />
-        ) : (
-          <div
-            style={{
-              background: "linear-gradient(180deg,#0d1830 0%,#0a1326 100%)",
-              borderRadius: 22,
-              padding: "20px 26px",
-              boxShadow: "0 16px 34px rgba(15,28,53,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
-            }}
-          >
-            <PaxterLogo variant="appHeader" />
-          </div>
-        )}
+        <PaxterLogo variant="appHeader" tone={theme === "dark" ? "dark" : "light"} />
       </header>
 
       {/* ===== PROGRESSO ===== */}

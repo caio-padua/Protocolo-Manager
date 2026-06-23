@@ -115,6 +115,13 @@
   mix-blend-mode: screen;
 }
 
+/* Tom CLARO (painel champanhe, sem placa azul): a palavra ja e ouro TRANSPARENTE,
+   entao no claro o screen lavaria/sumiria o ouro. Blend normal = ouro pousa direto
+   no creme, legivel, sem precisar de fundo escuro. */
+.pax-lockup--app.pax-tone-light .pax-word img {
+  mix-blend-mode: normal;
+}
+
 /* O brilho que percorre — mascarado pela MESMA forma das letras; comeca no topo
    (PAXTER) e termina embaixo (Clinical Intelligence System). */
 .pax-sheen {
