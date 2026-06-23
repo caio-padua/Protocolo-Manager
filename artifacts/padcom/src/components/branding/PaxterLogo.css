@@ -1,13 +1,14 @@
 /*
   PaxterLogo (branding) — LOCKUP VIVO da marca.
   Decisao do CEO 23/06/2026:
-   - Simbolo: intacto, dentro de VIDRO (glassmorphism) — vidro SO no simbolo.
+   - SITE (variant hero): simbolo CHAPADO, no MESMO PLANO do wordmark (estilo PAWARDS).
+     SEM vidro/bevel. O vidro/bevel (botao) e SO no app e nas telas de anamnese/marcacao.
+   - APP / anamnese / marcacao (variant compact): simbolo em VIDRO (glassmorphism/bevel).
    - PAXTER + "Clinical Intelligence System": ouro REAL recortado do anexo (sem vidro),
-     com um brilho que PERCORRE comecando no PAXTER e terminando no Clinical.
-   - As partes de texto sao os pixels originais (ouro 3D do anexo) tornados transparentes
-     (luminancia -> alfa). NAO ha redesenho nem tracing.
+     com um brilho sutil que PERCORRE comecando no PAXTER e terminando no Clinical.
+   - As partes de texto sao os pixels originais (ouro 3D do anexo) com so o fundo removido.
+     NAO ha redesenho nem tracing.
    - "PRECISION IN INTEGRATIVE CARE" e "AI-guided prescriptions..." entram no hero do site.
-   - Telas simples: variant="compact" (simbolo + PAXTER).
 */
 
 /* ---------------- LOCKUP ---------------- */
@@ -29,12 +30,35 @@
   gap: clamp(10px, 2vw, 16px);
 }
 
-/* ---------------- SIMBOLO EM VIDRO ---------------- */
+/* ---------------- SIMBOLO ---------------- */
 .pax-symbol {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.pax-symbol img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  filter: brightness(1.1) drop-shadow(0 6px 26px rgba(214, 176, 92, 0.45));
+  user-select: none;
+}
+
+/* SITE (hero): simbolo CHAPADO, mesmo plano do wordmark — sem vidro/bevel. */
+.pax-lockup--hero .pax-symbol {
+  width: clamp(124px, 24vw, 204px);
+  height: clamp(124px, 24vw, 204px);
+}
+
+/* APP / anamnese / marcacao (compact): simbolo em VIDRO (bevel/botao). */
+.pax-lockup--compact .pax-symbol {
+  width: clamp(48px, 9vw, 60px);
+  height: clamp(48px, 9vw, 60px);
+  border-radius: 14px;
+  padding: 8px;
   background: linear-gradient(
     155deg,
     rgba(255, 255, 255, 0.14),
@@ -50,27 +74,8 @@
     inset 0 -14px 24px rgba(0, 0, 0, 0.28);
 }
 
-.pax-symbol img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  mix-blend-mode: screen;
-  filter: brightness(1.12) drop-shadow(0 0 14px rgba(214, 176, 92, 0.5));
-  user-select: none;
-}
-
-.pax-lockup--hero .pax-symbol {
-  width: clamp(112px, 22vw, 176px);
-  height: clamp(112px, 22vw, 176px);
-  border-radius: clamp(18px, 4vw, 30px);
-  padding: clamp(12px, 2.5vw, 22px);
-}
-
-.pax-lockup--compact .pax-symbol {
-  width: clamp(44px, 9vw, 58px);
-  height: clamp(44px, 9vw, 58px);
-  border-radius: 14px;
-  padding: 8px;
+.pax-lockup--compact .pax-symbol img {
+  mix-blend-mode: normal;
 }
 
 /* ---------------- PALAVRA (OURO REAL + BRILHO) ---------------- */
