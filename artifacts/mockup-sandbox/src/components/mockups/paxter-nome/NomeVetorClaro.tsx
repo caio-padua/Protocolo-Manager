@@ -41,7 +41,7 @@ export default function NomeVetorClaro() {
 
         <section style={card} className="px-5 py-9 flex flex-col items-center">
           <span className="text-[10px] font-bold uppercase tracking-widest self-start mb-5" style={{ color: "#a08a5c" }}>
-            Símbolo Rx (vetor)
+            Símbolo Rx (imagem original, intacto)
           </span>
           <PaxterLogoVector variant="symbol" width="60%" />
         </section>

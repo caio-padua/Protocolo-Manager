@@ -1,16 +1,19 @@
 import React, { useId } from "react";
-import { SYMBOL_VB, SYMBOL_D, WORD_VB, WORD_D } from "./paxterVectorPaths";
+import { SYMBOL_VB, WORD_VB, WORD_LETTERS } from "./paxterVectorPaths";
+import symbolImg from "../../../assets/paxter-symbol-original.png";
 
 /*
-  PaxterLogoVector — a palavra PAXTER e o simbolo sao PATHS SVG vetorizados
-  (carbono da imagem de referencia), NAO fonte. Ouro polido + relevo 3D
-  sobressalente via camadas de profundidade e filtro de sombra.
+  PaxterLogoVector — Opcao A (decisao do CEO):
+   - SIMBOLO: imagem ORIGINAL do PNG-mestre (intacta, sem redesenho/tracing), so com fundo removido.
+   - PALAVRA PAXTER: cada letra e um <path> SVG individual (carbono da imagem), NAO fonte.
+     Estrutura pedida pelo CEO: grupos de profundidade (depth/mid-depth/front) e
+     ids paxter-letter-p ... paxter-letter-r. Ouro polido por gradiente + relevo 3D.
 
   variant:
    - "hero"    -> simbolo + PAXTER + frases auxiliares
    - "compact" -> simbolo + PAXTER
    - "wordmark"-> so a palavra PAXTER
-   - "symbol"  -> so o simbolo
+   - "symbol"  -> so o simbolo (imagem original)
 */
 
 type Variant = "hero" | "compact" | "wordmark" | "symbol";
@@ -21,11 +24,11 @@ interface Props {
   className?: string;
 }
 
-// posicoes originais (mesmo PNG) para recompor o layout exato
-const SYM_X = SYMBOL_VB.ox; // 354
-const SYM_Y = SYMBOL_VB.oy; // 180
-const WORD_X = WORD_VB.ox; // 45
-const WORD_Y = WORD_VB.oy; // 647
+const SYM_X = SYMBOL_VB.ox;
+const SYM_Y = SYMBOL_VB.oy;
+const WORD_X = WORD_VB.ox;
+const WORD_Y = WORD_VB.oy;
+const THICK = 2.2; // engrossa a palavra ~6-9% (stroke leve), sem ficar pesada
 
 export function PaxterLogoVector({ variant = "hero", width = "100%", className = "" }: Props) {
   const uid = useId().replace(/[:]/g, "");
@@ -35,31 +38,38 @@ export function PaxterLogoVector({ variant = "hero", width = "100%", className =
   const fDepth = `pxFDepth-${uid}`;
   const fText = `pxFText-${uid}`;
 
-  // viewBox por variante
-  let vb = "30 170 1060 1010"; // hero (simbolo + palavra + frases)
-  if (variant === "compact") vb = "30 170 1060 640";
-  if (variant === "wordmark") vb = "30 640 1060 170";
+  let vb = "30 170 1060 1010"; // hero
+  if (variant === "compact") vb = "30 170 1060 665";
+  if (variant === "wordmark") vb = "30 642 1060 182";
   if (variant === "symbol") vb = `${SYM_X - 14} ${SYM_Y - 14} ${SYMBOL_VB.w + 28} ${SYMBOL_VB.h + 28}`;
 
   const showSymbol = variant !== "wordmark";
   const showWord = variant !== "symbol";
   const showText = variant === "hero";
 
-  // pilha de relevo: copia escura deslocada p/ baixo (profundidade) + frente polida
-  const Relief = ({ d, tx, ty }: { d: string; tx: number; ty: number }) => (
-    <g transform={`translate(${tx},${ty})`}>
-      <g transform="translate(0,15)" opacity={0.7}>
-        <path d={d} fill={`url(#${goldDepth})`} />
+  // Palavra: pilha de profundidade (atras p/ frente), depois a frente polida por letra (com id).
+  const Wordmark = () => (
+    <g id="paxter-wordmark" transform={`translate(${WORD_X},${WORD_Y})`}>
+      <g id="paxter-wordmark-depth" transform="translate(0,16)" opacity={0.7}>
+        {WORD_LETTERS.map((l) => (
+          <path key={l.id} d={l.d} transform={`translate(${l.ox},0)`} fill={`url(#${goldDepth})`}
+            stroke="#2a1603" strokeWidth={THICK} strokeLinejoin="round" />
+        ))}
       </g>
-      <g transform="translate(0,8)" opacity={0.85}>
-        <path d={d} fill="#7d5212" />
+      <g id="paxter-wordmark-mid-depth" transform="translate(0,8)" opacity={0.9}>
+        {WORD_LETTERS.map((l) => (
+          <path key={l.id} d={l.d} transform={`translate(${l.ox},0)`} fill="#5f3d0d"
+            stroke="#5f3d0d" strokeWidth={THICK} strokeLinejoin="round" />
+        ))}
       </g>
-      <g transform="translate(0,3)" opacity={0.9}>
-        <path d={d} fill="#5f3d0d" />
-      </g>
-      <g>
-        <path d={d} fill={`url(#${gold})`} filter={`url(#${fDepth})`} />
-        <path d={d} fill={`url(#${highlight})`} opacity={0.5} style={{ mixBlendMode: "screen" }} />
+      <g id="paxter-wordmark-front">
+        {WORD_LETTERS.map((l) => (
+          <g key={l.id} transform={`translate(${l.ox},0)`}>
+            <path id={`paxter-letter-${l.id}`} d={l.d} fill={`url(#${gold})`} filter={`url(#${fDepth})`}
+              stroke={`url(#${gold})`} strokeWidth={THICK} strokeLinejoin="round" />
+            <path d={l.d} fill={`url(#${highlight})`} opacity={0.5} style={{ mixBlendMode: "screen" }} />
+          </g>
+        ))}
       </g>
     </g>
   );
@@ -107,8 +117,18 @@ export function PaxterLogoVector({ variant = "hero", width = "100%", className =
         </filter>
       </defs>
 
-      {showSymbol && <Relief d={SYMBOL_D} tx={SYM_X} ty={SYM_Y} />}
-      {showWord && <Relief d={WORD_D} tx={WORD_X} ty={WORD_Y} />}
+      {showSymbol && (
+        <image
+          href={symbolImg}
+          x={SYM_X}
+          y={SYM_Y}
+          width={SYMBOL_VB.w}
+          height={SYMBOL_VB.h}
+          preserveAspectRatio="xMidYMid meet"
+        />
+      )}
+
+      {showWord && <Wordmark />}
 
       {showText && (
         <g>

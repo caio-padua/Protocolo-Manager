@@ -32,7 +32,7 @@ export default function NomeVetorEscuro() {
 
         <section className="panel-3d px-5 py-9 flex flex-col items-center">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 self-start mb-5">
-            Símbolo Rx (vetor)
+            Símbolo Rx (imagem original, intacto)
           </span>
           <PaxterLogoVector variant="symbol" width="62%" />
         </section>

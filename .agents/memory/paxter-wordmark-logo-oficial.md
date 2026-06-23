@@ -13,10 +13,14 @@ em ouro 3D no mesmo tratamento.
 inline, monolito) por nao terem "nada a ver" com a logo que ele ja definiu. A identidade ja
 existe; o trabalho e VETORIZAR/replicar fiel, nao criar letras novas.
 
-**DECISAO FINAL (CEO, doc "VETORIZACAO DA LOGO PAXTER"):** nem fonte nem letra a mao —
-a palavra PAXTER e o simbolo Rx devem ser PATHS SVG TRACADOS do PNG de referencia
-(carbono/molde da imagem), depois receber ouro + relevo por cima. Fonte (Cinzel) so e
-aceita para as FRASES auxiliares.
+**DECISAO FINAL (CEO, doc "VETORIZACAO DA LOGO PAXTER" + opcao A em 23/06/2026):**
+- SIMBOLO Rx: NAO redesenhar/tracar. Usar a IMAGEM ORIGINAL do PNG-mestre, intacta
+  (so remover o fundo). O CEO reclamou explicitamente quando o simbolo foi vetorizado
+  sem ele pedir — a ordem dele era so sobre a PALAVRA. Nao tocar no simbolo sem ordem.
+- PALAVRA PAXTER: cada letra e um <path> SVG INDIVIDUAL (ids paxter-letter-p..r),
+  tracada do PNG (carbono), NUNCA fonte. Estrutura de grupos depth/mid-depth/front.
+  ~6-9% mais grossa (stroke leve), ouro por gradiente + relevo 3D em camadas.
+- Fonte (Cinzel/Cormorant) so e aceita nas FRASES auxiliares.
 
 **How to apply (tracing):** `scripts/trace-paxter.cjs` usa `potrace` (node, ja instalado;
 jimp vem junto). Detecta as faixas de ouro por varredura de linhas (luminancia), recorta
