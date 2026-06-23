@@ -22,6 +22,7 @@ import SYMBOL_PNG from "../../../assets/paxter-symbol-cut.png";
 import { PAXTER_STYLE } from "./paxter3d";
 import { TRACE_FLASH_STYLE, PaxterGlintPremium } from "./traceFlash";
 import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "./paxterSymbolPath";
+import { LOCKUP_STYLE, PaxterWord, PaxterCIS } from "./paxterLockup";
 
 export const LEVA_STYLE = `
   /* ===== FUNDOS — "solo" UNIFORME e CHAPADO (mesmo p/ todos), p/ os painéis saltarem ===== */
@@ -215,7 +216,6 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
   const [cardio, setCardio] = useState("");
   useEffect(() => setMounted(true), []);
 
-  const TXT = "Clinical Intelligence System";
   const headInk = c(theme, "text-slate-100", "text-[#16233b]");
   const bodyInk = c(theme, "text-slate-200", "text-[#2b3850]");
   const muted = c(theme, "text-slate-400", "text-[#576075]");
@@ -228,7 +228,7 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
     <div
       className={`leva-${theme} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
     >
-      <style>{PAXTER_STYLE}{TRACE_FLASH_STYLE}{LEVA_STYLE}</style>
+      <style>{PAXTER_STYLE}{TRACE_FLASH_STYLE}{LEVA_STYLE}{LOCKUP_STYLE}</style>
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />
 
       {/* ===== HEADER: S1 + PAXTER + F3 (escrita) ===== */}
@@ -236,10 +236,12 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
         <div className="mb-3">
           <SymbolS1 size={64} />
         </div>
-        <h1 className="text-lg font-bold tracking-[0.26em] text-gold mb-1.5">PAXTER</h1>
+        <div className="mb-2 leading-none">
+          <PaxterWord theme={theme} fontSize={34} />
+        </div>
         <span className="leva-tag">
-          <span className={`leva-tag-ink font-serif italic text-[13px] tracking-wide ${c(theme, "text-gold", "text-[#7c5e1d]")}`}>
-            {TXT}
+          <span className="leva-tag-ink" style={{ display: "inline-block" }}>
+            <PaxterCIS theme={theme} fontSize={15} />
           </span>
           <span className="leva-tag-glint" aria-hidden="true" />
         </span>
@@ -347,10 +349,7 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
             </div>
             <div className="flex flex-col items-end gap-1.5">
               <span className={`text-[8px] uppercase tracking-[0.22em] ${faint}`}>Powered by</span>
-              <div className="paxter-plate">
-                <span className="paxter-word">PAXTER</span>
-                <span className="paxter-glint" aria-hidden="true" />
-              </div>
+              <PaxterWord theme={theme} fontSize={16} />
             </div>
           </div>
         </footer>
