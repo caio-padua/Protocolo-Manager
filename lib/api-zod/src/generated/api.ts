@@ -2061,10 +2061,42 @@ export const ListAnamnesePerguntasResponseItem = zod.object({
       }),
     )
     .nullish(),
+  exemplo: zod.string().nullish(),
+  observacao: zod.string().nullish(),
+  videoUrl: zod.string().nullish(),
+  voiceId: zod.string().nullish(),
+  voiceLabel: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  audioStale: zod.boolean().nullish(),
 });
 export const ListAnamnesePerguntasResponse = zod.array(
   ListAnamnesePerguntasResponseItem,
 );
+
+/**
+ * @summary Cria uma nova pergunta no questionario
+ */
+export const CreateAnamnesePerguntaBody = zod.object({
+  bloco: zod.string(),
+  pergunta: zod.string(),
+  perguntaId: zod.string().optional(),
+  tipoResposta: zod.string().optional(),
+  sistema: zod.string().optional(),
+  observacao: zod.string().optional(),
+  exemplo: zod.string().optional(),
+  videoUrl: zod.string().optional(),
+  eSinalAlarme: zod.boolean().optional(),
+  pesoGravidade: zod.number().optional(),
+  opcoes: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        valor: zod.union([zod.string(), zod.number()]),
+        peso: zod.number(),
+      }),
+    )
+    .optional(),
+});
 
 /**
  * @summary Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
@@ -2091,6 +2123,11 @@ export const UpdateAnamnesePerguntaBody = zod.object({
       }),
     )
     .optional(),
+  exemplo: zod.string().optional(),
+  observacao: zod.string().optional(),
+  videoUrl: zod.string().optional(),
+  voiceId: zod.string().optional(),
+  voiceLabel: zod.string().optional(),
 });
 
 export const UpdateAnamnesePerguntaResponse = zod.object({
@@ -2115,6 +2152,67 @@ export const UpdateAnamnesePerguntaResponse = zod.object({
       }),
     )
     .nullish(),
+  exemplo: zod.string().nullish(),
+  observacao: zod.string().nullish(),
+  videoUrl: zod.string().nullish(),
+  voiceId: zod.string().nullish(),
+  voiceLabel: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  audioStale: zod.boolean().nullish(),
+});
+
+/**
+ * @summary Apaga uma pergunta
+ */
+export const DeleteAnamnesePerguntaParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteAnamnesePerguntaResponse = zod.object({
+  ok: zod.boolean().optional(),
+});
+
+/**
+ * @summary Gera a voz (Text-To-Speech) da pergunta e salva o mp3
+ */
+export const GerarAnamneseAudioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GerarAnamneseAudioBody = zod.object({
+  voiceId: zod.string().optional(),
+  voiceLabel: zod.string().optional(),
+});
+
+export const GerarAnamneseAudioResponse = zod.object({
+  id: zod.number(),
+  idIhe: zod.number().optional(),
+  bloco: zod.string(),
+  perguntaId: zod.string(),
+  pergunta: zod.string(),
+  tipoResposta: zod.string().nullish(),
+  sistema: zod.string().nullish(),
+  escalaValidada: zod.string().nullish(),
+  pesoGravidade: zod.number().nullish(),
+  eSinalAlarme: zod.boolean().nullish(),
+  obrigatorio: zod.string().nullish(),
+  ordem: zod.number().nullish(),
+  opcoes: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        valor: zod.union([zod.string(), zod.number()]),
+        peso: zod.number(),
+      }),
+    )
+    .nullish(),
+  exemplo: zod.string().nullish(),
+  observacao: zod.string().nullish(),
+  videoUrl: zod.string().nullish(),
+  voiceId: zod.string().nullish(),
+  voiceLabel: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  audioStale: zod.boolean().nullish(),
 });
 
 /**
@@ -3071,6 +3169,8 @@ export const ListAnamneseQuestionsResponseItem = zod.object({
   aplicavelEm: zod.unknown().optional(),
   videoUrl: zod.string().nullish(),
   dependeDe: zod.unknown().optional(),
+  audioUrl: zod.string().nullish(),
+  voiceLabel: zod.string().nullish(),
 });
 export const ListAnamneseQuestionsResponse = zod.array(
   ListAnamneseQuestionsResponseItem,

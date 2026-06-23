@@ -29,4 +29,18 @@ export interface AnamnesePergunta {
   ordem?: number | null;
   /** @nullable */
   opcoes?: AnamneseOpcao[] | null;
+  /** @nullable */
+  exemplo?: string | null;
+  /** @nullable */
+  observacao?: string | null;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  voiceId?: string | null;
+  /** @nullable */
+  voiceLabel?: string | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioStale?: boolean | null;
 }

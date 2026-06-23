@@ -17,6 +17,8 @@ import {
   Shield,
   SkipForward,
   Sparkles,
+  Volume2,
+  Square,
 } from "lucide-react";
 import {
   useListAnamneseQuestions,
@@ -197,9 +199,11 @@ export default function AnamneseV2() {
   }, [pct, respondidas, toast]);
 
   // R2: rolar para o topo ao trocar de grupo ou de pergunta (modo foco).
+  // NAO inclui `focusMode` nas dependencias: ligar/desligar o foco nao deve
+  // provocar "pulo" de rolagem (requisito A7 da spec), so a troca de conteudo.
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [groupIdx, focusIdx, focusMode]);
+  }, [groupIdx, focusIdx]);
 
   // gravacao (upsert) com debounce p/ texto/numero, imediata p/ escolhas
   const persist = useCallback(
@@ -385,15 +389,10 @@ export default function AnamneseV2() {
       <header className="sticky top-0 z-20 border-b border-[#d7e0e0] bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className="flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold text-white"
-                style={{ background: PETROLEO }}
-              >
-                P
-              </span>
-              <span className="text-sm font-bold uppercase tracking-wide" style={{ color: PETROLEO }}>
-                Anamnese
+            <div className="flex items-center gap-2.5">
+              <BrandMedallion size={34} />
+              <span className="text-sm font-bold tracking-tight" style={{ color: "#16294a" }}>
+                Padcon <span style={{ color: "#b8924d" }}>Conect</span>
               </span>
             </div>
             <button
@@ -407,11 +406,18 @@ export default function AnamneseV2() {
             </button>
           </div>
 
-          {/* barra de progresso segmentada */}
-          <div className="concave-3d mb-2 h-3 w-full overflow-hidden rounded-md">
+          {/* barra de progresso com camada de vidro */}
+          <div className="concave-3d relative mb-2 h-3 w-full overflow-hidden rounded-md">
             <div
               className="h-full rounded-md transition-all duration-500"
-              style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${PETROLEO}, ${CIANO})` }}
+              style={{ width: `${pct}%`, background: "linear-gradient(90deg,#16294a,#b8924d)" }}
+            />
+            <div
+              className="pointer-events-none absolute inset-0 rounded-md"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.10) 45%, rgba(255,255,255,0) 55%)",
+              }}
             />
           </div>
 
@@ -534,6 +540,47 @@ export default function AnamneseV2() {
 
 // ---------- subcomponentes ----------
 
+// Medalhao da marca: corpo navy (mais escuro que o painel) + aro dourado em
+// relevo + simbolo "P" dourado, com uma camada de VIDRO cobrindo o aro. Tamanho
+// parametrico: 72px na identificacao, ~34px no cabecalho fixo da anamnese. Usa
+// cores explicitas (hex) para nao sofrer remapeamento do tema "elite".
+function BrandMedallion({ size = 72 }: { size?: number }) {
+  const radius = Math.round(size * 0.28);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <div
+        className="absolute inset-0"
+        style={{
+          borderRadius: radius,
+          background: "linear-gradient(160deg,#1d3358 0%,#10213d 60%,#0c1a31 100%)",
+          boxShadow:
+            "inset 0 0 0 1.5px rgba(184,146,77,.6), inset 0 2px 6px rgba(255,255,255,.08), 0 6px 16px rgba(0,0,0,.32)",
+        }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className="font-serif font-bold leading-none"
+          style={{
+            fontSize: Math.round(size * 0.56),
+            color: "#e8cf95",
+            textShadow: "0 1px 2px rgba(0,0,0,.55)",
+          }}
+        >
+          P
+        </span>
+      </div>
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          borderRadius: radius,
+          background:
+            "linear-gradient(150deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,.10) 36%, rgba(255,255,255,0) 58%)",
+        }}
+      />
+    </div>
+  );
+}
+
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="screen-3d flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5">
@@ -559,6 +606,39 @@ function QuestionCard({
 }) {
   const answered = isAnswered(value);
   const [showVideo, setShowVideo] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  // Voz premium: toca o mp3 gerado (audioUrl). Sem Web Speech API (proibida).
+  const toggleAudio = () => {
+    if (!q.audioUrl) return;
+    let el = audioRef.current;
+    if (!el) {
+      el = new Audio(q.audioUrl);
+      el.onended = () => setPlaying(false);
+      el.onpause = () => setPlaying(false);
+      audioRef.current = el;
+    }
+    if (playing) {
+      el.pause();
+      el.currentTime = 0;
+      setPlaying(false);
+    } else {
+      el.currentTime = 0;
+      void el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      try {
+        audioRef.current?.pause();
+      } catch {
+        /* noop */
+      }
+    };
+  }, []);
+
   return (
     <div
       className="panel-3d rounded-md p-4"
@@ -569,6 +649,17 @@ function QuestionCard({
           {q.pergunta}
         </p>
         <div className="flex shrink-0 items-center gap-1">
+          {q.audioUrl && (
+            <button
+              type="button"
+              onClick={toggleAudio}
+              aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
+              className="btn-3d-soft flex h-8 w-8 items-center justify-center rounded-md"
+              style={playing ? { boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO } : { color: PETROLEO }}
+            >
+              {playing ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+          )}
           {q.eSinalAlarme && (
             <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600">
               <AlertTriangle className="h-3 w-3" /> Atenção
@@ -693,7 +784,7 @@ function FocusView({
       <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
         {q.bloco} · {idx + 1} de {questions.length}
       </p>
-      <QuestionCard q={q} value={answers[q.id]} onAnswer={onAnswer} />
+      <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -930,17 +1021,14 @@ function IdentifyGate({
       className="area-elite flex min-h-screen flex-col bg-[#f1f5f5]"
       style={{ ["--brand" as any]: PETROLEO }}
     >
-      <header className="panel-3d flex items-center justify-center border-b border-teal-200/60 px-4 py-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-700 shadow-md">
-            <span className="text-xl font-black text-white">P</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-black uppercase leading-none tracking-wide text-teal-900">
-              Pad<span className="text-cyan-500">con</span>{" "}
-              <span className="text-teal-700">CONECT</span>
+      <header className="panel-3d flex items-center justify-center border-b border-teal-200/60 px-4 py-6">
+        <div className="flex items-center gap-4">
+          <BrandMedallion size={72} />
+          <div className="leading-tight">
+            <h1 className="text-2xl font-bold leading-none tracking-tight" style={{ color: "#16294a" }}>
+              Padcon <span style={{ color: "#b8924d" }}>Conect</span>
             </h1>
-            <p className="mt-0.5 text-[10px] uppercase tracking-widest text-teal-500">
+            <p className="mt-1 text-[10px] uppercase tracking-[0.22em]" style={{ color: "#8a7a52" }}>
               Ficha de Saúde — Anamnese
             </p>
           </div>

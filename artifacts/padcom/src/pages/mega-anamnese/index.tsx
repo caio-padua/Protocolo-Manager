@@ -3,6 +3,9 @@ import {
   useListAnamneseBlocos,
   useListAnamnesePerguntas,
   useUpdateAnamnesePergunta,
+  useCreateAnamnesePergunta,
+  useDeleteAnamnesePergunta,
+  useGerarAnamneseAudio,
   useSimularMotor,
 } from "@workspace/api-client-react";
 import type {
@@ -27,8 +30,25 @@ import {
   Play,
   RotateCcw,
   ChevronRight,
+  Plus,
+  Trash2,
+  Volume2,
+  Video,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Vozes premium disponiveis (gpt-audio). voiceId tecnico + rotulo amigavel.
+const VOZES: { id: string; label: string }[] = [
+  { id: "shimmer", label: "Shimmer (feminina, elegante)" },
+  { id: "coral", label: "Coral (feminina, calorosa)" },
+  { id: "sage", label: "Sage (feminina, serena)" },
+  { id: "alloy", label: "Alloy (neutra)" },
+  { id: "ballad", label: "Ballad (suave)" },
+  { id: "verse", label: "Verse (expressiva)" },
+  { id: "ash", label: "Ash (masculina)" },
+  { id: "echo", label: "Echo (masculina, firme)" },
+];
 
 function gradeColor(grade: string): string {
   if (grade.includes("AMPLIADA"))
@@ -111,13 +131,81 @@ function PerguntasEditor({ bloco }: { bloco: string }) {
   const { data: perguntas, isLoading, refetch } = useListAnamnesePerguntas({
     bloco,
   });
+  const { toast } = useToast();
+  const [criando, setCriando] = useState(false);
+  const [novoTexto, setNovoTexto] = useState("");
+  const [novoTipo, setNovoTipo] = useState("texto");
+
+  const criar = useCreateAnamnesePergunta({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Pergunta criada!" });
+        setNovoTexto("");
+        setNovoTipo("texto");
+        setCriando(false);
+        refetch();
+      },
+      onError: () => toast({ title: "Erro ao criar pergunta", variant: "destructive" }),
+    },
+  });
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <ChevronRight className="h-4 w-4 text-primary" />
-        <h3 className="text-base font-black uppercase tracking-tight text-primary">{bloco}</h3>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2">
+          <ChevronRight className="h-4 w-4 text-primary" />
+          <h3 className="text-base font-black uppercase tracking-tight text-primary">{bloco}</h3>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setCriando((v) => !v)}
+          data-testid="button-nova-pergunta"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" /> Nova pergunta
+        </Button>
       </div>
+
+      {criando && (
+        <div className="panel-3d-sub p-3 space-y-2">
+          <Input
+            value={novoTexto}
+            onChange={(e) => setNovoTexto(e.target.value)}
+            placeholder="Texto da nova pergunta"
+            className="text-sm"
+            data-testid="input-nova-pergunta"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Tipo de resposta</span>
+            <select
+              value={novoTipo}
+              onChange={(e) => setNovoTipo(e.target.value)}
+              className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+              data-testid="select-novo-tipo"
+            >
+              <option value="texto">Texto</option>
+              <option value="boolean">Sim / Não</option>
+              <option value="single">Escolha única</option>
+              <option value="multi">Múltipla escolha</option>
+              <option value="escala">Escala</option>
+              <option value="number">Número</option>
+            </select>
+            <Button
+              size="sm"
+              onClick={() =>
+                criar.mutate({
+                  data: { bloco, pergunta: novoTexto.trim(), tipoResposta: novoTipo },
+                })
+              }
+              disabled={criar.isPending || !novoTexto.trim()}
+              data-testid="button-salvar-nova"
+            >
+              {criar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => (
@@ -144,6 +232,8 @@ function PerguntaRow({
   const [editing, setEditing] = useState(false);
   const [texto, setTexto] = useState(pergunta.pergunta);
   const [peso, setPeso] = useState(String(pergunta.pesoGravidade ?? 1));
+  const [videoUrl, setVideoUrl] = useState(pergunta.videoUrl ?? "");
+  const [voiceId, setVoiceId] = useState(pergunta.voiceId ?? "shimmer");
 
   const update = useUpdateAnamnesePergunta({
     mutation: {
@@ -157,7 +247,29 @@ function PerguntaRow({
     },
   });
 
+  const remover = useDeleteAnamnesePergunta({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Pergunta apagada." });
+        onSaved();
+      },
+      onError: () => toast({ title: "Erro ao apagar", variant: "destructive" }),
+    },
+  });
+
+  const gerarAudio = useGerarAnamneseAudio({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Voz gerada!" });
+        onSaved();
+      },
+      onError: () =>
+        toast({ title: "Falha ao gerar a voz", variant: "destructive" }),
+    },
+  });
+
   const opcoes: AnamneseOpcao[] = pergunta.opcoes ?? [];
+  const voiceLabel = VOZES.find((v) => v.id === (pergunta.voiceId ?? ""))?.label;
 
   return (
     <div
@@ -188,6 +300,21 @@ function PerguntaRow({
             <span className="text-[10px] text-muted-foreground">
               peso {pergunta.pesoGravidade ?? 1}
             </span>
+            {pergunta.videoUrl && (
+              <Badge variant="outline" className="text-[10px] px-1.5 flex items-center gap-1">
+                <Video className="h-3 w-3" /> vídeo
+              </Badge>
+            )}
+            {pergunta.audioUrl && !pergunta.audioStale && (
+              <Badge className="text-[10px] px-1.5 bg-emerald-600 hover:bg-emerald-600 flex items-center gap-1">
+                <Volume2 className="h-3 w-3" /> {voiceLabel ?? "voz"}
+              </Badge>
+            )}
+            {pergunta.audioStale && (
+              <Badge className="text-[10px] px-1.5 bg-amber-500 hover:bg-amber-500 flex items-center gap-1">
+                <Volume2 className="h-3 w-3" /> voz desatualizada
+              </Badge>
+            )}
           </div>
 
           {editing ? (
@@ -209,6 +336,62 @@ function PerguntaRow({
                   className="w-20 text-sm"
                   data-testid={`input-peso-${pergunta.perguntaId}`}
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <Video className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <Input
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="Cole o link do vídeo explicativo (mp4)"
+                  className="text-sm"
+                  data-testid={`input-video-${pergunta.perguntaId}`}
+                />
+              </div>
+              {videoUrl.trim() && (
+                <video
+                  src={videoUrl}
+                  controls
+                  className="w-full rounded-md"
+                  style={{ maxHeight: 160 }}
+                />
+              )}
+              <div className="flex items-center gap-2">
+                <Volume2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <select
+                  value={voiceId}
+                  onChange={(e) => setVoiceId(e.target.value)}
+                  className="h-9 flex-1 rounded-md border border-border bg-background px-2 text-sm"
+                  data-testid={`select-voz-${pergunta.perguntaId}`}
+                >
+                  {VOZES.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    gerarAudio.mutate({
+                      id: pergunta.id,
+                      data: {
+                        voiceId,
+                        voiceLabel: VOZES.find((v) => v.id === voiceId)?.label,
+                      },
+                    })
+                  }
+                  disabled={gerarAudio.isPending}
+                  data-testid={`button-gerar-voz-${pergunta.perguntaId}`}
+                >
+                  {gerarAudio.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Volume2 className="h-3.5 w-3.5 mr-1" /> Gerar voz
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           ) : (
@@ -237,7 +420,13 @@ function PerguntaRow({
                 onClick={() =>
                   update.mutate({
                     id: pergunta.id,
-                    data: { pergunta: texto, pesoGravidade: Number(peso) },
+                    data: {
+                      pergunta: texto,
+                      pesoGravidade: Number(peso),
+                      videoUrl: videoUrl.trim(),
+                      voiceId,
+                      voiceLabel: VOZES.find((v) => v.id === voiceId)?.label,
+                    },
                   })
                 }
                 disabled={update.isPending}
@@ -258,14 +447,33 @@ function PerguntaRow({
               </Button>
             </div>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setEditing(true)}
-              data-testid={`button-edit-${pergunta.perguntaId}`}
-            >
-              Editar
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setEditing(true)}
+                data-testid={`button-edit-${pergunta.perguntaId}`}
+              >
+                Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (window.confirm("Apagar esta pergunta? Esta ação não pode ser desfeita.")) {
+                    remover.mutate({ id: pergunta.id });
+                  }
+                }}
+                disabled={remover.isPending}
+                data-testid={`button-delete-${pergunta.perguntaId}`}
+              >
+                {remover.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </div>

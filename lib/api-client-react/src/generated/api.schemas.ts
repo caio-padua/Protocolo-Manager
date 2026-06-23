@@ -42,6 +42,10 @@ export interface AnamneseQuestion {
   /** @nullable */
   videoUrl?: string | null;
   dependeDe?: unknown;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  voiceLabel?: string | null;
 }
 
 export interface AnamneseSessionInput {
@@ -350,6 +354,20 @@ export interface AnamnesePergunta {
   ordem?: number | null;
   /** @nullable */
   opcoes?: AnamneseOpcao[] | null;
+  /** @nullable */
+  exemplo?: string | null;
+  /** @nullable */
+  observacao?: string | null;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  voiceId?: string | null;
+  /** @nullable */
+  voiceLabel?: string | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioStale?: boolean | null;
 }
 
 export interface AnamnesePerguntaUpdate {
@@ -362,6 +380,30 @@ export interface AnamnesePerguntaUpdate {
   eSinalAlarme?: boolean;
   ordem?: number;
   opcoes?: AnamneseOpcao[];
+  exemplo?: string;
+  observacao?: string;
+  videoUrl?: string;
+  voiceId?: string;
+  voiceLabel?: string;
+}
+
+export interface AnamnesePerguntaCreate {
+  bloco: string;
+  pergunta: string;
+  perguntaId?: string;
+  tipoResposta?: string;
+  sistema?: string;
+  observacao?: string;
+  exemplo?: string;
+  videoUrl?: string;
+  eSinalAlarme?: boolean;
+  pesoGravidade?: number;
+  opcoes?: AnamneseOpcao[];
+}
+
+export interface AnamneseAudioInput {
+  voiceId?: string;
+  voiceLabel?: string;
 }
 
 export interface AnamneseSintoma {
@@ -1828,6 +1870,10 @@ export type ListCatalogOptionsParams = {
 
 export type ListAnamnesePerguntasParams = {
   bloco?: string;
+};
+
+export type DeleteAnamnesePergunta200 = {
+  ok?: boolean;
 };
 
 export type ListBudgetsParams = {

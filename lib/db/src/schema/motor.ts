@@ -180,6 +180,14 @@ export const anamneseQuestionarioTable = pgTable("anamnese_questionario", {
   videoUrl: text("video_url"),
   dependeDe: jsonb("depende_de"),
   ordem: integer("ordem"),
+  // --- Voz premium (colunas novas, aditivas) ---
+  // voiceId: id da voz OpenAI (alloy, shimmer, nova, ...). voiceLabel: rotulo
+  // amigavel exibido ao admin. audioUrl: caminho do mp3 no object storage.
+  // audioStale=true significa "texto/voz mudou, audio precisa ser regerado".
+  voiceId: text("voice_id"),
+  voiceLabel: text("voice_label"),
+  audioUrl: text("audio_url"),
+  audioStale: boolean("audio_stale").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

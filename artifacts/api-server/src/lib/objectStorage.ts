@@ -128,6 +128,25 @@ export class ObjectStorageService {
     });
   }
 
+  // Salva bytes gerados no servidor (ex.: mp3 de voz) sob o diretorio privado.
+  // `relativePath` DEVE comecar com "uploads/" para ser servido pela rota
+  // publica GET /storage/objects/uploads/* (mesma porta de saida do video).
+  async saveUploadObject(
+    relativePath: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    if (!relativePath.startsWith("uploads/")) {
+      throw new Error('relativePath deve comecar com "uploads/"');
+    }
+    let dir = this.getPrivateObjectDir();
+    if (!dir.endsWith("/")) dir = `${dir}/`;
+    const fullPath = `${dir}${relativePath}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();

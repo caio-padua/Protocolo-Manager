@@ -112,6 +112,8 @@ router.get("/anamnese-v2/questions", async (req, res) => {
       aplicavelEm: anamneseQuestionarioTable.aplicavelEm,
       videoUrl: anamneseQuestionarioTable.videoUrl,
       dependeDe: anamneseQuestionarioTable.dependeDe,
+      audioUrl: anamneseQuestionarioTable.audioUrl,
+      voiceLabel: anamneseQuestionarioTable.voiceLabel,
     })
     .from(anamneseQuestionarioTable)
     .orderBy(asc(anamneseQuestionarioTable.bloco), asc(anamneseQuestionarioTable.ordem), asc(anamneseQuestionarioTable.id));

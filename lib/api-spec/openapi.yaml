@@ -1318,6 +1318,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AnamnesePergunta"
+    post:
+      operationId: createAnamnesePergunta
+      tags: [mega-anamnese]
+      summary: Cria uma nova pergunta no questionario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamnesePerguntaCreate"
+      responses:
+        "201":
+          description: Pergunta criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamnesePergunta"
 
   /mega-anamnese/perguntas/{id}:
     patch:
@@ -1339,6 +1356,51 @@ paths:
       responses:
         "200":
           description: Pergunta atualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnamnesePergunta"
+    delete:
+      operationId: deleteAnamnesePergunta
+      tags: [mega-anamnese]
+      summary: Apaga uma pergunta
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pergunta apagada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /mega-anamnese/perguntas/{id}/audio:
+    post:
+      operationId: gerarAnamneseAudio
+      tags: [mega-anamnese]
+      summary: Gera a voz (Text-To-Speech) da pergunta e salva o mp3
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnamneseAudioInput"
+      responses:
+        "200":
+          description: Pergunta com audio gerado
           content:
             application/json:
               schema:
@@ -2136,6 +2198,8 @@ components:
         aplicavelEm: {}
         videoUrl: { type: ["string", "null"] }
         dependeDe: {}
+        audioUrl: { type: ["string", "null"] }
+        voiceLabel: { type: ["string", "null"] }
     AnamneseSessionInput:
       type: object
       properties:
@@ -2620,6 +2684,20 @@ components:
           type: ["array", "null"]
           items:
             $ref: "#/components/schemas/AnamneseOpcao"
+        exemplo:
+          type: ["string", "null"]
+        observacao:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        voiceId:
+          type: ["string", "null"]
+        voiceLabel:
+          type: ["string", "null"]
+        audioUrl:
+          type: ["string", "null"]
+        audioStale:
+          type: ["boolean", "null"]
 
     AnamnesePerguntaUpdate:
       type: object
@@ -2644,6 +2722,53 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnamneseOpcao"
+        exemplo:
+          type: string
+        observacao:
+          type: string
+        videoUrl:
+          type: string
+        voiceId:
+          type: string
+        voiceLabel:
+          type: string
+
+    AnamnesePerguntaCreate:
+      type: object
+      required: [bloco, pergunta]
+      properties:
+        bloco:
+          type: string
+        pergunta:
+          type: string
+        perguntaId:
+          type: string
+        tipoResposta:
+          type: string
+        sistema:
+          type: string
+        observacao:
+          type: string
+        exemplo:
+          type: string
+        videoUrl:
+          type: string
+        eSinalAlarme:
+          type: boolean
+        pesoGravidade:
+          type: integer
+        opcoes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnamneseOpcao"
+
+    AnamneseAudioInput:
+      type: object
+      properties:
+        voiceId:
+          type: string
+        voiceLabel:
+          type: string
 
     AnamneseSintoma:
       type: object

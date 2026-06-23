@@ -17,4 +17,9 @@ export interface AnamnesePerguntaUpdate {
   eSinalAlarme?: boolean;
   ordem?: number;
   opcoes?: AnamneseOpcao[];
+  exemplo?: string;
+  observacao?: string;
+  videoUrl?: string;
+  voiceId?: string;
+  voiceLabel?: string;
 }

@@ -37,4 +37,8 @@ export interface AnamneseQuestion {
   /** @nullable */
   videoUrl?: string | null;
   dependeDe?: unknown;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  voiceLabel?: string | null;
 }

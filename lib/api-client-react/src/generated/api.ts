@@ -28,10 +28,12 @@ import type {
   AnamneseAmarracoes,
   AnamneseAnswer,
   AnamneseAnswerInput,
+  AnamneseAudioInput,
   AnamneseBloco,
   AnamneseGroupNote,
   AnamneseGroupNoteInput,
   AnamnesePergunta,
+  AnamnesePerguntaCreate,
   AnamnesePerguntaUpdate,
   AnamneseQuestion,
   AnamneseRefusal,
@@ -76,6 +78,7 @@ import type {
   CreateStockItemBody,
   CreateSubstanceBody,
   DashboardSummary,
+  DeleteAnamnesePergunta200,
   DeleteResult,
   EmitBody,
   EmitResult,
@@ -5613,6 +5616,93 @@ export function useListAnamnesePerguntas<
 }
 
 /**
+ * @summary Cria uma nova pergunta no questionario
+ */
+export const getCreateAnamnesePerguntaUrl = () => {
+  return `/api/mega-anamnese/perguntas`;
+};
+
+export const createAnamnesePergunta = async (
+  anamnesePerguntaCreate: AnamnesePerguntaCreate,
+  options?: RequestInit,
+): Promise<AnamnesePergunta> => {
+  return customFetch<AnamnesePergunta>(getCreateAnamnesePerguntaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamnesePerguntaCreate),
+  });
+};
+
+export const getCreateAnamnesePerguntaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAnamnesePergunta>>,
+    TError,
+    { data: BodyType<AnamnesePerguntaCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAnamnesePergunta>>,
+  TError,
+  { data: BodyType<AnamnesePerguntaCreate> },
+  TContext
+> => {
+  const mutationKey = ["createAnamnesePergunta"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAnamnesePergunta>>,
+    { data: BodyType<AnamnesePerguntaCreate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAnamnesePergunta(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAnamnesePerguntaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAnamnesePergunta>>
+>;
+export type CreateAnamnesePerguntaMutationBody =
+  BodyType<AnamnesePerguntaCreate>;
+export type CreateAnamnesePerguntaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cria uma nova pergunta no questionario
+ */
+export const useCreateAnamnesePergunta = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAnamnesePergunta>>,
+    TError,
+    { data: BodyType<AnamnesePerguntaCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAnamnesePergunta>>,
+  TError,
+  { data: BodyType<AnamnesePerguntaCreate> },
+  TContext
+> => {
+  return useMutation(getCreateAnamnesePerguntaMutationOptions(options));
+};
+
+/**
  * @summary Edita uma pergunta (texto, peso, sinal de alarme, opcoes)
  */
 export const getUpdateAnamnesePerguntaUrl = (id: number) => {
@@ -5698,6 +5788,180 @@ export const useUpdateAnamnesePergunta = <
   TContext
 > => {
   return useMutation(getUpdateAnamnesePerguntaMutationOptions(options));
+};
+
+/**
+ * @summary Apaga uma pergunta
+ */
+export const getDeleteAnamnesePerguntaUrl = (id: number) => {
+  return `/api/mega-anamnese/perguntas/${id}`;
+};
+
+export const deleteAnamnesePergunta = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteAnamnesePergunta200> => {
+  return customFetch<DeleteAnamnesePergunta200>(
+    getDeleteAnamnesePerguntaUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteAnamnesePerguntaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAnamnesePergunta>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAnamnesePergunta>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteAnamnesePergunta"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAnamnesePergunta>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteAnamnesePergunta(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAnamnesePerguntaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAnamnesePergunta>>
+>;
+
+export type DeleteAnamnesePerguntaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Apaga uma pergunta
+ */
+export const useDeleteAnamnesePergunta = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAnamnesePergunta>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAnamnesePergunta>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteAnamnesePerguntaMutationOptions(options));
+};
+
+/**
+ * @summary Gera a voz (Text-To-Speech) da pergunta e salva o mp3
+ */
+export const getGerarAnamneseAudioUrl = (id: number) => {
+  return `/api/mega-anamnese/perguntas/${id}/audio`;
+};
+
+export const gerarAnamneseAudio = async (
+  id: number,
+  anamneseAudioInput?: AnamneseAudioInput,
+  options?: RequestInit,
+): Promise<AnamnesePergunta> => {
+  return customFetch<AnamnesePergunta>(getGerarAnamneseAudioUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(anamneseAudioInput),
+  });
+};
+
+export const getGerarAnamneseAudioMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof gerarAnamneseAudio>>,
+    TError,
+    { id: number; data: BodyType<AnamneseAudioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof gerarAnamneseAudio>>,
+  TError,
+  { id: number; data: BodyType<AnamneseAudioInput> },
+  TContext
+> => {
+  const mutationKey = ["gerarAnamneseAudio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof gerarAnamneseAudio>>,
+    { id: number; data: BodyType<AnamneseAudioInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return gerarAnamneseAudio(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GerarAnamneseAudioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof gerarAnamneseAudio>>
+>;
+export type GerarAnamneseAudioMutationBody = BodyType<AnamneseAudioInput>;
+export type GerarAnamneseAudioMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Gera a voz (Text-To-Speech) da pergunta e salva o mp3
+ */
+export const useGerarAnamneseAudio = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof gerarAnamneseAudio>>,
+    TError,
+    { id: number; data: BodyType<AnamneseAudioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof gerarAnamneseAudio>>,
+  TError,
+  { id: number; data: BodyType<AnamneseAudioInput> },
+  TContext
+> => {
+  return useMutation(getGerarAnamneseAudioMutationOptions(options));
 };
 
 /**

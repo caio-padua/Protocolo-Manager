@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Volume2, Check, Minus, Plus } from "lucide-react";
+import { Mic, MicOff, Check, Minus, Plus, Circle, Square, RotateCcw } from "lucide-react";
 import type { AnamneseQuestion } from "@workspace/api-client-react";
 import { controlKind, parseOpcoes, type Valor, type Opcao } from "./types";
 
@@ -134,7 +134,7 @@ function MultiControl({
     onChange({ tipo: "multi", selecionados: next });
   };
   return (
-    <div className="flex flex-wrap gap-2.5">
+    <div className="grid grid-cols-2 gap-2.5">
       {opcoes.map((o) => {
         const active = sel.includes(o.label);
         return (
@@ -142,11 +142,11 @@ function MultiControl({
             key={String(o.valor)}
             type="button"
             onClick={() => toggle(o.label)}
-            className="panel-3d-sub flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all"
+            className="panel-3d-sub flex min-w-0 items-center gap-2 rounded-md px-4 py-2.5 text-left text-sm font-medium transition-all"
             style={active ? { boxShadow: `0 0 0 3px ${CIANO}`, color: PETROLEO } : { color: "#374151" }}
           >
-            {active && <Check className="h-4 w-4" style={{ color: CIANO }} />}
-            {o.label}
+            {active && <Check className="h-4 w-4 shrink-0" style={{ color: CIANO }} />}
+            <span className="truncate">{o.label}</span>
           </button>
         );
       })}
@@ -184,7 +184,10 @@ function EscalaControl({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${ladder.length}, minmax(0, 1fr))` }}
+      >
         {ladder.map((n) => {
           const active = cur === n;
           const filled = cur != null && n <= cur;
@@ -193,7 +196,7 @@ function EscalaControl({
               key={n}
               type="button"
               onClick={() => onChange({ tipo: "escala", escala: n, max }, { commit: true })}
-              className="concave-3d flex h-12 min-w-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
+              className="concave-3d flex h-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
               style={{
                 boxShadow: active ? `0 0 0 3px ${CIANO}` : undefined,
                 background: filled ? PETROLEO : undefined,
@@ -358,7 +361,6 @@ function TextoControl({
   const sttAvailable =
     typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
-  const ttsAvailable = typeof window !== "undefined" && "speechSynthesis" in window;
 
   useEffect(() => {
     return () => {
@@ -401,14 +403,6 @@ function TextoControl({
     setListening(false);
   };
 
-  const readAloud = () => {
-    if (!ttsAvailable || !question.pergunta) return;
-    const u = new SpeechSynthesisUtterance(question.pergunta);
-    u.lang = "pt-BR";
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  };
-
   return (
     <div className="flex flex-col gap-2">
       <textarea
@@ -431,20 +425,158 @@ function TextoControl({
             {listening ? "Ouvindo..." : "Falar"}
           </button>
         )}
-        {ttsAvailable && (
+      </div>
+      {sttAvailable && (
+        <p className="text-[11px] text-gray-400">
+          O ditado (microfone) é processado pelo seu próprio navegador/dispositivo.
+        </p>
+      )}
+      <AudioRecorder />
+    </div>
+  );
+}
+
+// Gravacao de audio para perguntas abertas (gravar/parar/regravar + duracao + ouvir).
+// O audio fica no proprio navegador como complemento da resposta escrita; se o
+// microfone for negado ou indisponivel, degrada com aviso claro sem travar o fluxo.
+function AudioRecorder() {
+  const [supported] = useState(
+    () => typeof window !== "undefined" && typeof (window as any).MediaRecorder !== "undefined",
+  );
+  const [recording, setRecording] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState(0);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Espelha a URL atual do blob para o cleanup de unmount revogar a versao
+  // vigente (e nao o valor capturado no mount, que seria sempre null).
+  const urlRef = useRef<string | null>(null);
+
+  const limparTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const pararStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  };
+
+  useEffect(() => {
+    urlRef.current = audioUrl;
+  }, [audioUrl]);
+
+  useEffect(() => {
+    return () => {
+      limparTimer();
+      pararStream();
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const iniciar = async () => {
+    setErro(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        setAudioUrl(URL.createObjectURL(blob));
+        pararStream();
+      };
+      recRef.current = rec;
+      rec.start();
+      setSeconds(0);
+      setRecording(true);
+      limparTimer();
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      setErro("Não foi possível acessar o microfone. Verifique a permissão do navegador. Você pode responder por escrito normalmente.");
+    }
+  };
+
+  const parar = () => {
+    limparTimer();
+    setRecording(false);
+    try {
+      recRef.current?.stop();
+    } catch {
+      /* noop */
+    }
+  };
+
+  const regravar = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(null);
+    setSeconds(0);
+    iniciar();
+  };
+
+  if (!supported) return null;
+
+  const mmss = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
+  return (
+    <div className="flex flex-col gap-2 border-t pt-2" style={{ borderColor: "rgba(0,0,0,.06)" }}>
+      <div className="flex flex-wrap items-center gap-2">
+        {!recording && !audioUrl && (
           <button
             type="button"
-            onClick={readAloud}
+            onClick={iniciar}
             className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+            data-testid="button-gravar-audio"
           >
-            <Volume2 className="h-4 w-4" />
-            Ouvir
+            <Circle className="h-4 w-4 fill-red-500 text-red-500" /> Gravar áudio
+          </button>
+        )}
+        {recording && (
+          <button
+            type="button"
+            onClick={parar}
+            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+            style={{ boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO }}
+            data-testid="button-parar-audio"
+          >
+            <Square className="h-4 w-4" /> Parar
+          </button>
+        )}
+        {(recording || audioUrl) && (
+          <span className="text-sm font-bold tabular-nums" style={{ color: recording ? "#ef4444" : PETROLEO }}>
+            {mmss}
+          </span>
+        )}
+        {audioUrl && !recording && (
+          <button
+            type="button"
+            onClick={regravar}
+            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+            data-testid="button-regravar-audio"
+          >
+            <RotateCcw className="h-4 w-4" /> Regravar
           </button>
         )}
       </div>
-      {(sttAvailable || ttsAvailable) && (
+      {audioUrl && !recording && (
+        <audio src={audioUrl} controls className="w-full" data-testid="audio-gravado" />
+      )}
+      {erro ? (
+        <p className="text-[11px] text-red-500">{erro}</p>
+      ) : (
         <p className="text-[11px] text-gray-400">
-          A voz é processada pelo seu próprio navegador/dispositivo, não enviada a servidores externos.
+          A gravação de áudio fica no seu dispositivo como complemento da resposta escrita.
         </p>
       )}
     </div>
