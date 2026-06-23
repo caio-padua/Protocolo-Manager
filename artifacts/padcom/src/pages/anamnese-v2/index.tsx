@@ -36,6 +36,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
 import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
+import { PaxterLogo } from "@/components/branding/PaxterLogo";
 
 const PETROLEO = "#3D7A7A";
 const CIANO = "#45B8CC";
@@ -409,12 +410,7 @@ export default function AnamneseV2() {
       <header className="sticky top-0 z-20 border-b border-[#d7e0e0] bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <BrandMedallion size={44} />
-              <span className="text-sm font-bold tracking-tight" style={{ color: "#16294a" }}>
-                Padcon <span style={{ color: "#b8924d" }}>Conect</span>
-              </span>
-            </div>
+            <PaxterLogo variant="compact" />
             <button
               type="button"
               onClick={() => setFocusMode((f) => !f)}
@@ -559,63 +555,6 @@ export default function AnamneseV2() {
 }
 
 // ---------- subcomponentes ----------
-
-// Medalhao da marca: corpo navy (mais escuro que o painel) + aro dourado em
-// relevo + simbolo "P" dourado, com uma camada de VIDRO cobrindo o aro. Tamanho
-// parametrico: 72px na identificacao, ~34px no cabecalho fixo da anamnese. Usa
-// cores explicitas (hex) para nao sofrer remapeamento do tema "elite".
-function BrandMedallion({ size = 72 }: { size?: number }) {
-  const radius = Math.round(size * 0.28);
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <div
-        className="absolute inset-0"
-        style={{
-          borderRadius: radius,
-          background: "linear-gradient(160deg,#1d3358 0%,#10213d 60%,#0c1a31 100%)",
-          boxShadow:
-            "inset 0 0 0 1.5px rgba(184,146,77,.6), inset 0 2px 6px rgba(255,255,255,.08), 0 6px 16px rgba(0,0,0,.32)",
-        }}
-      />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span
-          className="font-serif font-bold leading-none"
-          style={{
-            fontSize: Math.round(size * 0.56),
-            color: "#e8cf95",
-            textShadow: "0 1px 2px rgba(0,0,0,.55)",
-          }}
-        >
-          P
-        </span>
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          borderRadius: radius,
-          background:
-            "linear-gradient(150deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.18) 32%, rgba(255,255,255,0) 54%)",
-          boxShadow: "inset 0 1px 1px rgba(255,255,255,.4)",
-        }}
-      />
-      {/* reflexo de vidro: faixa diagonal de brilho, deixa a cobertura visivel */}
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          left: "8%",
-          top: "6%",
-          width: "44%",
-          height: "70%",
-          borderRadius: radius,
-          transform: "rotate(18deg)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,0) 100%)",
-          filter: "blur(1px)",
-        }}
-      />
-    </div>
-  );
-}
 
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -912,11 +851,8 @@ function FinishScreen({
     <div className="flex min-h-screen flex-col items-center bg-[#f1f5f5] px-4 py-10">
       <div className="mx-auto w-full max-w-xl">
         <div className="panel-3d-hero mb-5 rounded-md p-6 text-center">
-          <div className="mb-4 flex items-center justify-center gap-3">
-            <BrandMedallion size={52} />
-            <span className="text-lg font-bold tracking-tight" style={{ color: "#16294a" }}>
-              Padcon <span style={{ color: "#b8924d" }}>Conect</span>
-            </span>
+          <div className="mb-4 flex items-center justify-center">
+            <PaxterLogo variant="compact" />
           </div>
           <div
             className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-md"
@@ -1077,18 +1013,11 @@ function IdentifyGate({
       className="area-elite flex min-h-screen flex-col bg-[#f1f5f5]"
       style={{ ["--brand" as any]: PETROLEO }}
     >
-      <header className="panel-3d flex items-center justify-center border-b border-teal-200/60 px-4 py-6">
-        <div className="flex items-center gap-4">
-          <BrandMedallion size={96} />
-          <div className="leading-tight">
-            <h1 className="text-2xl font-bold leading-none tracking-tight" style={{ color: "#16294a" }}>
-              Padcon <span style={{ color: "#b8924d" }}>Conect</span>
-            </h1>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.22em]" style={{ color: "#8a7a52" }}>
-              Ficha de Saúde — Anamnese
-            </p>
-          </div>
-        </div>
+      <header className="panel-3d flex flex-col items-center justify-center gap-2 border-b border-teal-200/60 px-4 py-6">
+        <PaxterLogo variant="appHeader" tone="light" />
+        <p className="text-[10px] uppercase tracking-[0.22em]" style={{ color: "#8a7a52" }}>
+          Ficha de Saúde — Anamnese
+        </p>
       </header>
 
       <main className="flex flex-1 items-start justify-center px-4 py-10">

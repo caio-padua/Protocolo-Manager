@@ -24,6 +24,15 @@
   text-align: center;
 }
 
+/* APP / anamnese (appHeader): simbolo premium em vidro + PAXTER/Clinical empilhados. */
+.pax-lockup--app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
 .pax-lockup--compact {
   display: inline-flex;
   align-items: center;
@@ -137,6 +146,23 @@
 
 .pax-lockup--compact .pax-word {
   width: clamp(120px, 30vw, 176px);
+}
+
+.pax-lockup--app .pax-word {
+  width: min(244px, 82%);
+}
+
+/* No app o fundo (medalhao/navy) nao e preto puro: o screen apaga o preto
+   embutido do recorte e faz o ouro saltar. */
+.pax-lockup--app .pax-word img {
+  mix-blend-mode: screen;
+}
+
+/* Tom CLARO (painel champanhe, sem placa azul): a palavra ja e ouro
+   TRANSPARENTE, entao no claro o screen lavaria/sumiria o ouro. Blend normal =
+   ouro pousa direto no creme, legivel, sem precisar de fundo escuro. */
+.pax-lockup--app.pax-tone-light .pax-word img {
+  mix-blend-mode: normal;
 }
 
 /* ---------------- TAGLINES ---------------- */
