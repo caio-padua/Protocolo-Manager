@@ -299,7 +299,7 @@ export default function Parametrizacao() {
       <Card className="panel-3d">
         <CardHeader>
           <CardTitle>
-            <BlockTitle icon={CreditCard} color="text-cyan-600">Taxas de Cartao por Parcela</BlockTitle>
+            <BlockTitle icon={CreditCard} color="text-accent">Taxas de Cartao por Parcela</BlockTitle>
           </CardTitle>
         </CardHeader>
         <CardContent>

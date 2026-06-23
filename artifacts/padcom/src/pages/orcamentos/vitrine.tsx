@@ -30,7 +30,7 @@ export default function Vitrine() {
 
       <div className="text-center space-y-1">
         <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
-          <Sparkles className="h-6 w-6 text-cyan-500" /> Vitrine de Substancias
+          <Sparkles className="h-6 w-6 text-accent" /> Vitrine de Substancias
         </h1>
         <p className="text-muted-foreground">Beneficios e detalhes de cada substancia do catalogo.</p>
       </div>

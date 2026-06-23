@@ -64,7 +64,7 @@ function formatPhone(value: string): string {
 
 const EMPTY: FormValues = {
   name: "", type: "clinic", phone: "", cep: "", logradouro: "", numero: "",
-  complemento: "", bairro: "", cidade: "", estado: "", color: "#3D7A7A",
+  complemento: "", bairro: "", cidade: "", estado: "", color: "#16284a",
   googleCalendarId: "", active: true,
 };
 
@@ -169,7 +169,7 @@ export default function CadastroClinicas() {
       name: c.name, type: c.type, phone: c.phone || "", cep: c.cep || "",
       logradouro: c.logradouro || "", numero: c.numero || "", complemento: c.complemento || "",
       bairro: c.bairro || "", cidade: c.cidade || "", estado: c.estado || "",
-      color: c.color || "#3D7A7A", googleCalendarId: c.googleCalendarId || "", active: c.active,
+      color: c.color || "#16284a", googleCalendarId: c.googleCalendarId || "", active: c.active,
     });
     setDialogOpen(true);
   };
@@ -197,7 +197,7 @@ export default function CadastroClinicas() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {clinicas.map((c) => (
             <Card key={c.id} className="panel-3d border-none relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: c.color || "#3D7A7A" }} />
+              <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: c.color || "#16284a" }} />
               <CardContent className="p-4 pl-5 space-y-3">
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   <span>#{c.id}</span>

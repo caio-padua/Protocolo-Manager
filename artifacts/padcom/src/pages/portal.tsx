@@ -172,8 +172,8 @@ export default function Portal() {
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
 
   return (
-    <div className="min-h-screen bg-[#142e2e] flex flex-col">
-      <header className="bg-[#0d1f1f] border-b border-[#1e4a4a] px-4 py-4 flex items-center justify-center">
+    <div className="min-h-screen bg-[#0d1830] flex flex-col">
+      <header className="bg-[#0b1426] border-b border-[#223358] px-4 py-4 flex items-center justify-center">
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
@@ -184,7 +184,7 @@ export default function Portal() {
           <PaxterSymbolGlass size={26} tone="dark" />
           <div>
             <h1 className="text-white font-bold text-lg tracking-[0.16em] uppercase">PAXTER</h1>
-            <p className="text-[#6b9b9b] text-xs uppercase tracking-widest">PORTAL DO CLIENTE</p>
+            <p className="text-[#7e93b8] text-xs uppercase tracking-widest">PORTAL DO CLIENTE</p>
           </div>
         </a>
       </header>
@@ -193,20 +193,20 @@ export default function Portal() {
         <div className="w-full max-w-md">
 
           {step === "identify" && (
-            <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md overflow-hidden">
-              <div className="bg-[#0d1f1f] px-5 py-4 border-b border-[#1e4a4a]">
+            <div className="bg-[#11203c] border border-[#223358] rounded-md overflow-hidden">
+              <div className="bg-[#0b1426] px-5 py-4 border-b border-[#223358]">
                 <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-[#d4ae35]" />
+                  <User className="w-5 h-5 text-[#c2a05a]" />
                   <h2 className="text-white font-semibold text-sm uppercase tracking-wide">IDENTIFICAÇÃO</h2>
                 </div>
-                <p className="text-[#6b9b9b] text-xs mt-1">
+                <p className="text-[#7e93b8] text-xs mt-1">
                   Digite seu CPF e data de nascimento para continuar
                 </p>
               </div>
 
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                  <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
                     CPF
                   </label>
                   <input
@@ -215,12 +215,12 @@ export default function Portal() {
                     placeholder="000.000.000-00"
                     value={cpf}
                     onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
-                    className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-lg placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+                    className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-lg placeholder:text-[#5a6f96] focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                  <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
                     DATA DE NASCIMENTO
                   </label>
                   <input
@@ -229,7 +229,7 @@ export default function Portal() {
                     placeholder="DD/MM/AAAA"
                     value={birthDate}
                     onChange={(e) => { setBirthDate(formatDate(e.target.value)); setError(""); }}
-                    className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-lg placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+                    className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-lg placeholder:text-[#5a6f96] focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent"
                   />
                 </div>
 
@@ -243,7 +243,7 @@ export default function Portal() {
                 <button
                   onClick={handleIdentify}
                   disabled={loading || cpf.replace(/\D/g, "").length !== 11 || birthDate.replace(/\D/g, "").length !== 8}
-                  className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-full h-12 bg-[#c2a05a] hover:bg-[#b8924d] text-[#0b1426] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -260,33 +260,33 @@ export default function Portal() {
 
           {step === "upload" && client && (
             <div className="space-y-4">
-              <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md px-4 py-3 flex items-center justify-between">
+              <div className="bg-[#11203c] border border-[#223358] rounded-md px-4 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[#6b9b9b] text-xs uppercase tracking-wider">CLIENTE</p>
+                  <p className="text-[#7e93b8] text-xs uppercase tracking-wider">CLIENTE</p>
                   <p className="text-white font-semibold text-sm">{client.name}</p>
                 </div>
-                <button onClick={handleRestart} className="text-[#6b9b9b] text-xs underline hover:text-white">
+                <button onClick={handleRestart} className="text-[#7e93b8] text-xs underline hover:text-white">
                   Trocar
                 </button>
               </div>
 
-              <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md overflow-hidden">
-                <div className="bg-[#0d1f1f] px-5 py-4 border-b border-[#1e4a4a]">
+              <div className="bg-[#11203c] border border-[#223358] rounded-md overflow-hidden">
+                <div className="bg-[#0b1426] px-5 py-4 border-b border-[#223358]">
                   <div className="flex items-center gap-3">
-                    <FileUp className="w-5 h-5 text-[#d4ae35]" />
+                    <FileUp className="w-5 h-5 text-[#c2a05a]" />
                     <h2 className="text-white font-semibold text-sm uppercase tracking-wide">ENVIAR ARQUIVO</h2>
                   </div>
                 </div>
 
                 <div className="p-5 space-y-4">
                   <div>
-                    <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                    <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
                       TIPO DO ARQUIVO
                     </label>
                     <select
                       value={fileType}
                       onChange={(e) => { setFileType(e.target.value); setBodyRegion(""); setError(""); }}
-                      className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent appearance-none"
+                      className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent appearance-none"
                     >
                       <option value="" disabled>Selecione o tipo...</option>
                       {FILE_TYPES.map((t) => (
@@ -297,13 +297,13 @@ export default function Portal() {
 
                   {showBodyRegion && (
                     <div>
-                      <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
-                        REGIÃO DO CORPO <span className="text-[#3a6666]">(OPCIONAL)</span>
+                      <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                        REGIÃO DO CORPO <span className="text-[#5a6f96]">(OPCIONAL)</span>
                       </label>
                       <select
                         value={bodyRegion}
                         onChange={(e) => setBodyRegion(e.target.value)}
-                        className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent appearance-none"
+                        className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent appearance-none"
                       >
                         <option value="">Selecione a região...</option>
                         {BODY_REGIONS.map((r) => (
@@ -314,20 +314,20 @@ export default function Portal() {
                   )}
 
                   <div>
-                    <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
-                      DESCRIÇÃO <span className="text-[#3a6666]">(OPCIONAL)</span>
+                    <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                      DESCRIÇÃO <span className="text-[#5a6f96]">(OPCIONAL)</span>
                     </label>
                     <input
                       type="text"
                       placeholder="Ex: hemograma completo, raio-x do joelho..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full h-12 bg-[#0d1f1f] border border-[#1e4a4a] rounded-md px-4 text-white text-sm placeholder:text-[#3a6666] focus:outline-none focus:ring-2 focus:ring-[#d4ae35] focus:border-transparent"
+                      className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-sm placeholder:text-[#5a6f96] focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[#8fbfbf] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                    <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
                       ARQUIVO
                     </label>
                     <input
@@ -339,18 +339,18 @@ export default function Portal() {
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-24 bg-[#0d1f1f] border-2 border-dashed border-[#1e4a4a] rounded-md flex flex-col items-center justify-center gap-2 hover:border-[#d4ae35] transition-colors"
+                      className="w-full h-24 bg-[#0b1426] border-2 border-dashed border-[#223358] rounded-md flex flex-col items-center justify-center gap-2 hover:border-[#c2a05a] transition-colors"
                     >
                       {selectedFile ? (
                         <>
                           <CheckCircle className="w-6 h-6 text-green-400" />
                           <span className="text-white text-sm font-medium truncate max-w-[90%]">{selectedFile.name}</span>
-                          <span className="text-[#6b9b9b] text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
+                          <span className="text-[#7e93b8] text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
                         </>
                       ) : (
                         <>
-                          <Upload className="w-6 h-6 text-[#6b9b9b]" />
-                          <span className="text-[#6b9b9b] text-sm">Toque para selecionar arquivo</span>
+                          <Upload className="w-6 h-6 text-[#7e93b8]" />
+                          <span className="text-[#7e93b8] text-sm">Toque para selecionar arquivo</span>
                         </>
                       )}
                     </button>
@@ -366,7 +366,7 @@ export default function Portal() {
                   <button
                     onClick={handleUpload}
                     disabled={uploading || !selectedFile || !fileType}
-                    className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="w-full h-12 bg-[#c2a05a] hover:bg-[#b8924d] text-[#0b1426] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {uploading ? (
                       <>
@@ -386,18 +386,18 @@ export default function Portal() {
           )}
 
           {step === "success" && (
-            <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md overflow-hidden">
+            <div className="bg-[#11203c] border border-[#223358] rounded-md overflow-hidden">
               <div className="p-8 flex flex-col items-center text-center space-y-4">
                 <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center">
                   <CheckCircle className="w-8 h-8 text-green-400" />
                 </div>
                 <h2 className="text-white font-bold text-lg uppercase">ARQUIVO ENVIADO!</h2>
-                <p className="text-[#8fbfbf] text-sm">
+                <p className="text-[#9fb2d2] text-sm">
                   Seu arquivo foi recebido com sucesso e será processado pela equipe da clínica.
                 </p>
                 {uploadResult && (
-                  <div className="bg-[#0d1f1f] rounded-md px-4 py-3 w-full text-left">
-                    <p className="text-[#6b9b9b] text-xs uppercase">Arquivo</p>
+                  <div className="bg-[#0b1426] rounded-md px-4 py-3 w-full text-left">
+                    <p className="text-[#7e93b8] text-xs uppercase">Arquivo</p>
                     <p className="text-white text-sm font-mono truncate">{uploadResult.fileName}</p>
                   </div>
                 )}
@@ -405,13 +405,13 @@ export default function Portal() {
                 <div className="flex flex-col gap-2 w-full pt-2">
                   <button
                     onClick={handleNewUpload}
-                    className="w-full h-12 bg-[#d4ae35] hover:bg-[#c9a330] text-[#0d1f1f] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 transition-colors"
+                    className="w-full h-12 bg-[#c2a05a] hover:bg-[#b8924d] text-[#0b1426] font-bold text-sm uppercase tracking-wider rounded-md flex items-center justify-center gap-2 transition-colors"
                   >
                     ENVIAR OUTRO ARQUIVO
                   </button>
                   <button
                     onClick={handleRestart}
-                    className="w-full h-10 bg-transparent border border-[#1e4a4a] text-[#8fbfbf] font-semibold text-sm uppercase tracking-wider rounded-md hover:bg-[#1e4a4a] transition-colors"
+                    className="w-full h-10 bg-transparent border border-[#223358] text-[#9fb2d2] font-semibold text-sm uppercase tracking-wider rounded-md hover:bg-[#223358] transition-colors"
                   >
                     TROCAR CLIENTE
                   </button>
@@ -420,7 +420,7 @@ export default function Portal() {
             </div>
           )}
 
-          <p className="text-center text-[#3a6666] text-xs mt-6 uppercase tracking-wider">
+          <p className="text-center text-[#5a6f96] text-xs mt-6 uppercase tracking-wider">
             Instituto Pádua · Paxter — desenvolvido pela Padcon
           </p>
         </div>

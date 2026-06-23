@@ -1,0 +1,55 @@
+/*
+  MEDALHAO DE VIDRO — CUPULA VALIDADA (decisao do CEO 23/06/2026, IMG_5142/5143).
+  Copia fiel do `.leva-medallion` aprovado: moldura DOURADA fina + cupula de vidro
+  perolado restrita ao ARO superior (mix-blend screen, nao lava o simbolo) + miolo
+  NAVY sempre. O raio escala pelo tamanho via --pax-r.
+*/
+.pax-medallion {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    #6f5421 0%,
+    #f6e6a8 16%,
+    #c9a24e 38%,
+    #8a6d2f 56%,
+    #f1dd9a 76%,
+    #927235 100%
+  );
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.45),
+    0 0 22px rgba(194, 160, 90, 0.3);
+  flex-shrink: 0;
+}
+
+/* Cupula de vidro perolado que ENVOLVE a borda dourada.
+   Brilho restrito ao ARO superior: centro e base transparentes p/ NAO lavar o simbolo. */
+.pax-medallion::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--pax-r, 18px);
+  pointer-events: none;
+  z-index: 3;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.6) 0%,
+      rgba(255, 255, 255, 0.18) 10%,
+      rgba(255, 255, 255, 0.04) 22%,
+      rgba(255, 255, 255, 0) 32%
+    ),
+    radial-gradient(80% 30% at 50% 2%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 70%);
+  mix-blend-mode: screen;
+}
+
+.pax-medallion-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, #102140, #070f22);
+}

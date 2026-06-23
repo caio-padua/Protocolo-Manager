@@ -58,14 +58,14 @@ export default function CadastroAuditoria() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold uppercase tracking-wide text-[#3D7A7A]">
+        <h1 className="text-xl font-bold uppercase tracking-wide text-primary">
           Auditoria de Acesso
         </h1>
         <p className="text-sm text-muted-foreground">
           Registro de quem entrou e o que editou na Central de Cadastro.
         </p>
       </div>
-      <Card className="border-l-4 border-l-[#3D7A7A] p-0">
+      <Card className="border-l-4 border-l-primary p-0">
         {loading ? (
           <p className="p-6 text-sm text-muted-foreground">Carregando…</p>
         ) : error ? (
@@ -75,7 +75,7 @@ export default function CadastroAuditoria() {
         ) : (
           <Table>
             <TableHeader>
-              <TableRow className="bg-[#3D7A7A]/5">
+              <TableRow className="bg-primary/5">
                 <TableHead>Quando</TableHead>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Evento</TableHead>

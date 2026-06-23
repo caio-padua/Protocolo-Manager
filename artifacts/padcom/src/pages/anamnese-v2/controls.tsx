@@ -3,8 +3,7 @@ import { Mic, MicOff, Check, Minus, Plus, Circle, Square, RotateCcw } from "luci
 import type { AnamneseQuestion } from "@workspace/api-client-react";
 import { controlKind, parseOpcoes, type Valor, type Opcao } from "./types";
 
-const PETROLEO = "#3D7A7A";
-const CIANO = "#45B8CC";
+const GOLD = "#c9a24e";
 
 interface ControlProps {
   question: AnamneseQuestion;
@@ -65,11 +64,11 @@ function YesNoControl({
             className="panel-3d-sub flex h-20 items-center justify-center gap-2 rounded-md text-lg font-bold uppercase tracking-wide transition-all"
             style={
               active
-                ? { boxShadow: `0 0 0 3px ${CIANO}`, color: PETROLEO }
-                : { color: "#4b5563" }
+                ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" }
+                : { color: "hsl(var(--muted-foreground))" }
             }
           >
-            {active && <Check className="h-5 w-5" style={{ color: CIANO }} />}
+            {active && <Check className="h-5 w-5" style={{ color: GOLD }} />}
             {opt.label}
           </button>
         );
@@ -98,10 +97,10 @@ function SingleControl({
             type="button"
             onClick={() => onChange({ tipo: "single", opcao: o.label, valor: o.valor }, { commit: true })}
             className="panel-3d-sub flex items-center justify-between gap-2 rounded-md px-4 py-3.5 text-left text-base font-medium transition-all"
-            style={active ? { boxShadow: `0 0 0 3px ${CIANO}`, color: PETROLEO } : { color: "#374151" }}
+            style={active ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" } : { color: "hsl(var(--muted-foreground))" }}
           >
             <span>{o.label}</span>
-            {active && <Check className="h-5 w-5 shrink-0" style={{ color: CIANO }} />}
+            {active && <Check className="h-5 w-5 shrink-0" style={{ color: GOLD }} />}
           </button>
         );
       })}
@@ -143,9 +142,9 @@ function MultiControl({
             type="button"
             onClick={() => toggle(o.label)}
             className="panel-3d-sub flex min-w-0 items-center gap-2 rounded-md px-4 py-2.5 text-left text-sm font-medium transition-all"
-            style={active ? { boxShadow: `0 0 0 3px ${CIANO}`, color: PETROLEO } : { color: "#374151" }}
+            style={active ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" } : { color: "hsl(var(--muted-foreground))" }}
           >
-            {active && <Check className="h-4 w-4 shrink-0" style={{ color: CIANO }} />}
+            {active && <Check className="h-4 w-4 shrink-0" style={{ color: GOLD }} />}
             <span className="truncate">{o.label}</span>
           </button>
         );
@@ -198,9 +197,9 @@ function EscalaControl({
               onClick={() => onChange({ tipo: "escala", escala: n, max }, { commit: true })}
               className="concave-3d flex h-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
               style={{
-                boxShadow: active ? `0 0 0 3px ${CIANO}` : undefined,
-                background: filled ? PETROLEO : undefined,
-                color: filled ? "#fff" : "#4b5563",
+                boxShadow: active ? `0 0 0 3px ${GOLD}` : undefined,
+                background: filled ? "hsl(var(--primary))" : undefined,
+                color: filled ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
               }}
             >
               {n}
@@ -217,7 +216,7 @@ function EscalaControl({
           {curLabel && (
             <div
               className="concave-3d rounded-md px-3 py-2 text-center text-sm font-semibold"
-              style={{ color: PETROLEO }}
+              style={{ color: "hsl(var(--primary))" }}
             >
               {curLabel}
             </div>
@@ -271,7 +270,7 @@ function MacosAnoControl({
             }}
             placeholder="ex.: 20"
             className="field-engraved h-12 rounded-md text-center text-xl font-bold"
-            style={{ color: PETROLEO }}
+            style={{ color: "hsl(var(--foreground))" }}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -288,7 +287,7 @@ function MacosAnoControl({
             }}
             placeholder="ex.: 10"
             className="field-engraved h-12 rounded-md text-center text-xl font-bold"
-            style={{ color: PETROLEO }}
+            style={{ color: "hsl(var(--foreground))" }}
           />
         </div>
       </div>
@@ -296,7 +295,7 @@ function MacosAnoControl({
         <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           Maços-ano (cálculo automático)
         </span>
-        <span className="text-lg font-bold" style={{ color: PETROLEO }}>
+        <span className="text-lg font-bold" style={{ color: "hsl(var(--primary))" }}>
           {cigs || anos ? macosAno : saved != null ? saved : "—"}
         </span>
       </div>
@@ -331,7 +330,7 @@ function NumberControl({
           set(Number.isFinite(n) ? n : 0);
         }}
         className="field-engraved h-12 w-24 rounded-md text-center text-xl font-bold"
-        style={{ color: PETROLEO }}
+        style={{ color: "hsl(var(--foreground))" }}
       />
       <button
         type="button"
@@ -411,7 +410,7 @@ function TextoControl({
         rows={3}
         placeholder="Escreva ou use o microfone..."
         className="field-engraved w-full rounded-md p-3 text-base"
-        style={{ color: PETROLEO }}
+        style={{ color: "hsl(var(--foreground))" }}
       />
       <div className="flex items-center gap-2">
         {sttAvailable && (
@@ -419,7 +418,7 @@ function TextoControl({
             type="button"
             onClick={listening ? stopVoice : startVoice}
             className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-            style={listening ? { boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO } : undefined}
+            style={listening ? { boxShadow: `0 0 0 2px ${GOLD}`, color: "hsl(var(--primary))" } : undefined}
           >
             {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {listening ? "Ouvindo..." : "Falar"}
@@ -547,14 +546,14 @@ function AudioRecorder() {
             type="button"
             onClick={parar}
             className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-            style={{ boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO }}
+            style={{ boxShadow: `0 0 0 2px ${GOLD}`, color: "hsl(var(--primary))" }}
             data-testid="button-parar-audio"
           >
             <Square className="h-4 w-4" /> Parar
           </button>
         )}
         {(recording || audioUrl) && (
-          <span className="text-sm font-bold tabular-nums" style={{ color: recording ? "#ef4444" : PETROLEO }}>
+          <span className="text-sm font-bold tabular-nums" style={{ color: recording ? "#ef4444" : "hsl(var(--primary))" }}>
             {mmss}
           </span>
         )}

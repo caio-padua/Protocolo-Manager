@@ -68,7 +68,7 @@ export default function Entrada() {
         .entrada-bg{
           background:
             radial-gradient(1200px 600px at 50% -10%, rgba(194,160,90,0.12), transparent 60%),
-            radial-gradient(900px 700px at 50% 120%, rgba(69,184,204,0.08), transparent 60%),
+            radial-gradient(900px 700px at 50% 120%, rgba(201,162,78,0.08), transparent 60%),
             linear-gradient(180deg,#0d1830 0%,#0b1426 60%,#091020 100%);
         }
         .entrada-fade{animation:entradaFade .6s ease both}
@@ -176,7 +176,7 @@ export default function Entrada() {
               className="acesso-card group text-left rounded-2xl border border-white/15 bg-white/[0.04] p-6 backdrop-blur"
               data-testid="acesso-colaborador"
             >
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl border border-[#45B8CC]/50 bg-[#45B8CC]/10 text-[#7fdcec]">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl border border-[#7e93b8]/45 bg-white/[0.05] text-[#cdd9ee]">
                 <Stethoscope className="h-6 w-6" />
               </div>
               <div className="mt-4 text-base font-bold uppercase tracking-widest text-white">
@@ -185,7 +185,7 @@ export default function Entrada() {
               <div className="mt-1 text-sm text-[#9fb2d2] leading-relaxed">
                 Equipe clínica e administrativa — central de cadastro e gestão.
               </div>
-              <div className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-[#7fdcec]">
+              <div className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-[#9fb2d2]">
                 Entrar <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
               </div>
             </button>

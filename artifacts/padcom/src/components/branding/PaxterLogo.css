@@ -82,41 +82,8 @@
   user-select: none;
 }
 
-/* O brilho que percorre — mascarado pela MESMA forma das letras,
-   para a luz so aparecer sobre o ouro. Comeca no topo (PAXTER) e
-   termina embaixo (Clinical Intelligence System). */
-.pax-sheen {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    162deg,
-    transparent 43%,
-    rgba(255, 247, 220, 0.35) 49%,
-    rgba(255, 252, 240, 0.55) 50%,
-    rgba(255, 247, 220, 0.35) 51%,
-    transparent 57%
-  );
-  background-repeat: no-repeat;
-  background-size: 100% 320%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  mix-blend-mode: screen;
-  opacity: 0.7;
-  animation: pax-sweep 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-@keyframes pax-sweep {
-  0% {
-    background-position: 50% -30%;
-  }
-  55%,
-  100% {
-    background-position: 50% 130%;
-  }
-}
+/* Brilho craquelado REMOVIDO (decisao do CEO 23/06/2026): o nome PAXTER usa
+   o ouro real do anexo, limpo, sem o glint mascarado que percorria as letras. */
 
 .pax-lockup--hero .pax-word {
   width: min(620px, 92%);
@@ -168,9 +135,3 @@
   opacity: 0.92;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pax-sheen {
-    animation: none;
-    opacity: 0;
-  }
-}

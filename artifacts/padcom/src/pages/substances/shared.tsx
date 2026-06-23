@@ -36,7 +36,7 @@ export const BODY_SYSTEM_LABELS: Record<string, { label: string; icon: typeof He
   neurocognicao: { label: "Neurocognição", icon: Brain, color: "text-purple-500" },
   metabolismo_tireoide: { label: "Metabolismo / Tireoide", icon: Activity, color: "text-amber-500" },
   libido_sexual: { label: "Libido / Sexual", icon: Heart, color: "text-pink-500" },
-  performance_fisica: { label: "Performance Física", icon: Zap, color: "text-teal-500" },
+  performance_fisica: { label: "Performance Física", icon: Zap, color: "text-cyan-500" },
   imunologico: { label: "Imunológico", icon: Shield, color: "text-blue-500" },
   dermatologico: { label: "Pele / Cabelo / Unhas", icon: Sparkles, color: "text-pink-400" },
   hepatico: { label: "Hepático / Detox", icon: Shield, color: "text-green-600" },
@@ -46,7 +46,7 @@ export const BODY_SYSTEM_LABELS: Record<string, { label: string; icon: typeof He
   muscular: { label: "Muscular", icon: Dumbbell, color: "text-amber-600" },
   endocrino: { label: "Endócrino", icon: Zap, color: "text-violet-500" },
   osteoarticular: { label: "Osteoarticular", icon: Dumbbell, color: "text-sky-600" },
-  articular: { label: "Articular", icon: Dumbbell, color: "text-teal-500" },
+  articular: { label: "Articular", icon: Dumbbell, color: "text-cyan-500" },
   hematologico: { label: "Hematológico", icon: Heart, color: "text-rose-600" },
   reprodutivo: { label: "Reprodutivo", icon: Heart, color: "text-pink-600" },
 };
@@ -111,10 +111,10 @@ export function BlendComposition({ composicao }: { composicao: string | null | u
   if (components.length === 0) return null;
 
   return (
-    <div className="rounded-xl border-2 border-teal-200 dark:border-teal-800 bg-teal-50/40 dark:bg-teal-950/20 p-4">
+    <div className="rounded-xl border-2 border-border bg-muted p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Droplet className="h-4 w-4 text-teal-600" />
-        <span className="text-sm font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">
+        <Droplet className="h-4 w-4 text-accent" />
+        <span className="text-sm font-bold uppercase tracking-wider text-primary">
           Composição do Blend
         </span>
         <span className="text-xs text-muted-foreground">({components.length} ativos)</span>
@@ -123,11 +123,11 @@ export function BlendComposition({ composicao }: { composicao: string | null | u
         {components.map((c, i) => (
           <div
             key={`${c.name}-${i}`}
-            className="flex items-center justify-between gap-2 rounded-lg border border-teal-200 dark:border-teal-800 bg-card px-3 py-2"
+            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
           >
             <span className="text-sm font-semibold truncate">{c.name}</span>
             {c.dose && (
-              <span className="text-xs font-bold text-teal-700 dark:text-teal-400 whitespace-nowrap">
+              <span className="text-xs font-bold text-primary whitespace-nowrap">
                 {c.dose}
               </span>
             )}
@@ -181,9 +181,9 @@ export const CATEGORY_METERS: Record<string, CategoryMeterDef> = {
   recuperacao_muscular: {
     label: "Recuperação Muscular",
     icon: HeartPulse,
-    from: "from-teal-500",
+    from: "from-cyan-500",
     to: "to-emerald-400",
-    text: "text-teal-600",
+    text: "text-cyan-600",
     legend:
       "O quanto acelera a recuperação e reduz a dor muscular após o treino.",
   },

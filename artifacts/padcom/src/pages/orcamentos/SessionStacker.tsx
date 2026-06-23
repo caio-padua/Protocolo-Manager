@@ -78,7 +78,7 @@ export function SessionStacker({
           do quente ao azul. */}
       <div
         ref={trackRef}
-        className="flex h-5 w-full cursor-pointer touch-none items-stretch gap-[3px] rounded-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        className="flex h-5 w-full cursor-pointer touch-none items-stretch gap-[3px] rounded-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onPointerDown={handleDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}

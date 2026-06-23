@@ -54,7 +54,7 @@ const formSchema = z.object({
 });
 type FormValues = z.infer<typeof formSchema>;
 
-const EMPTY: FormValues = { name: "", kind: "geral", locationId: "none", color: "#3D7A7A", share: "", active: true };
+const EMPTY: FormValues = { name: "", kind: "geral", locationId: "none", color: "#16284a", share: "", active: true };
 
 const importSchema = z.object({ googleCalendarId: z.string().min(1), kind: z.string(), locationId: z.string().optional() });
 type ImportValues = z.infer<typeof importSchema>;
@@ -200,7 +200,7 @@ export default function CadastroAgendasGoogle() {
     setEditingId(c.id);
     form.reset({
       name: c.name, kind: c.kind, locationId: c.locationId ? String(c.locationId) : "none",
-      color: c.color || "#3D7A7A", share: "", active: c.active,
+      color: c.color || "#16284a", share: "", active: c.active,
     });
     setDialogOpen(true);
   };
@@ -247,7 +247,7 @@ export default function CadastroAgendasGoogle() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {calendars.map((c) => (
               <Card key={c.id} className="panel-3d border-none relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: c.color || "#3D7A7A" }} />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: c.color || "#16284a" }} />
                 <CardContent className="p-4 pl-5 space-y-3">
                   <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     <span>#{c.id}</span>

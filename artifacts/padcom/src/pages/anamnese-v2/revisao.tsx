@@ -15,7 +15,7 @@ import {
 import { useListClients } from "@workspace/api-client-react";
 import { getCollabToken } from "@/lib/collab-auth";
 
-const PETROLEO = "#3D7A7A";
+const NAVY = "#16284a";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -123,21 +123,18 @@ export default function AnamneseRevisao() {
   }, []);
 
   return (
-    <div className="space-y-5" style={{ ["--brand" as never]: PETROLEO }}>
+    <div className="space-y-5" style={{ ["--brand" as never]: NAVY }}>
       {/* Cabecalho da pagina */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span
-            className="flex h-10 w-10 items-center justify-center rounded-md text-white"
-            style={{ background: PETROLEO }}
-          >
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <ClipboardList className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-lg font-black uppercase tracking-wide" style={{ color: PETROLEO }}>
+            <h1 className="text-lg font-black uppercase tracking-wide text-primary">
               Revisão de Anamneses
             </h1>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Achados de cada ficha de saúde — acesso da equipe clínica
             </p>
           </div>
@@ -273,7 +270,7 @@ function DetailView({ detail }: { detail: SessionDetail }) {
       {/* identidade da sessao */}
       <div className="bevel-3d rounded-md px-3 py-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-black" style={{ color: PETROLEO }}>
+          <span className="text-sm font-black text-primary">
             {detail.clientName ?? "Demonstração (sem cliente)"}
           </span>
           <span className="font-mono text-xs text-gray-400">#{detail.id}</span>
@@ -349,10 +346,7 @@ function Section({
 }) {
   return (
     <div>
-      <h3
-        className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-widest"
-        style={{ color: PETROLEO }}
-      >
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-primary">
         {icon}
         {title}
       </h3>
@@ -420,7 +414,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16">
       <div className="panel-3d w-full max-w-md rounded-lg bg-white p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest" style={{ color: PETROLEO }}>
+          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-primary">
             <MessageCircle className="h-4 w-4" /> Enviar Anamnese
           </h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">

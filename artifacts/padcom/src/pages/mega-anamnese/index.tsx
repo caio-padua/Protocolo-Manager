@@ -664,7 +664,7 @@ function Simulador() {
                 icon={<Stethoscope className="h-4 w-4" />}
                 titulo="Hipóteses (doenças)"
                 itens={resultado.doencas}
-                cor="text-cyan-600"
+                cor="text-accent"
               />
             </div>
 

@@ -83,14 +83,14 @@ export const VIAS: string[] = ['VO', 'SL', 'Tópico', 'Uso externo'];
 
 export const CATEGORIES: Category[] = [
   { id: 'gastrico', label: 'Gástrico / Digestivo', icon: Pill, color: 'from-amber-500 to-orange-600' },
-  { id: 'tireoide', label: 'Tireoide / Metabolismo', icon: Activity, color: 'from-emerald-500 to-teal-600' },
+  { id: 'tireoide', label: 'Tireoide / Metabolismo', icon: Activity, color: 'from-emerald-500 to-cyan-600' },
   { id: 'hepato', label: 'Hepato / Detox', icon: Leaf, color: 'from-lime-500 to-green-600' },
   { id: 'vitaminas', label: 'Vitaminas / Minerais', icon: Sparkles, color: 'from-yellow-500 to-amber-600' },
   { id: 'adaptogenos', label: 'Adaptógenos / Energia', icon: Zap, color: 'from-orange-500 to-red-600' },
   { id: 'adhd', label: 'ADHD / Cognitivo', icon: Brain, color: 'from-violet-500 to-purple-600' },
   { id: 'emagrecimento', label: 'Emagrecimento', icon: Flame, color: 'from-rose-500 to-pink-600' },
   { id: 'transito', label: 'Trânsito Intestinal', icon: Wind, color: 'from-stone-500 to-stone-700' },
-  { id: 'calmante', label: 'Calmante Diurno', icon: Leaf, color: 'from-teal-500 to-cyan-600' },
+  { id: 'calmante', label: 'Calmante Diurno', icon: Leaf, color: 'from-sky-500 to-cyan-600' },
   { id: 'cortisol', label: 'Cortisol / Adrenal', icon: Activity, color: 'from-amber-600 to-orange-700' },
   { id: 'articulacao', label: 'Articulações / Osteo', icon: Bone, color: 'from-slate-500 to-slate-700' },
   { id: 'circulacao', label: 'Circulação / Vaso', icon: Heart, color: 'from-red-500 to-rose-600' },
@@ -103,13 +103,13 @@ export const CATEGORIES: Category[] = [
   { id: 'magnesio', label: 'Magnésio', icon: Droplet, color: 'from-cyan-500 to-blue-600' },
   { id: 'cabelo', label: 'Cabelo / Capilar', icon: Sparkles, color: 'from-purple-500 to-violet-600' },
   { id: 'pele', label: 'Pele / Antiparasitário', icon: Shield, color: 'from-yellow-600 to-orange-700' },
-  { id: 'antiox', label: 'Antioxidantes', icon: Eye, color: 'from-emerald-600 to-teal-700' },
+  { id: 'antiox', label: 'Antioxidantes', icon: Eye, color: 'from-emerald-600 to-cyan-700' },
   { id: 'sono', label: 'Indutores de Sono', icon: Moon, color: 'from-indigo-600 to-purple-800' },
   { id: 'menopausa', label: 'Menopausa / TRH', icon: Sparkles, color: 'from-rose-400 to-pink-500' },
   { id: 'hidratacao', label: 'Hidratação', icon: Droplet, color: 'from-sky-500 to-blue-600' },
   { id: 'probioticos', label: 'Probióticos / Microbioma', icon: FlaskConical, color: 'from-green-500 to-emerald-700' },
   { id: 'comerciais', label: 'Suplementos Comerciais', icon: Coffee, color: 'from-stone-600 to-amber-800' },
-  { id: 'ihe', label: 'Fórmulas Padcon (importadas)', icon: FlaskConical, color: 'from-teal-600 to-cyan-700' },
+  { id: 'ihe', label: 'Fórmulas Padcon (importadas)', icon: FlaskConical, color: 'from-sky-600 to-cyan-700' },
 ];
 
 const FORMULAS_BASE: FormulaSeed[] = [

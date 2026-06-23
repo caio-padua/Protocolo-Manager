@@ -66,10 +66,19 @@ As definicoes vivem em `artifacts/padcom/src/index.css` (procurar `.panel-3d`, `
 
 ## 2. Tokens da marca
 
+PIVOT NAVY/OURO (lei promulgada em 23/06/2026): a marca Paxter passou a ser **navy + ouro**. O
+verde-petroleo (`#3D7A7A`) e o ciano (`#45B8CC`) SAIRAM do chrome de marca. As classes 3D do
+`index.css` (`btn-3d`, `panel-3d`, `bevel-3d`, etc.) ja foram reapontadas para navy/ouro — por isso,
+onde as tabelas abaixo dizem "verde-petroleo", LEIA navy: a CLASSE e a fonte-da-verdade, o nome da
+cor e legado. Verde, ambar, vermelho e ciano sobrevivem SO como cor de STATUS (ver 4.3), nunca como
+chrome de marca.
+
 | Token | Valor | Uso |
 |---|---|---|
-| Verde-petroleo (primary) | `#3D7A7A` / `hsl(180 30% 28%)` | Sidebar, titulos, barras preenchidas |
-| Ciano (accent) | `#45B8CC` / `hsl(187 72% 48%)` | Destaque do item atual, halos, anel de foco |
+| Navy (primary) | `#16284a` | Sidebar, headers, CTA primario, titulos, barras preenchidas |
+| Ouro (accent) | dourado 3D (clip + text-shadow) | Wordmark, molduras, aneis, selos, realce premium |
+| Ciano | `#45B8CC` / `hsl(187 72% 48%)` | SO status "etapa atual" / foco; nunca chrome de marca |
+| Verde / ambar / vermelho | tailwind green / amber / red | SO status: concluido / limite / erro |
 | Branco | `#FFFFFF` | Fundo de paineis claros |
 | Cantos | radius 6px a 8px (`0.25rem`–`0.375rem`) | SEMPRE quadrados; nunca pill/arredondado infantil |
 | Labels KPI | MAIUSCULO + `tracking` expandido | Rotulos de indicador |
@@ -246,7 +255,7 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   improvisado; vai SEMPRE dentro do medalhao de vidro nitido, por UMA fonte unica:
   `components/layout/paxter-fx/PaxterSymbolGlass.tsx`. Props: `size` (px do simbolo; padding e
   raio escalam sozinhos) e `tone` — `dark` (vidro navy translucido, para QUALQUER fundo escuro:
-  sidebar, headers teal/navy, splash) e `light` (vidro champanhe um tom ACIMA do painel, SO em
+  sidebar, headers navy, splash) e `light` (vidro champanhe um tom ACIMA do painel, SO em
   fundo claro). O `tone` vai no wrapper, nunca no simbolo. Vale para TODOS os simbolos da marca,
   internos e externos (sidebar, anamnese, /anamnese/v2, portal, area, agendar, entrada). UNICA
   EXCECAO: o SITE publico (`abertura.tsx`, variant `hero` do lockup) segue chapado (sem vidro),

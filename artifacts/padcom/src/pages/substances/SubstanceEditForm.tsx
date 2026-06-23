@@ -325,7 +325,7 @@ export function SubstanceEditForm({
     const payload: Record<string, any> = {
       name: emptyToNull(form.name) ?? substance.name,
       category: emptyToNull(form.category) ?? substance.category,
-      color: emptyToNull(form.color) ?? substance.color ?? "#3D7A7A",
+      color: emptyToNull(form.color) ?? substance.color ?? "#16284a",
       categoryType: emptyToNull(form.categoryType),
       procedureType: form.procedureType || "iv",
       starRating: Number(form.starRating) || 0,
@@ -367,7 +367,7 @@ export function SubstanceEditForm({
       <div className="flex items-center gap-3 mb-4">
         <div
           className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
-          style={{ backgroundColor: form.color ?? substance.color ?? "#3D7A7A" }}
+          style={{ backgroundColor: form.color ?? substance.color ?? "#16284a" }}
         >
           <Beaker className="h-5 w-5" />
         </div>
@@ -398,7 +398,7 @@ export function SubstanceEditForm({
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
-                      value={form.color ?? "#3D7A7A"}
+                      value={form.color ?? "#16284a"}
                       onChange={(e) => setField("color", e.target.value)}
                       className="h-9 w-12 rounded border cursor-pointer"
                     />

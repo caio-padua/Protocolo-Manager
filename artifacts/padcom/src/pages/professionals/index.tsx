@@ -349,7 +349,7 @@ export default function Professionals() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <span className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${isMedico ? "text-primary" : "text-cyan-600"}`}>
+                        <span className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${isMedico ? "text-primary" : "text-accent"}`}>
                           {isMedico ? "Médico" : "Não-médico"}
                         </span>
                         <span className="concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">

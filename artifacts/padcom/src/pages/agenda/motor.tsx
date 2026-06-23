@@ -335,7 +335,7 @@ export default function AgendaMotor() {
   });
 
   // ---- Handlers ----
-  const [newRes, setNewRes] = useState({ name: "", kind: "enfermagem", modality: "local", color: "#3D7A7A" });
+  const [newRes, setNewRes] = useState({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
 
   function addResource() {
     if (!newRes.name.trim()) {
@@ -351,7 +351,7 @@ export default function AgendaMotor() {
         sortOrder: resources?.length ?? 0,
       },
     });
-    setNewRes({ name: "", kind: "enfermagem", modality: "local", color: "#3D7A7A" });
+    setNewRes({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
   }
 
   function saveResource() {

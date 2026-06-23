@@ -105,7 +105,7 @@ export default function Area() {
   return (
     <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
       {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
-      <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60">
+      <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-border/60">
         <div className="flex items-center gap-3 min-w-0">
           <a
             href={PAXTER_SITE_URL}
@@ -117,11 +117,11 @@ export default function Area() {
             <PaxterSymbolGlass size={24} tone="dark" />
           </a>
           <div className="min-w-0">
-            <h1 className="text-teal-900 font-black text-sm tracking-[0.16em] uppercase leading-none">
+            <h1 className="text-primary font-black text-sm tracking-[0.16em] uppercase leading-none">
               PAXTER
             </h1>
             <div className="concave-3d mt-0.5 px-2 py-0.5 inline-block rounded">
-              <span className="text-teal-600 text-[9px] font-bold uppercase tracking-widest truncate">
+              <span className="text-accent text-[9px] font-bold uppercase tracking-widest truncate">
                 {client.name.toUpperCase()}
               </span>
             </div>
@@ -145,7 +145,7 @@ export default function Area() {
       </main>
 
       {/* Bottom navigation — mobile-first */}
-      <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-teal-200/60">
+      <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60">
         <div className="flex max-w-lg mx-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -155,7 +155,7 @@ export default function Area() {
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-3 px-1 transition-colors ${
-                  active ? "text-cyan-500" : "text-teal-400 hover:text-teal-600"
+                  active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
               >
                 <div className={`p-1.5 rounded-lg ${active ? "concave-3d" : ""}`}>
@@ -220,7 +220,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   return (
     <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
       {/* Header login */}
-      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-teal-200/60">
+      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-border/60">
         <div className="flex items-center gap-3">
           <a
             href={PAXTER_SITE_URL}
@@ -232,10 +232,10 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <PaxterSymbolGlass size={32} tone="dark" />
           </a>
           <div>
-            <h1 className="text-teal-900 font-black text-xl tracking-[0.16em] uppercase leading-none">
+            <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
               PAXTER
             </h1>
-            <p className="text-teal-500 text-[10px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
+            <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
           </div>
         </div>
       </header>
@@ -244,32 +244,32 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
         <div className="w-full max-w-sm space-y-6">
           <div className="panel-3d rounded-xl overflow-hidden">
             {/* Zona 1 — TOP BAR */}
-            <div className="bg-teal-700 px-5 py-4">
+            <div className="bg-primary px-5 py-4">
               <div className="flex items-center gap-3">
-                <User className="w-5 h-5 text-cyan-300" />
+                <User className="w-5 h-5 text-accent" />
                 <h2 className="text-white font-black text-sm uppercase tracking-widest">IDENTIFICAÇÃO</h2>
               </div>
-              <p className="text-teal-200 text-xs mt-1">
+              <p className="text-primary-foreground/80 text-xs mt-1">
                 CPF + data de nascimento para entrar
               </p>
             </div>
 
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">CPF</label>
+                <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">CPF</label>
                 <input
                   type="tel" inputMode="numeric" placeholder="000.000.000-00" value={cpf}
                   onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
-                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+                  className="concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
                 />
               </div>
               <div>
-                <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DATA DE NASCIMENTO</label>
+                <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">DATA DE NASCIMENTO</label>
                 <input
                   type="tel" inputMode="numeric" placeholder="DD/MM/AAAA" value={birthDate}
                   onChange={(e) => { setBirthDate(formatDateInput(e.target.value)); setError(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") handleIdentify(); }}
-                  className="concave-3d w-full h-12 px-4 text-teal-900 text-lg font-mono placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+                  className="concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
                 />
               </div>
 
@@ -303,12 +303,12 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             </div>
           </div>
 
-          <p className="text-center text-teal-400 text-[10px] uppercase tracking-widest">
+          <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
             Instituto Pádua · Paxter — desenvolvido pela Padcon
           </p>
           <div className="text-center">
             <a href={`${API_BASE}/anamnese/v2`}
-              className="inline-flex items-center gap-1.5 text-teal-500 text-xs uppercase tracking-wider hover:text-teal-700">
+              className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
               <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
             </a>
           </div>
@@ -352,7 +352,7 @@ function useApi<T>(client: ClientInfo, path: string, refreshKey: number = 0) {
 function Loading() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
+      <Loader2 className="w-7 h-7 text-accent animate-spin" />
     </div>
   );
 }
@@ -367,7 +367,7 @@ function ErrorBox({ msg }: { msg: string }) {
 function Empty({ msg }: { msg: string }) {
   return (
     <div className="panel-3d-sub rounded-xl p-8 text-center">
-      <p className="text-teal-400 text-sm">{msg}</p>
+      <p className="text-muted-foreground text-sm">{msg}</p>
     </div>
   );
 }
@@ -376,8 +376,8 @@ function Empty({ msg }: { msg: string }) {
 function MetaField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="concave-3d rounded-lg px-3 py-2">
-      <p className="text-teal-500 text-[9px] font-black uppercase tracking-widest leading-none mb-1">{label}</p>
-      <p className="text-teal-900 text-xs font-semibold truncate">{value || "—"}</p>
+      <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">{label}</p>
+      <p className="text-primary text-xs font-semibold truncate">{value || "—"}</p>
     </div>
   );
 }
@@ -386,11 +386,11 @@ function MetaField({ label, value }: { label: string; value: React.ReactNode }) 
 function SecLabel({ label, count }: { label: string; count?: number }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <span className="text-teal-700 text-[10px] font-black uppercase tracking-widest">{label}</span>
+      <span className="text-primary text-[10px] font-black uppercase tracking-widest">{label}</span>
       {count !== undefined && (
-        <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded">{count}</span>
+        <span className="concave-3d text-[9px] font-black text-accent px-2 py-0.5 rounded">{count}</span>
       )}
-      <div className="flex-1 h-px bg-teal-200/60" />
+      <div className="flex-1 h-px bg-border/60" />
     </div>
   );
 }
@@ -401,7 +401,7 @@ function StatusBadge({ status }: { status: string }) {
     active:    "bg-cyan-100 text-cyan-700 border-cyan-200",
     completed: "bg-green-100 text-green-700 border-green-200",
     cancelled: "bg-slate-100 text-slate-500 border-slate-200",
-    scheduled: "bg-teal-100 text-teal-700 border-teal-200",
+    scheduled: "bg-primary/10 text-primary border-primary/20",
     confirmed: "bg-cyan-100 text-cyan-700 border-cyan-200",
     missed:    "bg-red-100 text-red-600 border-red-200",
     paid:      "bg-green-100 text-green-700 border-green-200",
@@ -454,12 +454,12 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 py-3 bg-teal-700/10 border-b border-teal-200/40">
+      <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-b border-border/40">
         <div className="flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-teal-600" />
-          <span className="text-teal-700 text-xs font-black uppercase tracking-widest">VALIDAR PRESENÇA</span>
+          <KeyRound className="w-4 h-4 text-accent" />
+          <span className="text-primary text-xs font-black uppercase tracking-widest">VALIDAR PRESENÇA</span>
         </div>
-        <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded uppercase tracking-wider">
+        <span className="concave-3d text-[9px] font-black text-accent px-2 py-0.5 rounded uppercase tracking-wider">
           CÓDIGO DO DIA
         </span>
       </div>
@@ -473,14 +473,14 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
           </div>
         ) : (
           <>
-            <p className="text-teal-500 text-xs">Digite o código enviado pelo WhatsApp ou sua senha permanente do protocolo.</p>
+            <p className="text-accent text-xs">Digite o código enviado pelo WhatsApp ou sua senha permanente do protocolo.</p>
             <div className="flex gap-2">
               <input
                 type="text" inputMode="text" placeholder="Ex: A7K3M2"
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value.toUpperCase().slice(0, 12))}
                 onKeyDown={(e) => { if (e.key === "Enter") handleValidar(); }}
-                className="concave-3d flex-1 h-11 px-3 text-teal-900 text-base font-mono tracking-widest placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+                className="concave-3d flex-1 h-11 px-3 text-primary text-base font-mono tracking-widest placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
               />
               <button
                 onClick={handleValidar}
@@ -494,7 +494,7 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
         )}
         {resultado && (
           <button onClick={() => { setCodigo(""); setResultado(null); }}
-            className="text-teal-500 text-xs underline">
+            className="text-accent text-xs underline">
             Tentar outro código
           </button>
         )}
@@ -515,8 +515,8 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
     <div className="space-y-4">
       {/* Saudação */}
       <div className="panel-3d rounded-xl overflow-hidden">
-        <div className="bg-teal-700 px-5 py-4">
-          <p className="text-teal-200 text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
+        <div className="bg-primary px-5 py-4">
+          <p className="text-primary-foreground/80 text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
           <h2 className="text-white font-black text-2xl mt-0.5">{firstName(data.client.name)}</h2>
         </div>
         {/* Meta grid 2×2 */}
@@ -527,8 +527,8 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
         {/* Barra de progresso */}
         <div className="px-3 pb-3">
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
-            <p className="text-cyan-500 font-black text-sm">{pct}%</p>
+            <p className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
+            <p className="text-accent font-black text-sm">{pct}%</p>
           </div>
           <div className="concave-3d h-3 rounded-[2px] overflow-hidden">
             <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-[2px] transition-all" style={{ width: `${pct}%` }} />
@@ -540,10 +540,10 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
       {data.nextSession ? (
         <div className="panel-3d rounded-xl overflow-hidden">
           {/* TOP BAR */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-teal-200/40">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-cyan-500" />
-              <span className="text-teal-700 text-xs font-black uppercase tracking-widest">PRÓXIMO ATENDIMENTO</span>
+              <CalendarDays className="w-4 h-4 text-accent" />
+              <span className="text-primary text-xs font-black uppercase tracking-widest">PRÓXIMO ATENDIMENTO</span>
             </div>
             <StatusBadge status={data.nextSession.status} />
           </div>
@@ -556,8 +556,8 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
         </div>
       ) : (
         <div className="panel-3d-sub rounded-xl p-4 flex items-center gap-3">
-          <Clock className="w-5 h-5 text-teal-400 flex-shrink-0" />
-          <p className="text-teal-500 text-sm">Nenhum atendimento futuro agendado.</p>
+          <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          <p className="text-accent text-sm">Nenhum atendimento futuro agendado.</p>
         </div>
       )}
 
@@ -600,25 +600,25 @@ function ProtocolCard({ p }: { p: Proto }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* ZONA 1 — TOP BAR: status + data */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-teal-200/40">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={p.status} />
         </div>
-        <span className="text-teal-400 text-[10px] font-semibold shrink-0">Início {brDate(p.startDate)}</span>
+        <span className="text-muted-foreground text-[10px] font-semibold shrink-0">Início {brDate(p.startDate)}</span>
       </div>
 
       {/* ZONA 2 — TÍTULO */}
       <div className="px-4 pt-3 pb-1">
-        <h3 className="text-teal-900 font-black text-base uppercase truncate">{p.title}</h3>
+        <h3 className="text-primary font-black text-base uppercase truncate">{p.title}</h3>
       </div>
 
       {/* ZONA 3 — IDENTIDADE: progresso concave + badge tipo */}
       <div className="flex items-center gap-2 px-4 pb-3">
         <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
-          <span className="text-teal-700 text-xs font-black">{p.completedSessions} / {p.totalSessions} atendimentos</span>
+          <span className="text-primary text-xs font-black">{p.completedSessions} / {p.totalSessions} atendimentos</span>
         </div>
         <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
-          <span className="text-teal-600 text-[10px] font-black uppercase tracking-wider">{PROC_LABELS[p.serviceType] ?? p.serviceType}</span>
+          <span className="text-accent text-[10px] font-black uppercase tracking-wider">{PROC_LABELS[p.serviceType] ?? p.serviceType}</span>
         </div>
       </div>
 
@@ -631,8 +631,8 @@ function ProtocolCard({ p }: { p: Proto }) {
       {/* ZONA 5 — BARRA DE PROGRESSO */}
       <div className="px-4 pb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-teal-500 text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
-          <span className="text-cyan-500 text-xs font-black">{pct}%</span>
+          <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
+          <span className="text-accent text-xs font-black">{pct}%</span>
         </div>
         <div className="concave-3d h-2.5 rounded-[2px] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-[#1e3a5f] to-[#c2a05a] rounded-[2px] transition-all" style={{ width: `${pct}%` }} />
@@ -640,10 +640,10 @@ function ProtocolCard({ p }: { p: Proto }) {
       </div>
 
       {/* Substâncias — colapsável */}
-      <div className="border-t border-teal-200/40">
+      <div className="border-t border-border/40">
         <button
           onClick={() => setExpanded((x) => !x)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-teal-600 hover:text-teal-800 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-2.5 text-accent hover:text-primary transition-colors"
         >
           <span className="text-[10px] font-black uppercase tracking-widest">
             {p.items.length} {p.items.length === 1 ? "substância" : "substâncias"}
@@ -658,27 +658,27 @@ function ProtocolCard({ p }: { p: Proto }) {
                 style={{ borderLeftColor: it.color }}>
                 {/* Grade interna da substância */}
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-teal-900 font-black text-sm leading-tight min-w-0 truncate">{it.substanceName}</p>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-teal-500 shrink-0">
+                  <p className="text-primary font-black text-sm leading-tight min-w-0 truncate">{it.substanceName}</p>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-accent shrink-0">
                     {PROC_LABELS[it.procedureType] ?? it.procedureType}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-1">
                   <div className="concave-3d rounded px-2 py-1">
-                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">DOSE</p>
-                    <p className="text-teal-900 text-xs font-semibold">{it.dose || "—"}</p>
+                    <p className="text-[8px] font-black text-accent uppercase tracking-wider">DOSE</p>
+                    <p className="text-primary text-xs font-semibold">{it.dose || "—"}</p>
                   </div>
                   <div className="concave-3d rounded px-2 py-1">
-                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">SESSÕES</p>
-                    <p className="text-teal-900 text-xs font-semibold">{it.completedSessions}/{it.totalSessions}</p>
+                    <p className="text-[8px] font-black text-accent uppercase tracking-wider">SESSÕES</p>
+                    <p className="text-primary text-xs font-semibold">{it.completedSessions}/{it.totalSessions}</p>
                   </div>
                   <div className="concave-3d rounded px-2 py-1">
-                    <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">INTERVALO</p>
-                    <p className="text-teal-900 text-xs font-semibold">A cada {it.intervalDays}d</p>
+                    <p className="text-[8px] font-black text-accent uppercase tracking-wider">INTERVALO</p>
+                    <p className="text-primary text-xs font-semibold">A cada {it.intervalDays}d</p>
                   </div>
                 </div>
                 {it.mainFunction && (
-                  <p className="text-teal-500 text-xs leading-snug">{it.mainFunction}</p>
+                  <p className="text-accent text-xs leading-snug">{it.mainFunction}</p>
                 )}
               </div>
             ))}
@@ -728,7 +728,7 @@ type Sess = {
 
 const SESS_ACCENT: Record<string, string> = {
   completed: "border-green-400", confirmed: "border-cyan-400",
-  scheduled: "border-teal-400", missed: "border-red-400", cancelled: "border-slate-300",
+  scheduled: "border-primary", missed: "border-red-400", cancelled: "border-slate-300",
 };
 
 function AgendaTab({ client }: { client: ClientInfo }) {
@@ -742,10 +742,10 @@ function AgendaTab({ client }: { client: ClientInfo }) {
   const past     = (data ?? []).filter((s) => s.scheduledDate < today).reverse();
 
   const renderSession = (s: Sess) => (
-    <div key={s.id} className={`panel-3d rounded-xl overflow-hidden border-l-4 ${SESS_ACCENT[s.status] ?? "border-teal-300"}`}>
+    <div key={s.id} className={`panel-3d rounded-xl overflow-hidden border-l-4 ${SESS_ACCENT[s.status] ?? "border-border"}`}>
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-teal-200/40">
-        <span className="text-teal-700 text-xs font-black">{brDate(s.scheduledDate)} · {s.scheduledTime}</span>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
+        <span className="text-primary text-xs font-black">{brDate(s.scheduledDate)} · {s.scheduledTime}</span>
         <StatusBadge status={s.status} />
       </div>
       {s.protocolTitle && (
@@ -763,11 +763,11 @@ function AgendaTab({ client }: { client: ClientInfo }) {
         <div className="concave-3d mx-3 mb-3 rounded-xl p-2.5 flex flex-wrap gap-1.5">
           {s.substances.map((sub, i) => (
             <span key={i}
-              className="inline-flex items-center gap-1 text-[11px] text-teal-800 bg-white/60 px-2 py-1 rounded border-l-2"
+              className="inline-flex items-center gap-1 text-[11px] text-primary bg-white/60 px-2 py-1 rounded border-l-2"
               style={{ borderLeftColor: sub.color }}>
               {sub.status === "applied" && <CheckCircle className="w-3 h-3 text-green-500" />}
               {sub.substanceName}
-              {sub.dose && <span className="text-teal-400">{sub.dose}</span>}
+              {sub.dose && <span className="text-muted-foreground">{sub.dose}</span>}
             </span>
           ))}
         </div>
@@ -777,7 +777,7 @@ function AgendaTab({ client }: { client: ClientInfo }) {
         <div className="px-3 pb-3">
           <button
             onClick={() => setReagendarAlvo(s)}
-            className="w-full h-10 text-xs font-black uppercase tracking-widest text-teal-700 rounded-lg border border-teal-200 hover:bg-teal-50"
+            className="w-full h-10 text-xs font-black uppercase tracking-widest text-primary rounded-lg border border-border hover:bg-muted"
           >
             REAGENDAR
           </button>
@@ -907,8 +907,8 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
         <div className="w-14 h-14 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
           <CheckCircle className="w-7 h-7 text-green-500" />
         </div>
-        <h2 className="text-teal-900 font-black text-base uppercase">{isReagendar ? "REMARCAÇÃO CONFIRMADA" : "AGENDAMENTO CONFIRMADO"}</h2>
-        <p className="text-teal-600 text-sm">{brDate(done.date)} às {done.time}. Até lá!</p>
+        <h2 className="text-primary font-black text-base uppercase">{isReagendar ? "REMARCAÇÃO CONFIRMADA" : "AGENDAMENTO CONFIRMADO"}</h2>
+        <p className="text-accent text-sm">{brDate(done.date)} às {done.time}. Até lá!</p>
         {warning && (
           <p className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{warning}</p>
         )}
@@ -928,8 +928,8 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
         onClick={() => setOpen(true)}
         className="btn-3d w-full px-4 py-4 flex items-center gap-3 text-left"
       >
-        <div className="w-11 h-11 bg-cyan-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-          <CalendarDays className="w-6 h-6 text-cyan-300" />
+        <div className="w-11 h-11 bg-accent/15 rounded-lg flex items-center justify-center flex-shrink-0">
+          <CalendarDays className="w-6 h-6 text-accent" />
         </div>
         <div className="min-w-0 flex-1">
           <span className="block text-sm font-black uppercase tracking-widest leading-tight">GERENCIAR AGENDA</span>
@@ -942,22 +942,22 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
 
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
-      <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
-        <CalendarDays className="w-5 h-5 text-cyan-300" />
+      <div className="bg-primary px-5 py-4 flex items-center gap-3">
+        <CalendarDays className="w-5 h-5 text-accent" />
         <h2 className="text-white font-black text-sm uppercase tracking-widest">{isReagendar ? "REMARCAR ATENDIMENTO" : "GERENCIAR AGENDA"}</h2>
       </div>
       <div className="p-5 space-y-4">
         {isReagendar && (
-          <p className="text-teal-600 text-xs bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+          <p className="text-accent text-xs bg-muted border border-border rounded-lg px-3 py-2">
             Atendimento atual: <strong>{brDate(reagendar!.scheduledDate)}</strong>. Escolha o novo local, data e horário.
           </p>
         )}
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">LOCAL / TIPO</label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">LOCAL / TIPO</label>
           <select
             value={resourceId ?? ""}
             onChange={(e) => setResourceId(Number(e.target.value))}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
+            className="concave-3d w-full h-12 px-4 text-primary text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
           >
             {recursos.map((r) => (
               <option key={r.id} value={r.id}>{r.name} · {MODALITY_PT[r.modality] ?? r.modality}</option>
@@ -966,27 +966,27 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
         </div>
 
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DATA</label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">DATA</label>
           <input
             type="date" min={isReagendar ? tomorrowISO() : todayISO()} value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+            className="concave-3d w-full h-12 px-4 text-primary text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
           />
         </div>
 
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">HORÁRIO DISPONÍVEL</label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">HORÁRIO DISPONÍVEL</label>
           {loadingSlots ? (
-            <p className="text-teal-400 text-sm py-2">Carregando horários…</p>
+            <p className="text-muted-foreground text-sm py-2">Carregando horários…</p>
           ) : slots.length === 0 ? (
-            <p className="text-teal-400 text-sm py-2">Nenhum horário disponível neste dia. Tente outra data.</p>
+            <p className="text-muted-foreground text-sm py-2">Nenhum horário disponível neste dia. Tente outra data.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {slots.map((t) => (
                 <button
                   key={t} type="button" onClick={() => setTime(t)}
                   className={`px-3 py-2 text-sm font-bold tabular-nums rounded-lg transition ${
-                    time === t ? "bg-cyan-500 text-white ring-2 ring-cyan-300" : "concave-3d text-teal-800 hover:text-teal-950"
+                    time === t ? "bg-cyan-500 text-white ring-2 ring-cyan-300" : "concave-3d text-primary hover:text-primary"
                   }`}
                 >
                   {t}
@@ -1001,7 +1001,7 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
         <div className="flex gap-2">
           <button
             onClick={() => { if (isReagendar) onClose?.(); else setOpen(false); }}
-            className="flex-1 h-12 text-sm font-black uppercase tracking-wider text-teal-600 rounded-lg border border-teal-200"
+            className="flex-1 h-12 text-sm font-black uppercase tracking-wider text-accent rounded-lg border border-border"
           >
             CANCELAR
           </button>
@@ -1036,13 +1036,13 @@ function CategorySection({ label, count, defaultOpen, children }: {
     <div className="panel-3d rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((x) => !x)}
-        className="w-full flex items-center justify-between px-4 py-3 border-b border-teal-200/40"
+        className="w-full flex items-center justify-between px-4 py-3 border-b border-border/40"
       >
         <div className="flex items-center gap-2">
-          <span className="text-teal-700 text-xs font-black uppercase tracking-widest">{label}</span>
-          <span className="concave-3d text-[9px] font-black text-teal-500 px-2 py-0.5 rounded">{count}</span>
+          <span className="text-primary text-xs font-black uppercase tracking-widest">{label}</span>
+          <span className="concave-3d text-[9px] font-black text-accent px-2 py-0.5 rounded">{count}</span>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-teal-400" /> : <ChevronDown className="w-4 h-4 text-teal-400" />}
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
       {open && <div className="p-3 space-y-2">{children}</div>}
     </div>
@@ -1070,14 +1070,14 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <a key={r.id}
               href={`${API_BASE}/api/area-paciente/ras/${r.id}/pdf?token=${client.token}`}
               target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
             >
-              <FileText className="w-5 h-5 text-cyan-500 flex-shrink-0" />
+              <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-teal-900 font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
-                <p className="text-teal-400 text-xs truncate">{r.professionalName} · {r.unit}</p>
+                <p className="text-primary font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
+                <p className="text-muted-foreground text-xs truncate">{r.professionalName} · {r.unit}</p>
               </div>
-              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             </a>
           ))}
         </CategorySection>
@@ -1090,14 +1090,14 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <a key={p.id}
               href={`${API_BASE}/api/area-paciente/protocolo/${p.id}/pdf?token=${client.token}`}
               target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
             >
-              <FileText className="w-5 h-5 text-teal-500 flex-shrink-0" />
+              <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-teal-900 font-semibold text-sm truncate">{p.title}</p>
-                <p className="text-teal-400 text-xs">Documento completo · {brDate(p.startDate)}</p>
+                <p className="text-primary font-semibold text-sm truncate">{p.title}</p>
+                <p className="text-muted-foreground text-xs">Documento completo · {brDate(p.startDate)}</p>
               </div>
-              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             </a>
           ))}
         </CategorySection>
@@ -1110,14 +1110,14 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <a key={ex.id}
               href={`${API_BASE}/api/exam-requests/file/${ex.token}`}
               target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-teal-50 transition-colors"
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
             >
-              <FlaskConical className="w-5 h-5 text-teal-400 flex-shrink-0" />
+              <FlaskConical className="w-5 h-5 text-muted-foreground flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-teal-900 font-semibold text-sm truncate">{ex.tipo}</p>
-                <p className="text-teal-400 text-xs">{ex.examCount} exame(s) · {brDate(ex.createdAt)}</p>
+                <p className="text-primary font-semibold text-sm truncate">{ex.tipo}</p>
+                <p className="text-muted-foreground text-xs">{ex.examCount} exame(s) · {brDate(ex.createdAt)}</p>
               </div>
-              <Download className="w-4 h-4 text-teal-400 flex-shrink-0" />
+              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             </a>
           ))}
         </CategorySection>
@@ -1130,29 +1130,29 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             {/* Resumo financeiro */}
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="concave-3d rounded-lg px-3 py-2">
-                <p className="text-[9px] font-black text-teal-500 uppercase tracking-widest">TOTAL PAGO</p>
+                <p className="text-[9px] font-black text-accent uppercase tracking-widest">TOTAL PAGO</p>
                 <p className="text-green-600 font-black text-base">{brMoney(f.totalPago)}</p>
               </div>
               <div className="concave-3d rounded-lg px-3 py-2">
-                <p className="text-[9px] font-black text-teal-500 uppercase tracking-widest">PENDENTE</p>
+                <p className="text-[9px] font-black text-accent uppercase tracking-widest">PENDENTE</p>
                 <p className="text-amber-600 font-black text-base">{brMoney(f.totalPendente)}</p>
               </div>
             </div>
-            {f.payments.length === 0 && <p className="text-teal-400 text-xs text-center py-2">Nenhum pagamento registrado.</p>}
+            {f.payments.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">Nenhum pagamento registrado.</p>}
             {f.payments.map((p) => (
               <div key={p.id} className="panel-3d-sub rounded-lg p-3 border-l-4"
                 style={{ borderLeftColor: p.status === "paid" ? "#22c55e" : "#f59e0b" }}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-teal-900 font-black text-base">{brMoney(p.amount)}</p>
+                  <p className="text-primary font-black text-base">{brMoney(p.amount)}</p>
                   <StatusBadge status={p.status} />
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-teal-400 flex-wrap">
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                   <span>{METHOD_LABELS[p.method] ?? p.method.toUpperCase()}</span>
                   {p.installments && p.installments > 1 && <span>{p.installments}x</span>}
                   {p.cardLabel && <span>{p.cardLabel}</span>}
                 </div>
-                {p.description && <p className="text-teal-400 text-xs mt-1">{p.description}</p>}
-                <p className="text-teal-400 text-[11px] mt-1">
+                {p.description && <p className="text-muted-foreground text-xs mt-1">{p.description}</p>}
+                <p className="text-muted-foreground text-[11px] mt-1">
                   {p.status === "paid" ? `Pago em ${brDate(p.paidAt)}` : `Vence em ${brDate(p.dueDate)}`}
                 </p>
               </div>
@@ -1161,7 +1161,7 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
         ) : fin.error ? (
           <p className="text-red-400 text-xs">{fin.error}</p>
         ) : (
-          <p className="text-teal-400 text-xs text-center py-2">—</p>
+          <p className="text-muted-foreground text-xs text-center py-2">—</p>
         )}
       </CategorySection>
 
@@ -1215,11 +1215,11 @@ function EnviarTab({ client }: { client: ClientInfo }) {
         <div className="w-16 h-16 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
           <CheckCircle className="w-8 h-8 text-green-500" />
         </div>
-        <h2 className="text-teal-900 font-black text-lg uppercase">ARQUIVO ENVIADO!</h2>
-        <p className="text-teal-500 text-sm">Seu arquivo foi recebido e será processado pela equipe.</p>
+        <h2 className="text-primary font-black text-lg uppercase">ARQUIVO ENVIADO!</h2>
+        <p className="text-accent text-sm">Seu arquivo foi recebido e será processado pela equipe.</p>
         <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
-          <p className="text-teal-400 text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
-          <p className="text-teal-900 text-sm font-mono truncate">{done.fileName}</p>
+          <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
+          <p className="text-primary text-sm font-mono truncate">{done.fileName}</p>
         </div>
         <button onClick={reset} className="btn-3d w-full h-12 text-sm font-black uppercase tracking-wider">
           ENVIAR OUTRO ARQUIVO
@@ -1231,17 +1231,17 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
-      <div className="bg-teal-700 px-5 py-4 flex items-center gap-3">
-        <FileUp className="w-5 h-5 text-cyan-300" />
+      <div className="bg-primary px-5 py-4 flex items-center gap-3">
+        <FileUp className="w-5 h-5 text-accent" />
         <h2 className="text-white font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">TIPO DO ARQUIVO</label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">TIPO DO ARQUIVO</label>
           <select
             value={fileType}
             onChange={(e) => { setFileType(e.target.value); setBodyRegion(""); setError(""); }}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
+            className="concave-3d w-full h-12 px-4 text-primary text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
           >
             <option value="" disabled>Selecione o tipo...</option>
             {FILE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -1250,11 +1250,11 @@ function EnviarTab({ client }: { client: ClientInfo }) {
 
         {showBodyRegion && (
           <div>
-            <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">REGIÃO DO CORPO <span className="text-teal-300">(OPCIONAL)</span></label>
+            <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">REGIÃO DO CORPO <span className="text-muted-foreground">(OPCIONAL)</span></label>
             <select
               value={bodyRegion}
               onChange={(e) => setBodyRegion(e.target.value)}
-              className="concave-3d w-full h-12 px-4 text-teal-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
+              className="concave-3d w-full h-12 px-4 text-primary text-sm focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg appearance-none"
             >
               <option value="">Selecione a região...</option>
               {BODY_REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -1263,17 +1263,17 @@ function EnviarTab({ client }: { client: ClientInfo }) {
         )}
 
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">DESCRIÇÃO <span className="text-teal-300">(OPCIONAL)</span></label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">DESCRIÇÃO <span className="text-muted-foreground">(OPCIONAL)</span></label>
           <input
             type="text" placeholder="Ex: hemograma completo, raio-x do joelho..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="concave-3d w-full h-12 px-4 text-teal-900 text-sm placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+            className="concave-3d w-full h-12 px-4 text-primary text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
           />
         </div>
 
         <div>
-          <label className="block text-teal-700 text-xs font-black uppercase tracking-widest mb-1.5">ARQUIVO</label>
+          <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">ARQUIVO</label>
           <input
             ref={fileInputRef} type="file"
             accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx"
@@ -1282,18 +1282,18 @@ function EnviarTab({ client }: { client: ClientInfo }) {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="concave-3d w-full h-24 rounded-xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-teal-200 hover:border-cyan-400 transition-colors"
+            className="concave-3d w-full h-24 rounded-xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border hover:border-accent transition-colors"
           >
             {selectedFile ? (
               <>
                 <CheckCircle className="w-6 h-6 text-green-500" />
-                <span className="text-teal-900 text-sm font-semibold truncate max-w-[90%]">{selectedFile.name}</span>
-                <span className="text-teal-400 text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
+                <span className="text-primary text-sm font-semibold truncate max-w-[90%]">{selectedFile.name}</span>
+                <span className="text-muted-foreground text-xs">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB — toque para trocar</span>
               </>
             ) : (
               <>
-                <Upload className="w-6 h-6 text-teal-400" />
-                <span className="text-teal-500 text-sm">Toque para selecionar arquivo</span>
+                <Upload className="w-6 h-6 text-muted-foreground" />
+                <span className="text-accent text-sm">Toque para selecionar arquivo</span>
               </>
             )}
           </button>

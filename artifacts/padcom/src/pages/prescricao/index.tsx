@@ -15,8 +15,8 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 
-const PETROLEO = "#16294a";
-const CIANO = "#b8924d";
+const NAVY = "#16284a";
+const OURO = "#c9a24e";
 
 // Cor interna = organização clínica do desmembramento. A manipulação é separada
 // em uma receita por cor interna (campo enviado ao motor de desmembramento).
@@ -829,9 +829,9 @@ interface PdfModelProps {
 function PdfModel({ patient, idade, today, duracao, cid, selected, print }: PdfModelProps) {
   return (
     <div style={{ fontSize: print ? "11pt" : "12px", color: "#0f172a" }}>
-      <div style={{ textAlign: "center", borderBottom: `3px solid ${PETROLEO}`, paddingBottom: "8px", marginBottom: "14px" }}>
-        <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: PETROLEO, letterSpacing: "0.04em" }}>INSTITUTO PÁDUA</div>
-        <div style={{ fontSize: print ? "8pt" : "9px", color: CIANO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Paxter — desenvolvido pela Padcon</div>
+      <div style={{ textAlign: "center", borderBottom: `3px solid ${NAVY}`, paddingBottom: "8px", marginBottom: "14px" }}>
+        <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: NAVY, letterSpacing: "0.04em" }}>INSTITUTO PÁDUA</div>
+        <div style={{ fontSize: print ? "8pt" : "9px", color: OURO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Paxter — desenvolvido pela Padcon</div>
         <div style={{ fontSize: print ? "10pt" : "11px", color: "#475569", marginTop: "2px" }}>Dr. Caio Henrique Pádua — CRM-SP 125475</div>
       </div>
       {patient.nome && (
@@ -841,19 +841,19 @@ function PdfModel({ patient, idade, today, duracao, cid, selected, print }: PdfM
           Data: {today} · Duração: {duracao} dias{cid ? ` · CID: ${cid}` : ""}
         </div>
       )}
-      <div style={{ fontSize: print ? "8.5pt" : "10px", color: "#475569", lineHeight: 1.45, background: "#f1f6f6", padding: "10px", borderLeft: `3px solid ${PETROLEO}`, marginBottom: "16px", whiteSpace: "pre-wrap" }}>{HEADER_BOILERPLATE}</div>
+      <div style={{ fontSize: print ? "8.5pt" : "10px", color: "#475569", lineHeight: 1.45, background: "#f1f6f6", padding: "10px", borderLeft: `3px solid ${NAVY}`, marginBottom: "16px", whiteSpace: "pre-wrap" }}>{HEADER_BOILERPLATE}</div>
 
       {selected.map((f, i) => {
         const { parsed } = parseAtivosLines(f.ativos);
         return (
           <div key={f.id} style={{ marginBottom: "20px", breakInside: "avoid" }}>
-            <div style={{ fontWeight: 700, fontSize: print ? "11pt" : "13px", color: PETROLEO, borderBottom: "1px solid #cbd5e1", paddingBottom: "3px", marginBottom: "8px" }}>{i + 1}. {f.name}</div>
+            <div style={{ fontWeight: 700, fontSize: print ? "11pt" : "13px", color: NAVY, borderBottom: "1px solid #cbd5e1", paddingBottom: "3px", marginBottom: "8px" }}>{i + 1}. {f.name}</div>
             <div className="ativo-grid" style={{ fontSize: print ? "9.5pt" : "11px", fontFamily: "monospace" }}>
               {parsed.map((p, j) =>
                 "empty" in p ? null : "dose" in p ? (
                   <div key={j} style={{ display: "contents" }}>
                     <div style={{ color: "#0f172a" }}>{p.nome}</div>
-                    <div style={{ color: PETROLEO, fontWeight: 700 }}>{p.dose}</div>
+                    <div style={{ color: NAVY, fontWeight: 700 }}>{p.dose}</div>
                   </div>
                 ) : (
                   <div key={j} style={{ gridColumn: "1 / -1", color: "#64748b", fontStyle: "italic" }}>{p.raw}</div>

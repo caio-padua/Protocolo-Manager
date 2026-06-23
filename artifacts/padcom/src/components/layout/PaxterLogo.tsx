@@ -1,5 +1,3 @@
-import subtitlePng from "@/assets/brand/paxter-subtitle.png";
-import subtitleWebp from "@/assets/brand/paxter-subtitle.webp";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { PaxterSymbolGlass } from "./paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkPremium } from "./paxter-fx/PaxterWordmarkPremium";
@@ -46,15 +44,12 @@ export function PaxterLogo({
       <div className={`flex flex-col items-center gap-3 ${className}`}>
         {symbol}
         <PaxterWordmarkPremium width={176} cycleDelay={WORD_DELAY} />
-        <picture>
-          <source srcSet={subtitleWebp} type="image/webp" />
-          <img
-            src={subtitlePng}
-            alt="Clinical Intelligence System"
-            draggable={false}
-            style={{ width: 176, height: "auto", display: "block" }}
-          />
-        </picture>
+        <span
+          className="block text-center font-semibold uppercase text-[#e8cf95]"
+          style={{ width: 176, fontSize: 9.5, letterSpacing: "0.2em" }}
+        >
+          Clinical Intelligence System
+        </span>
       </div>
     );
   }

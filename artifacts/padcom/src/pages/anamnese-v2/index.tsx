@@ -37,9 +37,13 @@ import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
 import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
+import { useScreenTheme } from "@/components/theme/useScreenTheme";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
-const PETROLEO = "#3D7A7A";
-const CIANO = "#45B8CC";
+const NAVY = "#16294a";
+const GOLD = "#c9a24e";
 const TOKEN_KEY = "anamnese_v2_token";
 const DEMO_KEY = "anamnese_v2_demo";
 const AREA_URL = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/area`;
@@ -49,6 +53,7 @@ const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 
 export default function AnamneseV2() {
   const { toast } = useToast();
+  const { theme, toggle } = useScreenTheme();
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [answers, setAnswers] = useState<Record<number, Valor>>({});
   const [refused, setRefused] = useState<Set<string>>(new Set());
@@ -377,15 +382,33 @@ export default function AnamneseV2() {
   };
 
   // ---------- RENDER ----------
+  const themeClass = theme === "dark" ? "dark" : "";
   // Opcao A: sem sessao iniciada -> exige identificacao (ou demonstracao).
   if (!token) {
-    return <IdentifyGate onStart={startSession} pending={createSession.isPending} />;
+    return (
+      <div className={themeClass}>
+        <IdentifyGate
+          onStart={startSession}
+          pending={createSession.isPending}
+          theme={theme}
+          onToggleTheme={toggle}
+        />
+      </div>
+    );
   }
   if (loadingQ || !questions) {
-    return <CenterLoader label="Preparando sua anamnese..." />;
+    return (
+      <div className={themeClass}>
+        <CenterLoader label="Preparando sua anamnese..." />
+      </div>
+    );
   }
   if (finished) {
-    return <FinishScreen findings={findings} respondidas={respondidas} total={totalAtivas} demo={demo} />;
+    return (
+      <div className={themeClass}>
+        <FinishScreen findings={findings} respondidas={respondidas} total={totalAtivas} demo={demo} />
+      </div>
+    );
   }
 
   const safeGroupIdx = Math.min(groupIdx, Math.max(0, groups.length - 1));
@@ -396,7 +419,10 @@ export default function AnamneseV2() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f1f5f5] pb-28" style={{ ["--brand" as any]: PETROLEO }}>
+    <div
+      className={`${themeClass} min-h-screen bg-background pb-28 text-foreground`}
+      style={{ ["--brand" as any]: NAVY }}
+    >
       {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
       {(demo || OPEN_ACCESS) && (
         <div className="flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
@@ -407,19 +433,22 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE */}
-      <header className="sticky top-0 z-20 border-b border-[#d7e0e0] bg-white/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl">
-          <div className="mb-2 flex items-center justify-between">
-            <PaxterLogo variant="compact" tone="light" />
-            <button
-              type="button"
-              onClick={() => setFocusMode((f) => !f)}
-              className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
-              style={focusMode ? { boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO } : undefined}
-            >
-              {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {focusMode ? "Sair do foco" : "Modo foco"}
-            </button>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <BrandMark />
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFocusMode((f) => !f)}
+                className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
+                style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
+              >
+                {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{focusMode ? "Sair do foco" : "Modo foco"}</span>
+              </button>
+              <ThemeToggle theme={theme} onToggle={toggle} />
+            </div>
           </div>
 
           {/* barra de progresso com camada de vidro */}
@@ -462,11 +491,17 @@ export default function AnamneseV2() {
                   type="button"
                   onClick={() => setGroupIdx(i)}
                   title={g.bloco}
-                  className="flex h-9 min-w-9 items-center gap-1 rounded-md px-2 text-xs font-bold transition-all"
+                  className={`flex h-9 min-w-9 items-center gap-1 rounded-md px-2 text-xs font-bold transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : ref
+                        ? "bg-muted text-muted-foreground"
+                        : done
+                          ? "bg-green-100 text-green-700"
+                          : "bg-card text-muted-foreground"
+                  }`}
                   style={{
-                    background: active ? PETROLEO : ref ? "#e5e7eb" : done ? "#d6f0e6" : "#fff",
-                    color: active ? "#fff" : ref ? "#9ca3af" : done ? "#15803d" : "#4b5563",
-                    boxShadow: active ? `0 0 0 2px ${CIANO}` : "inset 0 0 0 1px #d7e0e0",
+                    boxShadow: active ? `0 0 0 2px ${GOLD}` : "inset 0 0 0 1px hsl(var(--border))",
                   }}
                 >
                   {done && !active ? <Check className="h-3 w-3" /> : null}
@@ -520,8 +555,7 @@ export default function AnamneseV2() {
                 type="button"
                 onClick={finalizar}
                 disabled={complete.isPending}
-                className="btn-3d flex items-center gap-2 rounded-md px-5 py-3 text-sm font-bold text-white"
-                style={{ background: PETROLEO }}
+                className="btn-3d flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
               >
                 {complete.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Concluir anamnese
@@ -530,8 +564,7 @@ export default function AnamneseV2() {
               <button
                 type="button"
                 onClick={() => setGroupIdx((i) => Math.min(groups.length - 1, i + 1))}
-                className="btn-3d flex items-center gap-1.5 rounded-md px-5 py-3 text-sm font-bold text-white"
-                style={{ background: PETROLEO }}
+                className="btn-3d flex items-center gap-1.5 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
               >
                 Próximo <ChevronRight className="h-4 w-4" />
               </button>
@@ -543,8 +576,8 @@ export default function AnamneseV2() {
       {/* SELO DE SALVAMENTO */}
       <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
         <div
-          className="flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-medium shadow-md"
-          style={{ color: saving ? "#9ca3af" : PETROLEO, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
+          className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-md"
+          style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
@@ -556,6 +589,24 @@ export default function AnamneseV2() {
 
 // ---------- subcomponentes ----------
 
+// Cabecalho de marca Paxter: cupula de vidro + PAXTER + "Clinical Intelligence System".
+function BrandMark() {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <PaxterSymbolGlass size={32} />
+      <div className="flex min-w-0 flex-col">
+        <PaxterWordmarkPremium width={116} />
+        <span
+          className="mt-0.5 truncate text-[7px] font-semibold uppercase text-[#e8cf95]"
+          style={{ letterSpacing: "0.2em" }}
+        >
+          Clinical Intelligence System
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="screen-3d flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5">
@@ -563,7 +614,7 @@ function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; v
         {icon}
         {label}
       </span>
-      <span className="text-sm font-bold" style={{ color: PETROLEO }}>
+      <span className="text-sm font-bold text-primary">
         {value}
       </span>
     </div>
@@ -620,7 +671,7 @@ function QuestionCard({
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.08)" } : undefined}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
-        <p className="text-base font-semibold leading-snug" style={{ color: "#1f2937" }}>
+        <p className="text-base font-semibold leading-snug text-foreground">
           {q.pergunta}
         </p>
         <div className="flex shrink-0 items-center gap-1">
@@ -629,8 +680,8 @@ function QuestionCard({
               type="button"
               onClick={toggleAudio}
               aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
-              className="btn-3d-soft flex h-8 w-8 items-center justify-center rounded-md"
-              style={playing ? { boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO } : { color: PETROLEO }}
+              className="btn-3d-soft flex h-8 w-8 items-center justify-center rounded-md text-primary"
+              style={playing ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
             >
               {playing ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </button>
@@ -640,15 +691,15 @@ function QuestionCard({
               <AlertTriangle className="h-3 w-3" /> Atenção
             </span>
           )}
-          {answered && <Check className="h-4 w-4" style={{ color: CIANO }} />}
+          {answered && <Check className="h-4 w-4" style={{ color: GOLD }} />}
         </div>
       </div>
 
       {/* Ajuda em linguagem leiga (observacao) */}
       {q.observacao && (
-        <div className="mb-3 flex gap-2 rounded-md px-3 py-2" style={{ background: "#eef6f6" }}>
-          <Info className="mt-0.5 h-4 w-4 shrink-0" style={{ color: PETROLEO }} />
-          <p className="whitespace-pre-line text-[13px] leading-relaxed text-gray-600">
+        <div className="mb-3 flex gap-2 rounded-md bg-muted px-3 py-2">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
             {q.observacao}
           </p>
         </div>
@@ -669,8 +720,7 @@ function QuestionCard({
             <button
               type="button"
               onClick={() => setShowVideo(true)}
-              className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold"
-              style={{ color: PETROLEO }}
+              className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-primary"
             >
               <Play className="h-4 w-4" /> Ver vídeo explicativo
             </button>
@@ -703,7 +753,7 @@ function GroupView({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="bevel-3d rounded-md px-3 py-2 text-sm font-bold uppercase tracking-wide" style={{ color: PETROLEO }}>
+        <h2 className="bevel-3d rounded-md px-3 py-2 text-sm font-bold uppercase tracking-wide text-primary">
           {group.bloco}
         </h2>
         {podeRecusar && (
@@ -711,7 +761,7 @@ function GroupView({
             type="button"
             onClick={onToggleRefuse}
             className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
-            style={refused ? { boxShadow: `0 0 0 2px ${CIANO}`, color: PETROLEO } : undefined}
+            style={refused ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
           >
             <SkipForward className="h-3.5 w-3.5" />
             {refused ? "Bloco recusado — reabrir" : "Pular este bloco"}
@@ -774,8 +824,7 @@ function FocusView({
             type="button"
             onClick={onFinish}
             disabled={finishing}
-            className="btn-3d flex items-center gap-2 rounded-md px-5 py-3 text-sm font-bold text-white"
-            style={{ background: PETROLEO }}
+            className="btn-3d flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
           >
             {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Concluir
@@ -784,8 +833,7 @@ function FocusView({
           <button
             type="button"
             onClick={onNext}
-            className="btn-3d flex items-center gap-1.5 rounded-md px-5 py-3 text-sm font-bold text-white"
-            style={{ background: PETROLEO }}
+            className="btn-3d flex items-center gap-1.5 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
           >
             Próxima <ChevronRight className="h-4 w-4" />
           </button>
@@ -806,7 +854,7 @@ function HealthTwin({
 }) {
   return (
     <div className="panel-3d-sub mt-5 rounded-md p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: PETROLEO }}>
+      <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-primary">
         <Shield className="h-4 w-4" /> Seu mapa de saúde
       </h3>
       <div className="flex flex-col gap-2">
@@ -823,7 +871,7 @@ function HealthTwin({
               <div className="concave-3d h-2.5 flex-1 overflow-hidden rounded-md">
                 <div
                   className="h-full rounded-md transition-all duration-500"
-                  style={{ width: `${p}%`, background: ref ? "#cbd5e1" : `linear-gradient(90deg, ${PETROLEO}, ${CIANO})` }}
+                  style={{ width: `${p}%`, background: ref ? "#cbd5e1" : `linear-gradient(90deg, ${NAVY}, ${GOLD})` }}
                 />
               </div>
             </div>
@@ -848,33 +896,30 @@ function FinishScreen({
   const diag = findings.filter((f) => f.tipo === "diagnosticado");
   const susp = findings.filter((f) => f.tipo === "suspeito");
   return (
-    <div className="flex min-h-screen flex-col items-center bg-[#f1f5f5] px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center bg-background px-4 py-10 text-foreground">
       <div className="mx-auto w-full max-w-xl">
         <div className="panel-3d-hero mb-5 rounded-md p-6 text-center">
           <div className="mb-4 flex items-center justify-center">
             <PaxterLogo variant="compact" tone="light" />
           </div>
-          <div
-            className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-md"
-            style={{ background: PETROLEO }}
-          >
-            <Check className="h-7 w-7 text-white" />
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-md bg-primary">
+            <Check className="h-7 w-7 text-primary-foreground" />
           </div>
-          <h1 className="text-xl font-bold" style={{ color: PETROLEO }}>
+          <h1 className="text-xl font-bold text-primary">
             Anamnese concluída
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             {respondidas} de {total} perguntas respondidas. Obrigado!
           </p>
         </div>
 
         {(diag.length > 0 || susp.length > 0) && (
           <div className="panel-3d rounded-md p-5">
-            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide" style={{ color: PETROLEO }}>
+            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-primary">
               <Activity className="h-4 w-4" /> Resumo para sua equipe clínica
             </h2>
             {diag.length > 0 && (
-              <FindingGroup title="Relatado por você" items={diag} color={PETROLEO} />
+              <FindingGroup title="Relatado por você" items={diag} color={GOLD} />
             )}
             {susp.length > 0 && (
               <FindingGroup title="Pontos de atenção" items={susp} color="#d97706" />
@@ -936,10 +981,10 @@ function FindingGroup({ title, items, color }: { title: string; items: AnamneseF
 
 function CenterLoader({ label }: { label: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f1f5f5]">
+    <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: PETROLEO }} />
-        <p className="text-sm font-medium text-gray-500">{label}</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -952,9 +997,13 @@ function CenterLoader({ label }: { label: string }) {
 function IdentifyGate({
   onStart,
   pending,
+  theme,
+  onToggleTheme,
 }: {
   onStart: (portalToken?: string) => void;
   pending: boolean;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
 }) {
   const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
   const [cpf, setCpf] = useState("");
@@ -1010,12 +1059,15 @@ function IdentifyGate({
 
   return (
     <div
-      className="area-elite flex min-h-screen flex-col bg-[#f1f5f5]"
-      style={{ ["--brand" as any]: PETROLEO }}
+      className="area-elite flex min-h-screen flex-col bg-background text-foreground"
+      style={{ ["--brand" as any]: NAVY }}
     >
-      <header className="panel-3d flex flex-col items-center justify-center gap-2 border-b border-teal-200/60 px-4 py-6">
+      <header className="panel-3d relative flex flex-col items-center justify-center gap-2 border-b border-border px-4 py-6">
+        <div className="absolute right-3 top-3">
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        </div>
         <PaxterLogo variant="appHeader" tone="light" />
-        <p className="text-[10px] uppercase tracking-[0.22em]" style={{ color: "#8a7a52" }}>
+        <p className="text-[10px] uppercase tracking-[0.22em] text-accent">
           Ficha de Saúde — Anamnese
         </p>
       </header>
@@ -1023,21 +1075,21 @@ function IdentifyGate({
       <main className="flex flex-1 items-start justify-center px-4 py-10">
         <div className="w-full max-w-sm space-y-6">
           <div className="panel-3d overflow-hidden rounded-xl">
-            <div className="bg-teal-700 px-5 py-4">
+            <div className="bg-primary px-5 py-4">
               <div className="flex items-center gap-3">
-                <Shield className="h-5 w-5 text-cyan-300" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-white">
+                <Shield className="h-5 w-5 text-accent" />
+                <h2 className="text-sm font-black uppercase tracking-widest text-primary-foreground">
                   Identificação
                 </h2>
               </div>
-              <p className="mt-1 text-xs text-teal-200">
+              <p className="mt-1 text-xs text-primary-foreground/70">
                 CPF e data de nascimento para começar sua anamnese
               </p>
             </div>
 
             <div className="space-y-4 p-5">
               <div>
-                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-teal-700">
+                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-primary">
                   CPF
                 </label>
                 <input
@@ -1049,11 +1101,12 @@ function IdentifyGate({
                     setCpf(fmtCpf(e.target.value));
                     setError("");
                   }}
-                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-teal-900 placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#45B8CC]"
+                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2"
+                  style={{ ["--tw-ring-color" as any]: GOLD }}
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-teal-700">
+                <label className="mb-1.5 block text-xs font-black uppercase tracking-widest text-primary">
                   Data de nascimento
                 </label>
                 <input
@@ -1068,7 +1121,8 @@ function IdentifyGate({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleIdentify();
                   }}
-                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-teal-900 placeholder:text-teal-300 focus:outline-none focus:ring-2 focus:ring-[#45B8CC]"
+                  className="concave-3d h-12 w-full rounded-lg px-4 font-mono text-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2"
+                  style={{ ["--tw-ring-color" as any]: GOLD }}
                 />
               </div>
 
@@ -1104,7 +1158,7 @@ function IdentifyGate({
               type="button"
               onClick={() => onStart()}
               disabled={busy}
-              className="text-[11px] uppercase tracking-widest text-teal-400 hover:text-teal-600 disabled:opacity-40"
+              className="text-[11px] uppercase tracking-widest text-muted-foreground hover:text-accent disabled:opacity-40"
             >
               Entrar como demonstração (sem identificar)
             </button>

@@ -67,11 +67,6 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
             <source srcSet={headlineWebp} type="image/webp" />
             <img src={headlinePng} alt="PAXTER — Clinical Intelligence System" draggable={false} />
           </picture>
-          <span
-            className="pax-sheen"
-            aria-hidden="true"
-            style={{ WebkitMaskImage: `url(${headlinePng})`, maskImage: `url(${headlinePng})` }}
-          />
         </span>
       </div>
     );
@@ -87,11 +82,6 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
           <source srcSet={headlineWebp} type="image/webp" />
           <img src={headlinePng} alt="PAXTER — Clinical Intelligence System" draggable={false} />
         </picture>
-        <span
-          className="pax-sheen"
-          aria-hidden="true"
-          style={{ WebkitMaskImage: `url(${headlinePng})`, maskImage: `url(${headlinePng})` }}
-        />
       </span>
 
       {/* PRECISION IN INTEGRATIVE CARE */}

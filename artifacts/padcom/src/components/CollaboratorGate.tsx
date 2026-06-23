@@ -99,9 +99,9 @@ export function CollaboratorGate({ children }: { children: ReactNode }) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between rounded-md border border-[#3D7A7A]/30 bg-[#3D7A7A]/5 px-4 py-2">
+      <div className="mb-4 flex items-center justify-between rounded-md border border-[#16284a]/30 bg-[#16284a]/5 px-4 py-2">
         <div className="text-sm">
-          <span className="font-semibold uppercase tracking-wide text-[#3D7A7A]">
+          <span className="font-semibold uppercase tracking-wide text-[#16284a]">
             Colaborador
           </span>{" "}
           <span className="text-foreground">{prof?.name ?? "—"}</span>
@@ -209,8 +209,8 @@ function LoginScreen() {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <Card className="w-full max-w-md border-l-4 border-l-[#3D7A7A] p-6">
-        <h1 className="mb-1 text-lg font-bold uppercase tracking-wide text-[#3D7A7A]">
+      <Card className="w-full max-w-md border-l-4 border-l-[#16284a] p-6">
+        <h1 className="mb-1 text-lg font-bold uppercase tracking-wide text-[#16284a]">
           {isBootstrap ? "Primeiro acesso" : "Portão do Colaborador"}
         </h1>
         <p className="mb-5 text-sm text-muted-foreground">
@@ -264,7 +264,7 @@ function LoginScreen() {
           ) : null}
           <Button
             type="submit"
-            className="w-full bg-[#3D7A7A] hover:bg-[#326565]"
+            className="w-full bg-[#16284a] hover:bg-[#0f1d38]"
             disabled={busy}
             data-testid="button-entrar"
           >
