@@ -30,9 +30,15 @@ existe; o trabalho e VETORIZAR/replicar fiel, nao criar letras novas.
 geometrico desenhado a mao tambem foi REJEITADO (limpo porem perdeu serifa/chanfro). Solucao
 aceita e EM PRODUCAO: LOCKUP VIVO usando os PIXELS REAIS do anexo, sem redesenho nem tracing.
 - Cada parte de texto (PAXTER+Clinical num bloco / PAXTER sozinho / PRECISION / AI-guided)
-  e RECORTADA do PNG-mestre e tornada TRANSPARENTE por luminancia->alfa
-  (`convert crop.png \( +clone -colorspace Gray -level 10%,100% \) -alpha off -compose CopyOpacity -composite out.png`).
-  Isso PRESERVA o ouro 3D original (chanfro/relevo) sobre qualquer fundo escuro.
+  e RECORTADA do PNG-mestre (`attached_assets/LOGO_PAXTER_0_(PRINCIPAL)...png`, 1122x1402,
+  ouro sobre quase-preto) e tem SO o fundo preto removido, preservando o ouro 3D.
+- ARMADILHA (corrigida 23/06/2026): NAO usar luminancia->alfa suave (`-level 10%,100%`) para
+  tirar o fundo. Isso mapeia o MIOLO do dourado (luminancia media) para semi-transparente; o
+  navy do site vaza por baixo e o ouro vira PRATA/lavado (o CEO reclamou: "PAXTER nao esta
+  dourado como o simbolo"). CERTO = level INGREME que so derruba o preto e mantem o ouro 100%
+  opaco: `magick M -crop LxH+0+Y +repage \( +clone -colorspace Gray -level 10%,16% \) -alpha off
+  -compose CopyOpacity -composite -trim +repage out.png`. Faixas Y do mestre: PAXTER ~640-800,
+  Clinical ~850-895, PRECISION ~995-1035, AI-guided ~1065-1095 (cortar bandas generosas e -trim).
 - BRILHO que percorre: div .pax-sheen com gradiente claro, `mask-image: url(mesmo PNG)` e
   `mix-blend-mode: screen`, animando background-position vertical (PAXTER->Clinical). A mascara
   e o proprio PNG transparente => a luz so aparece sobre as letras. Respeita prefers-reduced-motion.

@@ -96,20 +96,21 @@
   pointer-events: none;
   background: linear-gradient(
     162deg,
-    transparent 38%,
-    rgba(255, 250, 235, 0.85) 48%,
-    #ffffff 50%,
-    rgba(255, 250, 235, 0.85) 52%,
-    transparent 62%
+    transparent 43%,
+    rgba(255, 247, 220, 0.35) 49%,
+    rgba(255, 252, 240, 0.55) 50%,
+    rgba(255, 247, 220, 0.35) 51%,
+    transparent 57%
   );
   background-repeat: no-repeat;
-  background-size: 100% 280%;
+  background-size: 100% 320%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   mix-blend-mode: screen;
-  animation: pax-sweep 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  opacity: 0.7;
+  animation: pax-sweep 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes pax-sweep {
