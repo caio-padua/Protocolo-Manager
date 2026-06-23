@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Home,
+  RotateCcw,
   Info,
   Loader2,
   ListChecks,
@@ -118,6 +119,25 @@ export default function AnamneseV2() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionState?.session.id]);
+
+  // Link de demonstracao direto: /anamnese/v2?demo=1 SEMPRE comeca uma demo NOVA
+  // (limpa qualquer sessao anterior presa, inclusive uma ja concluida). Sem isso,
+  // um token antigo no navegador prendia o usuario na tela "Anamnese concluida".
+  const demoBootRef = useRef(false);
+  useEffect(() => {
+    if (demoBootRef.current) return;
+    const wantDemo = new URLSearchParams(window.location.search).get("demo") === "1";
+    if (!wantDemo) return;
+    demoBootRef.current = true;
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(DEMO_KEY);
+    setFinished(false);
+    setAnswers({});
+    setRefused(new Set());
+    setToken(null);
+    startSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // agrupa por bloco preservando a ordem; aplica visibilidade condicional por
   // sexo biologico (A04) e por dependencia de outra resposta (dependeDe).
@@ -390,7 +410,7 @@ export default function AnamneseV2() {
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <BrandMedallion size={34} />
+              <BrandMedallion size={44} />
               <span className="text-sm font-bold tracking-tight" style={{ color: "#16294a" }}>
                 Padcon <span style={{ color: "#b8924d" }}>Conect</span>
               </span>
@@ -574,7 +594,23 @@ function BrandMedallion({ size = 72 }: { size?: number }) {
         style={{
           borderRadius: radius,
           background:
-            "linear-gradient(150deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,.10) 36%, rgba(255,255,255,0) 58%)",
+            "linear-gradient(150deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.18) 32%, rgba(255,255,255,0) 54%)",
+          boxShadow: "inset 0 1px 1px rgba(255,255,255,.4)",
+        }}
+      />
+      {/* reflexo de vidro: faixa diagonal de brilho, deixa a cobertura visivel */}
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: "8%",
+          top: "6%",
+          width: "44%",
+          height: "70%",
+          borderRadius: radius,
+          transform: "rotate(18deg)",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,0) 100%)",
+          filter: "blur(1px)",
         }}
       />
     </div>
@@ -876,6 +912,12 @@ function FinishScreen({
     <div className="flex min-h-screen flex-col items-center bg-[#f1f5f5] px-4 py-10">
       <div className="mx-auto w-full max-w-xl">
         <div className="panel-3d-hero mb-5 rounded-md p-6 text-center">
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <BrandMedallion size={52} />
+            <span className="text-lg font-bold tracking-tight" style={{ color: "#16294a" }}>
+              Padcon <span style={{ color: "#b8924d" }}>Conect</span>
+            </span>
+          </div>
           <div
             className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-md"
             style={{ background: PETROLEO }}
@@ -915,6 +957,20 @@ function FinishScreen({
           >
             <Home className="h-4 w-4" /> Voltar à minha área
           </a>
+        )}
+        {/* Demonstracao: caminho para recomecar (nunca prender ninguem nesta tela) */}
+        {demo && (
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(DEMO_KEY);
+              window.location.href = `${window.location.pathname}?demo=1`;
+            }}
+            className="btn-3d mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-md text-sm font-black uppercase tracking-widest text-white"
+          >
+            <RotateCcw className="h-4 w-4" /> Recomeçar demonstração
+          </button>
         )}
       </div>
     </div>
@@ -1023,7 +1079,7 @@ function IdentifyGate({
     >
       <header className="panel-3d flex items-center justify-center border-b border-teal-200/60 px-4 py-6">
         <div className="flex items-center gap-4">
-          <BrandMedallion size={72} />
+          <BrandMedallion size={96} />
           <div className="leading-tight">
             <h1 className="text-2xl font-bold leading-none tracking-tight" style={{ color: "#16294a" }}>
               Padcon <span style={{ color: "#b8924d" }}>Conect</span>
