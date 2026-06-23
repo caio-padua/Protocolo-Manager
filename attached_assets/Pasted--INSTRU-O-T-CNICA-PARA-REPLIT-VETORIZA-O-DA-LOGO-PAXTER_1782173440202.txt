@@ -1,0 +1,760 @@
+# INSTRUÇÃO TÉCNICA PARA REPLIT — VETORIZAÇÃO DA LOGO PAXTER
+
+## Objetivo
+
+Não quero que a logo PAXTER seja recriada usando uma fonte parecida.
+
+Quero que a logo seja tratada como uma **marca vetorial customizada**, baseada diretamente na imagem de referência enviada.
+
+A palavra **PAXTER** não deve ser digitada com fonte comum.
+Ela deve ser convertida em **SVG paths**, como um desenho fixo, igual a um molde/carbono da imagem.
+
+A ideia é:
+
+```text
+imagem PNG de referência → tracing/vetorização → SVG com paths → componente React/TypeScript reutilizável
+```
+
+---
+
+# 1. O QUE NÃO FAZER
+
+Não fazer isto:
+
+```tsx
+<h1>PAXTER</h1>
+```
+
+Não fazer isto:
+
+```tsx
+<div style={{ fontFamily: "Cinzel" }}>PAXTER</div>
+```
+
+Não usar uma fonte tentando imitar o desenho.
+
+Não usar texto editável para a palavra PAXTER na versão final da logo.
+
+Não tentar “aproximar” com CSS apenas.
+
+A palavra **PAXTER** precisa ser um vetor desenhado, com paths SVG.
+
+---
+
+# 2. O QUE FAZER
+
+Criar a logo como um componente vetorial em React/TypeScript.
+
+Estrutura desejada:
+
+```text
+src/
+  components/
+    branding/
+      PaxterLogo.tsx
+      paxter-logo.css
+
+  assets/
+    brand/
+      paxter-reference.png
+      paxter-logo.svg
+      paxter-wordmark.svg
+      paxter-symbol.svg
+```
+
+A logo deve ter 3 elementos vetoriais:
+
+1. Símbolo / monograma superior
+2. Palavra PAXTER
+3. Frases auxiliares em ouro 3D sobressalente
+
+---
+
+# 3. PROCESSO CORRETO
+
+## Etapa 1 — usar a imagem como matriz
+
+Usar a imagem de referência da logo PAXTER como base visual.
+
+A imagem deve ser usada apenas para extrair o formato.
+
+Não usar a imagem PNG final no sistema como logo principal.
+
+O PNG pode ser usado temporariamente apenas como guia.
+
+---
+
+## Etapa 2 — vetorizar a imagem
+
+A palavra PAXTER e o símbolo precisam virar SVG.
+
+Usar um processo de tracing/vetorização.
+
+Opções possíveis:
+
+### Opção A — Inkscape
+
+Abrir a imagem no Inkscape e usar:
+
+```text
+Path → Trace Bitmap
+```
+
+Depois limpar os paths, remover excesso de pontos, separar camadas e exportar SVG.
+
+### Opção B — Illustrator
+
+Usar:
+
+```text
+Image Trace → Expand → Export SVG
+```
+
+### Opção C — biblioteca no projeto
+
+Pode usar bibliotecas como:
+
+```bash
+npm install imagetracerjs
+```
+
+ou ferramenta externa como potrace.
+
+Mas a versão final precisa ser revisada, porque tracing automático pode criar excesso de pontos.
+
+---
+
+# 4. REGRA PRINCIPAL
+
+O resultado final precisa conter paths SVG parecidos com isto:
+
+```tsx
+<svg viewBox="0 0 1200 900">
+  <path d="M..." />
+  <path d="M..." />
+  <path d="M..." />
+</svg>
+```
+
+A palavra PAXTER não deve depender de fonte.
+
+Cada letra deve ser path.
+
+Exemplo conceitual:
+
+```tsx
+<g id="paxter-wordmark">
+  <path id="letter-p" d="..." />
+  <path id="letter-a" d="..." />
+  <path id="letter-x" d="..." />
+  <path id="letter-t" d="..." />
+  <path id="letter-e" d="..." />
+  <path id="letter-r" d="..." />
+</g>
+```
+
+---
+
+# 5. ESPECIFICAÇÃO DO VIEWBOX
+
+Usar um viewBox base para a logo completa:
+
+```tsx
+viewBox="0 0 1600 1900"
+```
+
+Distribuição sugerida:
+
+```text
+Símbolo superior:
+x: 480 a 1120
+y: 180 a 680
+
+Palavra PAXTER:
+x: 130 a 1470
+y: 760 a 1040
+
+Clinical Intelligence System:
+x: 220 a 1380
+y: 1080 a 1190
+
+Linha divisória:
+x: 300 a 1300
+y: 1260
+
+PRECISION IN INTEGRATIVE CARE:
+x: 170 a 1430
+y: 1340 a 1430
+
+AI-guided prescriptions...
+x: 260 a 1340
+y: 1480 a 1550
+```
+
+---
+
+# 6. SÍMBOLO / MONOGRAMA
+
+O símbolo superior deve ser vetorial, não imagem.
+
+Ele deve ser composto por paths grossos, com:
+
+```text
+formato geral: monograma premium
+aparência: ouro polido
+estrutura: moldura arredondada parcial + traço interno + X diagonal
+estilo: médico-tecnológico-luxo
+```
+
+Características:
+
+```text
+largura aproximada: 620 px
+altura aproximada: 520 px
+espessura principal: 52 px
+bevel visual: 8 px
+extrusão visual: 18 px
+cantos: arredondados
+acabamento: polido, limpo, premium
+```
+
+O símbolo deve parecer uma peça metálica em ouro, não um ícone plano.
+
+---
+
+# 7. PALAVRA PAXTER
+
+A palavra exata é:
+
+```text
+PAXTER
+```
+
+A palavra deve ser criada como vetor.
+
+Não usar fonte.
+
+Cada letra precisa ser path SVG.
+
+A palavra deve ter:
+
+```text
+altura aproximada: 250 px
+largura aproximada: 1340 px
+espessura: 6% a 9% mais grossa que a versão anterior
+estilo: geométrico, luxo, premium, futurista discreto
+material: ouro polido
+relevo: mais intenso
+```
+
+## Letra P
+
+A letra P é a mais importante.
+
+Ela precisa seguir o P da referência PACTOR/PAXTER anterior.
+
+Descrição obrigatória:
+
+```text
+A letra P não deve ser uma letra P comum.
+Ela precisa ser vazada.
+O interior do P deve ser aberto, mostrando o fundo escuro.
+A haste esquerda deve ser reta e robusta.
+A barra superior deve ser horizontal e longa.
+A curva superior direita deve ser elegante.
+A parte interna oposta à curvatura precisa parecer recortada/vazia.
+O P precisa parecer uma peça metálica customizada, não uma fonte.
+```
+
+Representação conceitual:
+
+```text
+P = haste vertical + barra superior + curva parcial + vazio interno real
+```
+
+A letra P deve ser convertida em path:
+
+```tsx
+<path id="letter-p" d="..." />
+```
+
+Não aceitar:
+
+```tsx
+<span>P</span>
+```
+
+---
+
+# 8. OURO POLIDO
+
+Usar o mesmo padrão de ouro da imagem de referência.
+
+O ouro deve ser:
+
+```text
+polido
+limpo
+normal
+elegante
+rico
+sem envelhecimento
+sem bronze
+sem aspecto antigo
+sem laranja excessivo
+sem brilho exagerado
+```
+
+Gradiente base:
+
+```tsx
+<linearGradient id="paxterGold" x1="0%" y1="0%" x2="100%" y2="100%">
+  <stop offset="0%" stopColor="#7A4A0A" />
+  <stop offset="16%" stopColor="#C88A24" />
+  <stop offset="30%" stopColor="#F2C45C" />
+  <stop offset="42%" stopColor="#FFF1A8" />
+  <stop offset="55%" stopColor="#D9A441" />
+  <stop offset="72%" stopColor="#A66B16" />
+  <stop offset="86%" stopColor="#FFD978" />
+  <stop offset="100%" stopColor="#6E4208" />
+</linearGradient>
+```
+
+Gradiente de brilho superior:
+
+```tsx
+<linearGradient id="paxterHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+  <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.85" />
+  <stop offset="35%" stopColor="#FFF1A8" stopOpacity="0.45" />
+  <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+</linearGradient>
+```
+
+Gradiente de profundidade:
+
+```tsx
+<linearGradient id="paxterDepth" x1="0%" y1="0%" x2="0%" y2="100%">
+  <stop offset="0%" stopColor="#A66B16" />
+  <stop offset="55%" stopColor="#5F3708" />
+  <stop offset="100%" stopColor="#2A1603" />
+</linearGradient>
+```
+
+---
+
+# 9. RELEVO / SOBRESSALENTE MAIS INTENSO
+
+A logo precisa ter mais altura visual.
+
+Usar camadas duplicadas deslocadas para baixo.
+
+Exemplo:
+
+```tsx
+<g id="depth-layer" transform="translate(0, 16)" opacity="0.72">
+  {/* mesmos paths em ouro escuro */}
+</g>
+
+<g id="middle-depth-layer" transform="translate(0, 8)" opacity="0.85">
+  {/* mesmos paths em ouro médio */}
+</g>
+
+<g id="front-layer">
+  {/* paths principais em ouro polido */}
+</g>
+```
+
+Parâmetros:
+
+```text
+Símbolo:
+extrusão: 18 px
+sombra: 22 px
+bevel: 8 px
+
+PAXTER:
+extrusão: 14 px a 18 px
+sombra: 18 px
+bevel: 6 px
+espessura: +6% a +9%
+
+Clinical Intelligence System:
+extrusão: 7 px a 9 px
+sombra: 10 px
+bevel: 3 px
+
+PRECISION IN INTEGRATIVE CARE:
+extrusão: 5 px a 7 px
+sombra: 8 px
+bevel: 2 px
+
+AI-guided prescriptions:
+extrusão: 4 px a 5 px
+sombra: 6 px
+bevel: 1 px a 2 px
+```
+
+---
+
+# 10. FILTROS SVG
+
+Usar filtro de profundidade:
+
+```tsx
+<filter id="paxterGoldDepth" x="-30%" y="-30%" width="160%" height="160%">
+  <feDropShadow dx="0" dy="2" stdDeviation="1" floodColor="#FFF1A8" floodOpacity="0.35" />
+  <feDropShadow dx="0" dy="5" stdDeviation="2" floodColor="#7A4A0A" floodOpacity="0.85" />
+  <feDropShadow dx="0" dy="14" stdDeviation="8" floodColor="#000000" floodOpacity="0.65" />
+  <feDropShadow dx="0" dy="26" stdDeviation="18" floodColor="#000000" floodOpacity="0.38" />
+</filter>
+```
+
+Filtro mais discreto para frases:
+
+```tsx
+<filter id="paxterTextDepth" x="-20%" y="-20%" width="140%" height="140%">
+  <feDropShadow dx="0" dy="1" stdDeviation="0.6" floodColor="#FFF1A8" floodOpacity="0.32" />
+  <feDropShadow dx="0" dy="3" stdDeviation="1.5" floodColor="#7A4A0A" floodOpacity="0.62" />
+  <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000000" floodOpacity="0.45" />
+</filter>
+```
+
+---
+
+# 11. COMPONENTE TYPESCRIPT
+
+Criar componente:
+
+```tsx
+import React from "react";
+import "./PaxterLogo.css";
+
+type PaxterLogoProps = {
+  className?: string;
+  variant?: "hero" | "compact" | "symbol";
+};
+
+export function PaxterLogo({
+  className = "",
+  variant = "hero",
+}: PaxterLogoProps) {
+  return (
+    <div className={`paxter-logo paxter-logo--${variant} ${className}`}>
+      <svg
+        className="paxter-logo__svg"
+        viewBox="0 0 1600 1900"
+        role="img"
+        aria-labelledby="paxterLogoTitle paxterLogoDesc"
+      >
+        <title id="paxterLogoTitle">PAXTER</title>
+        <desc id="paxterLogoDesc">
+          Paxter Clinical Intelligence System logo in polished gold.
+        </desc>
+
+        <defs>
+          <linearGradient id="paxterGold" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#7A4A0A" />
+            <stop offset="16%" stopColor="#C88A24" />
+            <stop offset="30%" stopColor="#F2C45C" />
+            <stop offset="42%" stopColor="#FFF1A8" />
+            <stop offset="55%" stopColor="#D9A441" />
+            <stop offset="72%" stopColor="#A66B16" />
+            <stop offset="86%" stopColor="#FFD978" />
+            <stop offset="100%" stopColor="#6E4208" />
+          </linearGradient>
+
+          <linearGradient id="paxterDepthGold" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#A66B16" />
+            <stop offset="55%" stopColor="#5F3708" />
+            <stop offset="100%" stopColor="#2A1603" />
+          </linearGradient>
+
+          <filter id="paxterGoldDepth" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="2" stdDeviation="1" floodColor="#FFF1A8" floodOpacity="0.35" />
+            <feDropShadow dx="0" dy="5" stdDeviation="2" floodColor="#7A4A0A" floodOpacity="0.85" />
+            <feDropShadow dx="0" dy="14" stdDeviation="8" floodColor="#000000" floodOpacity="0.65" />
+            <feDropShadow dx="0" dy="26" stdDeviation="18" floodColor="#000000" floodOpacity="0.38" />
+          </filter>
+
+          <filter id="paxterTextDepth" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="1" stdDeviation="0.6" floodColor="#FFF1A8" floodOpacity="0.32" />
+            <feDropShadow dx="0" dy="3" stdDeviation="1.5" floodColor="#7A4A0A" floodOpacity="0.62" />
+            <feDropShadow dx="0" dy="8" stdDeviation="5" floodColor="#000000" floodOpacity="0.45" />
+          </filter>
+        </defs>
+
+        {/* 
+          IMPORTANTE:
+          Substituir os paths abaixo pelos paths reais extraídos da vetorização.
+          Não usar texto comum para PAXTER.
+        */}
+
+        <g id="paxter-symbol">
+          <g transform="translate(0,18)" opacity="0.72">
+            <path className="paxter-path-depth" d="REPLACE_WITH_SYMBOL_PATH" />
+          </g>
+
+          <g transform="translate(0,8)" opacity="0.86">
+            <path className="paxter-path-mid" d="REPLACE_WITH_SYMBOL_PATH" />
+          </g>
+
+          <g>
+            <path className="paxter-path-front" d="REPLACE_WITH_SYMBOL_PATH" />
+          </g>
+        </g>
+
+        <g id="paxter-wordmark">
+          <g transform="translate(0,16)" opacity="0.72">
+            <path className="paxter-path-depth" d="REPLACE_WITH_PAXTER_PATHS" />
+          </g>
+
+          <g transform="translate(0,8)" opacity="0.86">
+            <path className="paxter-path-mid" d="REPLACE_WITH_PAXTER_PATHS" />
+          </g>
+
+          <g>
+            <path className="paxter-path-front" d="REPLACE_WITH_PAXTER_PATHS" />
+          </g>
+        </g>
+
+        <g id="paxter-secondary-text">
+          <text
+            x="800"
+            y="1160"
+            textAnchor="middle"
+            className="paxter-clinical-text"
+          >
+            Clinical Intelligence System
+          </text>
+
+          <line
+            x1="320"
+            y1="1260"
+            x2="740"
+            y2="1260"
+            className="paxter-divider-line"
+          />
+          <text
+            x="800"
+            y="1275"
+            textAnchor="middle"
+            className="paxter-divider-star"
+          >
+            ✦
+          </text>
+          <line
+            x1="860"
+            y1="1260"
+            x2="1280"
+            y2="1260"
+            className="paxter-divider-line"
+          />
+
+          <text
+            x="800"
+            y="1390"
+            textAnchor="middle"
+            className="paxter-tagline-text"
+          >
+            PRECISION IN INTEGRATIVE CARE
+          </text>
+
+          <text
+            x="800"
+            y="1485"
+            textAnchor="middle"
+            className="paxter-description-text"
+          >
+            AI-guided prescriptions, exams and injectable protocols.
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+```
+
+---
+
+# 12. CSS DO COMPONENTE
+
+```css
+.paxter-logo {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.paxter-logo__svg {
+  width: min(92vw, 980px);
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.paxter-path-depth {
+  fill: url(#paxterDepthGold);
+  filter: url(#paxterGoldDepth);
+}
+
+.paxter-path-mid {
+  fill: #9A6414;
+}
+
+.paxter-path-front {
+  fill: url(#paxterGold);
+  filter: url(#paxterGoldDepth);
+}
+
+.paxter-clinical-text {
+  font-family: "Cinzel", "Cormorant Garamond", "Trajan Pro", serif;
+  font-size: 72px;
+  font-weight: 500;
+  letter-spacing: 0.045em;
+  fill: url(#paxterGold);
+  filter: url(#paxterTextDepth);
+}
+
+.paxter-tagline-text {
+  font-family: "Cinzel", "Trajan Pro", serif;
+  font-size: 46px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  fill: url(#paxterGold);
+  filter: url(#paxterTextDepth);
+}
+
+.paxter-description-text {
+  font-family: "Cormorant Garamond", "Cinzel", serif;
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 0.035em;
+  fill: url(#paxterGold);
+  filter: url(#paxterTextDepth);
+}
+
+.paxter-divider-line {
+  stroke: url(#paxterGold);
+  stroke-width: 2;
+  opacity: 0.85;
+  filter: url(#paxterTextDepth);
+}
+
+.paxter-divider-star {
+  font-family: "Cinzel", serif;
+  font-size: 32px;
+  fill: url(#paxterGold);
+  filter: url(#paxterTextDepth);
+}
+```
+
+---
+
+# 13. COMO EXTRAIR O VETOR DA IMAGEM
+
+A tarefa principal é transformar a imagem em vetor.
+
+Processo recomendado:
+
+```text
+1. Carregar a imagem de referência.
+2. Separar visualmente a palavra PAXTER do fundo.
+3. Aumentar contraste.
+4. Criar máscara da área dourada.
+5. Fazer tracing da máscara.
+6. Converter contorno em SVG path.
+7. Simplificar pontos sem deformar.
+8. Separar cada parte:
+   - símbolo
+   - letra P
+   - letra A
+   - letra X
+   - letra T
+   - letra E
+   - letra R
+9. Aplicar gradiente de ouro.
+10. Aplicar camadas de profundidade.
+11. Exportar como componente React.
+```
+
+---
+
+# 14. IMPORTANTE SOBRE QUALIDADE
+
+Tracing automático pode gerar SVG sujo.
+
+Depois da vetorização, limpar:
+
+```text
+- excesso de pontos
+- curvas tremidas
+- bordas serrilhadas
+- espaços internos irregulares
+- desalinhamento entre letras
+- espessura inconsistente
+```
+
+A versão final precisa parecer desenhada por designer, não extraída de forma automática e suja.
+
+---
+
+# 15. ENTREGA ESPERADA
+
+Entregar:
+
+```text
+1. PaxterLogo.tsx
+2. PaxterLogo.css
+3. paxter-logo.svg
+4. paxter-symbol.svg
+5. paxter-wordmark.svg
+```
+
+O componente deve ser reutilizável em qualquer tela:
+
+```tsx
+<PaxterLogo variant="hero" />
+```
+
+ou:
+
+```tsx
+<PaxterLogo variant="compact" />
+```
+
+ou:
+
+```tsx
+<PaxterLogo variant="symbol" />
+```
+
+---
+
+# RESUMO FINAL PARA EXECUÇÃO
+
+A logo PAXTER deve ser criada como vetor real.
+
+A palavra PAXTER não pode ser fonte.
+
+A palavra PAXTER deve ser um conjunto de paths SVG extraídos da imagem de referência, como um carbono/molde.
+
+O símbolo também deve ser path SVG.
+
+As frases auxiliares podem começar como texto SVG, mas devem receber fill dourado, filtro 3D, sombra e relevo sobressalente.
+
+A aparência final precisa ser:
+
+```text
+ouro polido normal
+relevo mais alto
+PAXTER levemente mais grosso
+P vazado personalizado
+fundo escuro premium
+textos auxiliares em 3D
+luxo discreto
+não chamativo
+não envelhecido
+não bronze
+não fonte comum
+```
