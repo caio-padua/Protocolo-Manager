@@ -1,10 +1,8 @@
-import "./PaxterLogo.css";
-import symbolCut from "@/assets/brand/paxter-symbol-cut.png";
-import headlinePng from "@/assets/brand/paxter-headline.png";
-import headlineWebp from "@/assets/brand/paxter-headline.webp";
-import paxterPng from "@/assets/brand/paxter-paxter.png";
-import paxterWebp from "@/assets/brand/paxter-paxter.webp";
+import subtitlePng from "@/assets/brand/paxter-subtitle.png";
+import subtitleWebp from "@/assets/brand/paxter-subtitle.webp";
 import { PAXTER_SITE_URL } from "@/lib/brand";
+import { PaxterSymbolPremium } from "./paxter-fx/PaxterSymbolPremium";
+import { PaxterWordmarkPremium } from "./paxter-fx/PaxterWordmarkPremium";
 
 interface PaxterLogoProps {
   className?: string;
@@ -16,7 +14,8 @@ interface PaxterLogoProps {
   href?: string;
 }
 
-// Logo unico do sistema PAXTER (pixels reais do anexo, ouro 3D + faixa de luz).
+// Logo PAXTER — efeito premium (aura + faixa-sol + faisca correndo o contorno)
+// no SIMBOLO e ESTENDIDO a palavra "PAXTER". A luz desce do simbolo para o nome.
 export function PaxterLogo({
   className = "",
   size = "md",
@@ -24,60 +23,38 @@ export function PaxterLogo({
   href,
 }: PaxterLogoProps) {
   const symPx = collapsed ? 46 : size === "sm" ? 40 : 60;
+  // A luz "desce": o simbolo lidera, a palavra entra ~900ms depois (mesmo ciclo 12s).
+  const WORD_DELAY = 900;
 
-  const symbol = (
-    <span className="pxs-symbol" style={{ width: symPx, height: symPx }}>
-      <img src={symbolCut} alt="PAXTER" draggable={false} />
-      <span
-        className="pxs-sheen pxs-sheen--symbol"
-        aria-hidden="true"
-        style={{ WebkitMaskImage: `url(${symbolCut})`, maskImage: `url(${symbolCut})` }}
-      />
-    </span>
-  );
+  const symbol = <PaxterSymbolPremium size={symPx} />;
 
   let inner: React.ReactNode;
 
   if (collapsed) {
-    inner = <div className={`pxs-lockup ${className}`}>{symbol}</div>;
+    inner = <div className={`flex items-center justify-center ${className}`}>{symbol}</div>;
   } else if (size === "sm") {
     // Barra superior mobile: simbolo + PAXTER (horizontal, compacto)
     inner = (
-      <div className={`pxs-lockup pxs-lockup--row ${className}`}>
+      <div className={`flex flex-row items-center gap-2.5 ${className}`}>
         {symbol}
-        <span className="pxs-word" style={{ width: 116 }}>
-          <picture>
-            <source srcSet={paxterWebp} type="image/webp" />
-            <img src={paxterPng} alt="PAXTER" draggable={false} />
-          </picture>
-          <span
-            className="pxs-sheen pxs-sheen--word"
-            aria-hidden="true"
-            style={{ WebkitMaskImage: `url(${paxterPng})`, maskImage: `url(${paxterPng})` }}
-          />
-        </span>
+        <PaxterWordmarkPremium width={116} cycleDelay={WORD_DELAY} />
       </div>
     );
   } else {
-    // Topo da sidebar: simbolo + PAXTER + Clinical Intelligence System (vertical)
+    // Topo da sidebar: simbolo + PAXTER + subtitulo (vertical)
     inner = (
-      <div className={`pxs-lockup ${className}`}>
+      <div className={`flex flex-col items-center gap-3 ${className}`}>
         {symbol}
-        <span className="pxs-word" style={{ width: 176 }}>
-          <picture>
-            <source srcSet={headlineWebp} type="image/webp" />
-            <img
-              src={headlinePng}
-              alt="PAXTER — Clinical Intelligence System"
-              draggable={false}
-            />
-          </picture>
-          <span
-            className="pxs-sheen pxs-sheen--word"
-            aria-hidden="true"
-            style={{ WebkitMaskImage: `url(${headlinePng})`, maskImage: `url(${headlinePng})` }}
+        <PaxterWordmarkPremium width={176} cycleDelay={WORD_DELAY} />
+        <picture>
+          <source srcSet={subtitleWebp} type="image/webp" />
+          <img
+            src={subtitlePng}
+            alt="Clinical Intelligence System"
+            draggable={false}
+            style={{ width: 176, height: "auto", display: "block" }}
           />
-        </span>
+        </picture>
       </div>
     );
   }

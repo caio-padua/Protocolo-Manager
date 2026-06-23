@@ -282,13 +282,24 @@ export function TraceFlashGlint({
 type GlintPremiumProps = {
   d: string | string[];
   size?: number;
+  /** largura/altura explicitas (sobrepoem `size` quando o desenho nao e quadrado, ex.: palavra) */
+  width?: number;
+  height?: number;
   viewBox?: string;
+  /** transform por caminho (ex.: posicionar cada letra: translate(ox,0)) */
+  transforms?: (string | undefined)[];
   /** largura do glint de borda (em unidades do viewBox) */
   glintWidth?: number;
+  /** sobrepoe a largura do glint externo (default glintWidth+4) */
+  glintWidthOuter?: number;
+  /** sobrepoe a largura do glint interno (default glintWidth-4) */
+  glintWidthInner?: number;
   /** largura da faixa especular (em unidades do viewBox) */
   sweepWidth?: number;
   /** multiplicador de brilho da faixa (1 = padrao) */
   sweepBright?: number;
+  /** alcance da faixa-sol (translateX inicial->final). Default = motor do simbolo. */
+  sweep?: { from: number; to: number };
   /** duracao de UM ciclo da faixa especular (ms) — inclui a pausa de descanso */
   sweepMs?: number;
   /** duracao de UM ciclo da polvora (ms) — inclui a pausa de descanso */
@@ -304,10 +315,16 @@ type GlintPremiumProps = {
 export function PaxterGlintPremium({
   d,
   size = 150,
+  width,
+  height,
   viewBox = "0 0 381 369",
+  transforms,
   glintWidth = 9,
+  glintWidthOuter,
+  glintWidthInner,
   sweepWidth = 150,
   sweepBright = 1,
+  sweep,
   sweepMs = 12000,
   flashMs = 12000,
   flashDelay = 0,
@@ -323,20 +340,45 @@ export function PaxterGlintPremium({
   const sweepG = `pms-${uid}`;
   const glow = `pmg-${uid}`;
   const paths = Array.isArray(d) ? d : [d];
+  const wOuter = glintWidthOuter ?? glintWidth + 4;
+  const wInner = glintWidthInner ?? glintWidth - 4;
+
+  // Faixa-sol: por padrao usa a classe global `.tf-sweep` (calibrada para o simbolo).
+  // Quando o desenho e mais largo (ex.: palavra), `sweep` gera uma keyframe propria
+  // com o mesmo ritmo/fases, so estendendo o alcance do varrimento.
+  const sweepCls = sweep ? `pms-sweep-${uid}` : "tf-sweep";
+  const sweepKeyframes = sweep
+    ? `
+      .${sweepCls} { opacity: 0; animation: ${sweepCls} ${sweepMs}ms cubic-bezier(.45,0,.55,1) ${sweepDelay}ms infinite backwards; }
+      @keyframes ${sweepCls} {
+        0%   { transform: translateX(${sweep.from}px); opacity: 0; }
+        26%  { transform: translateX(${sweep.from}px); opacity: 0; }
+        30%  { opacity: 1; }
+        45%  { transform: translateX(${sweep.to}px); opacity: 1; }
+        48%  { transform: translateX(${sweep.to}px); opacity: 0; }
+        100% { transform: translateX(${sweep.to}px); opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) { .${sweepCls} { animation: none; opacity: 0; } }
+    `
+    : "";
+
   return (
     <svg
-      width={size}
-      height={size}
+      width={width ?? size}
+      height={height ?? size}
       viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
       className={className}
-      style={{ mixBlendMode: "plus-lighter", ...style }}
+      style={{ mixBlendMode: "plus-lighter", overflow: "visible", ...style }}
       aria-hidden="true"
     >
+      {sweep && <style>{sweepKeyframes}</style>}
       <defs>
         <mask id={maskId}>
           {paths.map((p, i) => (
-            <path key={`m${i}`} d={p} fill="#fff" stroke="#fff" strokeWidth={2} />
+            <g key={`m${i}`} transform={transforms?.[i]}>
+              <path d={p} fill="#fff" stroke="#fff" strokeWidth={2} />
+            </g>
           ))}
         </mask>
         <linearGradient id={sweepG} x1="0" y1="0" x2="1" y2="0">
@@ -355,16 +397,19 @@ export function PaxterGlintPremium({
         </filter>
       </defs>
 
-      {/* 1) varrimento especular dourado, recortado no metal do simbolo */}
+      {/* 1) varrimento especular dourado, recortado no metal/letras */}
       <g mask={`url(#${maskId})`}>
-        <g className="tf-sweep" style={{ ["--tf-sweep" as string]: `${sweepMs}ms`, animationDelay: `${sweepDelay}ms` }}>
+        <g
+          className={sweepCls}
+          style={sweep ? undefined : { ["--tf-sweep" as string]: `${sweepMs}ms`, animationDelay: `${sweepDelay}ms` }}
+        >
           <rect x={-sweepWidth} y="-60" width={sweepWidth} height="500" fill={`url(#${sweepG})`} transform="skewX(-20)" />
         </g>
       </g>
 
-      {/* 2) glint de borda dourado quente correndo pelo tracado */}
+      {/* 2) glint de borda dourado quente correndo pelo tracado/contorno */}
       {paths.map((p, i) => (
-        <g key={`gl${i}`}>
+        <g key={`gl${i}`} transform={transforms?.[i]}>
           <path
             d={p}
             pathLength={100}
@@ -373,7 +418,7 @@ export function PaxterGlintPremium({
             stroke="#ffcf73"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={glintWidth + 4}
+            strokeWidth={wOuter}
             strokeOpacity={0.85}
             filter={`url(#${glow})`}
             style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms` }}
@@ -386,7 +431,7 @@ export function PaxterGlintPremium({
             stroke="#ffe6a3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={glintWidth - 4}
+            strokeWidth={wInner}
             style={{ ["--tf-flash" as string]: `${flashMs}ms`, ["--tf-flash-delay" as string]: `${flashDelay + i * 120}ms` }}
           />
         </g>

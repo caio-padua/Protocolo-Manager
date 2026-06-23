@@ -37,3 +37,4 @@
 - [Botoes validados Paxter + armadilha text-gold](paxter-botoes-validados.md) — botao validado = bevel-3d/btn-3d-soft/btn-3d do skill-layout-paxter (nao palpite de explorer); .text-gold (clip) some sobre fundo 3D concorrente, use dourado solido ou span filho.
 - [Wordmark PAXTER segue a logo oficial](paxter-wordmark-logo-oficial.md) — nome/frases em texto reproduzem a logo aprovada (serifa Cinzel, ouro 3D saliente via clip+text-shadow); usar _shared/paxterLockup.tsx, nunca inventar letras.
 - [Wordmark SVG kerning (desenho a mao)](wordmark-svg-kerning.md) — glifo autoral abre buraco se avanco x > largura real (le "P AXTER"); subagente nao ve o que desenha, principal confere por screenshot.
+- [Motor de luz Paxter unico (glint)](paxter-glint-motor-unico.md) — simbolo e palavra usam UM PaxterGlintPremium; estender via props opcionais (transforms/sweep/glintWidthOuter/Inner), nunca forkar; sweep ausente=.tf-sweep (simbolo intacto); espelhar no mockup.
