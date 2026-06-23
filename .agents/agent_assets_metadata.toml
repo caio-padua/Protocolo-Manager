@@ -77,3 +77,9 @@ id = "lVr7hjD40X7WE7SiPROxF"
 uri = "file://artifacts/padcom/src/assets/brand/paxter-logo-hero.png"
 type = "image"
 title = "PAXTER — logo hero (imagem original aprovada, fiel ao anexo)"
+
+[[outputs]]
+id = "JVqOMQpA-Vfr2fj0nSsM4"
+uri = "file://screenshots/paxter-logo-desktop.jpg"
+type = "image"
+title = "PAXTER — logo viva no site (desktop)"
