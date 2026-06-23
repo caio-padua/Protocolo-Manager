@@ -107,13 +107,18 @@ async function main() {
   console.log(`WORD letras detectadas: ${runs.length}`, runs.map(([a, c]) => `${a}-${c}`).join("  "));
   if (runs.length !== 6) console.warn(`AVISO: esperava 6 letras, achei ${runs.length}.`);
 
+  // amplia antes de tracar (curvas lisas, sem serrilhado) e reescala os numeros do path
+  // de volta ao tamanho nativo (uniforme: como sao coords absolutas, multiplicar todos serve).
+  const FACTOR = 4;
+  const scaleD = (d, s) => d.replace(/-?\d*\.?\d+(?:e-?\d+)?/g, (n) => (parseFloat(n) * s).toFixed(2));
   async function traceLetter(x0, x1) {
     const lx0 = Math.max(0, x0 - wPad), lx1 = Math.min(W - 1, x1 + wPad);
     const cw = lx1 - lx0 + 1;
-    const crop = img.clone().crop(lx0, wTop, cw, wH);
-    const tracer = new Potrace({ threshold: 70, blackOnWhite: false, turdSize: 24, optTolerance: 0.35, alphaMax: 1.0 });
+    const crop = img.clone().crop(lx0, wTop, cw, wH).scale(FACTOR);
+    const tracer = new Potrace({ threshold: 70, blackOnWhite: false, turdSize: 120, optTolerance: 0.6, alphaMax: 1.0 });
     await new Promise((res, rej) => tracer.loadImage(crop, (err) => err ? rej(err) : res()));
-    const d = tracer.getPathTag().match(/ d="([^"]*)"/)?.[1] || "";
+    const raw = tracer.getPathTag().match(/ d="([^"]*)"/)?.[1] || "";
+    const d = scaleD(raw, 1 / FACTOR);
     return { d, ox: lx0 - wLeft, w: cw };
   }
 
