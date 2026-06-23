@@ -25,3 +25,24 @@ usar `PaxterLogo` (variant `appHeader` no fundo claro com `tone="light"`, `compa
 embute o `PaxterSymbolPremium`. Nunca desenhar a marca por vetor/fonte (serrilhado = versao errada).
 Pendencia em aberto: o `replit.md` ainda chama o produto de "Padcon Conect"; so o CEO decide se esse
 nome sai de vez das telas (default) ou vira assinatura discreta.
+
+# Posicionamento da marca nos PDFs emitidos (regra do CEO 23/06/2026)
+
+| Marca | Frase em ingles | Onde fica no PDF |
+|---|---|---|
+| PAXTER (o sistema) | Clinical Intelligence System | CANTO SUPERIOR DIREITO das paginas de conteudo + em TODAS as telas |
+| PADCON (quem desenvolveu) | Advanced Systems Architecture | RODAPE das paginas |
+
+**Why:** PAXTER e a marca visivel do produto; PADCON e a empresa que o construiu. As duas frases ja
+estavam validadas em `artifacts/padcom/src/lib/brand.ts` (`PAXTER.taglineEn`, `PAXTER.empresaTagline`) —
+nunca inventar frase nova; sempre puxar dessa fonte.
+
+**How to apply:** o cabecalho de marca do canto superior direito SO entra em pagina cujo canto esta
+livre — pular a CAPA (que ja traz a marca grande) e pular qualquer pagina que ja use o canto (ex.: a
+pagina 1 do RAS assinado tem "RAS N.o ..." no topo direito, entao a marca so vai da pagina 2 em diante).
+Geradores: `pdf-signer.ts` (RAS assinado + Protocolo Completo) usa o helper `drawDocHeaderBrand`;
+`ras-fap.ts` ja desenha no proprio cabecalho. Divida tecnica conhecida (architect): as frases estao
+hardcoded nos geradores de PDF — idealmente vir de um modulo de constantes compartilhado para evitar
+divergencia (drift). Verificar SEMPRE renderizando o PDF para PNG (pdftoppm) — texto com largura fixa
+(lineBreak:false + width) pode truncar silenciosamente (foi o que cortou "SYSTEM" antes do ajuste de
+characterSpacing).

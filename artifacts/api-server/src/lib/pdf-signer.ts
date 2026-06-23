@@ -183,7 +183,7 @@ interface Fonts {
 }
 
 function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, qrImg: QrImage = null) {
-  const footerText = `Instituto Pádua · Paxter — desenvolvido pela Padcon · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+  const footerText = `Instituto Pádua · Paxter — desenvolvido pela Padcon · Advanced Systems Architecture · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
   page.drawText(footerText, {
     x: MARGIN,
     y: MARGIN - 20,
@@ -664,8 +664,11 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
     page.drawText(formattedDate, { x: MARGIN + boxWidth + 40, y: y - 23, size: 8, font: fonts.bold, color: BLACK });
   }
 
-  // Add page numbers to all pages
+  // Add brand header (top-right) + page numbers to all pages.
+  // Pagina 1 (i===0) ja usa o canto superior direito para "RAS N.o ..." +
+  // "Sessao ID", entao o cabecalho de marca so vai da pagina 2 em diante.
   for (let i = 0; i < allPages.length; i++) {
+    if (i > 0) drawDocHeaderBrand(allPages[i], fonts);
     drawPageFooter(allPages[i], fonts, i + 1, allPages.length, qrImg);
   }
 
@@ -909,9 +912,21 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `Instituto Padua · Paxter - desenvolvido pela Padcon | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Padua · Paxter - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
+}
+
+// Cabecalho de marca no CANTO SUPERIOR DIREITO das paginas de conteudo do
+// documento emitido: PAXTER + sua frase em ingles (regra do CEO 23/06/2026).
+// A capa (pagina 0) ja traz a marca grande, entao este header vai da pagina 2
+// em diante. PADCON + frase em ingles fica no RODAPE (drawDocFooter).
+function drawDocHeaderBrand(page: PDFPage, fonts: Fonts) {
+  const tag = "Clinical Intelligence System";
+  const nameW = fonts.bold.widthOfTextAtSize("PAXTER", 9);
+  const tagW = fonts.regular.widthOfTextAtSize(tag, 6);
+  page.drawText("PAXTER", { x: PAGE_W - MARGIN - nameW, y: PAGE_H - 26, size: 9, font: fonts.bold, color: PETROL });
+  page.drawText(tag, { x: PAGE_W - MARGIN - tagW, y: PAGE_H - 34, size: 6, font: fonts.regular, color: GOLD_ACCENT });
 }
 
 function newDocPage(pdfDoc: PDFDocument, allPages: PDFPage[]): PDFPage {
@@ -1094,7 +1109,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 160, width: CONTENT_W + 20, height: 3, color: GOLD_ACCENT });
 
     page.drawText("PAXTER", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
-    page.drawText("PROTOCOLOS INJETAVEIS", { x: MARGIN, y: PAGE_H - 125, size: 14, font: fonts.regular, color: GOLD_ACCENT });
+    page.drawText("Clinical Intelligence System", { x: MARGIN, y: PAGE_H - 125, size: 14, font: fonts.regular, color: GOLD_ACCENT });
 
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 175, width: CONTENT_W + 20, height: 1, color: rgb(1, 1, 1, 0.2) });
 
@@ -1819,9 +1834,10 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     });
   }
 
-  // Add footer with rubric line to all pages (skip cover)
+  // Add brand header (top-right) + footer with rubric line to all pages (skip cover)
   for (let i = 0; i < allPages.length; i++) {
     if (i === 0) continue;
+    drawDocHeaderBrand(allPages[i], fonts);
     drawDocFooter(allPages[i], fonts, i + 1, allPages.length, data.clientName);
   }
 

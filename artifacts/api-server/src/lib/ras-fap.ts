@@ -484,7 +484,7 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const yTag = yBrand + brandSize * 0.72 + gapBT;
   doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXTER", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PADCON", colBx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
-  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
+  doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEM", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.1 });
   doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("ADVANCED SYSTEMS ARCHITECTURE", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
 
   // Fio unico fino de ponta a ponta.
