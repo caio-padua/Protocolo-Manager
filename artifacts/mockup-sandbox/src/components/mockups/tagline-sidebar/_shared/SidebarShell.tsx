@@ -1,5 +1,8 @@
-import paxterSymbol from "@/assets/paxter-symbol.png";
+import "../../_shared/PaxterLogo.css";
 import { LOCKUP_STYLE } from "../../_shared/paxterLockup";
+import paxterSymbol from "@/assets/paxter-symbol.png";
+import headlinePng from "@/assets/brand/paxter-headline.png";
+import headlineWebp from "@/assets/brand/paxter-headline.webp";
 import {
   LayoutDashboard,
   Users,
@@ -27,19 +30,19 @@ const items = [
 ];
 
 interface SidebarShellProps {
-  /** Frase principal em ouro polido (estilo "Clinical Intelligence System"). */
-  line1: string;
-  /** Frase secundaria em ouro (Cinzel, maiusculo, espacado). Opcional. */
+  /** (legado — o texto agora vem da logo oficial em pixels reais) */
+  line1?: string;
+  /** Sub-tagline auxiliar em ouro, abaixo da logo oficial. Opcional. */
   line2?: string;
 }
 
-export function SidebarShell({ line1, line2 }: SidebarShellProps) {
+export function SidebarShell({ line2 }: SidebarShellProps) {
   return (
     <div
       className="min-h-screen w-full flex items-center justify-center p-8"
       style={{ background: "#e8eaf0" }}
     >
-      {/* Estilo oficial do lockup: fontes Cinzel/Cormorant + face de ouro + relevo 3D */}
+      {/* gold-face para a sub-tagline auxiliar (frase, nao a marca) */}
       <style dangerouslySetInnerHTML={{ __html: LOCKUP_STYLE }} />
 
       <div
@@ -52,50 +55,67 @@ export function SidebarShell({ line1, line2 }: SidebarShellProps) {
           boxShadow: "0 20px 50px rgba(13,24,48,0.35)",
         }}
       >
-        {/* Header block — wordmark OFICIAL + tagline em ouro */}
-        <div className="p-5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-2.5">
-            <img
-              src={paxterSymbol}
-              alt="PAXTER"
-              className="h-11 w-11 object-contain shrink-0"
+        {/* Header — LOGO OFICIAL PAXTER (pixels reais do anexo, ouro 3D + brilho) */}
+        <div
+          className="px-5 pt-6 pb-5 flex flex-col items-center text-center"
+          style={{ borderBottom: `1px solid ${BORDER}` }}
+        >
+          <img
+            src={paxterSymbol}
+            alt="PAXTER"
+            className="h-12 w-12 object-contain"
+            style={{
+              mixBlendMode: "screen",
+              filter:
+                "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
+            }}
+          />
+
+          {/* PAXTER + Clinical Intelligence System — ouro real recortado do anexo */}
+          <span
+            className="pax-word"
+            style={{
+              width: 180,
+              marginTop: 12,
+              display: "block",
+              lineHeight: 0,
+              position: "relative",
+            }}
+          >
+            <picture>
+              <source srcSet={headlineWebp} type="image/webp" />
+              <img
+                src={headlinePng}
+                alt="PAXTER — Clinical Intelligence System"
+                draggable={false}
+                style={{ display: "block", width: "100%", height: "auto" }}
+              />
+            </picture>
+            <span
+              className="pax-sheen"
+              aria-hidden="true"
               style={{
-                mixBlendMode: "screen",
-                filter:
-                  "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
+                WebkitMaskImage: `url(${headlinePng})`,
+                maskImage: `url(${headlinePng})`,
               }}
             />
-            {/* PAXTER — Cinzel, face de ouro, relevo (classes oficiais do lockup) */}
-            <span
-              className="pax-word gold-face-dark relief-md-dark"
-              style={{ fontSize: 27 }}
-            >
-              PAXTER
-            </span>
-          </div>
+          </span>
 
-          <div className="mt-3.5 pl-0.5 flex flex-col gap-1">
-            {/* Frase 1 — Cormorant ouro polido (estilo Clinical Intelligence System) */}
+          {/* Sub-tagline auxiliar opcional (ouro) */}
+          {line2 && (
             <span
-              className="pax-cis gold-face-dark relief-sm-dark"
-              style={{ fontSize: 14.5, lineHeight: 1.1 }}
+              className="font-cinzel gold-face-dark relief-sm-dark"
+              style={{
+                marginTop: 10,
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: "0.24em",
+                display: "inline-block",
+              }}
             >
-              {line1}
+              {line2.toUpperCase()}
             </span>
-            {/* Frase 2 — Cinzel maiusculo espacado em ouro */}
-            {line2 && (
-              <span
-                className="pax-precision gold-face-dark"
-                style={{
-                  fontSize: 8.5,
-                  letterSpacing: "0.26em",
-                  opacity: 0.92,
-                }}
-              >
-                {line2.toUpperCase()}
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Nav */}
