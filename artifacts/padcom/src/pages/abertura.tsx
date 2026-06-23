@@ -3,28 +3,46 @@ import { Link } from "wouter";
 import {
   Menu, X, ChevronRight, ArrowRight,
   Activity, HeartPulse, Moon, ShieldPlus, Dna, Sparkles,
-  UserRound, ClipboardList, CalendarCheck, Upload,
+  UserRound, Stethoscope, ClipboardList, CalendarCheck, Upload,
   Phone, Mail, MapPin,
 } from "lucide-react";
 import paxterSymbol from "@/assets/paxter-symbol.png";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { PaxterLogo as BrandLockup } from "@/components/branding/PaxterLogo";
+import { PadconLogo } from "@/components/branding/PadconLogo";
 
-// Site de abertura (porta de entrada publica). Navy + dourado Paxter, acabamento
-// premium: reguas finas douradas, "eyebrows", cards com gradiente e realce, serifa.
-// No SITE o simbolo e CHAPADO (mesmo plano do wordmark, estilo PAWARDS) — o vidro/bevel
-// e so no app e nas telas de anamnese/marcacao (variant compact do BrandLockup).
+// Site de abertura (porta de entrada publica do PRODUTO Paxter). Navy + dourado
+// Paxter, acabamento premium. No SITE o simbolo e CHAPADO (mesmo plano do wordmark,
+// estilo PAWARDS) e o BRILHO e CONTIDO — nunca lava o painel navy ao redor.
+// O site e do sistema (vendido a varias clinicas); nao cita Instituto Padua.
+// O rodape leva a empresa que desenvolve: PADCON (link clicavel).
 
 const SECOES = [
   { id: "inicio", label: "Início" },
+  { id: "acessos", label: "Acessos" },
   { id: "tratamentos", label: "Tratamentos" },
   { id: "como-funciona", label: "Como Funciona" },
   { id: "clinica", label: "A Clínica" },
   { id: "contato", label: "Contato" },
 ];
 
-const ACESSOS = [
-  { href: "/area", label: "Área do Cliente", Icone: UserRound, destaque: true },
+// Portais principais (cartoes grandes em destaque) e acoes rapidas.
+const PORTAIS = [
+  {
+    href: "/area",
+    Icone: UserRound,
+    titulo: "Área do Cliente",
+    texto: "Acompanhe seu protocolo, sessões, exames e pagamentos.",
+  },
+  {
+    href: "/entrada",
+    Icone: Stethoscope,
+    titulo: "Área do Colaborador",
+    texto: "Acesso da equipe clínica e administrativa ao sistema.",
+  },
+];
+
+const ACOES = [
   { href: "/anamnese/v2", label: "Ficha de Saúde", Icone: ClipboardList },
   { href: "/agendar", label: "Agendar Consulta", Icone: CalendarCheck },
   { href: "/portal", label: "Enviar Exames", Icone: Upload },
@@ -65,6 +83,7 @@ function Eyebrow({ children }: { children: ReactNode }) {
 
 export default function Abertura() {
   const [menuAberto, setMenuAberto] = useState(false);
+  const ano = new Date().getFullYear();
 
   function irPara(id: string) {
     setMenuAberto(false);
@@ -109,26 +128,19 @@ export default function Abertura() {
             "linear-gradient(180deg, #0b1426 0%, #0d1830 55%, #11203c 100%)",
         }}
       >
-        {/* Brilho dourado atras da logo */}
-        <div className="relative border-b border-white/10 px-6 py-7">
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(220px 140px at 30% 30%, rgba(194,160,90,0.20), transparent 70%)",
-            }}
-          />
+        {/* Logo — brilho CONTIDO (sem wash dourado no painel) */}
+        <div className="border-b border-white/10 px-6 py-7">
           <a
             href={PAXTER_SITE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="relative flex items-center gap-3"
+            className="flex items-center gap-3"
             aria-label="Abrir site do Paxter"
           >
             <img
               src={paxterSymbol}
               alt="Paxter"
-              className="h-14 w-14 object-contain drop-shadow-[0_4px_16px_rgba(194,160,90,0.45)]"
+              className="h-14 w-14 object-contain drop-shadow-[0_2px_7px_rgba(194,160,90,0.30)]"
             />
             <div className="leading-tight">
               <div className="font-serif text-2xl tracking-[0.16em] text-[#e8cf95]">PAXTER</div>
@@ -159,16 +171,23 @@ export default function Abertura() {
           <div className="mt-6 px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
             Acesso
           </div>
-          {ACESSOS.map(({ href, label, Icone, destaque }) => (
+          {PORTAIS.map(({ href, titulo, Icone }) => (
             <Link
-              key={label}
+              key={href}
               href={href}
               onClick={() => setMenuAberto(false)}
-              className={`mb-1.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
-                destaque
-                  ? "border border-[#c2a05a]/45 bg-gradient-to-r from-[#c2a05a]/20 to-[#c2a05a]/5 font-semibold text-[#f1dca6] hover:from-[#c2a05a]/30"
-                  : "text-white/75 hover:bg-white/[0.06] hover:text-white"
-              }`}
+              className="mb-1.5 flex items-center gap-3 rounded-lg border border-[#c2a05a]/45 bg-gradient-to-r from-[#c2a05a]/20 to-[#c2a05a]/5 px-3 py-2.5 text-sm font-semibold text-[#f1dca6] transition-all hover:from-[#c2a05a]/30"
+            >
+              <Icone className="h-4 w-4 flex-shrink-0" />
+              {titulo}
+            </Link>
+          ))}
+          {ACOES.map(({ href, label, Icone }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setMenuAberto(false)}
+              className="mb-1.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/75 transition-all hover:bg-white/[0.06] hover:text-white"
             >
               <Icone className="h-4 w-4 flex-shrink-0" />
               {label}
@@ -177,7 +196,7 @@ export default function Abertura() {
         </nav>
 
         <div className="border-t border-white/10 px-6 py-4 text-[10px] uppercase tracking-[0.18em] text-white/35">
-          Instituto Pádua · Paxter
+          PAXTER · Clinical Intelligence System
         </div>
       </aside>
 
@@ -195,11 +214,12 @@ export default function Abertura() {
       <main className="relative min-w-0 flex-1 overflow-x-hidden">
         {/* HERO */}
         <section id="inicio" className="relative overflow-hidden px-6 py-24 sm:px-12 lg:py-32">
+          {/* Profundidade navy sutil — brilho dourado CONTIDO (nao lava o painel) */}
           <div
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "radial-gradient(900px 480px at 80% -12%, rgba(194,160,90,0.18), transparent 60%), radial-gradient(720px 460px at 0% 112%, rgba(34,72,128,0.55), transparent 60%)",
+                "radial-gradient(520px 300px at 80% -10%, rgba(194,160,90,0.07), transparent 60%), radial-gradient(680px 420px at 0% 112%, rgba(34,72,128,0.40), transparent 60%)",
             }}
           />
           {/* Trama sutil de luxo */}
@@ -229,15 +249,15 @@ export default function Abertura() {
             <div className="mt-9 flex flex-wrap justify-center gap-3">
               <Link
                 href="/area"
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#f1dca6] via-[#d9bd7e] to-[#b8924d] px-7 py-3.5 text-sm font-semibold text-[#1a1206] shadow-[0_14px_34px_-12px_rgba(194,160,90,0.8)] transition-transform hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#f1dca6] via-[#d9bd7e] to-[#b8924d] px-7 py-3.5 text-sm font-semibold text-[#1a1206] shadow-[0_14px_34px_-16px_rgba(194,160,90,0.7)] transition-transform hover:-translate-y-0.5"
               >
                 <UserRound className="h-4 w-4" /> Área do Cliente
               </Link>
               <Link
-                href="/agendar"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.03] px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:border-[#c2a05a]/60 hover:text-[#f1dca6]"
+                href="/entrada"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.03] px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:border-[#c2a05a]/60 hover:text-[#f1dca6]"
               >
-                Agendar Consulta <ArrowRight className="h-4 w-4" />
+                <Stethoscope className="h-4 w-4" /> Área do Colaborador
               </Link>
             </div>
 
@@ -253,10 +273,60 @@ export default function Abertura() {
           </div>
         </section>
 
+        {/* ACESSOS — portais principais (Cliente + Colaborador) + acoes rapidas */}
+        <section
+          id="acessos"
+          className="border-t border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent px-6 py-20 sm:px-12"
+        >
+          <div className="mb-12 max-w-xl">
+            <Eyebrow>Entrar no sistema</Eyebrow>
+            <h2 className="mt-4 font-serif text-3xl text-white sm:text-4xl">Acessos</h2>
+            <p className="mt-3 text-sm leading-relaxed text-white/60">
+              Escolha sua porta de entrada no Paxter.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            {PORTAIS.map(({ href, Icone, titulo, texto }) => (
+              <Link
+                key={href}
+                href={href}
+                className="group relative flex items-center gap-5 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.01] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#c2a05a]/45 hover:shadow-[0_28px_64px_-28px_rgba(0,0,0,0.85)]"
+              >
+                <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c2a05a]/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border border-[#c2a05a]/35 bg-gradient-to-b from-[#c2a05a]/20 to-[#c2a05a]/[0.04] text-[#e8cf95]">
+                  <Icone className="h-6 w-6" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-semibold text-white">{titulo}</span>
+                  <span className="mt-1 block text-sm leading-relaxed text-white/55">{texto}</span>
+                </span>
+                <ArrowRight className="h-5 w-5 flex-shrink-0 text-[#c2a05a]/60 transition-all group-hover:translate-x-1 group-hover:text-[#e8cf95]" />
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            {ACOES.map(({ href, label, Icone }) => (
+              <Link
+                key={href}
+                href={href}
+                className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-medium text-white/80 transition-all hover:border-[#c2a05a]/40 hover:text-white"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[#c2a05a]/30 bg-[#c2a05a]/10 text-[#e8cf95]">
+                  <Icone className="h-4 w-4" />
+                </span>
+                {label}
+                <ChevronRight className="ml-auto h-4 w-4 text-white/20 transition-colors group-hover:text-[#e8cf95]" />
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* TRATAMENTOS */}
         <section
           id="tratamentos"
-          className="border-t border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent px-6 py-20 sm:px-12"
+          className="border-t border-white/10 px-6 py-20 sm:px-12"
         >
           <div className="mb-12 max-w-xl">
             <Eyebrow>Áreas de atuação</Eyebrow>
@@ -283,7 +353,10 @@ export default function Abertura() {
         </section>
 
         {/* COMO FUNCIONA — jornada em 3 fases (blueprint com setas) */}
-        <section id="como-funciona" className="border-t border-white/10 px-6 py-20 sm:px-12">
+        <section
+          id="como-funciona"
+          className="border-t border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent px-6 py-20 sm:px-12"
+        >
           <div className="mb-12 max-w-xl">
             <Eyebrow>Sua jornada</Eyebrow>
             <h2 className="mt-4 font-serif text-3xl text-white sm:text-4xl">Como funciona</h2>
@@ -315,7 +388,7 @@ export default function Abertura() {
         {/* A CLINICA */}
         <section
           id="clinica"
-          className="border-t border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent px-6 py-20 sm:px-12"
+          className="border-t border-white/10 px-6 py-20 sm:px-12"
         >
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
             <div>
@@ -351,8 +424,8 @@ export default function Abertura() {
           </div>
         </section>
 
-        {/* CONTATO / RODAPE */}
-        <section id="contato" className="border-t border-white/10 px-6 py-16 sm:px-12">
+        {/* CONTATO */}
+        <section id="contato" className="border-t border-white/10 bg-gradient-to-b from-white/[0.03] to-transparent px-6 py-16 sm:px-12">
           <div className="mb-10 max-w-xl">
             <Eyebrow>Fale conosco</Eyebrow>
             <h2 className="mt-4 font-serif text-3xl text-white sm:text-4xl">Contato</h2>
@@ -376,8 +449,17 @@ export default function Abertura() {
           </div>
         </section>
 
-        <footer className="border-t border-white/10 px-6 py-9 text-center text-[11px] uppercase tracking-[0.2em] text-white/35 sm:px-12">
-          Instituto Pádua · Paxter — desenvolvido pela Padcon
+        {/* RODAPE — empresa que desenvolve o Paxter: PADCON (clicavel) */}
+        <footer className="border-t border-white/10 px-6 py-12 sm:px-12">
+          <div className="flex flex-col items-center gap-5 text-center">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/35">
+              Desenvolvido por
+            </div>
+            <PadconLogo />
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">
+              PAXTER · Clinical Intelligence System &nbsp;·&nbsp; © {ano} PADCON
+            </div>
+          </div>
         </footer>
       </main>
     </div>

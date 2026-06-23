@@ -43,7 +43,10 @@
   height: 100%;
   object-fit: contain;
   mix-blend-mode: screen;
-  filter: brightness(1.1) drop-shadow(0 6px 26px rgba(214, 176, 92, 0.45));
+  /* Brilho CONTIDO: halo curto, so para dar profundidade ao simbolo. NAO pode
+     lavar o painel navy ao redor (decisao do CEO 23/06/2026). O recorte do
+     simbolo vem do mix-blend screen, nao do brilho. */
+  filter: brightness(1.06) drop-shadow(0 2px 7px rgba(214, 176, 92, 0.22));
   user-select: none;
 }
 

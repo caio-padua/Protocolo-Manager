@@ -27,6 +27,18 @@ Arquivos: `icon-192`, `icon-512`, `icon-maskable-512` (mais padding p/ safe zone
 **Fallback:** ambientes sem suporte a mix-blend-mode degradam; se isso virar problema,
 trocar pelo PNG ja recortado (transparente) em vez do blend.
 
+**Brilho CONTIDO (decisao do CEO 23/06/2026):** no SITE o brilho dourado nao pode lavar/mudar
+a caracteristica do painel navy ao redor (CEO viu o ouro "iluminando a base" na sidebar e no
+hero). O RECORTE do simbolo vem do `mix-blend-mode: screen`, NAO do brilho — entao da p/
+reduzir/eliminar drop-shadow e radiais douradas (halo) sem quebrar o recorte. Conter = halo
+curto e de baixa opacidade (ex.: `drop-shadow(0 2px 7px rgba(214,176,92,0.22))`), radial gold
+do hero baixa (~0.07) e pequena, e tirar o radial-wash atras do logo da sidebar.
+**Why:** drop-shadow/radial espalham luz sobre o navy; screen so apaga o preto do PNG.
+
+**Site x app — onde cada acabamento mora:** no SITE o simbolo e CHAPADO (mesmo plano do
+wordmark, estilo PAWARDS) = variante `hero` em `PaxterLogo.tsx` (sem vidro/bevel). O vidro/bevel
+(medalhao) fica SO na variante `compact` (app, anamnese, marcacao).
+
 **O "fundo escuro" e INTEGRAL ao logo, nao da p/ recortar:** o simbolo e uma placa/tile
 de moldura dourada com MIOLO escuro (o R/X em ouro sobre fundo escuro DENTRO da moldura).
 Background removal so tira o que esta FORA da moldura; o miolo escuro permanece (faz parte

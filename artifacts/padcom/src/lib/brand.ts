@@ -8,6 +8,10 @@
 // apontam para ca (data-bind pronto, decisao do CEO em 22/06/2026).
 export const PAXTER_SITE_URL = "https://paxter.com.br";
 
+// Site institucional da PADCON (empresa que desenvolve o Paxter). PLACEHOLDER ate
+// existir; quando o site existir, trocar SO esta linha (data-bind pronto).
+export const PADCON_SITE_URL = "https://padcon.com.br";
+
 export const PAXTER = {
   nome: "PAXTER",
   taglineEn: "Clinical Intelligence System",
