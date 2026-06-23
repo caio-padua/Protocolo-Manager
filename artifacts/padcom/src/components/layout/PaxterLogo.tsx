@@ -1,88 +1,86 @@
-import paxterSymbol from "@/assets/paxter-symbol.png";
+import "./PaxterLogo.css";
+import symbolCut from "@/assets/brand/paxter-symbol-cut.png";
+import headlinePng from "@/assets/brand/paxter-headline.png";
+import headlineWebp from "@/assets/brand/paxter-headline.webp";
+import paxterPng from "@/assets/brand/paxter-paxter.png";
+import paxterWebp from "@/assets/brand/paxter-paxter.webp";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 
 interface PaxterLogoProps {
   className?: string;
-  showText?: boolean;
-  size?: "sm" | "md" | "lg";
-  /** "dark" = fundo escuro (simbolo dourado direto + glow). "light" = fundo claro (medalhao navy p/ o dourado saltar). */
-  tone?: "dark" | "light";
-  /** Subtitulo "Motor Clinico - Protocolos Injetaveis" abaixo do wordmark. */
-  subtitle?: boolean;
-  /** Quando presente, o logo vira link clicavel que abre o site da Paxter em nova aba (data-bind pronto). */
+  /** "sm" = barra superior mobile (horizontal). "md" = topo da sidebar (vertical). */
+  size?: "sm" | "md";
+  /** Sidebar recolhida: mostra so o simbolo. */
+  collapsed?: boolean;
+  /** Logo vira link para o site institucional. */
   href?: string;
 }
 
-// Logo unico do sistema PAXTER. Substitui o antigo PadconLogo.
-// Em fundo claro usa um MEDALHAO navy com anel dourado para o simbolo dourado
-// nao "sumir" (padrao de luxo, decisao do CEO 22/06/2026).
+// Logo unico do sistema PAXTER (pixels reais do anexo, ouro 3D + faixa de luz).
 export function PaxterLogo({
   className = "",
-  showText = true,
   size = "md",
-  tone = "dark",
-  subtitle = false,
+  collapsed = false,
   href,
 }: PaxterLogoProps) {
-  const medal = size === "sm" ? "h-10 w-10" : size === "md" ? "h-12 w-12" : "h-16 w-16";
-  const img = size === "sm" ? "h-7 w-7" : size === "md" ? "h-9 w-9" : "h-12 w-12";
-  const imgDark = size === "sm" ? "h-10 w-10" : size === "md" ? "h-12 w-12" : "h-16 w-16";
-  const wordSize = size === "sm" ? "text-base" : size === "md" ? "text-xl" : "text-2xl";
-  const subSize = size === "sm" ? "text-[8px]" : size === "md" ? "text-[9px]" : "text-[11px]";
+  const symPx = collapsed ? 46 : size === "sm" ? 40 : 60;
 
-  const word = tone === "light" ? "text-[#0d1830]" : "text-[#f1dca6]";
-  const sub = tone === "light" ? "text-[#3D7A7A]" : "text-[#8aa0c4]";
-
-  const symbol =
-    tone === "light" ? (
-      // Medalhao navy: o dourado salta sobre o fundo escuro com anel dourado fino.
+  const symbol = (
+    <span className="pxs-symbol" style={{ width: symPx, height: symPx }}>
+      <img src={symbolCut} alt="PAXTER" draggable={false} />
       <span
-        className={`relative flex items-center justify-center ${medal} rounded-[7px] shrink-0`}
-        style={{
-          background: "linear-gradient(180deg,#16284a 0%,#0d1830 70%,#0b1426 100%)",
-          border: "1px solid rgba(194,160,90,0.55)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 12px rgba(0,0,0,0.25)",
-        }}
-      >
-        <img
-          src={paxterSymbol}
-          alt="PAXTER"
-          className={`${img} object-contain`}
-          style={{
-            mixBlendMode: "screen",
-            filter: "brightness(1.12) drop-shadow(0 0 8px rgba(214,176,92,0.5))",
-          }}
-        />
-      </span>
-    ) : (
-      // Fundo escuro (sidebar): mixBlendMode screen apaga o fundo preto do PNG,
-      // deixando so o ouro — simbolo maior e mais brilhante, nao "apagado".
-      <img
-        src={paxterSymbol}
-        alt="PAXTER"
-        className={`${imgDark} object-contain shrink-0`}
-        style={{
-          mixBlendMode: "screen",
-          filter: "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
-        }}
+        className="pxs-sheen pxs-sheen--symbol"
+        aria-hidden="true"
+        style={{ WebkitMaskImage: `url(${symbolCut})`, maskImage: `url(${symbolCut})` }}
       />
-    );
-
-  const content = (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      {symbol}
-      {showText && (
-        <div className="flex flex-col leading-none">
-          <span className={`${wordSize} font-bold tracking-[0.18em] ${word}`}>PAXTER</span>
-          {subtitle && (
-            <span className={`${subSize} tracking-[0.22em] uppercase ${sub} font-semibold mt-1`}>
-              Motor Clínico · Protocolos Injetáveis
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+    </span>
   );
+
+  let inner: React.ReactNode;
+
+  if (collapsed) {
+    inner = <div className={`pxs-lockup ${className}`}>{symbol}</div>;
+  } else if (size === "sm") {
+    // Barra superior mobile: simbolo + PAXTER (horizontal, compacto)
+    inner = (
+      <div className={`pxs-lockup pxs-lockup--row ${className}`}>
+        {symbol}
+        <span className="pxs-word" style={{ width: 116 }}>
+          <picture>
+            <source srcSet={paxterWebp} type="image/webp" />
+            <img src={paxterPng} alt="PAXTER" draggable={false} />
+          </picture>
+          <span
+            className="pxs-sheen pxs-sheen--word"
+            aria-hidden="true"
+            style={{ WebkitMaskImage: `url(${paxterPng})`, maskImage: `url(${paxterPng})` }}
+          />
+        </span>
+      </div>
+    );
+  } else {
+    // Topo da sidebar: simbolo + PAXTER + Clinical Intelligence System (vertical)
+    inner = (
+      <div className={`pxs-lockup ${className}`}>
+        {symbol}
+        <span className="pxs-word" style={{ width: 176 }}>
+          <picture>
+            <source srcSet={headlineWebp} type="image/webp" />
+            <img
+              src={headlinePng}
+              alt="PAXTER — Clinical Intelligence System"
+              draggable={false}
+            />
+          </picture>
+          <span
+            className="pxs-sheen pxs-sheen--word"
+            aria-hidden="true"
+            style={{ WebkitMaskImage: `url(${headlinePng})`, maskImage: `url(${headlinePng})` }}
+          />
+        </span>
+      </div>
+    );
+  }
 
   if (href) {
     return (
@@ -93,9 +91,10 @@ export function PaxterLogo({
         aria-label="PAXTER — site institucional"
         className="inline-flex transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 rounded-[8px]"
       >
-        {content}
+        {inner}
       </a>
     );
   }
-  return content;
+
+  return inner;
 }

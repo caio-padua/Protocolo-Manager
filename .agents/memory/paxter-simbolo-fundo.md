@@ -50,3 +50,22 @@ COR DO FUNDO da tela mudou. CEO reclamou (22/06/2026, "importantissimo"). Correc
 ESTATICO (so aura radial suave atras, que nao levanta o miolo) e colocar o brilho periodico
 numa OUTRA peca (a placa boton "PAXTER" do rodape), nunca sobre o tile.
 **Why:** o miolo escuro vira "tela de cinema" do flash e parece troca de cor de fundo.
+
+**REVERSAO p/ a SIDEBAR do app (decisao do CEO 23/06/2026):** na barra lateral do `padcom`
+o CEO agora EXIGE que a faixa de luz ("o sol") passe TAMBEM no simbolo (antes so passava no
+wordmark). Isso NAO contradiz a regra acima quando o sheen e MASCARADO so no ouro: gerar uma
+versao RECORTADA do simbolo (`assets/brand/paxter-symbol-cut.png` via background removal) que
+nesse asset fica praticamente line-art de ouro (sem placa/miolo escuro visivel na navy), e
+mascarar o `.pxs-sheen` por essa alpha (`mask-image: url(cut.png)`). Assim a luz so toca o
+ouro — o fundo navy nao e clareado, evitando o "troca de cor de fundo" de 22/06. O simbolo
+recortado tambem dispensa o `mix-blend screen` (some o halo que "lavava" o navy — outra
+queixa do CEO). Sheen LENTO (~8s) e simbolo MAIOR/proporcional. Arquivos:
+`components/layout/PaxterLogo.{tsx,css}` (classes `.pxs-`), `Layout.tsx` (sidebar retratil).
+**Why:** a regra-raiz e "luz nunca clareia area escura/fundo"; mascarar no ouro satisfaz
+isso E o pedido de varrer o simbolo. Conferir SEMPRE por screenshot se o cut nao deixou
+mancha escura; se deixar (placa/miolo opaco), voltar ao simbolo estatico.
+
+**Sidebar do app e PURA (CEO 23/06/2026):** o topo da sidebar mostra SO o lockup oficial
+(simbolo + "PAXTER" + "Clinical Intelligence System"); REMOVIDO o bloco de texto "Motor
+Clinico / Protocolos Injetaveis" ("papagaiada de motor/engine", palavras do CEO). Tagline
+travada = "Clinical Intelligence System" (versao pura, sem sub-linha de engine/motor).
