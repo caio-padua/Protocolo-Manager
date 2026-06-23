@@ -304,7 +304,34 @@ uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `backgr
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do
   orcamento nao persiste override de faixas).
 
-## 6. Linha vermelha (nao cruzar)
+## 6. As tres telas-mae (peles de layout do sistema)
+
+Decisao do CEO (23/06/2026): o sistema tem TRES layouts-mae ("peles"). Toda tela nova NASCE de uma
+delas — nunca um layout avulso. O motor 3D skeuomorfico e a marca sao os mesmos nas tres; o que muda
+e O PUBLICO (quem usa) e o AMBIENTE (claro/escuro, densidade). Nomear cada tela e conceitua-la AQUI
+e pre-requisito para construir/redesenhar qualquer pagina.
+
+| Nº | Nome OFICIAL | Apelido (entre parenteses) | Quem usa | Ambiente |
+|---|---|---|---|---|
+| 1 | layout do sistema interno | (Console) | equipe que OPERA (medico, enfermagem, administrativo) | sidebar navy fixa + conteudo claro; alta densidade operacional |
+| 2 | a denominar (proxima) | — | cliente/paciente (externo) | claro (anamnese clara) |
+| 3 | a denominar | — | cliente/paciente (externo) | escuro (anamnese escura) |
+
+### 6.1 Tela 1 — layout do sistema interno (apelido: Console)
+
+REFORCO (CEO 23/06/2026): o nome OFICIAL desta tela e **"layout do sistema interno"**. A palavra
+**"Console" e SO um apelido informal, sempre entre parenteses** — nunca usar "Console" como nome
+oficial nem batizar a tela so de "Console".
+
+| Atributo | Definicao |
+|---|---|
+| Quem usa | A equipe que OPERA o sistema (medico, enfermagem, administrativo, financeiro) — nunca o cliente |
+| Estrutura | Sidebar navy ESCURA fixa a esquerda (lockup PAXTER puro no topo + menu) + area de conteudo CLARA a direita |
+| Densidade | ALTA — painel operacional com muitos KPIs, cards, listas e tabelas |
+| Tom de cor | Navy (sidebar) + creme/branco (conteudo); ouro SO na marca; relevo 3D skeuomorfico (a essencia) |
+| Exemplos vivos | "Painel de Controle / Visao geral operacional"; Dashboard; Console de Orcamento (secao 5) |
+
+## 7. Linha vermelha (nao cruzar)
 
 - Nao alterar `/api/budgets/calculate` nem o payload de `salvar()` por motivo estetico.
 - Nao trocar cantos quadrados por arredondados infantis.
