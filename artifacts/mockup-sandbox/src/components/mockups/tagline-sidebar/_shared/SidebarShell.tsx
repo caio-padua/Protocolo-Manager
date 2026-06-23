@@ -1,4 +1,5 @@
 import paxterSymbol from "@/assets/paxter-symbol.png";
+import { LOCKUP_STYLE } from "../../_shared/paxterLockup";
 import {
   LayoutDashboard,
   Users,
@@ -26,9 +27,9 @@ const items = [
 ];
 
 interface SidebarShellProps {
-  /** Linha de assinatura em ouro (maiusculo). */
+  /** Frase principal em ouro polido (estilo "Clinical Intelligence System"). */
   line1: string;
-  /** Linha discreta abaixo (opcional). */
+  /** Frase secundaria em ouro (Cinzel, maiusculo, espacado). Opcional. */
   line2?: string;
 }
 
@@ -38,6 +39,9 @@ export function SidebarShell({ line1, line2 }: SidebarShellProps) {
       className="min-h-screen w-full flex items-center justify-center p-8"
       style={{ background: "#e8eaf0" }}
     >
+      {/* Estilo oficial do lockup: fontes Cinzel/Cormorant + face de ouro + relevo 3D */}
+      <style dangerouslySetInnerHTML={{ __html: LOCKUP_STYLE }} />
+
       <div
         className="w-64 flex flex-col overflow-hidden"
         style={{
@@ -48,47 +52,47 @@ export function SidebarShell({ line1, line2 }: SidebarShellProps) {
           boxShadow: "0 20px 50px rgba(13,24,48,0.35)",
         }}
       >
-        {/* Header block — alvo do tagline */}
+        {/* Header block — wordmark OFICIAL + tagline em ouro */}
         <div className="p-5" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <div className="flex items-center gap-2.5">
             <img
               src={paxterSymbol}
               alt="PAXTER"
-              className="h-12 w-12 object-contain shrink-0"
+              className="h-11 w-11 object-contain shrink-0"
               style={{
                 mixBlendMode: "screen",
-                filter: "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
+                filter:
+                  "brightness(1.2) drop-shadow(0 0 16px rgba(214,176,92,0.55))",
               }}
             />
+            {/* PAXTER — Cinzel, face de ouro, relevo (classes oficiais do lockup) */}
             <span
-              className="text-xl font-bold"
-              style={{ color: "#f1dca6", letterSpacing: "0.18em" }}
+              className="pax-word gold-face-dark relief-md-dark"
+              style={{ fontSize: 27 }}
             >
               PAXTER
             </span>
           </div>
-          <div className="mt-3 pl-1">
+
+          <div className="mt-3.5 pl-0.5 flex flex-col gap-1">
+            {/* Frase 1 — Cormorant ouro polido (estilo Clinical Intelligence System) */}
             <span
-              className="block font-semibold uppercase"
-              style={{
-                color: GOLD,
-                fontSize: 10.5,
-                letterSpacing: "0.16em",
-                opacity: 0.95,
-              }}
+              className="pax-cis gold-face-dark relief-sm-dark"
+              style={{ fontSize: 14.5, lineHeight: 1.1 }}
             >
               {line1}
             </span>
+            {/* Frase 2 — Cinzel maiusculo espacado em ouro */}
             {line2 && (
               <span
-                className="block mt-0.5"
+                className="pax-precision gold-face-dark"
                 style={{
-                  color: "rgba(230,224,210,0.5)",
-                  fontSize: 9.5,
-                  letterSpacing: "0.04em",
+                  fontSize: 8.5,
+                  letterSpacing: "0.26em",
+                  opacity: 0.92,
                 }}
               >
-                {line2}
+                {line2.toUpperCase()}
               </span>
             )}
           </div>
@@ -105,9 +109,7 @@ export function SidebarShell({ line1, line2 }: SidebarShellProps) {
                 className="flex items-center gap-3 px-3 py-2.5"
                 style={{
                   borderRadius: 4,
-                  border: active
-                    ? `1px solid ${GOLD}66`
-                    : "1px solid transparent",
+                  border: active ? `1px solid ${GOLD}66` : "1px solid transparent",
                   background: active ? ACCENT : "transparent",
                   color: active ? FG : "rgba(230,224,210,0.7)",
                   fontWeight: active ? 500 : 400,
@@ -140,7 +142,10 @@ export function SidebarShell({ line1, line2 }: SidebarShellProps) {
               DP
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium" style={{ letterSpacing: "0.02em" }}>
+              <span
+                className="text-sm font-medium"
+                style={{ letterSpacing: "0.02em" }}
+              >
                 Dr. Padua
               </span>
               <span
