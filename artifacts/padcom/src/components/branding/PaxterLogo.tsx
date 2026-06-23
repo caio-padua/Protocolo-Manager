@@ -1,7 +1,6 @@
 import "./PaxterLogo.css";
-import type { CSSProperties } from "react";
 import paxterSymbol from "@/assets/paxter-symbol.png";
-import { PaxterSymbolPremium } from "@/components/layout/paxter-fx/PaxterSymbolPremium";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import headlinePng from "@/assets/brand/paxter-headline.png";
 import headlineWebp from "@/assets/brand/paxter-headline.webp";
 import paxterPng from "@/assets/brand/paxter-paxter.png";
@@ -43,9 +42,10 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
   );
 
   if (variant === "compact") {
+    const light = tone === "light";
     return (
       <div className={`pax-lockup pax-lockup--compact ${className}`}>
-        {symbol}
+        <PaxterSymbolGlass size={44} tone={light ? "light" : "dark"} />
         <span className="pax-word">
           <picture>
             <source srcSet={paxterWebp} type="image/webp" />
@@ -58,43 +58,10 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
 
   if (variant === "appHeader") {
     const light = tone === "light";
-    // Medalhao de VIDRO. No claro: champanhe, um tom ACIMA do painel (bevel
-    // saliente — luz no topo, sombra projetada embaixo). No escuro: vidro navy.
-    const medallionStyle: CSSProperties = light
-      ? {
-          background:
-            "linear-gradient(158deg, rgba(255,251,242,0.92), rgba(246,236,214,0.74) 46%, rgba(232,219,193,0.62))",
-          WebkitBackdropFilter: "blur(9px) saturate(118%)",
-          backdropFilter: "blur(9px) saturate(118%)",
-          border: "1px solid rgba(255,255,255,0.9)",
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -12px 20px rgba(138,109,47,0.13), 0 12px 24px -6px rgba(15,28,53,0.26), 0 3px 0 -1px rgba(138,109,47,0.22)",
-        }
-      : {
-          background:
-            "linear-gradient(155deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03) 45%, rgba(13,24,48,0.25))",
-          WebkitBackdropFilter: "blur(10px) saturate(130%)",
-          backdropFilter: "blur(10px) saturate(130%)",
-          border: "1px solid rgba(255,255,255,0.2)",
-          boxShadow:
-            "0 10px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -14px 24px rgba(0,0,0,0.28)",
-        };
     return (
       <div className={`pax-lockup pax-lockup--app ${light ? "pax-tone-light" : ""} ${className}`}>
-        {/* SIMBOLO PREMIUM (aura + faixa de luz + faisca no contorno) DENTRO do
-            vidro que engloba a moldura em ouro — efeitos aprovados pelo CEO. */}
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 18,
-            padding: 12,
-            ...medallionStyle,
-          }}
-        >
-          <PaxterSymbolPremium size={64} />
-        </span>
+        {/* SIMBOLO PREMIUM dentro do MEDALHAO DE VIDRO — fonte unica em PaxterSymbolGlass. */}
+        <PaxterSymbolGlass size={64} tone={light ? "light" : "dark"} />
         <span className="pax-word">
           <picture>
             <source srcSet={headlineWebp} type="image/webp" />

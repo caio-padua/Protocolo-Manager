@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { Upload, CheckCircle, Loader2, AlertCircle, FileUp, User, ChevronRight } from "lucide-react";
-import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -181,9 +181,7 @@ export default function Portal() {
           aria-label="PAXTER — site institucional"
           className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 transition-opacity hover:opacity-90"
         >
-          <div className="w-10 h-10 bg-[#0d1830] border border-[#c2a05a]/55 rounded flex items-center justify-center">
-            <img src={paxterSymbol} alt="" className="w-6 h-6 object-contain" />
-          </div>
+          <PaxterSymbolGlass size={26} tone="dark" />
           <div>
             <h1 className="text-white font-bold text-lg tracking-[0.16em] uppercase">PAXTER</h1>
             <p className="text-[#6b9b9b] text-xs uppercase tracking-widest">PORTAL DO CLIENTE</p>

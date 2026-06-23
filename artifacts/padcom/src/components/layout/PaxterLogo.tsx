@@ -1,7 +1,7 @@
 import subtitlePng from "@/assets/brand/paxter-subtitle.png";
 import subtitleWebp from "@/assets/brand/paxter-subtitle.webp";
 import { PAXTER_SITE_URL } from "@/lib/brand";
-import { PaxterSymbolPremium } from "./paxter-fx/PaxterSymbolPremium";
+import { PaxterSymbolGlass } from "./paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkPremium } from "./paxter-fx/PaxterWordmarkPremium";
 
 interface PaxterLogoProps {
@@ -26,7 +26,7 @@ export function PaxterLogo({
   // A luz "desce": o simbolo lidera, a palavra entra ~900ms depois (mesmo ciclo 12s).
   const WORD_DELAY = 900;
 
-  const symbol = <PaxterSymbolPremium size={symPx} />;
+  const symbol = <PaxterSymbolGlass size={symPx} tone="dark" />;
 
   let inner: React.ReactNode;
 

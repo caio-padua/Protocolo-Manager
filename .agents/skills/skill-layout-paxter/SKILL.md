@@ -241,6 +241,18 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   proibida; usa-se a caixinha, individual e "marcar todas"). Acoes em massa (lupa expandir/recolher,
   "marcar todas") ficam numa barra de altura fixa (`min-h`) acima da lista, para nao empurrar as
   linhas. Todo `Checkbox` sem texto visivel ao lado recebe `aria-label` descritivo.
+- **Padrao 14 — SIMBOLO DA MARCA EM MEDALHAO DE VIDRO (lei promulgada em 23/06/2026)**: o
+  simbolo premium do Paxter (aura+faixa+faisca) NUNCA aparece cru nem dentro de um quadradinho
+  improvisado; vai SEMPRE dentro do medalhao de vidro nitido, por UMA fonte unica:
+  `components/layout/paxter-fx/PaxterSymbolGlass.tsx`. Props: `size` (px do simbolo; padding e
+  raio escalam sozinhos) e `tone` — `dark` (vidro navy translucido, para QUALQUER fundo escuro:
+  sidebar, headers teal/navy, splash) e `light` (vidro champanhe um tom ACIMA do painel, SO em
+  fundo claro). O `tone` vai no wrapper, nunca no simbolo. Vale para TODOS os simbolos da marca,
+  internos e externos (sidebar, anamnese, /anamnese/v2, portal, area, agendar, entrada). UNICA
+  EXCECAO: o SITE publico (`abertura.tsx`, variant `hero` do lockup) segue chapado (sem vidro),
+  por ser a superficie "cartaz". Acessibilidade: o simbolo e DECORATIVO (`aria-hidden` + `alt=""`);
+  ele sempre acompanha o texto "PAXTER" visivel, que ja carrega o nome ao leitor de tela — nao
+  duplicar com `alt="PAXTER"`.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 

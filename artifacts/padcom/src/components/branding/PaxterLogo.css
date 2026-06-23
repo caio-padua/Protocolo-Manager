@@ -65,30 +65,8 @@
   height: clamp(124px, 24vw, 204px);
 }
 
-/* APP / anamnese / marcacao (compact): simbolo em VIDRO (bevel/botao). */
-.pax-lockup--compact .pax-symbol {
-  width: clamp(48px, 9vw, 60px);
-  height: clamp(48px, 9vw, 60px);
-  border-radius: 14px;
-  padding: 8px;
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.14),
-    rgba(255, 255, 255, 0.03) 45%,
-    rgba(13, 24, 48, 0.25)
-  );
-  -webkit-backdrop-filter: blur(10px) saturate(130%);
-  backdrop-filter: blur(10px) saturate(130%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow:
-    0 10px 34px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -14px 24px rgba(0, 0, 0, 0.28);
-}
-
-.pax-lockup--compact .pax-symbol img {
-  mix-blend-mode: normal;
-}
+/* compact: o simbolo agora vem do componente PaxterSymbolGlass (vidro embutido),
+   por isso o antigo bloco .pax-lockup--compact .pax-symbol foi removido. */
 
 /* ---------------- PALAVRA (OURO REAL + BRILHO) ---------------- */
 .pax-word {

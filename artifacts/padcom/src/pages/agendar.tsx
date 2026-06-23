@@ -8,6 +8,7 @@ import {
   useCreateSchedulingRequest,
   getGetAgendaSlotsQueryKey,
 } from "@workspace/api-client-react";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import {
   Loader2,
   ChevronRight,
@@ -96,9 +97,7 @@ export default function Agendar() {
       {/* Header Público */}
       <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-teal-200/60 rounded-none rounded-b-lg">
         <div className="flex items-center gap-3 min-w-0 max-w-5xl mx-auto w-full">
-          <div className="w-10 h-10 bg-teal-800 rounded flex items-center justify-center flex-shrink-0 shadow-inner">
-            <span className="text-white font-black text-lg">P</span>
-          </div>
+          <PaxterSymbolGlass size={26} tone="dark" />
           <div className="min-w-0">
             <h1 className="text-teal-900 font-black text-sm tracking-widest uppercase leading-none">
               Pad<span className="text-cyan-600">con</span>

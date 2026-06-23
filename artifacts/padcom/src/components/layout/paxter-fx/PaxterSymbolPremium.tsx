@@ -37,7 +37,11 @@ export function PaxterSymbolPremium({
 }: Props) {
   const uid = useId().replace(/:/g, "");
   return (
-    <div className={`relative ${className ?? ""}`} style={{ width: size, height: size }}>
+    <div
+      className={`relative ${className ?? ""}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
       <style>{TRACE_FLASH_STYLE + PSP_STYLE}</style>
 
       {/* aura dourada pulsando suave */}
@@ -57,7 +61,7 @@ export function PaxterSymbolPremium({
       {/* metal 3D real */}
       <img
         src={SYMBOL_PNG}
-        alt="PAXTER"
+        alt=""
         className="absolute inset-0 w-full h-full object-contain"
         draggable={false}
         style={{ mixBlendMode: "screen", filter: "contrast(1.1) saturate(1.16) brightness(1.05)" }}

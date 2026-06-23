@@ -4,7 +4,7 @@ import {
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
 } from "lucide-react";
-import paxterSymbol from "@/assets/paxter-symbol.png";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -112,10 +112,9 @@ export default function Area() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="PAXTER — site institucional"
-            className="w-9 h-9 rounded flex items-center justify-center flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
-            style={{ background: "linear-gradient(180deg,#16284a,#0d1830)", border: "1px solid rgba(194,160,90,0.55)" }}
+            className="rounded flex items-center justify-center flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
           >
-            <img src={paxterSymbol} alt="" className="w-5 h-5 object-contain" />
+            <PaxterSymbolGlass size={24} tone="dark" />
           </a>
           <div className="min-w-0">
             <h1 className="text-teal-900 font-black text-sm tracking-[0.16em] uppercase leading-none">
@@ -228,10 +227,9 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="PAXTER — site institucional"
-            className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
-            style={{ background: "linear-gradient(180deg,#16284a,#0d1830)", border: "1px solid rgba(194,160,90,0.55)" }}
+            className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
           >
-            <img src={paxterSymbol} alt="" className="w-7 h-7 object-contain" />
+            <PaxterSymbolGlass size={32} tone="dark" />
           </a>
           <div>
             <h1 className="text-teal-900 font-black text-xl tracking-[0.16em] uppercase leading-none">

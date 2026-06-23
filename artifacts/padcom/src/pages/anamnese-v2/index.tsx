@@ -410,7 +410,7 @@ export default function AnamneseV2() {
       <header className="sticky top-0 z-20 border-b border-[#d7e0e0] bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           <div className="mb-2 flex items-center justify-between">
-            <PaxterLogo variant="compact" />
+            <PaxterLogo variant="compact" tone="light" />
             <button
               type="button"
               onClick={() => setFocusMode((f) => !f)}
@@ -852,7 +852,7 @@ function FinishScreen({
       <div className="mx-auto w-full max-w-xl">
         <div className="panel-3d-hero mb-5 rounded-md p-6 text-center">
           <div className="mb-4 flex items-center justify-center">
-            <PaxterLogo variant="compact" />
+            <PaxterLogo variant="compact" tone="light" />
           </div>
           <div
             className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-md"
