@@ -1,0 +1,53 @@
+/*
+  PaxterLogo (branding) — exibe a LOGO original aprovada (raster, fiel ao anexo).
+  Decisao do CEO 23/06/2026 (opcao A): usar a imagem aprovada como asset oficial temporario.
+  NAO redesenhar, NAO tracar. O ouro vive sobre fundo escuro (igual ao anexo); por isso o
+  painel e escuro e a imagem usa mix-blend-mode screen, fazendo o preto embutido sumir no painel.
+  A vetorizacao manual fiel (serifa/chanfro) e a etapa B, futura e separada.
+*/
+
+.paxter-brand-logo {
+  display: inline-block;
+  line-height: 0;
+  border-radius: 16px;
+  background: radial-gradient(125% 125% at 50% 28%, #15171f 0%, #0a0b10 58%, #050608 100%);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(196, 160, 90, 0.18);
+}
+
+.paxter-brand-logo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 18px rgba(214, 176, 92, 0.16));
+  user-select: none;
+}
+
+/* HERO — logo completa (simbolo + PAXTER + frases), fiel ao anexo. */
+.paxter-brand-logo--hero {
+  width: 100%;
+  max-width: 460px;
+  padding: clamp(14px, 3.5%, 32px);
+}
+
+.paxter-brand-logo--hero img {
+  object-fit: contain;
+}
+
+/* COMPACT — mesma imagem aprovada, recortada por apresentacao (sem redesenho) para
+   mostrar so o simbolo + PAXTER; util em cabecalhos/espacos menores. */
+.paxter-brand-logo--compact {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 5 / 4;
+  overflow: hidden;
+  padding: clamp(8px, 3%, 16px);
+  border-radius: 12px;
+}
+
+.paxter-brand-logo--compact img {
+  object-fit: cover;
+  object-position: top center;
+}

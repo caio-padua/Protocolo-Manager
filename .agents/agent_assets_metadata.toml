@@ -71,3 +71,9 @@ id = "CsE3HnJPc3aMjE6OvyrJd"
 uri = "file://screenshots/tipografia-grife.jpg"
 type = "image"
 title = "Comparativo de 4 serifadas de grife (tela real, acabamento creme/dourado)"
+
+[[outputs]]
+id = "lVr7hjD40X7WE7SiPROxF"
+uri = "file://artifacts/padcom/src/assets/brand/paxter-logo-hero.png"
+type = "image"
+title = "PAXTER — logo hero (imagem original aprovada, fiel ao anexo)"
