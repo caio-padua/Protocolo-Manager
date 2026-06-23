@@ -18,10 +18,9 @@ import {
   HeartPulse,
   Check,
 } from "lucide-react";
-import SYMBOL_PNG from "../../../assets/paxter-symbol-cut.png";
+import SYMBOL_PNG from "../../../assets/paxter-symbol-original.png";
 import { PAXTER_STYLE } from "./paxter3d";
-import { TRACE_FLASH_STYLE, PaxterGlintPremium } from "./traceFlash";
-import { PAXTER_SYMBOL_PATH, PAXTER_SYMBOL_VIEWBOX } from "./paxterSymbolPath";
+import { TRACE_FLASH_STYLE } from "./traceFlash";
 import { LOCKUP_STYLE, PaxterWord, PaxterCIS } from "./paxterLockup";
 
 export const LEVA_STYLE = `
@@ -173,29 +172,22 @@ function c(theme: Theme, dark: string, light: string) {
   return theme === "dark" ? dark : light;
 }
 
-function SymbolS1({ size = 60 }: { size?: number }) {
-  const { w, h } = PAXTER_SYMBOL_VIEWBOX;
+// Símbolo-mestre OFICIAL exibido INTACTO (decisão do CEO 23/06/2026: não recriar,
+// não recortar, não embrulhar em moldura. O PNG já é o emblema completo).
+function SymbolS1({ size = 72 }: { size?: number }) {
   return (
-    <div className="leva-medallion" style={{ width: size, height: size }}>
-      <div className="leva-medallion-inner" style={{ width: "100%", height: "100%" }}>
-        {/* PNG e traçado COMPARTILHAM a MESMA caixa (78%, mesma proporção do viewBox):
-            assim o flash de pólvora fica EXATAMENTE sobre os traços do símbolo. */}
-        <div style={{ position: "relative", width: "78%", height: "78%" }}>
-          <img
-            src={SYMBOL_PNG}
-            alt="Paxter"
-            style={{ width: "100%", height: "100%", objectFit: "contain", mixBlendMode: "screen", display: "block" }}
-          />
-          <PaxterGlintPremium
-            d={PAXTER_SYMBOL_PATH}
-            viewBox={`0 0 ${w} ${h}`}
-            glintWidth={9}
-            sweepWidth={150}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-          />
-        </div>
-      </div>
-    </div>
+    <img
+      src={SYMBOL_PNG}
+      alt="Paxter"
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        borderRadius: 18,
+        display: "block",
+        filter: "drop-shadow(0 14px 30px rgba(0,0,0,0.45))",
+      }}
+    />
   );
 }
 
