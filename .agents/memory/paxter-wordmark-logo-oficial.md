@@ -17,9 +17,13 @@ existe; o trabalho e VETORIZAR/replicar fiel, nao criar letras novas.
 - SIMBOLO Rx: NAO redesenhar/tracar. Usar a IMAGEM ORIGINAL do PNG-mestre, intacta
   (so remover o fundo). O CEO reclamou explicitamente quando o simbolo foi vetorizado
   sem ele pedir — a ordem dele era so sobre a PALAVRA. Nao tocar no simbolo sem ordem.
-- PALAVRA PAXTER: cada letra e um <path> SVG INDIVIDUAL (ids paxter-letter-p..r),
-  tracada do PNG (carbono), NUNCA fonte. Estrutura de grupos depth/mid-depth/front.
-  ~6-9% mais grossa (stroke leve), ouro por gradiente + relevo 3D em camadas.
+- PALAVRA PAXTER: TRACING AUTOMATICO DO PNG FOI REJEITADO pelo CEO em 23/06/2026
+  (ficava serrilhado/rustico, "metal derretido", nao-premium) mesmo upscale 4x+suavizado.
+  Decisao final: wordmark vetorial LIMPO, DESENHADO A MAO em SVG (formas geometricas
+  controladas, base autoral fornecida pelo proprio CEO). Cada letra = <g id=paxter-letter-p..r>
+  com <path> limpo, P e R vazados (fillRule evenodd), NUNCA fonte/<text>. Relevo 3 camadas
+  depth/mid-depth/front + brilho fino. Ajuste de proporcao/serifa/chanfro e passo posterior.
+- NAO usar potrace/tracing para a marca; se precisar de letra nova, desenhar path a mao.
 - Fonte (Cinzel/Cormorant) so e aceita nas FRASES auxiliares.
 
 **How to apply (tracing):** `scripts/trace-paxter.cjs` usa `potrace` (node, ja instalado;
