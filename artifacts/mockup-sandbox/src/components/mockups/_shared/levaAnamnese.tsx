@@ -18,10 +18,8 @@ import {
   HeartPulse,
   Check,
 } from "lucide-react";
-import SYMBOL_PNG from "../../../assets/paxter-symbol-original.png";
 import { PAXTER_STYLE } from "./paxter3d";
-import { TRACE_FLASH_STYLE } from "./traceFlash";
-import { LOCKUP_STYLE, PaxterWord, PaxterCIS } from "./paxterLockup";
+import { PaxterLogo } from "./PaxterLogo";
 
 export const LEVA_STYLE = `
   /* ===== FUNDOS — "solo" UNIFORME e CHAPADO (mesmo p/ todos), p/ os painéis saltarem ===== */
@@ -172,25 +170,6 @@ function c(theme: Theme, dark: string, light: string) {
   return theme === "dark" ? dark : light;
 }
 
-// Símbolo-mestre OFICIAL exibido INTACTO (decisão do CEO 23/06/2026: não recriar,
-// não recortar, não embrulhar em moldura. O PNG já é o emblema completo).
-function SymbolS1({ size = 72 }: { size?: number }) {
-  return (
-    <img
-      src={SYMBOL_PNG}
-      alt="Paxter"
-      style={{
-        width: size,
-        height: size,
-        objectFit: "contain",
-        borderRadius: 18,
-        display: "block",
-        filter: "drop-shadow(0 14px 30px rgba(0,0,0,0.45))",
-      }}
-    />
-  );
-}
-
 function Card({ children, alarm = false }: { children: ReactNode; alarm?: boolean }) {
   return (
     <div className={`leva-card p-5 anim-enter flex flex-col gap-4 ${alarm ? "ring-1 ring-red-500/40" : ""}`}>
@@ -220,23 +199,27 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
     <div
       className={`leva-${theme} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
     >
-      <style>{PAXTER_STYLE}{TRACE_FLASH_STYLE}{LEVA_STYLE}{LOCKUP_STYLE}</style>
+      <style>{PAXTER_STYLE}{LEVA_STYLE}</style>
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />
 
-      {/* ===== HEADER: S1 + PAXTER + F3 (escrita) ===== */}
+      {/* ===== HEADER: logo PAXTER APROVADA (Opcao A — imagem ouro 3D, brilho percorre) =====
+           Simbolo em vidro + PAXTER/Clinical recortados do anexo aprovado.
+           Tema CLARO recebe placa navy para o ouro (screen blend) saltar. */}
       <header className="relative z-10 pt-9 pb-5 px-6 flex flex-col items-center">
-        <div className="mb-3">
-          <SymbolS1 size={64} />
-        </div>
-        <div className="mb-2 leading-none">
-          <PaxterWord theme={theme} fontSize={34} />
-        </div>
-        <span className="leva-tag">
-          <span className="leva-tag-ink" style={{ display: "inline-block" }}>
-            <PaxterCIS theme={theme} fontSize={15} />
-          </span>
-          <span className="leva-tag-glint" aria-hidden="true" />
-        </span>
+        {theme === "dark" ? (
+          <PaxterLogo variant="appHeader" />
+        ) : (
+          <div
+            style={{
+              background: "linear-gradient(180deg,#0d1830 0%,#0a1326 100%)",
+              borderRadius: 22,
+              padding: "20px 26px",
+              boxShadow: "0 16px 34px rgba(15,28,53,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
+            }}
+          >
+            <PaxterLogo variant="appHeader" />
+          </div>
+        )}
       </header>
 
       {/* ===== PROGRESSO ===== */}
@@ -341,7 +324,17 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
             </div>
             <div className="flex flex-col items-end gap-1.5">
               <span className={`text-[8px] uppercase tracking-[0.22em] ${faint}`}>Powered by</span>
-              <PaxterWord theme={theme} fontSize={16} />
+              <span
+                style={{
+                  display: "inline-flex",
+                  background: "linear-gradient(180deg,#0d1830 0%,#0a1326 100%)",
+                  borderRadius: 8,
+                  padding: "5px 9px",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                }}
+              >
+                <PaxterLogo variant="wordmark" className="w-[82px]" />
+              </span>
             </div>
           </div>
         </footer>

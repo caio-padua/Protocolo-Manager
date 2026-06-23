@@ -50,13 +50,18 @@ aceita e EM PRODUCAO: LOCKUP VIVO usando os PIXELS REAIS do anexo, sem redesenho
   Hero aplicado em `pages/abertura.tsx`. A imagem chapada inteira (remendo) foi descartada.
 - Vetorizacao manual fiel das letras (etapa B) segue futura e separada; NAO bloqueia o lockup atual.
 
-**How to apply (tracing):** `scripts/trace-paxter.cjs` usa `potrace` (node, ja instalado;
-jimp vem junto). Detecta as faixas de ouro por varredura de linhas (luminancia), recorta
-simbolo e palavra, traca com `blackOnWhite:false` (ouro=claro sobre fundo escuro), winding
-nonzero da certo nos vazados (P/A/R/E). Os dois recortes vem do MESMO PNG => recompor pela
-origem original (simbolo translate 354,180; palavra 45,647) reproduz o layout exato.
-Saida em `_shared/paxterVectorPaths.ts`; componente `_shared/PaxterLogoVector.tsx`
-(variant hero/compact/wordmark/symbol, gradiente/filtros da instrucao do CEO, useId p/
-ids unicos). Ouro precisa de fundo escuro p/ brilhar (no tema claro, por num cartao escuro).
-Apos aprovar: limpar pontos do traco e graduar p/ artifacts/padcom (PaxterLogo.tsx/.css +
-.svg). NAO voltar a usar fonte para o nome.
+**REJEITADO em definitivo (NAO reusar):** `_shared/PaxterLogoVector.tsx` + `paxterVectorPaths.ts`
++ `scripts/trace-paxter.cjs` (potrace). Tanto o tracing automatico quanto o wordmark vetorial
+desenhado a mao foram reprovados pelo CEO. NAO renderizar a marca por vetor/fonte. Se aparecer
+PAXTER serrilhado OU geometrico-sem-serifa numa tela, esta com a versao errada.
+
+**How to apply (o jeito CERTO, em producao):** usar o LOCKUP RASTER `PaxterLogo` (variant
+hero/appHeader/compact/wordmark) que renderiza as fatias `assets/brand/paxter-{headline,paxter,
+precision,subtitle}.{png,webp}`. O componente existe no padcom (`components/branding/PaxterLogo`)
+e foi ESPELHADO no mockup-sandbox (`_shared/PaxterLogo.tsx`+`.css`) p/ as telas de anamnese.
+- `appHeader` = simbolo em vidro + bloco `headline` (PAXTER+Clinical) com `.pax-sheen` percorrendo.
+- A palavra usa `mix-blend-mode: screen`: o fundo da fatia NAO e preto puro, entao em fundo navy
+  (ou medalhao) o screen apaga o escuro e o ouro salta. No TEMA CLARO, por a logo numa PLACA navy
+  (o screen so funciona sobre escuro); sem a placa o ouro some no creme.
+- Ambos artifacts usam alias `@`=src, entao os imports `@/assets/...` funcionam ao copiar o arquivo.
+- Vetorizacao manual fiel (etapa B) segue futura; ate la, o raster e a marca oficial.

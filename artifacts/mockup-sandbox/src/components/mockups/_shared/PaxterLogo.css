@@ -1,27 +1,31 @@
 /*
-  PaxterLogo (branding) — LOCKUP VIVO da marca.
-  Decisao do CEO 23/06/2026:
-   - SITE (variant hero): simbolo CHAPADO, no MESMO PLANO do wordmark (estilo PAWARDS).
-     SEM vidro/bevel. O vidro/bevel (botao) e SO no app e nas telas de anamnese/marcacao.
-   - APP / anamnese / marcacao (variant compact): simbolo em VIDRO (glassmorphism/bevel).
-   - PAXTER + "Clinical Intelligence System": ouro REAL recortado do anexo (sem vidro),
-     com um brilho sutil que PERCORRE comecando no PAXTER e terminando no Clinical.
-   - As partes de texto sao os pixels originais (ouro 3D do anexo) com so o fundo removido.
-     NAO ha redesenho nem tracing.
-   - "PRECISION IN INTEGRATIVE CARE" e "AI-guided prescriptions..." entram no hero do site.
+  PaxterLogo (branding) — LOCKUP VIVO da marca PAXTER (Opcao A aprovada pelo CEO 23/06/2026).
+   - PAXTER / Clinical / Precision / subtitle = OURO REAL recortado da imagem aprovada
+     (pixels originais, so fundo removido — NAO ha vetor nem tracing).
+   - Vidro/bevel SO no simbolo (app/anamnese). Brilho que PERCORRE comeca no PAXTER e
+     termina no "Clinical Intelligence System".
+   Espelho fiel do componente de marca do padcom, adaptado ao mockup-sandbox:
+   variantes hero / compact / appHeader / wordmark.
 */
 
-/* ---------------- LOCKUP ---------------- */
 .pax-lockup {
   --pax-gold: #e8cf95;
 }
 
-.pax-lockup--hero {
+.pax-lockup--hero,
+.pax-lockup--app {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(16px, 3vw, 28px);
   text-align: center;
+}
+
+.pax-lockup--hero {
+  gap: clamp(16px, 3vw, 28px);
+}
+
+.pax-lockup--app {
+  gap: 14px;
 }
 
 .pax-lockup--compact {
@@ -43,25 +47,21 @@
   height: 100%;
   object-fit: contain;
   mix-blend-mode: screen;
-  /* Brilho CONTIDO: halo curto, so para dar profundidade ao simbolo. NAO pode
-     lavar o painel navy ao redor (decisao do CEO 23/06/2026). O recorte do
-     simbolo vem do mix-blend screen, nao do brilho. */
   filter: brightness(1.06) drop-shadow(0 2px 7px rgba(214, 176, 92, 0.22));
   user-select: none;
 }
 
-/* SITE (hero): simbolo CHAPADO, mesmo plano do wordmark — sem vidro/bevel. */
+/* SITE (hero): simbolo CHAPADO, mesmo plano do wordmark — sem vidro. */
 .pax-lockup--hero .pax-symbol {
   width: clamp(124px, 24vw, 204px);
   height: clamp(124px, 24vw, 204px);
 }
 
-/* APP / anamnese / marcacao (compact): simbolo em VIDRO (bevel/botao). */
-.pax-lockup--compact .pax-symbol {
-  width: clamp(48px, 9vw, 60px);
-  height: clamp(48px, 9vw, 60px);
-  border-radius: 14px;
-  padding: 8px;
+/* APP / anamnese (compact + appHeader): simbolo em VIDRO (bevel/botao). */
+.pax-lockup--compact .pax-symbol,
+.pax-lockup--app .pax-symbol {
+  border-radius: 18px;
+  padding: 10px;
   background: linear-gradient(
     155deg,
     rgba(255, 255, 255, 0.14),
@@ -77,7 +77,20 @@
     inset 0 -14px 24px rgba(0, 0, 0, 0.28);
 }
 
-.pax-lockup--compact .pax-symbol img {
+.pax-lockup--compact .pax-symbol {
+  width: clamp(48px, 9vw, 60px);
+  height: clamp(48px, 9vw, 60px);
+  border-radius: 14px;
+  padding: 8px;
+}
+
+.pax-lockup--app .pax-symbol {
+  width: 78px;
+  height: 78px;
+}
+
+.pax-lockup--compact .pax-symbol img,
+.pax-lockup--app .pax-symbol img {
   mix-blend-mode: normal;
 }
 
@@ -95,9 +108,15 @@
   user-select: none;
 }
 
-/* O brilho que percorre — mascarado pela MESMA forma das letras,
-   para a luz so aparecer sobre o ouro. Comeca no topo (PAXTER) e
-   termina embaixo (Clinical Intelligence System). */
+/* No app/anamnese o fundo (navy/medalhao) nao e preto puro: o screen blend
+   apaga o preto embutido do recorte e faz o ouro saltar. */
+.pax-lockup--app .pax-word img,
+.pax-word--solo img {
+  mix-blend-mode: screen;
+}
+
+/* O brilho que percorre — mascarado pela MESMA forma das letras; comeca no topo
+   (PAXTER) e termina embaixo (Clinical Intelligence System). */
 .pax-sheen {
   position: absolute;
   inset: 0;
@@ -135,11 +154,22 @@
   width: min(620px, 92%);
 }
 
+.pax-lockup--app .pax-word {
+  width: min(244px, 82%);
+}
+
 .pax-lockup--compact .pax-word {
   width: clamp(120px, 30vw, 176px);
 }
 
-/* ---------------- TAGLINES ---------------- */
+/* wordmark isolado (rodape "Powered by") */
+.pax-word--solo {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+/* ---------------- TAGLINES (hero) ---------------- */
 .pax-tag,
 .pax-sub {
   display: block;
