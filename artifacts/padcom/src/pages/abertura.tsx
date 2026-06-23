@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import paxterSymbol from "@/assets/paxter-symbol.png";
 import { PAXTER_SITE_URL } from "@/lib/brand";
+import { PaxterLogo as BrandLockup } from "@/components/branding/PaxterLogo";
 
 // Site de abertura (porta de entrada publica). Modelo de layout inspirado na
 // estrutura de uma clinica (heroi/proposito -> condicoes -> jornada 3 fases),
@@ -184,22 +185,17 @@ export default function Abertura() {
                 "radial-gradient(900px 460px at 80% -10%, rgba(194,160,90,0.16), transparent 60%), radial-gradient(700px 420px at 0% 110%, rgba(34,72,128,0.5), transparent 60%)",
             }}
           />
-          <div className="relative max-w-2xl">
-            <span className="mb-5 inline-block rounded-full border border-[#c2a05a]/40 bg-[#c2a05a]/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e8cf95]">
-              Paxter — Motor Clínico
-            </span>
-            <h1 className="font-serif text-4xl leading-tight sm:text-6xl">
-              Precisão em{" "}
-              <span className="bg-gradient-to-b from-[#f1dca6] to-[#b8924d] bg-clip-text text-transparent">
-                cuidado integrativo
-              </span>
+          <div className="relative mx-auto max-w-3xl text-center">
+            <h1 className="sr-only">
+              PAXTER — Clinical Intelligence System · Precisão em cuidado integrativo
             </h1>
-            <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/65 sm:text-base">
+            <BrandLockup variant="hero" className="mx-auto" />
+            <p className="mx-auto mt-8 max-w-xl text-sm leading-relaxed text-white/65 sm:text-base">
               Protocolos injetáveis, longevidade e performance guiados por inteligência
               clínica — com avaliação individualizada, registro assinado e acompanhamento
               contínuo da nossa equipe.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
                 href="/area"
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#d9bd7e] to-[#b8924d] px-6 py-3 text-sm font-semibold text-[#1a1206] shadow-lg transition-transform hover:-translate-y-0.5"

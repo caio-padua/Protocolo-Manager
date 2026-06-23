@@ -26,6 +26,24 @@ existe; o trabalho e VETORIZAR/replicar fiel, nao criar letras novas.
 - NAO usar potrace/tracing para a marca; se precisar de letra nova, desenhar path a mao.
 - Fonte (Cinzel/Cormorant) so e aceita nas FRASES auxiliares.
 
+**ATUALIZACAO FINAL (CEO, 23/06/2026 noite — SUPERSEDE o SVG geometrico):** o wordmark
+geometrico desenhado a mao tambem foi REJEITADO (limpo porem perdeu serifa/chanfro). Solucao
+aceita e EM PRODUCAO: LOCKUP VIVO usando os PIXELS REAIS do anexo, sem redesenho nem tracing.
+- Cada parte de texto (PAXTER+Clinical num bloco / PAXTER sozinho / PRECISION / AI-guided)
+  e RECORTADA do PNG-mestre e tornada TRANSPARENTE por luminancia->alfa
+  (`convert crop.png \( +clone -colorspace Gray -level 10%,100% \) -alpha off -compose CopyOpacity -composite out.png`).
+  Isso PRESERVA o ouro 3D original (chanfro/relevo) sobre qualquer fundo escuro.
+- BRILHO que percorre: div .pax-sheen com gradiente claro, `mask-image: url(mesmo PNG)` e
+  `mix-blend-mode: screen`, animando background-position vertical (PAXTER->Clinical). A mascara
+  e o proprio PNG transparente => a luz so aparece sobre as letras. Respeita prefers-reduced-motion.
+- VIDRO (glassmorphism: backdrop-filter blur + bg translucido escuro + borda/realce) SO no
+  SIMBOLO; NUNCA na palavra (ordem explicita do CEO).
+- Arquivos: assets em `src/assets/brand/paxter-{headline,paxter,precision,subtitle}.{png,webp}`;
+  componente `src/components/branding/PaxterLogo.tsx` (variant hero/compact) + `.css`. Convive
+  com o lockup do sidebar `components/layout/PaxterLogo.tsx` (nao substituir sem ordem).
+  Hero aplicado em `pages/abertura.tsx`. A imagem chapada inteira (remendo) foi descartada.
+- Vetorizacao manual fiel das letras (etapa B) segue futura e separada; NAO bloqueia o lockup atual.
+
 **How to apply (tracing):** `scripts/trace-paxter.cjs` usa `potrace` (node, ja instalado;
 jimp vem junto). Detecta as faixas de ouro por varredura de linhas (luminancia), recorta
 simbolo e palavra, traca com `blackOnWhite:false` (ouro=claro sobre fundo escuro), winding

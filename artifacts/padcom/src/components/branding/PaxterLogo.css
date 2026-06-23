@@ -1,53 +1,163 @@
 /*
-  PaxterLogo (branding) — exibe a LOGO original aprovada (raster, fiel ao anexo).
-  Decisao do CEO 23/06/2026 (opcao A): usar a imagem aprovada como asset oficial temporario.
-  NAO redesenhar, NAO tracar. O ouro vive sobre fundo escuro (igual ao anexo); por isso o
-  painel e escuro e a imagem usa mix-blend-mode screen, fazendo o preto embutido sumir no painel.
-  A vetorizacao manual fiel (serifa/chanfro) e a etapa B, futura e separada.
+  PaxterLogo (branding) — LOCKUP VIVO da marca.
+  Decisao do CEO 23/06/2026:
+   - Simbolo: intacto, dentro de VIDRO (glassmorphism) — vidro SO no simbolo.
+   - PAXTER + "Clinical Intelligence System": ouro REAL recortado do anexo (sem vidro),
+     com um brilho que PERCORRE comecando no PAXTER e terminando no Clinical.
+   - As partes de texto sao os pixels originais (ouro 3D do anexo) tornados transparentes
+     (luminancia -> alfa). NAO ha redesenho nem tracing.
+   - "PRECISION IN INTEGRATIVE CARE" e "AI-guided prescriptions..." entram no hero do site.
+   - Telas simples: variant="compact" (simbolo + PAXTER).
 */
 
-.paxter-brand-logo {
-  display: inline-block;
-  line-height: 0;
-  border-radius: 16px;
-  background: radial-gradient(125% 125% at 50% 28%, #15171f 0%, #0a0b10 58%, #050608 100%);
-  box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(196, 160, 90, 0.18);
+/* ---------------- LOCKUP ---------------- */
+.pax-lockup {
+  --pax-gold: #e8cf95;
 }
 
-.paxter-brand-logo img {
+.pax-lockup--hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(16px, 3vw, 28px);
+  text-align: center;
+}
+
+.pax-lockup--compact {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(10px, 2vw, 16px);
+}
+
+/* ---------------- SIMBOLO EM VIDRO ---------------- */
+.pax-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.03) 45%,
+    rgba(13, 24, 48, 0.25)
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -14px 24px rgba(0, 0, 0, 0.28);
+}
+
+.pax-symbol img {
   width: 100%;
   height: 100%;
-  display: block;
+  object-fit: contain;
   mix-blend-mode: screen;
-  filter: drop-shadow(0 0 18px rgba(214, 176, 92, 0.16));
+  filter: brightness(1.12) drop-shadow(0 0 14px rgba(214, 176, 92, 0.5));
   user-select: none;
 }
 
-/* HERO — logo completa (simbolo + PAXTER + frases), fiel ao anexo. */
-.paxter-brand-logo--hero {
+.pax-lockup--hero .pax-symbol {
+  width: clamp(112px, 22vw, 176px);
+  height: clamp(112px, 22vw, 176px);
+  border-radius: clamp(18px, 4vw, 30px);
+  padding: clamp(12px, 2.5vw, 22px);
+}
+
+.pax-lockup--compact .pax-symbol {
+  width: clamp(44px, 9vw, 58px);
+  height: clamp(44px, 9vw, 58px);
+  border-radius: 14px;
+  padding: 8px;
+}
+
+/* ---------------- PALAVRA (OURO REAL + BRILHO) ---------------- */
+.pax-word {
+  position: relative;
+  display: block;
+  line-height: 0;
+}
+
+.pax-word img {
+  display: block;
   width: 100%;
-  max-width: 460px;
-  padding: clamp(14px, 3.5%, 32px);
+  height: auto;
+  user-select: none;
 }
 
-.paxter-brand-logo--hero img {
-  object-fit: contain;
+/* O brilho que percorre — mascarado pela MESMA forma das letras,
+   para a luz so aparecer sobre o ouro. Comeca no topo (PAXTER) e
+   termina embaixo (Clinical Intelligence System). */
+.pax-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    162deg,
+    transparent 38%,
+    rgba(255, 250, 235, 0.85) 48%,
+    #ffffff 50%,
+    rgba(255, 250, 235, 0.85) 52%,
+    transparent 62%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 280%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  mix-blend-mode: screen;
+  animation: pax-sweep 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* COMPACT — mesma imagem aprovada, recortada por apresentacao (sem redesenho) para
-   mostrar so o simbolo + PAXTER; util em cabecalhos/espacos menores. */
-.paxter-brand-logo--compact {
+@keyframes pax-sweep {
+  0% {
+    background-position: 50% -30%;
+  }
+  55%,
+  100% {
+    background-position: 50% 130%;
+  }
+}
+
+.pax-lockup--hero .pax-word {
+  width: min(620px, 92%);
+}
+
+.pax-lockup--compact .pax-word {
+  width: clamp(120px, 30vw, 176px);
+}
+
+/* ---------------- TAGLINES ---------------- */
+.pax-tag,
+.pax-sub {
+  display: block;
+  line-height: 0;
+}
+
+.pax-tag img,
+.pax-sub img {
+  display: block;
   width: 100%;
-  max-width: 220px;
-  aspect-ratio: 5 / 4;
-  overflow: hidden;
-  padding: clamp(8px, 3%, 16px);
-  border-radius: 12px;
+  height: auto;
+  user-select: none;
 }
 
-.paxter-brand-logo--compact img {
-  object-fit: cover;
-  object-position: top center;
+.pax-tag {
+  width: min(560px, 84%);
+  margin-top: clamp(2px, 1vw, 8px);
+}
+
+.pax-sub {
+  width: min(520px, 78%);
+  opacity: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pax-sheen {
+    animation: none;
+    opacity: 0;
+  }
 }
