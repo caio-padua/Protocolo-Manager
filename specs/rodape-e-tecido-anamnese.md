@@ -298,3 +298,18 @@ claro em cima), passado por `style` no BrandMark. Para a faixa de luz (shine) na
 a classe .shine ganhou `text-shadow: none`.
 
 Validado por recorte ampliado (3,2x) da captura AO VIVO no tema claro. Escuro e fundo intactos.
+
+---
+
+## ATUALIZACAO 24/06/2026 (11a rodada) — ALTO-RELEVO real no PAXTER (claro)
+
+CEO pediu p/ "surpreender": PAXTER com ALTO-RELEVO de verdade no claro/creme (tecido de terno),
+no espirito do Padua, "nem que precise recriar". A 10a rodada (sombra fina) ficou sutil demais.
+
+Recriada a PROFUNDIDADE do PAXTER no claro: substituimos a sombra de 1 camada por uma EXTRUSAO 3D
+real — 13 copias escuras (gradiente goldDepth) empilhadas, cada uma deslocada p/ baixo+direita
+(passo x*0.45 / y*1.25), desenhadas de tras p/ a frente, formando a parede lateral das letras. A
+face dourada + contorno escuro + filtro de lift seguem por cima; o motor de luz (glint) intacto.
+So no claro (tone="light"); o escuro mantem a profundidade minima original. Frase EN: text-shadow
+de relevo reforcado (multi-camada escura embaixo + brilho claro em cima). Validado por recorte
+ampliado (3,2x) da captura ao vivo.

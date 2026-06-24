@@ -800,7 +800,7 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
           // "saltar" do creme, igual ao tratamento do PAXTER. ESCURO: sem sombra.
           textShadow:
             tone === "light"
-              ? "0 1px 0.5px rgba(36,16,0,0.45), 0 -0.5px 0 rgba(255,250,230,0.4)"
+              ? "0 0.5px 0 rgba(58,34,6,0.7), 0 1px 0 rgba(36,16,0,0.55), 0 2px 1.5px rgba(36,16,0,0.32), 0 -0.5px 0 rgba(255,250,230,0.55)"
               : undefined,
         }}
       >

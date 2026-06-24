@@ -46,3 +46,8 @@ teal aparecia em paleta categorica, recolorir para `cyan`/`sky` (mantem distinca
   mexe no escuro). A frase EN e TEXTO (PaxterTextShimmer): relevo por `text-shadow` (sombra escura
   embaixo + brilho claro em cima) passado no `style`; a classe `.shine` PRECISA de `text-shadow:none`
   senao a faixa de luz duplica a sombra (text-shadow herda). Nunca forkar o motor de glint.
+
+- ALTO-RELEVO da marca vetorial no claro: sombra/contorno fino NAO convence; quando o CEO pede que
+  "salte do creme", a profundidade que funciona e EXTRUSAO 3D (empilhar copias escuras das letras
+  deslocadas p/ baixo+direita, de tras p/ frente = parede lateral), com a face dourada por cima. So
+  no claro; calibrar a altura da extrusao por screenshot p/ nao encostar na linha de baixo.

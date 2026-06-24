@@ -36,6 +36,16 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
   const isLight = tone === "light";
   const faceStroke = isLight ? "#3a2206" : "#FFF1A8";
   const faceStrokeW = isLight ? 1.1 : 0.8;
+  // ALTO-RELEVO (so no claro): parede 3D REAL. Empilhamos copias escuras das letras,
+  // cada uma deslocada um tico p/ baixo e p/ a direita, formando a espessura lateral
+  // (a luz vem de cima-esquerda). Desenhadas de tras (maior deslocamento) p/ a frente.
+  const EXTRUDE_STEPS = 13;
+  const extrusion = isLight
+    ? Array.from({ length: EXTRUDE_STEPS }, (_, i) => {
+        const k = EXTRUDE_STEPS - i; // k maior = mais ao fundo, desenhado primeiro
+        return { x: k * 0.45, y: k * 1.25, key: `ex-${i}` };
+      })
+    : [];
   const letterPaths = WORD_LETTERS.map((l) => l.d);
   const letterTransforms = WORD_LETTERS.map((l) => `translate(${l.ox},0)`);
 
@@ -78,14 +88,28 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
           </filter>
         </defs>
 
-        {/* profundidade */}
-        <g transform="translate(0,2.4)" opacity={0.75}>
-          {WORD_LETTERS.map((l) => (
-            <g key={`d-${l.id}`} transform={`translate(${l.ox},0)`}>
-              <path d={l.d} fill={`url(#${goldDepth})`} />
-            </g>
-          ))}
-        </g>
+        {/* profundidade / parede 3D */}
+        {isLight ? (
+          <g>
+            {extrusion.map((s) => (
+              <g key={s.key} transform={`translate(${s.x},${s.y})`}>
+                {WORD_LETTERS.map((l) => (
+                  <g key={`${s.key}-${l.id}`} transform={`translate(${l.ox},0)`}>
+                    <path d={l.d} fill={`url(#${goldDepth})`} />
+                  </g>
+                ))}
+              </g>
+            ))}
+          </g>
+        ) : (
+          <g transform="translate(0,2.4)" opacity={0.75}>
+            {WORD_LETTERS.map((l) => (
+              <g key={`d-${l.id}`} transform={`translate(${l.ox},0)`}>
+                <path d={l.d} fill={`url(#${goldDepth})`} />
+              </g>
+            ))}
+          </g>
+        )}
         {/* frente em ouro */}
         <g filter={`url(#${fLift})`}>
           {WORD_LETTERS.map((l) => (
