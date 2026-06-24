@@ -39,6 +39,7 @@ import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } fro
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
+import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -420,7 +421,7 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} min-h-screen bg-background pb-28 text-foreground`}
+      className={`${themeClass} anamnese-solo min-h-screen pb-28 text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
       {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
@@ -588,6 +589,21 @@ export default function AnamneseV2() {
             )}
           </div>
         )}
+
+        {/* RODAPE — fiel ao Canvas: Instituto Padua (esq.) + Engineered by PADCON (dir.) */}
+        <footer className="px-1 pb-4 pt-6">
+          <div className="flex items-center justify-between border-t border-border pt-4">
+            <span className="font-serif text-[14px] tracking-wide text-foreground">
+              Instituto Pádua
+            </span>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
+                Engineered by
+              </span>
+              <PadconWordmark height={20} />
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* SELO DE SALVAMENTO */}

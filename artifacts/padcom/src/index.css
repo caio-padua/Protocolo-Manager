@@ -945,6 +945,20 @@
    nao reordenar camadas. So aparencia — a logica nunca muda.
    ============================================================ */
 
+/* Fundo "solo" da anamnese — FIEL ao Canvas (degrade + brilho no topo).
+   Claro = creme; escuro = navy + brilho ciano. So aparencia. */
+.anamnese-solo {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, #ece1c8 0%, #e6d9bd 54%, #ded0b0 100%);
+}
+.dark .anamnese-solo,
+.dark.anamnese-solo {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(70, 184, 204, 0.07) 0%, rgba(70, 184, 204, 0) 42%),
+    linear-gradient(180deg, #0b1d38 0%, #091831 52%, #07142a 100%);
+}
+
 /* Fonte da pergunta = Lora (serifa humanista calma e legivel). */
 .leva-q {
   font-family: 'Lora', Georgia, serif;
