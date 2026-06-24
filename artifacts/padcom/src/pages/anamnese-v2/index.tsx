@@ -41,6 +41,7 @@ import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } fro
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
+import { PaxterTextShimmer } from "@/components/layout/paxter-fx/PaxterTextShimmer";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
 import { PaduaSymbol } from "@/components/layout/paxter-fx/PaduaSymbol";
@@ -442,8 +443,9 @@ export default function AnamneseV2() {
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
       <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card px-4 py-4">
-        {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo) */}
-        <div className="leva-fabric" aria-hidden="true" />
+        {/* CABECALHO LISO (decisao do CEO 24/06/2026): sem tecido aqui — o tecido
+            "terno" fica SO no corpo, envolvendo as questoes. Evita o efeito de
+            "gaveta refletindo" (duas tramas de tons diferentes competindo). */}
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
               texto girado 90 graus) — nao competem com a marca centralizada */}
@@ -772,12 +774,14 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
     <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
       <PaxterSymbolGlass size={66} tone={tone} />
       <PaxterWordmarkPremium width={168} />
-      <span
+      <PaxterTextShimmer
+        color={tone === "light" ? "#8a6d2f" : "#e8cf95"}
+        cycleDelay={1700}
         className="text-[8px] font-semibold uppercase"
-        style={{ letterSpacing: "0.28em", color: tone === "light" ? "#8a6d2f" : "#e8cf95" }}
+        style={{ letterSpacing: "0.28em" }}
       >
         Clinical Intelligence System
-      </span>
+      </PaxterTextShimmer>
     </div>
   );
 }

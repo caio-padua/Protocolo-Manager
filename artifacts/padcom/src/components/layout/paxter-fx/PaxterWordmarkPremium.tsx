@@ -1,11 +1,14 @@
-// PALAVRA "PAXTER" PREMIUM — ouro 3D limpo.
+// PALAVRA "PAXTER" PREMIUM — ouro 3D limpo + luz do motor unico.
 // A FACE e desenhada a partir do CONTORNO OFICIAL (WORD_LETTERS, carbono potrace
 // da arte aprovada): profundidade + frente em gradiente de ouro.
-// O brilho "craquelado" que percorria o contorno foi REMOVIDO (decisao do CEO
-// 23/06/2026); o nome fica com ouro real, sem glint. `cycleDelay` mantido por
-// compatibilidade de chamada.
+// LUZ (reintroduzida por decisao do CEO 24/06/2026): o MESMO efeito do simbolo
+// (faixa-sol especular + faisca de contorno) corre por cima, via o motor unico
+// `PaxterGlintPremium` (traceFlash) — NUNCA um fork. As letras (1026x150) sao
+// mais largas que o simbolo, entao passamos props opcionais: viewBox/transforms
+// por letra, largura do glint para tracos finos e o alcance do sweep.
 import { useId } from "react";
 import { WORD_LETTERS, WORD_VB } from "./paxterVectorPaths";
+import { TRACE_FLASH_STYLE, PaxterGlintPremium } from "./traceFlash";
 
 const W = WORD_VB.w; // 1026
 const H = WORD_VB.h; // 150
@@ -24,9 +27,12 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
   const goldDepth = `pww-depth-${uid}`;
   const fLift = `pww-lift-${uid}`;
   const height = (width * H) / W;
+  const letterPaths = WORD_LETTERS.map((l) => l.d);
+  const letterTransforms = WORD_LETTERS.map((l) => `translate(${l.ox},0)`);
 
   return (
     <div className={className} style={{ position: "relative", width, height, lineHeight: 0 }}>
+      <style>{TRACE_FLASH_STYLE}</style>
       {/* FACE 3D: contorno oficial das letras em ouro (profundidade + frente) */}
       <svg
         width={width}
@@ -76,6 +82,26 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
           ))}
         </g>
       </svg>
+
+      {/* LUZ por cima (motor unico): faixa-sol especular recortada nas letras +
+          faisca de contorno. sweep com alcance proprio para a largura da palavra. */}
+      <PaxterGlintPremium
+        d={letterPaths}
+        transforms={letterTransforms}
+        viewBox={`0 0 ${W} ${H}`}
+        width={width}
+        height={height}
+        sweepWidth={W * 0.42}
+        sweepBright={1}
+        glintWidthOuter={4.5}
+        glintWidthInner={1.6}
+        sweep={{ from: -W * 0.35, to: W * 1.05 }}
+        sweepMs={12000}
+        flashMs={12000}
+        flashDelay={cycleDelay}
+        sweepDelay={cycleDelay}
+        style={{ position: "absolute", inset: 0 }}
+      />
     </div>
   );
 }

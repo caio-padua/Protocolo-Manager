@@ -22,4 +22,14 @@ lógica de sweep/glint — duplicação = drift visual e de manutenção entre s
 - Por que a face da palavra é vetor e não o PNG `paxter-paxter.png`: aspectos diferem (WORD_LETTERS 6,84
   vs PNG 5,92); só desenhando a face do MESMO contorno a luz percorre as linhas com alinhamento perfeito.
 - Mantenha `traceFlash.tsx` do padcom IDÊNTICO ao do mockup-sandbox (`_shared`) — espelhe toda mudança
-  do motor nos dois (diff vazio), senão divergem.
+  do motor nos dois (diff vazio), senão divergem. Estender a palavra SO consumindo as props existentes
+  (não tocar o motor) NÃO exige espelhamento — só mudança no `traceFlash.tsx` exige.
+
+**TEXTO ≠ vetor — não force o motor SVG numa frase.** A frase "CLINICAL INTELLIGENCE SYSTEM" é texto
+HTML, não um contorno vetorial; o motor de glint (que percorre `d`/paths) não se aplica. Use
+`PaxterTextShimmer.tsx`: base sólida sempre visível (`color`) + camada de luz dourada recortada no
+texto (`background-clip:text`, `mix-blend-mode:screen`, `opacity` animada) varrendo na MESMA cadência
+(12s, fases 0/26/30/45/48/100), com `@media (prefers-reduced-motion: reduce)` ocultando a luz.
+**Fallback funcional é "sem brilho", nunca "sem texto"** (regra paxter-botoes-validados): a base sólida
+fica embaixo; se o shimmer falhar (Safari/Firefox com background-clip/mix-blend), o texto continua legível.
+CSS namespeado por `useId()` (sem vazamento global).
