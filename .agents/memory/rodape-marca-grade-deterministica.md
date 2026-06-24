@@ -95,6 +95,9 @@ bases alinhadas = espelhar a altura dos slots, nao o conteudo.
   + 4 diagonais ~0,5px, preto ~0.92) p/ borda continua e nitida. Blur>0 vira halo, nao contorno. Se o
   componente JA tem `filter` (ex.: filtro de cor saturate/brightness), CONCATENAR o drop-shadow no
   MESMO `filter` (dois atributos `filter` se sobrescrevem). Expor por prop p/ nao afetar outros usos.
+  CUIDADO: um `brightness()` alto no MESMO filter CLAREIA o ouro e derruba o contraste contra o creme,
+  fazendo o logo "sumir" mesmo com contorno — ouro mais CHEIO (brightness menor + contraste) delimita
+  melhor. Arte de traco fino precisa de contorno mais grosso (~1px) que arte de traco cheio (~0,7px).
 - Revelar o "tecido"/fundo nas laterais e ENTRE os cartoes (anamnese) = layout puro (vale nos 2 temas):
   aumentar o padding horizontal do container (`px-4`->`px-6`) estreita os cartoes e mostra o fundo nas
   laterais; embrulhar a lista de cartoes num `flex flex-col gap-5` mostra o fundo entre eles. ARMADILHA:

@@ -8,11 +8,12 @@ type Props = {
   outlined?: boolean;
 };
 
-/** Contorno em 8 direcoes (4 retas 0,7px + 4 diagonais 0,5px, offset solido blur 0,
- *  preto 0.92) = borda preta NITIDA e continua ao redor dos pixels opacos do PNG.
- *  8 direcoes fecham os "vaos" das diagonais que 4 direcoes deixavam (ouro sobre creme). */
+/** Contorno em 8 direcoes (4 retas 1,0px + 4 diagonais 0,8px, offset solido blur 0,
+ *  preto 0.95) = borda preta GROSSA e continua que DELIMITA o logo sobre o creme.
+ *  Mais grossa que o PADCON de proposito: a arte do Padua tem traco mais fino e leva
+ *  filtro de cor, entao precisa de borda maior p/ ficar igualmente recortada. */
 const CONTORNO_PRETO =
-  "drop-shadow(0.7px 0 0 rgba(0,0,0,0.92)) drop-shadow(-0.7px 0 0 rgba(0,0,0,0.92)) drop-shadow(0 0.7px 0 rgba(0,0,0,0.92)) drop-shadow(0 -0.7px 0 rgba(0,0,0,0.92)) drop-shadow(0.5px 0.5px 0 rgba(0,0,0,0.92)) drop-shadow(-0.5px 0.5px 0 rgba(0,0,0,0.92)) drop-shadow(0.5px -0.5px 0 rgba(0,0,0,0.92)) drop-shadow(-0.5px -0.5px 0 rgba(0,0,0,0.92))";
+  "drop-shadow(1px 0 0 rgba(0,0,0,0.95)) drop-shadow(-1px 0 0 rgba(0,0,0,0.95)) drop-shadow(0 1px 0 rgba(0,0,0,0.95)) drop-shadow(0 -1px 0 rgba(0,0,0,0.95)) drop-shadow(0.8px 0.8px 0 rgba(0,0,0,0.95)) drop-shadow(-0.8px 0.8px 0 rgba(0,0,0,0.95)) drop-shadow(0.8px -0.8px 0 rgba(0,0,0,0.95)) drop-shadow(-0.8px -0.8px 0 rgba(0,0,0,0.95))";
 
 /**
  * Logo INSTITUTO PADUA: desenho OFICIAL (ouro) recortado da arte da marca
@@ -29,9 +30,10 @@ export function PaduaWordmark({ height = 38, className, outlined }: Props) {
         height,
         width: "auto",
         display: "block",
-        // Harmoniza o ouro FOSCO da arte oficial com o ouro VIVO do PADCON (decisao
-        // de cor pendente do CEO: A/B/C). Aproximacao por filtro; nao redesenha a arte.
-        filter: `saturate(1.5) brightness(1.42) contrast(1.0)${outlined ? ` ${CONTORNO_PRETO}` : ""}`,
+        // Ouro mais CHEIO (menos clareado) p/ ganhar contraste contra o creme e ficar
+        // bem delimitado. Antes brightness 1.42 clareava demais e o logo "sumia"; baixei
+        // p/ 1.18 e dei +contraste. Aproximacao por filtro; nao redesenha a arte.
+        filter: `saturate(1.55) brightness(1.18) contrast(1.08)${outlined ? ` ${CONTORNO_PRETO}` : ""}`,
       }}
       draggable={false}
     />

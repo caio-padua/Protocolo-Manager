@@ -223,3 +223,18 @@ CEO (print iPhone, tema claro) pediu 2 refinamentos:
 Validado por SCREENSHOT (tema claro, 390px, altura estendida): contorno nitido, cartoes estreitos
 com tecido nas laterais e entre eles. Estreitamento/respiro sao layout puro = identicos no tema
 escuro. architect: revisao desta rodada.
+
+---
+
+## ATUALIZACAO 24/06/2026 (7a rodada) — Instituto Padua bem delimitado (opcao C do CEO)
+
+CEO apontou (print tema claro) que o Instituto Padua NAO ficava bem delimitado (a borda fina + ouro
+muito clareado faziam o logo "sumir" no creme), enquanto o PADCON ficava melhor. Escolheu a opcao C
+(as duas correcoes juntas), aplicadas SO no PaduaWordmark (PADCON intacto):
+- Borda mais GROSSA: CONTORNO_PRETO do Padua passou de 0,7px/0,5px (preto 0.92) para 1,0px retas +
+  0,8px diagonais (preto 0.95). Continua 8 direcoes, sem blur. De proposito mais grossa que a do
+  PADCON, porque a arte do Padua tem traco mais fino e leva filtro de cor.
+- Ouro mais CHEIO: filtro de cor do Padua de `saturate(1.5) brightness(1.42) contrast(1.0)` para
+  `saturate(1.55) brightness(1.18) contrast(1.08)` — menos clareamento = mais contraste contra o creme.
+Validado por SCREENSHOT tema claro 390px: ouro mais cheio, borda nitida, logo recortado. Filtro vale
+nos dois temas (efeito na imagem).
