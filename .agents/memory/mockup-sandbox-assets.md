@@ -19,3 +19,9 @@ asset foi servido (pode ser o HTML do SPA). Confirme pelo `Content-Type` e taman
 **How to apply:** ao criar qualquer mockup que use imagem/símbolo, copie o arquivo para
 `artifacts/mockup-sandbox/src/assets/` e importe-o no componente. Reserve `public/` só para
 casos sem build (e mesmo assim valide o Content-Type, não só o código 200).
+
+## Screenshot app_preview: path é relativo ao previewPath do artefato
+A ferramenta de screenshot (app_preview) JÁ prefixa o previewPath do artefato. Para o mockup-sandbox
+(previewPath `/__mockup`), passe `path:"/preview/<pasta>/<Componente>"` — NÃO inclua `/__mockup`.
+Incluir resulta em URL duplicada `/__mockup/preview/__mockup/preview/...` → "No component found"
+(falso negativo). Validação real: `curl localhost:80/__mockup/preview/<pasta>/<Comp>` deve dar 200.
