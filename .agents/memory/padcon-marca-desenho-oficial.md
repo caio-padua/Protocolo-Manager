@@ -70,3 +70,21 @@ PADCON — não com a palavra "PÁDUA" digitada em fonte serifada.
 **Validar recorte dourado-sobre-preto:** compor o PNG transparente sobre navy E sobre
 creme (`magick -size WxH xc:COR logo.png -gravity center -composite`) e olhar — o ouro
 tem que ler bem nos dois temas (claro/escuro). Canto alpha=0 confirma fundo removido.
+
+## Aparar margem: prop `height`/`size` SÓ vira tamanho real se o PNG estiver trimado
+
+Cada PNG recortado pode ter uma margem transparente DIFERENTE (ex.: wordmark Pádua tinha
+desenho em só 52% da altura, PADCON wordmark 61%, símbolo PADCON 80%). Como o `<img>`
+escala o CANVAS inteiro (margem + desenho), pedir `height={40}` num arquivo com 50% de
+margem renderiza letras de ~20px. Resultado: num lockup [símbolo][nome] o símbolo (sem
+margem) esmaga o nome (com margem) e fica desarmônico, mesmo com números "parecidos".
+
+**Regra:** antes de usar como `<img height=...>`, aparar a margem para o bounding box do
+conteúdo — `magick in.png -trim +repage out.png` — assim `height` = altura visível real.
+Conferir com `magick f.png -trim +repage -format "%wx%h" info:` (conteúdo) vs `identify`
+(canvas); se diferirem muito, ainda há margem.
+
+**Proporção de lockup harmônico (rodapé anamnese-v2, após trim):** símbolo só um pouco
+maior que o nome (~1,2–1,7x), não 2–3x. Pádua (clínica, principal, esquerda) maior;
+PADCON ("Engineered by", crédito, direita) menor. Verificar SEMPRE por screenshot do
+rodapé (modo foco encurta a página e expõe o footer).

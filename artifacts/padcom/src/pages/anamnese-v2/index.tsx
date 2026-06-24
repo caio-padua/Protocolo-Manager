@@ -614,17 +614,17 @@ export default function AnamneseV2() {
             esquerda; Engineered by PADCON (simbolo polido + wordmark) a direita. */}
         <footer className="px-1 pb-4 pt-6">
           <div className="flex items-center justify-between border-t border-border pt-4">
-            <div className="flex items-center gap-3">
-              <PaduaSymbol size={60} glint />
-              <PaduaWordmark height={40} />
+            <div className="flex items-center gap-2.5">
+              <PaduaSymbol size={42} glint />
+              <PaduaWordmark height={34} />
             </div>
             <div className="flex flex-col items-end gap-1">
               <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
                 Engineered by
               </span>
-              <div className="flex items-center gap-2.5">
-                <PadconSymbol height={44} glint />
-                <PadconWordmark height={24} />
+              <div className="flex items-center gap-2">
+                <PadconSymbol height={26} glint />
+                <PadconWordmark height={15} />
               </div>
             </div>
           </div>
