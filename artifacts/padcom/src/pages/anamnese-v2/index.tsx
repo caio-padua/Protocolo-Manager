@@ -41,9 +41,7 @@ import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } fro
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterTextShimmer } from "@/components/layout/paxter-fx/PaxterTextShimmer";
-import paxterPaxterPng from "@/assets/brand/paxter-paxter.png";
-import paxterPaxterWebp from "@/assets/brand/paxter-paxter.webp";
-import paxterPaxterCleanPng from "@/assets/brand/paxter-paxter-clean.png";
+import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
@@ -791,29 +789,11 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
   return (
     <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
       <PaxterSymbolGlass size={66} tone={tone} />
-      {/* ARTE OFICIAL da marca (contorno perfeito, 3D real chanfrado). Substitui o antigo
-          PaxterWordmarkPremium (SVG redesenhado por potrace, serrilhado/"carcomido").
-          ESCURO: PNG oficial — a sombra escura embutida fica linda sobre o navy.
-          CLARO: versao SEM o halo escuro (paxter-paxter-clean) — sobre o creme a sombra
-          embutida do PNG oficial viraria fumaca preta serrilhada em volta das letras. */}
-      {tone === "light" ? (
-        <img
-          src={paxterPaxterCleanPng}
-          alt="PAXTER"
-          draggable={false}
-          style={{ width: 168, height: "auto", display: "block" }}
-        />
-      ) : (
-        <picture>
-          <source srcSet={paxterPaxterWebp} type="image/webp" />
-          <img
-            src={paxterPaxterPng}
-            alt="PAXTER"
-            draggable={false}
-            style={{ width: 168, height: "auto", display: "block" }}
-          />
-        </picture>
-      )}
+      {/* ARTE OFICIAL da marca (contorno liso, bisel 3D real) + LUZ viva por cima
+          (sol especular + polvora) recortada na silhueta LISA das letras — a luz volta
+          sem serrilhar. Substitui o antigo PaxterWordmarkPremium (SVG potrace ondulado).
+          cycleDelay=900: a luz desce do simbolo para o nome (cascata). */}
+      <PaxterWordmarkArt width={168} tone={tone} cycleDelay={900} />
       <PaxterTextShimmer
         color={tone === "light" ? "#8a6d2f" : "#e8cf95"}
         cycleDelay={1700}

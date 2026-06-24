@@ -25,6 +25,15 @@ lógica de sweep/glint — duplicação = drift visual e de manutenção entre s
   do motor nos dois (diff vazio), senão divergem. Estender a palavra SO consumindo as props existentes
   (não tocar o motor) NÃO exige espelhamento — só mudança no `traceFlash.tsx` exige.
 
+**RASTER (PNG) ≠ vetor — não force o motor SVG numa imagem.** Quando a FACE da marca é a arte
+oficial raster (sem paths), NÃO reuse o motor SVG de glint: ele recorta a luz pelos paths potrace
+ondulados e os raios saem serrilhados ("carcomido nos raios"). Use o padrão `.symbol-glint`: faixa
+de luz CSS por cima da imagem, recortada pela própria arte LIMPA via `mask-image` + `mix-blend:screen`.
+A máscara é SEMPRE a versão clean (inclusive no escuro), p/ a luz não vazar na sombra embutida da arte
+oficial. Mantenha o MESMO ciclo e as MESMAS fases do símbolo e do subtítulo, senão a luz deriva e pisca
+irregular. **Why:** trocar a face vetorial pela arte oficial matou a luz junto; ela tinha de voltar
+sem reintroduzir o serrilhado.
+
 **TEXTO ≠ vetor — não force o motor SVG numa frase.** A frase "CLINICAL INTELLIGENCE SYSTEM" é texto
 HTML, não um contorno vetorial; o motor de glint (que percorre `d`/paths) não se aplica. Use
 `PaxterTextShimmer.tsx`: base sólida sempre visível (`color`) + camada de luz dourada recortada no

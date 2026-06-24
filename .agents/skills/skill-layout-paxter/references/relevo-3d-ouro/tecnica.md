@@ -58,6 +58,24 @@ magick /tmp/comp.png -crop 280x172+0+0 +repage -resize 250% /tmp/zoom_P.png
 
 Olhar `/tmp/zoom_P.png`: o contorno tem que estar LISO e SEM fumaca preta. So entao dar por pronto.
 
+## A LUZ (sol/polvora) sobre a arte raster — sem serrilhar
+
+A arte oficial e raster (PNG), nao tem paths para o motor SVG (`PaxterGlintPremium`) percorrer.
+Se voce tentar reusar o motor SVG, ele recorta a luz pelos paths do **potrace** (ondulados) e os
+RAIOS saem serrilhados ("carcomido nos raios"). Errado.
+
+Caminho certo (mesmo do `.symbol-glint` do rodape): a luz e uma faixa CSS que varre por cima da
+imagem, **recortada pela propria arte LIMPA** via `mask-image: url(paxter-paxter-clean.png)` +
+`mix-blend-mode: screen`. Como a mascara e a silhueta lisa, os raios saem lisos. Componente:
+`PaxterWordmarkArt.tsx`. Duas camadas: a "polvora" (faisca fina, corre antes) e o "sol" (faixa
+larga especular). A mascara e SEMPRE a versao clean (mesmo no escuro), para a luz nao vazar na
+sombra embutida da arte oficial.
+
+Timing (psicologia de atencao / luxo): ciclo de **12s IGUAL** ao do simbolo e do subtitulo
+(`PaxterTextShimmer`), para nunca derivarem entre si (sincronia = sem piscar irregular). Fases
+travadas nas do motor: polvora ~2->24%, sol 26->48%, resto e descanso (evento curto + descanso
+longo = contencao de luxo). `cycleDelay` faz a luz descer simbolo -> nome -> frase (cascata).
+
 ## Por que guardar isto
 
 A tentacao a cada rodada e "melhorar o filtro" do desenho serrilhado. Isso nunca conserta, porque o
