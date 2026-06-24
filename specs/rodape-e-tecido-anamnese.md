@@ -159,3 +159,23 @@ nao pode ser reconfirmado nesta rodada: o modulo useScreenTheme ficou em cache n
 (o truque readTheme->"light" nao refletiu mesmo apos restart/cache-bust). Mudancas de layout sao
 identicas nos dois temas e as cores do claro reusam o gradiente ja provado do `.leva-card`.
 architect: PASS (sem regressao). Ajustes pos-review aplicados: (1) bases dos dois wordmarks ALINHADAS via spacers de altura igual nas duas colunas (risco estetico "d" do architect); (2) gradiente escuro da faixa igualado 100% ao .leva-card (stop central 52%).
+
+---
+
+## ATUALIZACAO 24/06/2026 (4a rodada) — 2 legendas EMBAIXO + margem medial + faixa cor do tecido (claro)
+
+Apos ver o print (tema CLARO, iPhone) o CEO pediu 3 ajustes de apresentacao:
+
+1. (Item 1) As DUAS frases tem de ficar na PARTE DE BAIXO e alinhadas. Antes: "Dr. Caio Padua" em
+   cima do Padua e "Engineered by" embaixo do Padcon (lados verticais opostos). CORRECAO: as duas
+   colunas viraram [wordmark EM CIMA, legenda EMBAIXO]; com `items-end` + legendas de mesma altura,
+   as duas legendas pousam na MESMA base e os wordmarks tambem. (Dispensa os spacers da 3a rodada.)
+2. (Item 2) Puxar os dois blocos mais para o MEDIAL p/ nao cortar em iPhone. CORRECAO: padding lateral
+   da faixa de `px-4` para `px-6`.
+3. (Item 3) No tema CLARO a faixa estava BRANCA; o CEO pediu o tom do "tecido" (fundo da tela),
+   mesma cor SEM a textura. CORRECAO: `.footer-brand-band` (claro) deixou o gradiente branco e passou
+   a usar o gradiente creme do `.anamnese-solo` (#ece1c8 -> #e6d9bd -> #ded0b0), SEM o realce radial
+   (textura). Relevo (realce no topo + sombra) mantido, com inset highlight suavizado p/ creme.
+
+Validado por SCREENSHOT no tema CLARO (o que o CEO usa): 2 legendas embaixo e alinhadas, blocos
+mediais, faixa creme. architect: PASS.

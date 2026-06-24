@@ -76,6 +76,17 @@ apply:** o header deve receber a MESMA classe de fundo do corpo; a emenda fica m
 embaixo sobe e desnivela (architect reprovou esse risco). **How to apply:** legendas em diagonal +
 bases alinhadas = espelhar a altura dos slots, nao o conteudo.
 
+## ATUALIZACAO 24/06/2026 (4a rodada) — CEO preferiu as DUAS legendas EMBAIXO + faixa cor do tecido
+- Decisao final do rodape: as DUAS legendas ficam EMBAIXO dos wordmarks (nao em diagonal). Isso
+  DISPENSA os spacers invisiveis da 3a rodada: basta cada coluna ser `[wordmark, legenda]` com
+  `items-end` no row externo e legendas de MESMA altura -> bases coincidem sozinhas.
+- Faixa do rodape no tema CLARO NAO pode ser branca: o CEO quer o tom do "tecido" (fundo
+  `.anamnese-solo`), mesma cor SEM a textura. Solucao: a banda reusa o gradiente creme do tecido
+  (#ece1c8->#e6d9bd->#ded0b0) SEM o realce radial; mantem so o relevo (inset highlight + sombra).
+- Corte lateral em iPhone: padding da faixa subiu p/ `px-6` e a legenda longa esquerda ganhou
+  `max-[380px]:whitespace-normal` (quebra so em telas muito estreitas; evita clipping com nowrap).
+**Why:** o CEO ve a tela no iPhone em tema CLARO; branco destoava do tecido e nowrap arrisca corte.
+
 ### Armadilha: forcar tema p/ screenshot nao reflete (cache de modulo no navegador da captura)
 O truque `readTheme()->return "light"` as vezes NAO vira no screenshot mesmo apos restart do workflow
 e cache-bust na URL (`?cb=`): o cache-bust troca a URL do HTML, mas o navegador da captura mantem o

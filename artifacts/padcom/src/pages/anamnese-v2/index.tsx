@@ -628,25 +628,23 @@ export default function AnamneseV2() {
             {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
           </div>
         </div>
-        {/* FAIXA continua full-bleed: fundo de ponta a ponta, conteudo centralizado em max-w-2xl */}
-        <div className="footer-brand-band px-4 py-2.5">
+        {/* FAIXA continua full-bleed: fundo de ponta a ponta, conteudo centralizado em max-w-2xl.
+            px-6 (mais respiro lateral) p/ os blocos virem MEDIAIS e nao cortarem em iPhone. */}
+        <div className="footer-brand-band px-6 py-2.5">
           <div className="mx-auto flex max-w-2xl items-end justify-between gap-3">
-            {/* ESQUERDA: assinatura do diretor EM CIMA do wordmark; spacer EMBAIXO (mesma altura
-                da frase do outro lado) para as BASES dos dois wordmarks alinharem. */}
+            {/* ESQUERDA: wordmark Instituto Padua + assinatura do diretor EMBAIXO. */}
             <div className="flex flex-col items-start">
+              <PaduaWordmark height={30} />
               <span
-                className="footer-credit-padua mb-1 whitespace-nowrap text-[10px] leading-none"
+                className="footer-credit-padua mt-1 whitespace-nowrap text-[10px] leading-none max-[380px]:whitespace-normal"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
-              <PaduaWordmark height={30} />
-              <div aria-hidden className="mt-1 h-[10px]" />
             </div>
-            {/* DIREITA: spacer EM CIMA (alinha as bases) + wordmark PADCON + "Engineered by"
-                CENTRALIZADO embaixo, na largura do nome PADCON. */}
+            {/* DIREITA: wordmark PADCON + "Engineered by" EMBAIXO, centralizado na largura do PADCON.
+                As DUAS legendas ficam na mesma base (items-end + mesma altura de legenda). */}
             <div className="flex flex-col items-center">
-              <div aria-hidden className="mb-1 h-[10px]" />
               <PadconWordmark height={20} />
               <span
                 className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
