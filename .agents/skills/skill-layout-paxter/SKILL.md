@@ -17,6 +17,7 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/alinhamento-espacamento.md` | alinhar por linhas-guia visiveis e definir espacamento (respiro 3D) |
 | `references/revisao-final.md` | ao TERMINAR uma tela: checklist "como cliente" + paridade celular x desktop |
 | `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
+| `references/marca/marca.md` | usar a LOGO: qual peca (loginho com vidro x logo sem vidro) usar em cada fundo; molde visual numerado (`molde-paxter.png`) + referencia de codigo de cada peca |
 
 Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
 INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar

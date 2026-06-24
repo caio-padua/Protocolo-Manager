@@ -83,3 +83,33 @@ id = "JVqOMQpA-Vfr2fj0nSsM4"
 uri = "file://screenshots/paxter-logo-desktop.jpg"
 type = "image"
 title = "PAXTER — logo viva no site (desktop)"
+
+[[outputs]]
+id = "BhSUdtH8KHZd9_pxrXPk0"
+uri = "file://.agents/skills/skill-layout-paxter/references/marca/molde-paxter.png"
+type = "image"
+title = "Molde visual — Catálogo de logos PAXTER"
+
+[[outputs]]
+id = "mMat2mEePTDtzeUQvbte2"
+uri = "file://.agents/skills/skill-layout-paxter/references/marca/01-logo-sem-vidro-preto.png"
+type = "image"
+title = "01 — Logo sem vidro (fundo preto)"
+
+[[outputs]]
+id = "lXWduYuHvwxpkpFXaO5Gv"
+uri = "file://.agents/skills/skill-layout-paxter/references/marca/02-logo-sem-vidro-branco.png"
+type = "image"
+title = "02 — Logo sem vidro (fundo branco)"
+
+[[outputs]]
+id = "_-FD9BUujPyWQwOuLasXM"
+uri = "file://.agents/skills/skill-layout-paxter/references/marca/03-loginho-vidro-sistema.png"
+type = "image"
+title = "03 — Loginho com vidro (fundo do sistema)"
+
+[[outputs]]
+id = "QvE6U6ZvkEK_4_UYLhSd9"
+uri = "file://.agents/skills/skill-layout-paxter/references/marca/04-loginho-vidro-bege.png"
+type = "image"
+title = "04 — Loginho com vidro (fundo bege / anamnese)"
