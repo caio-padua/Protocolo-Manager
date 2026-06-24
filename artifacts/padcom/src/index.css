@@ -145,35 +145,35 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 192 25% 10%;
-  --foreground: 180 15% 92%;
+  --background: 215 44% 8%;
+  --foreground: 210 22% 92%;
 
-  --card: 180 20% 14%;
-  --card-foreground: 180 15% 92%;
-  --card-border: 180 20% 22%;
+  --card: 215 38% 13%;
+  --card-foreground: 210 22% 92%;
+  --card-border: 214 28% 24%;
 
-  --popover: 180 20% 14%;
-  --popover-foreground: 180 15% 92%;
-  --popover-border: 180 20% 22%;
+  --popover: 215 38% 13%;
+  --popover-foreground: 210 22% 92%;
+  --popover-border: 214 28% 24%;
 
-  --primary: 180 15% 92%;
-  --primary-foreground: 192 25% 10%;
+  --primary: 210 22% 92%;
+  --primary-foreground: 215 44% 8%;
 
-  --secondary: 180 20% 22%;
-  --secondary-foreground: 180 15% 92%;
+  --secondary: 214 28% 22%;
+  --secondary-foreground: 210 22% 92%;
 
-  --muted: 180 20% 22%;
-  --muted-foreground: 180 10% 55%;
+  --muted: 214 28% 22%;
+  --muted-foreground: 212 14% 62%;
 
   --accent: 39 41% 51%;
   --accent-foreground: 214 54% 12%;
 
   --destructive: 0 62% 30%;
-  --destructive-foreground: 180 15% 92%;
+  --destructive-foreground: 210 22% 92%;
 
-  --border: 180 20% 22%;
-  --input: 180 20% 22%;
-  --ring: 180 15% 92%;
+  --border: 214 28% 24%;
+  --input: 214 28% 24%;
+  --ring: 210 22% 92%;
 
   --sidebar: 218 48% 12%;
   --sidebar-foreground: 40 25% 88%;
@@ -383,7 +383,7 @@
 .dark .panel-3d,
 .dark .panel-3d-sub,
 .dark .panel-3d-hero {
-  background: linear-gradient(145deg, hsl(180 20% 17%) 0%, hsl(180 22% 14%) 100%);
+  background: linear-gradient(145deg, hsl(215 20% 17%) 0%, hsl(215 22% 14%) 100%);
   border-color: hsl(var(--card-border));
   box-shadow:
     0 18px 30px -14px rgba(0, 0, 0, 0.55),
@@ -401,8 +401,8 @@
 }
 
 .dark .field-engraved {
-  background: linear-gradient(180deg, hsl(180 22% 8%) 0%, hsl(180 20% 12%) 28%);
-  border-color: hsl(180 16% 20%);
+  background: linear-gradient(180deg, hsl(215 22% 8%) 0%, hsl(215 20% 12%) 28%);
+  border-color: hsl(215 16% 20%);
   box-shadow:
     inset 0 3px 6px rgba(0, 0, 0, 0.62),
     inset 0 8px 12px rgba(0, 0, 0, 0.36),
@@ -410,8 +410,8 @@
 }
 
 .dark .concave-3d {
-  background: linear-gradient(160deg, hsl(180 22% 10%) 0%, hsl(180 20% 13%) 100%);
-  border-color: hsl(180 16% 21%);
+  background: linear-gradient(160deg, hsl(215 22% 10%) 0%, hsl(215 20% 13%) 100%);
+  border-color: hsl(215 16% 21%);
   box-shadow:
     inset 0 4px 8px rgba(0, 0, 0, 0.55),
     inset 0 10px 16px rgba(0, 0, 0, 0.30),
@@ -419,8 +419,8 @@
 }
 
 .dark .screen-3d {
-  background: linear-gradient(150deg, hsl(180 20% 18%) 0%, hsl(180 22% 15%) 100%);
-  border-color: hsl(180 16% 24%);
+  background: linear-gradient(150deg, hsl(215 20% 18%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 24%);
   box-shadow:
     0 20px 32px -14px rgba(0, 0, 0, 0.60),
     0 8px 14px -6px rgba(0, 0, 0, 0.45),
@@ -441,8 +441,8 @@
 }
 
 .dark .incentive-banner {
-  background: linear-gradient(135deg, hsl(180 28% 16%) 0%, hsl(184 30% 14%) 100%);
-  border-color: hsl(184 24% 26%);
+  background: linear-gradient(135deg, hsl(215 28% 16%) 0%, hsl(216 30% 14%) 100%);
+  border-color: hsl(216 24% 26%);
   box-shadow:
     0 16px 26px -14px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -522,8 +522,8 @@
     0 7px 12px -4px rgba(7, 22, 43, 0.30);
 }
 .dark .bevel-3d {
-  background: linear-gradient(180deg, hsl(180 20% 21%) 0%, hsl(180 22% 15%) 100%);
-  border-color: hsl(180 16% 27%);
+  background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 27%);
   box-shadow:
     inset 0 3px 0 rgba(255, 255, 255, 0.08),
     inset 0 -6px 11px rgba(0, 0, 0, 0.48),
@@ -661,9 +661,9 @@
 }
 
 .dark .btn-3d-soft {
-  border-color: hsl(180 16% 26%);
-  background: linear-gradient(180deg, hsl(180 18% 20%) 0%, hsl(180 20% 15%) 100%);
-  color: hsl(187 60% 70%);
+  border-color: hsl(215 16% 26%);
+  background: linear-gradient(180deg, hsl(215 18% 20%) 0%, hsl(215 20% 15%) 100%);
+  color: hsl(214 60% 70%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     inset 0 -3px 6px rgba(0, 0, 0, 0.4),

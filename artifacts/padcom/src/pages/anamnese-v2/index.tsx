@@ -432,46 +432,58 @@ export default function AnamneseV2() {
             : "Modo demonstração — respostas não são de um cliente real"}
         </div>
       )}
-      {/* HEADER / TIMELINE */}
-      <header className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto max-w-2xl">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <BrandMark />
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setFocusMode((f) => !f)}
-                className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
-                style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
-              >
-                {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{focusMode ? "Sair do foco" : "Modo foco"}</span>
-              </button>
-              <ThemeToggle theme={theme} onToggle={toggle} />
-            </div>
+      {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
+      <header className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-4 backdrop-blur">
+        <div className="relative mx-auto max-w-2xl">
+          {/* controles no canto superior direito (nao competem com a marca centralizada) */}
+          <div className="absolute right-0 top-0 z-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFocusMode((f) => !f)}
+              aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
+              className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
+              style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
+            >
+              {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{focusMode ? "Sair do foco" : "Modo foco"}</span>
+            </button>
+            <ThemeToggle theme={theme} onToggle={toggle} />
           </div>
 
-          {/* barra de progresso com camada de vidro */}
-          <div className="concave-3d relative mb-2 h-3 w-full overflow-hidden rounded-md">
-            <div
-              className="h-full rounded-md transition-all duration-500"
-              style={{ width: `${pct}%`, background: "linear-gradient(90deg,#16294a,#b8924d)" }}
-            />
-            <div
-              className="pointer-events-none absolute inset-0 rounded-md"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.10) 45%, rgba(255,255,255,0) 55%)",
-              }}
-            />
-          </div>
+          {/* 1) marca centralizada — simbolo grande + PAXTER folgado na faixa navy */}
+          <BrandMark />
 
-          {/* 4 medidores */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* 2) blocos medidores */}
+          <div className="mt-4 grid grid-cols-4 gap-2">
             <Meter icon={<ListChecks className="h-3.5 w-3.5" />} label="Concluído" value={`${pct}%`} />
             <Meter icon={<Check className="h-3.5 w-3.5" />} label="Perguntas" value={`${respondidas}/${totalAtivas}`} />
             <Meter icon={<Activity className="h-3.5 w-3.5" />} label="Grupos" value={`${gruposCompletos}/${gruposTotais}`} />
             <Meter icon={<Clock className="h-3.5 w-3.5" />} label="Faltam" value={`~${restanteMin}min`} />
+          </div>
+
+          {/* 3) barra de evolucao com barinhas (um segmento por grupo) */}
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {gruposCompletos} de {gruposTotais} grupos
+              </span>
+              <span className="text-[10px] font-semibold" style={{ color: GOLD }}>
+                {pct}%
+              </span>
+            </div>
+            <div className="flex gap-1.5">
+              {Array.from({ length: gruposTotais }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-2.5 flex-1 rounded-[4px] transition-colors"
+                  style={
+                    i < gruposCompletos
+                      ? { background: "linear-gradient(90deg,#16294a,#b8924d)" }
+                      : { background: "hsl(var(--muted))", opacity: 0.55 }
+                  }
+                />
+              ))}
+            </div>
           </div>
         </div>
       </header>
@@ -589,20 +601,49 @@ export default function AnamneseV2() {
 
 // ---------- subcomponentes ----------
 
+// Siglas que devem permanecer em CAIXA-ALTA mesmo na exibicao em caixa-baixa.
+const PERGUNTA_SIGLAS = new Set([
+  "CPF", "RG", "CEP", "IMC", "TSH", "HDL", "LDL", "DNA", "HIV", "DST", "IST",
+  "PA", "FC", "IV", "IM", "SC", "SUS", "CRM", "COREN", "RX", "USG", "TC", "RM",
+  "RNM", "ECG", "PCR", "HAS", "DM", "DPOC", "AVC", "IAM", "TPM", "DIU", "SOP", "HPV",
+]);
+
+// Exibe a pergunta com apenas a inicial maiuscula; siglas conhecidas seguem
+// em caixa-alta. NAO altera o dado de origem (banco continua em caixa-alta);
+// e apenas formatacao de apresentacao.
+function formatPergunta(texto: string | null | undefined): string {
+  if (!texto) return "";
+  const letras = texto.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  const tudoMaiusculo = letras.length > 0 && letras === letras.toUpperCase();
+  if (!tudoMaiusculo) return texto;
+  let primeiraFeita = false;
+  return texto.replace(/[A-Za-zÀ-ÿ]+/g, (palavra) => {
+    if (PERGUNTA_SIGLAS.has(palavra.toUpperCase())) {
+      // Sigla inicial conta como "primeira palavra feita": o que vem depois fica minusculo.
+      primeiraFeita = true;
+      return palavra.toUpperCase();
+    }
+    const minuscula = palavra.toLowerCase();
+    if (!primeiraFeita) {
+      primeiraFeita = true;
+      return minuscula.charAt(0).toUpperCase() + minuscula.slice(1);
+    }
+    return minuscula;
+  });
+}
+
 // Cabecalho de marca Paxter: cupula de vidro + PAXTER + "Clinical Intelligence System".
 function BrandMark() {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <PaxterSymbolGlass size={32} />
-      <div className="flex min-w-0 flex-col">
-        <PaxterWordmarkPremium width={116} />
-        <span
-          className="mt-0.5 truncate text-[7px] font-semibold uppercase text-[#e8cf95]"
-          style={{ letterSpacing: "0.2em" }}
-        >
-          Clinical Intelligence System
-        </span>
-      </div>
+    <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
+      <PaxterSymbolGlass size={60} />
+      <PaxterWordmarkPremium width={168} />
+      <span
+        className="text-[8px] font-semibold uppercase text-[#e8cf95]"
+        style={{ letterSpacing: "0.28em" }}
+      >
+        Clinical Intelligence System
+      </span>
     </div>
   );
 }
@@ -672,7 +713,7 @@ function QuestionCard({
     >
       <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">
         <p className="leva-q text-base leading-snug text-foreground">
-          {q.pergunta}
+          {formatPergunta(q.pergunta)}
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {q.eSinalAlarme && (
