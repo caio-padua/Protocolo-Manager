@@ -8,6 +8,8 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Moon,
+  Sun,
   Home,
   RotateCcw,
   Info,
@@ -40,6 +42,8 @@ import { PaxterLogo } from "@/components/branding/PaxterLogo";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
+import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
+import { PaduaSymbol } from "@/components/layout/paxter-fx/PaduaSymbol";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -437,23 +441,45 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card/95 px-4 py-4 backdrop-blur">
+      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card px-4 py-4">
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo) */}
         <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
-          {/* controles no canto superior direito (nao competem com a marca centralizada) */}
-          <div className="absolute right-0 top-0 z-10 flex items-center gap-2">
+          {/* controles verticais no canto superior direito (retangulos finos,
+              texto girado 90 graus) — nao competem com a marca centralizada */}
+          <div className="absolute right-0 top-0 z-10 flex items-start gap-1.5">
             <button
               type="button"
               onClick={() => setFocusMode((f) => !f)}
               aria-label={focusMode ? "Sair do modo foco" : "Entrar no modo foco"}
-              className="btn-3d-soft flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
+              title={focusMode ? "Sair do foco" : "Modo foco"}
+              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
               style={focusMode ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
             >
               {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">{focusMode ? "Sair do foco" : "Modo foco"}</span>
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                Foco
+              </span>
             </button>
-            <ThemeToggle theme={theme} onToggle={toggle} />
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+              title={theme === "dark" ? "Tema claro" : "Tema escuro"}
+              className="btn-3d-soft flex w-7 flex-col items-center justify-center gap-1.5 rounded-md py-2"
+              style={{ color: GOLD }}
+            >
+              {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                Tema
+              </span>
+            </button>
           </div>
 
           {/* 1) marca centralizada — simbolo grande + PAXTER folgado na faixa navy */}
@@ -479,7 +505,7 @@ export default function AnamneseV2() {
             </div>
             <div className="flex gap-1.5">
               {Array.from({ length: gruposTotais }).map((_, i) => (
-                <div key={i} className="paxter-bar-track h-2.5 flex-1">
+                <div key={i} className="paxter-bar-track h-3 flex-1">
                   {i < gruposCompletos && (
                     <div className="paxter-bar-fill" style={{ width: "100%" }} />
                   )}
@@ -506,27 +532,8 @@ export default function AnamneseV2() {
                     type="button"
                     onClick={() => setGroupIdx(i)}
                     title={g.bloco}
-                    className={`flex h-10 items-center justify-center gap-1 rounded-md text-[13px] font-bold tracking-tight transition-all ${
-                      active
-                        ? "text-white"
-                        : ref
-                          ? "text-muted-foreground"
-                          : done
-                            ? "text-emerald-700 dark:text-emerald-300"
-                            : "text-foreground/70"
-                    }`}
-                    style={{
-                      background: active
-                        ? "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.78))"
-                        : done
-                          ? "rgba(16,122,87,0.10)"
-                          : ref
-                            ? "hsl(var(--muted))"
-                            : "hsl(var(--card) / 0.6)",
-                      boxShadow: active
-                        ? `0 0 0 2px ${GOLD}, 0 4px 10px -4px hsl(var(--primary) / 0.5)`
-                        : "inset 0 0 0 1px hsl(var(--border))",
-                    }}
+                    className="flex h-8 items-center justify-center gap-1 rounded-md text-[12px] font-bold tracking-tight transition-all"
+                    style={gchipStyle(active, done, ref, theme === "dark")}
                   >
                     {done && !active ? <Check className="h-3 w-3" /> : null}
                     {tag}
@@ -597,17 +604,39 @@ export default function AnamneseV2() {
           </div>
         )}
 
-        {/* RODAPE — fiel ao Canvas: Instituto Padua (esq.) + Engineered by PADCON (dir.) */}
+        {/* RODAPE — Instituto Padua (logotipo ouro fosco 3D: simbolo D+P + nome) a
+            esquerda; Engineered by PADCON (simbolo polido + wordmark) a direita. */}
         <footer className="px-1 pb-4 pt-6">
           <div className="flex items-center justify-between border-t border-border pt-4">
-            <span className="font-serif text-[14px] tracking-wide text-foreground">
-              Instituto Pádua
-            </span>
-            <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-2.5">
+              <PaduaSymbol size={32} />
+              <span className="flex flex-col leading-none">
+                <span
+                  className="text-[8px] uppercase tracking-[0.34em]"
+                  style={{ color: "#b89154" }}
+                >
+                  Instituto
+                </span>
+                <span
+                  className="font-serif text-[17px] font-medium tracking-[0.12em]"
+                  style={{
+                    color: "#c9a24e",
+                    textShadow:
+                      "0 1px 0 rgba(255,241,168,0.45), 0 1px 2px rgba(0,0,0,0.40)",
+                  }}
+                >
+                  PÁDUA
+                </span>
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1">
               <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
                 Engineered by
               </span>
-              <PadconWordmark height={26} />
+              <div className="flex items-center gap-2">
+                <PadconSymbol height={22} />
+                <PadconWordmark height={22} />
+              </div>
             </div>
           </div>
         </footer>
@@ -636,38 +665,81 @@ const PERGUNTA_SIGLAS = new Set([
   "RNM", "ECG", "PCR", "HAS", "DM", "DPOC", "AVC", "IAM", "TPM", "DIU", "SOP", "HPV",
 ]);
 
-// Sigla curta do bloco para o navegador de grupos: pega as 4 primeiras letras
-// da primeira palavra apos o prefixo "A. " e aplica caixa de titulo.
-// Ex.: "E. CIRURGIAS E INTERNACOES" -> "Cirg"; "D. ANTECEDENTES..." -> "Ante".
+// Sigla curta do bloco para o navegador de grupos: pega a PRIMEIRA PALAVRA apos
+// o prefixo "A. ", aplica caixa de titulo e trunca em SIGLA_MAX letras + ponto.
+// Palavra com ate SIGLA_MAX letras aparece inteira (sem ponto).
+// Ex.: "E. CIRURGIAS E INTERNACOES" -> "Cirur."; "M. EIXOS..." -> "Eixos".
+const SIGLA_MAX = 5;
 function sigla(bloco: string): string {
   const semPrefixo = bloco.replace(/^[A-Za-z]\.\s*/, "");
-  const primeira = semPrefixo.split(/[\s/]+/).filter(Boolean)[0] ?? bloco;
-  const limpa = primeira.replace(/[^A-Za-zÀ-ÿ]/g, "");
-  const base = (limpa || bloco).slice(0, 4).toLowerCase();
-  return base.charAt(0).toUpperCase() + base.slice(1);
+  const primeira = semPrefixo.split(/[\s/\-]+/).filter(Boolean)[0] ?? bloco;
+  const limpa = primeira.replace(/[^A-Za-zÀ-ÿ]/g, "") || bloco;
+  const titulo = limpa.charAt(0).toUpperCase() + limpa.slice(1).toLowerCase();
+  return titulo.length <= SIGLA_MAX ? titulo : `${titulo.slice(0, SIGLA_MAX)}.`;
 }
 
-// Siglas curadas dos 14 blocos fixos da anamnese (taste do CEO, ex.: E -> "Cirg").
-// Blocos desconhecidos caem no gerador automatico sigla().
-const SIGLAS_BLOCO: Record<string, string> = {
-  "A. IDENTIFICACAO E CONTEXTO": "Iden",
-  "B. QUEIXA PRINCIPAL E HMA": "Quei",
-  "C. REVISAO POR SISTEMAS (ISDA)": "Revi",
-  "D. ANTECEDENTES PATOLOGICOS": "Ante",
-  "E. CIRURGIAS E INTERNACOES": "Cirg",
-  "F. ALERGIAS E REACOES ADVERSAS": "Aler",
-  "G. MEDICACOES E SUPLEMENTOS": "Medi",
-  "H. IMUNIZACOES": "Imun",
-  "I. HABITOS E ESTILO DE VIDA": "Hábi",
-  "J. HISTORIA FAMILIAR": "Hist",
-  "K. PSICOSSOCIAL E OCUPACIONAL": "Psic",
-  "L. GINECO-OBSTETRICA / ANDROLOGICA": "Gine",
-  "M. EIXOS DA MEDICINA FUNCIONAL": "Eixo",
-  "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS": "Pref",
-};
-
 function siglaBloco(bloco: string): string {
-  return SIGLAS_BLOCO[bloco] ?? sigla(bloco);
+  return sigla(bloco);
+}
+
+// Estilo 3D dos chips do navegador de grupos (sem branco; recesso dourado-suave
+// no estado inerte; concluido VERDE elevado; ativo navy + anel ouro). Controlado
+// por tema (claro/escuro). So acabamento — nao toca logica.
+function gchipStyle(active: boolean, done: boolean, ref: boolean, isDark: boolean): CSSProperties {
+  if (active) {
+    return {
+      background: "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.78))",
+      boxShadow: `0 0 0 2px ${GOLD}, 0 4px 10px -4px hsl(var(--primary) / 0.5)`,
+      color: "#ffffff",
+    };
+  }
+  if (done) {
+    return isDark
+      ? {
+          background: "linear-gradient(180deg, rgba(16,122,87,0.34), rgba(16,122,87,0.20))",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 0 -1px rgba(5,80,55,0.9), 0 7px 12px -6px rgba(16,122,87,0.55)",
+          color: "#6ee7b7",
+        }
+      : {
+          background: "linear-gradient(180deg, rgba(16,122,87,0.20), rgba(16,122,87,0.10))",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 0 -1px rgba(16,122,87,0.45), 0 7px 12px -6px rgba(16,122,87,0.4)",
+          color: "#0e7a57",
+        };
+  }
+  if (ref) {
+    return isDark
+      ? { background: "rgba(255,255,255,0.04)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)", color: "#7c8aa3" }
+      : { background: "hsl(var(--muted))", boxShadow: "inset 0 0 0 1px hsl(var(--border))", color: "hsl(var(--muted-foreground))" };
+  }
+  return isDark
+    ? {
+        background: "linear-gradient(180deg, #16304f 0%, #102540 100%)",
+        boxShadow: "inset 0 2px 5px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.5)",
+        color: "#9fb2cc",
+      }
+    : {
+        background: "linear-gradient(180deg, #f3ecda 0%, #e8dec9 100%)",
+        boxShadow: "inset 0 2px 4px rgba(7,22,43,0.10), inset 0 -1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(138,109,47,0.20)",
+        color: "#6b6450",
+      };
+}
+
+// Separa o texto explicativo entre parenteses do corpo da pergunta. O corpo fica
+// na fonte elegante (Lora via .leva-q); as notas vao em fonte sans, menores, abaixo.
+function splitNotas(texto: string): { main: string; notas: string[] } {
+  const notas: string[] = [];
+  const main = texto
+    .replace(/\(([^)]*)\)/g, (_m, inner) => {
+      const t = String(inner).trim();
+      if (t) notas.push(t);
+      return "";
+    })
+    .replace(/\s+([?!.,;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return { main, notas };
 }
 
 // Exibe a pergunta com apenas a inicial maiuscula; siglas conhecidas seguem
@@ -774,9 +846,22 @@ function QuestionCard({
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
       <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">
-        <p className="leva-q text-base leading-snug text-foreground">
-          {formatPergunta(q.pergunta)}
-        </p>
+        {(() => {
+          const { main, notas } = splitNotas(formatPergunta(q.pergunta));
+          return (
+            <div className="min-w-0">
+              <p className="leva-q text-base leading-snug text-foreground">{main}</p>
+              {notas.map((n, i) => (
+                <p
+                  key={i}
+                  className="mt-1 font-sans text-[12px] font-medium leading-snug text-muted-foreground"
+                >
+                  ({n})
+                </p>
+              ))}
+            </div>
+          );
+        })()}
         <div className="flex shrink-0 items-center gap-1">
           {q.eSinalAlarme && (
             <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:bg-red-950/60 dark:text-red-300">
@@ -981,7 +1066,7 @@ function HealthTwin({
               <span className="w-28 shrink-0 truncate text-[11px] font-medium text-gray-500" title={g.bloco}>
                 {g.bloco.replace(/^[A-Z]\.\s*/, "")}
               </span>
-              <div className="paxter-bar-track h-2.5 flex-1">
+              <div className="paxter-bar-track h-3 flex-1">
                 <div
                   className="paxter-bar-fill transition-all duration-500"
                   style={
