@@ -535,11 +535,11 @@ export default function AnamneseV2() {
                     type="button"
                     onClick={() => setGroupIdx(i)}
                     title={g.bloco}
-                    className="flex h-8 items-center justify-center gap-1 rounded-md text-[12px] font-bold tracking-tight transition-all"
+                    className="flex h-8 min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[11px] font-bold tracking-tight transition-all"
                     style={gchipStyle(active, done, ref, theme === "dark")}
                   >
-                    {done && !active ? <Check className="h-3 w-3" /> : null}
-                    {tag}
+                    {done && !active ? <Check className="h-3 w-3 shrink-0" /> : null}
+                    <span className="truncate">{tag}</span>
                   </button>
                 );
               })}
@@ -547,6 +547,7 @@ export default function AnamneseV2() {
           </div>
         )}
 
+        <div className="mx-auto max-w-xl">
         {/* CONTEUDO */}
         {focusMode ? (
           <FocusView
@@ -606,22 +607,23 @@ export default function AnamneseV2() {
             )}
           </div>
         )}
+        </div>
 
         {/* RODAPE — Instituto Padua (logotipo ouro fosco 3D: simbolo D+P + nome) a
             esquerda; Engineered by PADCON (simbolo polido + wordmark) a direita. */}
         <footer className="px-1 pb-4 pt-6">
           <div className="flex items-center justify-between border-t border-border pt-4">
-            <div className="flex items-center gap-2.5">
-              <PaduaSymbol size={32} />
+            <div className="flex items-center gap-3">
+              <PaduaSymbol size={60} glint />
               <span className="flex flex-col leading-none">
                 <span
-                  className="text-[8px] uppercase tracking-[0.34em]"
+                  className="text-[10px] uppercase tracking-[0.34em]"
                   style={{ color: "#b89154" }}
                 >
                   Instituto
                 </span>
                 <span
-                  className="font-serif text-[17px] font-medium tracking-[0.12em]"
+                  className="font-serif text-[24px] font-medium tracking-[0.12em]"
                   style={{
                     color: "#c9a24e",
                     textShadow:
@@ -636,9 +638,9 @@ export default function AnamneseV2() {
               <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
                 Engineered by
               </span>
-              <div className="flex items-center gap-2">
-                <PadconSymbol height={22} />
-                <PadconWordmark height={22} />
+              <div className="flex items-center gap-2.5">
+                <PadconSymbol height={44} glint />
+                <PadconWordmark height={24} />
               </div>
             </div>
           </div>
@@ -672,13 +674,13 @@ const PERGUNTA_SIGLAS = new Set([
 // o prefixo "A. ", aplica caixa de titulo e trunca em SIGLA_MAX letras + ponto.
 // Palavra com ate SIGLA_MAX letras aparece inteira (sem ponto).
 // Ex.: "E. CIRURGIAS E INTERNACOES" -> "Cirur."; "M. EIXOS..." -> "Eixos".
-const SIGLA_MAX = 5;
+const SIGLA_MAX = 14;
 function sigla(bloco: string): string {
   const semPrefixo = bloco.replace(/^[A-Za-z]\.\s*/, "");
   const primeira = semPrefixo.split(/[\s/\-]+/).filter(Boolean)[0] ?? bloco;
   const limpa = primeira.replace(/[^A-Za-zÀ-ÿ]/g, "") || bloco;
   const titulo = limpa.charAt(0).toUpperCase() + limpa.slice(1).toLowerCase();
-  return titulo.length <= SIGLA_MAX ? titulo : `${titulo.slice(0, SIGLA_MAX)}.`;
+  return titulo.length <= SIGLA_MAX ? titulo : `${titulo.slice(0, SIGLA_MAX)}…`;
 }
 
 function siglaBloco(bloco: string): string {
@@ -870,6 +872,7 @@ function QuestionCard({
         <div className="flex shrink-0 items-center gap-1">
           {q.eSinalAlarme && (
             <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:bg-red-950/60 dark:text-red-300">
+              <span className="paxter-led" aria-hidden="true" />
               <AlertTriangle className="h-3 w-3" /> Atenção
             </span>
           )}

@@ -194,20 +194,15 @@ function EscalaControl({
               className="concave-3d flex h-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
               style={{
                 boxShadow: active
-                  ? `0 0 0 2px ${GOLD}`
+                  ? `inset 0 1px 0 rgba(255,255,255,0.65), 0 0 0 2px ${GOLD}, 0 0 12px 2px rgba(212,175,55,0.85)`
                   : filled
                     ? "inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -2px 4px rgba(0,0,0,0.18)"
                     : undefined,
-                background: active
-                  ? "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.80))"
-                  : filled
+                background:
+                  active || filled
                     ? "linear-gradient(180deg, #f4e2a8 0%, #c2a05a 52%, #8a6d2f 100%)"
                     : undefined,
-                color: active
-                  ? "hsl(var(--primary-foreground))"
-                  : filled
-                    ? "#3a2f12"
-                    : "hsl(var(--muted-foreground))",
+                color: active || filled ? "#3a2f12" : "hsl(var(--muted-foreground))",
               }}
             >
               {n}

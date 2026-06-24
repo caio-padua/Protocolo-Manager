@@ -5,6 +5,8 @@ type Props = {
   /** Tamanho (px) do simbolo D+P. */
   size?: number;
   className?: string;
+  /** Passa um sweep de luz (glint) lento mascarado pelo proprio simbolo. */
+  glint?: boolean;
 };
 
 /**
@@ -13,8 +15,8 @@ type Props = {
  * sobre um gradiente de ouro escovado (estrias finas) com relevo. Assim o desenho
  * fica IDENTICO a arte aprovada — sem redesenho a mao — so trocando o preto por ouro.
  */
-export function PaduaSymbol({ size = 28, className }: Props) {
-  const style: CSSProperties = {
+export function PaduaSymbol({ size = 28, className, glint = false }: Props) {
+  const goldStyle: CSSProperties = {
     display: "inline-block",
     width: size,
     height: size,
@@ -33,7 +35,24 @@ export function PaduaSymbol({ size = 28, className }: Props) {
     filter:
       "drop-shadow(0 1px 0 rgba(255,241,168,0.42)) drop-shadow(0 1px 2px rgba(0,0,0,0.45))",
   };
-  return <span aria-hidden="true" className={className} style={style} />;
+  if (!glint) {
+    return <span aria-hidden="true" className={className} style={goldStyle} />;
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{ position: "relative", display: "inline-block", width: size, height: size }}
+    >
+      <span style={{ ...goldStyle, position: "absolute", inset: 0 }} />
+      <span
+        className="symbol-glint"
+        style={{ WebkitMaskImage: `url(${paduaMaskUrl})`, maskImage: `url(${paduaMaskUrl})` }}
+      >
+        <span className="symbol-glint-band" />
+      </span>
+    </span>
+  );
 }
 
 export default PaduaSymbol;
