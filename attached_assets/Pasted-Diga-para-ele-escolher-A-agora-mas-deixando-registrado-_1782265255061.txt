@@ -1,0 +1,46 @@
+Diga para ele escolher **A agora**, mas deixando registrado que **B será a etapa final futura**. Assim você não trava o desenvolvimento tentando fazer vetor perfeito dentro do Replit, e também não aceita a versão geométrica ruim.
+
+Pode mandar exatamente assim:
+
+Entendi sua explicação.
+
+Com base no que você confirmou, escolho a opção A agora.
+
+Use a minha imagem original aprovada como logo inteira no sistema: símbolo + PAXTER + frases, 100% fiel ao anexo original.
+
+A versão geométrica atual está rejeitada, porque ela ficou limpa tecnicamente, mas não representa a minha logo. Ela perdeu o estilo original das letras, a serifa, o chanfro e a elegância premium.
+
+Então, neste momento, a decisão técnica é:
+
+1. Usar a imagem original aprovada como asset oficial temporário.
+2. Não usar a versão geométrica atual.
+3. Não usar tracing automático.
+4. Não redesenhar o PAXTER agora.
+5. Não alterar símbolo, palavra PAXTER, frases, ouro, proporção ou layout.
+6. Implementar a imagem original de forma responsiva, nítida e bem posicionada no sistema.
+
+Quero os arquivos:
+
+```txt
+src/assets/brand/paxter-logo-hero.png
+src/assets/brand/paxter-logo-hero.webp
+src/components/branding/PaxterLogo.tsx
+src/components/branding/PaxterLogo.css
+```
+
+O componente deve permitir:
+
+```tsx
+<PaxterLogo variant="hero" />
+<PaxterLogo variant="compact" />
+```
+
+Critério de aprovação agora:
+
+A logo no sistema precisa ficar visualmente igual ao anexo original aprovado, mesmo sendo raster temporário.
+
+Depois faremos a opção B como uma etapa separada: redesenho vetorial manual fiel, com serifa, chanfro, relevo e acabamento premium iguais ao anexo original.
+
+Resumo: agora é opção A para preservar a identidade visual aprovada no sistema. A opção B fica para a etapa final de vetorização manual.
+
+Em termos simples: **você está aprovando o uso da imagem original, não aprovando o desenho geométrico.** Isso evita que ele continue insistindo em uma logo “limpa” tecnicamente, mas errada visualmente.
