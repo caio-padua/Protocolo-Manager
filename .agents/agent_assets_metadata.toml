@@ -113,3 +113,21 @@ id = "QvE6U6ZvkEK_4_UYLhSd9"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/04-loginho-vidro-bege.png"
 type = "image"
 title = "04 — Loginho com vidro (fundo bege / anamnese)"
+
+[[outputs]]
+id = "orPp8acID-VyRVgFpeplV"
+uri = "file://screenshots/anamnese-1-terno.jpg"
+type = "image"
+title = "1 - TERNO (risca de giz + sarja)"
+
+[[outputs]]
+id = "pOUolHS9Nc2iUYpSpHMYQ"
+uri = "file://screenshots/anamnese-2-marinho-escuro.jpg"
+type = "image"
+title = "2 - MARINHO ESCURO (navy mais fechado)"
+
+[[outputs]]
+id = "2H7OuEPHU3BuuzpmCheNM"
+uri = "file://screenshots/anamnese-3-xadrez.jpg"
+type = "image"
+title = "3 - XADREZ (Principe de Gales + ouro)"
