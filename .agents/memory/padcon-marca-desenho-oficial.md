@@ -51,3 +51,22 @@ transparente (fundo realmente removido). Não confiar na inspeção visual.
 
 **Decorativo:** quando o símbolo aparece ao lado do nome em texto (ex.: PaduaSymbol +
 "INSTITUTO PÁDUA"), marcar o símbolo `aria-hidden` para não duplicar leitura no leitor de tela.
+
+## PÁDUA wordmark = logo oficial "Logotipo 4" recortada (não fonte serifada)
+
+Decisão do CEO: o Instituto Pádua tem que aparecer com a logo OFICIAL real, igual o
+PADCON — não com a palavra "PÁDUA" digitada em fonte serifada.
+
+- **Fonte de verdade do wordmark Pádua:** `IMG_9742` ("Logotipo 4") = "INSTITUTO PÁDUA"
+  em OURO sobre preto (já é a arte aprovada, dourada — não precisa recolorir). NÃO usar
+  `IMG_5683` (é só print de WhatsApp do fornecedor de placa, preto sobre branco).
+  `IMG_9743` ("Logotipo 3") = só o monograma D+P (vira a máscara do `PaduaSymbol`).
+- **Extração:** recortar a região do wordmark do IMG_9742 (`magick ... -crop`), remover
+  fundo → `artifacts/padcom/src/assets/padua-wordmark.png` (transparente); componente
+  `PaduaWordmark.tsx` = `<img height=...>`, espelhando `PadconWordmark`.
+- **Rodapé da anamnese-v2:** as DUAS marcas seguem o mesmo padrão símbolo + wordmark:
+  esquerda = `PaduaSymbol` + `PaduaWordmark`; direita = `PadconSymbol` + `PadconWordmark`.
+
+**Validar recorte dourado-sobre-preto:** compor o PNG transparente sobre navy E sobre
+creme (`magick -size WxH xc:COR logo.png -gravity center -composite`) e olhar — o ouro
+tem que ler bem nos dois temas (claro/escuro). Canto alpha=0 confirma fundo removido.

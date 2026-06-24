@@ -45,6 +45,7 @@ import { PaxterTextShimmer } from "@/components/layout/paxter-fx/PaxterTextShimm
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
 import { PaduaSymbol } from "@/components/layout/paxter-fx/PaduaSymbol";
+import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -615,24 +616,7 @@ export default function AnamneseV2() {
           <div className="flex items-center justify-between border-t border-border pt-4">
             <div className="flex items-center gap-3">
               <PaduaSymbol size={60} glint />
-              <span className="flex flex-col leading-none">
-                <span
-                  className="text-[10px] uppercase tracking-[0.34em]"
-                  style={{ color: "#b89154" }}
-                >
-                  Instituto
-                </span>
-                <span
-                  className="font-serif text-[24px] font-medium tracking-[0.12em]"
-                  style={{
-                    color: "#c9a24e",
-                    textShadow:
-                      "0 1px 0 rgba(255,241,168,0.45), 0 1px 2px rgba(0,0,0,0.40)",
-                  }}
-                >
-                  PÁDUA
-                </span>
-              </span>
+              <PaduaWordmark height={40} />
             </div>
             <div className="flex flex-col items-end gap-1">
               <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
