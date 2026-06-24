@@ -62,9 +62,9 @@ function YesNoControl({
             type="button"
             data-active={active}
             onClick={() => onChange({ tipo: "boolean", bool: opt.b }, { commit: true })}
-            className="leva-chip flex h-20 items-center justify-center gap-2 text-lg font-bold uppercase tracking-wide"
+            className="leva-chip flex h-14 items-center justify-center gap-2 text-lg font-bold uppercase tracking-wide"
           >
-            {active && <Check className="h-5 w-5" style={{ color: GOLD }} />}
+            {active && <Check className="h-5 w-5" />}
             <span className="leva-chip-txt">{opt.label}</span>
           </button>
         );
@@ -93,10 +93,10 @@ function SingleControl({
             type="button"
             data-active={active}
             onClick={() => onChange({ tipo: "single", opcao: o.label, valor: o.valor }, { commit: true })}
-            className="leva-chip flex items-center justify-between gap-2 px-4 py-3.5 text-left text-base font-medium"
+            className="leva-chip flex items-center justify-between gap-2 px-4 py-3 text-left text-base font-medium"
           >
             <span className="leva-chip-txt">{o.label}</span>
-            {active && <Check className="h-5 w-5 shrink-0" style={{ color: GOLD }} />}
+            {active && <Check className="h-5 w-5 shrink-0" />}
           </button>
         );
       })}
@@ -140,7 +140,7 @@ function MultiControl({
             onClick={() => toggle(o.label)}
             className="leva-chip flex min-w-0 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium"
           >
-            {active && <Check className="h-4 w-4 shrink-0" style={{ color: GOLD }} />}
+            {active && <Check className="h-4 w-4 shrink-0" />}
             <span className="leva-chip-txt truncate">{o.label}</span>
           </button>
         );
@@ -413,7 +413,7 @@ function TextoControl({
           <button
             type="button"
             onClick={listening ? stopVoice : startVoice}
-            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
+            className="leva-action leva-action-rec inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
           >
             {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {listening ? "Ouvindo..." : "Falar"}
@@ -530,7 +530,7 @@ function AudioRecorder() {
           <button
             type="button"
             onClick={iniciar}
-            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
+            className="leva-action leva-action-rec inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-gravar-audio"
           >
             <Mic className="h-4 w-4" /> Gravar áudio
@@ -540,7 +540,7 @@ function AudioRecorder() {
           <button
             type="button"
             onClick={parar}
-            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
+            className="leva-action leva-action-rec inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-parar-audio"
           >
             <Square className="h-4 w-4" /> Parar
@@ -555,7 +555,7 @@ function AudioRecorder() {
           <button
             type="button"
             onClick={regravar}
-            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
+            className="leva-action leva-action-rec inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-regravar-audio"
           >
             <RotateCcw className="h-4 w-4" /> Regravar

@@ -91,6 +91,30 @@ Toggle quadrado (decisao do CEO, 19/06/2026): o `Switch` usa cantos bem quadrado
 Estilo: elegante, empirico, sem infantilidades. Tema escuro tem variantes `.dark` para
 todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 
+### 2.1 Tipografia
+
+| Familia | Uso | Onde |
+|---|---|---|
+| Lora (serifa humanista) | Texto de PERGUNTA da anamnese do cliente (calma, legivel, leitura longa) | `.leva-q` (index.css); carregada via Google Fonts em `artifacts/padcom/index.html` |
+| Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros) | padrao do app |
+
+Regra (decisao do CEO, 24/06/2026): a serifa **Lora** e reservada a LEITURA do cliente (pergunta da
+anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses continuam sans/MAIUSCULO.
+
+### 2.2 Pele escura "misto" da anamnese do cliente (/anamnese/v2)
+
+Graduada do mockup `anamnese-escura/FonteLora` em 24/06/2026. **Excecao LOCAL** a regra "ciano =
+foco/atual" (secao 4.3): nesta tela a SELECAO de resposta usa OURO (anel + rotulo), nao ciano. O anel
+de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO virou ouro.
+
+| Elemento | Tratamento | Classe |
+|---|---|---|
+| Painel da pergunta (escuro) | navy "misto" CHAPADO (`#14304f -> #0f2442 -> #0b1c34`), verniz topo ~0.18, SEM vidro/backdrop-filter | `.dark .leva-card` |
+| Chip de resposta ATIVO | anel + rotulo OURO (claro `#b9923f`/`#8a6d2f`; escuro `#c2a05a`/`#f4e2a8`) | `.leva-chip[data-active]` |
+| Ouvir / Video | ciano (`#0e7d92` claro / `#5cc4d6` escuro) | `.leva-action` |
+| Gravar / responder por voz | OURO (`#8a6d2f` claro / `#f0c674` escuro) | `.leva-action-rec` |
+| Foco de teclado | continua CIANO | `:focus-visible` |
+
 ## 3. Padroes de composicao
 
 - **Conclusao visual primeiro**: o numero/decisao em Saliente; o detalhe em Concavo.

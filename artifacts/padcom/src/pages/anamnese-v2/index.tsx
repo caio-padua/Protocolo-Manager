@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -474,20 +474,11 @@ export default function AnamneseV2() {
             </div>
             <div className="flex gap-1.5">
               {Array.from({ length: gruposTotais }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-2.5 flex-1 rounded-[4px] transition-colors"
-                  style={
-                    i < gruposCompletos
-                      ? {
-                          background:
-                            "linear-gradient(180deg,#f4e2a8 0%,#c2a05a 55%,#8a6d2f 100%)",
-                          boxShadow:
-                            "0 0 8px rgba(194,160,90,0.5), inset 0 1px 0 rgba(255,250,228,0.7)",
-                        }
-                      : { background: "hsl(var(--muted))", opacity: 0.55 }
-                  }
-                />
+                <div key={i} className="paxter-bar-track h-2.5 flex-1">
+                  {i < gruposCompletos && (
+                    <div className="paxter-bar-fill" style={{ width: "100%" }} />
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -925,7 +916,7 @@ function HealthTwin({
   isRefused: (b: string) => boolean;
 }) {
   return (
-    <div className="panel-3d-sub mt-5 rounded-md p-4">
+    <div className="leva-card mt-5 rounded-md p-4">
       <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-primary">
         <Shield className="h-4 w-4" /> Seu mapa de saúde
       </h3>
@@ -940,10 +931,10 @@ function HealthTwin({
               <span className="w-28 shrink-0 truncate text-[11px] font-medium text-gray-500" title={g.bloco}>
                 {g.bloco.replace(/^[A-Z]\.\s*/, "")}
               </span>
-              <div className="concave-3d h-2.5 flex-1 overflow-hidden rounded-md">
+              <div className="paxter-bar-track h-2.5 flex-1">
                 <div
-                  className="h-full rounded-md transition-all duration-500"
-                  style={{ width: `${p}%`, background: ref ? "#cbd5e1" : `linear-gradient(90deg, ${NAVY}, ${GOLD})` }}
+                  className="paxter-bar-fill transition-all duration-500"
+                  style={{ width: `${p}%`, "--fill": ref ? "#cbd5e1" : `linear-gradient(90deg, ${NAVY}, ${GOLD})` } as CSSProperties}
                 />
               </div>
             </div>

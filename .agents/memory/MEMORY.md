@@ -42,6 +42,7 @@
 - [PaxterSymbolGlass fonte unica](paxter-simbolo-glass-fonte-unica.md) — medalhao de vidro em TODOS os simbolos (interno+externo), tone dark|light por fundo; SITE (abertura/hero) chapado; simbolo decorativo aria-hidden.
 - [Hierarquia de nomes PADCOM/Padcon Conect/PAXTER](paxter-naming-hierarquia.md) — marca VISIVEL ao cliente = PAXTER (nunca "Padcon Conect"); nunca reverter a marca validada; conferir antes de sugerir troca.
 - [perguntaId nao e chave de identidade](anamnese-perguntaid-nao-unico.md) — pergunta_id REPETE (Q030); self-exclusion/dedup/identidade de linha usa o `id` numerico, nunca perguntaId (guard de DELETE).
+- [Anamnese cliente pele escura (Lora+ouro)](anamnese-v2-pele-escura.md) — selecao OURO (foco continua ciano), painel navy misto SEM vidro, Lora so na pergunta; mockup divergiu da spec (spec vence).
 - [Motor de luz Paxter unico (glint)](paxter-glint-motor-unico.md) — simbolo e palavra usam UM PaxterGlintPremium; estender via props opcionais (transforms/sweep/glintWidthOuter/Inner), nunca forkar; sweep ausente=.tf-sweep (simbolo intacto); espelhar no mockup.
 - [Tema escuro anamnese-v2: .dark no mesmo elemento](anamnese-tema-seletor-mesmo-elemento.md) — raiz poe themeClass+classe-feature no MESMO no; regra `.dark .x` (descendente) falha silenciosa; usar `.dark .x, .dark.x`.
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; PAXTER=vetor, PADCON=recorte; PadconWordmark=img.
