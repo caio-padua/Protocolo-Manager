@@ -21,13 +21,19 @@ chapada.
   `PaxterSymbolPremium` (símbolo com aura+faixa+faísca) num medalhão de vidro.
 - Props: `size` (px do símbolo; padding e raio escalam proporcionais — pad≈size*0.2,
   raio≈size*0.28) e `tone`:
-  - `tone="dark"` → vidro navy translúcido. Usar em QUALQUER fundo escuro
-    (sidebar navy, headers teal/navy das telas externas, splash da entrada).
-  - `tone="light"` → vidro champanhe um tom ACIMA do painel. Usar SÓ em fundo claro
-    (anamnese /v2: gate branco e cabeçalhos compactos em branco/`#f1f5f5`).
-- O `tone` vai SEMPRE no wrapper (PaxterSymbolGlass), NUNCA no PaxterSymbolPremium.
-- Verificado: o símbolo dourado (PNG com `mix-blend-mode: screen`) aparece nítido
-  tanto no vidro escuro quanto no champanhe claro (o gate /v2 é a prova viva do claro).
+  - `tone="dark"` → miolo navy. Usar em QUALQUER fundo escuro
+    (sidebar navy, headers das telas externas, splash da entrada).
+  - `tone="light"` → miolo ESPRESSO quente (marrom-café, gradiente `#2a2113`→`#160f06`).
+    Usar SÓ em fundo claro (anamnese /v2: gate branco, BrandMark e cabeçalhos compactos).
+- ARMADILHA (corrigida 24/06/2026): o componente IGNORAVA `tone` (`void tone`, miolo navy
+  sempre) → no perfil claro o medalhão saía AZUL e destoava do creme. O `tone` agora é
+  honrado. O miolo light NÃO é champanhe puro: o símbolo (PNG `mix-blend-mode: screen`)
+  precisa de fundo ESCURO p/ o ouro saltar; champanhe puro o apagaria. Espresso resolve:
+  fundo escuro o bastante p/ o screen + tom quente que harmoniza com creme/ouro (Hermès).
+- O `tone` vai SEMPRE no wrapper (PaxterSymbolGlass), NUNCA no PaxterSymbolPremium; quem
+  desenha (ex.: BrandMark) deve repassar `tone={theme==="dark"?"dark":"light"}`.
+- Verificado por screenshot (24/06/2026): medalhão claro espresso (sem azul) e escuro navy,
+  símbolo nítido nos dois.
 - NÃO recriar o medalhão inline (quadradinho com bg/border/box-shadow + `<img>` cru ou
   letra "P"). Sempre plugar o componente.
 - Acessibilidade: o símbolo é DECORATIVO (`PaxterSymbolPremium` tem `aria-hidden` no

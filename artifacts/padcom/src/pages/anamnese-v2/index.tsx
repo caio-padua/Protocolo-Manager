@@ -421,12 +421,15 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} anamnese-solo min-h-screen pb-28 text-foreground`}
+      className={`${themeClass} anamnese-solo relative min-h-screen pb-28 text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
+      {/* TECIDO TERNO — faixa sutil ao fundo de toda a tela (linho marinho no escuro,
+          risca de giz no claro). Fica atras de tudo; o conteudo sobe com z-[1]. */}
+      <div className="leva-fabric" aria-hidden="true" />
       {/* Faixa ambar visivel (R1): MODO TESTE (VITE_OPEN_ACCESS) ou demonstracao */}
       {(demo || OPEN_ACCESS) && (
-        <div className="flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
+        <div className="relative z-[1] flex items-center justify-center gap-2 bg-amber-400 px-4 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-amber-950">
           <AlertTriangle className="h-3.5 w-3.5" />
           {OPEN_ACCESS
             ? "Modo teste — acesso aberto, respostas não são de um cliente real"
@@ -434,8 +437,10 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-4 backdrop-blur">
-        <div className="relative mx-auto max-w-2xl">
+      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card/95 px-4 py-4 backdrop-blur">
+        {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo) */}
+        <div className="leva-fabric" aria-hidden="true" />
+        <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles no canto superior direito (nao competem com a marca centralizada) */}
           <div className="absolute right-0 top-0 z-10 flex items-center gap-2">
             <button
@@ -452,7 +457,7 @@ export default function AnamneseV2() {
           </div>
 
           {/* 1) marca centralizada — simbolo grande + PAXTER folgado na faixa navy */}
-          <BrandMark />
+          <BrandMark tone={theme === "dark" ? "dark" : "light"} />
 
           {/* 2) blocos medidores */}
           <div className="mt-4 grid grid-cols-4 gap-2">
@@ -485,7 +490,7 @@ export default function AnamneseV2() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-4">
+      <main className="relative z-[1] mx-auto max-w-2xl px-4 pt-4">
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
           <div className="mb-4 flex flex-wrap gap-2">
@@ -591,7 +596,7 @@ export default function AnamneseV2() {
               <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
                 Engineered by
               </span>
-              <PadconWordmark height={20} />
+              <PadconWordmark height={26} />
             </div>
           </div>
         </footer>
@@ -645,14 +650,14 @@ function formatPergunta(texto: string | null | undefined): string {
 }
 
 // Cabecalho de marca Paxter: cupula de vidro + PAXTER + "Clinical Intelligence System".
-function BrandMark() {
+function BrandMark({ tone }: { tone: "dark" | "light" }) {
   return (
     <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
-      <PaxterSymbolGlass size={60} />
+      <PaxterSymbolGlass size={66} tone={tone} />
       <PaxterWordmarkPremium width={168} />
       <span
-        className="text-[8px] font-semibold uppercase text-[#e8cf95]"
-        style={{ letterSpacing: "0.28em" }}
+        className="text-[8px] font-semibold uppercase"
+        style={{ letterSpacing: "0.28em", color: tone === "light" ? "#8a6d2f" : "#e8cf95" }}
       >
         Clinical Intelligence System
       </span>
@@ -662,12 +667,12 @@ function BrandMark() {
 
 function Meter({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="screen-3d flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5">
-      <span className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-gray-400">
+    <div className="leva-kpi flex flex-col items-center gap-0.5 rounded-md px-1 py-2">
+      <span className="leva-kpi-label flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide">
         {icon}
         {label}
       </span>
-      <span className="text-sm font-bold text-primary">
+      <span className="leva-kpi-value text-sm font-extrabold">
         {value}
       </span>
     </div>
@@ -934,7 +939,11 @@ function HealthTwin({
               <div className="paxter-bar-track h-2.5 flex-1">
                 <div
                   className="paxter-bar-fill transition-all duration-500"
-                  style={{ width: `${p}%`, "--fill": ref ? "#cbd5e1" : `linear-gradient(90deg, ${NAVY}, ${GOLD})` } as CSSProperties}
+                  style={
+                    ref
+                      ? ({ width: `${p}%`, "--fill": "#cbd5e1" } as CSSProperties)
+                      : ({ width: `${p}%` } as CSSProperties)
+                  }
                 />
               </div>
             </div>

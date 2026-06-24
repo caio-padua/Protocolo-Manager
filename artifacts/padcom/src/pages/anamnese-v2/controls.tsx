@@ -62,7 +62,7 @@ function YesNoControl({
             type="button"
             data-active={active}
             onClick={() => onChange({ tipo: "boolean", bool: opt.b }, { commit: true })}
-            className="leva-chip flex h-14 items-center justify-center gap-2 text-lg font-bold uppercase tracking-wide"
+            className="leva-chip flex h-12 items-center justify-center gap-2 text-base font-bold uppercase tracking-normal"
           >
             {active && <Check className="h-5 w-5" />}
             <span className="leva-chip-txt">{opt.label}</span>
