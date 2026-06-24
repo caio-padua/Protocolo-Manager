@@ -186,13 +186,13 @@ export const LEVA_STYLE = `
   /* 3) MISTO: navy solido + VERNIZ visivel no topo (faixa glossy mais marcada).
      Tom mais ESCURO (pedido CEO 24/06/2026) — azul-marinho mais profundo. */
   .leva-bevel-misto .leva-card {
-    background: linear-gradient(180deg,#1d3a61 0%,#142c4d 52%,#0c1d36 100%);
-    border:1px solid rgba(0,0,0,0.46); border-top-color: rgba(255,255,255,0.26);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -4px 12px rgba(0,0,0,0.5), 0 10px 0 -3px rgba(0,0,0,0.52), 0 20px 30px -10px rgba(0,0,0,0.78);
+    background: linear-gradient(180deg,#14304f 0%,#0f2442 52%,#0b1c34 100%);
+    border:1px solid rgba(0,0,0,0.46); border-top-color: rgba(255,255,255,0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -4px 12px rgba(0,0,0,0.5), 0 10px 0 -3px rgba(0,0,0,0.52), 0 20px 30px -10px rgba(0,0,0,0.78);
     overflow: hidden;
   }
   .leva-bevel-misto .leva-card::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
-    background: linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.15) 9%, rgba(255,255,255,0.03) 24%, rgba(255,255,255,0) 48%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 9%, rgba(255,255,255,0.015) 22%, rgba(255,255,255,0) 40%);
     mix-blend-mode: screen; }
 
   /* ===== PERGUNTA com as FONTES DA SKILL (serifas elegantes) =====
@@ -208,12 +208,8 @@ export const LEVA_STYLE = `
   /* ===== ACOES DA PERGUNTA: Ouvir (audio TTS) | Video | Gravar (voz) — embutidos ===== */
   .leva-action { border-radius:9px; transition: filter .18s ease, transform .12s ease; font-weight:700; }
   .leva-action:active { transform: translateY(1px); }
-  .leva-dark .leva-action { background: rgba(0,0,0,0.24); border:1px solid rgba(255,255,255,0.06); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
-  .leva-light .leva-action { background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.08); box-shadow: inset 0 1px 3px rgba(15,28,53,0.12); }
-  .leva-action-audio { color:#5cc4d6; }
-  .leva-light .leva-action-audio { color:#0e7d92; }
-  .leva-action-rec { color:#f0c674; }
-  .leva-light .leva-action-rec { color:#9a7a2e; }
+  .leva-dark .leva-action { background: rgba(0,0,0,0.24); border:1px solid rgba(255,255,255,0.06); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); color:#cdd6e2; }
+  .leva-light .leva-action { background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.08); box-shadow: inset 0 1px 3px rgba(15,28,53,0.12); color:#3f4b5e; }
   .leva-action:focus-visible { outline:2px solid #45B8CC; outline-offset:2px; }
 `;
 
@@ -238,14 +234,14 @@ function Card({ children, alarm = false }: { children: ReactNode; alarm?: boolea
 function QActions() {
   return (
     <div className="flex items-center justify-between gap-2 mt-1">
-      <button className="leva-action leva-action-audio inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
-        <Volume2 className="w-3.5 h-3.5" /> Ouvir
+      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Volume2 className="w-3.5 h-3.5" style={{ color: "#f3c64a" }} /> Ouvir
       </button>
-      <button className="leva-video-link inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5">
-        <Video className="w-3.5 h-3.5" /> Vídeo
+      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Video className="w-3.5 h-3.5" style={{ color: "#4fb477" }} /> Vídeo
       </button>
-      <button className="leva-action leva-action-rec inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
-        <Mic className="w-3.5 h-3.5" /> Gravar
+      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Mic className="w-3.5 h-3.5" style={{ color: "#ef5b5b" }} /> Gravar
       </button>
     </div>
   );
