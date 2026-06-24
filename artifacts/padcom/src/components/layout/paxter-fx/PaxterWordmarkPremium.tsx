@@ -29,21 +29,25 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
   const gold = `pww-gold-${uid}`;
   const goldDepth = `pww-depth-${uid}`;
   const fLift = `pww-lift-${uid}`;
+  const fWall = `pww-wall-${uid}`;
   const height = (width * H) / W;
   // No CLARO o ouro encosta no creme: borda clara desaparece. Trocamos por borda escura
   // (delimita, "contorno escuro" so na transicao) e reforcamos o relevo (luz no topo +
   // sombra embaixo). No ESCURO mantemos a borda clara original.
   const isLight = tone === "light";
-  const faceStroke = isLight ? "#3a2206" : "#FFF1A8";
-  const faceStrokeW = isLight ? 1.1 : 0.8;
-  // ALTO-RELEVO (so no claro): parede 3D REAL. Empilhamos copias escuras das letras,
-  // cada uma deslocada um tico p/ baixo e p/ a direita, formando a espessura lateral
-  // (a luz vem de cima-esquerda). Desenhadas de tras (maior deslocamento) p/ a frente.
-  const EXTRUDE_STEPS = 13;
+  // CLARO: SEM stroke duro. O stroke seguia cada micro-ondulacao do vetor potrace e os
+  // cantos viravam "dentes" (aspecto carcomido). A delimitacao agora vem de um contorno
+  // SUAVE em halo (drop-shadow no fLift). ESCURO: mantem a borda clara fina original.
+  const faceStroke = isLight ? "none" : "#FFF1A8";
+  const faceStrokeW = isLight ? 0 : 0.8;
+  // ALTO-RELEVO (so no claro): parede 3D REAL e CONTINUA. Muitas copias finas com passo
+  // pequeno = parede lisa, sem escadinha; um blur leve (fWall) "esmerilha" o que sobrar.
+  // Deslocamento p/ baixo+direita (luz de cima-esquerda); desenhadas de tras p/ frente.
+  const EXTRUDE_STEPS = 26;
   const extrusion = isLight
     ? Array.from({ length: EXTRUDE_STEPS }, (_, i) => {
         const k = EXTRUDE_STEPS - i; // k maior = mais ao fundo, desenhado primeiro
-        return { x: k * 0.45, y: k * 1.25, key: `ex-${i}` };
+        return { x: k * 0.22, y: k * 0.62, key: `ex-${i}` };
       })
     : [];
   const letterPaths = WORD_LETTERS.map((l) => l.d);
@@ -78,19 +82,26 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
             <stop offset="100%" stopColor="#241000" />
           </linearGradient>
           <filter id={fLift} x="-15%" y="-25%" width="130%" height="160%">
-            {/* CLARO: contorno escuro fino p/ separar o ouro do creme (so no claro) */}
+            {/* CLARO: contorno SUAVE em halo (rim macio, sem dentes) que substitui o stroke */}
             {isLight && (
-              <feDropShadow dx="0" dy="0.6" stdDeviation="0.5" floodColor="#241000" floodOpacity="0.6" />
+              <>
+                <feDropShadow dx="0" dy="0" stdDeviation="0.9" floodColor="#3a2206" floodOpacity="0.6" />
+                <feDropShadow dx="0" dy="0.7" stdDeviation="0.6" floodColor="#241000" floodOpacity="0.6" />
+              </>
             )}
             <feDropShadow dx="0" dy="0.8" stdDeviation="0.5" floodColor="#FFF1A8" floodOpacity={isLight ? 0.45 : 0.32} />
             <feDropShadow dx="0" dy="2.4" stdDeviation="1.6" floodColor="#5F3708" floodOpacity="0.7" />
             <feDropShadow dx="0" dy="5" stdDeviation="3.4" floodColor="#000000" floodOpacity={isLight ? 0.42 : 0.5} />
           </filter>
+          {/* esmeril da parede 3D: blur leve que funde as copias da extrusao */}
+          <filter id={fWall} x="-20%" y="-20%" width="140%" height="170%">
+            <feGaussianBlur stdDeviation="0.7" />
+          </filter>
         </defs>
 
         {/* profundidade / parede 3D */}
         {isLight ? (
-          <g>
+          <g filter={`url(#${fWall})`}>
             {extrusion.map((s) => (
               <g key={s.key} transform={`translate(${s.x},${s.y})`}>
                 {WORD_LETTERS.map((l) => (
@@ -114,7 +125,14 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
         <g filter={`url(#${fLift})`}>
           {WORD_LETTERS.map((l) => (
             <g key={`f-${l.id}`} transform={`translate(${l.ox},0)`}>
-              <path d={l.d} fill={`url(#${gold})`} stroke={faceStroke} strokeWidth={faceStrokeW} />
+              <path
+                d={l.d}
+                fill={`url(#${gold})`}
+                stroke={faceStroke}
+                strokeWidth={faceStrokeW}
+                strokeLinejoin={isLight ? "round" : undefined}
+                strokeLinecap={isLight ? "round" : undefined}
+              />
             </g>
           ))}
         </g>

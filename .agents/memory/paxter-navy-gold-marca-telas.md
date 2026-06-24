@@ -51,3 +51,8 @@ teal aparecia em paleta categorica, recolorir para `cyan`/`sky` (mantem distinca
   "salte do creme", a profundidade que funciona e EXTRUSAO 3D (empilhar copias escuras das letras
   deslocadas p/ baixo+direita, de tras p/ frente = parede lateral), com a face dourada por cima. So
   no claro; calibrar a altura da extrusao por screenshot p/ nao encostar na linha de baixo.
+
+- CONTORNO "carcomido" em letra vetorial de potrace: NUNCA delimitar com STROKE escuro grosso — o
+  stroke segue cada micro-ondulacao do tracado e os cantos viram dentes (aspecto mordido). "Esmeril"
+  correto: contorno SUAVE em halo (drop-shadow dx0/dy0 com blur) + junções arredondadas; e p/ a
+  parede 3D, muitas copias finas (passo pequeno) + blur leve em vez de poucas copias grossas (degraus).

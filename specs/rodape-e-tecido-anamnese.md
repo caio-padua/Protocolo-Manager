@@ -313,3 +313,18 @@ face dourada + contorno escuro + filtro de lift seguem por cima; o motor de luz 
 So no claro (tone="light"); o escuro mantem a profundidade minima original. Frase EN: text-shadow
 de relevo reforcado (multi-camada escura embaixo + brilho claro em cima). Validado por recorte
 ampliado (3,2x) da captura ao vivo.
+
+---
+
+## ATUALIZACAO 24/06/2026 (12a rodada) — "esmeril" no contorno do PAXTER (claro)
+
+CEO apontou (com foto) que a 11a rodada deixou o contorno "carcomido", tipo mordido por alicate de
+unha, e pediu p/ "passar um esmeril" e deixar o 3D liso/perfeito. Diagnostico: (1) o STROKE escuro
+da face seguia cada micro-ondulacao do vetor potrace (WORD_LETTERS) e os cantos viravam dentes; (2)
+a extrusao de 13 copias com passo grande deixava escadinha (degraus) na parede.
+
+Esmeril aplicado (so no claro): (1) removido o stroke duro da face — delimitacao agora por contorno
+SUAVE em halo (2 drop-shadow no fLift: rim macio dx0/dy0 std0.9 + sombra curta dy0.7); (2) extrusao
+adensada de 13->26 copias finas (passo x*0.22 / y*0.62) = parede continua sem degraus; (3) blur leve
+(filtro fWall, feGaussianBlur 0.7) funde as copias da parede; (4) junções arredondadas
+(strokeLinejoin/linecap round). Escuro e motor de luz intactos. Validado por recorte 4,2x ao vivo.
