@@ -46,3 +46,24 @@ deixa de valer nesse rodape (sem simbolo nao ha vertical esquerda a respeitar). 
   pedido: o selo "Tudo salvo automaticamente" ja ocupa o rodape fixo.
 **Why:** preferencias do CEO mudam entre rodadas; manter o historico evita reintroduzir o simbolo
 ou a divergencia de cor numa proxima edicao.
+
+## Bug "botao/chip fica branco ao clicar" no tema escuro (regra durável)
+No tema escuro o token `--primary` deste app INVERTE para quase-branco. Qualquer estado
+ativo/selecionado que use `hsl(var(--primary))` como fundo + texto branco some (branco-no-branco).
+**Why:** primary = navy no claro, quase-branco no escuro; estilo inline que assume primary=navy quebra.
+**How to apply:** estados ativos/selecionados devem ser TEMA-CONSCIENTES com cor explícita no escuro,
+nunca depender de `--primary` para o fundo.
+
+## "Mesmo tecido" entre header e corpo (regra durável)
+Trocar um token sólido (`bg-card`/`bg-background`) por outro NÃO unifica textura quando o corpo usa
+um DEGRADE (ex.: `.anamnese-solo`). **Why:** sólido x gradiente lêem como dois tecidos. **How to
+apply:** o header deve receber a MESMA classe de fundo do corpo; a emenda fica mascarada pelo
+`border-b` + painel colado logo abaixo.
+
+## Rodapé de marca: mesma linha, relevo, faixa fixa (regra durável)
+- Para duas legendas na MESMA linha horizontal acima de wordmarks de alturas diferentes, NÃO empilhar
+  colunas [legenda,wordmark] com `items-end` (desnivela). Usar DUAS rows separadas (legendas /
+  wordmarks); o gap entre rows também dá o respiro frase↔nome.
+- "Relevo/saliente" pedido pelo CEO = classe 3D do sistema (`.bevel-3d`), nunca `bg-card + shadow`.
+- Faixa fixa no rodapé: se já há outro elemento `fixed` embaixo, EMPILHAR ambos num único container
+  fixed (em vez de dois concorrentes) e subir o `pb` do root para o conteúdo não ficar atrás.

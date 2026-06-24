@@ -425,7 +425,7 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} anamnese-solo relative min-h-screen pb-28 text-foreground`}
+      className={`${themeClass} anamnese-solo relative min-h-screen pb-36 text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
       {/* TECIDO TERNO — faixa sutil ao fundo de toda a tela (linho marinho no escuro,
@@ -441,11 +441,12 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-background px-4 py-4">
+      <header className="anamnese-solo sticky top-0 z-20 overflow-hidden border-b border-border px-4 py-4">
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
-            questoes — por isso a base do header e bg-background (igual a pagina), nao bg-card; assim
-            a MESMA classe .leva-fabric sobre a MESMA base le como um unico tecido. PAXTER por ultimo (z-[1]). */}
+            questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
+            nao bg-background (que era navy mais escuro/chapado e destoava ao redor do PAXTER). Assim a
+            MESMA base + a MESMA .leva-fabric leem como um unico tecido. PAXTER por ultimo (z-[1]). */}
         <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
@@ -609,47 +610,47 @@ export default function AnamneseV2() {
         )}
         </div>
 
-        {/* RODAPE — faixa de marca delimitada, SEM simbolos: so os nomes. A esquerda,
-            assinatura "Dr. Caio Padua" + wordmark Instituto Padua; a direita, "Engineered by"
-            + wordmark PADCON. As duas legendas compartilham cor e fonte (Lora italico). */}
-        <footer className="px-1 pb-4 pt-6">
-          {/* FAIXA DE MARCA — barra inferior delimitada (fundo proprio + borda + relevo leve),
-              sem simbolos: so os nomes "Instituto Padua" e "PADCON". As duas assinaturas usam a
-              MESMA cor (.footer-credit-padua: navy no claro / branco no escuro) e a MESMA fonte
-              (Lora italico), para apresentar as duas marcas com o mesmo peso visual. */}
-          <div className="footer-band flex items-end justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-            {/* PADUA — assinatura do Dr. Caio + nome Instituto Padua, alinhados a esquerda. */}
-            <div className="flex flex-col items-start gap-1.5">
+      </main>
+
+      {/* BARRA INFERIOR FIXA — selo de salvamento + faixa de marca em RELEVO, sempre
+          visivel ao rolar (congelada no limite inferior, decisao do CEO opcao B). A faixa
+          usa .bevel-3d (relevo saliente, "up breve"); as duas legendas ficam na MESMA linha
+          horizontal (1a row), com respiro acima dos nomes (2a row, wordmarks). */}
+      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3">
+        <div className="mx-auto max-w-2xl">
+          {/* selo de salvamento — flutua centralizado ACIMA da faixa de marca (sem sobrepor) */}
+          <div className="mb-2 flex justify-center">
+            <div
+              className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary"
+              style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
+            </div>
+          </div>
+          {/* FAIXA DE MARCA em RELEVO (.bevel-3d), SEM simbolos: so os nomes. Linha 1 = as duas
+              legendas (MESMA cor .footer-credit-padua + Lora italico, MESMA baseline); linha 2 =
+              wordmarks Instituto Padua (esq) e PADCON (dir). O respiro (mt) separa frase do nome. */}
+          <div className="bevel-3d px-4 py-2.5">
+            <div className="flex items-baseline justify-between gap-3">
               <span
                 className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
-              <PaduaWordmark height={34} />
-            </div>
-            {/* PADCON — credito "Engineered by" + nome PADCON, alinhados a direita. */}
-            <div className="flex flex-col items-end gap-1.5">
               <span
                 className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Engineered by
               </span>
-              <PadconWordmark height={22} />
+            </div>
+            <div className="mt-2.5 flex items-end justify-between gap-3">
+              <PaduaWordmark height={30} />
+              <PadconWordmark height={20} />
             </div>
           </div>
-        </footer>
-      </main>
-
-      {/* SELO DE SALVAMENTO */}
-      <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
-        <div
-          className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-md"
-          style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
         </div>
       </div>
     </div>
@@ -687,11 +688,20 @@ function siglaBloco(bloco: string): string {
 // por tema (claro/escuro). So acabamento — nao toca logica.
 function gchipStyle(active: boolean, done: boolean, ref: boolean, isDark: boolean): CSSProperties {
   if (active) {
-    return {
-      background: "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.78))",
-      boxShadow: `0 0 0 2px ${GOLD}, 0 4px 10px -4px hsl(var(--primary) / 0.5)`,
-      color: "#ffffff",
-    };
+    // No tema ESCURO --primary e quase branco (210 22% 92%): usar essa cor de fundo
+    // deixava o botao selecionado BRANCO com texto branco (sumia). Por isso o ativo
+    // tem fundo navy explicito no escuro; no claro --primary ja e navy e contrasta.
+    return isDark
+      ? {
+          background: "linear-gradient(180deg, #1f4377 0%, #15315a 100%)",
+          boxShadow: `0 0 0 2px ${GOLD}, 0 4px 12px -4px rgba(0,0,0,0.6)`,
+          color: "#ffffff",
+        }
+      : {
+          background: "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.78))",
+          boxShadow: `0 0 0 2px ${GOLD}, 0 4px 10px -4px hsl(var(--primary) / 0.5)`,
+          color: "#ffffff",
+        };
   }
   if (done) {
     return isDark
@@ -1054,7 +1064,7 @@ function HealthTwin({
   isRefused: (b: string) => boolean;
 }) {
   return (
-    <div className="leva-card mt-5 rounded-md p-4">
+    <div className="leva-card mt-5 rounded-md p-3">
       <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-primary">
         <Shield className="h-4 w-4" /> Seu mapa de saúde
       </h3>

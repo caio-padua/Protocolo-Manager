@@ -91,3 +91,46 @@ O CEO mudou a direcao do rodape: o simbolo "fica exagerado". Nova forma:
 Validado por screenshot nos dois temas (claro e escuro). architect: PASS.
 O requisito antigo "legenda encerra nas verticais do logotipo" NAO se aplica mais (sem simbolo,
 o wordmark define a largura; legenda alinhada esq/dir, sem justify).
+
+---
+
+## ATUALIZACAO 24/06/2026 (2a rodada) — CEO reabriu com 8 itens (rodape + tela)
+
+O CEO listou 8 falhas na rodada anterior. Correcoes, todas de APRESENTACAO:
+
+1. (Rodape) As duas legendas NAO ficavam na mesma linha horizontal. CAUSA: estavam em colunas
+   [legenda, wordmark] empilhadas com outer `items-end`; como os wordmarks tem alturas diferentes
+   (34 x 22), as colunas tinham alturas diferentes e empurravam as legendas para Y diferentes.
+   CORRECAO DETERMINISTICA: separar em DUAS rows — row 1 = as duas legendas (`flex justify-between
+   items-baseline`, compartilham a baseline) e row 2 = os dois wordmarks (`justify-between items-end`).
+2. (Rodape) Legenda colada no nome (pouco respiro). CORRECAO: gap vertical entre as duas rows
+   (`mt-2.5`).
+3. (Rodape) Faixa ficou CHAPADA — CEO quer RELEVO 3D leve ("up breve", saliente). CORRECAO: trocar
+   `bg-card ... shadow-sm` pela classe do sistema `.bevel-3d` (relevo saliente UNLAYERED, vence
+   utilitarios Tailwind).
+4. (Rodape) Faixa tem de ficar CONGELADA/FIXA no limite inferior, sempre visivel ao rolar
+   (decisao do CEO = opcao B). CORRECAO: a faixa de marca virou um container `fixed inset-x-0
+   bottom-0 z-30`. CONFLITO resolvido: o selo "Tudo salvo automaticamente" (que ja era fixed)
+   foi EMPILHADO dentro do mesmo container, centralizado ACIMA da faixa, sem sobrepor.
+   `pb` do root subiu para `pb-36` para o conteudo nunca ficar atras da barra fixa.
+5. (Tela) Textura/cores ao redor do PAXTER diferentes do corpo. CAUSA-RAIZ: o `<header>` usava
+   `bg-background` (token chapado: navy MUITO escuro 215 44% 8% / creme chapado) enquanto o corpo
+   usa `.anamnese-solo` (degrade creme/navy com brilho). Bases diferentes = texturas diferentes.
+   CORRECAO: dar ao `<header>` a MESMA classe `.anamnese-solo` da pagina (substitui `bg-background`).
+   A emenda no rodape do header fica mascarada pelo `border-b` + pela `.leva-band` colada logo abaixo.
+   (NOTA: este item SUBSTITUI o requisito 8 antigo, que mandava usar `bg-background` no header — aquilo
+   ainda deixava header chapado x corpo em degrade.)
+6. (Tela) Botoes ficavam BRANCOS ao clicar. CAUSA-RAIZ: no tema ESCURO `--primary` e quase branco
+   (210 22% 92%); o chip de grupo ATIVO usava `--primary` como fundo + texto branco -> botao branco
+   com texto branco (sumia). CORRECAO: `gchipStyle` ativo passou a ser TEMA-CONSCIENTE — no escuro usa
+   fundo navy explicito (`#1f4377 -> #15315a`) + texto branco + anel ouro; no claro mantem `--primary`
+   (que ja e navy) + texto branco + anel ouro.
+7. (Tela) Cartoes de questao nao afinados. O QuestionCard (compartilhado por GroupView e FocusView)
+   JA estava `p-3`; faltava o cartao "Seu mapa de saude" (HealthTwin) que ainda era `p-4`. CORRECAO:
+   `p-4 -> p-3` para consistencia. (Se o CEO quiser o cartao tambem mais ESTREITO em largura, e
+   mudanca nova — pedir confirmacao.)
+8. (Processo) CEO cobrou rodar o loop direito. Esta rodada seguiu spec -> build -> screenshot (claro
+   e escuro) -> architect. Reclamacao de custo: NAO comentar billing; se insistir, indicar suporte Replit.
+
+Validado por SCREENSHOT tema CLARO e ESCURO (topo + rodape). Truque de forcar tema (readTheme ->
+"light") usado SO para o screenshot e REVERTIDO. architect: <pendente nesta rodada>.
