@@ -90,14 +90,17 @@ bases alinhadas = espelhar a altura dos slots, nao o conteudo.
 ## Contorno preto em PNG ouro + centralizar logo sobre legenda + area segura iOS
 - "Logo alinhado a frase" = LOGO centralizado SOBRE a legenda (meio-com-meio): coluna `items-center`,
   nao `items-start`. O CEO quer o meio do logo no meio da frase, nao a frase no logo.
-- Delimitar logo RASTER (PNG ouro recortado) sobre creme: NAO usar `drop-shadow` CSS como contorno —
-  empilhar drop-shadows sai irregular/sujo (halo grosso embaixo, fino em cima) e empasta microtexto.
-  Solucao boa = BORDA UNIFORME EMBUTIDA na imagem (ImageMagick: clonar, dilatar o canal alfa por Disk:N,
-  `-fill black -colorize 100`, `+swap` p/ compor a arte original por cima) — abraca cada letra por igual.
-  CALIBRAR N pelo downscale de exibicao: arte 644px mostrada ~98px (~6,5x menor) pediu Disk:9 (~1,4px
-  aparente). Filtro de cor (saturate/brightness) NAO afeta a borda (preto*brilho=preto); `brightness()`
-  alto CLAREIA o ouro e derruba contraste contra o creme — ouro mais cheio delimita melhor. Borda
-  embutida vale igual nos 2 temas.
+- Destacar logo RASTER de TRACO FINO (ouro chapado, ex.: Instituto Padua) sobre creme: o CEO NAO quer
+  CONTORNO — nem `drop-shadow` CSS (sai sujo/irregular, empasta microtexto) nem borda uniforme embutida
+  (vira cara de "adesivo"/caixa). O que ele quer e RELEVO 3D / bevel / "up" como o PADCON. ATENCAO: o
+  PADCON salta porque a ARTE dele JA e 3D pesada (letras grossas); o Padua e fino e quase chapado, entao
+  3D forte e limitado PELA ARTE — ser honesto sobre isso, nao prometer igualdade.
+  Receita de bevel EMBUTIDO (ImageMagick): extrair alfa -> `-blur 0xN -shade 135xELEV -auto-level` ->
+  compor sobre a arte em `-compose Overlay` -> reaplicar o alfa original (CopyOpacity). ELEV menor = 3D
+  MAIS forte (~18 foi o equilibrio; 14 mais dramatico, 30 sutil). Opcional `-shadow 42x2+0+1` p/ flutuar.
+  Isso da luz no topo + sombra embaixo e os "contornos escuros" naturais SO no lado da sombra (o que o
+  CEO elogia no PADCON). NAO aplicar `brightness()` alto por cima do asset 3D — ACHATA o relevo; so um
+  leve `saturate(~1.1)`. Vale igual nos 2 temas (efeito embutido na imagem).
 - Verificacao HONESTA de detalhe fino: o screenshot inteiro engana (parece ok); recortar a regiao e
   AMPLIAR (`magick -crop ... -resize 300%`) revela o que o olho do CEO ve no retina. Nunca opinar
   "ficou bom" sem ter ampliado — o CEO cobra sinceridade e ja pegou opiniao superficial.

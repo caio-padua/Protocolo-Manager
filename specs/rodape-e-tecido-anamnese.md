@@ -257,3 +257,24 @@ CORRECAO (so PaduaWordmark; PADCON intacto):
 
 Validado: assets de teste (Disk 6/9/12 sobre creme) + recorte ampliado da captura AO VIVO no tema claro
 — borda limpa, pareja, logo recortado. Borda embutida = vale igual nos dois temas.
+
+---
+
+## ATUALIZACAO 24/06/2026 (9a rodada) — RELEVO 3D no Instituto Padua (CEO rejeitou borda)
+
+CEO reprovou a borda uniforme embutida (8a rodada): "parece adesivo". Comparando com o PADCON ao lado,
+pediu RELEVO 3D / bevel / "up" — e notou que o PADCON "so tem alguns contornos no preto" (= os contornos
+escuros aparecem SO no lado da sombra do 3D, nao uma borda fechada). Proibido mexer no fundo creme.
+
+VERDADE REGISTRADA (sinceridade): o PADCON salta porque a ARTE dele ja e 3D pesada (letras grossas
+biseladas). A arte do Padua e FINA e quase chapada, entao 3D forte e limitado pela arte. Mesmo assim deu
+p/ criar relevo real.
+
+CORRECAO (so PaduaWordmark; PADCON e fundo intactos):
+- Novo asset `padua-wordmark-outlined.png` agora e a arte com BEVEL + ELEVACAO embutidos (ImageMagick:
+  shade do alfa em -compose Overlay = luz no topo / sombra embaixo; -shade 135x18; mais -shadow suave
+  p/ flutuar). Resultado: 3D + contornos escuros naturais so no lado da sombra, sem adesivo, sem placa.
+- Componente: filtro de cor reduzido p/ `saturate(1.12)` quando 3D (brilho alto achataria o relevo).
+- Altura mantida em 33 (proporcao do asset 3D ~3,18 vs original 3,27).
+
+Validado por recorte ampliado (3,8x) da captura AO VIVO no tema claro. Fundo creme nao tocado.

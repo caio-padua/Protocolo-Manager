@@ -1,11 +1,11 @@
 import paduaWordmarkUrl from "@/assets/padua-wordmark.png";
-import paduaWordmarkOutlinedUrl from "@/assets/padua-wordmark-outlined.png";
+import paduaWordmark3dUrl from "@/assets/padua-wordmark-outlined.png";
 
 type Props = {
   /** Altura em pixels da logo INSTITUTO PADUA. A largura ajusta proporcionalmente. */
   height?: number;
   className?: string;
-  /** Usa a arte com BORDA PRETA UNIFORME embutida (delimita o logo sobre o creme). */
+  /** Usa a arte com RELEVO 3D (bevel + elevacao) embutido, p/ destacar sobre o creme. */
   outlined?: boolean;
 };
 
@@ -14,25 +14,30 @@ type Props = {
  * (Logotipo 4), com fundo transparente. NAO e texto digitado — e a imagem real
  * da logo aprovada, renderizada flutuante, sem placa.
  *
- * DELIMITACAO (decisao do CEO 24/06/2026 — opcao A): a borda preta vem EMBUTIDA
- * na imagem (`padua-wordmark-outlined.png`, contorno uniforme gerado por dilatacao
- * do alfa), NAO por `drop-shadow` em CSS — sombra empilhada saia irregular/suja.
- * A borda embutida abraca cada letra por igual e mantem o "INSTITUTO" legivel.
+ * RELEVO 3D (decisao do CEO 24/06/2026): a arte original do Padua e FINA e quase
+ * chapada (diferente do PADCON, que ja vem 3D pesado). Para "saltar" como o PADCON,
+ * o asset `padua-wordmark-outlined.png` recebe bevel + elevacao embutidos (gerado por
+ * ImageMagick: shade do alfa em Overlay = luz no topo / sombra embaixo, mais um leve
+ * drop-shadow suave p/ flutuar). Isso cria 3D e os "contornos escuros" naturais SO no
+ * lado da sombra — sem borda uniforme tipo adesivo (rejeitada) e sem placa.
+ * Tentativa anterior por contorno em CSS (`drop-shadow`) saia suja e foi descartada.
  */
 export function PaduaWordmark({ height = 38, className, outlined }: Props) {
   return (
     <img
-      src={outlined ? paduaWordmarkOutlinedUrl : paduaWordmarkUrl}
+      src={outlined ? paduaWordmark3dUrl : paduaWordmarkUrl}
       alt="Instituto Padua"
       className={className}
       style={{
         height,
         width: "auto",
         display: "block",
-        // Ouro mais CHEIO (menos clareado) p/ ganhar contraste contra o creme. O filtro
-        // nao afeta a borda preta embutida (preto * brilho = preto). Aproximacao por
-        // filtro; nao redesenha a arte.
-        filter: "saturate(1.55) brightness(1.18) contrast(1.08)",
+        // Asset 3D ja vem com cor/contraste tratados; so um leve realce de saturacao p/
+        // o ouro nao perder vida sobre o creme. Brilho alto ACHATARIA o relevo, entao nao.
+        // A arte chapada (sem 3D) usa o realce antigo mais forte.
+        filter: outlined
+          ? "saturate(1.12)"
+          : "saturate(1.55) brightness(1.18) contrast(1.08)",
       }}
       draggable={false}
     />
