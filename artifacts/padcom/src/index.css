@@ -934,3 +934,136 @@
   color: hsl(var(--foreground));
   text-transform: none;
 }
+
+/* ============================================================
+   ANAMNESE ESCURA (Lora) — pele "leva" portada do mockup aprovado
+   (anamnese-escura/FonteLora · bevel="misto" · qfont="lora").
+   Pergunta em Lora serifada, painel "misto" suavizado, chips
+   concavos (anel ouro no ativo) e fileira de acoes ciano embutida.
+   Tema claro coerente + variante .dark (navy profundo do mockup).
+   Classes UNLAYERED de proposito (vencem utilitarios Tailwind);
+   nao reordenar camadas. So aparencia — a logica nunca muda.
+   ============================================================ */
+
+/* Fonte da pergunta = Lora (serifa humanista calma e legivel). */
+.leva-q {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Painel da pergunta — TEMA CLARO coerente (cartao creme elevado). */
+.leva-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fffdf8 100%);
+  border: 1px solid rgba(138, 109, 47, 0.18);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 8px rgba(138, 109, 47, 0.08),
+    0 9px 0 -3px rgba(15, 28, 53, 0.08),
+    0 18px 26px -10px rgba(15, 28, 53, 0.30);
+}
+/* Painel da pergunta — TEMA ESCURO "misto" SUAVIZADO (degrade parelho:
+   base #14304f -> #0f2442 -> #0b1c34). */
+.dark .leva-card {
+  background: linear-gradient(180deg, #14304f 0%, #0f2442 52%, #0b1c34 100%);
+  border: 1px solid rgba(0, 0, 0, 0.46);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.5),
+    0 10px 0 -3px rgba(0, 0, 0, 0.52),
+    0 20px 30px -10px rgba(0, 0, 0, 0.78);
+}
+/* Verniz no topo — REDUZIDO (~0.18) para um misto suave, nao espelhado. */
+.dark .leva-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.5rem;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.06) 9%,
+    rgba(255, 255, 255, 0.015) 22%,
+    rgba(255, 255, 255, 0) 40%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Chip de resposta — botao mecanico concavo; ao SELECIONAR afunda no painel
+   e ganha anel ouro. TEMA CLARO. */
+.leva-chip {
+  position: relative;
+  border-radius: 11px;
+  font-weight: 600;
+  transition: transform .14s cubic-bezier(.16, 1, .3, 1), box-shadow .18s ease;
+  background: linear-gradient(180deg, #ffffff 0%, #f3ead7 100%);
+  border: 1px solid rgba(138, 109, 47, 0.30);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 4px rgba(138, 109, 47, 0.12),
+    0 4px 0 -1px rgba(15, 28, 53, 0.14),
+    0 7px 11px -5px rgba(15, 28, 53, 0.22);
+  color: #3b4860;
+}
+.leva-chip:active { transform: translateY(2px); }
+.leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #efe6d2 0%, #f7f0e1 100%);
+  border-color: #b9923f;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 3px 6px rgba(138, 109, 47, 0.30),
+    inset 0 1px 1px rgba(138, 109, 47, 0.18),
+    0 0 14px rgba(185, 146, 63, 0.30);
+  color: #8a6d2f;
+}
+/* Chip de resposta — TEMA ESCURO. */
+.dark .leva-chip {
+  background: linear-gradient(180deg, #31507e 0%, #244067 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.38),
+    0 4px 0 -1px #112444,
+    0 7px 11px -5px rgba(0, 0, 0, 0.55);
+  color: #e3ebf6;
+}
+.dark .leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #1a3055 0%, #234063 100%);
+  border-color: #c2a05a;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(194, 160, 90, 0.30);
+  color: #f4e2a8;
+}
+.leva-chip:focus-visible { outline: 2px solid #45B8CC; outline-offset: 2px; }
+
+/* Fileira de acoes da pergunta: Ouvir | Video | Gravar — selos EMBUTIDOS
+   (concavos) na MESMA cor ciano. TEMA CLARO. */
+.leva-action {
+  border-radius: 9px;
+  font-weight: 700;
+  transition: filter .18s ease, transform .12s ease;
+  color: #0e7d92;
+  background: rgba(15, 28, 53, 0.05);
+  border: 1px solid rgba(15, 28, 53, 0.08);
+  box-shadow: inset 0 1px 3px rgba(15, 28, 53, 0.12);
+}
+.leva-action:active { transform: translateY(1px); }
+/* Fileira de acoes — TEMA ESCURO (ciano #5cc4d6). */
+.dark .leva-action {
+  color: #5cc4d6;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.leva-action:focus-visible { outline: 2px solid #45B8CC; outline-offset: 2px; }

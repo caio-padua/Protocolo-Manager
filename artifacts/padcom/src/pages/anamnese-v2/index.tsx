@@ -667,27 +667,16 @@ function QuestionCard({
 
   return (
     <div
-      className="panel-3d rounded-md p-4"
-      style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.08)" } : undefined}
+      className="leva-card rounded-md p-4"
+      style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <p className="text-base font-semibold leading-snug text-foreground">
+      <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">
+        <p className="leva-q text-base leading-snug text-foreground">
           {q.pergunta}
         </p>
         <div className="flex shrink-0 items-center gap-1">
-          {q.audioUrl && (
-            <button
-              type="button"
-              onClick={toggleAudio}
-              aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
-              className="btn-3d-soft flex h-8 w-8 items-center justify-center rounded-md text-primary"
-              style={playing ? { boxShadow: `0 0 0 2px ${GOLD}`, color: GOLD } : undefined}
-            >
-              {playing ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </button>
-          )}
           {q.eSinalAlarme && (
-            <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600">
+            <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:bg-red-950/60 dark:text-red-300">
               <AlertTriangle className="h-3 w-3" /> Atenção
             </span>
           )}
@@ -697,7 +686,7 @@ function QuestionCard({
 
       {/* Ajuda em linguagem leiga (observacao) */}
       {q.observacao && (
-        <div className="mb-3 flex gap-2 rounded-md bg-muted px-3 py-2">
+        <div className="relative z-[1] mb-3 flex gap-2 rounded-md bg-muted px-3 py-2">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
             {q.observacao}
@@ -705,33 +694,54 @@ function QuestionCard({
         </div>
       )}
 
-      {/* Video explicativo opcional */}
-      {q.videoUrl && (
-        <div className="mb-3">
-          {showVideo ? (
-            <video
-              src={q.videoUrl}
-              controls
-              autoPlay
-              className="w-full rounded-md"
-              style={{ maxHeight: 220 }}
-            />
-          ) : (
+      {/* Video explicativo opcional (player inline; toggle vive na fileira de acoes) */}
+      {q.videoUrl && showVideo && (
+        <div className="relative z-[1] mb-3">
+          <video
+            src={q.videoUrl}
+            controls
+            autoPlay
+            className="w-full rounded-md"
+            style={{ maxHeight: 220 }}
+          />
+        </div>
+      )}
+
+      <div className="relative z-[1]">
+        <ControlRenderer question={q} value={value} onChange={(v, o) => onAnswer(q, v, o)} />
+      </div>
+
+      {/* Exemplo de preenchimento */}
+      {q.exemplo && <p className="relative z-[1] mt-2 text-[12px] italic text-gray-400">{q.exemplo}</p>}
+
+      {/* Fileira de acoes da pergunta: Ouvir | Video — selos embutidos ciano.
+          Ouvir so com audioUrl (mp3 premium; Web Speech API proibida);
+          Video so com videoUrl. Gravar (voz) vive no controle de texto. */}
+      {(q.audioUrl || q.videoUrl) && (
+        <div className="relative z-[1] mt-3 flex flex-wrap items-center gap-2">
+          {q.audioUrl && (
             <button
               type="button"
-              onClick={() => setShowVideo(true)}
-              className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-primary"
+              onClick={toggleAudio}
+              aria-label={playing ? "Parar leitura da pergunta" : "Ouvir a pergunta"}
+              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
             >
-              <Play className="h-4 w-4" /> Ver vídeo explicativo
+              {playing ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              {playing ? "Parar" : "Ouvir"}
+            </button>
+          )}
+          {q.videoUrl && (
+            <button
+              type="button"
+              onClick={() => setShowVideo((v) => !v)}
+              aria-label={showVideo ? "Ocultar vídeo explicativo" : "Ver vídeo explicativo"}
+              className="leva-action inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+            >
+              <Play className="h-3.5 w-3.5" /> Vídeo
             </button>
           )}
         </div>
       )}
-
-      <ControlRenderer question={q} value={value} onChange={(v, o) => onAnswer(q, v, o)} />
-
-      {/* Exemplo de preenchimento */}
-      {q.exemplo && <p className="mt-2 text-[12px] italic text-gray-400">{q.exemplo}</p>}
     </div>
   );
 }

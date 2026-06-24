@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Check, Minus, Plus, Circle, Square, RotateCcw } from "lucide-react";
+import { Mic, MicOff, Check, Minus, Plus, Square, RotateCcw } from "lucide-react";
 import type { AnamneseQuestion } from "@workspace/api-client-react";
 import { controlKind, parseOpcoes, type Valor, type Opcao } from "./types";
 
@@ -60,16 +60,12 @@ function YesNoControl({
           <button
             key={opt.label}
             type="button"
+            data-active={active}
             onClick={() => onChange({ tipo: "boolean", bool: opt.b }, { commit: true })}
-            className="panel-3d-sub flex h-20 items-center justify-center gap-2 rounded-md text-lg font-bold uppercase tracking-wide transition-all"
-            style={
-              active
-                ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" }
-                : { color: "hsl(var(--muted-foreground))" }
-            }
+            className="leva-chip flex h-20 items-center justify-center gap-2 text-lg font-bold uppercase tracking-wide"
           >
             {active && <Check className="h-5 w-5" style={{ color: GOLD }} />}
-            {opt.label}
+            <span className="leva-chip-txt">{opt.label}</span>
           </button>
         );
       })}
@@ -95,11 +91,11 @@ function SingleControl({
           <button
             key={String(o.valor)}
             type="button"
+            data-active={active}
             onClick={() => onChange({ tipo: "single", opcao: o.label, valor: o.valor }, { commit: true })}
-            className="panel-3d-sub flex items-center justify-between gap-2 rounded-md px-4 py-3.5 text-left text-base font-medium transition-all"
-            style={active ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" } : { color: "hsl(var(--muted-foreground))" }}
+            className="leva-chip flex items-center justify-between gap-2 px-4 py-3.5 text-left text-base font-medium"
           >
-            <span>{o.label}</span>
+            <span className="leva-chip-txt">{o.label}</span>
             {active && <Check className="h-5 w-5 shrink-0" style={{ color: GOLD }} />}
           </button>
         );
@@ -140,12 +136,12 @@ function MultiControl({
           <button
             key={String(o.valor)}
             type="button"
+            data-active={active}
             onClick={() => toggle(o.label)}
-            className="panel-3d-sub flex min-w-0 items-center gap-2 rounded-md px-4 py-2.5 text-left text-sm font-medium transition-all"
-            style={active ? { boxShadow: `0 0 0 3px ${GOLD}`, color: "hsl(var(--primary))" } : { color: "hsl(var(--muted-foreground))" }}
+            className="leva-chip flex min-w-0 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium"
           >
             {active && <Check className="h-4 w-4 shrink-0" style={{ color: GOLD }} />}
-            <span className="truncate">{o.label}</span>
+            <span className="leva-chip-txt truncate">{o.label}</span>
           </button>
         );
       })}
@@ -417,8 +413,7 @@ function TextoControl({
           <button
             type="button"
             onClick={listening ? stopVoice : startVoice}
-            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-            style={listening ? { boxShadow: `0 0 0 2px ${GOLD}`, color: "hsl(var(--primary))" } : undefined}
+            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
           >
             {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {listening ? "Ouvindo..." : "Falar"}
@@ -535,18 +530,17 @@ function AudioRecorder() {
           <button
             type="button"
             onClick={iniciar}
-            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-gravar-audio"
           >
-            <Circle className="h-4 w-4 fill-red-500 text-red-500" /> Gravar áudio
+            <Mic className="h-4 w-4" /> Gravar áudio
           </button>
         )}
         {recording && (
           <button
             type="button"
             onClick={parar}
-            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-            style={{ boxShadow: `0 0 0 2px ${GOLD}`, color: "hsl(var(--primary))" }}
+            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-parar-audio"
           >
             <Square className="h-4 w-4" /> Parar
@@ -561,7 +555,7 @@ function AudioRecorder() {
           <button
             type="button"
             onClick={regravar}
-            className="btn-3d-soft flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+            className="leva-action inline-flex items-center gap-2 px-3 py-2 text-sm font-bold"
             data-testid="button-regravar-audio"
           >
             <RotateCcw className="h-4 w-4" /> Regravar
