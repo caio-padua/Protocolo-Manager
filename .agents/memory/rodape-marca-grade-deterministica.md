@@ -87,6 +87,20 @@ bases alinhadas = espelhar a altura dos slots, nao o conteudo.
   `max-[380px]:whitespace-normal` (quebra so em telas muito estreitas; evita clipping com nowrap).
 **Why:** o CEO ve a tela no iPhone em tema CLARO; branco destoava do tecido e nowrap arrisca corte.
 
+## Contorno preto em PNG ouro + centralizar logo sobre legenda + area segura iOS
+- "Logo alinhado a frase" = LOGO centralizado SOBRE a legenda (meio-com-meio): coluna `items-center`,
+  nao `items-start`. O CEO quer o meio do logo no meio da frase, nao a frase no logo.
+- Contorno preto NITIDO em PNG transparente (arte ouro recortada) = `drop-shadow` em 4 direcoes
+  (offset ~0,6px, blur 0, preto ~0.7) — desenha borda fina ao redor dos pixels opacos. Blur>0 vira
+  halo, nao contorno. Se o componente JA tem `filter` (ex.: filtro de cor saturate/brightness),
+  CONCATENAR o drop-shadow no MESMO `filter` (dois atributos `filter` se sobrescrevem). Expor por
+  prop opcional p/ nao afetar outros usos do componente.
+- Rodape `fixed bottom-0` em iPhone: o conteudo encosta no indicador/quina inferior. Proteger com
+  `paddingBottom: calc(<pad> + env(safe-area-inset-bottom, 0px))` — o `, 0px` e o FALLBACK p/
+  navegador sem suporte a `env` (sem ele a declaracao inteira pode cair). Fundo segue full-bleed.
+**Why:** ouro sobre creme tem contraste baixo (legibilidade); safe-area com fallback evita corte no
+"chao" do iOS sem quebrar o padding em navegador desktop sem notch.
+
 ### Armadilha: forcar tema p/ screenshot nao reflete (cache de modulo no navegador da captura)
 O truque `readTheme()->return "light"` as vezes NAO vira no screenshot mesmo apos restart do workflow
 e cache-bust na URL (`?cb=`): o cache-bust troca a URL do HTML, mas o navegador da captura mantem o

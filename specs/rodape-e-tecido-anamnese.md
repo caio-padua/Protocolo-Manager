@@ -179,3 +179,25 @@ Apos ver o print (tema CLARO, iPhone) o CEO pediu 3 ajustes de apresentacao:
 
 Validado por SCREENSHOT no tema CLARO (o que o CEO usa): 2 legendas embaixo e alinhadas, blocos
 mediais, faixa creme. architect: PASS.
+
+---
+
+## ATUALIZACAO 24/06/2026 (5a rodada) — centralizar logo sobre a frase + contorno preto + area segura
+
+CEO (apos print iPhone, tema claro) pediu 3 refinamentos:
+
+1. NAO e a frase que alinha ao logo; e o LOGO que centraliza sobre a frase: o MEIO (eixo central
+   horizontal) do INSTITUTO PADUA tem de coincidir com o MEIO da frase de baixo. CORRECAO: a coluna
+   esquerda passou de `items-start` para `items-center` (a direita PADCON ja era center). Agora cada
+   logo fica centralizado sobre sua legenda (meio-com-meio).
+2. A faixa nao pode ser cortada pelo "chao"/quina inferior do iPhone. CORRECAO: a faixa passou a
+   respeitar a AREA SEGURA do iOS: `paddingBottom: calc(0.625rem + env(safe-area-inset-bottom))`
+   (mantendo o fundo full-bleed ate a borda; so o CONTEUDO sobe acima do indicador inferior).
+3. Colocar um CONTORNO PRETO fino p/ dar NITIDEZ aos dois logos (INSTITUTO PADUA e PADCON) sobre o
+   creme. CORRECAO: prop `outlined` nos dois componentes (PaduaWordmark/PadconWordmark) = contorno
+   em 4 direcoes via `drop-shadow` (offset 0,6px, blur 0, preto 0.7) — borda fina e nitida ao redor
+   dos pixels opacos do PNG. No PADUA o contorno e CONCATENADO ao filtro de cor ja existente
+   (saturate/brightness) — um unico `filter`, pois dois `filter` se sobrescrevem.
+
+Validado por SCREENSHOT (tema claro, 390px iPhone): logos centralizados sobre as frases, contorno
+preto visivel, faixa nao cortada embaixo. architect: PASS.

@@ -630,22 +630,27 @@ export default function AnamneseV2() {
         </div>
         {/* FAIXA continua full-bleed: fundo de ponta a ponta, conteudo centralizado em max-w-2xl.
             px-6 (mais respiro lateral) p/ os blocos virem MEDIAIS e nao cortarem em iPhone. */}
-        <div className="footer-brand-band px-6 py-2.5">
+        {/* paddingBottom respeita a AREA SEGURA do iPhone (env safe-area) p/ a faixa
+            nao ser cortada pelo "chao"/indicador inferior do celular. */}
+        <div
+          className="footer-brand-band px-6 pt-2.5"
+          style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom, 0px))" }}
+        >
           <div className="mx-auto flex max-w-2xl items-end justify-between gap-3">
-            {/* ESQUERDA: wordmark Instituto Padua + assinatura do diretor EMBAIXO. */}
-            <div className="flex flex-col items-start">
-              <PaduaWordmark height={30} />
+            {/* ESQUERDA: wordmark Instituto Padua CENTRALIZADO sobre a assinatura (meio
+                do logo alinhado ao meio da frase). Contorno preto p/ nitidez. */}
+            <div className="flex flex-col items-center">
+              <PaduaWordmark height={30} outlined />
               <span
-                className="footer-credit-padua mt-1 whitespace-nowrap text-[10px] leading-none max-[380px]:whitespace-normal"
+                className="footer-credit-padua mt-1 whitespace-nowrap text-center text-[10px] leading-none max-[380px]:whitespace-normal"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
             </div>
-            {/* DIREITA: wordmark PADCON + "Engineered by" EMBAIXO, centralizado na largura do PADCON.
-                As DUAS legendas ficam na mesma base (items-end + mesma altura de legenda). */}
+            {/* DIREITA: wordmark PADCON CENTRALIZADO sobre "Engineered by". Contorno preto. */}
             <div className="flex flex-col items-center">
-              <PadconWordmark height={20} />
+              <PadconWordmark height={20} outlined />
               <span
                 className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
