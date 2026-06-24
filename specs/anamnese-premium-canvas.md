@@ -35,3 +35,18 @@ aplicar kaizen sem perguntar, dentro do padrao Paxter (skill-layout-paxter).
 - `pnpm --filter @workspace/padcom run typecheck`.
 - architect({ includeGitDiff: true }); corrigir pendencia grave.
 - Atualizar memoria.
+
+---
+
+## LOOP 2 — Refinamentos da anamnese /anamnese/v2 (24/06/2026)
+
+Pedido do CEO por voz ("me surpreenda, faca sem perguntar"). Vale para tema CLARO e ESCURO.
+NAO mexer no tecido terno (.leva-fabric). Preservar 100% da logica.
+
+| Item | Alvo | O que muda |
+|---|---|---|
+| 1 | Botoes de escala 0/1/2/3 (controls.tsx) | Cor selecionada estava "grosseira" (navy solido). Agora: degrade navy suave (primary 0.95->0.80) so no ativo + anel ouro 2px; preenchido-nao-ativo = tint leve primary/0.16 com texto foreground (theme-safe). |
+| 2 | Botoes Proximo/Concluir (index.tsx, modo grupo E modo foco) | Removido bg-primary/text-primary-foreground que achatava o gradiente. Agora seguem o CTA validado: btn-3d (navy/ouro) + text-white + uppercase tracking-wide + h-12. |
+| 3 | Navegador de grupos (chips A,B,C... no topo do main) | (a) Letra vira SIGLA de 4 letras da 1a palavra do bloco (ex.: "E. CIRURGIAS"->"Cirg") via helper sigla(); (b) layout em grade (grid-cols-4 no celular / sm:grid-cols-7), mais empilhado; (c) sobre PAINEL LISO horizontal de ponta a ponta (.leva-band, -mx-4) limitado em cima/baixo so a area dos chips, por cima do tecido. |
+
+Faixa .leva-band: claro = placa creme suave; escuro = placa navy suave. So fundo/borda/sombra, sem textura (o tecido fica intacto embaixo do conteudo do main).

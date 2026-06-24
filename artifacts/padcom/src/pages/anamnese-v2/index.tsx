@@ -493,36 +493,47 @@ export default function AnamneseV2() {
       <main className="relative z-[1] mx-auto max-w-2xl px-4 pt-4">
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {groups.map((g, i) => {
-              const done = g.questions.every((q) => isAnswered(answers[q.id]));
-              const ref = isRefused(g.bloco);
-              const active = i === groupIdx;
-              const letra = g.bloco.split(".")[0].trim().slice(0, 2);
-              return (
-                <button
-                  key={g.bloco}
-                  type="button"
-                  onClick={() => setGroupIdx(i)}
-                  title={g.bloco}
-                  className={`flex h-9 min-w-9 items-center gap-1 rounded-md px-2 text-xs font-bold transition-all ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : ref
-                        ? "bg-muted text-muted-foreground"
+          <div className="leva-band -mx-4 mb-4 rounded-xl px-4 py-3">
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+              {groups.map((g, i) => {
+                const done = g.questions.every((q) => isAnswered(answers[q.id]));
+                const ref = isRefused(g.bloco);
+                const active = i === groupIdx;
+                const tag = siglaBloco(g.bloco);
+                return (
+                  <button
+                    key={g.bloco}
+                    type="button"
+                    onClick={() => setGroupIdx(i)}
+                    title={g.bloco}
+                    className={`flex h-10 items-center justify-center gap-1 rounded-md text-[13px] font-bold tracking-tight transition-all ${
+                      active
+                        ? "text-white"
+                        : ref
+                          ? "text-muted-foreground"
+                          : done
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-foreground/70"
+                    }`}
+                    style={{
+                      background: active
+                        ? "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.78))"
                         : done
-                          ? "bg-green-100 text-green-700"
-                          : "bg-card text-muted-foreground"
-                  }`}
-                  style={{
-                    boxShadow: active ? `0 0 0 2px ${GOLD}` : "inset 0 0 0 1px hsl(var(--border))",
-                  }}
-                >
-                  {done && !active ? <Check className="h-3 w-3" /> : null}
-                  {letra}
-                </button>
-              );
-            })}
+                          ? "rgba(16,122,87,0.10)"
+                          : ref
+                            ? "hsl(var(--muted))"
+                            : "hsl(var(--card) / 0.6)",
+                      boxShadow: active
+                        ? `0 0 0 2px ${GOLD}, 0 4px 10px -4px hsl(var(--primary) / 0.5)`
+                        : "inset 0 0 0 1px hsl(var(--border))",
+                    }}
+                  >
+                    {done && !active ? <Check className="h-3 w-3" /> : null}
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -560,7 +571,7 @@ export default function AnamneseV2() {
               type="button"
               disabled={groupIdx === 0}
               onClick={() => setGroupIdx((i) => Math.max(0, i - 1))}
-              className="btn-3d-soft flex items-center gap-1.5 rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-40"
+              className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" /> Anterior
             </button>
@@ -569,16 +580,16 @@ export default function AnamneseV2() {
                 type="button"
                 onClick={finalizar}
                 disabled={complete.isPending}
-                className="btn-3d flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                className="btn-3d flex h-12 items-center gap-2 rounded-md px-5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-60"
               >
                 {complete.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Concluir anamnese
+                Concluir
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setGroupIdx((i) => Math.min(groups.length - 1, i + 1))}
-                className="btn-3d flex items-center gap-1.5 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
               >
                 Próximo <ChevronRight className="h-4 w-4" />
               </button>
@@ -624,6 +635,40 @@ const PERGUNTA_SIGLAS = new Set([
   "PA", "FC", "IV", "IM", "SC", "SUS", "CRM", "COREN", "RX", "USG", "TC", "RM",
   "RNM", "ECG", "PCR", "HAS", "DM", "DPOC", "AVC", "IAM", "TPM", "DIU", "SOP", "HPV",
 ]);
+
+// Sigla curta do bloco para o navegador de grupos: pega as 4 primeiras letras
+// da primeira palavra apos o prefixo "A. " e aplica caixa de titulo.
+// Ex.: "E. CIRURGIAS E INTERNACOES" -> "Cirg"; "D. ANTECEDENTES..." -> "Ante".
+function sigla(bloco: string): string {
+  const semPrefixo = bloco.replace(/^[A-Za-z]\.\s*/, "");
+  const primeira = semPrefixo.split(/[\s/]+/).filter(Boolean)[0] ?? bloco;
+  const limpa = primeira.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  const base = (limpa || bloco).slice(0, 4).toLowerCase();
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+// Siglas curadas dos 14 blocos fixos da anamnese (taste do CEO, ex.: E -> "Cirg").
+// Blocos desconhecidos caem no gerador automatico sigla().
+const SIGLAS_BLOCO: Record<string, string> = {
+  "A. IDENTIFICACAO E CONTEXTO": "Iden",
+  "B. QUEIXA PRINCIPAL E HMA": "Quei",
+  "C. REVISAO POR SISTEMAS (ISDA)": "Revi",
+  "D. ANTECEDENTES PATOLOGICOS": "Ante",
+  "E. CIRURGIAS E INTERNACOES": "Cirg",
+  "F. ALERGIAS E REACOES ADVERSAS": "Aler",
+  "G. MEDICACOES E SUPLEMENTOS": "Medi",
+  "H. IMUNIZACOES": "Imun",
+  "I. HABITOS E ESTILO DE VIDA": "Hábi",
+  "J. HISTORIA FAMILIAR": "Hist",
+  "K. PSICOSSOCIAL E OCUPACIONAL": "Psic",
+  "L. GINECO-OBSTETRICA / ANDROLOGICA": "Gine",
+  "M. EIXOS DA MEDICINA FUNCIONAL": "Eixo",
+  "N. PREFERENCIAS TERAPEUTICAS E FINANCEIRAS": "Pref",
+};
+
+function siglaBloco(bloco: string): string {
+  return SIGLAS_BLOCO[bloco] ?? sigla(bloco);
+}
 
 // Exibe a pergunta com apenas a inicial maiuscula; siglas conhecidas seguem
 // em caixa-alta. NAO altera o dado de origem (banco continua em caixa-alta);
@@ -883,7 +928,7 @@ function FocusView({
           type="button"
           disabled={idx === 0}
           onClick={onPrev}
-          className="btn-3d-soft flex items-center gap-1.5 rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-40"
+          className="btn-3d-soft flex h-12 items-center gap-1.5 rounded-md px-5 text-sm font-bold disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" /> Voltar
         </button>
@@ -892,7 +937,7 @@ function FocusView({
             type="button"
             onClick={onFinish}
             disabled={finishing}
-            className="btn-3d flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+            className="btn-3d flex h-12 items-center gap-2 rounded-md px-5 text-sm font-bold uppercase tracking-wide text-white disabled:opacity-60"
           >
             {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Concluir
@@ -901,7 +946,7 @@ function FocusView({
           <button
             type="button"
             onClick={onNext}
-            className="btn-3d flex items-center gap-1.5 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+            className="btn-3d flex h-12 items-center gap-2 rounded-md px-6 text-sm font-bold uppercase tracking-wide text-white"
           >
             Próxima <ChevronRight className="h-4 w-4" />
           </button>

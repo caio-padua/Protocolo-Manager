@@ -193,9 +193,17 @@ function EscalaControl({
               onClick={() => onChange({ tipo: "escala", escala: n, max }, { commit: true })}
               className="concave-3d flex h-12 items-center justify-center rounded-md px-2 text-base font-bold transition-all"
               style={{
-                boxShadow: active ? `0 0 0 3px ${GOLD}` : undefined,
-                background: filled ? "hsl(var(--primary))" : undefined,
-                color: filled ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
+                boxShadow: active ? `0 0 0 2px ${GOLD}` : undefined,
+                background: active
+                  ? "linear-gradient(180deg, hsl(var(--primary) / 0.95), hsl(var(--primary) / 0.80))"
+                  : filled
+                    ? "hsl(var(--primary) / 0.16)"
+                    : undefined,
+                color: active
+                  ? "hsl(var(--primary-foreground))"
+                  : filled
+                    ? "hsl(var(--foreground))"
+                    : "hsl(var(--muted-foreground))",
               }}
             >
               {n}

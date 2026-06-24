@@ -34,3 +34,17 @@ a regra de fundo mais especifica (ex.: `.dark .bevel-3d`, specificity 0,2,0) ven
 "CONTINUAR" porque la `text-gold` esta num `<span>` filho, sem background concorrente.
 **How to apply:** nunca por `text-gold` direto num elemento que ja tem fundo 3D; use
 dourado SOLIDO (ex.: `text-[#e9cf8f]`) no elemento, ou ponha `text-gold` num filho sem fundo.
+
+# Armadilha: bg-primary/text-primary-foreground por cima de btn-3d "engrossa" o botao
+
+CTA validado e `btn-3d` (gradiente navy/ouro) + `text-white` (+ uppercase/tracking). Se a
+classe Tailwind `bg-primary` (e `text-primary-foreground`) for somada ao mesmo elemento, o
+botao fica chapado/"grosseiro" e perde o degrade premium — foi exatamente o "botao Proximo
+estranho" que o CEO reclamou na anamnese.
+
+**Why:** `bg-primary` pinta um fundo solido que compete com o gradiente do `btn-3d`; o
+resultado e um navy chapado sem relevo. O padrao validado (portao "Continuar") NUNCA usa
+`bg-primary`: so `btn-3d` + `text-white`.
+**How to apply:** em qualquer CTA com `btn-3d`, remover `bg-primary`/`text-primary-foreground`
+e usar `text-white`. Mesma logica para selecao "suave" (escala/chips): ativo = degrade
+`hsl(var(--primary)/0.95->0.78/0.80)` + anel ouro 2px (nao `hsl(var(--primary))` solido).
