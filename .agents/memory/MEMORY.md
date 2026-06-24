@@ -47,3 +47,4 @@
 - [Tema escuro anamnese-v2: .dark no mesmo elemento](anamnese-tema-seletor-mesmo-elemento.md) — raiz poe themeClass+classe-feature no MESMO no; regra `.dark .x` (descendente) falha silenciosa; usar `.dark .x, .dark.x`.
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; PAXTER=vetor, PADCON=recorte; PadconWordmark=img.
 - [Rodape marca: legenda encerra nas verticais](rodape-marca-grade-deterministica.md) — bounding determinista exige largura FIXA=largura do logo + logo w-full justify-between + legenda justify/justifyLast; ouro de PNGs oficiais so iguala regerando arte (filtro = aproximacao).
+- [Wordmark PAXTER: arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) — "P" carcomido vinha do SVG potrace (copia ondulada) + sombra preta embutida do PNG no claro; usar arte oficial (escuro) e versao sem halo (claro).
