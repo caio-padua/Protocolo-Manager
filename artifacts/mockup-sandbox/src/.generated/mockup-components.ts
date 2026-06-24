@@ -36,5 +36,10 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-logo/SidebarMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarMetal.tsx"),
   "./components/mockups/paxter-logo/SidebarQuiet.tsx": () => import("../components/mockups/paxter-logo/SidebarQuiet.tsx"),
   "./components/mockups/paxter-logo/SidebarSceau.tsx": () => import("../components/mockups/paxter-logo/SidebarSceau.tsx"),
-  "./components/mockups/paxter-logo/SidebarSceauMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarSceauMetal.tsx")
+  "./components/mockups/paxter-logo/SidebarSceauMetal.tsx": () => import("../components/mockups/paxter-logo/SidebarSceauMetal.tsx"),
+  "./components/mockups/paxter-luz/Atual.tsx": () => import("../components/mockups/paxter-luz/Atual.tsx"),
+  "./components/mockups/paxter-luz/CadenciaVariavel.tsx": () => import("../components/mockups/paxter-luz/CadenciaVariavel.tsx"),
+  "./components/mockups/paxter-luz/CintilarDiamante.tsx": () => import("../components/mockups/paxter-luz/CintilarDiamante.tsx"),
+  "./components/mockups/paxter-luz/ReflexoCursor.tsx": () => import("../components/mockups/paxter-luz/ReflexoCursor.tsx"),
+  "./components/mockups/paxter-luz/RespiroEspecular.tsx": () => import("../components/mockups/paxter-luz/RespiroEspecular.tsx")
 };
