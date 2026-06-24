@@ -238,3 +238,22 @@ muito clareado faziam o logo "sumir" no creme), enquanto o PADCON ficava melhor.
   `saturate(1.55) brightness(1.18) contrast(1.08)` — menos clareamento = mais contraste contra o creme.
 Validado por SCREENSHOT tema claro 390px: ouro mais cheio, borda nitida, logo recortado. Filtro vale
 nos dois temas (efeito na imagem).
+
+---
+
+## ATUALIZACAO 24/06/2026 (8a rodada) — borda EMBUTIDA no Instituto Padua (opcao A do CEO)
+
+CEO (ampliando o print em 3x) provou que o contorno por `drop-shadow` CSS saia IRREGULAR/SUJO (grosso
+embaixo, fino em cima, microtexto "INSTITUTO" empastado). Escolheu opcao A: trocar a TECNICA.
+
+CORRECAO (so PaduaWordmark; PADCON intacto):
+- Borda preta UNIFORME EMBUTIDA na imagem (novo asset `padua-wordmark-outlined.png`), gerada por
+  ImageMagick: clonar, dilatar o canal alfa (Disk:9), pintar de preto, compor a arte original por cima.
+  Abraca cada letra por igual; "INSTITUTO" continua legivel.
+- REMOVIDO o `drop-shadow` (CONTORNO_PRETO) do componente — fim do halo sujo.
+- O componente usa o asset com borda quando `outlined`, senao a arte original. Mantido o filtro de cor
+  (ouro mais cheio) que NAO afeta o preto da borda.
+- Calibragem: a arte tem 644px mas e exibida ~98px (downscale ~6,5x), por isso Disk:9 (~1,4px aparente).
+
+Validado: assets de teste (Disk 6/9/12 sobre creme) + recorte ampliado da captura AO VIVO no tema claro
+— borda limpa, pareja, logo recortado. Borda embutida = vale igual nos dois temas.

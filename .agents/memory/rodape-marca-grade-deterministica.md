@@ -90,14 +90,17 @@ bases alinhadas = espelhar a altura dos slots, nao o conteudo.
 ## Contorno preto em PNG ouro + centralizar logo sobre legenda + area segura iOS
 - "Logo alinhado a frase" = LOGO centralizado SOBRE a legenda (meio-com-meio): coluna `items-center`,
   nao `items-start`. O CEO quer o meio do logo no meio da frase, nao a frase no logo.
-- Contorno preto NITIDO em PNG transparente (arte ouro recortada) = `drop-shadow` SEM blur.
-  4 direcoes deixam "vaos" nas diagonais e ficam fracas sobre creme; usar 8 DIRECOES (4 retas ~0,7px
-  + 4 diagonais ~0,5px, preto ~0.92) p/ borda continua e nitida. Blur>0 vira halo, nao contorno. Se o
-  componente JA tem `filter` (ex.: filtro de cor saturate/brightness), CONCATENAR o drop-shadow no
-  MESMO `filter` (dois atributos `filter` se sobrescrevem). Expor por prop p/ nao afetar outros usos.
-  CUIDADO: um `brightness()` alto no MESMO filter CLAREIA o ouro e derruba o contraste contra o creme,
-  fazendo o logo "sumir" mesmo com contorno — ouro mais CHEIO (brightness menor + contraste) delimita
-  melhor. Arte de traco fino precisa de contorno mais grosso (~1px) que arte de traco cheio (~0,7px).
+- Delimitar logo RASTER (PNG ouro recortado) sobre creme: NAO usar `drop-shadow` CSS como contorno —
+  empilhar drop-shadows sai irregular/sujo (halo grosso embaixo, fino em cima) e empasta microtexto.
+  Solucao boa = BORDA UNIFORME EMBUTIDA na imagem (ImageMagick: clonar, dilatar o canal alfa por Disk:N,
+  `-fill black -colorize 100`, `+swap` p/ compor a arte original por cima) — abraca cada letra por igual.
+  CALIBRAR N pelo downscale de exibicao: arte 644px mostrada ~98px (~6,5x menor) pediu Disk:9 (~1,4px
+  aparente). Filtro de cor (saturate/brightness) NAO afeta a borda (preto*brilho=preto); `brightness()`
+  alto CLAREIA o ouro e derruba contraste contra o creme — ouro mais cheio delimita melhor. Borda
+  embutida vale igual nos 2 temas.
+- Verificacao HONESTA de detalhe fino: o screenshot inteiro engana (parece ok); recortar a regiao e
+  AMPLIAR (`magick -crop ... -resize 300%`) revela o que o olho do CEO ve no retina. Nunca opinar
+  "ficou bom" sem ter ampliado — o CEO cobra sinceridade e ja pegou opiniao superficial.
 - Revelar o "tecido"/fundo nas laterais e ENTRE os cartoes (anamnese) = layout puro (vale nos 2 temas):
   aumentar o padding horizontal do container (`px-4`->`px-6`) estreita os cartoes e mostra o fundo nas
   laterais; embrulhar a lista de cartoes num `flex flex-col gap-5` mostra o fundo entre eles. ARMADILHA:

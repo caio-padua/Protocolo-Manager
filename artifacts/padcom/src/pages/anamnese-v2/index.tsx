@@ -640,7 +640,7 @@ export default function AnamneseV2() {
             {/* ESQUERDA: wordmark Instituto Padua CENTRALIZADO sobre a assinatura (meio
                 do logo alinhado ao meio da frase). Contorno preto p/ nitidez. */}
             <div className="flex flex-col items-center">
-              <PaduaWordmark height={30} outlined />
+              <PaduaWordmark height={33} outlined />
               <span
                 className="footer-credit-padua mt-1 whitespace-nowrap text-center text-[10px] leading-none max-[380px]:whitespace-normal"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
