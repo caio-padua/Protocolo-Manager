@@ -15,6 +15,8 @@ import {
   Minus,
   AlertTriangle,
   Video,
+  Volume2,
+  Mic,
   HeartPulse,
   Check,
 } from "lucide-react";
@@ -160,6 +162,50 @@ export const LEVA_STYLE = `
     .leva-btn:hover { transform: none; }
     .paxter-glint::before { animation: none; opacity: 0; }
   }
+
+  /* ===== VARIANTES DE BEVEL DA PERGUNTA (pedido CEO 24/06/2026) — tom mais azul-marinho ===== */
+  /* 1) SOLIDO: navy intenso chapado + sombreado forte */
+  .leva-bevel-solido .leva-card {
+    background: linear-gradient(180deg,#284a78 0%,#1b3a64 55%,#12294c 100%);
+    border:1px solid rgba(0,0,0,0.42); border-top-color: rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -4px 12px rgba(0,0,0,0.46), 0 10px 0 -3px rgba(0,0,0,0.5), 0 20px 30px -10px rgba(0,0,0,0.75);
+  }
+  /* 2) VIDRO: painel claramente ENVIDRACADO — corpo translucido (tecido transparece),
+     aro claro, brilho glossy diagonal forte (parece um vidro real sobre o navy). */
+  .leva-bevel-vidro .leva-card {
+    background: linear-gradient(180deg, rgba(96,138,196,0.30) 0%, rgba(44,78,130,0.22) 55%, rgba(22,46,84,0.32) 100%);
+    -webkit-backdrop-filter: blur(7px) saturate(140%); backdrop-filter: blur(7px) saturate(140%);
+    border:1px solid rgba(255,255,255,0.34); border-top-color: rgba(255,255,255,0.62);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 9px rgba(0,0,0,0.22), 0 16px 32px -10px rgba(0,0,0,0.6);
+    overflow: hidden;
+  }
+  .leva-bevel-vidro .leva-card::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
+    background: linear-gradient(133deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.16) 16%, rgba(255,255,255,0) 38%);
+    mix-blend-mode: screen; }
+  /* 3) MISTO: navy solido + VERNIZ visivel no topo (faixa glossy mais marcada) */
+  .leva-bevel-misto .leva-card {
+    background: linear-gradient(180deg,#2c4f7e 0%,#1b3a64 52%,#12294c 100%);
+    border:1px solid rgba(0,0,0,0.40); border-top-color: rgba(255,255,255,0.30);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -4px 12px rgba(0,0,0,0.42), 0 10px 0 -3px rgba(0,0,0,0.48), 0 20px 30px -10px rgba(0,0,0,0.72);
+    overflow: hidden;
+  }
+  .leva-bevel-misto .leva-card::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.15) 9%, rgba(255,255,255,0.03) 24%, rgba(255,255,255,0) 48%);
+    mix-blend-mode: screen; }
+
+  /* ===== PERGUNTA com as "letras da skill" (serifada elegante) ===== */
+  .leva-q { font-family: Georgia, "Times New Roman", "Noto Serif", serif; font-weight:600; letter-spacing:0.005em; }
+
+  /* ===== ACOES DA PERGUNTA: Ouvir (audio TTS) | Video | Gravar (voz) — embutidos ===== */
+  .leva-action { border-radius:9px; transition: filter .18s ease, transform .12s ease; font-weight:700; }
+  .leva-action:active { transform: translateY(1px); }
+  .leva-dark .leva-action { background: rgba(0,0,0,0.24); border:1px solid rgba(255,255,255,0.06); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+  .leva-light .leva-action { background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.08); box-shadow: inset 0 1px 3px rgba(15,28,53,0.12); }
+  .leva-action-audio { color:#5cc4d6; }
+  .leva-light .leva-action-audio { color:#0e7d92; }
+  .leva-action-rec { color:#f0c674; }
+  .leva-light .leva-action-rec { color:#9a7a2e; }
+  .leva-action:focus-visible { outline:2px solid #45B8CC; outline-offset:2px; }
 `;
 
 type Theme = "dark" | "light";
@@ -178,7 +224,27 @@ function Card({ children, alarm = false }: { children: ReactNode; alarm?: boolea
   );
 }
 
-export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: ReactNode }) {
+// Acoes da pergunta: OUVIR (audio que fala a pergunta) num lado, GRAVAR (responder
+// por voz) no outro, e o VIDEO explicativo no meio — selos embutidos (nao salientes).
+function QActions() {
+  return (
+    <div className="flex items-center justify-between gap-2 mt-1">
+      <button className="leva-action leva-action-audio inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Volume2 className="w-3.5 h-3.5" /> Ouvir
+      </button>
+      <button className="leva-video-link inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5">
+        <Video className="w-3.5 h-3.5" /> Vídeo
+      </button>
+      <button className="leva-action leva-action-rec inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Mic className="w-3.5 h-3.5" /> Gravar
+      </button>
+    </div>
+  );
+}
+
+type Bevel = "solido" | "vidro" | "misto";
+
+export function AnamneseLeva({ theme, texture, bevel = "solido" }: { theme: Theme; texture?: ReactNode; bevel?: Bevel }) {
   const [mounted, setMounted] = useState(false);
   const [aberto, setAberto] = useState(true);
   const [sono, setSono] = useState("");
@@ -197,7 +263,7 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
 
   return (
     <div
-      className={`leva-${theme} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
+      className={`leva-${theme} leva-bevel-${bevel} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
     >
       <style>{PAXTER_STYLE}{LEVA_STYLE}</style>
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />
@@ -208,7 +274,7 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
            CLARO: medalhao CHAMPANHE (um tom acima do painel), SEM placa azul —
            ouro pousa direto no creme (blend normal). ESCURO: medalhao navy. */}
       <header className="relative z-10 pt-9 pb-5 px-6 flex flex-col items-center">
-        <PaxterLogo variant="appHeader" tone={theme === "dark" ? "dark" : "light"} />
+        <PaxterLogo variant="appHeader" tone={theme === "dark" ? "dark" : "light"} medallion="solid" />
       </header>
 
       {/* ===== PROGRESSO ===== */}
@@ -219,7 +285,7 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
         </div>
         <div className="flex gap-1.5">
           {Array.from({ length: TOTAL }).map((_, i) => (
-            <div key={i} className={`h-1.5 flex-1 rounded-full ${i < ATUAL ? "bar-on" : "bar-off"}`} />
+            <div key={i} className={`h-2.5 flex-1 rounded-[4px] ${i < ATUAL ? "bar-on" : "bar-off"}`} />
           ))}
         </div>
       </div>
@@ -237,7 +303,7 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
         </div>
 
         <Card>
-          <p className={`text-[15px] leading-snug ${bodyInk}`}>Você tem alguma queixa relacionada a este sistema?</p>
+          <p className={`leva-q text-[15px] leading-snug ${bodyInk}`}>Você tem alguma queixa relacionada a este sistema?</p>
           <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Tem queixa neste sistema?">
             <button role="radio" onClick={() => setAberto(false)} data-active={!aberto} aria-checked={!aberto} className="leva-chip py-3 flex items-center justify-center gap-2 text-sm">
               <Minus className="w-4 h-4" /> <span className="leva-chip-txt">Não, nenhuma</span>
@@ -246,12 +312,13 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
               <Plus className="w-4 h-4" /> <span className="leva-chip-txt">Sim, tenho</span>
             </button>
           </div>
+          <QActions />
         </Card>
 
         {aberto && (
           <>
             <Card>
-              <p className={`text-[15px] leading-snug ${bodyInk}`}>Pratica atividade física regularmente?</p>
+              <p className={`leva-q text-[15px] leading-snug ${bodyInk}`}>Pratica atividade física regularmente?</p>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Frequência de atividade física">
                 {["Não", "1–2x semana", "3–4x semana", "5x ou mais"].map((op) => (
                   <button key={op} role="radio" onClick={() => setAtividade(op)} data-active={atividade === op} aria-checked={atividade === op} className="leva-chip px-4 py-2 text-sm flex items-center gap-1.5">
@@ -259,13 +326,11 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
                   </button>
                 ))}
               </div>
-              <button className="leva-video-link self-start inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider mt-1 px-3 py-1.5">
-                <Video className="w-3.5 h-3.5" /> Vídeo Explicativo
-              </button>
+              <QActions />
             </Card>
 
             <Card>
-              <p className={`text-[15px] leading-snug ${bodyInk}`}>Como está a qualidade do seu sono?</p>
+              <p className={`leva-q text-[15px] leading-snug ${bodyInk}`}>Como está a qualidade do seu sono?</p>
               <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Qualidade do sono">
                 {["Ótima", "Boa", "Regular", "Ruim"].map((op) => (
                   <button key={op} role="radio" onClick={() => setSono(op)} data-active={sono === op} aria-checked={sono === op} className="leva-chip py-2.5 text-sm text-center">
@@ -273,10 +338,11 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
                   </button>
                 ))}
               </div>
+              <QActions />
             </Card>
 
             <Card>
-              <p className={`text-[15px] leading-snug ${bodyInk}`}>Qual seu nível de estresse ultimamente?</p>
+              <p className={`leva-q text-[15px] leading-snug ${bodyInk}`}>Qual seu nível de estresse ultimamente?</p>
               <div className="leva-well p-3">
                 <div className="flex gap-1.5">
                   {Array.from({ length: 11 }).map((_, i) => (
@@ -289,6 +355,7 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
                   <span>Grave</span>
                 </div>
               </div>
+              <QActions />
             </Card>
           </>
         )}
@@ -297,11 +364,12 @@ export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: React
           <span className="alarm-badge self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-red-200">
             <AlertTriangle className="w-3.5 h-3.5" /> Sinal de Alarme
           </span>
-          <p className={`text-[15px] leading-snug ${headInk}`}>Possui histórico de doenças cardiovasculares (infarto, arritmia, pressão alta)?</p>
+          <p className={`leva-q text-[15px] leading-snug ${headInk}`}>Possui histórico de doenças cardiovasculares (infarto, arritmia, pressão alta)?</p>
           <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Histórico cardiovascular">
             <button role="radio" onClick={() => setCardio("nao")} data-active={cardio === "nao"} aria-checked={cardio === "nao"} className="leva-chip py-3 text-sm text-center"><span className="leva-chip-txt">Não</span></button>
             <button role="radio" onClick={() => setCardio("sim")} data-active={cardio === "sim"} aria-checked={cardio === "sim"} className={`leva-chip py-3 text-sm text-center font-semibold ${c(theme, "text-red-300", "text-red-700")}`}>Sim</button>
           </div>
+          <QActions />
         </Card>
 
         {/* rodapé */}

@@ -131,3 +131,21 @@ id = "2H7OuEPHU3BuuzpmCheNM"
 uri = "file://screenshots/anamnese-3-xadrez.jpg"
 type = "image"
 title = "3 - XADREZ (Principe de Gales + ouro)"
+
+[[outputs]]
+id = "t0gwF4p-cgxeWURcFsX6w"
+uri = "file://screenshots/bevel-1-solido.jpg"
+type = "image"
+title = "Modelo 1 — Solido (navy fosco chapado)"
+
+[[outputs]]
+id = "9D-T51AQyr5SdgsHvqFHw"
+uri = "file://screenshots/bevel-2-vidro.jpg"
+type = "image"
+title = "Modelo 2 — Vidro (envidracado translucido)"
+
+[[outputs]]
+id = "dGmjz58hHjx6NjzBzJrGO"
+uri = "file://screenshots/bevel-3-misto.jpg"
+type = "image"
+title = "Modelo 3 — Misto (navy solido + verniz no topo)"

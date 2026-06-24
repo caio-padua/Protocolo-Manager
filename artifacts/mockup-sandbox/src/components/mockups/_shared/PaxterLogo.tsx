@@ -26,6 +26,8 @@ interface PaxterLogoProps {
    *           (bevel saliente), com ouro em blend normal (sem placa azul).
    */
   tone?: "dark" | "light";
+  /** Medalhao do appHeader: "glass" (vidro translucido, padrao) ou "solid" (navy/champanhe chapado). */
+  medallion?: "glass" | "solid";
   className?: string;
 }
 
@@ -34,7 +36,7 @@ interface PaxterLogoProps {
   Usa os PIXELS ORIGINAIS da imagem aprovada (ouro 3D), so com o fundo removido.
   NAO usa o vetor geometrico (rejeitado: perdeu serifa/chanfro) nem fonte Cinzel.
 */
-export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: PaxterLogoProps) {
+export function PaxterLogo({ variant = "hero", tone = "dark", medallion = "glass", className = "" }: PaxterLogoProps) {
   const symbol = (
     <span className="pax-symbol">
       <img src={paxterSymbol} alt="PAXTER" draggable={false} />
@@ -68,9 +70,10 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
 
   if (variant === "appHeader") {
     const light = tone === "light";
-    // Medalhao de VIDRO. No claro: champanhe, um tom ACIMA do painel (bevel
-    // saliente — luz no topo, sombra projetada embaixo). No escuro: vidro navy.
-    const medallionStyle: CSSProperties = light
+    const solid = medallion === "solid";
+    // Medalhao do simbolo. "glass" = vidro translucido (padrao). "solid" = chapado:
+    // navy intenso liso no escuro / champanhe liso no claro (pedido CEO 24/06/2026).
+    const glassStyle: CSSProperties = light
       ? {
           background:
             "linear-gradient(158deg, rgba(255,251,242,0.92), rgba(246,236,214,0.74) 46%, rgba(232,219,193,0.62))",
@@ -89,6 +92,20 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
           boxShadow:
             "0 10px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -14px 24px rgba(0,0,0,0.28)",
         };
+    const solidStyle: CSSProperties = light
+      ? {
+          background: "linear-gradient(180deg,#fbf3e2 0%,#f1e4c8 60%,#e6d6b2 100%)",
+          border: "1px solid rgba(138,109,47,0.35)",
+          boxShadow:
+            "0 12px 24px -6px rgba(15,28,53,0.26), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -10px 18px rgba(138,109,47,0.12)",
+        }
+      : {
+          background: "linear-gradient(180deg,#21406b 0%,#16294a 55%,#0e1d36 100%)",
+          border: "1px solid rgba(194,160,90,0.5)",
+          boxShadow:
+            "0 14px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -12px 22px rgba(0,0,0,0.38)",
+        };
+    const medallionStyle: CSSProperties = solid ? solidStyle : glassStyle;
     return (
       <div className={`pax-lockup pax-lockup--app ${light ? "pax-tone-light" : ""} ${className}`}>
         {/* SIMBOLO PREMIUM (aura + faixa de luz + faisca no contorno) DENTRO do
