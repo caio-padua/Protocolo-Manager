@@ -478,7 +478,12 @@ export default function AnamneseV2() {
                   className="h-2.5 flex-1 rounded-[4px] transition-colors"
                   style={
                     i < gruposCompletos
-                      ? { background: "linear-gradient(90deg,#16294a,#b8924d)" }
+                      ? {
+                          background:
+                            "linear-gradient(180deg,#f4e2a8 0%,#c2a05a 55%,#8a6d2f 100%)",
+                          boxShadow:
+                            "0 0 8px rgba(194,160,90,0.5), inset 0 1px 0 rgba(255,250,228,0.7)",
+                        }
                       : { background: "hsl(var(--muted))", opacity: 0.55 }
                   }
                 />
