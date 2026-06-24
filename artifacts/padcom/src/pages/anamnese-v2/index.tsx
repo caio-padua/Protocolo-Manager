@@ -443,9 +443,10 @@ export default function AnamneseV2() {
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
       <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card px-4 py-4">
-        {/* CABECALHO LISO (decisao do CEO 24/06/2026): sem tecido aqui — o tecido
-            "terno" fica SO no corpo, envolvendo as questoes. Evita o efeito de
-            "gaveta refletindo" (duas tramas de tons diferentes competindo). */}
+        {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
+            CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro). O painel
+            (bg-card) e a base; o tecido vem por cima; o PAXTER e depositado por ultimo (z-[1]). */}
+        <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
               texto girado 90 graus) — nao competem com a marca centralizada */}
