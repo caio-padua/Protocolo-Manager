@@ -24,6 +24,7 @@ import { PAXTER_STYLE } from "./paxter3d";
 import { PaxterLogo } from "./PaxterLogo";
 
 export const LEVA_STYLE = `
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Lora:ital,wght@0,500;0,600;0,700;1,500&display=swap');
   /* ===== FUNDOS — "solo" UNIFORME e CHAPADO (mesmo p/ todos), p/ os painéis saltarem ===== */
   .leva-dark .leva-bg {
     background:
@@ -182,19 +183,27 @@ export const LEVA_STYLE = `
   .leva-bevel-vidro .leva-card::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
     background: linear-gradient(133deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.16) 16%, rgba(255,255,255,0) 38%);
     mix-blend-mode: screen; }
-  /* 3) MISTO: navy solido + VERNIZ visivel no topo (faixa glossy mais marcada) */
+  /* 3) MISTO: navy solido + VERNIZ visivel no topo (faixa glossy mais marcada).
+     Tom mais ESCURO (pedido CEO 24/06/2026) — azul-marinho mais profundo. */
   .leva-bevel-misto .leva-card {
-    background: linear-gradient(180deg,#2c4f7e 0%,#1b3a64 52%,#12294c 100%);
-    border:1px solid rgba(0,0,0,0.40); border-top-color: rgba(255,255,255,0.30);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -4px 12px rgba(0,0,0,0.42), 0 10px 0 -3px rgba(0,0,0,0.48), 0 20px 30px -10px rgba(0,0,0,0.72);
+    background: linear-gradient(180deg,#1d3a61 0%,#142c4d 52%,#0c1d36 100%);
+    border:1px solid rgba(0,0,0,0.46); border-top-color: rgba(255,255,255,0.26);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -4px 12px rgba(0,0,0,0.5), 0 10px 0 -3px rgba(0,0,0,0.52), 0 20px 30px -10px rgba(0,0,0,0.78);
     overflow: hidden;
   }
   .leva-bevel-misto .leva-card::after { content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
     background: linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.15) 9%, rgba(255,255,255,0.03) 24%, rgba(255,255,255,0) 48%);
     mix-blend-mode: screen; }
 
-  /* ===== PERGUNTA com as "letras da skill" (serifada elegante) ===== */
-  .leva-q { font-family: Georgia, "Times New Roman", "Noto Serif", serif; font-weight:600; letter-spacing:0.005em; }
+  /* ===== PERGUNTA com as FONTES DA SKILL (serifas elegantes) =====
+     Base: peso/altura; a familia vem da classe leva-qf-* (controlada por prop). */
+  .leva-q { font-weight:600; letter-spacing:0.005em; }
+  /* Dupla oficial do wordmark Paxter */
+  .leva-qf-cormorant .leva-q { font-family:'Cormorant Garamond', Georgia, serif; font-weight:700; font-size:18px; letter-spacing:0.005em; }
+  .leva-qf-cinzel    .leva-q { font-family:'Cinzel', Georgia, serif; font-weight:600; font-size:14px; letter-spacing:0.02em; line-height:1.45; }
+  /* Serifas editoriais premium (candidatas a entrar na skill) */
+  .leva-qf-playfair  .leva-q { font-family:'Playfair Display', Georgia, serif; font-weight:600; font-size:15px; letter-spacing:0; }
+  .leva-qf-lora      .leva-q { font-family:'Lora', Georgia, serif; font-weight:600; font-size:15px; letter-spacing:0; }
 
   /* ===== ACOES DA PERGUNTA: Ouvir (audio TTS) | Video | Gravar (voz) — embutidos ===== */
   .leva-action { border-radius:9px; transition: filter .18s ease, transform .12s ease; font-weight:700; }
@@ -243,8 +252,19 @@ function QActions() {
 }
 
 type Bevel = "solido" | "vidro" | "misto";
+type QFont = "cormorant" | "cinzel" | "playfair" | "lora";
 
-export function AnamneseLeva({ theme, texture, bevel = "solido" }: { theme: Theme; texture?: ReactNode; bevel?: Bevel }) {
+export function AnamneseLeva({
+  theme,
+  texture,
+  bevel = "solido",
+  qfont = "cormorant",
+}: {
+  theme: Theme;
+  texture?: ReactNode;
+  bevel?: Bevel;
+  qfont?: QFont;
+}) {
   const [mounted, setMounted] = useState(false);
   const [aberto, setAberto] = useState(true);
   const [sono, setSono] = useState("");
@@ -263,7 +283,7 @@ export function AnamneseLeva({ theme, texture, bevel = "solido" }: { theme: Them
 
   return (
     <div
-      className={`leva-${theme} leva-bevel-${bevel} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
+      className={`leva-${theme} leva-bevel-${bevel} leva-qf-${qfont} relative min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-x-hidden flex flex-col font-sans pb-28 ${c(theme, "text-slate-200", "text-[#2b3850]")}`}
     >
       <style>{PAXTER_STYLE}{LEVA_STYLE}</style>
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />

@@ -149,3 +149,27 @@ id = "dGmjz58hHjx6NjzBzJrGO"
 uri = "file://screenshots/bevel-3-misto.jpg"
 type = "image"
 title = "Modelo 3 — Misto (navy solido + verniz no topo)"
+
+[[outputs]]
+id = "016oJa3rcTGyMHHxN7LrP"
+uri = "file://screenshots/fonte-1-cormorant.jpg"
+type = "image"
+title = "Modelo 1 — Cormorant Garamond (oficial da skill)"
+
+[[outputs]]
+id = "7MJ2W6Gt8BwHxRt4NCnwg"
+uri = "file://screenshots/fonte-2-cinzel.jpg"
+type = "image"
+title = "Modelo 2 — Cinzel (oficial da skill, igual ao logo)"
+
+[[outputs]]
+id = "55yfYRKfTDXLpn1lSOG2y"
+uri = "file://screenshots/fonte-3-playfair.jpg"
+type = "image"
+title = "Modelo 3 — Playfair Display (editorial)"
+
+[[outputs]]
+id = "fuoeTnqzYvYWcXtX1xPuw"
+uri = "file://screenshots/fonte-4-lora.jpg"
+type = "image"
+title = "Modelo 4 — Lora (mais legivel)"
