@@ -1,6 +1,6 @@
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { PaxterSymbolGlass } from "./paxter-fx/PaxterSymbolGlass";
-import { PaxterWordmarkPremium } from "./paxter-fx/PaxterWordmarkPremium";
+import { PaxterLockup } from "./paxter-fx/PaxterLockup";
 
 interface PaxterLogoProps {
   className?: string;
@@ -12,45 +12,44 @@ interface PaxterLogoProps {
   href?: string;
 }
 
-// Logo PAXTER — efeito premium (aura + faixa-sol + faisca correndo o contorno)
-// no SIMBOLO e ESTENDIDO a palavra "PAXTER". A luz desce do simbolo para o nome.
+// Logo PAXTER — conjunto da marca (simbolo de vidro + nome + frase) com a luz viva,
+// servido pela FONTE UNICA PaxterLockup. A luz desce do simbolo para o nome+frase.
 export function PaxterLogo({
   className = "",
   size = "md",
   collapsed = false,
   href,
 }: PaxterLogoProps) {
-  const symPx = collapsed ? 46 : size === "sm" ? 40 : 60;
-  // A luz "desce": o simbolo lidera, a palavra entra ~900ms depois (mesmo ciclo 12s).
-  const WORD_DELAY = 900;
-
-  const symbol = <PaxterSymbolGlass size={symPx} tone="dark" />;
-
   let inner: React.ReactNode;
 
   if (collapsed) {
-    inner = <div className={`flex items-center justify-center ${className}`}>{symbol}</div>;
-  } else if (size === "sm") {
-    // Barra superior mobile: simbolo + PAXTER (horizontal, compacto)
+    // Sidebar recolhida: so o simbolo.
     inner = (
-      <div className={`flex flex-row items-center gap-2.5 ${className}`}>
-        {symbol}
-        <PaxterWordmarkPremium width={116} cycleDelay={WORD_DELAY} />
+      <div className={`flex items-center justify-center ${className}`}>
+        <PaxterSymbolGlass size={46} tone="dark" />
       </div>
     );
-  } else {
-    // Topo da sidebar: simbolo + PAXTER + subtitulo (vertical)
+  } else if (size === "sm") {
+    // Barra superior mobile: conjunto completo (simbolo + nome + frase), compacto.
     inner = (
-      <div className={`flex flex-col items-center gap-3 ${className}`}>
-        {symbol}
-        <PaxterWordmarkPremium width={176} cycleDelay={WORD_DELAY} />
-        <span
-          className="block text-center font-semibold uppercase text-[#e8cf95]"
-          style={{ width: 176, fontSize: 9.5, letterSpacing: "0.2em" }}
-        >
-          Clinical Intelligence System
-        </span>
-      </div>
+      <PaxterLockup
+        orientation="horizontal"
+        symbolPx={40}
+        wordWidth={132}
+        showTagline
+        className={className}
+      />
+    );
+  } else {
+    // Topo da sidebar: simbolo + PAXTER + frase "Clinical Intelligence System" (vertical).
+    inner = (
+      <PaxterLockup
+        orientation="vertical"
+        symbolPx={60}
+        wordWidth={176}
+        showTagline
+        className={className}
+      />
     );
   }
 

@@ -8,8 +8,7 @@ import {
   useCreateSchedulingRequest,
   getGetAgendaSlotsQueryKey,
 } from "@workspace/api-client-react";
-import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
-import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
+import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import {
@@ -105,16 +104,7 @@ export default function Agendar() {
       <header className="panel-3d sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border rounded-none rounded-b-lg">
         <div className="flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
           <div className="flex items-center gap-2.5 min-w-0">
-            <PaxterSymbolGlass size={32} tone="dark" />
-            <div className="min-w-0 flex flex-col gap-0.5">
-              <PaxterWordmarkPremium width={120} />
-              <span
-                className="block font-semibold uppercase text-[#e8cf95] truncate"
-                style={{ fontSize: 8, letterSpacing: "0.2em" }}
-              >
-                Clinical Intelligence System
-              </span>
-            </div>
+            <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone="dark" />
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
         </div>

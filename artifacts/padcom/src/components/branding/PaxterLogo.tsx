@@ -1,10 +1,8 @@
 import "./PaxterLogo.css";
 import paxterSymbol from "@/assets/paxter-symbol.png";
-import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import headlinePng from "@/assets/brand/paxter-headline.png";
 import headlineWebp from "@/assets/brand/paxter-headline.webp";
-import paxterPng from "@/assets/brand/paxter-paxter.png";
-import paxterWebp from "@/assets/brand/paxter-paxter.webp";
 import precisionPng from "@/assets/brand/paxter-precision.png";
 import precisionWebp from "@/assets/brand/paxter-precision.webp";
 import subtitlePng from "@/assets/brand/paxter-subtitle.png";
@@ -42,33 +40,30 @@ export function PaxterLogo({ variant = "hero", tone = "dark", className = "" }: 
   );
 
   if (variant === "compact") {
-    const light = tone === "light";
+    // FONTE UNICA: o conjunto inteiro (simbolo + nome + frase) vem do PaxterLockup.
     return (
-      <div className={`pax-lockup pax-lockup--compact ${className}`}>
-        <PaxterSymbolGlass size={44} tone={light ? "light" : "dark"} />
-        <span className="pax-word">
-          <picture>
-            <source srcSet={paxterWebp} type="image/webp" />
-            <img src={paxterPng} alt="PAXTER" draggable={false} />
-          </picture>
-        </span>
-      </div>
+      <PaxterLockup
+        orientation="horizontal"
+        symbolPx={44}
+        wordWidth={176}
+        showTagline
+        tone={tone}
+        className={className}
+      />
     );
   }
 
   if (variant === "appHeader") {
-    const light = tone === "light";
+    // FONTE UNICA: o conjunto inteiro (simbolo + nome + frase) vem do PaxterLockup.
     return (
-      <div className={`pax-lockup pax-lockup--app ${light ? "pax-tone-light" : ""} ${className}`}>
-        {/* SIMBOLO PREMIUM dentro do MEDALHAO DE VIDRO — fonte unica em PaxterSymbolGlass. */}
-        <PaxterSymbolGlass size={64} tone={light ? "light" : "dark"} />
-        <span className="pax-word">
-          <picture>
-            <source srcSet={headlineWebp} type="image/webp" />
-            <img src={headlinePng} alt="PAXTER — Clinical Intelligence System" draggable={false} />
-          </picture>
-        </span>
-      </div>
+      <PaxterLockup
+        orientation="vertical"
+        symbolPx={64}
+        wordWidth={244}
+        showTagline
+        tone={tone}
+        className={className}
+      />
     );
   }
 

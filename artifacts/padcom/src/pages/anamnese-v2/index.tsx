@@ -39,9 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ControlRenderer } from "./controls";
 import { controlKind, isAnswered, isDiscrete, valorIncludesAny, type Valor } from "./types";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
-import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
-import { PaxterTextShimmer } from "@/components/layout/paxter-fx/PaxterTextShimmer";
-import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
+import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
@@ -784,32 +782,11 @@ function formatPergunta(texto: string | null | undefined): string {
   });
 }
 
-// Cabecalho de marca Paxter: cupula de vidro + PAXTER + "Clinical Intelligence System".
+// Cabecalho de marca Paxter: FONTE UNICA (cupula de vidro + PAXTER + frase 3D, mesma luz).
 function BrandMark({ tone }: { tone: "dark" | "light" }) {
   return (
-    <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
-      <PaxterSymbolGlass size={66} tone={tone} />
-      {/* ARTE OFICIAL da marca (contorno liso, bisel 3D real) + LUZ viva por cima
-          (sol especular + polvora) recortada na silhueta LISA das letras — a luz volta
-          sem serrilhar. Substitui o antigo PaxterWordmarkPremium (SVG potrace ondulado).
-          cycleDelay=900: a luz desce do simbolo para o nome (cascata). */}
-      <PaxterWordmarkArt width={168} tone={tone} cycleDelay={900} />
-      <PaxterTextShimmer
-        color={tone === "light" ? "#8a6d2f" : "#e8cf95"}
-        cycleDelay={1700}
-        className="text-[8px] font-semibold uppercase"
-        style={{
-          letterSpacing: "0.28em",
-          // CLARO: leve relevo (sombra escura embaixo + brilho claro em cima) p/ a frase
-          // "saltar" do creme, igual ao tratamento do PAXTER. ESCURO: sem sombra.
-          textShadow:
-            tone === "light"
-              ? "0 0.5px 0 rgba(58,34,6,0.7), 0 1px 0 rgba(36,16,0,0.55), 0 2px 1.5px rgba(36,16,0,0.32), 0 -0.5px 0 rgba(255,250,230,0.55)"
-              : undefined,
-        }}
-      >
-        Clinical Intelligence System
-      </PaxterTextShimmer>
+    <div className="pb-1 pt-1.5">
+      <PaxterLockup orientation="vertical" symbolPx={66} wordWidth={236} showTagline tone={tone} />
     </div>
   );
 }
