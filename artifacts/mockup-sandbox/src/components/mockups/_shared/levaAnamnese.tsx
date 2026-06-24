@@ -178,7 +178,7 @@ function Card({ children, alarm = false }: { children: ReactNode; alarm?: boolea
   );
 }
 
-export function AnamneseLeva({ theme }: { theme: Theme }) {
+export function AnamneseLeva({ theme, texture }: { theme: Theme; texture?: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [aberto, setAberto] = useState(true);
   const [sono, setSono] = useState("");
@@ -201,6 +201,7 @@ export function AnamneseLeva({ theme }: { theme: Theme }) {
     >
       <style>{PAXTER_STYLE}{LEVA_STYLE}</style>
       <div className="leva-bg absolute inset-0 z-0 pointer-events-none" />
+      {texture}
 
       {/* ===== HEADER: logo PAXTER APROVADA (Opcao A — imagem ouro 3D, brilho percorre) =====
            Simbolo premium DENTRO do medalhao de vidro + PAXTER/Clinical do anexo.
