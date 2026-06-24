@@ -43,8 +43,6 @@ import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGla
 import { PaxterWordmarkPremium } from "@/components/layout/paxter-fx/PaxterWordmarkPremium";
 import { PaxterTextShimmer } from "@/components/layout/paxter-fx/PaxterTextShimmer";
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
-import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
-import { PaduaSymbol } from "@/components/layout/paxter-fx/PaduaSymbol";
 import { PaduaWordmark } from "@/components/layout/paxter-fx/PaduaWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -611,37 +609,34 @@ export default function AnamneseV2() {
         )}
         </div>
 
-        {/* RODAPE — Instituto Padua (logotipo ouro fosco 3D: simbolo D+P + nome) a
-            esquerda; Engineered by PADCON (simbolo polido + wordmark) a direita. */}
+        {/* RODAPE — faixa de marca delimitada, SEM simbolos: so os nomes. A esquerda,
+            assinatura "Dr. Caio Padua" + wordmark Instituto Padua; a direita, "Engineered by"
+            + wordmark PADCON. As duas legendas compartilham cor e fonte (Lora italico). */}
         <footer className="px-1 pb-4 pt-6">
-          <div className="flex items-end justify-between gap-2 border-t border-border pt-4">
-            {/* BLOCO PADUA — largura FIXA = largura natural do logotipo. A linha do logo usa
-                w-full + justify-between, fixando o simbolo na vertical ESQUERDA e o wordmark na
-                DIREITA do bloco (bases na mesma linha via items-end). A legenda preenche EXATAMENTE
-                essa largura (justify nas duas pontas), encerrando nas MESMAS verticais. Determinismo
-                em qualquer viewport alvo (360-402): a geometria nao depende do tamanho do texto. */}
-            <div className="flex w-[172px] shrink-0 flex-col gap-1.5">
+          {/* FAIXA DE MARCA — barra inferior delimitada (fundo proprio + borda + relevo leve),
+              sem simbolos: so os nomes "Instituto Padua" e "PADCON". As duas assinaturas usam a
+              MESMA cor (.footer-credit-padua: navy no claro / branco no escuro) e a MESMA fonte
+              (Lora italico), para apresentar as duas marcas com o mesmo peso visual. */}
+          <div className="footer-band flex items-end justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+            {/* PADUA — assinatura do Dr. Caio + nome Instituto Padua, alinhados a esquerda. */}
+            <div className="flex flex-col items-start gap-1.5">
               <span
-                className="footer-credit-padua text-[8px] font-extrabold uppercase leading-none"
-                style={{ textAlign: "justify", textAlignLast: "justify" }}
+                className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
+                style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
-              <div className="flex w-full items-end justify-between">
-                <PaduaSymbol size={46} glint />
-                <PaduaWordmark height={36} />
-              </div>
+              <PaduaWordmark height={34} />
             </div>
-            {/* BLOCO PADCON — mesma logica de grade (largura fixa = logotipo, base comum). A
-                legenda "Engineered by" alinha a direita, sobre o fim do wordmark. */}
-            <div className="flex w-[180px] shrink-0 flex-col gap-1.5">
-              <span className="block w-full text-right text-[8px] uppercase tracking-[0.18em] leading-none text-muted-foreground">
+            {/* PADCON — credito "Engineered by" + nome PADCON, alinhados a direita. */}
+            <div className="flex flex-col items-end gap-1.5">
+              <span
+                className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
+                style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
+              >
                 Engineered by
               </span>
-              <div className="flex w-full items-end justify-between">
-                <PadconSymbol height={40} glint />
-                <PadconWordmark height={20} />
-              </div>
+              <PadconWordmark height={22} />
             </div>
           </div>
         </footer>

@@ -34,3 +34,15 @@ regerando/reprocessando a arte. `filter: saturate()/brightness()` aproxima mas v
 compressão. **Why:** não fechar "ouro igual" só com filtro; o tom final é decisão de marca do CEO
 (A/B/C) e deve ser congelado por decisão formal. Nunca redesenhar arte oficial sem ordem do CEO.
 Peça controlável por CSS = só o símbolo D+P (gradiente); os wordmarks Pádua/PADCON são PNG fixo.
+
+## ATUALIZACAO 24/06/2026 — CEO removeu os simbolos do rodape
+O CEO depois decidiu TIRAR os simbolos (PaduaSymbol/PadconSymbol) do rodape da anamnese-v2 ("o
+simbolo fica exagerado"). Ficam SO os wordmarks. Com isso o requisito "encerrar nas verticais"
+deixa de valer nesse rodape (sem simbolo nao ha vertical esquerda a respeitar). Regra nova:
+- As DUAS legendas (assinatura do diretor + "Engineered by") devem ter MESMA cor E MESMA fonte.
+  Erro reprovado: uma branca (.footer-credit-padua) e outra cinza (text-muted-foreground). Solucao:
+  .footer-credit-padua nas duas + fonte Lora italico nas duas.
+- Faixa de marca = barra delimitada (bg-card + border + rounded + shadow). Nao fixar (fixed) sem
+  pedido: o selo "Tudo salvo automaticamente" ja ocupa o rodape fixo.
+**Why:** preferencias do CEO mudam entre rodadas; manter o historico evita reintroduzir o simbolo
+ou a divergencia de cor numa proxima edicao.

@@ -71,3 +71,23 @@ aprovada por screenshot:
 - NÃO mexer no payload de salvar nem na lógica de perguntas.
 - NÃO remover relevos 3D, LEDs ou o neon lento dos alertas (só ajustar o que a spec pede).
 - Mudanças são de APRESENTAÇÃO apenas.
+
+---
+
+## ATUALIZACAO 24/06/2026 — Rodape SEM simbolos (decisao do CEO, img IMG_5223)
+
+O CEO mudou a direcao do rodape: o simbolo "fica exagerado". Nova forma:
+
+1. REMOVER os dois simbolos (PaduaSymbol e PadconSymbol). Ficam SO os wordmarks
+   "Instituto Padua" (esquerda) e "PADCON" (direita).
+2. As DUAS legendas ("Dr. Caio Padua — Medical Director" e "Engineered by") na MESMA cor
+   (classe .footer-credit-padua: navy no claro / branco no escuro) e MESMA fonte (Lora italico),
+   em ITALICO — elegantes para apresentacao. Antes uma era branca e a outra cinza (muted): erro.
+3. Proporcao conferida por altura distinta: PaduaWordmark height 34, PadconWordmark height 22.
+4. Faixa inferior bem delimitada: div com bg-card + border-border + rounded-xl + shadow-sm + padding.
+   NAO fixada (fixed) por causa do selo "Tudo salvo automaticamente" ja fixo embaixo — pendente A/B
+   com o CEO (faixa no fim do conteudo x barra fixa sempre visivel).
+
+Validado por screenshot nos dois temas (claro e escuro). architect: PASS.
+O requisito antigo "legenda encerra nas verticais do logotipo" NAO se aplica mais (sem simbolo,
+o wordmark define a largura; legenda alinhada esq/dir, sem justify).
