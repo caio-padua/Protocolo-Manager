@@ -789,12 +789,20 @@ function BrandMark({ tone }: { tone: "dark" | "light" }) {
   return (
     <div className="flex flex-col items-center gap-2 pb-1 pt-1.5">
       <PaxterSymbolGlass size={66} tone={tone} />
-      <PaxterWordmarkPremium width={168} />
+      <PaxterWordmarkPremium width={168} tone={tone} />
       <PaxterTextShimmer
         color={tone === "light" ? "#8a6d2f" : "#e8cf95"}
         cycleDelay={1700}
         className="text-[8px] font-semibold uppercase"
-        style={{ letterSpacing: "0.28em" }}
+        style={{
+          letterSpacing: "0.28em",
+          // CLARO: leve relevo (sombra escura embaixo + brilho claro em cima) p/ a frase
+          // "saltar" do creme, igual ao tratamento do PAXTER. ESCURO: sem sombra.
+          textShadow:
+            tone === "light"
+              ? "0 1px 0.5px rgba(36,16,0,0.45), 0 -0.5px 0 rgba(255,250,230,0.4)"
+              : undefined,
+        }}
       >
         Clinical Intelligence System
       </PaxterTextShimmer>

@@ -278,3 +278,23 @@ CORRECAO (so PaduaWordmark; PADCON e fundo intactos):
 - Altura mantida em 33 (proporcao do asset 3D ~3,18 vs original 3,27).
 
 Validado por recorte ampliado (3,8x) da captura AO VIVO no tema claro. Fundo creme nao tocado.
+
+---
+
+## ATUALIZACAO 24/06/2026 (10a rodada) — relevo 3D no PAXTER e na frase EN (SO tema claro)
+
+CEO pediu o MESMO tratamento de relevo (feito no Padua) no logo PAXTER do topo e na frase em ingles
+"CLINICAL INTELLIGENCE SYSTEM", no tema CLARO. Diferenca-chave: PAXTER e frase NAO sao imagem — o
+PAXTER e SVG vetorial (PaxterWordmarkPremium) e a frase e TEXTO (PaxterTextShimmer). Entao o relevo
+e por sombra/edge de CSS/SVG, nao ImageMagick. Proibido forkar o motor de luz (glint) e mexer no fundo.
+
+PAXTER (PaxterWordmarkPremium): adicionada prop `tone` (default "dark", nada muda no escuro). No claro:
+- borda das letras troca de CLARA (#FFF1A8, some no creme) p/ ESCURA (#3a2206, espessura 1.1);
+- filtro de relevo ganha um contorno escuro fino so no claro (feDropShadow #241000) + brilho de topo
+  e sombra de base ajustados. Resultado: ouro delimitado + 3D, "contorno escuro" so na transicao.
+
+Frase EN (PaxterTextShimmer): no claro recebe text-shadow de relevo (sombra escura embaixo + brilho
+claro em cima), passado por `style` no BrandMark. Para a faixa de luz (shine) nao duplicar a sombra,
+a classe .shine ganhou `text-shadow: none`.
+
+Validado por recorte ampliado (3,2x) da captura AO VIVO no tema claro. Escuro e fundo intactos.

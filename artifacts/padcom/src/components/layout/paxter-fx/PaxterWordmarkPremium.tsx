@@ -19,14 +19,23 @@ type Props = {
   /** atraso do ciclo, para a luz "descer" do simbolo para o nome */
   cycleDelay?: number;
   className?: string;
+  /** fundo onde a palavra mora. "light" = creme: borda ESCURA + relevo p/ delimitar (a
+   *  borda clara some no creme). "dark" = navy: mantem a borda clara original. */
+  tone?: "dark" | "light";
 };
 
-export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className }: Props) {
+export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className, tone = "dark" }: Props) {
   const uid = useId().replace(/:/g, "");
   const gold = `pww-gold-${uid}`;
   const goldDepth = `pww-depth-${uid}`;
   const fLift = `pww-lift-${uid}`;
   const height = (width * H) / W;
+  // No CLARO o ouro encosta no creme: borda clara desaparece. Trocamos por borda escura
+  // (delimita, "contorno escuro" so na transicao) e reforcamos o relevo (luz no topo +
+  // sombra embaixo). No ESCURO mantemos a borda clara original.
+  const isLight = tone === "light";
+  const faceStroke = isLight ? "#3a2206" : "#FFF1A8";
+  const faceStrokeW = isLight ? 1.1 : 0.8;
   const letterPaths = WORD_LETTERS.map((l) => l.d);
   const letterTransforms = WORD_LETTERS.map((l) => `translate(${l.ox},0)`);
 
@@ -59,9 +68,13 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
             <stop offset="100%" stopColor="#241000" />
           </linearGradient>
           <filter id={fLift} x="-15%" y="-25%" width="130%" height="160%">
-            <feDropShadow dx="0" dy="0.8" stdDeviation="0.5" floodColor="#FFF1A8" floodOpacity="0.32" />
+            {/* CLARO: contorno escuro fino p/ separar o ouro do creme (so no claro) */}
+            {isLight && (
+              <feDropShadow dx="0" dy="0.6" stdDeviation="0.5" floodColor="#241000" floodOpacity="0.6" />
+            )}
+            <feDropShadow dx="0" dy="0.8" stdDeviation="0.5" floodColor="#FFF1A8" floodOpacity={isLight ? 0.45 : 0.32} />
             <feDropShadow dx="0" dy="2.4" stdDeviation="1.6" floodColor="#5F3708" floodOpacity="0.7" />
-            <feDropShadow dx="0" dy="5" stdDeviation="3.4" floodColor="#000000" floodOpacity="0.5" />
+            <feDropShadow dx="0" dy="5" stdDeviation="3.4" floodColor="#000000" floodOpacity={isLight ? 0.42 : 0.5} />
           </filter>
         </defs>
 
@@ -77,7 +90,7 @@ export function PaxterWordmarkPremium({ width = 176, cycleDelay = 900, className
         <g filter={`url(#${fLift})`}>
           {WORD_LETTERS.map((l) => (
             <g key={`f-${l.id}`} transform={`translate(${l.ox},0)`}>
-              <path d={l.d} fill={`url(#${gold})`} stroke="#FFF1A8" strokeWidth={0.8} />
+              <path d={l.d} fill={`url(#${gold})`} stroke={faceStroke} strokeWidth={faceStrokeW} />
             </g>
           ))}
         </g>

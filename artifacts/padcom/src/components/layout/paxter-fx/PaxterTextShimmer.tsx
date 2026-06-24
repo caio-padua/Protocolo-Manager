@@ -37,6 +37,8 @@ export function PaxterTextShimmer({ children, color, cycleDelay = 1700, classNam
       -webkit-background-clip: text;
       background-clip: text;
       mix-blend-mode: screen;
+      /* a sombra/relevo vive so na base; a faixa de luz nao herda (evita sombra dupla) */
+      text-shadow: none;
       opacity: 0;
       animation: ${anim} 12000ms linear ${cycleDelay}ms infinite backwards;
     }

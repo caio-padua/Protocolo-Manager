@@ -39,3 +39,10 @@ teal aparecia em paleta categorica, recolorir para `cyan`/`sky` (mantem distinca
 - **Truque de verificacao** (so para screenshot, SEMPRE reverter depois): no topo de `readTheme()`
   por `return "dark";` para forcar o tema escuro, screenshotar, e desfazer. localStorage nao persiste
   entre sessoes de screenshot.
+
+- RELEVO 3D da marca no TEMA CLARO (creme): o PAXTER do topo e SVG (PaxterWordmarkPremium), nao imagem.
+  No claro a borda CLARA das letras (#FFF1A8) SOME no creme — trocar por borda ESCURA (#3a2206) + um
+  contorno escuro fino no filtro de lift (feDropShadow #241000), via prop `tone` (default "dark" nao
+  mexe no escuro). A frase EN e TEXTO (PaxterTextShimmer): relevo por `text-shadow` (sombra escura
+  embaixo + brilho claro em cima) passado no `style`; a classe `.shine` PRECISA de `text-shadow:none`
+  senao a faixa de luz duplica a sombra (text-shadow herda). Nunca forkar o motor de glint.
