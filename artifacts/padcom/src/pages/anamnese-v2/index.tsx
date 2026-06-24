@@ -443,10 +443,11 @@ export default function AnamneseV2() {
         </div>
       )}
       {/* HEADER / TIMELINE — fiel ao canvas: marca centralizada -> blocos -> barra de barinhas */}
-      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-card px-4 py-4">
+      <header className="sticky top-0 z-20 overflow-hidden border-b border-border bg-background px-4 py-4">
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
-            CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro). O painel
-            (bg-card) e a base; o tecido vem por cima; o PAXTER e depositado por ultimo (z-[1]). */}
+            CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
+            questoes — por isso a base do header e bg-background (igual a pagina), nao bg-card; assim
+            a MESMA classe .leva-fabric sobre a MESMA base le como um unico tecido. PAXTER por ultimo (z-[1]). */}
         <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,
@@ -523,7 +524,7 @@ export default function AnamneseV2() {
       <main className="relative z-[1] mx-auto max-w-2xl px-4 pt-4">
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
-          <div className="leva-band -mx-4 mb-4 rounded-xl px-4 py-3">
+          <div className="leva-band -mx-4 -mt-4 mb-4 rounded-b-xl rounded-t-none px-4 pb-3 pt-4">
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
               {groups.map((g, i) => {
                 const done = g.questions.every((q) => isAnswered(answers[q.id]));
@@ -613,18 +614,33 @@ export default function AnamneseV2() {
         {/* RODAPE — Instituto Padua (logotipo ouro fosco 3D: simbolo D+P + nome) a
             esquerda; Engineered by PADCON (simbolo polido + wordmark) a direita. */}
         <footer className="px-1 pb-4 pt-6">
-          <div className="flex items-center justify-between border-t border-border pt-4">
-            <div className="flex items-center gap-2.5">
-              <PaduaSymbol size={42} glint />
-              <PaduaWordmark height={34} />
+          <div className="flex items-end justify-between gap-2 border-t border-border pt-4">
+            {/* BLOCO PADUA — largura FIXA = largura natural do logotipo. A linha do logo usa
+                w-full + justify-between, fixando o simbolo na vertical ESQUERDA e o wordmark na
+                DIREITA do bloco (bases na mesma linha via items-end). A legenda preenche EXATAMENTE
+                essa largura (justify nas duas pontas), encerrando nas MESMAS verticais. Determinismo
+                em qualquer viewport alvo (360-402): a geometria nao depende do tamanho do texto. */}
+            <div className="flex w-[172px] shrink-0 flex-col gap-1.5">
+              <span
+                className="footer-credit-padua text-[8px] font-extrabold uppercase leading-none"
+                style={{ textAlign: "justify", textAlignLast: "justify" }}
+              >
+                Dr. Caio Pádua — Medical Director
+              </span>
+              <div className="flex w-full items-end justify-between">
+                <PaduaSymbol size={46} glint />
+                <PaduaWordmark height={36} />
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <span className="text-[8px] uppercase tracking-[0.22em] text-muted-foreground">
+            {/* BLOCO PADCON — mesma logica de grade (largura fixa = logotipo, base comum). A
+                legenda "Engineered by" alinha a direita, sobre o fim do wordmark. */}
+            <div className="flex w-[180px] shrink-0 flex-col gap-1.5">
+              <span className="block w-full text-right text-[8px] uppercase tracking-[0.18em] leading-none text-muted-foreground">
                 Engineered by
               </span>
-              <div className="flex items-center gap-2">
-                <PadconSymbol height={26} glint />
-                <PadconWordmark height={15} />
+              <div className="flex w-full items-end justify-between">
+                <PadconSymbol height={40} glint />
+                <PadconWordmark height={20} />
               </div>
             </div>
           </div>
@@ -833,7 +849,7 @@ function QuestionCard({
 
   return (
     <div
-      className="leva-card rounded-md p-4"
+      className="leva-card rounded-md p-3"
       style={q.eSinalAlarme ? { boxShadow: "0 0 0 2px #ef4444, 0 6px 16px rgba(0,0,0,.18)" } : undefined}
     >
       <div className="relative z-[1] mb-3 flex items-start justify-between gap-2">

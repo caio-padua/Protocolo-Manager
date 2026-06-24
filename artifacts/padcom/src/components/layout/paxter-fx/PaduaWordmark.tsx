@@ -17,7 +17,14 @@ export function PaduaWordmark({ height = 38, className }: Props) {
       src={paduaWordmarkUrl}
       alt="Instituto Padua"
       className={className}
-      style={{ height, width: "auto", display: "block" }}
+      style={{
+        height,
+        width: "auto",
+        display: "block",
+        // Harmoniza o ouro FOSCO da arte oficial com o ouro VIVO do PADCON (decisao
+        // de cor pendente do CEO: A/B/C). Aproximacao por filtro; nao redesenha a arte.
+        filter: "saturate(1.5) brightness(1.42) contrast(1.0)",
+      }}
       draggable={false}
     />
   );

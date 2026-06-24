@@ -1211,6 +1211,12 @@
     0 8px 18px -10px rgba(0, 0, 0, 0.6);
 }
 
+/* Legenda do Instituto Padua no rodape (correspondente ao "Engineered by").
+   "Branco intenso" decidido pelo CEO (24/06/2026) — vale no tema ESCURO; no
+   tema CLARO o branco sumiria no fundo creme, entao usa-se navy intenso. */
+.footer-credit-padua { color: #16294a; }
+.dark .footer-credit-padua { color: #ffffff; }
+
 /* ===== LED do alerta — acende/apaga MUITO lento e suave. ===== */
 @keyframes paxter-led-slow {
   0%, 100% { opacity: 0.2; box-shadow: 0 0 2px rgba(239, 68, 68, 0.45); }

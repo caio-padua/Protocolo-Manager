@@ -46,3 +46,4 @@
 - [Motor de luz Paxter unico (glint)](paxter-glint-motor-unico.md) — simbolo e palavra usam UM PaxterGlintPremium; estender via props opcionais (transforms/sweep/glintWidthOuter/Inner), nunca forkar; sweep ausente=.tf-sweep (simbolo intacto); espelhar no mockup.
 - [Tema escuro anamnese-v2: .dark no mesmo elemento](anamnese-tema-seletor-mesmo-elemento.md) — raiz poe themeClass+classe-feature no MESMO no; regra `.dark .x` (descendente) falha silenciosa; usar `.dark .x, .dark.x`.
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; PAXTER=vetor, PADCON=recorte; PadconWordmark=img.
+- [Rodape marca: legenda encerra nas verticais](rodape-marca-grade-deterministica.md) — bounding determinista exige largura FIXA=largura do logo + logo w-full justify-between + legenda justify/justifyLast; ouro de PNGs oficiais so iguala regerando arte (filtro = aproximacao).

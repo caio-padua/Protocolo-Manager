@@ -28,10 +28,10 @@ export function PaduaSymbol({ size = 28, className, glint = false }: Props) {
     maskSize: "contain",
     WebkitMaskPosition: "center",
     maskPosition: "center",
-    backgroundColor: "#c9a24e",
+    backgroundColor: "#e6b54a",
     backgroundImage:
-      "repeating-linear-gradient(118deg, rgba(255,255,255,0.30) 0 1px, rgba(0,0,0,0) 1px 3px)," +
-      "linear-gradient(135deg, #7a4e12 0%, #c9933a 22%, #f4d98a 46%, #caa14e 60%, #8a5e1c 80%, #e8c878 100%)",
+      "repeating-linear-gradient(118deg, rgba(255,255,255,0.32) 0 1px, rgba(0,0,0,0) 1px 3px)," +
+      "linear-gradient(135deg, #8a5a14 0%, #d99a2e 20%, #ffe9a8 45%, #f4c84e 60%, #a9741c 82%, #ffd970 100%)",
     filter:
       "drop-shadow(0 1px 0 rgba(255,241,168,0.42)) drop-shadow(0 1px 2px rgba(0,0,0,0.45))",
   };
