@@ -60,6 +60,29 @@ um DEGRADE (ex.: `.anamnese-solo`). **Why:** sólido x gradiente lêem como dois
 apply:** o header deve receber a MESMA classe de fundo do corpo; a emenda fica mascarada pelo
 `border-b` + painel colado logo abaixo.
 
+## ATUALIZACAO 24/06/2026 (3a rodada) — faixa CONTINUA + alinhar bases com legendas em lados opostos
+- "Faixa longitudinal contínua" do CEO = full-bleed: container `fixed inset-x-0 bottom-0` SEM
+  `max-w`/`px`/`pb`/`rounded`; o FUNDO encosta ponta a ponta e SO o conteudo fica em `max-w-2xl`.
+- "Mesma cor do painel de questao" = reusar o gradiente do `.leva-card` (igualar os stops 100%,
+  inclusive o stop central — escuro 52%, nao 60%). Classe propria UNLAYERED (`.footer-brand-band`,
+  fora de `@layer`) p/ vencer utilitarios Tailwind de fundo/borda, como `.bevel-3d` faz.
+- Alinhar as BASES de dois wordmarks de alturas diferentes quando as legendas ficam em lados
+  verticais OPOSTOS (uma em cima a esquerda, outra embaixo a direita): dar a cada coluna `flex-col`
+  um SPACER invisivel (`<div aria-hidden className="h-[Npx]"/>`) no slot vazio, com altura = a da
+  legenda do outro lado. Com `items-end`, os slots-de-baixo iguais fazem as bases dos wordmarks
+  coincidirem. NUNCA usar como spacer a legenda longa real (a largura dela estoura a coluna e
+  descentraliza "Engineered by"); spacer = altura fixa, largura ~0.
+**Why:** `items-end` so alinha o RODAPE da coluna; sem slots simetricos o wordmark com linha extra
+embaixo sobe e desnivela (architect reprovou esse risco). **How to apply:** legendas em diagonal +
+bases alinhadas = espelhar a altura dos slots, nao o conteudo.
+
+### Armadilha: forcar tema p/ screenshot nao reflete (cache de modulo no navegador da captura)
+O truque `readTheme()->return "light"` as vezes NAO vira no screenshot mesmo apos restart do workflow
+e cache-bust na URL (`?cb=`): o cache-bust troca a URL do HTML, mas o navegador da captura mantem o
+MODULO `useScreenTheme.ts` em cache, entao a mudanca de tema nao aplica (ja as mudancas em
+index.tsx/index.css aplicam via HMR). NAO repetir o mesmo metodo. Layout e theme-agnostico; cores do
+claro reusam gradiente ja provado — validar so o escuro e suficiente nesses casos.
+
 ## Rodapé de marca: mesma linha, relevo, faixa fixa (regra durável)
 - Para duas legendas na MESMA linha horizontal acima de wordmarks de alturas diferentes, NÃO empilhar
   colunas [legenda,wordmark] com `items-end` (desnivela). Usar DUAS rows separadas (legendas /

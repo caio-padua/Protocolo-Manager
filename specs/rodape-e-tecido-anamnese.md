@@ -134,3 +134,28 @@ O CEO listou 8 falhas na rodada anterior. Correcoes, todas de APRESENTACAO:
 
 Validado por SCREENSHOT tema CLARO e ESCURO (topo + rodape). Truque de forcar tema (readTheme ->
 "light") usado SO para o screenshot e REVERTIDO. architect: <pendente nesta rodada>.
+
+---
+
+## ATUALIZACAO 24/06/2026 (3a rodada) — faixa continua + frase inglesa embaixo
+
+CEO reabriu com 2 itens (apresentacao apenas):
+
+1. (Rodape) A faixa fixa NAO pode ser delimitada/curva nas extremidades esquerda/direita: tem de ser
+   uma FAIXA LONGITUDINAL CONTINUA na horizontal, de ponta a ponta (full-bleed). Cor = a MESMA do
+   PAINEL DE QUESTAO (`.leva-card`), com um relevo "up breve" (saliente leve). CORRECAO: criada classe
+   `.footer-brand-band` (UNLAYERED, vence Tailwind) com o mesmo gradiente do `.leva-card` (claro:
+   branco->creme; escuro: navy #14304f->#0b1c34), SEM border-radius, com realce no topo + sombra
+   ascendente (relevo breve). O container fixo perdeu `max-w/px/pb` (fundo full-bleed); o CONTEUDO
+   continua centralizado em `max-w-2xl`. A faixa encosta no limite inferior (sem folga).
+2. (Rodape) A frase inglesa "Engineered by" desce para a PARTE DE BAIXO, CENTRALIZADA na largura que o
+   nome PADCON ocupa. CORRECAO: lado direito virou coluna [PadconWordmark em cima, "Engineered by"
+   centralizado embaixo] (`flex-col items-center` -> a frase centra na largura do wordmark). O lado
+   esquerdo mantem a assinatura "Dr. Caio Padua — Medical Director" EM CIMA do wordmark Instituto Padua.
+   (Isto SUBSTITUI o requisito da 2a rodada que punha as duas legendas na mesma linha.)
+
+Validado por SCREENSHOT em tema ESCURO (faixa continua + frase centralizada confirmadas). Tema CLARO
+nao pode ser reconfirmado nesta rodada: o modulo useScreenTheme ficou em cache no navegador da captura
+(o truque readTheme->"light" nao refletiu mesmo apos restart/cache-bust). Mudancas de layout sao
+identicas nos dois temas e as cores do claro reusam o gradiente ja provado do `.leva-card`.
+architect: PASS (sem regressao). Ajustes pos-review aplicados: (1) bases dos dois wordmarks ALINHADAS via spacers de altura igual nas duas colunas (risco estetico "d" do architect); (2) gradiente escuro da faixa igualado 100% ao .leva-card (stop central 52%).

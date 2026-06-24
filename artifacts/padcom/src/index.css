@@ -530,6 +530,24 @@
     0 16px 24px -10px rgba(0, 0, 0, 0.62),
     0 7px 12px -4px rgba(0, 0, 0, 0.5);
 }
+/* FAIXA DE MARCA do rodape — faixa LONGITUDINAL CONTINUA (full-bleed, SEM cantos
+   curvos), na MESMA COR do painel de questao (.leva-card), com relevo "up breve"
+   (realce no topo + sombra ascendente). Decisao do CEO 24/06/2026. UNLAYERED de
+   proposito (fora de @layer) para vencer utilitarios do Tailwind, como o bevel-3d. */
+.footer-brand-band {
+  background: linear-gradient(180deg, #ffffff 0%, #fffdf8 100%);
+  border-top: 1px solid rgba(138, 109, 47, 0.22);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    0 -10px 22px -8px rgba(7, 22, 43, 0.20);
+}
+.dark .footer-brand-band {
+  background: linear-gradient(180deg, #14304f 0%, #0f2442 52%, #0b1c34 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    0 -10px 22px -8px rgba(0, 0, 0, 0.55);
+}
 /* Bevel OK — variante VERDE CALMA do bevel (alerta clinico "dentro do alvo").
    Mantem relevo/sombra do .bevel-3d e so TINGE fundo + borda de esmeralda.
    SEM @layer de proposito: vence os utilitarios "bg" e "border" do Tailwind

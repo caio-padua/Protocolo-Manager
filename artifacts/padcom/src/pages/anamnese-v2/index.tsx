@@ -612,43 +612,48 @@ export default function AnamneseV2() {
 
       </main>
 
-      {/* BARRA INFERIOR FIXA — selo de salvamento + faixa de marca em RELEVO, sempre
-          visivel ao rolar (congelada no limite inferior, decisao do CEO opcao B). A faixa
-          usa .bevel-3d (relevo saliente, "up breve"); as duas legendas ficam na MESMA linha
-          horizontal (1a row), com respiro acima dos nomes (2a row, wordmarks). */}
-      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3">
-        <div className="mx-auto max-w-2xl">
-          {/* selo de salvamento — flutua centralizado ACIMA da faixa de marca (sem sobrepor) */}
-          <div className="mb-2 flex justify-center">
-            <div
-              className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary"
-              style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
-            </div>
+      {/* BARRA INFERIOR FIXA — selo de salvamento + FAIXA DE MARCA continua, sempre visivel ao
+          rolar (congelada no limite inferior). A faixa e LONGITUDINAL (full-bleed, sem cantos
+          curvos), na MESMA COR do painel de questao (.footer-brand-band == cor do .leva-card)
+          com relevo "up breve". A frase inglesa "Engineered by" fica EMBAIXO, centralizada sob
+          o nome PADCON; a assinatura do diretor fica EM CIMA do wordmark Instituto Padua. */}
+      <div className="fixed inset-x-0 bottom-0 z-30">
+        {/* selo de salvamento — flutua centralizado ACIMA da faixa (sem sobrepor) */}
+        <div className="mb-2 flex justify-center px-3">
+          <div
+            className="flex items-center gap-1.5 rounded-md bg-card px-3 py-1.5 text-xs font-medium text-primary"
+            style={{ color: saving ? "#9ca3af" : undefined, boxShadow: "0 2px 10px rgba(0,0,0,.12)" }}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt}` : "Tudo salvo automaticamente"}
           </div>
-          {/* FAIXA DE MARCA em RELEVO (.bevel-3d), SEM simbolos: so os nomes. Linha 1 = as duas
-              legendas (MESMA cor .footer-credit-padua + Lora italico, MESMA baseline); linha 2 =
-              wordmarks Instituto Padua (esq) e PADCON (dir). O respiro (mt) separa frase do nome. */}
-          <div className="bevel-3d px-4 py-2.5">
-            <div className="flex items-baseline justify-between gap-3">
+        </div>
+        {/* FAIXA continua full-bleed: fundo de ponta a ponta, conteudo centralizado em max-w-2xl */}
+        <div className="footer-brand-band px-4 py-2.5">
+          <div className="mx-auto flex max-w-2xl items-end justify-between gap-3">
+            {/* ESQUERDA: assinatura do diretor EM CIMA do wordmark; spacer EMBAIXO (mesma altura
+                da frase do outro lado) para as BASES dos dois wordmarks alinharem. */}
+            <div className="flex flex-col items-start">
               <span
-                className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
+                className="footer-credit-padua mb-1 whitespace-nowrap text-[10px] leading-none"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
+              <PaduaWordmark height={30} />
+              <div aria-hidden className="mt-1 h-[10px]" />
+            </div>
+            {/* DIREITA: spacer EM CIMA (alinha as bases) + wordmark PADCON + "Engineered by"
+                CENTRALIZADO embaixo, na largura do nome PADCON. */}
+            <div className="flex flex-col items-center">
+              <div aria-hidden className="mb-1 h-[10px]" />
+              <PadconWordmark height={20} />
               <span
-                className="footer-credit-padua whitespace-nowrap text-[10px] leading-none"
+                className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
                 style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Engineered by
               </span>
-            </div>
-            <div className="mt-2.5 flex items-end justify-between gap-3">
-              <PaduaWordmark height={30} />
-              <PadconWordmark height={20} />
             </div>
           </div>
         </div>
