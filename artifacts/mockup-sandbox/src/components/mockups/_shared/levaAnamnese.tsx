@@ -208,8 +208,12 @@ export const LEVA_STYLE = `
   /* ===== ACOES DA PERGUNTA: Ouvir (audio TTS) | Video | Gravar (voz) — embutidos ===== */
   .leva-action { border-radius:9px; transition: filter .18s ease, transform .12s ease; font-weight:700; }
   .leva-action:active { transform: translateY(1px); }
-  .leva-dark .leva-action { background: rgba(0,0,0,0.24); border:1px solid rgba(255,255,255,0.06); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); color:#cdd6e2; }
-  .leva-light .leva-action { background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.08); box-shadow: inset 0 1px 3px rgba(15,28,53,0.12); color:#3f4b5e; }
+  .leva-dark .leva-action { background: rgba(0,0,0,0.24); border:1px solid rgba(255,255,255,0.06); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+  .leva-light .leva-action { background: rgba(15,28,53,0.05); border:1px solid rgba(15,28,53,0.08); box-shadow: inset 0 1px 3px rgba(15,28,53,0.12); }
+  .leva-action-audio { color:#5cc4d6; }
+  .leva-light .leva-action-audio { color:#0e7d92; }
+  .leva-action-rec { color:#5cc4d6; }
+  .leva-light .leva-action-rec { color:#0e7d92; }
   .leva-action:focus-visible { outline:2px solid #45B8CC; outline-offset:2px; }
 `;
 
@@ -234,14 +238,14 @@ function Card({ children, alarm = false }: { children: ReactNode; alarm?: boolea
 function QActions() {
   return (
     <div className="flex items-center justify-between gap-2 mt-1">
-      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
-        <Volume2 className="w-3.5 h-3.5" style={{ color: "#f3c64a" }} /> Ouvir
+      <button className="leva-action leva-action-audio inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Volume2 className="w-3.5 h-3.5" /> Ouvir
       </button>
-      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
-        <Video className="w-3.5 h-3.5" style={{ color: "#4fb477" }} /> Vídeo
+      <button className="leva-video-link inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5">
+        <Video className="w-3.5 h-3.5" /> Vídeo
       </button>
-      <button className="leva-action inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
-        <Mic className="w-3.5 h-3.5" style={{ color: "#ef5b5b" }} /> Gravar
+      <button className="leva-action leva-action-rec inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider px-3 py-1.5">
+        <Mic className="w-3.5 h-3.5" /> Gravar
       </button>
     </div>
   );
