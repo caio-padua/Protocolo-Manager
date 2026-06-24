@@ -90,11 +90,16 @@ bases alinhadas = espelhar a altura dos slots, nao o conteudo.
 ## Contorno preto em PNG ouro + centralizar logo sobre legenda + area segura iOS
 - "Logo alinhado a frase" = LOGO centralizado SOBRE a legenda (meio-com-meio): coluna `items-center`,
   nao `items-start`. O CEO quer o meio do logo no meio da frase, nao a frase no logo.
-- Contorno preto NITIDO em PNG transparente (arte ouro recortada) = `drop-shadow` em 4 direcoes
-  (offset ~0,6px, blur 0, preto ~0.7) — desenha borda fina ao redor dos pixels opacos. Blur>0 vira
-  halo, nao contorno. Se o componente JA tem `filter` (ex.: filtro de cor saturate/brightness),
-  CONCATENAR o drop-shadow no MESMO `filter` (dois atributos `filter` se sobrescrevem). Expor por
-  prop opcional p/ nao afetar outros usos do componente.
+- Contorno preto NITIDO em PNG transparente (arte ouro recortada) = `drop-shadow` SEM blur.
+  4 direcoes deixam "vaos" nas diagonais e ficam fracas sobre creme; usar 8 DIRECOES (4 retas ~0,7px
+  + 4 diagonais ~0,5px, preto ~0.92) p/ borda continua e nitida. Blur>0 vira halo, nao contorno. Se o
+  componente JA tem `filter` (ex.: filtro de cor saturate/brightness), CONCATENAR o drop-shadow no
+  MESMO `filter` (dois atributos `filter` se sobrescrevem). Expor por prop p/ nao afetar outros usos.
+- Revelar o "tecido"/fundo nas laterais e ENTRE os cartoes (anamnese) = layout puro (vale nos 2 temas):
+  aumentar o padding horizontal do container (`px-4`->`px-6`) estreita os cartoes e mostra o fundo nas
+  laterais; embrulhar a lista de cartoes num `flex flex-col gap-5` mostra o fundo entre eles. ARMADILHA:
+  qualquer faixa full-bleed que cancela o padding com `-mx-N` precisa acompanhar (`-mx-4 px-4` ->
+  `-mx-6 px-6`), senao desalinha ao mudar o padding do container.
 - Rodape `fixed bottom-0` em iPhone: o conteudo encosta no indicador/quina inferior. Proteger com
   `paddingBottom: calc(<pad> + env(safe-area-inset-bottom, 0px))` — o `, 0px` e o FALLBACK p/
   navegador sem suporte a `env` (sem ele a declaracao inteira pode cair). Fundo segue full-bleed.

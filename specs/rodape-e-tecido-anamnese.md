@@ -201,3 +201,25 @@ CEO (apos print iPhone, tema claro) pediu 3 refinamentos:
 
 Validado por SCREENSHOT (tema claro, 390px iPhone): logos centralizados sobre as frases, contorno
 preto visivel, faixa nao cortada embaixo. architect: PASS.
+
+---
+
+## ATUALIZACAO 24/06/2026 (6a rodada) — contorno mais nitido + estreitar cartoes + respiro
+
+CEO (print iPhone, tema claro) pediu 2 refinamentos:
+
+1. Contorno preto AINDA mais nitido (sobretudo no PADCON, que estava fraco no tema claro). CORRECAO:
+   o `CONTORNO_PRETO` (nos dois wordmarks) passou de 4 direcoes (0,6px / preto 0.7) para 8 DIRECOES
+   (4 retas 0,7px + 4 diagonais 0,5px / preto 0.92). As diagonais fecham os "vaos" que 4 direcoes
+   deixavam — borda continua e nitida do ouro sobre o creme.
+2. Estreitar o painel das perguntas (nos DOIS temas) p/ aparecer o "tecido de terno" nas laterais,
+   e dar mais RESPIRO entre uma pergunta e outra. CORRECOES (layout, vale nos dois temas):
+   - respiro LATERAL: o `<main>` da anamnese passou de `px-4` para `px-6` (cartoes mais estreitos;
+     o creme/tecido aparece nas laterais). O painel de navegacao de grupos (`leva-band`) teve o
+     sangramento ajustado de `-mx-4 px-4` para `-mx-6 px-6` p/ continuar full-bleed alinhado.
+   - respiro VERTICAL: os cartoes (QuestionCard) foram embrulhados num `flex flex-col gap-5` (antes
+     herdavam o `gap-3` da secao) — agora o tecido aparece tambem ENTRE os cartoes.
+
+Validado por SCREENSHOT (tema claro, 390px, altura estendida): contorno nitido, cartoes estreitos
+com tecido nas laterais e entre eles. Estreitamento/respiro sao layout puro = identicos no tema
+escuro. architect: revisao desta rodada.

@@ -520,10 +520,10 @@ export default function AnamneseV2() {
         </div>
       </header>
 
-      <main className="relative z-[1] mx-auto max-w-2xl px-4 pt-4">
+      <main className="relative z-[1] mx-auto max-w-2xl px-6 pt-4">
         {/* MAPA DE GRUPOS (ordem livre) — escondido no modo foco */}
         {!focusMode && (
-          <div className="leva-band -mx-4 -mt-4 mb-4 rounded-b-xl rounded-t-none px-4 pb-3 pt-4">
+          <div className="leva-band -mx-6 -mt-4 mb-4 rounded-b-xl rounded-t-none px-6 pb-3 pt-4">
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
               {groups.map((g, i) => {
                 const done = g.questions.every((q) => isAnswered(answers[q.id]));
@@ -993,9 +993,12 @@ function GroupView({
           Você optou por não responder este bloco. Isso foi registrado para sua equipe clínica.
         </div>
       ) : (
-        group.questions.map((q) => (
-          <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
-        ))
+        // gap-5 = mais RESPIRO vertical entre cartoes (o tecido creme aparece entre eles).
+        <div className="flex flex-col gap-5">
+          {group.questions.map((q) => (
+            <QuestionCard key={q.id} q={q} value={answers[q.id]} onAnswer={onAnswer} />
+          ))}
+        </div>
       )}
     </section>
   );

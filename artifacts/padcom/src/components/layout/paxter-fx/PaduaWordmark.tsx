@@ -8,10 +8,11 @@ type Props = {
   outlined?: boolean;
 };
 
-/** Contorno em 4 direcoes (offset solido, blur 0) = borda preta fina e nitida ao
- *  redor dos pixels opacos do PNG. Sutil (0,6px) para nao engrossar a arte. */
+/** Contorno em 8 direcoes (4 retas 0,7px + 4 diagonais 0,5px, offset solido blur 0,
+ *  preto 0.92) = borda preta NITIDA e continua ao redor dos pixels opacos do PNG.
+ *  8 direcoes fecham os "vaos" das diagonais que 4 direcoes deixavam (ouro sobre creme). */
 const CONTORNO_PRETO =
-  "drop-shadow(0.6px 0 0 rgba(0,0,0,0.7)) drop-shadow(-0.6px 0 0 rgba(0,0,0,0.7)) drop-shadow(0 0.6px 0 rgba(0,0,0,0.7)) drop-shadow(0 -0.6px 0 rgba(0,0,0,0.7))";
+  "drop-shadow(0.7px 0 0 rgba(0,0,0,0.92)) drop-shadow(-0.7px 0 0 rgba(0,0,0,0.92)) drop-shadow(0 0.7px 0 rgba(0,0,0,0.92)) drop-shadow(0 -0.7px 0 rgba(0,0,0,0.92)) drop-shadow(0.5px 0.5px 0 rgba(0,0,0,0.92)) drop-shadow(-0.5px 0.5px 0 rgba(0,0,0,0.92)) drop-shadow(0.5px -0.5px 0 rgba(0,0,0,0.92)) drop-shadow(-0.5px -0.5px 0 rgba(0,0,0,0.92))";
 
 /**
  * Logo INSTITUTO PADUA: desenho OFICIAL (ouro) recortado da arte da marca
