@@ -83,8 +83,76 @@ Anamnese da 1ª consulta (LINHA DE BASE)
 
 ---
 
-## 4. Mockups/organograma já no Canvas
-- ENTREGA 30: organograma do "T de encanamento" + cockpit de exemplo (fluxo de 6 caixas + tabela).
+## 4. [MARTELO CEO 25/06/2026] Reenquadramento — "Acompanhamento" é PARTE do "Cockpit"
 
-RESUMO EM 1 LINHA: porta única "Área do Paciente" (opção A) e ferramenta "Acompanhamento" (cockpit
-indicador × consultas com setas de tendência) especificadas; faltam 3 decisões do CEO antes do build.
+Correção do CEO sobre os nomes:
+
+| Nome | O que é |
+|---|---|
+| Acompanhamento | A evolução clínica tabelada (indicador × consulta, com setas melhorou/igual/piorou). É UMA seção. |
+| Cockpit | A tela-comando do médico, onde na MESMA tela ele faz TUDO sobre o cliente. O Acompanhamento mora dentro dele. |
+
+### 4.1 O que o Cockpit reúne numa só tela
+| Seção | O que o médico faz ali |
+|---|---|
+| Prescrição | Prescrever fórmulas manipuladas; indicar injetáveis: endovenoso (na veia), intramuscular (no músculo), subcutâneo (sob a pele), implantes; indicar tratamentos |
+| Exames | Solicitar todo tipo de exame E ver a EVOLUÇÃO dos resultados (ver seção 5) |
+| Anamnese | Ver/registrar a anamnese (entrevista clínica) do cliente |
+| Acompanhamento | A tabela de evolução clínica (indicador × consulta) — já mockada (ENTREGA 31) |
+| Diário | Acesso ao diário do cliente (registros do próprio cliente ao longo do tempo) |
+
+---
+
+## 5. [MARTELO CEO 25/06/2026] Evolução de EXAMES com "terços/zonas" (o coração do pedido)
+
+O CEO quer, para exames (principalmente de sangue): uma coluna que compara o resultado PASSADO com o
+ATUAL, com gráfico de melhora, e o julgamento por "terços" — entre o mínimo e o máximo há faixas, com
+uma faixa IDEAL. Exemplo do CEO: ferro 30 ng/dL (20/04/2026) → 70 (20/05/2026) → hoje (25/06/2026):
+ver se melhorou ou piorou.
+
+### 5.1 O que o IHE (origem) já traz para cá — PESQUISADO no código (não é memória)
+Fonte verificada: `lib/db/src/schema/motor.ts` (tabela `catalogo_analitos`) e
+`artifacts/api-server/src/lib/transmutacao-motor.ts`.
+
+| Campo (origem IHE, já transmutado) | O que guarda |
+|---|---|
+| `unidade_padrao_integrativa` | Unidade do exame (ex.: ng/dL) |
+| `terco_excelente` | Qual o "terço" (faixa) considerado EXCELENTE/ideal |
+| `zonas` (JSON) | Cinco faixas nomeadas: excelente · aceitável · atenção · alerta · ruim |
+| `direcao_favoravel` (tabela `direcao_favoravel_exame`) | Se "quanto maior melhor" ou "quanto menor melhor" |
+
+Conclusão importante (sinceridade): o IHE NÃO usa só "normal × alterado". Ele pinta FAIXAS
+FUNCIONAIS dentro do intervalo. Um ferro de 30 pode estar na zona "alerta/ruim" e 70 na zona
+"excelente", mesmo que os dois caibam no "normal" largo do laboratório. Esse é o sistema de "terços".
+
+### 5.2 O que FALTA construir aqui (não existe ainda neste repositório)
+| Lacuna | Por quê |
+|---|---|
+| Tabela de RESULTADOS de exame por cliente e por data | Hoje só existe o CATÁLOGO (a régua), não os valores do cliente no tempo |
+| Classificador valor → zona | A régua (zonas) veio pronta do IHE, mas falta o código que pega o valor e diz em que faixa caiu |
+| Gráfico de evolução do analito | Linha do tempo do valor com as faixas coloridas ao fundo (verde=ideal, âmbar=atenção, vermelho=ruim) |
+| Diário do cliente (armazenamento + leitura no Cockpit) | Não existe tabela de diário hoje |
+
+Observação: o sistema IHE em si NÃO está neste repositório; pesquisei os DADOS dele já trazidos
+para o Manager. Para detalhes finos do cálculo de terços, pode ser preciso uma carta ao Dr. Replit
+Pawards (IHE).
+
+---
+
+## 6. Mockups/organograma já no Canvas
+- ENTREGA 30: organograma do "T de encanamento" (fluxo) + cockpit-exemplo.
+- ENTREGA 31: tela (mockup) da seção "Acompanhamento — Evolução Clínica" (indicador × consulta).
+
+---
+
+## 7. Decisões pendentes do CEO antes do build
+1. Lista oficial dos indicadores do Acompanhamento (quais aparecem por padrão).
+2. Quem preenche a coluna nova: só médico, ou também enfermeira.
+3. A tendência é marcada à mão, calculada pelo sistema, ou os dois.
+4. Quais "terços/zonas" usar na tela: as 5 zonas do IHE (excelente/aceitável/atenção/alerta/ruim)
+   ou simplificar para 3 (abaixo do ideal / ideal / acima do ideal).
+5. O diário do cliente é texto livre, ou perguntas guiadas (humor, sono, sintomas)?
+
+RESUMO EM 1 LINHA: "Acompanhamento" é uma seção dentro do "Cockpit" (tela-comando que prescreve tudo,
+solicita/avalia exames por terços, mostra anamnese e diário); a régua de terços/zonas já veio do IHE,
+mas falta construir resultados-por-data, classificador e gráfico.
