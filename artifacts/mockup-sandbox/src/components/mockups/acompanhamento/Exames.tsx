@@ -153,6 +153,21 @@ function zonaDe(a: Analito, valor: number): ZonaNome {
   return a.zonas[a.zonas.length - 1].nome;
 }
 
+/* nomes das faixas CADASTRADOS por exame (subcadastro de Exames) */
+const ROTULOS: Record<string, Partial<Record<ZonaNome, string>>> = {
+  "Ferritina (estoque de ferro)": { ruim: "Deficiência grave", alerta: "Estoque baixo", atencao: "Estoque limítrofe", aceitavel: "Estoque adequado", excelente: "Estoque ótimo" },
+  "Vitamina D": { ruim: "Deficiência", alerta: "Insuficiência", atencao: "Limítrofe", aceitavel: "Suficiente", excelente: "Nível ótimo" },
+  "Hemoglobina glicada (HbA1c)": { excelente: "Normal", aceitavel: "Ótimo controle", atencao: "Pré-diabetes inicial", alerta: "Pré-diabetes", ruim: "Faixa de diabetes" },
+  "Proteína C reativa (PCR)": { excelente: "Sem inflamação", aceitavel: "Inflamação baixa", atencao: "Inflamação moderada", alerta: "Inflamação alta", ruim: "Inflamação muito alta" },
+  "Colesterol LDL": { excelente: "Ótimo", aceitavel: "Desejável", atencao: "Limítrofe alto", alerta: "Alto", ruim: "Muito alto" },
+  "Glicemia em jejum": { excelente: "Normal", aceitavel: "Normal alto", atencao: "Glicemia alterada", alerta: "Pré-diabetes", ruim: "Faixa de diabetes" },
+};
+
+/* nome cadastrado da faixa; cai no rótulo genérico se ainda não cadastrado */
+function nomeFaixa(a: Analito, z: ZonaNome): string {
+  return ROTULOS[a.nome]?.[z] ?? ZCOR[z].rotulo;
+}
+
 /* ---------- barra de zonas (terços) horizontal ---------- */
 function ZonaBar({ a }: { a: Analito }) {
   const span = a.vmax - a.vmin;
@@ -407,6 +422,20 @@ function CartaoGrafico({ a, ordem, onRemover }: { a: Analito; ordem: number; onR
       </div>
       <div className="screen-3d p-2">
         <LineChart a={a} />
+      </div>
+      <div className="concave-3d mt-2 px-3 py-2">
+        <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#647c97]">
+          Faixa cadastrada do valor atual
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: ZCOR[a.zonaAtual].cor }} />
+          <span className="text-[14px] font-bold leading-tight" style={{ color: ZCOR[a.zonaAtual].cor }}>
+            {nomeFaixa(a, a.zonaAtual)}
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-[#647c97]">
+            {pl.valor} {a.unidade}
+          </span>
+        </div>
       </div>
     </section>
   );

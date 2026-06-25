@@ -22,6 +22,7 @@ export const modules: ModuleMap = {
   "./components/mockups/anamnese-paxter/AnamneseV3.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV3.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV4.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV4.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV5.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV5.tsx"),
+  "./components/mockups/cadastro/SubcadastroExames.tsx": () => import("../components/mockups/cadastro/SubcadastroExames.tsx"),
   "./components/mockups/marcacao-luxo/BordoLinho.tsx": () => import("../components/mockups/marcacao-luxo/BordoLinho.tsx"),
   "./components/mockups/marcacao-luxo/BordoProfundo.tsx": () => import("../components/mockups/marcacao-luxo/BordoProfundo.tsx"),
   "./components/mockups/marcacao-luxo/MochaExpresso.tsx": () => import("../components/mockups/marcacao-luxo/MochaExpresso.tsx"),
