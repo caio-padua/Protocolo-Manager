@@ -1,5 +1,6 @@
 import "./_group.css";
-import { ArrowDownRight, ArrowUpRight, FlaskConical, Minus, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { ArrowDownRight, ArrowUpRight, Filter, FlaskConical, Minus, MousePointerClick, TrendingUp } from "lucide-react";
 
 /* ---------- modelo ---------- */
 type Tend = "melhorou" | "igual" | "piorou";
@@ -161,6 +162,14 @@ const ANALITOS: Analito[] = [
   },
 ];
 
+/* classifica um valor na faixa (terço) correspondente */
+function zonaDe(a: Analito, valor: number): ZonaNome {
+  for (const z of a.zonas) {
+    if (valor >= z.de && valor < z.ate) return z.nome;
+  }
+  return a.zonas[a.zonas.length - 1].nome;
+}
+
 /* ---------- barra de zonas (terços) horizontal ---------- */
 function ZonaBar({ a }: { a: Analito }) {
   const span = a.vmax - a.vmin;
@@ -236,10 +245,125 @@ function Selo() {
   );
 }
 
-const GRID = "grid-cols-[minmax(220px,1.7fr)_90px_repeat(3,72px)_minmax(150px,1.2fr)_140px]";
+const GRID = "grid-cols-[minmax(210px,1.6fr)_70px_repeat(3,86px)_minmax(150px,1.2fr)_140px]";
+
+/* uma célula de valor, com faixinha de cor opcional e neon opcional */
+function Cela({ a, idx, atual, showStrip, neonZona }: { a: Analito; idx: number; atual?: boolean; showStrip: boolean; neonZona: ZonaNome | null }) {
+  const valor = a.pontos[idx].valor;
+  const z = zonaDe(a, valor);
+  const cor = ZCOR[z].cor;
+  const aceso = neonZona !== null && z === neonZona;
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[4px] py-1.5 text-center ${atual ? "screen-3d" : "concave-3d"}`}
+      style={aceso ? { boxShadow: `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}`, transition: "box-shadow .15s" } : { transition: "box-shadow .15s" }}
+      title={`${valor} ${a.unidade} · faixa ${ZCOR[z].rotulo}`}
+    >
+      {showStrip && <span className="absolute left-0 top-0 h-full w-[6px]" style={{ background: cor }} />}
+      <span
+        className={atual ? "text-[13px] font-bold text-[#16294a]" : "text-[12px] font-medium text-[#3a4a63]"}
+        style={{ paddingLeft: showStrip ? 7 : 0 }}
+      >
+        {valor}
+      </span>
+    </div>
+  );
+}
+
+/* uma linha completa do comparativo */
+function Linha({
+  a,
+  showStrip,
+  neonZona,
+  onClick,
+  selecionada,
+}: {
+  a: Analito;
+  showStrip: boolean;
+  neonZona: ZonaNome | null;
+  onClick?: () => void;
+  selecionada?: boolean;
+}) {
+  const cfg = TEND[a.tend];
+  return (
+    <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={`panel-3d-sub grid ${GRID} items-center gap-2 px-2 py-2 ${onClick ? "cursor-pointer" : ""}`}
+      style={selecionada ? { outline: "2px solid #b8924d", outlineOffset: "2px" } : undefined}
+    >
+      <div className="px-1">
+        <div className="text-[12.5px] font-semibold text-[#16294a]">{a.nome}</div>
+        <div className="text-[9.5px] uppercase tracking-wide text-[#647c97]">{a.direcao}</div>
+      </div>
+      <div className="text-center text-[10px] text-[#647c97]">{a.unidade}</div>
+      <Cela a={a} idx={0} showStrip={showStrip} neonZona={neonZona} />
+      <Cela a={a} idx={1} showStrip={showStrip} neonZona={neonZona} />
+      <Cela a={a} idx={2} atual showStrip={showStrip} neonZona={neonZona} />
+      <div className="px-1.5">
+        <ZonaBar a={a} />
+        <div className="mt-1 text-center text-[9px] font-bold uppercase tracking-wide" style={{ color: ZCOR[a.zonaAtual].cor }}>
+          {ZCOR[a.zonaAtual].rotulo}
+        </div>
+      </div>
+      <div className="bevel-3d flex items-center justify-center gap-1.5 py-1.5">
+        <span className={`paxter-led ${cfg.led} paxter-led-on`} />
+        <cfg.Icon className={`h-4 w-4 ${cfg.cor}`} />
+        <span className={`text-[10px] font-bold uppercase tracking-wide ${cfg.cor}`}>{cfg.rotulo}</span>
+      </div>
+    </div>
+  );
+}
+
+/* cabeçalho de colunas do comparativo */
+function Cabecalho() {
+  return (
+    <div className={`grid ${GRID} items-end gap-2 px-2 pb-2`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">Exame</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Unid.</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">20/04</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">20/05</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#16294a]">25/06</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-[0.12em] text-[#647c97]">Faixa atual (terços)</div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Tendência</div>
+    </div>
+  );
+}
+
+/* interruptor (toggle) estilo Paxter */
+function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => void; texto: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={ligado}
+      className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+    >
+      <span
+        className="relative inline-flex h-[20px] w-[38px] items-center rounded-full transition-colors"
+        style={{ background: ligado ? "#b8924d" : "#c9cdd6", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.35)" }}
+      >
+        <span
+          className="absolute h-[15px] w-[15px] rounded-full bg-white transition-all"
+          style={{ left: ligado ? 20 : 3, boxShadow: "0 1px 2px rgba(0,0,0,0.4)" }}
+        />
+      </span>
+      {texto}
+    </button>
+  );
+}
 
 export function Exames() {
-  const destaque = ANALITOS[0];
+  const [selecionado, setSelecionado] = useState(0);
+  const [mostrarFaixas, setMostrarFaixas] = useState(false);
+  const [filtroZona, setFiltroZona] = useState<ZonaNome | null>("ruim");
+
+  const d = ANALITOS[selecionado];
+  const p0 = d.pontos[0];
+  const pl = d.pontos[d.pontos.length - 1];
+  const cfgD = TEND[d.tend];
+
   return (
     <div className="cockpit-root min-h-screen w-full font-sans">
       {/* topo */}
@@ -272,102 +396,117 @@ export function Exames() {
           <span className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#16294a]">Exames — Evolução por Terços (Faixas)</span>
         </div>
 
-        {/* DESTAQUE: gráfico + classificação */}
+        {/* DESTAQUE: gráfico + classificação (dirigido pelo exame selecionado) */}
         <section className="panel-3d mb-6 p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <div className="text-[15px] font-bold text-[#16294a]">{destaque.nome}</div>
-              <div className="text-[11px] uppercase tracking-wide text-[#647c97]">{destaque.unidade} · {destaque.direcao}</div>
+              <div className="text-[15px] font-bold text-[#16294a]">{d.nome}</div>
+              <div className="text-[11px] uppercase tracking-wide text-[#647c97]">{d.unidade} · {d.direcao}</div>
             </div>
             <div className="bevel-3d flex items-center gap-2 px-3 py-1.5">
-              <span className={`paxter-led ${TEND[destaque.tend].led} paxter-led-on`} />
-              <span className={`text-[12px] font-bold uppercase tracking-wide ${TEND[destaque.tend].cor}`}>{TEND[destaque.tend].rotulo}</span>
+              <span className={`paxter-led ${cfgD.led} paxter-led-on`} />
+              <span className={`text-[12px] font-bold uppercase tracking-wide ${cfgD.cor}`}>{cfgD.rotulo}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-[1fr_280px] gap-5">
             <div className="screen-3d p-3">
-              <LineChart a={destaque} />
+              <LineChart a={d} />
             </div>
             <div className="flex flex-col gap-3">
               <div className="screen-3d px-4 py-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#647c97]">Valor atual (25/06/2026)</div>
                 <div className="mt-1 flex items-end gap-2">
-                  <span className="text-4xl font-bold text-[#16294a]">{destaque.pontos[2].valor}</span>
-                  <span className="mb-1 text-[13px] text-[#647c97]">{destaque.unidade}</span>
+                  <span className="text-4xl font-bold text-[#16294a]">{pl.valor}</span>
+                  <span className="mb-1 text-[13px] text-[#647c97]">{d.unidade}</span>
                 </div>
               </div>
               <div className="screen-3d px-4 py-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#647c97]">Faixa atual</div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="inline-block h-3.5 w-3.5 rounded-[3px]" style={{ background: ZCOR[destaque.zonaAtual].cor }} />
-                  <span className="text-lg font-bold" style={{ color: ZCOR[destaque.zonaAtual].cor }}>{ZCOR[destaque.zonaAtual].rotulo}</span>
+                  <span className="inline-block h-3.5 w-3.5 rounded-[3px]" style={{ background: ZCOR[d.zonaAtual].cor }} />
+                  <span className="text-lg font-bold" style={{ color: ZCOR[d.zonaAtual].cor }}>{ZCOR[d.zonaAtual].rotulo}</span>
                 </div>
-                <div className="mt-2"><ZonaBar a={destaque} /></div>
+                <div className="mt-2"><ZonaBar a={d} /></div>
               </div>
               <div className="concave-3d px-4 py-2.5 text-[11px] italic text-[#647c97]">
-                Saiu de 30 (faixa Atenção) para 110 ng/mL (faixa Excelente) em dois meses.
+                Saiu de {p0.valor} (faixa {ZCOR[zonaDe(d, p0.valor)].rotulo}) para {pl.valor} {d.unidade} (faixa {ZCOR[zonaDe(d, pl.valor)].rotulo}) em dois meses.
               </div>
             </div>
           </div>
         </section>
 
-        {/* TABELA: todos os analitos */}
-        <section className="panel-3d p-5">
-          <div className="mb-3 flex items-center justify-between">
+        {/* COMPARATIVO ESTÁTICO: clicável + toggle das faixinhas */}
+        <section className="panel-3d mb-6 p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-              <TrendingUp className="h-4 w-4" style={{ color: "#9a7b32" }} /> Comparativo — passado × atual
+              <TrendingUp className="h-4 w-4" style={{ color: "#9a7b32" }} /> Comparativo estático — passado × atual
             </span>
-            <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold uppercase tracking-wide">
-              {(["ruim", "alerta", "atencao", "aceitavel", "excelente"] as ZonaNome[]).map((z) => (
-                <span key={z} className="flex items-center gap-1">
-                  <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: ZCOR[z].cor }} /> {ZCOR[z].rotulo}
-                </span>
-              ))}
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+                <MousePointerClick className="h-3.5 w-3.5" /> Clique num exame para ver o gráfico acima
+              </span>
+              <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixa de cor por valor" />
             </div>
           </div>
 
-          {/* cabeçalho */}
-          <div className={`grid ${GRID} items-end gap-2 px-2 pb-2`}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">Exame</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Unid.</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">20/04</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">20/05</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#16294a]">25/06</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-[0.12em] text-[#647c97]">Faixa atual (terços)</div>
-            <div className="text-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Tendência</div>
+          <Cabecalho />
+          <div className="space-y-2">
+            {ANALITOS.map((a, i) => (
+              <Linha
+                key={a.nome}
+                a={a}
+                showStrip={mostrarFaixas}
+                neonZona={null}
+                onClick={() => setSelecionado(i)}
+                selecionada={i === selecionado}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* COMPARATIVO DINÂMICO: filtro por faixa acende neon */}
+        <section className="panel-3d p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+              <Filter className="h-4 w-4" style={{ color: "#9a7b32" }} /> Comparativo dinâmico — acenda uma faixa
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFiltroZona(null)}
+                className="rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                style={filtroZona === null ? { background: "#16294a", color: "#fff" } : { background: "rgba(22,41,74,0.08)", color: "#16294a" }}
+              >
+                Todos
+              </button>
+              {(["ruim", "alerta", "atencao", "aceitavel", "excelente"] as ZonaNome[]).map((z) => {
+                const ativo = filtroZona === z;
+                return (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => setFiltroZona(z)}
+                    className="flex items-center gap-1 rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                    style={ativo ? { background: ZCOR[z].cor, color: "#fff", boxShadow: `0 0 8px 1px ${ZCOR[z].cor}` } : { background: "rgba(22,41,74,0.06)", color: ZCOR[z].cor }}
+                  >
+                    <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: ZCOR[z].cor }} /> {ZCOR[z].rotulo}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
+          <Cabecalho />
           <div className="space-y-2">
-            {ANALITOS.map((a) => {
-              const cfg = TEND[a.tend];
-              return (
-                <div key={a.nome} className={`panel-3d-sub grid ${GRID} items-center gap-2 px-2 py-2`}>
-                  <div className="px-1">
-                    <div className="text-[12.5px] font-semibold text-[#16294a]">{a.nome}</div>
-                    <div className="text-[9.5px] uppercase tracking-wide text-[#647c97]">{a.direcao}</div>
-                  </div>
-                  <div className="text-center text-[10px] text-[#647c97]">{a.unidade}</div>
-                  <div className="concave-3d py-1.5 text-center text-[12px] font-medium text-[#3a4a63]">{a.pontos[0].valor}</div>
-                  <div className="concave-3d py-1.5 text-center text-[12px] font-medium text-[#3a4a63]">{a.pontos[1].valor}</div>
-                  <div className="screen-3d py-1.5 text-center text-[13px] font-bold text-[#16294a]">{a.pontos[2].valor}</div>
-                  <div className="px-1.5">
-                    <ZonaBar a={a} />
-                    <div className="mt-1 text-center text-[9px] font-bold uppercase tracking-wide" style={{ color: ZCOR[a.zonaAtual].cor }}>{ZCOR[a.zonaAtual].rotulo}</div>
-                  </div>
-                  <div className="bevel-3d flex items-center justify-center gap-1.5 py-1.5">
-                    <span className={`paxter-led ${cfg.led} paxter-led-on`} />
-                    <cfg.Icon className={`h-4 w-4 ${cfg.cor}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${cfg.cor}`}>{cfg.rotulo}</span>
-                  </div>
-                </div>
-              );
-            })}
+            {ANALITOS.map((a) => (
+              <Linha key={a.nome} a={a} showStrip neonZona={filtroZona} />
+            ))}
           </div>
 
           <p className="mt-4 text-[11px] italic text-[#647c97]">
-            Régua dos "terços/zonas" vinda do IHE (excelente · aceitável · atenção · alerta · ruim). A
-            tendência respeita a direção favorável de cada exame (quanto maior melhor, ou quanto menor melhor).
+            Acenda uma faixa (exemplo: <b>Ruim</b> ou <b>Alerta</b>) e o "neon" envolve, em todas as datas, só os valores
+            daquela faixa. As faixinhas de cor à esquerda de cada valor já ficam sempre visíveis aqui.
           </p>
         </section>
       </main>

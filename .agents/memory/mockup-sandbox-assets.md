@@ -25,3 +25,19 @@ A ferramenta de screenshot (app_preview) JÁ prefixa o previewPath do artefato. 
 (previewPath `/__mockup`), passe `path:"/preview/<pasta>/<Componente>"` — NÃO inclua `/__mockup`.
 Incluir resulta em URL duplicada `/__mockup/preview/__mockup/preview/...` → "No component found"
 (falso negativo). Validação real: `curl localhost:80/__mockup/preview/<pasta>/<Comp>` deve dar 200.
+
+## Verificar mockup: use app_preview, NÃO external_url (Firecrawl cacheia)
+O screenshot `external_url` passa por serviço externo (Firecrawl) que CACHEIA a página: após editar
+um componente (HMR aplicado), ele devolve o render ANTIGO, dando falso negativo ("não mudou nada").
+**Why:** confiei no external_url e vi a versão velha mesmo com o arquivo já salvo e o Vite com HMR ok.
+**How to apply:** para validar mockup recém-editado, use `app_preview` (artifact_dir_name=mockup-sandbox,
+path=/preview/<pasta>/<Comp>) que bate direto no proxy localhost:80, sem cache externo.
+
+## getCanvasState omite shapes quando o board está cheio (vão p/ peripheralClusters)
+`getCanvasState` retorna OBJETO {focusedShapes, blurryShapes, peripheralClusters, focusedOmittedCount,
+blurryOmittedCount,...}. Com muitas formas no board, shapes reais (até iframes 1280x800) podem NÃO
+aparecer em focused/blurry — caem em peripheralClusters (que voltam como objetos vazios, sem coords).
+Logo, "lista vazia" do read NÃO prova que a forma não existe. A prova autoritativa de existência é o
+retorno de `applyCanvasActions update` (errorCode SHAPE_NOT_FOUND) ou o `presentArtifact` (status presented).
+**How to apply:** para empilhar nova entrega, derive a posição do RITMO conhecido dos selos (ex.: coluna
+x fixa, espaçamento y fixo entre entregas) em vez de depender do read; confirme criação pelo applied/errors.
