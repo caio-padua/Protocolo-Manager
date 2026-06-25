@@ -15,6 +15,7 @@ import {
   FileText,
   FlaskConical,
   HeartPulse,
+  Maximize2,
   Microscope,
   PenLine,
   Pill,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   Stethoscope,
   Syringe,
+  TestTube2,
   User,
 } from "lucide-react";
 
@@ -41,15 +43,30 @@ function Selo({ size = 18 }: { size?: number }) {
 }
 
 /* ============================================================
-   Helpers de bloco (vocabulario Paxter)
+   Cabecalho de bloco — pilula de titulo + botao maximizar
    ============================================================ */
-function TituloBloco({ Icon, texto, cor = "#16294a" }: { Icon: typeof Activity; texto: string; cor?: string }) {
+function BotaoMax() {
   return (
-    <div className="bevel-3d mb-3 flex items-center gap-2 px-3 py-2">
-      <Icon className="h-4 w-4" style={{ color: cor }} />
-      <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: cor }}>
-        {texto}
-      </span>
+    <button
+      type="button"
+      title="Maximizar"
+      className="btn-3d-soft flex h-7 w-7 shrink-0 items-center justify-center"
+    >
+      <Maximize2 className="h-3.5 w-3.5 text-[#647c97]" />
+    </button>
+  );
+}
+
+function CabecalhoBloco({ Icon, texto, cor = "#16294a" }: { Icon: typeof Activity; texto: string; cor?: string }) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="bevel-3d flex items-center gap-2 px-3 py-2">
+        <Icon className="h-4 w-4" style={{ color: cor }} />
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: cor }}>
+          {texto}
+        </span>
+      </div>
+      <BotaoMax />
     </div>
   );
 }
@@ -70,7 +87,7 @@ function MetaField({ label, value, Icon }: { label: string; value: string | null
 /* ============================================================
    Quadro clinico — doencas / hipoteses
    ============================================================ */
-type Achado = { nome: string; grau: "alta" | "media"; nota?: string };
+type Achado = { nome: string; grau: "alta" | "media" };
 
 function ItemDoenca({ a, hipotese = false }: { a: Achado; hipotese?: boolean }) {
   const led = a.grau === "alta" ? "paxter-led-red" : "paxter-led-amber";
@@ -91,12 +108,38 @@ function ItemDoenca({ a, hipotese = false }: { a: Achado; hipotese?: boolean }) 
   );
 }
 
-type Medicacao = { nome: string; dose: string; via: string; posologia: string[] };
+/* ============================================================
+   Medicacoes em uso — dose + via + periodo + horario (tomadas)
+   ============================================================ */
+type Tomada = { dose: string; periodo: string; hora: string };
+type Medicacao = { nome: string; via: string; tomadas: Tomada[] };
+
 const MEDICACOES: Medicacao[] = [
-  { nome: "Captopril 25 mg", dose: "1 comprimido", via: "Via oral", posologia: ["08h00", "20h00"] },
-  { nome: "Metformina 850 mg", dose: "1 comprimido", via: "Via oral", posologia: ["Almoço", "Jantar"] },
-  { nome: "Levotiroxina 50 mcg", dose: "1 comprimido", via: "Via oral", posologia: ["Jejum"] },
-  { nome: "Rosuvastatina 10 mg", dose: "1 comprimido", via: "Via oral", posologia: ["22h00"] },
+  { nome: "Levotiroxina 50 mcg", via: "VO", tomadas: [{ dose: "1 comp", periodo: "Em Jejum", hora: "07h00" }] },
+  {
+    nome: "Captopril 25 mg",
+    via: "VO",
+    tomadas: [
+      { dose: "1 comp", periodo: "Manhã", hora: "08h00" },
+      { dose: "1 comp", periodo: "Noite", hora: "20h00" },
+    ],
+  },
+  {
+    nome: "Prednisona 5 mg",
+    via: "VO",
+    tomadas: [
+      { dose: "2 comp", periodo: "Manhã", hora: "08h00" },
+      { dose: "1 comp", periodo: "À tarde", hora: "14h00" },
+    ],
+  },
+  {
+    nome: "Metformina 850 mg",
+    via: "VO",
+    tomadas: [
+      { dose: "1 comp", periodo: "Almoço", hora: "12h00" },
+      { dose: "1 comp", periodo: "Jantar", hora: "19h00" },
+    ],
+  },
 ];
 
 function LinhaMedicacao({ m }: { m: Medicacao }) {
@@ -105,21 +148,20 @@ function LinhaMedicacao({ m }: { m: Medicacao }) {
       <div className="flex items-center gap-2">
         <Pill className="h-3.5 w-3.5 shrink-0 text-[#2e86c1]" />
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-[#16294a]">{m.nome}</span>
+        <span className="shrink-0 rounded bg-[#eef4fb] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#2e6da4]" style={{ border: "1px solid rgba(46,134,193,0.3)" }}>
+          {m.via}
+        </span>
       </div>
-      <div className="mt-1.5 grid grid-cols-[1fr_1fr] gap-1.5">
-        <span className="concave-3d px-2 py-1 text-[10.5px] font-semibold text-[#2c3e52]">{m.dose}</span>
-        <span className="concave-3d px-2 py-1 text-[10.5px] font-semibold text-[#2c3e52]">{m.via}</span>
-      </div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {m.posologia.map((p, i) => (
-          <span
-            key={i}
-            className="inline-flex items-center gap-1 rounded bg-[#eef4fb] px-2 py-0.5 text-[10px] font-semibold text-[#2e6da4]"
-            style={{ border: "1px solid rgba(46,134,193,0.3)" }}
-          >
-            <span className="text-[8px] font-bold uppercase text-[#7e93a8]">{i + 1}ª</span>
-            {p}
-          </span>
+      {/* tomadas alinhadas em colunas verticais: dose | periodo | horario */}
+      <div className="concave-3d mt-1.5 flex flex-col gap-1 p-1.5">
+        {m.tomadas.map((t, i) => (
+          <div key={i} className="grid grid-cols-[58px_1fr_52px] items-center gap-2">
+            <span className="rounded bg-white px-1.5 py-0.5 text-center text-[10.5px] font-bold text-[#16294a]" style={{ border: "1px solid rgba(46,134,193,0.25)" }}>
+              {t.dose}
+            </span>
+            <span className="text-[10.5px] font-semibold text-[#2c3e52]">{t.periodo}</span>
+            <span className="text-right text-[10px] font-medium text-[#647c97]">{t.hora}</span>
+          </div>
         ))}
       </div>
     </div>
@@ -127,49 +169,103 @@ function LinhaMedicacao({ m }: { m: Medicacao }) {
 }
 
 /* ============================================================
-   Sugestoes do motor (validaveis) — abrem no modulo de prescricao
+   Resultado dos exames recebidos
    ============================================================ */
-type Sugestao = { nome: string; detalhe: string; cor: string; validado: boolean };
-type GrupoSugestao = { titulo: string; Icon: typeof Syringe; cor: string; itens: Sugestao[] };
+type ResultadoExame = { nome: string; valor: string; ref: string; status: "alto" | "baixo" | "normal" };
+const RESULTADOS: ResultadoExame[] = [
+  { nome: "TSH", valor: "6,8 mUI/L", ref: "0,4 – 4,0", status: "alto" },
+  { nome: "Glicose (jejum)", valor: "108 mg/dL", ref: "70 – 99", status: "alto" },
+  { nome: "Insulina", valor: "18 µUI/mL", ref: "2,6 – 24,9", status: "normal" },
+  { nome: "Vitamina D (25-OH)", valor: "22 ng/mL", ref: "30 – 100", status: "baixo" },
+  { nome: "Colesterol LDL", valor: "162 mg/dL", ref: "< 130", status: "alto" },
+  { nome: "Hemoglobina", valor: "13,5 g/dL", ref: "12 – 16", status: "normal" },
+];
 
-const GRUPOS: GrupoSugestao[] = [
-  {
-    titulo: "Exames sugeridos",
-    Icon: Microscope,
-    cor: "#2e86c1",
-    itens: [
-      { nome: "Hemograma completo", detalhe: "jejum", cor: "#c0392b", validado: true },
-      { nome: "TSH e T4 livre", detalhe: "sem preparo", cor: "#8e44ad", validado: true },
-      { nome: "Insulina e HOMA-IR", detalhe: "jejum", cor: "#2e86c1", validado: true },
-      { nome: "Vitamina D (25-OH)", detalhe: "sem preparo", cor: "#d68910", validado: false },
-    ],
-  },
+function LinhaResultado({ r }: { r: ResultadoExame }) {
+  const led = r.status === "normal" ? "paxter-led-green" : r.status === "alto" ? "paxter-led-red" : "paxter-led-amber";
+  const cor = r.status === "normal" ? "#1e8449" : r.status === "alto" ? "#c0392b" : "#9a6b12";
+  const rotulo = r.status === "normal" ? "Normal" : r.status === "alto" ? "Alto" : "Baixo";
+  return (
+    <div className="bevel-3d grid grid-cols-[14px_1fr_104px_92px_72px] items-center gap-2 px-3 py-2">
+      <span className={`paxter-led ${led} paxter-led-on shrink-0`} />
+      <span className="min-w-0 truncate text-[12px] font-bold text-[#16294a]">{r.nome}</span>
+      <span className="text-[11.5px] font-semibold text-[#2c3e52]">{r.valor}</span>
+      <span className="text-[10px] font-medium text-[#647c97]">ref {r.ref}</span>
+      <span className="rounded px-1.5 py-0.5 text-center text-[9px] font-bold uppercase tracking-wide" style={{ color: cor, background: "#fff", border: `1px solid ${cor}55` }}>
+        {rotulo}
+      </span>
+    </div>
+  );
+}
+
+/* ============================================================
+   Sugestoes do motor — exames / injetaveis / formulas
+   ============================================================ */
+type ExameSug = { nome: string; preparo: string; validado: boolean; cor: string };
+const EXAMES_SUG: ExameSug[] = [
+  { nome: "Hemograma completo", preparo: "jejum", validado: true, cor: "#c0392b" },
+  { nome: "TSH e T4 livre", preparo: "sem preparo", validado: true, cor: "#8e44ad" },
+  { nome: "Insulina e HOMA-IR", preparo: "jejum", validado: true, cor: "#2e86c1" },
+  { nome: "Ferritina e saturação", preparo: "jejum", validado: false, cor: "#d68910" },
+];
+
+function ChkValidado({ on }: { on: boolean }) {
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px]"
+      style={
+        on
+          ? { background: "linear-gradient(180deg,#3fbf6a,#1e8449)", border: "1px solid #166938" }
+          : { background: "#fff", border: "1px solid rgba(184,146,77,0.6)", boxShadow: "inset 0 2px 4px rgba(7,22,43,0.18)" }
+      }
+    >
+      {on && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
+    </span>
+  );
+}
+
+function LinhaExameSug({ e }: { e: ExameSug }) {
+  return (
+    <div className="bevel-3d grid grid-cols-[14px_1fr_96px_16px_20px] items-center gap-2 px-3 py-1.5">
+      <span className="h-3.5 w-3.5 shrink-0 rounded-[3px]" style={{ background: e.cor, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 0 0 1px rgba(0,0,0,0.12)" }} />
+      <span className="min-w-0 truncate text-[12px] font-semibold text-[#16294a]">{e.nome}</span>
+      <span className="text-[10px] font-medium text-[#647c97]">{e.preparo}</span>
+      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#a9883f]" />
+      <ChkValidado on={e.validado} />
+    </div>
+  );
+}
+
+/* Injetaveis / implantes — colunas alinhadas: SESSOES | DOSE | INTERVALO */
+type Inj = { nome: string; sessoes: string; dose: string; intervalo: string; cor: string; validado: boolean };
+type GrupoInj = { titulo: string; Icon: typeof Syringe; cor: string; itens: Inj[] };
+const GRUPOS_INJ: GrupoInj[] = [
   {
     titulo: "Endovenosos (soros)",
     Icon: Droplets,
     cor: "#b03a2e",
     itens: [
-      { nome: "Vitamina C endovenosa", detalhe: "15 g · 1x/semana · 8 sessões", cor: "#b03a2e", validado: true },
-      { nome: "Glutationa endovenosa", detalhe: "600 mg · 1x/semana · 6 sessões", cor: "#cb4335", validado: false },
-      { nome: "Soro de Myers (polivitamínico)", detalhe: "infusão · quinzenal · 4 sessões", cor: "#922b21", validado: false },
+      { nome: "Vitamina C endovenosa", sessoes: "8 sessões", dose: "15 g", intervalo: "7/7 dias", cor: "#b03a2e", validado: true },
+      { nome: "Glutationa endovenosa", sessoes: "6 sessões", dose: "600 mg", intervalo: "7/7 dias", cor: "#cb4335", validado: false },
+      { nome: "Soro de Myers (polivitamínico)", sessoes: "4 sessões", dose: "infusão", intervalo: "15/15 dias", cor: "#922b21", validado: false },
     ],
   },
   {
-    titulo: "Injetáveis intramusculares",
+    titulo: "Intramusculares",
     Icon: Syringe,
     cor: "#8e44ad",
     itens: [
-      { nome: "Vitamina B12 (cianocobalamina)", detalhe: "5.000 mcg · 1x/semana · 8 sessões", cor: "#8e44ad", validado: true },
-      { nome: "Complexo B", detalhe: "2 mL · 1x/semana · 6 sessões", cor: "#9b59b6", validado: false },
+      { nome: "Vitamina B12 (cianocobalamina)", sessoes: "8 sessões", dose: "5.000 mcg", intervalo: "7/7 dias", cor: "#8e44ad", validado: true },
+      { nome: "Complexo B", sessoes: "6 sessões", dose: "2 mL", intervalo: "7/7 dias", cor: "#9b59b6", validado: false },
     ],
   },
   {
-    titulo: "Injetáveis subcutâneos",
+    titulo: "Subcutâneos",
     Icon: Droplet,
     cor: "#1f9bbf",
     itens: [
-      { nome: "Tirzepatida", detalhe: "2,5 mg · 1x/semana · 12 sessões", cor: "#1f9bbf", validado: true },
-      { nome: "Glutationa", detalhe: "300 mg · 2x/semana · 10 sessões", cor: "#16a085", validado: false },
+      { nome: "Tirzepatida", sessoes: "12 sessões", dose: "2,5 mg", intervalo: "7/7 dias", cor: "#1f9bbf", validado: true },
+      { nome: "Glutationa", sessoes: "10 sessões", dose: "300 mg", intervalo: "3/3 dias", cor: "#16a085", validado: false },
     ],
   },
   {
@@ -177,68 +273,44 @@ const GRUPOS: GrupoSugestao[] = [
     Icon: CircleDot,
     cor: "#b7950b",
     itens: [
-      { nome: "Gestrinona", detalhe: "implante · libera por 90 dias", cor: "#b7950b", validado: false },
-      { nome: "Testosterona (subcutâneo)", detalhe: "implante · libera por 180 dias", cor: "#9a7d0a", validado: false },
-    ],
-  },
-  {
-    titulo: "Fórmulas / manipulados",
-    Icon: FlaskConical,
-    cor: "#1e8449",
-    itens: [
-      { nome: "NAD+ sublingual", detalhe: "1 dose · uso diário · 60 dias", cor: "#1e8449", validado: true },
-      { nome: "Resveratrol + Quercetina", detalhe: "1 cápsula/dia · 90 dias", cor: "#27ae60", validado: false },
+      { nome: "Gestrinona", sessoes: "1 implante", dose: "—", intervalo: "libera 90d", cor: "#b7950b", validado: false },
+      { nome: "Testosterona", sessoes: "1 implante", dose: "—", intervalo: "libera 180d", cor: "#9a7d0a", validado: false },
     ],
   },
 ];
 
-function ItemSugestao({ s }: { s: Sugestao }) {
+const COLS_INJ = "grid grid-cols-[14px_1fr_82px_92px_92px_16px_20px] items-center gap-2";
+
+function LinhaInjetavel({ i }: { i: Inj }) {
   return (
-    <div className="bevel-3d px-2.5 py-1.5">
-      <div className="flex items-center gap-2.5">
-        <span
-          className="h-3.5 w-3.5 shrink-0 rounded-[3px]"
-          style={{ background: s.cor, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 0 0 1px rgba(0,0,0,0.12)" }}
-        />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#16294a]">{s.nome}</span>
-        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#a9883f]" />
-        <span
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px]"
-          style={
-            s.validado
-              ? { background: "linear-gradient(180deg,#3fbf6a,#1e8449)", border: "1px solid #166938" }
-              : { background: "#fff", border: "1px solid rgba(184,146,77,0.6)", boxShadow: "inset 0 2px 4px rgba(7,22,43,0.18)" }
-          }
-        >
-          {s.validado && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
-        </span>
-      </div>
-      <div className="mt-1 pl-6 text-[10px] font-medium text-[#647c97]">{s.detalhe}</div>
+    <div className={`bevel-3d px-3 py-1.5 ${COLS_INJ}`}>
+      <span className="h-3.5 w-3.5 shrink-0 rounded-[3px]" style={{ background: i.cor, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 0 0 1px rgba(0,0,0,0.12)" }} />
+      <span className="min-w-0 truncate text-[12px] font-semibold text-[#16294a]">{i.nome}</span>
+      <span className="text-[10.5px] font-bold text-[#16294a]">{i.sessoes}</span>
+      <span className="text-[10.5px] font-semibold text-[#2c3e52]">{i.dose}</span>
+      <span className="text-[10.5px] font-semibold text-[#2c3e52]">{i.intervalo}</span>
+      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#a9883f]" />
+      <ChkValidado on={i.validado} />
     </div>
   );
 }
 
-function GrupoMotor({ g }: { g: GrupoSugestao }) {
-  const aprovados = g.itens.filter((i) => i.validado).length;
+type Formula = { nome: string; posologia: string; duracao: string; cor: string; validado: boolean };
+const FORMULAS: Formula[] = [
+  { nome: "NAD+ sublingual", posologia: "1 dose/dia", duracao: "60 dias", cor: "#1e8449", validado: true },
+  { nome: "Resveratrol + Quercetina", posologia: "1 cáp/dia", duracao: "90 dias", cor: "#27ae60", validado: false },
+];
+
+function LinhaFormula({ f }: { f: Formula }) {
   return (
-    <section className="panel-3d-sub px-3 py-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <g.Icon className="h-4 w-4" style={{ color: g.cor }} />
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: g.cor }}>
-            {g.titulo}
-          </span>
-        </div>
-        <span className="concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">
-          {aprovados}/{g.itens.length}
-        </span>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {g.itens.map((s) => (
-          <ItemSugestao key={s.nome} s={s} />
-        ))}
-      </div>
-    </section>
+    <div className="bevel-3d grid grid-cols-[14px_1fr_82px_92px_16px_20px] items-center gap-2 px-3 py-1.5">
+      <span className="h-3.5 w-3.5 shrink-0 rounded-[3px]" style={{ background: f.cor, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 0 0 1px rgba(0,0,0,0.12)" }} />
+      <span className="min-w-0 truncate text-[12px] font-semibold text-[#16294a]">{f.nome}</span>
+      <span className="text-[10.5px] font-bold text-[#16294a]">{f.posologia}</span>
+      <span className="text-[10.5px] font-semibold text-[#2c3e52]">{f.duracao}</span>
+      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#a9883f]" />
+      <ChkValidado on={f.validado} />
+    </div>
   );
 }
 
@@ -261,25 +333,18 @@ function QuadranteIA({ titulo, bullets }: { titulo: string; bullets: string[] })
   );
 }
 
-/* ============================================================
-   Bloco com titulo interno (para as faixas de 2 colunas)
-   ============================================================ */
-function BlocoClinico({
-  Icon,
-  titulo,
-  cor,
-  children,
-}: {
-  Icon: typeof Activity;
-  titulo: string;
-  cor: string;
-  children: React.ReactNode;
-}) {
+/* mini-titulo de grupo (dentro de uma faixa) */
+function MiniTitulo({ Icon, texto, cor, contagem }: { Icon: typeof Syringe; texto: string; cor: string; contagem: string }) {
   return (
-    <section className="panel-3d flex flex-col px-4 py-4">
-      <TituloBloco Icon={Icon} texto={titulo} cor={cor} />
-      {children}
-    </section>
+    <div className="mb-1.5 mt-2 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4" style={{ color: cor }} />
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: cor }}>
+          {texto}
+        </span>
+      </div>
+      <span className="concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">{contagem}</span>
+    </div>
   );
 }
 
@@ -304,7 +369,6 @@ export function MesaValidacao() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {/* Seletor de medico responsavel (varios medicos) */}
           <div className="flex items-center gap-2 rounded-md bg-[#0e1c34] px-3 py-1.5" style={{ border: "1px solid rgba(231,205,143,0.30)" }}>
             <Stethoscope className="h-3.5 w-3.5 text-[#e7cd8f]" />
             <div className="leading-tight">
@@ -317,7 +381,7 @@ export function MesaValidacao() {
       </header>
 
       <main className="px-7 py-6">
-        {/* ===== Cabecalho do paciente (grade imaginaria) ===== */}
+        {/* ===== Cabecalho do paciente — alerta no ULTIMO quadradinho ===== */}
         <section className="panel-3d mb-5 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -339,6 +403,7 @@ export function MesaValidacao() {
             <MetaField label="CPF" value="123.456.789-00" />
             <MetaField label="Anamnese em" value="24/06/2026" />
             <MetaField label="Médico designado" value="Dr. Caio Pádua" Icon={Stethoscope} />
+            <MetaField label="Origem" value="Mega Anamnese" />
             <div className="concave-3d flex flex-col justify-center px-2.5 py-1.5">
               <div className="mb-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-[#647c97]">Alerta clínico</div>
               <div className="flex items-center gap-1.5">
@@ -346,105 +411,155 @@ export function MesaValidacao() {
                 <span className="text-[12px] font-bold text-amber-700">ATENÇÃO</span>
               </div>
             </div>
-            <MetaField label="Origem" value="Mega Anamnese" />
           </div>
         </section>
 
-        {/* ===== CORPO: ESQUERDA (faixas empilhadas) + DIREITA (sugestoes) ===== */}
-        <div className="grid grid-cols-[2fr_1fr] gap-5">
-          {/* -------- ESQUERDA: 3 faixas empilhadas -------- */}
-          <div className="flex flex-col gap-5">
-            {/* FAIXA A: Doencas | Hipoteses */}
-            <div className="grid grid-cols-2 gap-5">
-              <BlocoClinico Icon={HeartPulse} titulo="Doenças diagnosticadas" cor="#c0392b">
-                <div className="concave-3d flex flex-col gap-2 p-2">
-                  <ItemDoenca a={{ nome: "Hipotireoidismo", grau: "alta" }} />
-                  <ItemDoenca a={{ nome: "Resistência à insulina", grau: "alta" }} />
-                  <ItemDoenca a={{ nome: "Dislipidemia", grau: "media" }} />
-                </div>
-              </BlocoClinico>
-
-              <BlocoClinico Icon={Activity} titulo="Hipóteses diagnósticas" cor="#9a6b12">
-                <div className="concave-3d flex flex-col gap-2 p-2">
-                  <ItemDoenca a={{ nome: "Síndrome metabólica", grau: "media" }} hipotese />
-                  <ItemDoenca a={{ nome: "Apneia do sono", grau: "media" }} hipotese />
-                </div>
-              </BlocoClinico>
+        {/* ===== FAIXA 1: Doencas | Hipoteses | Medicacoes em uso ===== */}
+        <div className="mb-5 grid grid-cols-3 gap-5">
+          <section className="panel-3d flex flex-col px-4 py-4">
+            <CabecalhoBloco Icon={HeartPulse} texto="Doenças diagnosticadas" cor="#c0392b" />
+            <div className="concave-3d flex flex-col gap-2 p-2">
+              <ItemDoenca a={{ nome: "Hipotireoidismo", grau: "alta" }} />
+              <ItemDoenca a={{ nome: "Resistência à insulina", grau: "alta" }} />
+              <ItemDoenca a={{ nome: "Dislipidemia", grau: "media" }} />
             </div>
+          </section>
 
-            {/* FAIXA B: Medicacoes em uso | Resumo da anamnese */}
-            <div className="grid grid-cols-2 gap-5">
-              <BlocoClinico Icon={Pill} titulo="Medicações em uso" cor="#2e86c1">
-                <div className="flex flex-col gap-2">
-                  {MEDICACOES.map((m) => (
-                    <LinhaMedicacao key={m.nome} m={m} />
-                  ))}
-                </div>
-              </BlocoClinico>
-
-              <BlocoClinico Icon={ScrollText} titulo="Resumo da anamnese" cor="#16294a">
-                <div className="concave-3d flex flex-col gap-2 p-3">
-                  {[
-                    "Queixa de cansaço persistente e sono não reparador há 6 meses.",
-                    "Ganho de 6 kg no último ano, dificuldade de emagrecer.",
-                    "Histórico familiar de tireoide (mãe) e diabetes (pai).",
-                    "Pratica caminhada 2x/semana; deseja iniciar longevidade.",
-                  ].map((t, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[12.5px] leading-snug text-[#2c3e52]">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#16294a]" />
-                      {t}
-                    </div>
-                  ))}
-                </div>
-              </BlocoClinico>
+          <section className="panel-3d flex flex-col px-4 py-4">
+            <CabecalhoBloco Icon={Activity} texto="Hipóteses diagnósticas" cor="#9a6b12" />
+            <div className="concave-3d flex flex-col gap-2 p-2">
+              <ItemDoenca a={{ nome: "Síndrome metabólica", grau: "media" }} hipotese />
+              <ItemDoenca a={{ nome: "Apneia do sono", grau: "media" }} hipotese />
             </div>
+          </section>
 
-            {/* FAIXA C: Resumo da IA (largura cheia) */}
-            <section className="panel-3d px-4 py-4" style={{ borderColor: "rgba(106,120,196,0.55)", borderWidth: 2 }}>
-              <div className="mb-3 flex items-center justify-between">
-                <div className="bevel-3d flex items-center gap-2 px-3 py-2">
-                  <Sparkles className="h-4 w-4 text-[#5b67c4]" />
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#3a4a8a]">Resumo da IA — organização clínica</span>
-                </div>
-                <span
-                  className="rounded bg-[#eceefb] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#5b67c4]"
-                  style={{ border: "1px solid rgba(91,103,196,0.4)" }}
-                >
-                  Revisar
-                </span>
+          <section className="panel-3d flex flex-col px-4 py-4">
+            <CabecalhoBloco Icon={Pill} texto="Medicações em uso" cor="#2e86c1" />
+            <div className="flex flex-col gap-2">
+              {MEDICACOES.map((m) => (
+                <LinhaMedicacao key={m.nome} m={m} />
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* ===== FAIXA 2: Resumo da anamnese (cheia) ===== */}
+        <section className="panel-3d mb-5 px-5 py-4">
+          <CabecalhoBloco Icon={ScrollText} texto="Resumo da anamnese" cor="#16294a" />
+          <div className="concave-3d grid grid-cols-2 gap-x-6 gap-y-2 p-3">
+            {[
+              "Queixa de cansaço persistente e sono não reparador há 6 meses.",
+              "Ganho de 6 kg no último ano, dificuldade de emagrecer.",
+              "Histórico familiar de tireoide (mãe) e diabetes (pai).",
+              "Pratica caminhada 2x/semana; deseja iniciar longevidade.",
+            ].map((t, i) => (
+              <div key={i} className="flex items-start gap-2 text-[12.5px] leading-snug text-[#2c3e52]">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#16294a]" />
+                {t}
               </div>
-              <div className="grid grid-cols-4 gap-2.5">
-                <QuadranteIA titulo="Queixa principal" bullets={["Fadiga + sono ruim", "Baixo rendimento diário"]} />
-                <QuadranteIA titulo="Achados-chave" bullets={["TSH provável elevado", "Padrão de resistência insulínica"]} />
-                <QuadranteIA titulo="Correlação exames ↔ sintomas" bullets={["Vitamina D baixa explica parte da fadiga", "Perfil lipídico a confirmar"]} />
-                <QuadranteIA titulo="Pontos de atenção" bullets={["Pressão limítrofe (Captopril)", "Reavaliar dose de Levotiroxina"]} />
-              </div>
-              <p className="mt-3 flex items-center gap-1.5 text-[10.5px] italic text-[#647c97]">
-                <AlertTriangle className="h-3.5 w-3.5 text-[#5b67c4]" />
-                Texto gerado por inteligência artificial a partir da anamnese e exames. Requer revisão e validação do médico.
-              </p>
-            </section>
+            ))}
           </div>
+        </section>
 
-          {/* -------- DIREITA: sugestoes do motor -------- */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-0.5 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">Sugestões do motor</span>
+        {/* ===== FAIXA 3: Resumo da IA (cheia) ===== */}
+        <section className="panel-3d mb-5 px-5 py-4" style={{ borderColor: "rgba(106,120,196,0.55)", borderWidth: 2 }}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="bevel-3d flex items-center gap-2 px-3 py-2">
+              <Sparkles className="h-4 w-4 text-[#5b67c4]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#3a4a8a]">Resumo da IA — organização clínica</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-[#eceefb] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#5b67c4]" style={{ border: "1px solid rgba(91,103,196,0.4)" }}>
+                Revisar
+              </span>
+              <BotaoMax />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2.5">
+            <QuadranteIA titulo="Queixa principal" bullets={["Fadiga + sono ruim", "Baixo rendimento diário"]} />
+            <QuadranteIA titulo="Achados-chave" bullets={["TSH provável elevado", "Padrão de resistência insulínica"]} />
+            <QuadranteIA titulo="Correlação exames ↔ sintomas" bullets={["Vitamina D baixa explica parte da fadiga", "LDL elevado a tratar"]} />
+            <QuadranteIA titulo="Pontos de atenção" bullets={["Pressão limítrofe (Captopril)", "Reavaliar dose de Levotiroxina"]} />
+          </div>
+          <p className="mt-3 flex items-center gap-1.5 text-[10.5px] italic text-[#647c97]">
+            <AlertTriangle className="h-3.5 w-3.5 text-[#5b67c4]" />
+            Texto gerado por inteligência artificial a partir da anamnese e exames. Requer revisão e validação do médico.
+          </p>
+        </section>
+
+        {/* ===== FAIXA 4: Resultado dos exames recebidos (cheia) ===== */}
+        <section className="panel-3d mb-5 px-5 py-4">
+          <CabecalhoBloco Icon={TestTube2} texto="Resultado dos exames recebidos" cor="#1f618d" />
+          <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+            {RESULTADOS.map((r) => (
+              <LinhaResultado key={r.nome} r={r} />
+            ))}
+          </div>
+        </section>
+
+        {/* ===== FAIXA 5: Sugestoes de prescricao (cheia) ===== */}
+        <section className="panel-3d mb-5 px-5 py-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="bevel-3d flex items-center gap-2 px-3 py-2">
+              <Beaker className="h-4 w-4 text-[#16294a]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">Sugestões do motor — prescrição</span>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 text-[10px] text-[#647c97]">
                 marque para validar · <ArrowUpRight className="h-3 w-3 text-[#a9883f]" /> abre no módulo de prescrição
               </span>
+              <BotaoMax />
             </div>
-            {GRUPOS.map((g) => (
-              <GrupoMotor key={g.titulo} g={g} />
-            ))}
           </div>
-        </div>
+
+          <div className="grid grid-cols-2 gap-5">
+            {/* coluna esquerda: exames sugeridos + formulas */}
+            <div className="flex flex-col">
+              <MiniTitulo Icon={Microscope} texto="Exames sugeridos" cor="#2e86c1" contagem={`${EXAMES_SUG.filter((e) => e.validado).length}/${EXAMES_SUG.length}`} />
+              <div className="flex flex-col gap-1.5">
+                {EXAMES_SUG.map((e) => (
+                  <LinhaExameSug key={e.nome} e={e} />
+                ))}
+              </div>
+
+              <MiniTitulo Icon={FlaskConical} texto="Fórmulas / manipulados" cor="#1e8449" contagem={`${FORMULAS.filter((f) => f.validado).length}/${FORMULAS.length}`} />
+              <div className="flex flex-col gap-1.5">
+                {FORMULAS.map((f) => (
+                  <LinhaFormula key={f.nome} f={f} />
+                ))}
+              </div>
+            </div>
+
+            {/* coluna direita: injetaveis e implantes — colunas alinhadas */}
+            <div className="flex flex-col">
+              {/* regua de colunas */}
+              <div className={`px-3 pb-1 ${COLS_INJ}`}>
+                <span />
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Item</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Sessões</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Dose</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Intervalo</span>
+                <span />
+                <span />
+              </div>
+              {GRUPOS_INJ.map((g) => (
+                <div key={g.titulo}>
+                  <MiniTitulo Icon={g.Icon} texto={g.titulo} cor={g.cor} contagem={`${g.itens.filter((i) => i.validado).length}/${g.itens.length}`} />
+                  <div className="flex flex-col gap-1.5">
+                    {g.itens.map((i) => (
+                      <LinhaInjetavel key={i.nome} i={i} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* ===== PRONTUARIO MEDICO ===== */}
-        <section className="panel-3d mt-5 px-5 py-4">
-          <TituloBloco Icon={FileText} texto="Prontuário médico — Maria Silva Santos" cor="#16294a" />
+        <section className="panel-3d mb-5 px-5 py-4">
+          <CabecalhoBloco Icon={FileText} texto="Prontuário médico — Maria Silva Santos" cor="#16294a" />
           <div className="grid grid-cols-[1fr_1fr] gap-5">
-            {/* Visualizador de PDF */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#647c97]">Documento gerado (PDF)</span>
@@ -475,7 +590,6 @@ export function MesaValidacao() {
               </div>
             </div>
 
-            {/* Campo de digitacao + assinatura */}
             <div className="flex flex-col">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#647c97]">Resumo da consulta (o médico digita)</span>
@@ -490,7 +604,6 @@ export function MesaValidacao() {
                 </p>
               </div>
 
-              {/* Assinatura digital (JPEG do cadastro do medico) */}
               <div className="bevel-3d mt-3 flex items-center gap-4 px-4 py-3">
                 <div className="screen-3d flex h-16 w-44 items-center justify-center">
                   <span className="font-[cursive] text-[22px] italic text-[#1b3a6b]">Caio Pádua</span>
@@ -508,7 +621,7 @@ export function MesaValidacao() {
         </section>
 
         {/* ===== RODAPE DE ACOES ===== */}
-        <section className="panel-3d mt-5 flex items-center justify-between gap-4 px-5 py-4">
+        <section className="panel-3d flex items-center justify-between gap-4 px-5 py-4">
           <p className="flex items-center gap-2 text-[12px] text-[#2c3e52]">
             <CheckCircle2 className="h-4 w-4 text-[#1e8449]" />
             Ao aprovar: gera a guia de exames, dispara o vídeo de orientação e assina o prontuário — tudo de uma vez.
