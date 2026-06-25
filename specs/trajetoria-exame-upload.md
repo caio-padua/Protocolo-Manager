@@ -117,6 +117,57 @@ que os laudos realmente trazem (não chutar).
 
 ---
 
+## "Almoço grátis" — colher o histórico que o próprio laudo entrega (CEO, 25/06/2026)
+
+Regra do CEO: quando o laudo traz, em algum trecho, valores de datas ANTERIORES (tabela comparativa do
+próprio laboratório), o sistema NÃO descarta isso — colhe cada data passada como uma coluna nova no
+comparativo. "Almoço grátis": dado de graça que já veio no arquivo.
+
+| Situação no laudo | O que o sistema faz |
+|---|---|
+| Laudo traz só o valor da data atual | 1 coluna nova (data da coleta atual) |
+| Laudo traz valor atual + histórico de datas anteriores | 1 coluna por data encontrada (atual + cada data passada) |
+| Mesma data, dois laboratórios diferentes | 2 colunas distintas para a mesma data, cada uma com seu laboratório no cabeçalho |
+
+Cabeçalho de cada coluna do comparativo:
+1. Linha 1 = a DATA (padrão Brasil, ex.: 11/06/2026).
+2. Linha 2 = o LABORATÓRIO de origem daquela coluna (nome canônico, apelido ou abreviação, ex.: DASA).
+3. Se o nome do laboratório passar de N caracteres, mostra abreviado com reticências ("...") e expande ao
+   clicar / passar o mouse (nome completo no título).
+4. Não é obrigatório amarrar "qual exame veio de qual laboratório" linha a linha; basta a coluna saber o
+   laboratório dela. (Amarração fina por linha fica como melhoria opcional futura.)
+
+Persistência: cada par (data + laboratório) é uma coluna única na planilha e um conjunto de resultados no
+banco; reprocessar o mesmo laudo NÃO duplica colunas nem linhas (idempotência por data+laboratório+analito).
+
+---
+
+## Cadastro de unidades por exame — nada hard-coded (CEO, 25/06/2026)
+
+Regra do CEO: nada de unidade fixa no código. Para cada exame, o cadastro lista TODAS as unidades em que
+ele pode aparecer, e o CEO marca qual é a "nossa convenção" (unidade canônica). Tudo visível e editável.
+"hard-coded" = valor cravado dentro do código, que só o programador muda; o CEO quer o oposto: editável por tela.
+
+| Campo do cadastro de unidade | Para quê | Exemplo (Hemoglobina Glicada) |
+|---|---|---|
+| Unidade variante | uma forma em que o exame pode vir no laudo | %, mmol/mol |
+| Fator de conversão para a canônica | quanto multiplicar para chegar na nossa unidade | mmol/mol -> % via fórmula |
+| É a convenção? (marca única) | qual unidade o sistema mostra como padrão | % (marcada) |
+| Toggle ativa/desativa | liga ou desliga aquela unidade/conversão sem apagar o registro | desligar uma unidade rara |
+
+Regras:
+1. Exatamente UMA unidade marcada como canônica por exame (a "nossa convenção").
+2. Toda outra unidade tem fator/fórmula de conversão para a canônica; sem conversão conhecida -> resultado
+   vai para "conferência obrigatória" (não chuta).
+3. Toggle desligado = o sistema ignora aquela unidade na conversão automática, mas o registro continua lá.
+4. Tela de cadastro entra na onda de interface (UI), com entrada no menu. O motor já consome essa tabela na Onda 2.
+
+Modelo de dados acrescentado: tabela `exam_analyte_units` (analyteCode, unit, factorToCanonical numeric OU
+formulaKey, isCanonical bool, active bool, ordem). A coluna `canonicalUnit` de `exam_analyte_catalog` passa a
+ser derivada da unidade marcada como canônica nesta tabela.
+
+---
+
 ## Pipeline (blueprint)
 
 Upload (portal OU avulso) -> hash/idempotência -> extrai texto (ou OCR/visão) -> IA devolve JSON -> normaliza analito -> converte unidade -> classifica faixa -> identifica/cria paciente -> grava (banco + Drive + planilha) -> conferência humana 1 clique -> notifica (e-mail + WhatsApp) -> aparece em Exames + comparativo antes/depois.
