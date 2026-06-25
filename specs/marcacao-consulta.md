@@ -51,3 +51,10 @@ Decisão de virar rota real em `artifacts/padcom` fica para depois da aprovaçã
   shimmer (sweep). O traçado vetorial exato (stroke-dasharray no contorno) só é possível
   com o símbolo em SVG. Próximo passo: produzir o brasão em SVG e aplicar o trace; depois
   re-rodar a revisão do architect. Revisão atual: PASS sem pendência crítica/alta.
+
+## PRECEDÊNCIA VISUAL (atualizado 25/06/2026)
+- Para a ROTA REAL `/agendar` (cliente externo), a pele de LUXO bordô/mocha + ouro de
+  `marcacao-luxo-bordo-mocha.md` é a baseline visual e VENCE o navy+ouro descrito acima.
+- O navy+ouro permanece no CONSOLE INTERNO (telas do sistema/recepção).
+- "Geração de vídeos por IA" deixa de ser fora de escopo: agora é o Módulo 2
+  (`video-personalizado.md`); a faixa de vídeos pode exibir vídeos personalizados.

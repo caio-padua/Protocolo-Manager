@@ -47,3 +47,8 @@ e ferragem dourada (molduras finas, fios, selos) como joia. Precisão de relojoa
   externo, escuro) — navy do sistema interno fica intacto.
 - NÃO alterar payload de API por estética.
 - Manter o símbolo na cúpula (PaxterSymbolGlass) e o wordmark limpo (Padrão 14 / pivot navy-ouro).
+
+## PRECEDÊNCIA VISUAL (atualizado 25/06/2026)
+- Esta spec é a BASELINE visual da rota real `/agendar` (cliente externo, tema escuro): bordô/mocha + ouro.
+- Substitui, só para `/agendar`, a direção navy+ouro de `marcacao-consulta.md`. O navy permanece no
+  console interno do sistema.

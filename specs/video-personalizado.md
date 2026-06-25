@@ -43,7 +43,7 @@ Dois caminhos reais; adotamos o A (mais simples e robusto):
 
 ## Como o vídeo chega ao cliente (e-mail e WhatsApp)
 ```
-[1 gera vídeo HeyGen] -> [2 guarda no Object Storage -> URL pública]
+[1 gera vídeo HeyGen] -> [2 guarda no Object Storage PRIVADO -> URL ASSINADA curta]
    -> [3a e-mail via Gmail (já integrado): link + player]
    -> [3b WhatsApp via Twilio: mensagem com link do vídeo (e mídia quando permitido)]
 ```
@@ -54,24 +54,33 @@ Dois caminhos reais; adotamos o A (mais simples e robusto):
   um TEMPLATE de mensagem aprovado (HSM). Dentro de 24h após o cliente escrever, é livre. Na prática:
   enviar o LINK do vídeo num template aprovado é o caminho confiável; anexar o .mp4 direto depende da
   janela/política. Isto NÃO bloqueia o build (estrutura dormente).
+- PII (dado pessoal sensível): o vídeo cita nome + exames + preparo, então o link É SEMPRE assinado e
+  de curta duração (ou endpoint autenticado). NUNCA usar URL pública/perpétua (risco de vazamento).
 
 ## Requisitos exatos
 1. CONECTORES PRONTOS E DORMENTES (sem chave amanhã = sem chamada real, sem erro, sem custo):
    - Chaves no cofre de segredos: `HEYGEN_API_KEY`, `ELEVENLABS_API_KEY` (o CEO cadastra em 26/06/2026).
    - Helpers de servidor `heygen.ts` e `elevenlabs.ts` usando `fetch` (sem SDK pesado), que: se a chave
      existir, chamam a API real; se não, devolvem `{ ready:false, reason:"sem_chave", preview:<roteiro> }`.
-2. SUB-CADASTRO DE CONTEÚDOS (aba Cadastro): tela para o CEO cadastrar, por TIPO de vídeo:
+2. SUB-CADASTRO DE CONTEÚDOS — vive na CENTRAL DE CONTEÚDO ÚNICA (Módulo 5, `sub-cadastro-conteudos.md`),
+   namespace `video_templates`. NÃO criar cadastro isolado. Cada tipo guarda:
    - `tipo` (ex.: guia_exames, boas_vindas), `template_id` (HeyGen), `voice_id` (ElevenLabs),
      `roteiro` (texto base com as variáveis), e o MAPA de variáveis → campo do cliente.
-   - Tudo editável pelo CEO sem mexer no código (cumpre o Módulo 5 para esta parte).
+   - Tudo editável pelo CEO sem mexer no código.
 3. DATABINDER DE NOME: ao gerar, o sistema substitui `{{primeiro_nome}}` pelo primeiro nome do cliente
    (mesma fonte do databinder do e-mail) e demais variáveis pelos dados reais (exames, preparo).
 4. GERAÇÃO SOB DEMANDA: rota `POST /api/videos/personalizado/gerar` (body: clientId, tipo). Cria o
    pedido no HeyGen, guarda `video_id` e `status`. Dormente quando sem chave.
+   O DISPARO canônico (quando gerar/enviar junto com o guia) segue o CONTRATO ÚNICO de
+   `validacao-exames.md` — o guia e o vídeo saem JUNTOS, em ambos os estados do toggle.
 5. ACOMPANHAMENTO: rota/serviço que faz polling do status; ao `completed`, baixa o .mp4 para o Object
-   Storage e grava a URL servível por cliente/tipo.
-6. ENTREGA: botões "Enviar por E-mail" (Gmail) e "Enviar por WhatsApp" (Twilio dormente) na ficha do
-   cliente/sessão, reusando a estrutura de `videos-upload-twilio.md`.
+   Storage PRIVADO e grava o `objectPath` por cliente/tipo. A entrega é SEMPRE por URL ASSINADA de
+   curta duração ou endpoint autenticado — nunca link público (o vídeo contém PII clínica).
+6. ENTREGA: endpoint próprio do domínio do cliente — `POST /api/clients/:clientId/videos/:tipo/enviar`
+   (body: `canal: "email" | "whatsapp"`). NÃO reusar a rota de agendamento
+   (`/api/scheduling/requests/:id/send-reminder`); reusar apenas o HELPER de montagem de mensagem e o
+   helper Twilio dormente de `videos-upload-twilio.md`. A mensagem leva a URL ASSINADA de curta duração.
+   Botões "Enviar por E-mail" (Gmail) e "Enviar por WhatsApp" na ficha do cliente/sessão acionam esse endpoint.
 7. PERSISTÊNCIA: tabela `personalized_videos` (clientId, tipo, status, videoId, objectPath/url,
    geradoEm). Não tocar tabelas existentes além de adicionar esta nova.
 
