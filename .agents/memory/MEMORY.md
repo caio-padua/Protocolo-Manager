@@ -1,4 +1,5 @@
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
+- [Mockup de validacao precisa de previa data-bound](mockup-previa-data-bound.md) — mockup p/ CEO validar fluxo exige estado controlado (value/onChange) e previa derivada do estado; defaultValue+previa fixa reprova no architect; ferramenta compartilhada = controlada.
 - [ICS motor único + feed assinado + timestamp Drizzle](ics-motor-unico.md) — um formato/um motor (rotas chamam, não remontam); .ics PUBLISH UID estável; feed HMAC 401 genérico só futuras; coluna timestamp modo Date exige Date.
 - [Transmutacao IHE -> Manager](transmutacao-ihe-manager.md) — catalogo deduplica por id_ihe (3 tabelas), pacientes por chave natural; nunca truncar clients; push com notNull em tabela populada exige truncate/ALTER previo.
 - [Governanca/GitHub/linhagem (Manager)](governanca-equipe-manager.md) — repo=Protocolo-Manager (Dr. Replit Manager); agente nao da push (usuario via aba Git); diretrizes datadas: criar versao nova, antiga intacta; resposta densidade B (tabela e carro-chefe).
