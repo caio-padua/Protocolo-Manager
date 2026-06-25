@@ -51,3 +51,4 @@
 - [Wordmark PAXTER: arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) — "P" carcomido vinha do SVG potrace (copia ondulada) + sombra preta embutida do PNG no claro; usar arte oficial (escuro) e versao sem halo (claro).
 - [Motor de extração de laudos (Gemini+pdf-parse)](exam-extraction-motor.md) — chamada única 70-106s (UI tem de ser assíncrona); compactar linhas repetidas (-60%); Zod tolera chave ausente; nome≠"Médico:", DN=nascimento, lab por regex.
 - [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow; logar err.message, nunca o objeto cru (quebra util.inspect).
+- [Laudos de imagem: padrões e armadilhas](exam-imagem-laudos.md) — 1 PDF pode ser conjugado (N exames); nome do arquivo mente e cruza tipo (classificar por conteúdo); imagem tem almoço grátis; RMN é por nível (sacralização quebra contagem).

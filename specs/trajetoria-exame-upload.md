@@ -151,6 +151,56 @@ monto o painel de campos fixos + aliases -> o CEO valida -> só então o motor p
 exames de todos os pacientes (corrida de produção). O motor de extração é o MESMO da trilha de sangue,
 mudando só o "molde" (painel) para onde a IA joga os achados.
 
+#### Achados do estudo de amostra real do Drive (25/06/2026)
+
+Estudei laudos reais do Drive do CEO (3 RMN de coluna de laboratórios diferentes; 3 ultrassom de tireoide
+com Doppler; mais arquivos mal nomeados). Três descobertas que mudam o desenho:
+
+| Descoberta | Consequência no projeto |
+|---|---|
+| Um PDF pode ser "LAUDO CONJUGADO": vários exames no mesmo arquivo (ex.: tireoide + mamas + transvaginal) | UM upload pode gerar VÁRIOS painéis; o motor separa por título de exame dentro do arquivo |
+| Arquivo nomeado "TIREOIDE" era, no conteúdo, exame de SANGUE (T4/T3 livre) | A classificação é 100% pelo conteúdo; "tireoide" pode cair no setor Sangue OU no setor Ultrassom |
+| Laudo de imagem traz comparação com exame anterior ("em relação ao exame de 29/02/2024") | "Almoço grátis" vale também para imagem (achado qualitativo antes/depois) |
+
+PAINEL — Ultrassom de tireoide com Doppler (campos fixos confirmados pela amostra):
+
+| Campo fixo | Exemplo lido no laudo real |
+|---|---|
+| Dimensões da glândula | preservadas / aumentada / reduzida |
+| Contornos | regulares / irregulares |
+| Ecotextura | homogênea / heterogênea |
+| Tem nódulo? / quantos | sim, 1 |
+| Maior nódulo: medidas / localização / composição / TI-RADS / padrão Doppler | 0,9 x 0,6 x 0,8 cm, terço inferior lobo esq., sólido hipoecoico, TI-RADS 4, Chammas III |
+| Lobo direito (cm) | 5,5 x 1,9 x 1,9 |
+| Lobo esquerdo (cm) | 4,9 x 1,6 x 1,7 |
+| Istmo (cm) | 0,6 |
+| Volume tireoidiano (cm³) + faixa normal | 17,4 (normal 6,0 a 15,0) |
+| Linfonodos cervicais atípicos? | não |
+| Doppler: fluxo anômalo? | não |
+| Velocidade pico sistólico art. tireoidea inf. D / E (cm/s) | 21,6 / 23,3 |
+| Impressão diagnóstica | texto livre |
+
+PAINEL — RMN de coluna lombossacra (campos fixos confirmados pela amostra):
+
+| Campo fixo | Observação |
+|---|---|
+| Alinhamento / lordose | preservado / retificado / escoliose |
+| Anomalia transicional (ex.: sacralização de L5) | sim/não — quebra a contagem ingênua de níveis |
+| Corpos vertebrais | altura/sinal; nódulo de Schmorl; Modic; edema; osteófitos |
+| POR NÍVEL (L1-L2 ... L5-S1): protrusão/hérnia/abaulamento (tipo) | central / foraminal / paramediana D ou E |
+| POR NÍVEL: desidratação discal (sim/grau) | — |
+| POR NÍVEL: conflito/compressão radicular (sim/não; qual raiz) | ex.: raiz L4 esquerda |
+| Hipertrofia facetária (sim/não; bilateral) | — |
+| Estenose de canal central (sim/não; grau) | — |
+| Estenose foraminal (sim/não; lado) | — |
+| Cone medular / cauda equina | normal / alterado |
+| Musculatura paravertebral | — |
+| Achados incidentais | ex.: cisto renal |
+| Conclusão | texto livre |
+
+Estes dois painéis ficam guardados aqui como o "molde" inicial; a tabela do banco para imagem
+(painel + campos + aliases por campo) será definida na construção da trilha de imagem (após validação do CEO).
+
 ---
 
 ## "Almoço grátis" — colher o histórico que o próprio laudo entrega (CEO, 25/06/2026)
