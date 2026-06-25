@@ -126,6 +126,46 @@ Achado importante (mesmo erro do IHE): a rota `/cadastros/auditoria` EXISTE mas 
 
 ---
 
+## 4-A. Documentos médicos: Laudo com TIPOS + módulo de Governança (CEO 25/06/2026)
+
+Decisão do CEO: o Laudo deixa de ser único e passa a ter TIPOS; cada tipo é liberado (ou não) pelo
+próprio CEO por meio de um toggle. Para isso nasce um módulo novo de Governança no menu.
+
+### 4-A.1 Tipos de laudo
+
+| Tipo de laudo | Para que serve | Campos próprios além de HD+CID |
+|---|---|---|
+| Estado de Saúde | Apresentação geral do quadro clínico | Achados / exame · Conclusão |
+| Afastamento — INSS | Fins previdenciários (Instituto Nacional do Seguro Social) | Dias de afastamento · Natureza (temporária/permanente) · Finalidade · Justificativa |
+| Requisição de Insumo | Pedido de insumo de uso contínuo (ex.: insulina p/ diabetes) | Insumo solicitado · Quantidade/período · Justificativa clínica |
+
+Regras da tela do Laudo:
+- A prévia do PDF muda conforme o tipo (texto e campos), sempre derivada do estado (data-bound).
+- Um tipo bloqueado pelo CEO aparece com cadeado e faixa âmbar; o botão "Assinar e gerar PDF" fica desabilitado.
+- A disponibilidade de cada tipo vem da Governança (não é decidida dentro do Laudo).
+
+### 4-A.2 Módulo de Governança ("Quem pode o quê")
+
+| Item | Definição |
+|---|---|
+| O que é | Matriz Papel × Ferramenta com um toggle por célula; só o CEO altera |
+| Papéis (colunas) | Médico 01 · Médico Validador (foco) · Enfermeira 01 · Enfermeira 02 · ADM/Financeiro |
+| Ferramentas (linhas) | Documentos (Atestado, Encaminhamento, Laudo·3 tipos) · Clínico (Mesa, Protocolo, RAS, Anamnese) · Gestão (Financeiro, Estoque, Governança só-CEO) |
+| Efeito | O que estiver desligado some para aquele papel na hora |
+| Coerência com o Laudo | Laudo·Requisição de Insumo fica OFF para o Médico Validador (casa com o cadeado mostrado no Laudo) |
+
+### 4-A.3 Entrada no MENU (regra de ouro) — nome a confirmar pelo CEO
+
+| Opção de nome do menu | Observação |
+|---|---|
+| A (default) — "Governança" | Termo que o próprio CEO usou; nível 1 do menu, ícone de escudo |
+| B — "Permissões e Acessos" | Mais literal para quem é leigo |
+| C — "Painel do CEO" | Enfatiza que só o CEO mexe |
+
+Mockups no Canvas: Laudo (3 tipos) atualizado na Entrega 36; Governança publicada como Entrega 37.
+
+---
+
 ## 5. Princípio "SEM TRAVAS" (navegar todas as telas para validar layout)
 
 Decisão do CEO (25/06/2026): nada de tela que bloqueia a navegação enquanto valido layout e intuitividade.

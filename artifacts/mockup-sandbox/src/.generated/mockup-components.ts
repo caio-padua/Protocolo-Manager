@@ -23,6 +23,7 @@ export const modules: ModuleMap = {
   "./components/mockups/anamnese-paxter/AnamneseV4.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV4.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV5.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV5.tsx"),
   "./components/mockups/cadastro/SubcadastroExames.tsx": () => import("../components/mockups/cadastro/SubcadastroExames.tsx"),
+  "./components/mockups/governanca/Governanca.tsx": () => import("../components/mockups/governanca/Governanca.tsx"),
   "./components/mockups/documentos/Atestado.tsx": () => import("../components/mockups/documentos/Atestado.tsx"),
   "./components/mockups/documentos/Encaminhamento.tsx": () => import("../components/mockups/documentos/Encaminhamento.tsx"),
   "./components/mockups/documentos/Laudo.tsx": () => import("../components/mockups/documentos/Laudo.tsx"),

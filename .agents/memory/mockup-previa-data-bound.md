@@ -23,3 +23,21 @@ previa hardcoded); a segunda passada (estado controlado + previa derivada) deu P
 Cuidado oposto: nao regenerar texto automaticamente a cada mudanca de dependencia se isso
 sobrescreve a edicao manual do usuario (ex.: so regenerar o texto pronto do Encaminhamento ao
 TROCAR a especialidade, nunca enquanto o medico digita).
+
+## Historia entre DUAS telas-mock = fonte UNICA compartilhada (nao hardcode em cada tela)
+
+Quando o mockup conta uma historia entre telas (ex.: tela de Governanca/permissoes LIBERA -> tela de
+Laudo OBEDECE), as duas telas devem ler a MESMA fonte de dados (um modulo `_xxx.ts` compartilhado,
+arquivo `_`-prefixado para o glob de rotas ignorar). Se cada tela tiver seu proprio valor fixo
+(ex.: `liberado: false` solto no Laudo) a coerencia fica so DECLARATIVA e o architect reprova:
+a tela A diz "regra por papel" e a tela B mostra "bloqueado global".
+
+**Regra:** dado que liga duas telas mora num modulo unico; cada tela DERIVA o seu estado dele
+(ex.: `podeUsar(matriz, item, papel)`), e a tela "consumidora" mostra o contexto (ex.: "visto como:
+Medico Validador") e o motivo correto ("bloqueado p/ este papel", nao "bloqueado global").
+
+**Why:** o architect deu FAIL pedindo "estado mock compartilhado de permissoes" porque Laudo tinha
+`TIPOS[].liberado` fixo e Governanca tinha regra por papel — narrativa nao representada no comportamento.
+
+**How to apply:** mockups que demonstram permissao/perfil/feature-flag entre telas; tambem garantir
+nome acessivel (`aria-label`) por celula em matrizes de toggle (ferramenta + papel).
