@@ -289,6 +289,22 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   ele sempre acompanha o texto "PAXTER" visivel, que ja carrega o nome ao leitor de tela — nao
   duplicar com `alt="PAXTER"`.
 
+- **Padrao 15 — FAIXA DA IA EM AREAS FIXAS (lei promulgada em 25/06/2026, Mesa de Validacao Clinica)**:
+  quando a inteligencia artificial organiza dados clinicos para o medico, ela NUNCA escreve paragrafo
+  corrido; preenche QUADRANTES de posicao fixa, cada um com rotulo MAIUSCULO + 2-3 topicos curtos (a
+  mesma Densidade B do CEO dentro da tela). A faixa inteira e um `panel-3d` com borda de destaque
+  (roxo-IA `#6a78c4`, `borderWidth: 2`), titulo em `bevel-3d` com icone `Sparkles`, um chip "REVISAR"
+  no canto superior direito e SEMPRE um aviso em rodape ("texto gerado por inteligencia artificial...
+  requer revisao e validacao do medico", com icone `AlertTriangle`). Os quadrantes sao `concave-3d`
+  numa grade FIXA (`grid-cols-2`), nunca `flex-wrap`. A IA PODE comentar correlacao exames<->sintomas,
+  mas o conteudo e sempre revisavel — nunca vira conduta automatica. A IA organiza/redige o que JA esta
+  visual na tela; ela nao substitui os achados estruturados do motor, so os apresenta melhor.
+- **Padrao 16 — BLOCO DE ASSINATURA DO MEDICO (Mesa de Validacao Clinica, 25/06/2026)**: a assinatura
+  e a IMAGEM (JPEG) vinda do cadastro do profissional, exibida numa mini-tela `screen-3d`, ao lado do
+  carimbo (CRM/COREN) e do botao `btn-3d` "Assinar PDF". O documento assinado mostra selo verde
+  ICP-Brasil (`ShieldCheck` esmeralda). Em producao a assinatura NUNCA e fonte cursiva digitada — e
+  sempre o JPEG cadastrado; a fonte cursiva no mockup e so placeholder visual.
+
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
 Paradigma travado pelo CEO (19/06/2026): cada INTENCAO tem UM controle e UMA cor. Ao criar ou
