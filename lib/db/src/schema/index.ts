@@ -22,6 +22,7 @@ export * from "./motor";
 export * from "./mega-anamnese";
 export * from "./anamnese-v2";
 export * from "./exam-requests";
+export * from "./exam-results";
 export * from "./catalog-options";
 export * from "./budget";
 export * from "./agenda-motor";

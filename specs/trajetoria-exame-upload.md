@@ -100,20 +100,56 @@ Regras:
 4. Tela de cadastro (gerência do catálogo) entra na ONDA de interface (UI), com entrada própria no menu
    (Regra de Ouro: toda ferramenta tem entrada no menu). O motor já passa a CONSUMIR os apelidos na Onda 2.
 
-### Exames de imagem (trilha paralela — depende de amostras do CEO)
+### Exames de imagem e laudos descritivos — PAINÉIS DE CAMPOS FIXOS (desafio do CEO, 25/06/2026)
 
 Exame de imagem não tem "valor numérico + unidade"; tem **achados qualitativos** (tem nódulo / não tem,
-medida, classificação). Precisa de um catálogo próprio de "campos a extrair por tipo de exame de imagem".
+medida, classificação). Cada TIPO de exame ganha um **painel de campos fixos** que fica pré-montado,
+esperando os valores; a IA extrai do texto do laudo e joga em cada campo pré-existente. Quem define o
+padrão (quais campos cada tipo de laudo sempre revela) sou eu (agente), estudando laudos reais.
 
-| Tipo de imagem | Achados-padrão a extrair (exemplo inicial) |
+Princípios (decisão do CEO):
+1. Campos SEMPRE na mesma posição: se o laudo traz, mostra o valor; se não traz, o campo fica vazio, mas
+   continua existindo no mesmo lugar (previsível para TDAH/TOC).
+2. Cada tipo de exame é um SETOR/ABA separado; sangue nunca se mistura com imagem; ressonância é outro
+   setor diferente de ultrassom.
+3. No COCKPIT, os setores aparecem EMPILHADOS um sobre o outro (sangue em cima, depois ultrassom, depois
+   ressonância), na mesma página, sem trocar de tela.
+4. Tudo em formato de TABELA comparativa antes/depois (o paciente vê a evolução do achado: tinha nódulo,
+   não tem mais; volume da tireoide caiu, etc.).
+5. Os campos pré-determinados também recebem APELIDOS (aliases) de busca — é por eles que a IA acha o
+   trecho certo no laudo (ex.: "lobo direito" pode vir como "LD", "lobo D").
+6. O nome do arquivo NÃO é confiável (erro humano da secretaria); a classificação do tipo de exame é
+   feita pelo CONTEÚDO, não pelo nome do arquivo.
+
+Setores (abas) propostos, agrupando os exames que o CEO mais usa:
+
+| Setor / aba | Exames incluídos |
 |---|---|
-| Ultrassom de tireoide | tem nódulo (sim/não), tamanho, lateralidade, classificação TI-RADS |
-| Ultrassom abdominal | esteatose hepática (sim/não), cálculo (sim/não), medidas de órgãos |
-| Densitometria óssea | T-score, Z-score, diagnóstico (normal/osteopenia/osteoporose) |
+| Sangue (laboratório) | hemograma, bioquímica, hormônios, etc. (motor já pronto) |
+| Ultrassom | tireoide (com/sem Doppler), abdome, transvaginal, próstata |
+| Ressonância / Tomografia | RMN de coluna, demais RMN/TC, escore de cálcio |
+| Endoscopia / Colonoscopia | endoscopia digestiva, colonoscopia |
+| Cardiológicos | ecocardiograma, teste ergométrico |
+| Densitometria | densitometria óssea |
+| Medicina nuclear / Oncológicos | cintilografia, exames oncológicos |
 
-Sigla TI-RADS = sistema de classificação de risco de nódulo de tireoide. Esta trilha só será especificada
-em detalhe DEPOIS que o CEO enviar 2 ou 3 laudos de imagem reais, para padronizar os campos a partir do
-que os laudos realmente trazem (não chutar).
+Exemplos de painel de campos fixos (rascunho inicial, será refinado pelo estudo dos laudos reais):
+
+| Tipo | Campos fixos que o painel já espera |
+|---|---|
+| Ultrassom de tireoide | tem nódulo (sim/não); quantos; maior nódulo (mm); classificação TI-RADS; ecotextura (homogênea/heterogênea); volume lobo direito; volume lobo esquerdo; volume do istmo; volume total |
+| RMN de coluna | hérnia/protrusão discal (sim/não); segmentos (L4-L5, L5-S1, etc.); compressão radicular (sim/não); estenose de canal (sim/não); alterações degenerativas |
+| Densitometria óssea | T-score coluna; T-score fêmur; Z-score; diagnóstico (normal/osteopenia/osteoporose) |
+| Escore de cálcio | escore de Agatston; percentil; faixa de risco |
+
+Sigla TI-RADS = sistema de classificação de risco de nódulo de tireoide. Sigla RMN = ressonância magnética.
+
+**Como construir sem boiar (decisão de método):** definir os painéis ESTUDANDO uma AMOSTRA representativa
+de laudos reais por tipo (ex.: 5 a 10 RMN de coluna, 5 a 10 ultrassom de tireoide), não abrindo todos os
+milhares de arquivos de uma vez (cada leitura de IA custa tempo/dinheiro). A amostra revela o padrão -> eu
+monto o painel de campos fixos + aliases -> o CEO valida -> só então o motor processa em massa todos os
+exames de todos os pacientes (corrida de produção). O motor de extração é o MESMO da trilha de sangue,
+mudando só o "molde" (painel) para onde a IA joga os achados.
 
 ---
 
