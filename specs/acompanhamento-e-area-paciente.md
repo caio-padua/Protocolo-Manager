@@ -153,6 +153,52 @@ Pawards (IHE).
    ou simplificar para 3 (abaixo do ideal / ideal / acima do ideal).
 5. O diário do cliente é texto livre, ou perguntas guiadas (humor, sono, sintomas)?
 
-RESUMO EM 1 LINHA: "Acompanhamento" é uma seção dentro do "Cockpit" (tela-comando que prescreve tudo,
-solicita/avalia exames por terços, mostra anamnese e diário); a régua de terços/zonas já veio do IHE,
-mas falta construir resultados-por-data, classificador e gráfico.
+---
+
+## 8. [MARTELO CEO 25/06/2026] Acompanhamento é um MÓDULO que o Cockpit "puxa" (igual aos outros)
+
+Confirmação sincera ao CEO: SIM, está certo. Cada capacidade clínica é um MÓDULO independente (tem
+vida própria, dados próprios e canais de entrada próprios); o Cockpit COMPÕE (puxa) esses módulos
+numa tela só, do mesmo jeito que puxa a prescrição de exame ou a indicação de injetáveis.
+
+### 8.1 Os módulos que o Cockpit compõe
+| Módulo | O que faz |
+|---|---|
+| Prescrição de fórmula manipulada | Receita das fórmulas |
+| Indicação de exames | Pedir todo tipo de exame |
+| Indicação de injetáveis/protocolos | Endovenoso, intramuscular, subcutâneo, implante + protocolos |
+| Indicação de tratamentos | Condutas/tratamentos |
+| Anamnese / Acompanhamento | A "anamnese viva" do cliente (este módulo) |
+| Diário do cliente | Registros do próprio cliente no tempo |
+
+### 8.2 Canais de ENTRADA do módulo Acompanhamento (de onde os dados chegam)
+| Canal | O que entra |
+|---|---|
+| WhatsApp (quando ativado) | Estado geral, disposição, energia, pressão da manhã, glicemia → cai na anamnese ligada ao cliente |
+| App / Área do Paciente (ligado ao app do celular) | Cliente lança a pressão, vai à aba Acompanhamento, relata uma queixa |
+| Médico (dentro do Cockpit) | Preenche/edita à mão |
+
+### 8.3 Queixa + plano VIP (SLA = "Service Level Agreement" = prazo de resposta combinado)
+| Situação | Resposta |
+|---|---|
+| Plano VIP | Queixa (ex.: relacionada a uma fórmula) → resposta dentro do prazo combinado (SLA) |
+| Sem VIP | Aguarda a próxima consulta |
+
+### 8.4 Acesso FORA do Cockpit (visão global do médico)
+Uma CAIXA DE ENTRADA única: quem mandou relatório diário, exame ou queixa — sem precisar abrir o
+cockpit de cada cliente. Dentro do Cockpit, o médico vê só a FATIA daquele cliente.
+
+### 8.5 Correção sincera de vocabulário (Art. 50)
+A palavra "sessão" JÁ significa AGENDAMENTO/APLICAÇÃO neste sistema (tabela `sessions`). Para não
+colidir, vou chamar essas peças componíveis de MÓDULO, nunca "sessão".
+
+### 8.6 Blueprint
+```
+[WhatsApp]            ─┐
+[App / Área Paciente] ─┼─> MÓDULO ACOMPANHAMENTO ──> CAIXA DE ENTRADA (médico vê de todos)
+[Médico no Cockpit]   ─┘   (anamnese viva)          └─> COCKPIT puxa a FATIA do cliente
+```
+
+RESUMO EM 1 LINHA: SIM, o Acompanhamento é um MÓDULO componível (com canais WhatsApp/App/médico, queixa
+com prazo VIP e caixa de entrada global) que o Cockpit puxa igual aos outros — e "sessão" fica reservada
+para agendamento, então as peças se chamam MÓDULO.
