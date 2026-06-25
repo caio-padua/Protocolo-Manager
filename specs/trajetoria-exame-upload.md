@@ -80,6 +80,43 @@ Observação: reaproveitar `clients`, `google-drive.ts` (ensureClientFolderStruc
 
 ---
 
+## Catálogo editável de exames — parametrização de apelidos (refinamento do CEO, 25/06/2026)
+
+Decisão do CEO: os "equívocos" previsíveis da IA/OCR (a sigla que muda, o apelido do exame) NÃO ficam
+escondidos no código — viram **parâmetro editável** num cadastro. Quando o motor não acha um exame pelo
+nome convencional, ele procura, em paralelo, por todos os apelidos cadastrados.
+
+| Conceito | Significado | Exemplo |
+|---|---|---|
+| Nome canônico | o nome oficial único do exame no sistema | Hemoglobina Glicada |
+| Apelido (alias) | qualquer outro nome/sigla que o mesmo exame pode aparecer no laudo | A1C, HbA1c, Glico-Hb |
+| Busca em paralelo | ao casar, o motor testa nome canônico E todos os apelidos ao mesmo tempo | "A1C" no laudo -> casa com Hemoglobina Glicada |
+| Editável | o CEO inclui/edita apelidos por tela, sem depender do agente | adicionar "HMG" como apelido de Hemograma |
+
+Regras:
+1. O campo `synonyms` (jsonb) de `exam_analyte_catalog` é a fonte dos apelidos (lista de strings).
+2. Casamento é case-insensitive e ignora acento/pontuação (normalização).
+3. Apelido novo NUNCA apaga histórico já gravado; só melhora o casamento dos próximos laudos.
+4. Tela de cadastro (gerência do catálogo) entra na ONDA de interface (UI), com entrada própria no menu
+   (Regra de Ouro: toda ferramenta tem entrada no menu). O motor já passa a CONSUMIR os apelidos na Onda 2.
+
+### Exames de imagem (trilha paralela — depende de amostras do CEO)
+
+Exame de imagem não tem "valor numérico + unidade"; tem **achados qualitativos** (tem nódulo / não tem,
+medida, classificação). Precisa de um catálogo próprio de "campos a extrair por tipo de exame de imagem".
+
+| Tipo de imagem | Achados-padrão a extrair (exemplo inicial) |
+|---|---|
+| Ultrassom de tireoide | tem nódulo (sim/não), tamanho, lateralidade, classificação TI-RADS |
+| Ultrassom abdominal | esteatose hepática (sim/não), cálculo (sim/não), medidas de órgãos |
+| Densitometria óssea | T-score, Z-score, diagnóstico (normal/osteopenia/osteoporose) |
+
+Sigla TI-RADS = sistema de classificação de risco de nódulo de tireoide. Esta trilha só será especificada
+em detalhe DEPOIS que o CEO enviar 2 ou 3 laudos de imagem reais, para padronizar os campos a partir do
+que os laudos realmente trazem (não chutar).
+
+---
+
 ## Pipeline (blueprint)
 
 Upload (portal OU avulso) -> hash/idempotência -> extrai texto (ou OCR/visão) -> IA devolve JSON -> normaliza analito -> converte unidade -> classifica faixa -> identifica/cria paciente -> grava (banco + Drive + planilha) -> conferência humana 1 clique -> notifica (e-mail + WhatsApp) -> aparece em Exames + comparativo antes/depois.
