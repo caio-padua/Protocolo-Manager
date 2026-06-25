@@ -7,16 +7,22 @@ granular (couro), ferragens em ouro, e dados em posição FIXA (Grade Imaginári
 de agendamento.
 
 ## Conceito criativo
-"ATELIÊ" — couro e linho de alta costura automotiva: base profunda vinho/expresso (bordô + mocha),
-linho tecido (linhas grossas cruzadas) no painel base, grão de couro (granular) nos painéis de cima,
-e ferragem dourada (molduras finas, fios, selos) como joia. Precisão de relojoaria no alinhamento.
+"ALFAIATARIA" — pele em TECIDO DE TERNO social premium (lã penteada / worsted), tom bordô profundo,
+a mesma linguagem do terno NAVY do sistema interno, só que na cor do cliente externo (bordô). A trama
+fina do tecido de terno é a textura HERÓI da tela; ferragem dourada (molduras finas, fios, selos) como
+joia sobre o tecido; grão de couro pode entrar como acabamento secundário em selos/botões. Precisão de
+relojoaria no alinhamento. Decisão do CEO (25/06/2026): a marcação veste TERNO BORDÔ; o sistema veste
+TERNO NAVY — mesma alfaiataria, cores diferentes por contexto.
 
 ## Requisitos exatos
 1. NOVO tom escuro: trocar o navy frio atual (`bg-[#0b1a33]` do fluxo Dr. Caio e do sucesso) por um
    escuro QUENTE de luxo — base expresso/mocha com pigmento bordô. Aplicar no tema escuro da tela.
-2. Textura de LINHO no painel BASE (fundo da tela / painel inferior): traçado de linhas grossas
-   cruzadas simulando tecido de linho, sutil, sem competir com o conteúdo.
-3. Textura GRANULAR (grão de couro) nos painéis SUPERIORES (cartões/painéis sobre a base).
+2. Textura HERÓI de TECIDO DE TERNO (lã penteada/worsted) em BORDÔ no painel BASE e nos painéis
+   principais: trama fina e regular de fios cruzados, social premium, espelhando o componente de
+   terno navy já existente (`Terno.tsx` no mockup-sandbox), apenas na cor bordô. Sutil, sem competir
+   com o conteúdo.
+3. Acabamento de couro (granular) só como DETALHE secundário (selos, botões, cantos), nunca como pele
+   principal — a pele principal é o tecido de terno bordô.
 4. Ferragem em OURO: molduras finas, fios/filetes e selos em dourado nos cartões e títulos; bordas
    em bordô. Ouro nunca em texto pequeno sobre fundo claro concorrente (regra da skill).
 5. Grade Imaginária: dados em posição FIXA — nome em 1 linha com `truncate`; campos com slot e "—"
