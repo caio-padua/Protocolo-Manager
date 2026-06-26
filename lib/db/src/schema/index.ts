@@ -37,3 +37,5 @@ export * from "./site-content";
 export * from "./scheduling";
 export * from "./collaborator-audit";
 export * from "./mensageria";
+
+export * from "./assinatura";

@@ -46,12 +46,17 @@ import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 import asaasRouter from "./asaas";
 import settingsRouter from "./settings";
 import financeiroRouter from "./financeiro";
+import assinaturasRouter, { assinaturaWebhookRouter } from "./assinaturas";
 
 const router: IRouter = Router();
 
 // Pagamentos Asaas (cobranca + webhook): registrado ANTES do portao de
 // colaborador para o webhook externo do Asaas nao ser bloqueado.
 router.use(asaasRouter);
+
+// Webhook de Assinatura Remota (ZapSign): provedor externo sem sessao, tambem
+// registrado ANTES do portao. Autenticidade via header secreto proprio.
+router.use(assinaturaWebhookRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
@@ -104,5 +109,6 @@ router.use(storageRouter);
 router.use(collaboratorRouter);
 router.use(settingsRouter);
 router.use(financeiroRouter);
+router.use(assinaturasRouter);
 
 export default router;

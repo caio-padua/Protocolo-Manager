@@ -20,6 +20,7 @@ import {
   agendarLembretes,
   processarLembretesVencidos,
   type ItemLembrete,
+  type AgendarResultado,
 } from "../lib/mensageria";
 import { sendWhatsapp } from "../lib/whatsapp";
 
@@ -234,7 +235,20 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
     itensLembrete.push({ tipo: "injetavel", nome: inj.itemNome ?? inj.itemRef ?? "Injetavel" });
   for (const ex of presente.exames.slice(0, 10))
     itensLembrete.push({ tipo: "exame", nome: ex });
-  const lembretes = await agendarLembretes(clienteId, cliente.name, cliente.phone ?? null, itensLembrete);
+
+  // Efeitos colaterais externos isolados (Onda H): uma falha de servico externo
+  // (mensageria/Twilio/ZapSign) NAO pode derrubar a emissao nem perder a
+  // aprovacao dos orcamentos. Cada chamada roda via Promise.allSettled e degrada
+  // com graca. Lembretes vem antes do WhatsApp porque o resumo cita a contagem.
+  let lembretes: AgendarResultado = { agendados: 0, porTipo: { formula: 0, exame: 0, injetavel: 0 } };
+  const [lembRes] = await Promise.allSettled([
+    agendarLembretes(clienteId, cliente.name, cliente.phone ?? null, itensLembrete),
+  ]);
+  if (lembRes.status === "fulfilled") {
+    lembretes = lembRes.value;
+  } else {
+    req.log.error({ err: String(lembRes.reason) }, "[cockpit] falha ao agendar lembretes");
+  }
 
   // c) ENVIAR RESUMO p/ MENSAGERIA (WhatsApp; fallback link quando sem Twilio).
   const resumoMsg =
@@ -243,8 +257,12 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
     `Em breve voce recebera os lembretes das suas formulas, exames e injetaveis.`;
   let whatsapp: { sent: boolean; via: string; link: string } = { sent: false, via: "link", link: "" };
   if (cliente.phone) {
-    const r = await sendWhatsapp(cliente.phone, resumoMsg);
-    whatsapp = { sent: r.sent, via: r.via, link: r.link };
+    const [waRes] = await Promise.allSettled([sendWhatsapp(cliente.phone, resumoMsg)]);
+    if (waRes.status === "fulfilled") {
+      whatsapp = { sent: waRes.value.sent, via: waRes.value.via, link: waRes.value.link };
+    } else {
+      req.log.error({ err: String(waRes.reason) }, "[cockpit] falha ao enviar WhatsApp");
+    }
   }
 
   res.json({
