@@ -27,6 +27,7 @@ import {
   CalendarDays,
   MessageSquareText,
   ClipboardList as ClipboardListIcon,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -73,6 +74,7 @@ const navigation: NavEntry[] = [
   { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
   { name: "Farmácias", href: "/pharmacies", icon: Building2 },
   { name: "SNCR", href: "/sncr", icon: Hash },
+  { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
 ];
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";

@@ -43,6 +43,7 @@ import AnamneseV2 from "@/pages/anamnese-v2";
 import AnamneseRevisao from "@/pages/anamnese-v2/revisao";
 import Area from "@/pages/area";
 import Entrada from "@/pages/entrada";
+import VitrinePublica from "@/pages/vitrine";
 import Abertura from "@/pages/abertura";
 import MarcaMolde from "@/pages/marca-molde";
 import PawardsDemo from "@/pages/pawards-demo";
@@ -75,6 +76,7 @@ function Router() {
       <Route path="/anamnese/v2" component={AnamneseV2} />
       <Route path="/area" component={Area} />
       <Route path="/entrada" component={Entrada} />
+      <Route path="/vitrine" component={VitrinePublica} />
       <Route path="/abertura" component={Abertura} />
       <Route path="/marca-molde" component={MarcaMolde} />
       <Route path="/pawards" component={PawardsDemo} />
