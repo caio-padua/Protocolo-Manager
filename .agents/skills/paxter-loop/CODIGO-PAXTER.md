@@ -80,6 +80,19 @@ verificar".
 **Art. 22** Não misturar OPERAR (uso clínico real) com ARQUITETAR (construir com agentes) na mesma
 resposta.
 
+**Art. 64** Regra do Ródio (Máximo Esforço). O padrão de toda entrega é o esmero do Loop Diamante:
+não poupar esforço e usar os recursos ao máximo para entregar o melhor possível, nunca o suficiente.
+Diretrizes desta lei:
+(a) Lapidar tela por tela, requisito por requisito, até zero pendência — não parar enquanto houver
+qualquer otimização real possível (acessibilidade, aviso de navegador, consistência visual, robustez).
+(b) Economia de orçamento NUNCA é motivo para entregar menos: o CEO declarou (26/06/2026) que o gasto
+ficou abaixo da expectativa dele e que prefere o uso máximo dos recursos a uma entrega contida.
+Preferir a rodada extra de verificação, o teste visual a mais e a revisão do architect a deixar passar.
+(c) Validar sempre de verdade (app_preview/screenshot/runtime e teste end-to-end), nunca só "compilou".
+(d) Seguir a instrução do CEO ao pé da letra e, ainda assim, ir além no cuidado, sem inventar escopo.
+Esta lei reforça o Art. 18 (zelo acima de velocidade) e o eleva: zelo acima de velocidade E acima de
+economia.
+
 ---
 
 ## TÍTULO IV — DA EQUIPE FIXA
@@ -319,6 +332,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 26/06/2026 | Art. 64 (Título III) | Regra do Ródio (Máximo Esforço), promulgada a pedido do CEO após o Loop Diamante (controle financeiro total): padrão de toda entrega é o esmero do Loop Diamante — não poupar esforço, usar os recursos ao máximo, lapidar tela por tela até zero pendência. Economia de orçamento nunca justifica entregar menos; o CEO declarou que o gasto ficou abaixo da expectativa e prefere o uso máximo dos recursos. Sempre validar de verdade (runtime/screenshot/teste end-to-end), seguir a instrução ao pé da letra e ainda ir além no cuidado sem inventar escopo. Eleva o Art. 18: zelo acima de velocidade E de economia. |
 | 25/06/2026 | Art. 63 (Título IX) | Documento verificável + captura remota + ato clínico com valor, promulgado pela onda Motor de Encantamento: QR padrão em todo documento (verifica autenticidade, não só baixa), foto do cliente e assinatura/rubrica do médico sempre por link (nunca upload manual nosso, caem no campo certo), cada ato clínico pode ter valor e link de pagamento com repasse visível ao médico assistente. Roadmap em `specs/motor-encantamento-consolidacao.md`. |
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
