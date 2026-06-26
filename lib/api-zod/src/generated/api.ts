@@ -3396,3 +3396,321 @@ export const CompleteAnamneseSessionResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Dados da empresa (matriz)
+ */
+export const GetCompanySettingsResponse = zod.object({
+  razaoSocial: zod.string().nullish(),
+  nomeFantasia: zod.string().nullish(),
+  cnpj: zod.string().nullish(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  cep: zod.string().nullish(),
+  logradouro: zod.string().nullish(),
+  numero: zod.string().nullish(),
+  complemento: zod.string().nullish(),
+  bairro: zod.string().nullish(),
+  cidade: zod.string().nullish(),
+  estado: zod.string().nullish(),
+  responsavelTecnico: zod.string().nullish(),
+  conselhoRT: zod.string().nullish(),
+  logoUrl: zod.string().nullish(),
+});
+
+/**
+ * @summary Salva dados da empresa
+ */
+export const UpdateCompanySettingsBody = zod.object({
+  razaoSocial: zod.string().nullish(),
+  nomeFantasia: zod.string().nullish(),
+  cnpj: zod.string().nullish(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  cep: zod.string().nullish(),
+  logradouro: zod.string().nullish(),
+  numero: zod.string().nullish(),
+  complemento: zod.string().nullish(),
+  bairro: zod.string().nullish(),
+  cidade: zod.string().nullish(),
+  estado: zod.string().nullish(),
+  responsavelTecnico: zod.string().nullish(),
+  conselhoRT: zod.string().nullish(),
+  logoUrl: zod.string().nullish(),
+});
+
+export const UpdateCompanySettingsResponse = zod.object({
+  razaoSocial: zod.string().nullish(),
+  nomeFantasia: zod.string().nullish(),
+  cnpj: zod.string().nullish(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  cep: zod.string().nullish(),
+  logradouro: zod.string().nullish(),
+  numero: zod.string().nullish(),
+  complemento: zod.string().nullish(),
+  bairro: zod.string().nullish(),
+  cidade: zod.string().nullish(),
+  estado: zod.string().nullish(),
+  responsavelTecnico: zod.string().nullish(),
+  conselhoRT: zod.string().nullish(),
+  logoUrl: zod.string().nullish(),
+});
+
+/**
+ * @summary Lista de clinicas configuraveis
+ */
+export const GetClinicsSettingsResponse = zod.object({
+  clinics: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      cnpj: zod.string().nullish(),
+      phone: zod.string().nullish(),
+      endereco: zod.string().nullish(),
+      active: zod.boolean().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Salva a lista de clinicas
+ */
+export const UpdateClinicsSettingsBody = zod.object({
+  clinics: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      cnpj: zod.string().nullish(),
+      phone: zod.string().nullish(),
+      endereco: zod.string().nullish(),
+      active: zod.boolean().optional(),
+    }),
+  ),
+});
+
+export const UpdateClinicsSettingsResponse = zod.object({
+  clinics: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      cnpj: zod.string().nullish(),
+      phone: zod.string().nullish(),
+      endereco: zod.string().nullish(),
+      active: zod.boolean().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Status da porta de pagamento (Asaas)
+ */
+export const GetPaymentGatewaySettingsResponse = zod.object({
+  provider: zod.string(),
+  baseUrl: zod.string(),
+  apiKeyStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+  webhookTokenStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+});
+
+/**
+ * @summary Salva URL base e/ou segredos da porta de pagamento
+ */
+export const UpdatePaymentGatewaySettingsBody = zod.object({
+  baseUrl: zod.string().nullish(),
+  apiKey: zod.string().nullish(),
+  webhookToken: zod.string().nullish(),
+});
+
+export const UpdatePaymentGatewaySettingsResponse = zod.object({
+  provider: zod.string(),
+  baseUrl: zod.string(),
+  apiKeyStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+  webhookTokenStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+});
+
+/**
+ * @summary Status da assinatura eletronica (ZapSign)
+ */
+export const GetESignatureSettingsResponse = zod.object({
+  provider: zod.string(),
+  active: zod.boolean(),
+  tokenStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+});
+
+/**
+ * @summary Salva token e/ou ativacao da assinatura eletronica
+ */
+export const UpdateESignatureSettingsBody = zod.object({
+  active: zod.boolean().nullish(),
+  token: zod.string().nullish(),
+});
+
+export const UpdateESignatureSettingsResponse = zod.object({
+  provider: zod.string(),
+  active: zod.boolean(),
+  tokenStatus: zod.object({
+    isSet: zod.boolean(),
+    masked: zod.string().nullish(),
+    source: zod
+      .union([zod.literal("vault"), zod.literal("env"), zod.literal(null)])
+      .nullish(),
+    updatedAt: zod.string().nullish(),
+  }),
+});
+
+/**
+ * @summary Status do certificado digital A1 (.pfx)
+ */
+export const GetCertificateStatusResponse = zod.object({
+  isSet: zod.boolean(),
+  hasPassword: zod.boolean(),
+  fileName: zod.string().nullish(),
+  cpf: zod.string().nullish(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Cruza cobrancas Asaas x pagamentos locais
+ */
+export const GetReconciliationQueryParams = zod.object({
+  offset: zod.coerce.number().optional(),
+  limit: zod.coerce.number().optional(),
+});
+
+export const GetReconciliationResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      asaasChargeId: zod.string().nullish(),
+      paymentId: zod.number().nullish(),
+      clientName: zod.string().nullish(),
+      asaasStatus: zod.string().nullish(),
+      localStatus: zod.string().nullish(),
+      asaasValue: zod.number().nullish(),
+      localAmount: zod.number().nullish(),
+      invoiceUrl: zod.string().nullish(),
+      dueDate: zod.string().nullish(),
+      match: zod.enum([
+        "ok",
+        "missing_local",
+        "missing_remote",
+        "status_mismatch",
+        "value_mismatch",
+      ]),
+    }),
+  ),
+  summary: zod.object({
+    total: zod.number(),
+    ok: zod.number(),
+    missingLocal: zod.number(),
+    missingRemote: zod.number(),
+    statusMismatch: zod.number(),
+    valueMismatch: zod.number(),
+  }),
+  hasMore: zod.boolean(),
+  nextOffset: zod.number().nullish(),
+});
+
+/**
+ * @summary Lista metas de faturamento (com realizado)
+ */
+export const ListFinancialGoalsQueryParams = zod.object({
+  periodType: zod.coerce.string().optional(),
+});
+
+export const ListFinancialGoalsResponseItem = zod.object({
+  id: zod.number(),
+  periodType: zod.enum(["month", "semester", "year"]),
+  periodKey: zod.string(),
+  targetAmount: zod.number(),
+  realizado: zod.number(),
+  percent: zod.number(),
+  note: zod.string().nullish(),
+  updatedAt: zod.string().nullish(),
+});
+export const ListFinancialGoalsResponse = zod.array(
+  ListFinancialGoalsResponseItem,
+);
+
+/**
+ * @summary Cria ou atualiza a meta de um periodo
+ */
+export const UpsertFinancialGoalBody = zod.object({
+  periodType: zod.enum(["month", "semester", "year"]),
+  periodKey: zod.string(),
+  targetAmount: zod.number(),
+  note: zod.string().nullish(),
+});
+
+export const UpsertFinancialGoalResponse = zod.object({
+  id: zod.number(),
+  periodType: zod.enum(["month", "semester", "year"]),
+  periodKey: zod.string(),
+  targetAmount: zod.number(),
+  realizado: zod.number(),
+  percent: zod.number(),
+  note: zod.string().nullish(),
+  updatedAt: zod.string().nullish(),
+});
+
+/**
+ * @summary Remove uma meta
+ */
+export const DeleteFinancialGoalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Painel meta x realizado e crescimento periodo a periodo
+ */
+export const GetFinancialGoalsSummaryQueryParams = zod.object({
+  periodType: zod.coerce.string().optional(),
+});
+
+export const GetFinancialGoalsSummaryResponse = zod.object({
+  periodType: zod.string(),
+  rows: zod.array(
+    zod.object({
+      periodKey: zod.string(),
+      target: zod.number(),
+      realizado: zod.number(),
+      percent: zod.number(),
+      growthPct: zod.number().nullable(),
+    }),
+  ),
+  message: zod.string().nullish(),
+});

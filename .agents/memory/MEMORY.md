@@ -1,4 +1,5 @@
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
+- [api-zod barrel TS2308](api-zod-barrel-ts2308.md) — index.ts exporta SÓ generated/api; reexportar generated/types colide const zod x type homônimo; export type * não resolve.
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; UNDEFINED min R$5; chave prod só vale em prod.
 - [Mockup de validacao precisa de previa data-bound](mockup-previa-data-bound.md) — mockup p/ CEO validar fluxo exige estado controlado (value/onChange) e previa derivada do estado; defaultValue+previa fixa reprova no architect; ferramenta compartilhada = controlada.
 - [ICS motor único + feed assinado + timestamp Drizzle](ics-motor-unico.md) — um formato/um motor (rotas chamam, não remontam); .ics PUBLISH UID estável; feed HMAC 401 genérico só futuras; coluna timestamp modo Date exige Date.

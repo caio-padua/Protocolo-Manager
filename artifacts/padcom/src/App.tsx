@@ -34,6 +34,12 @@ import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
 import CadastroAuditoria from "@/pages/cadastros/auditoria";
+import ConfigEmpresa from "@/pages/configuracoes/empresa";
+import ConfigCertificados from "@/pages/configuracoes/certificados";
+import ConfigAssinatura from "@/pages/configuracoes/assinatura";
+import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
+import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
+import FinanceiroMetas from "@/pages/financeiro/metas";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
@@ -134,6 +140,26 @@ function Router() {
                   <Route path="/cadastros/equipe" component={CadastroEquipe} />
                   <Route path="/cadastros/textos" component={CadastroTextos} />
                   <Route path="/cadastros/auditoria" component={CadastroAuditoria} />
+                  <Route component={NotFound} />
+                </Switch>
+              </CollaboratorGate>
+            </Route>
+            <Route path="/configuracoes/:rest*">
+              <CollaboratorGate>
+                <Switch>
+                  <Route path="/configuracoes/empresa" component={ConfigEmpresa} />
+                  <Route path="/configuracoes/certificados" component={ConfigCertificados} />
+                  <Route path="/configuracoes/assinatura" component={ConfigAssinatura} />
+                  <Route path="/configuracoes/pagamentos" component={ConfigPagamentos} />
+                  <Route component={NotFound} />
+                </Switch>
+              </CollaboratorGate>
+            </Route>
+            <Route path="/financeiro/:rest*">
+              <CollaboratorGate>
+                <Switch>
+                  <Route path="/financeiro/conciliacao" component={FinanceiroConciliacao} />
+                  <Route path="/financeiro/metas" component={FinanceiroMetas} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>

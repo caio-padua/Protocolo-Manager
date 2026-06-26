@@ -2169,6 +2169,234 @@ paths:
               schema:
                 $ref: "#/components/schemas/AnamneseSessionState"
 
+  # ====================== CONFIGURACOES (anti-hardcode) ======================
+  /settings/company:
+    get:
+      operationId: getCompanySettings
+      tags: [settings]
+      summary: Dados da empresa (matriz)
+      responses:
+        "200":
+          description: Dados da empresa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySettings"
+    put:
+      operationId: updateCompanySettings
+      tags: [settings]
+      summary: Salva dados da empresa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanySettings"
+      responses:
+        "200":
+          description: Salvo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySettings"
+
+  /settings/clinics:
+    get:
+      operationId: getClinicsSettings
+      tags: [settings]
+      summary: Lista de clinicas configuraveis
+      responses:
+        "200":
+          description: Clinicas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicsSettings"
+    put:
+      operationId: updateClinicsSettings
+      tags: [settings]
+      summary: Salva a lista de clinicas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClinicsSettings"
+      responses:
+        "200":
+          description: Salvo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicsSettings"
+
+  /settings/payment-gateway:
+    get:
+      operationId: getPaymentGatewaySettings
+      tags: [settings]
+      summary: Status da porta de pagamento (Asaas)
+      responses:
+        "200":
+          description: Config da porta de pagamento (sem segredos em claro)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentGatewaySettings"
+    put:
+      operationId: updatePaymentGatewaySettings
+      tags: [settings]
+      summary: Salva URL base e/ou segredos da porta de pagamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayUpdate"
+      responses:
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentGatewaySettings"
+
+  /settings/esignature:
+    get:
+      operationId: getESignatureSettings
+      tags: [settings]
+      summary: Status da assinatura eletronica (ZapSign)
+      responses:
+        "200":
+          description: Config (sem segredos em claro)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ESignatureSettings"
+    put:
+      operationId: updateESignatureSettings
+      tags: [settings]
+      summary: Salva token e/ou ativacao da assinatura eletronica
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ESignatureUpdate"
+      responses:
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ESignatureSettings"
+
+  /settings/certificate:
+    get:
+      operationId: getCertificateStatus
+      tags: [settings]
+      summary: Status do certificado digital A1 (.pfx)
+      responses:
+        "200":
+          description: Status do certificado (sem expor o arquivo nem a senha)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateStatus"
+
+  # ====================== CONCILIACAO (Front B) ======================
+  /reconciliation:
+    get:
+      operationId: getReconciliation
+      tags: [financeiro]
+      summary: Cruza cobrancas Asaas x pagamentos locais
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resultado da conciliacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationResult"
+
+  # ====================== METAS & CRESCIMENTO (Front C) ======================
+  /financial-goals:
+    get:
+      operationId: listFinancialGoals
+      tags: [financeiro]
+      summary: Lista metas de faturamento (com realizado)
+      parameters:
+        - name: periodType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metas com realizado calculado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinancialGoal"
+    put:
+      operationId: upsertFinancialGoal
+      tags: [financeiro]
+      summary: Cria ou atualiza a meta de um periodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinancialGoalInput"
+      responses:
+        "200":
+          description: Meta salva
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialGoal"
+
+  /financial-goals/{id}:
+    delete:
+      operationId: deleteFinancialGoal
+      tags: [financeiro]
+      summary: Remove uma meta
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removida
+
+  /financial-goals/summary:
+    get:
+      operationId: getFinancialGoalsSummary
+      tags: [financeiro]
+      summary: Painel meta x realizado e crescimento periodo a periodo
+      parameters:
+        - name: periodType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resumo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialGoalsSummary"
+
 components:
   schemas:
     ErrorResponse:
@@ -2176,6 +2404,176 @@ components:
       required: [error]
       properties:
         error: { type: string }
+
+    CompanySettings:
+      type: object
+      properties:
+        razaoSocial: { type: string, nullable: true }
+        nomeFantasia: { type: string, nullable: true }
+        cnpj: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        cep: { type: string, nullable: true }
+        logradouro: { type: string, nullable: true }
+        numero: { type: string, nullable: true }
+        complemento: { type: string, nullable: true }
+        bairro: { type: string, nullable: true }
+        cidade: { type: string, nullable: true }
+        estado: { type: string, nullable: true }
+        responsavelTecnico: { type: string, nullable: true }
+        conselhoRT: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+
+    ClinicConfig:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        cnpj: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        endereco: { type: string, nullable: true }
+        active: { type: boolean }
+
+    ClinicsSettings:
+      type: object
+      required: [clinics]
+      properties:
+        clinics:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicConfig"
+
+    SecretStatus:
+      type: object
+      required: [isSet]
+      properties:
+        isSet: { type: boolean }
+        masked: { type: string, nullable: true }
+        source: { type: string, nullable: true, enum: [vault, env, null] }
+        updatedAt: { type: string, nullable: true }
+
+    PaymentGatewaySettings:
+      type: object
+      required: [provider, baseUrl, apiKeyStatus, webhookTokenStatus]
+      properties:
+        provider: { type: string }
+        baseUrl: { type: string }
+        apiKeyStatus: { $ref: "#/components/schemas/SecretStatus" }
+        webhookTokenStatus: { $ref: "#/components/schemas/SecretStatus" }
+
+    PaymentGatewayUpdate:
+      type: object
+      properties:
+        baseUrl: { type: string, nullable: true }
+        apiKey: { type: string, nullable: true }
+        webhookToken: { type: string, nullable: true }
+
+    ESignatureSettings:
+      type: object
+      required: [provider, active, tokenStatus]
+      properties:
+        provider: { type: string }
+        active: { type: boolean }
+        tokenStatus: { $ref: "#/components/schemas/SecretStatus" }
+
+    ESignatureUpdate:
+      type: object
+      properties:
+        active: { type: boolean, nullable: true }
+        token: { type: string, nullable: true }
+
+    CertificateStatus:
+      type: object
+      required: [isSet, hasPassword]
+      properties:
+        isSet: { type: boolean }
+        hasPassword: { type: boolean }
+        fileName: { type: string, nullable: true }
+        cpf: { type: string, nullable: true }
+        updatedAt: { type: string, nullable: true }
+
+    ReconciliationItem:
+      type: object
+      required: [match]
+      properties:
+        asaasChargeId: { type: string, nullable: true }
+        paymentId: { type: integer, nullable: true }
+        clientName: { type: string, nullable: true }
+        asaasStatus: { type: string, nullable: true }
+        localStatus: { type: string, nullable: true }
+        asaasValue: { type: number, nullable: true }
+        localAmount: { type: number, nullable: true }
+        invoiceUrl: { type: string, nullable: true }
+        dueDate: { type: string, nullable: true }
+        match:
+          type: string
+          enum: [ok, missing_local, missing_remote, status_mismatch, value_mismatch]
+
+    ReconciliationSummary:
+      type: object
+      required: [total, ok, missingLocal, missingRemote, statusMismatch, valueMismatch]
+      properties:
+        total: { type: integer }
+        ok: { type: integer }
+        missingLocal: { type: integer }
+        missingRemote: { type: integer }
+        statusMismatch: { type: integer }
+        valueMismatch: { type: integer }
+
+    ReconciliationResult:
+      type: object
+      required: [items, summary, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReconciliationItem"
+        summary: { $ref: "#/components/schemas/ReconciliationSummary" }
+        hasMore: { type: boolean }
+        nextOffset: { type: integer, nullable: true }
+
+    FinancialGoal:
+      type: object
+      required: [id, periodType, periodKey, targetAmount, realizado, percent]
+      properties:
+        id: { type: integer }
+        periodType: { type: string, enum: [month, semester, year] }
+        periodKey: { type: string }
+        targetAmount: { type: number }
+        realizado: { type: number }
+        percent: { type: number }
+        note: { type: string, nullable: true }
+        updatedAt: { type: string, nullable: true }
+
+    FinancialGoalInput:
+      type: object
+      required: [periodType, periodKey, targetAmount]
+      properties:
+        periodType: { type: string, enum: [month, semester, year] }
+        periodKey: { type: string }
+        targetAmount: { type: number }
+        note: { type: string, nullable: true }
+
+    FinancialGoalsSummaryRow:
+      type: object
+      required: [periodKey, target, realizado, percent, growthPct]
+      properties:
+        periodKey: { type: string }
+        target: { type: number }
+        realizado: { type: number }
+        percent: { type: number }
+        growthPct: { type: number, nullable: true }
+
+    FinancialGoalsSummary:
+      type: object
+      required: [periodType, rows]
+      properties:
+        periodType: { type: string }
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/FinancialGoalsSummaryRow"
         message: { type: ["string", "null"] }
     AnamneseQuestion:
       type: object

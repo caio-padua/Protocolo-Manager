@@ -58,9 +58,12 @@ import type {
   BudgetSettingsUpdate,
   BudgetUpdate,
   CatalogOption,
+  CertificateStatus,
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClinicsSettings,
+  CompanySettings,
   ConfirmSubstanceApplicationBody,
   CreateAgendaExceptionBody,
   CreateAgendaResourceBody,
@@ -80,16 +83,24 @@ import type {
   DashboardSummary,
   DeleteAnamnesePergunta200,
   DeleteResult,
+  ESignatureSettings,
+  ESignatureUpdate,
   EmitBody,
   EmitResult,
   ErrorResponse,
+  FinancialGoal,
+  FinancialGoalInput,
+  FinancialGoalsSummary,
   GenerateProtocolICS200,
   GetAgendaSlotsParams,
+  GetFinancialGoalsSummaryParams,
+  GetReconciliationParams,
   HealthStatus,
   ListAnamnesePerguntasParams,
   ListBudgetsParams,
   ListCatalogOptionsParams,
   ListClientsParams,
+  ListFinancialGoalsParams,
   ListPaymentsParams,
   ListProfessionalAreasParams,
   ListProfessionalSpecialtiesParams,
@@ -100,6 +111,8 @@ import type {
   ListSessionsParams,
   ListSiteContentParams,
   Payment,
+  PaymentGatewaySettings,
+  PaymentGatewayUpdate,
   Pharmacy,
   Prescription,
   PrescriptionDetail,
@@ -111,6 +124,7 @@ import type {
   ProtocolStats,
   Ras,
   RecipePlan,
+  ReconciliationResult,
   ReplaceAgendaWindowsBody,
   SchedulingArea,
   SchedulingDoctor,
@@ -9358,3 +9372,1197 @@ export const useCompleteAnamneseSession = <
 > => {
   return useMutation(getCompleteAnamneseSessionMutationOptions(options));
 };
+
+/**
+ * @summary Dados da empresa (matriz)
+ */
+export const getGetCompanySettingsUrl = () => {
+  return `/api/settings/company`;
+};
+
+export const getCompanySettings = async (
+  options?: RequestInit,
+): Promise<CompanySettings> => {
+  return customFetch<CompanySettings>(getGetCompanySettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCompanySettingsQueryKey = () => {
+  return [`/api/settings/company`] as const;
+};
+
+export const getGetCompanySettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCompanySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCompanySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCompanySettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCompanySettings>>
+  > = ({ signal }) => getCompanySettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCompanySettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCompanySettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCompanySettings>>
+>;
+export type GetCompanySettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Dados da empresa (matriz)
+ */
+
+export function useGetCompanySettings<
+  TData = Awaited<ReturnType<typeof getCompanySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCompanySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCompanySettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva dados da empresa
+ */
+export const getUpdateCompanySettingsUrl = () => {
+  return `/api/settings/company`;
+};
+
+export const updateCompanySettings = async (
+  companySettings: CompanySettings,
+  options?: RequestInit,
+): Promise<CompanySettings> => {
+  return customFetch<CompanySettings>(getUpdateCompanySettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(companySettings),
+  });
+};
+
+export const getUpdateCompanySettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompanySettings>>,
+    TError,
+    { data: BodyType<CompanySettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCompanySettings>>,
+  TError,
+  { data: BodyType<CompanySettings> },
+  TContext
+> => {
+  const mutationKey = ["updateCompanySettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCompanySettings>>,
+    { data: BodyType<CompanySettings> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCompanySettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCompanySettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCompanySettings>>
+>;
+export type UpdateCompanySettingsMutationBody = BodyType<CompanySettings>;
+export type UpdateCompanySettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Salva dados da empresa
+ */
+export const useUpdateCompanySettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompanySettings>>,
+    TError,
+    { data: BodyType<CompanySettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCompanySettings>>,
+  TError,
+  { data: BodyType<CompanySettings> },
+  TContext
+> => {
+  return useMutation(getUpdateCompanySettingsMutationOptions(options));
+};
+
+/**
+ * @summary Lista de clinicas configuraveis
+ */
+export const getGetClinicsSettingsUrl = () => {
+  return `/api/settings/clinics`;
+};
+
+export const getClinicsSettings = async (
+  options?: RequestInit,
+): Promise<ClinicsSettings> => {
+  return customFetch<ClinicsSettings>(getGetClinicsSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetClinicsSettingsQueryKey = () => {
+  return [`/api/settings/clinics`] as const;
+};
+
+export const getGetClinicsSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClinicsSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClinicsSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetClinicsSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClinicsSettings>>
+  > = ({ signal }) => getClinicsSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClinicsSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClinicsSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClinicsSettings>>
+>;
+export type GetClinicsSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista de clinicas configuraveis
+ */
+
+export function useGetClinicsSettings<
+  TData = Awaited<ReturnType<typeof getClinicsSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClinicsSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClinicsSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva a lista de clinicas
+ */
+export const getUpdateClinicsSettingsUrl = () => {
+  return `/api/settings/clinics`;
+};
+
+export const updateClinicsSettings = async (
+  clinicsSettings: ClinicsSettings,
+  options?: RequestInit,
+): Promise<ClinicsSettings> => {
+  return customFetch<ClinicsSettings>(getUpdateClinicsSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clinicsSettings),
+  });
+};
+
+export const getUpdateClinicsSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicsSettings>>,
+    TError,
+    { data: BodyType<ClinicsSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClinicsSettings>>,
+  TError,
+  { data: BodyType<ClinicsSettings> },
+  TContext
+> => {
+  const mutationKey = ["updateClinicsSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClinicsSettings>>,
+    { data: BodyType<ClinicsSettings> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateClinicsSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClinicsSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateClinicsSettings>>
+>;
+export type UpdateClinicsSettingsMutationBody = BodyType<ClinicsSettings>;
+export type UpdateClinicsSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Salva a lista de clinicas
+ */
+export const useUpdateClinicsSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicsSettings>>,
+    TError,
+    { data: BodyType<ClinicsSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClinicsSettings>>,
+  TError,
+  { data: BodyType<ClinicsSettings> },
+  TContext
+> => {
+  return useMutation(getUpdateClinicsSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Status da porta de pagamento (Asaas)
+ */
+export const getGetPaymentGatewaySettingsUrl = () => {
+  return `/api/settings/payment-gateway`;
+};
+
+export const getPaymentGatewaySettings = async (
+  options?: RequestInit,
+): Promise<PaymentGatewaySettings> => {
+  return customFetch<PaymentGatewaySettings>(
+    getGetPaymentGatewaySettingsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPaymentGatewaySettingsQueryKey = () => {
+  return [`/api/settings/payment-gateway`] as const;
+};
+
+export const getGetPaymentGatewaySettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaymentGatewaySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPaymentGatewaySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaymentGatewaySettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaymentGatewaySettings>>
+  > = ({ signal }) => getPaymentGatewaySettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaymentGatewaySettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaymentGatewaySettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaymentGatewaySettings>>
+>;
+export type GetPaymentGatewaySettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Status da porta de pagamento (Asaas)
+ */
+
+export function useGetPaymentGatewaySettings<
+  TData = Awaited<ReturnType<typeof getPaymentGatewaySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPaymentGatewaySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaymentGatewaySettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva URL base e/ou segredos da porta de pagamento
+ */
+export const getUpdatePaymentGatewaySettingsUrl = () => {
+  return `/api/settings/payment-gateway`;
+};
+
+export const updatePaymentGatewaySettings = async (
+  paymentGatewayUpdate: PaymentGatewayUpdate,
+  options?: RequestInit,
+): Promise<PaymentGatewaySettings> => {
+  return customFetch<PaymentGatewaySettings>(
+    getUpdatePaymentGatewaySettingsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(paymentGatewayUpdate),
+    },
+  );
+};
+
+export const getUpdatePaymentGatewaySettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePaymentGatewaySettings>>,
+    TError,
+    { data: BodyType<PaymentGatewayUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePaymentGatewaySettings>>,
+  TError,
+  { data: BodyType<PaymentGatewayUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePaymentGatewaySettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePaymentGatewaySettings>>,
+    { data: BodyType<PaymentGatewayUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePaymentGatewaySettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePaymentGatewaySettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePaymentGatewaySettings>>
+>;
+export type UpdatePaymentGatewaySettingsMutationBody =
+  BodyType<PaymentGatewayUpdate>;
+export type UpdatePaymentGatewaySettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Salva URL base e/ou segredos da porta de pagamento
+ */
+export const useUpdatePaymentGatewaySettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePaymentGatewaySettings>>,
+    TError,
+    { data: BodyType<PaymentGatewayUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePaymentGatewaySettings>>,
+  TError,
+  { data: BodyType<PaymentGatewayUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdatePaymentGatewaySettingsMutationOptions(options));
+};
+
+/**
+ * @summary Status da assinatura eletronica (ZapSign)
+ */
+export const getGetESignatureSettingsUrl = () => {
+  return `/api/settings/esignature`;
+};
+
+export const getESignatureSettings = async (
+  options?: RequestInit,
+): Promise<ESignatureSettings> => {
+  return customFetch<ESignatureSettings>(getGetESignatureSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetESignatureSettingsQueryKey = () => {
+  return [`/api/settings/esignature`] as const;
+};
+
+export const getGetESignatureSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getESignatureSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getESignatureSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetESignatureSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getESignatureSettings>>
+  > = ({ signal }) => getESignatureSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getESignatureSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetESignatureSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getESignatureSettings>>
+>;
+export type GetESignatureSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Status da assinatura eletronica (ZapSign)
+ */
+
+export function useGetESignatureSettings<
+  TData = Awaited<ReturnType<typeof getESignatureSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getESignatureSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetESignatureSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salva token e/ou ativacao da assinatura eletronica
+ */
+export const getUpdateESignatureSettingsUrl = () => {
+  return `/api/settings/esignature`;
+};
+
+export const updateESignatureSettings = async (
+  eSignatureUpdate: ESignatureUpdate,
+  options?: RequestInit,
+): Promise<ESignatureSettings> => {
+  return customFetch<ESignatureSettings>(getUpdateESignatureSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eSignatureUpdate),
+  });
+};
+
+export const getUpdateESignatureSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateESignatureSettings>>,
+    TError,
+    { data: BodyType<ESignatureUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateESignatureSettings>>,
+  TError,
+  { data: BodyType<ESignatureUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateESignatureSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateESignatureSettings>>,
+    { data: BodyType<ESignatureUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateESignatureSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateESignatureSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateESignatureSettings>>
+>;
+export type UpdateESignatureSettingsMutationBody = BodyType<ESignatureUpdate>;
+export type UpdateESignatureSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Salva token e/ou ativacao da assinatura eletronica
+ */
+export const useUpdateESignatureSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateESignatureSettings>>,
+    TError,
+    { data: BodyType<ESignatureUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateESignatureSettings>>,
+  TError,
+  { data: BodyType<ESignatureUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateESignatureSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Status do certificado digital A1 (.pfx)
+ */
+export const getGetCertificateStatusUrl = () => {
+  return `/api/settings/certificate`;
+};
+
+export const getCertificateStatus = async (
+  options?: RequestInit,
+): Promise<CertificateStatus> => {
+  return customFetch<CertificateStatus>(getGetCertificateStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCertificateStatusQueryKey = () => {
+  return [`/api/settings/certificate`] as const;
+};
+
+export const getGetCertificateStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCertificateStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCertificateStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCertificateStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCertificateStatus>>
+  > = ({ signal }) => getCertificateStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCertificateStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCertificateStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCertificateStatus>>
+>;
+export type GetCertificateStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Status do certificado digital A1 (.pfx)
+ */
+
+export function useGetCertificateStatus<
+  TData = Awaited<ReturnType<typeof getCertificateStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCertificateStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCertificateStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cruza cobrancas Asaas x pagamentos locais
+ */
+export const getGetReconciliationUrl = (params?: GetReconciliationParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reconciliation?${stringifiedParams}`
+    : `/api/reconciliation`;
+};
+
+export const getReconciliation = async (
+  params?: GetReconciliationParams,
+  options?: RequestInit,
+): Promise<ReconciliationResult> => {
+  return customFetch<ReconciliationResult>(getGetReconciliationUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReconciliationQueryKey = (
+  params?: GetReconciliationParams,
+) => {
+  return [`/api/reconciliation`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetReconciliationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReconciliation>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetReconciliationParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReconciliation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetReconciliationQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReconciliation>>
+  > = ({ signal }) => getReconciliation(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReconciliation>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReconciliationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReconciliation>>
+>;
+export type GetReconciliationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Cruza cobrancas Asaas x pagamentos locais
+ */
+
+export function useGetReconciliation<
+  TData = Awaited<ReturnType<typeof getReconciliation>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetReconciliationParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReconciliation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReconciliationQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Lista metas de faturamento (com realizado)
+ */
+export const getListFinancialGoalsUrl = (params?: ListFinancialGoalsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/financial-goals?${stringifiedParams}`
+    : `/api/financial-goals`;
+};
+
+export const listFinancialGoals = async (
+  params?: ListFinancialGoalsParams,
+  options?: RequestInit,
+): Promise<FinancialGoal[]> => {
+  return customFetch<FinancialGoal[]>(getListFinancialGoalsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFinancialGoalsQueryKey = (
+  params?: ListFinancialGoalsParams,
+) => {
+  return [`/api/financial-goals`, ...(params ? [params] : [])] as const;
+};
+
+export const getListFinancialGoalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFinancialGoals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFinancialGoalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFinancialGoals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListFinancialGoalsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFinancialGoals>>
+  > = ({ signal }) => listFinancialGoals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFinancialGoals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFinancialGoalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFinancialGoals>>
+>;
+export type ListFinancialGoalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Lista metas de faturamento (com realizado)
+ */
+
+export function useListFinancialGoals<
+  TData = Awaited<ReturnType<typeof listFinancialGoals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFinancialGoalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFinancialGoals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFinancialGoalsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cria ou atualiza a meta de um periodo
+ */
+export const getUpsertFinancialGoalUrl = () => {
+  return `/api/financial-goals`;
+};
+
+export const upsertFinancialGoal = async (
+  financialGoalInput: FinancialGoalInput,
+  options?: RequestInit,
+): Promise<FinancialGoal> => {
+  return customFetch<FinancialGoal>(getUpsertFinancialGoalUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(financialGoalInput),
+  });
+};
+
+export const getUpsertFinancialGoalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertFinancialGoal>>,
+    TError,
+    { data: BodyType<FinancialGoalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertFinancialGoal>>,
+  TError,
+  { data: BodyType<FinancialGoalInput> },
+  TContext
+> => {
+  const mutationKey = ["upsertFinancialGoal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertFinancialGoal>>,
+    { data: BodyType<FinancialGoalInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertFinancialGoal(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertFinancialGoalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertFinancialGoal>>
+>;
+export type UpsertFinancialGoalMutationBody = BodyType<FinancialGoalInput>;
+export type UpsertFinancialGoalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cria ou atualiza a meta de um periodo
+ */
+export const useUpsertFinancialGoal = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertFinancialGoal>>,
+    TError,
+    { data: BodyType<FinancialGoalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertFinancialGoal>>,
+  TError,
+  { data: BodyType<FinancialGoalInput> },
+  TContext
+> => {
+  return useMutation(getUpsertFinancialGoalMutationOptions(options));
+};
+
+/**
+ * @summary Remove uma meta
+ */
+export const getDeleteFinancialGoalUrl = (id: number) => {
+  return `/api/financial-goals/${id}`;
+};
+
+export const deleteFinancialGoal = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFinancialGoalUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFinancialGoalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFinancialGoal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFinancialGoal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFinancialGoal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFinancialGoal>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteFinancialGoal(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFinancialGoalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFinancialGoal>>
+>;
+
+export type DeleteFinancialGoalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove uma meta
+ */
+export const useDeleteFinancialGoal = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFinancialGoal>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFinancialGoal>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteFinancialGoalMutationOptions(options));
+};
+
+/**
+ * @summary Painel meta x realizado e crescimento periodo a periodo
+ */
+export const getGetFinancialGoalsSummaryUrl = (
+  params?: GetFinancialGoalsSummaryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/financial-goals/summary?${stringifiedParams}`
+    : `/api/financial-goals/summary`;
+};
+
+export const getFinancialGoalsSummary = async (
+  params?: GetFinancialGoalsSummaryParams,
+  options?: RequestInit,
+): Promise<FinancialGoalsSummary> => {
+  return customFetch<FinancialGoalsSummary>(
+    getGetFinancialGoalsSummaryUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetFinancialGoalsSummaryQueryKey = (
+  params?: GetFinancialGoalsSummaryParams,
+) => {
+  return [`/api/financial-goals/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetFinancialGoalsSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFinancialGoalsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFinancialGoalsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFinancialGoalsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFinancialGoalsSummaryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFinancialGoalsSummary>>
+  > = ({ signal }) =>
+    getFinancialGoalsSummary(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFinancialGoalsSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFinancialGoalsSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFinancialGoalsSummary>>
+>;
+export type GetFinancialGoalsSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Painel meta x realizado e crescimento periodo a periodo
+ */
+
+export function useGetFinancialGoalsSummary<
+  TData = Awaited<ReturnType<typeof getFinancialGoalsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFinancialGoalsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFinancialGoalsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFinancialGoalsSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

@@ -28,6 +28,11 @@ import {
   MessageSquareText,
   ClipboardList as ClipboardListIcon,
   Sparkles,
+  Settings,
+  Scale,
+  Target,
+  ShieldCheck,
+  PenTool,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -53,7 +58,15 @@ const navigation: NavEntry[] = [
   { name: "Motor de Agenda", href: "/agenda/motor", icon: CalendarCog },
   { name: "RAS", href: "/ras", icon: FileText },
   { name: "Estoque", href: "/stock", icon: Box },
-  { name: "Financeiro", href: "/payments", icon: CreditCard },
+  {
+    name: "Financeiro",
+    icon: CreditCard,
+    children: [
+      { name: "Pagamentos", href: "/payments", icon: CreditCard },
+      { name: "Conciliação", href: "/financeiro/conciliacao", icon: Scale },
+      { name: "Metas & Crescimento", href: "/financeiro/metas", icon: Target },
+    ],
+  },
   { name: "Substâncias", href: "/substances", icon: Beaker },
   { name: "Catálogos", href: "/catalogos", icon: Library },
   {
@@ -75,6 +88,16 @@ const navigation: NavEntry[] = [
   { name: "Farmácias", href: "/pharmacies", icon: Building2 },
   { name: "SNCR", href: "/sncr", icon: Hash },
   { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
+  {
+    name: "Configurações",
+    icon: Settings,
+    children: [
+      { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
+      { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
+      { name: "Assinatura Eletrônica", href: "/configuracoes/assinatura", icon: PenTool },
+      { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
+    ],
+  },
 ];
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";

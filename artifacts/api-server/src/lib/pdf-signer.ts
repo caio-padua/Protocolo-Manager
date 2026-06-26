@@ -26,14 +26,10 @@ async function embedPaxterQr(pdfDoc: PDFDocument): Promise<QrImage> {
   }
 }
 
-const CERT_PATH = process.env.CERT_PATH || path.resolve(import.meta.dirname, "../certs/assinatura.pfx");
-const CERT_PASSWORDS = [process.env.CERT_PASSWORD].filter((p): p is string => Boolean(p));
-
-if (CERT_PASSWORDS.length === 0) {
-  throw new Error(
-    "CERT_PASSWORD nao definido. Registre o segredo CERT_PASSWORD (senha do certificado A1) para assinar PDFs.",
-  );
-}
+// Fonte do certificado: cache configuravel (cofre/object storage) com fallback
+// ao arquivo local. NUNCA quebra no carregamento do modulo — so falha (com
+// mensagem clara) na hora de assinar, se nada estiver configurado.
+import { getCertBufferSync, getCertPasswordsSync } from "./cert-source.js";
 
 interface SubstanceInfo {
   substanceName: string;
@@ -68,13 +64,13 @@ interface RASData {
 }
 
 function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Certificate; ca: forge.pki.Certificate[] } {
-  const pfxBuffer = fs.readFileSync(CERT_PATH);
+  const pfxBuffer = getCertBufferSync();
   const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(pfxBuffer));
   const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
 
   let p12: forge.pkcs12.Pkcs12Pfx | null = null;
 
-  for (const pw of CERT_PASSWORDS) {
+  for (const pw of getCertPasswordsSync()) {
     try {
       p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw);
       break;
@@ -104,10 +100,10 @@ function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Cer
 let cachedCertPassword: string | null = null;
 function getCertPassword(): string {
   if (cachedCertPassword) return cachedCertPassword;
-  const pfxBuffer = fs.readFileSync(CERT_PATH);
+  const pfxBuffer = getCertBufferSync();
   const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(pfxBuffer));
   const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
-  for (const pw of CERT_PASSWORDS) {
+  for (const pw of getCertPasswordsSync()) {
     try {
       forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw);
       cachedCertPassword = pw;
@@ -132,7 +128,7 @@ async function embedPadesSignature(
     signatureLength: 16384,
   });
   const withPlaceholder = await pdfDoc.save({ useObjectStreams: false });
-  const pfxBuffer = fs.readFileSync(CERT_PATH);
+  const pfxBuffer = getCertBufferSync();
   const signer = new P12Signer(Buffer.from(pfxBuffer), { passphrase: getCertPassword() });
   const signed = await signpdf.sign(Buffer.from(withPlaceholder), signer);
   return new Uint8Array(signed);

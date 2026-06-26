@@ -147,6 +147,33 @@ export class ObjectStorageService {
     await file.save(buffer, { contentType, resumable: false });
   }
 
+  // Salva um objeto PRIVADO sob qualquer prefixo do diretorio privado (ex.:
+  // "certs/pfx/<uuid>.pfx"). NUNCA e servido por HTTP — so lido no servidor.
+  async savePrivateObject(
+    relativePath: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    let dir = this.getPrivateObjectDir();
+    if (!dir.endsWith("/")) dir = `${dir}/`;
+    const fullPath = `${dir}${relativePath}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+    return relativePath;
+  }
+
+  // Le um objeto privado para a memoria do servidor.
+  async readPrivateObject(relativePath: string): Promise<Buffer> {
+    let dir = this.getPrivateObjectDir();
+    if (!dir.endsWith("/")) dir = `${dir}/`;
+    const fullPath = `${dir}${relativePath}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    const [buf] = await file.download();
+    return buf;
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();

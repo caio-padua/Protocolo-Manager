@@ -1,20 +1,30 @@
 // Provedor de Pagamento — implementacao Asaas (gateway brasileiro).
-// A chave vive em segredo (ASAAS_API_KEY); a base URL em ASAAS_BASE_URL
-// (default producao). Nenhuma credencial e logada ou exposta ao frontend.
+// A chave e a base URL sao resolvidas pelo cofre/config (DB) com fallback ao
+// ambiente: cofre cifrado (asaas.apiKey) -> env ASAAS_API_KEY; config
+// (asaas.baseUrl) -> env ASAAS_BASE_URL -> producao. Nenhuma credencial e
+// logada ou exposta ao frontend.
 
-const ASAAS_BASE_URL = process.env.ASAAS_BASE_URL || "https://api.asaas.com/v3";
+import { getSecret, getSetting } from "./secure-settings.js";
 
-function apiKey(): string {
-  const key = process.env.ASAAS_API_KEY;
-  if (!key) throw new Error("ASAAS_API_KEY nao configurada no servidor.");
+const DEFAULT_BASE_URL = "https://api.asaas.com/v3";
+
+async function resolveApiKey(): Promise<string> {
+  const key = await getSecret("asaas.apiKey");
+  if (!key) throw new Error("Chave do Asaas nao configurada. Defina em Configuracoes > Portas de Pagamento.");
   return key;
 }
 
+async function resolveBaseUrl(): Promise<string> {
+  const fromDb = await getSetting("asaas.baseUrl");
+  return (fromDb && fromDb.trim()) || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
+}
+
 async function asaasFetch(path: string, init?: RequestInit): Promise<any> {
-  const res = await fetch(`${ASAAS_BASE_URL}${path}`, {
+  const [key, baseUrl] = await Promise.all([resolveApiKey(), resolveBaseUrl()]);
+  const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      access_token: apiKey(),
+      access_token: key,
       "Content-Type": "application/json",
       "User-Agent": "PaxterManager",
       ...(init?.headers || {}),
@@ -79,4 +89,40 @@ export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasC
 
 export async function asaasGetCharge(id: string): Promise<AsaasCharge> {
   return asaasFetch(`/payments/${id}`, { method: "GET" });
+}
+
+export interface AsaasChargeListItem {
+  id: string;
+  status: string;
+  value: number;
+  dueDate: string | null;
+  invoiceUrl: string | null;
+  customer: string | null;
+  description: string | null;
+}
+
+// Lista cobrancas do Asaas (pagina a pagina). Usado pela Conciliacao.
+// `max` limita o total varrido para nao estourar a janela em contas grandes.
+export async function asaasListCharges(max = 300): Promise<AsaasChargeListItem[]> {
+  const out: AsaasChargeListItem[] = [];
+  let offset = 0;
+  const limit = 100;
+  while (out.length < max) {
+    const page = await asaasFetch(`/payments?offset=${offset}&limit=${limit}`, { method: "GET" });
+    const data: any[] = Array.isArray(page?.data) ? page.data : [];
+    for (const c of data) {
+      out.push({
+        id: String(c.id),
+        status: String(c.status ?? ""),
+        value: Number(c.value ?? 0),
+        dueDate: c.dueDate ?? null,
+        invoiceUrl: c.invoiceUrl ?? null,
+        customer: c.customer ?? null,
+        description: c.description ?? null,
+      });
+    }
+    if (!page?.hasMore || data.length === 0) break;
+    offset += limit;
+  }
+  return out;
 }

@@ -41,6 +41,8 @@ import schedulingRouter from "./scheduling";
 import storageRouter from "./storage";
 import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 import asaasRouter from "./asaas";
+import settingsRouter from "./settings";
+import financeiroRouter from "./financeiro";
 
 const router: IRouter = Router();
 
@@ -94,5 +96,7 @@ router.use(siteContentRouter);
 router.use(schedulingRouter);
 router.use(storageRouter);
 router.use(collaboratorRouter);
+router.use(settingsRouter);
+router.use(financeiroRouter);
 
 export default router;

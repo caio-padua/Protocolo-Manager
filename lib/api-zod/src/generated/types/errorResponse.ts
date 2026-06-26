@@ -8,6 +8,4 @@
 
 export interface ErrorResponse {
   error: string;
-  /** @nullable */
-  message?: string | null;
 }

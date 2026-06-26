@@ -7,6 +7,174 @@
  */
 export interface ErrorResponse {
   error: string;
+}
+
+export interface CompanySettings {
+  razaoSocial?: string | null;
+  nomeFantasia?: string | null;
+  cnpj?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  responsavelTecnico?: string | null;
+  conselhoRT?: string | null;
+  logoUrl?: string | null;
+}
+
+export interface ClinicConfig {
+  id: string;
+  name: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  endereco?: string | null;
+  active?: boolean;
+}
+
+export interface ClinicsSettings {
+  clinics: ClinicConfig[];
+}
+
+export type SecretStatusSource =
+  | (typeof SecretStatusSource)[keyof typeof SecretStatusSource]
+  | null;
+
+export const SecretStatusSource = {
+  vault: "vault",
+  env: "env",
+} as const;
+
+export interface SecretStatus {
+  isSet: boolean;
+  masked?: string | null;
+  source?: SecretStatusSource;
+  updatedAt?: string | null;
+}
+
+export interface PaymentGatewaySettings {
+  provider: string;
+  baseUrl: string;
+  apiKeyStatus: SecretStatus;
+  webhookTokenStatus: SecretStatus;
+}
+
+export interface PaymentGatewayUpdate {
+  baseUrl?: string | null;
+  apiKey?: string | null;
+  webhookToken?: string | null;
+}
+
+export interface ESignatureSettings {
+  provider: string;
+  active: boolean;
+  tokenStatus: SecretStatus;
+}
+
+export interface ESignatureUpdate {
+  active?: boolean | null;
+  token?: string | null;
+}
+
+export interface CertificateStatus {
+  isSet: boolean;
+  hasPassword: boolean;
+  fileName?: string | null;
+  cpf?: string | null;
+  updatedAt?: string | null;
+}
+
+export type ReconciliationItemMatch =
+  (typeof ReconciliationItemMatch)[keyof typeof ReconciliationItemMatch];
+
+export const ReconciliationItemMatch = {
+  ok: "ok",
+  missing_local: "missing_local",
+  missing_remote: "missing_remote",
+  status_mismatch: "status_mismatch",
+  value_mismatch: "value_mismatch",
+} as const;
+
+export interface ReconciliationItem {
+  asaasChargeId?: string | null;
+  paymentId?: number | null;
+  clientName?: string | null;
+  asaasStatus?: string | null;
+  localStatus?: string | null;
+  asaasValue?: number | null;
+  localAmount?: number | null;
+  invoiceUrl?: string | null;
+  dueDate?: string | null;
+  match: ReconciliationItemMatch;
+}
+
+export interface ReconciliationSummary {
+  total: number;
+  ok: number;
+  missingLocal: number;
+  missingRemote: number;
+  statusMismatch: number;
+  valueMismatch: number;
+}
+
+export interface ReconciliationResult {
+  items: ReconciliationItem[];
+  summary: ReconciliationSummary;
+  hasMore: boolean;
+  nextOffset?: number | null;
+}
+
+export type FinancialGoalPeriodType =
+  (typeof FinancialGoalPeriodType)[keyof typeof FinancialGoalPeriodType];
+
+export const FinancialGoalPeriodType = {
+  month: "month",
+  semester: "semester",
+  year: "year",
+} as const;
+
+export interface FinancialGoal {
+  id: number;
+  periodType: FinancialGoalPeriodType;
+  periodKey: string;
+  targetAmount: number;
+  realizado: number;
+  percent: number;
+  note?: string | null;
+  updatedAt?: string | null;
+}
+
+export type FinancialGoalInputPeriodType =
+  (typeof FinancialGoalInputPeriodType)[keyof typeof FinancialGoalInputPeriodType];
+
+export const FinancialGoalInputPeriodType = {
+  month: "month",
+  semester: "semester",
+  year: "year",
+} as const;
+
+export interface FinancialGoalInput {
+  periodType: FinancialGoalInputPeriodType;
+  periodKey: string;
+  targetAmount: number;
+  note?: string | null;
+}
+
+export interface FinancialGoalsSummaryRow {
+  periodKey: string;
+  target: number;
+  realizado: number;
+  percent: number;
+  growthPct: number | null;
+}
+
+export interface FinancialGoalsSummary {
+  periodType: string;
+  rows: FinancialGoalsSummaryRow[];
   /** @nullable */
   message?: string | null;
 }
@@ -1888,4 +2056,17 @@ export type GetAgendaSlotsParams = {
    * CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)
    */
   occupied?: string;
+};
+
+export type GetReconciliationParams = {
+  offset?: number;
+  limit?: number;
+};
+
+export type ListFinancialGoalsParams = {
+  periodType?: string;
+};
+
+export type GetFinancialGoalsSummaryParams = {
+  periodType?: string;
 };

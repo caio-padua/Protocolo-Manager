@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, paymentsTable, clientsTable } from "@workspace/db";
 import { asaasCreateCustomer, asaasCreateCharge } from "../lib/asaas";
+import { getSecret } from "../lib/secure-settings.js";
 
 const router: IRouter = Router();
 
@@ -96,7 +97,7 @@ router.post("/asaas/charge", async (req, res): Promise<void> => {
 // Webhook do Asaas: confirma pagamento sozinho. Valida o token; idempotente.
 router.post("/asaas/webhook", async (req, res): Promise<void> => {
   const token = req.header("asaas-access-token");
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN;
+  const expected = await getSecret("asaas.webhookToken");
   if (!expected || token !== expected) {
     res.status(401).json({ error: "unauthorized" });
     return;
