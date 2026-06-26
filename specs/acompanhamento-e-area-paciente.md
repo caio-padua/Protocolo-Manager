@@ -257,21 +257,29 @@ só após o CEO criar a conta e fornecer a credencial (secret) — não construi
 verdade, um login). A categoria é um ATRIBUTO do cliente dentro dessa porta, nunca
 uma área separada por plano.
 
-### 10.1 Requisitos do desejo
+### 10.1 Requisitos do desejo — DESEJO IMPLÍCITO (correção CEO 26/06/2026)
+[MARTELO CEO 26/06/2026] O desejo é IMPLÍCITO, NUNCA explícito. Proibido bloco
+"COMPARE OS PLANOS", caixa de upgrade visível e upsell com preço/economia na home.
+O cliente DESCOBRE clicando.
 | Requisito | Regra |
 |---|---|
-| Plano em destaque | A categoria do cliente aparece em destaque (moldura ouro + selo grande) |
-| Ver os outros planos | Lista comparada dos 4 planos, com o do cliente realçado |
-| Incluso x pago | Cada solicitação mostra se está inclusa ou o preço no plano do cliente; hint "Grátis no NOIR" |
-| Gatilho de upgrade | "Subindo para o plano acima, estes itens passam a inclusos / você economiza R$ X/mês" |
-| Upgrade na hora | Botão "FAZER UPGRADE AGORA" → gera contrato (documento) + link de pagamento |
+| Categoria visível | A categoria do cliente aparece, mas SEM comparativo aberto |
+| Benefícios visíveis | O cliente vê tudo que pode solicitar (lista de benefícios) |
+| Planos = ÍCONE | Os planos viram um ÍCONE-COROA discreto (sem texto, sem preço); ao tocar, revela os planos. Descoberta, não vitrine |
+| Cadeado discreto | Itens premium (fora do plano atual) mostram um cadeado dourado discreto — desperta a curiosidade, sem dizer preço |
+| Upgrade na hora | Só DEPOIS da descoberta (ao tocar a coroa): gera contrato (documento) + link de pagamento Asaas |
+| Saudação | Sempre com tratamento: "Bem-vindo, senhor Ricardo" / "senhora [Nome]" |
+| Faixas separadas | 3 retângulos nítidos: (1) PAXTER (sistema, R oficial) · (2) nome + CPF · (3) Bem-vindo. Nome NUNCA embaixo do PAXTER |
+| Retângulos harmônicos | Progresso em segmentos retangulares; proibida barra arredondada/pill |
+| Protocolos em paralelo | Vários protocolos ativos ao mesmo tempo (não "1") |
+| Textura | Alfaiataria navy (terno escuro) nas faixas do sistema |
 
 ### 10.2 Viável hoje x pendente
 | Parte | Estado |
 |---|---|
-| Tela do desejo + comparativo + botão upgrade | PRONTO (mockup ENTREGA 38) |
-| Geração de contrato do upgrade | VIÁVEL (já geramos PDF/documento) |
-| Link de pagamento real (Asaas/MercadoPago/Pagar.me) | PENDENTE conta + credencial do CEO |
+| Home implícita + ícone-coroa + gaveta de descoberta (Círculos PAXTER) | PRONTO (mockup ENTREGA 38) |
+| Geração de contrato do upgrade (após descoberta) | VIÁVEL (já geramos PDF/documento) |
+| Link de pagamento real — Asaas (confirmado pelo CEO) | PENDENTE credencial/conta do CEO |
 | Campo de categoria no banco (clientsTable) | A CRIAR (não existe hoje) |
 | União com upload de exames (aba ENVIAR) | JÁ EXISTE — Solicitar Exames reaproveita |
 
