@@ -1,11 +1,23 @@
-# Spec — Ligar o Asaas (cobrança avulsa + assinatura dos Círculos PAXTER)
+# Spec — Ligar Pagamentos (Asaas + Stripe, com toggle) — avulsa + assinatura dos Círculos PAXTER
 
-Status: ESPECIFICANDO (Paxter Loop, fase 1). Escopo aprovado pelo CEO em 26/06/2026: opção **B**
-(cobrança avulsa PIX/boleto/cartão + assinatura mensal automática dos Círculos PAXTER).
+Status: ESPECIFICANDO (Paxter Loop, fase 1). Escopo de funcionalidade aprovado pelo CEO em 26/06/2026:
+opção **B** (cobrança avulsa PIX/boleto/cartão + assinatura mensal automática dos Círculos PAXTER).
 
-Asaas = gateway de pagamento brasileiro (PIX, boleto, cartão). Não é integração nativa do Replit:
-é integração própria via chave de API (sigla API = Interface de Programação de Aplicações, o "encaixe"
-por onde dois sistemas conversam). A chave fica em cofre de segredos (`ASAAS_API_KEY`), nunca no código.
+Decisão de motor (CEO em 26/06/2026): usar OS DOIS gateways. **Asaas** é o motor padrão, com 100% dos
+recursos ligados (PIX nativo, boleto, cartão até 21x, assinaturas). **Stripe** entra também, porém
+ACIONADO POR UM TOGGLE (interruptor liga/desliga), para usar a plenitude dele (cartão internacional,
+Apple Pay / Google Pay de um toque, Stripe Link) só quando quisermos. Asaas sempre ligado; Stripe
+ligável sob demanda.
+
+Gateway de pagamento = empresa que processa o dinheiro (PIX, boleto, cartão) por trás do app.
+
+Asaas = gateway brasileiro. Não é integração nativa do Replit: é integração própria via chave de API
+(sigla API = Interface de Programação de Aplicações, o "encaixe" por onde dois sistemas conversam).
+A chave fica em cofre de segredos (`ASAAS_API_KEY`), nunca no código.
+
+Stripe = gateway global. É integração NATIVA do Replit (conector OAuth + biblioteca `stripe-replit-sync`);
+não precisamos digitar chave à mão — o Replit guarda a credencial com segurança. Por isso ligar o Stripe
+é tecnicamente mais simples que o Asaas, mas o Asaas continua sendo o padrão pelas taxas e pelo PIX.
 
 ---
 
@@ -111,16 +123,38 @@ sozinho (webhook) e atualizando o status no app — começando em ambiente de te
 28. Certificação: o cartão é digitado SOMENTE na página certificada do Asaas (PCI DSS = Padrão de
     Segurança de Dados da Indústria de Cartões). O dado do cartão NUNCA passa pelo nosso servidor.
 
+### 3.10 Dois motores com toggle (Asaas padrão + Stripe sob demanda)
+29. Camada interna **"Provedor de Pagamento"** (uma interface única: garantirCliente, criarCobrança,
+    criarAssinatura, cancelar, lerStatus) com duas implementações: `asaasProvider` e `stripeProvider`.
+    O resto do app fala com a interface, NÃO sabe qual gateway está por trás (troca sem reescrever telas).
+30. Toggle global em **Configurações > Pagamentos**: "Stripe — ligado/desligado". Default de fábrica:
+    Asaas LIGADO (sempre), Stripe DESLIGADO. Guardado numa tabela `app_settings` (chave/valor), nunca
+    em código — assim liga/desliga sem novo deploy.
+31. Stripe DESLIGADO: tudo passa pelo Asaas (comportamento padrão, página hospedada "clica e paga").
+    Stripe LIGADO: aparece também a opção de cobrar via Stripe (com Apple Pay / Google Pay / Stripe Link
+    de um toque) onde fizer sentido; o Asaas continua disponível ao mesmo tempo.
+32. Cada cobrança e cada assinatura grava qual gateway a originou em coluna `provider`
+    (`asaas` | `stripe`), para o webhook certo confirmar e para conciliação. Isto é dado NATIVO do
+    Manager (qual gateway processou), NÃO é tag de origem entre sistemas primos (IHE x Manager).
+33. Webhooks separados: Asaas em `POST /api/asaas/webhook` (valida `asaas-access-token`); Stripe em
+    `POST /api/stripe/webhook` (corpo cru/raw ANTES do `express.json`, via `stripe-replit-sync`,
+    assinatura verificada pela própria biblioteca). Cada webhook confirma só as cobranças do seu gateway.
+34. Conexão do Stripe pela integração NATIVA do Replit (conector OAuth, `proposeIntegration`); a
+    credencial vive no proxy do Replit, não numa env tipo Asaas. Tudo começa em modo de teste (test mode).
+35. REGRA DE OURO: a tela **Configurações > Pagamentos** (onde fica o toggle) precisa de entrada no menu
+    lateral (criar item "Configurações" ou subaba "Pagamentos" dentro dele).
+
 ---
 
 ## 4. Modelo de dados (resumo das mudanças)
 
 | Tabela | Mudança |
 |---|---|
-| `clients` | + coluna `asaasCustomerId` (text, opcional) |
-| `payments` | + `asaasChargeId`, `asaasInvoiceUrl`, `pixQrCode`, `pixCopyPaste`, `boletoUrl`, `billingType` (todas text, opcionais) |
+| `clients` | + `asaasCustomerId`, + `stripeCustomerId` (text, opcionais) |
+| `payments` | + `provider` (`asaas`/`stripe`), `asaasChargeId`, `asaasInvoiceUrl`, `stripeChargeId`, `stripeCheckoutUrl`, `pixQrCode`, `pixCopyPaste`, `boletoUrl`, `billingType` (todas text, opcionais) |
 | `membership_plans` (nova) | `id`, `tier`, `name`, `monthlyValue`, `description`, `active`, `createdAt` |
-| `memberships` (nova) | `id`, `clientId`, `tier`, `asaasSubscriptionId`, `monthlyValue`, `billingType`, `status`, `nextDueDate`, `startedAt`, `createdAt` |
+| `memberships` (nova) | `id`, `clientId`, `tier`, `provider`, `asaasSubscriptionId`, `stripeSubscriptionId`, `monthlyValue`, `billingType`, `status`, `nextDueDate`, `startedAt`, `createdAt` |
+| `app_settings` (nova) | `key`, `value` (chave/valor) — guarda o toggle `stripe_enabled` e futuras configurações |
 
 Todas as colunas novas em tabela já populada entram como opcionais (nullable) para não quebrar o
 push (lição de memória: notNull em tabela populada exige truncate/ALTER prévio).
@@ -171,6 +205,9 @@ Todo mês o Asaas gera a cobrança e, ao pagar -> webhook -> atualiza membership
 | Pagamento simulado no sandbox cai via webhook e vira "paid" sozinho | runtime (log do webhook + status muda) |
 | Assinatura de um Círculo criada no sandbox com cobrança mensal | runtime + registro em `memberships` |
 | Entrada de menu "Assinaturas (Círculos)" existe e abre a tela (REGRA DE OURO) | abrir o menu |
+| Tela "Configurações > Pagamentos" existe no menu e tem o toggle do Stripe (REGRA DE OURO) | abrir o menu |
+| Com Stripe LIGADO, cobrança via Stripe funciona no test mode (Apple/Google Pay no checkout) | runtime + screenshot |
+| Com Stripe DESLIGADO, tudo passa pelo Asaas sem erro | runtime + screenshot |
 | Nenhuma chave/segredo no código, log ou frontend | leitura do diff |
 | Cliente vê cobrança em aberto só para pagar (sem editar) | abrir Área do Cliente |
 | Revisão do architect: zero pendência | code_review |
@@ -187,9 +224,16 @@ Todo mês o Asaas gera a cobrança e, ao pagar -> webhook -> atualiza membership
    alternativa secundária, nunca o que se mostra primeiro (exigência do CEO em 26/06/2026).
 5. NÃO regredir a regra de parcelas (1 a 12) nem o cálculo de saldo existente.
 6. NÃO criar coluna `notNull` em tabela já populada sem ALTER/truncate prévio.
-7. NÃO inventar tag de origem entre sistemas (conceito raiz dos primos independentes).
+7. NÃO inventar tag de origem entre sistemas (conceito raiz dos primos independentes). A coluna
+   `provider` (asaas/stripe) NÃO viola isso: ela só diz qual gateway processou, é dado nativo do Manager.
+8. NUNCA expor credencial do Stripe no frontend/log/Git; usar SEMPRE a integração nativa do Replit.
+9. Toggle do Stripe começa DESLIGADO (Asaas é o padrão); ligar/desligar não pode quebrar o Asaas.
 
 ---
+
+RESUMO EM 1 LINHA (dois motores): Asaas é o padrão (100% dos recursos, página "clica e paga") e o
+Stripe entra por um toggle em Configurações > Pagamentos (Apple/Google Pay sob demanda), com uma
+camada única de Provedor de Pagamento, webhooks separados e coluna `provider` para conciliação.
 
 RESUMO EM 1 LINHA: especificada a ligação do Asaas em escopo B — cobrança avulsa PIX/boleto/cartão
 com QR Code e confirmação automática por webhook, mais assinatura mensal dos Círculos PAXTER, tudo
