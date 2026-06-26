@@ -53,10 +53,13 @@ export const itemDoencaTable = pgTable(
   "item_doenca",
   {
     id: serial("id").primaryKey(),
-    itemTipo: text("item_tipo").notNull(), // formula | injetavel | implante | substance
+    itemTipo: text("item_tipo").notNull(), // formula | injetavel | implante | substance | dieta_regra | treino_regra
     itemRef: text("item_ref").notNull(), // codigo/id do item no seu catalogo
     itemNome: text("item_nome"),
     doencaIdIhe: integer("doenca_id_ihe").notNull(),
+    // peso da ligacao Corpo Celular (doenca) -> Axonio (saida terapeutica). Editavel
+    // in situ na Craniotomia (ONDA D). Aditivo, nullable, default 1.
+    peso: integer("peso").default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

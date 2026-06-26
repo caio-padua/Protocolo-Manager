@@ -6,7 +6,9 @@ import {
   catalogoBlocoExamesTable,
   perguntaSintomaTable,
   perguntaDoencaTable,
+  itemDoencaTable,
 } from "@workspace/db";
+import { inArray } from "drizzle-orm";
 
 // =============================================================================
 // Motor da Mega Anamnese (calculo puro reutilizavel): recebe as respostas do
@@ -21,21 +23,45 @@ type Opcao = { label: string; valor: string | number; peso: number };
 
 export type BlocoEscore = { bloco: string; escore: number; grade: string };
 
+// Sugestao de dieta derivada pelo Cerebro (calculo puro, sem gravar no banco).
+// A persistencia na fila (dieta_indicacao) e feita pela rota do Orgao Dieta.
+export type SugestaoDieta = {
+  objetivoSugerido: string;
+  estiloSugerido: string | null;
+  justificativa: string;
+  bloco: string | null;
+  escore: number;
+};
+
+// Sugestao de treino derivada pelo Cerebro (calculo puro, sem gravar no banco).
+// A persistencia na fila (treino_indicacao) e feita pela rota do Orgao Treino.
+export type SugestaoTreino = {
+  objetivoSugerido: string;
+  divisaoSugerida: string | null;
+  justificativa: string;
+  bloco: string | null;
+  escore: number;
+};
+
 export type ResultadoMotor = {
   escoreTotal: number;
   gradeGlobal: string;
+  redFlag: boolean;
   blocos: BlocoEscore[];
   sintomas: string[];
   doencas: string[];
   exames: string[];
   alarmes: { perguntaId: string; pergunta: string }[];
+  sugestaoDieta: SugestaoDieta | null;
+  sugestaoTreino: SugestaoTreino | null;
 };
 
-// Grade global a partir do escore (escada de gravidade do CEO).
+// Escada de gravidade do CEO (ONDA B do Master Loop): a grade de exames sai do
+// escore (por bloco). Red Flag (sinal de alarme) soma 10 e joga direto p/ AMPLIADA.
 export function gradeDoEscore(escore: number): string {
-  if (escore >= 25) return "GRADE AMPLIADA";
-  if (escore >= 15) return "GRADE SOFISTICADA";
-  if (escore >= 7) return "GRADE INTERMEDIARIA";
+  if (escore >= 10) return "GRADE AMPLIADA";
+  if (escore >= 7) return "GRADE SOFISTICADA";
+  if (escore >= 4) return "GRADE INTERMEDIARIA";
   if (escore >= 1) return "GRADE BASICA";
   return "SEM GRADE";
 }
@@ -58,9 +84,13 @@ export async function computeMotor(respostas: RespostaMotor[]): Promise<Resultad
   const porPerguntaId = new Map<string, (typeof perguntas)[number]>();
   for (const p of perguntas) if (p.perguntaId) porPerguntaId.set(p.perguntaId, p);
 
-  // Escore por bloco
+  // Escore por bloco = SOMA dos pesos das respostas (Requisito 1 da ONDA B).
+  // O multiplicador de intensidade (Leve=1, Moderado=2, Grave=3) JA vem embutido
+  // no `peso` da opcao no catalogo da anamnese (verificado nos dados), portanto NAO
+  // multiplicamos de novo aqui — isso contaria o peso em dobro.
   const escoreBloco = new Map<string, number>();
   const alarmes: { perguntaId: string; pergunta: string }[] = [];
+  let redFlag = false; // Sinal de Alarme: soma 10 e pula direto p/ grade AMPLIADA
   for (const [perguntaId, valor] of mapResp) {
     const p = porPerguntaId.get(perguntaId);
     if (!p || !p.bloco) continue;
@@ -72,15 +102,27 @@ export async function computeMotor(respostas: RespostaMotor[]): Promise<Resultad
     } else if (typeof valor === "number") {
       pontos += valor;
     }
-    if (pontos > 0) pontos += p.pesoGravidade ?? 0;
+    // Spec ONDA B: escore por bloco = SOMA dos pesos das respostas. A intensidade
+    // (Leve=1/Moderado=2/Grave=3) ja vem no peso da opcao; NAO somamos `pesoGravidade`
+    // automaticamente aqui (era um bonus fora da spec que, com a escada nova de
+    // limiares baixos, inflava a grade). O unico bonus e o da Red Flag, abaixo.
+    // Red Flag (Requisito 2): pergunta marcada como sinal de alarme e respondida de
+    // forma positiva (pontos > 0) soma 10 ao bloco e aciona a grade AMPLIADA.
+    if (p.eSinalAlarme && pontos > 0) {
+      pontos += 10;
+      redFlag = true;
+      alarmes.push({ perguntaId, pergunta: p.pergunta ?? perguntaId });
+    }
     escoreBloco.set(p.bloco, (escoreBloco.get(p.bloco) ?? 0) + pontos);
-    if (p.eSinalAlarme && pontos > 0) alarmes.push({ perguntaId, pergunta: p.pergunta ?? perguntaId });
   }
 
   const blocos = Array.from(escoreBloco.entries())
     .map(([bloco, escore]) => ({ bloco, escore, grade: gradeDoEscore(escore) }))
     .sort((a, b) => b.escore - a.escore);
   const escoreTotal = blocos.reduce((s, x) => s + x.escore, 0);
+  // A grade global (grade de exames) sai do bloco MAIS grave; Red Flag sobrepoe.
+  const escoreMaxBloco = blocos.length ? blocos[0].escore : 0;
+  const gradeGlobal = redFlag ? "GRADE AMPLIADA" : gradeDoEscore(escoreMaxBloco);
 
   // Sintomas acesos pelas amarracoes
   const amarSint = await db.select().from(perguntaSintomaTable);
@@ -125,13 +167,77 @@ export async function computeMotor(respostas: RespostaMotor[]): Promise<Resultad
     }
   }
 
+  // Cerebro escreve na fila de Dieta (Requisito 4): regras de dieta amarradas as
+  // doencas acesas via item_doenca (item_tipo = 'dieta_regra'). Calculo puro: o
+  // resultado vira uma SugestaoDieta; a gravacao na fila e feita pela rota da Dieta.
+  let sugestaoDieta: SugestaoDieta | null = null;
+  if (doeIds.size) {
+    const regrasDieta = await db
+      .select()
+      .from(itemDoencaTable)
+      .where(inArray(itemDoencaTable.doencaIdIhe, Array.from(doeIds)));
+    const dietas = regrasDieta.filter((r) => r.itemTipo === "dieta_regra");
+    if (dietas.length) {
+      const primeira = dietas[0];
+      const objetivo = (primeira.itemRef || primeira.itemNome || "personalizada").trim();
+      const estilos = dietas
+        .map((d) => (d.itemNome || "").trim())
+        .filter(Boolean);
+      const topBloco = blocos.length ? blocos[0] : null;
+      sugestaoDieta = {
+        objetivoSugerido: objetivo,
+        estiloSugerido: estilos.length ? estilos.join(" / ") : null,
+        justificativa:
+          `Cerebro: doenca(s) ativa(s) ${doeNomes.slice(0, 4).join(", ") || "—"}` +
+          (topBloco ? ` | bloco mais grave: ${topBloco.bloco} (escore ${topBloco.escore})` : "") +
+          (redFlag ? " | SINAL DE ALARME ativo" : ""),
+        bloco: topBloco ? topBloco.bloco : null,
+        escore: escoreMaxBloco,
+      };
+    }
+  }
+
+  // Cerebro escreve na fila de Treino (ONDA C, Requisito 3): regras de treino
+  // amarradas as doencas acesas via item_doenca (item_tipo = 'treino_regra').
+  // Mesmo padrao puro da dieta: o resultado vira uma SugestaoTreino; a gravacao
+  // na fila (treino_indicacao) e feita pela rota do Orgao Treino.
+  let sugestaoTreino: SugestaoTreino | null = null;
+  if (doeIds.size) {
+    const regrasTreino = await db
+      .select()
+      .from(itemDoencaTable)
+      .where(inArray(itemDoencaTable.doencaIdIhe, Array.from(doeIds)));
+    const treinos = regrasTreino.filter((r) => r.itemTipo === "treino_regra");
+    if (treinos.length) {
+      const primeira = treinos[0];
+      const objetivo = (primeira.itemRef || primeira.itemNome || "condicionamento").trim();
+      const divisoes = treinos
+        .map((t) => (t.itemNome || "").trim())
+        .filter(Boolean);
+      const topBloco = blocos.length ? blocos[0] : null;
+      sugestaoTreino = {
+        objetivoSugerido: objetivo,
+        divisaoSugerida: divisoes.length ? divisoes.join(" / ") : null,
+        justificativa:
+          `Cerebro: doenca(s) ativa(s) ${doeNomes.slice(0, 4).join(", ") || "—"}` +
+          (topBloco ? ` | bloco mais grave: ${topBloco.bloco} (escore ${topBloco.escore})` : "") +
+          (redFlag ? " | SINAL DE ALARME ativo" : ""),
+        bloco: topBloco ? topBloco.bloco : null,
+        escore: escoreMaxBloco,
+      };
+    }
+  }
+
   return {
     escoreTotal,
-    gradeGlobal: gradeDoEscore(escoreTotal),
+    gradeGlobal,
+    redFlag,
     blocos,
     sintomas: sintNomes,
     doencas: doeNomes,
     exames: Array.from(exames).slice(0, 40),
     alarmes,
+    sugestaoDieta,
+    sugestaoTreino,
   };
 }

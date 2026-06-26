@@ -26,6 +26,10 @@ import Pharmacies from "@/pages/pharmacies";
 import Sncr from "@/pages/sncr";
 import MegaAnamnese from "@/pages/mega-anamnese";
 import Catalogos from "@/pages/catalogos";
+import Dieta from "@/pages/dieta";
+import Treino from "@/pages/treino";
+import Craniotomia from "@/pages/craniotomia";
+import Cockpit from "@/pages/cockpit";
 import Exames from "@/pages/exames";
 import CadastroExames from "@/pages/cadastros/exames";
 import CadastroListas from "@/pages/cadastros/listas";
@@ -129,6 +133,10 @@ function Router() {
               </CollaboratorGate>
             </Route>
             <Route path="/catalogos" component={Catalogos} />
+            <Route path="/dieta" component={Dieta} />
+            <Route path="/treino" component={Treino} />
+            <Route path="/craniotomia" component={Craniotomia} />
+            <Route path="/cockpit" component={Cockpit} />
             <Route path="/exames" component={Exames} />
             <Route path="/cadastros/:rest*">
               <CollaboratorGate>

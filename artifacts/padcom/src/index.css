@@ -1282,3 +1282,22 @@
   .paxter-led { animation: none; opacity: 1; }
   .symbol-glint-band { animation: none; opacity: 0; }
 }
+
+/* =============================================================================
+   ONDA D — CRANIOTOMIA VIVA (sinapses). Linhas SVG que correm da esquerda para a
+   direita no Modo Simular; escore que pisca no centro; reducao de movimento OK.
+   ============================================================================= */
+@keyframes craniotomia-flow { to { stroke-dashoffset: -28; } }
+.craniotomia-edge-active {
+  stroke-dasharray: 7 7;
+  animation: craniotomia-flow 0.55s linear infinite;
+}
+@keyframes craniotomia-pisca {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.07); }
+}
+.craniotomia-pisca { animation: craniotomia-pisca 0.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .craniotomia-edge-active { animation: none; }
+  .craniotomia-pisca { animation: none; opacity: 1; }
+}

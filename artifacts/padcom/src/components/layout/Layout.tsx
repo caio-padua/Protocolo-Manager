@@ -16,7 +16,10 @@ import {
   Building2,
   Hash,
   Brain,
+  BrainCircuit,
   Library,
+  Salad,
+  Dumbbell,
   FolderTree,
   ChevronDown,
   ChevronLeft,
@@ -68,6 +71,10 @@ const navigation: NavEntry[] = [
     ],
   },
   { name: "Substâncias", href: "/substances", icon: Beaker },
+  { name: "Dieta", href: "/dieta", icon: Salad },
+  { name: "Treino", href: "/treino", icon: Dumbbell },
+  { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
+  { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
   { name: "Catálogos", href: "/catalogos", icon: Library },
   {
     name: "Cadastros",
@@ -314,7 +321,10 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">{children}</div>
+        {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
+            dentro do sistema. O canto superior DIREITO e reservado so para os
+            PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
+        <div className="flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6">{children}</div>
       </main>
 
       {sidebarOpen && (

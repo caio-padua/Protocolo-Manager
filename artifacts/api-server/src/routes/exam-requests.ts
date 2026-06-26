@@ -9,10 +9,11 @@ import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 
 const router: IRouter = Router();
 
-// ---- Prescritor de Exames (ONDA B) ----
-// Gera 1 PDF por TIPO (SANGUE / IMAGEM / OUTROS): exames de tipos diferentes
-// nunca se misturam. Opcionalmente envia por e-mail (anexos) e WhatsApp (links)
-// ao paciente.
+// ---- Prescritor de Exames ----
+// Exames de IMAGEM saem em 1 PDF por exame (cada imagem separada, para o
+// paciente levar a clinicas de imagem diferentes). Exames de SANGUE e OUTROS
+// continuam agrupados (1 PDF por tipo). Opcionalmente envia por e-mail
+// (anexos) e WhatsApp (links) ao paciente.
 
 const TIPO_LABEL: Record<string, string> = {
   SANGUE: "Sangue / Laboratorial",
@@ -82,18 +83,28 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
     }
   }
 
-  // Agrupar por tipo
-  const groups = new Map<string, ExamRequestItem[]>();
+  // Montar os "trabalhos" de PDF.
+  // ONDA 0 (bug critico): exames de IMAGEM saem 1 PDF por exame (cada imagem
+  // separada); SANGUE e OUTROS continuam agrupados (1 PDF por tipo).
+  const jobs: Array<{ tipo: string; items: ExamRequestItem[] }> = [];
+  const grouped = new Map<string, ExamRequestItem[]>();
   for (const it of body.items) {
-    const tipo = it.tipo;
-    const arr = groups.get(tipo) ?? [];
-    arr.push({
+    const item: ExamRequestItem = {
       nomeExame: it.nomeExame,
       codigoExame: it.codigoExame ?? null,
       grupoPrincipal: it.grupoPrincipal ?? null,
       preparo: it.preparo ?? null,
-    });
-    groups.set(tipo, arr);
+    };
+    if (it.tipo === "IMAGEM") {
+      jobs.push({ tipo: "IMAGEM", items: [item] });
+    } else {
+      const arr = grouped.get(it.tipo) ?? [];
+      arr.push(item);
+      grouped.set(it.tipo, arr);
+    }
+  }
+  for (const [tipo, items] of grouped) {
+    jobs.push({ tipo, items });
   }
 
   const now = new Date();
@@ -112,7 +123,7 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
   const baseUrl = absoluteBaseUrl(req);
   const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
 
-  for (const [tipo, items] of groups) {
+  for (const { tipo, items } of jobs) {
     const tipoLabel = TIPO_LABEL[tipo] ?? tipo;
     const pdfBytes = await generateExamRequestPdf({
       tipo,
@@ -126,7 +137,13 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
       items,
     });
     const pdfBuffer = Buffer.from(pdfBytes);
-    const fileName = `${stamp.file} EXAMES ${tipo} ${safeName}.pdf`.replace(/\s+/g, " ");
+    // IMAGEM unica leva o NOME do exame no arquivo (1 PDF por exame); tipos
+    // agrupados mantem o rotulo do tipo.
+    const isSingleImaging = tipo === "IMAGEM" && items.length === 1;
+    const fileLabel = isSingleImaging
+      ? `EXAME ${removeDiacritics(items[0].nomeExame).toUpperCase()}`
+      : `EXAMES ${tipo}`;
+    const fileName = `${stamp.file} ${fileLabel} ${safeName}.pdf`.replace(/\s+/g, " ");
     const token = randomBytes(24).toString("hex");
 
     const [row] = await db

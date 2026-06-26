@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
-import { sql } from "drizzle-orm";
+import { sql, eq, inArray } from "drizzle-orm";
 import {
   db,
   catalogoExamesTable,
   catalogoBlocoExamesTable,
   catalogoBlocosTable,
   catalogoDoencasTable,
+  anamneseQuestionarioTable,
+  perguntaDoencaTable,
+  itemDoencaTable,
 } from "@workspace/db";
 import {
   runTransmutacaoMotor,
@@ -13,6 +16,7 @@ import {
   DEFAULT_MOTOR_URL,
   DEFAULT_ENDOVENOSOS_URL,
 } from "../lib/transmutacao-motor";
+import { computeMotor, gatilhoBate, type RespostaMotor } from "../lib/motor-anamnese";
 
 const router: IRouter = Router();
 
@@ -162,6 +166,162 @@ router.get("/motor/doenca/:idIhe/sugestao", async (req, res): Promise<void> => {
     doenca: { idIhe: doenca.idIhe, nomeDoenca: doenca.nomeDoenca, eixo: doenca.eixo, blocosMotor: doenca.blocosMotor || doenca.blocoMotor },
     blocosAcionados: blocos,
   });
+});
+
+// =============================================================================
+// ONDA D — CRANIOTOMIA VIVA (a tela das sinapses)
+// Visualiza o subgrafo CONECTADO do Cerebro em 3 colunas:
+//   Dendritos (entradas: perguntas da anamnese que disparam ligacoes)
+//   Corpo Celular (doencas acesas + escore)
+//   Axonios (saidas: indicacoes de dieta/treino/formula/injetavel via item_doenca)
+// =============================================================================
+
+// Deriva um valor de resposta que SATISFAZ o gatilho de uma ligacao, para montar
+// os perfis de teste do Modo Simular sem hardcode (gatilho ">=2" -> 2, "sim" -> "sim").
+function valorQueDispara(gatilho: string | null): string | number {
+  if (gatilho == null || gatilho === "") return "sim";
+  if (gatilho.startsWith(">=")) return Number(gatilho.slice(2));
+  if (gatilho.startsWith(">")) return Number(gatilho.slice(1)) + 1;
+  return gatilho;
+}
+
+// ---- GET: grafo conectado + perfis de teste (Requisitos 1 e 2) ----
+router.get("/motor/craniotomia", async (_req, res): Promise<void> => {
+  const ligacoes = await db.select().from(perguntaDoencaTable);
+  const axoniosRaw = await db.select().from(itemDoencaTable);
+
+  // Conjunto de doencas e perguntas que de fato participam de alguma ligacao.
+  const doeIds = new Set<number>();
+  const pIds = new Set<string>();
+  for (const l of ligacoes) {
+    doeIds.add(l.doencaIdIhe);
+    pIds.add(l.perguntaId);
+  }
+  for (const a of axoniosRaw) doeIds.add(a.doencaIdIhe);
+
+  const perguntasAll = await db.select().from(anamneseQuestionarioTable);
+  const dendritos = perguntasAll
+    .filter((p) => p.perguntaId && pIds.has(p.perguntaId))
+    .map((p) => ({
+      perguntaId: p.perguntaId as string,
+      pergunta: p.pergunta ?? p.perguntaId,
+      bloco: p.bloco ?? null,
+      sistema: p.sistema ?? null,
+      eSinalAlarme: !!p.eSinalAlarme,
+      opcoes: (p.opcoes as unknown) ?? null,
+    }));
+
+  const doencasAll = await db.select().from(catalogoDoencasTable);
+  const corpoCelular = doencasAll
+    .filter((d) => doeIds.has(d.idIhe))
+    .map((d) => ({ idIhe: d.idIhe, nomeDoenca: d.nomeDoenca ?? `Doenca ${d.idIhe}`, grupo: d.grupo ?? null }));
+
+  const axonios = axoniosRaw.map((a) => ({
+    id: a.id,
+    itemTipo: a.itemTipo,
+    itemRef: a.itemRef,
+    itemNome: a.itemNome ?? a.itemRef,
+    doencaIdIhe: a.doencaIdIhe,
+    peso: a.peso ?? 1,
+  }));
+
+  // Perfis de teste do Modo Simular: um por doenca conectada (responde as
+  // perguntas que a acendem) + um perfil que dispara TODOS os dendritos.
+  const ligacoesPorDoenca = new Map<number, typeof ligacoes>();
+  for (const l of ligacoes) {
+    const arr = ligacoesPorDoenca.get(l.doencaIdIhe) ?? [];
+    arr.push(l);
+    ligacoesPorDoenca.set(l.doencaIdIhe, arr);
+  }
+  const nomePorDoenca = new Map(corpoCelular.map((d) => [d.idIhe, d.nomeDoenca]));
+  const perfis: { id: string; nome: string; respostas: RespostaMotor[] }[] = [];
+  for (const [doeId, lks] of ligacoesPorDoenca) {
+    perfis.push({
+      id: `doenca-${doeId}`,
+      nome: `ACENDE: ${nomePorDoenca.get(doeId) ?? `Doenca ${doeId}`}`,
+      respostas: lks.map((l) => ({ perguntaId: l.perguntaId, valor: valorQueDispara(l.gatilhoValor) })),
+    });
+  }
+  if (ligacoes.length) {
+    perfis.unshift({
+      id: "todos",
+      nome: "TODOS OS DENDRITOS (acende tudo)",
+      respostas: ligacoes.map((l) => ({ perguntaId: l.perguntaId, valor: valorQueDispara(l.gatilhoValor) })),
+    });
+  }
+
+  res.json({
+    dendritos,
+    corpoCelular,
+    axonios,
+    ligacoes: ligacoes.map((l) => ({
+      id: l.id,
+      perguntaId: l.perguntaId,
+      doencaIdIhe: l.doencaIdIhe,
+      gatilhoValor: l.gatilhoValor,
+      peso: l.peso ?? 1,
+    })),
+    perfis,
+  });
+});
+
+// ---- POST: simular um perfil e devolver quais nos acendem (Requisito 3) ----
+router.post("/motor/craniotomia/simular", async (req, res): Promise<void> => {
+  const body = (req.body ?? {}) as { respostas?: RespostaMotor[] };
+  const respostas = Array.isArray(body.respostas) ? body.respostas : [];
+  const mapResp = new Map<string, string | number>();
+  for (const r of respostas) mapResp.set(r.perguntaId, r.valor);
+
+  const ligacoes = await db.select().from(perguntaDoencaTable);
+  const axoniosRaw = await db.select().from(itemDoencaTable);
+
+  const doencasAcesas = new Set<number>();
+  const dendritosAcionados = new Set<string>();
+  for (const l of ligacoes) {
+    if (!mapResp.has(l.perguntaId)) continue;
+    if (gatilhoBate(l.gatilhoValor, mapResp.get(l.perguntaId)!)) {
+      doencasAcesas.add(l.doencaIdIhe);
+      dendritosAcionados.add(l.perguntaId);
+    }
+  }
+  const axoniosAcionados = axoniosRaw
+    .filter((a) => doencasAcesas.has(a.doencaIdIhe))
+    .map((a) => a.id);
+
+  const resultado = await computeMotor(respostas);
+  res.json({
+    escoreTotal: resultado.escoreTotal,
+    gradeGlobal: resultado.gradeGlobal,
+    redFlag: resultado.redFlag,
+    dendritosAcionados: Array.from(dendritosAcionados),
+    doencasAcesas: Array.from(doencasAcesas),
+    axoniosAcionados,
+  });
+});
+
+// ---- PATCH: editar o peso de um axonio (ligacao doenca->saida) in situ (Req 4) ----
+router.patch("/motor/axonio/:id/peso", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const body = (req.body ?? {}) as { peso?: unknown };
+  const peso = Number(body.peso);
+  if (!Number.isInteger(peso) || peso < 0 || peso > 99) {
+    res.status(400).json({ error: "peso deve ser inteiro entre 0 e 99" });
+    return;
+  }
+  const [updated] = await db
+    .update(itemDoencaTable)
+    .set({ peso })
+    .where(eq(itemDoencaTable.id, id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "axonio nao encontrado" });
+    return;
+  }
+  res.json({ id: updated.id, peso: updated.peso ?? peso });
 });
 
 export default router;
