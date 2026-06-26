@@ -143,9 +143,12 @@ Decisao (uma so, A/B/C):
   A) Mover a logo dessas duas telas para o canto superior esquerdo.
 
   B) Remover a logo do cabecalho dessas telas, ja que a barra lateral
-     esquerda ja exibe a marca (default recomendado).
+     esquerda ja exibe a marca.
 
   C) Manter como esta (topo-direito tambem dentro do sistema).
+
+DECISAO DO CEO (26/06/2026): opcao C. A logo fica no topo-direito tambem
+dentro dessas duas telas novas. Nenhuma mudanca de codigo. Arte intacta.
 
 --------------------------------------------------------------------------
 
