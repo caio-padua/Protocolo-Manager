@@ -283,7 +283,18 @@ O cliente DESCOBRE clicando.
 | Campo de categoria no banco (clientsTable) | A CRIAR (não existe hoje) |
 | União com upload de exames (aba ENVIAR) | JÁ EXISTE — Solicitar Exames reaproveita |
 
-### 10.3 Acesso de quem NÃO é cliente (prospect) — DECISÃO PENDENTE
-Recomendação do agente: NÃO deixar prospect entrar na área real (dados clínicos/PII;
-dilui exclusividade). Em vez disso, uma VITRINE/DEMO separada (só leitura, dados
-fictícios) depois. Aguardando o CEO escolher (A/B/C).
+### 10.3 Acesso de quem NÃO é cliente (prospect) — DECISÃO B (CEO 26/06/2026)
+[MARTELO CEO 26/06/2026] Escolha B: fazer a VITRINE/DEMO pública JÁ AGORA, em
+paralelo. Prospect NUNCA entra na área real (dados clínicos/PII; preserva
+exclusividade). A vitrine é página separada, SÓ LEITURA, dados de EXEMPLO, sem
+login, sem PII real, com CTA único "QUERO SER CLIENTE" + link "Já sou cliente".
+
+| Regra da vitrine | Detalhe |
+|---|---|
+| Pública / sem login | Qualquer um abre; nada de CPF nem senha |
+| Só leitura + dados de exemplo | Persona fictícia; jornada/Círculos ilustrativos; sem PII |
+| Fita "DEMONSTRAÇÃO" | Topo sempre marcado, para não confundir com a área real |
+| CTA único | "QUERO SER CLIENTE" (depois: leva a cadastro/contato) + "Já sou cliente — entrar" |
+| Sem preço | Os Círculos aparecem como escada aspiracional; preço só na consulta |
+| Mockup | ENTREGA 39 (Canvas) — componente `vitrine-demo/VitrineDemo.tsx` |
+| Rota real (a construir) | Página pública separada da `/area`; graduar depois do aval. do CEO |
