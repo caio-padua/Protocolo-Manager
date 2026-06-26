@@ -7,8 +7,10 @@ Hoje o motor (computeMotor, no anamnese-portal submit) gera EXAMES sozinho. FORM
 
 Decisao do CEO (Dr. Caio): manter pre-cabeado; ativar em onda futura, nao agora.
 
-**Pre-requisito antes de ligar a chave (gotcha):** item_doenca.item_ref e GENERICO. Antes de o motor rotear para o catalogo certo, e preciso saber se o ref e formula, injetavel ou implante (catalogo_formulas / catalogo_injetaveis / catalogo_implantes). Sem o tipo do item, o motor erra de catalogo.
+**Correcao (26/06/2026 - confiar no codigo, nao na nota antiga):** o campo `item_doenca.item_tipo` JA EXISTE (valores hoje: formula | injetavel | implante | substance) ao lado de `item_ref`. A nota antiga dizia "falta o tipo" - estava desatualizada. O tipo esta la; quem roteia ao catalogo certo e o item_tipo.
 
-**Why:** sem distinguir o tipo, um unico item_ref nao tem como mapear ao catalogo correto, e a sugestao sairia errada em producao.
+**O que realmente falta para ligar a chave:** (1) o motor fazer o JOIN no submit (anamnese-portal computeMotor so gera EXAMES hoje; nao consulta item_doenca para formula/injetavel/implante); (2) estender os valores de `item_tipo` (e de `motor_sugestao_item.tipo` e `motor_regras.segmento`, todos `text` livre) para incluir dieta/treino quando esses orgaos nascerem.
 
-**How to apply:** quando for ativar os bracos laranja, primeiro adicionar/definir o tipo do item em item_doenca; e (divida ja conhecida) migrar a ligacao doenca->exame de TEXTO (bloco_motor "B1/B2") para id.
+**Why:** o roteamento por catalogo depende do item_tipo (ja presente); o que impede a sugestao sair e a ausencia do join no submit, nao a ausencia do campo.
+
+**How to apply:** ao ativar os bracos, implementar o join por item_tipo no computeMotor; e (divida ja conhecida) migrar a ligacao doenca->exame de TEXTO (bloco_motor "B1/B2") para id.
