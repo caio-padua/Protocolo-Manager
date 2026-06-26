@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt, ExternalLink, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -47,6 +47,11 @@ export default function ClientDetail() {
   const [payCardLabel, setPayCardLabel] = useState("");
   const [payDescription, setPayDescription] = useState("");
 
+  const [showAsaasForm, setShowAsaasForm] = useState(false);
+  const [asaasAmount, setAsaasAmount] = useState("");
+  const [asaasDesc, setAsaasDesc] = useState("");
+  const [asaasDate, setAsaasDate] = useState("");
+
   const createPayment = useMutation({
     mutationFn: async () => {
       const res = await fetch(`${apiBase}/payments`, {
@@ -74,6 +79,38 @@ export default function ClientDetail() {
       setPayDescription("");
       setPayCardLabel("");
       setPayInstallments("1");
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createAsaasCharge = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiBase}/asaas/charge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: id,
+          amount: parseFloat(asaasAmount),
+          description: asaasDesc || undefined,
+          dueDate: asaasDate || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Erro ao gerar cobranca");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Cobranca gerada!", description: "Link de pagamento criado no Asaas." });
+      queryClient.invalidateQueries({ queryKey: getListPaymentsQueryKey({ clientId: id }) });
+      setShowAsaasForm(false);
+      setAsaasAmount("");
+      setAsaasDesc("");
+      setAsaasDate("");
+      if (data?.invoiceUrl) window.open(data.invoiceUrl, "_blank");
     },
     onError: (err: any) => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -362,10 +399,63 @@ export default function ClientDetail() {
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2">
                   <DollarSign className="h-3 w-3 text-primary" /> Lançamentos Financeiros
                 </div>
-                <Button className="btn-3d h-8 text-[10px] font-black" onClick={() => setShowPaymentForm(!showPaymentForm)}>
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> NOVO PAGAMENTO
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button className="btn-3d-soft h-8 text-[10px] font-black" onClick={() => { setShowAsaasForm(!showAsaasForm); setShowPaymentForm(false); }}>
+                    <Zap className="w-3.5 h-3.5 mr-1.5 text-primary" /> COBRAR PELO ASAAS
+                  </Button>
+                  <Button className="btn-3d h-8 text-[10px] font-black" onClick={() => { setShowPaymentForm(!showPaymentForm); setShowAsaasForm(false); }}>
+                    <Plus className="w-3.5 h-3.5 mr-1.5" /> NOVO PAGAMENTO
+                  </Button>
+                </div>
               </div>
+
+              {showAsaasForm && (
+                <Card className="panel-3d border-primary/30 animate-in zoom-in-95 duration-200">
+                  <CardContent className="p-6 space-y-6">
+                    <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2">
+                      <Zap className="h-3 w-3 text-primary" /> Cobranca online (PIX / Boleto / Cartao) — pagina hospedada Asaas
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] uppercase tracking-[0.2em] font-black text-muted-foreground">Valor (R$) — minimo 5,00</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="5"
+                          placeholder="0,00"
+                          className="field-engraved h-10 text-sm font-bold"
+                          value={asaasAmount}
+                          onChange={e => setAsaasAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] uppercase tracking-[0.2em] font-black text-muted-foreground">Vencimento (opcional)</label>
+                        <Input type="date" className="field-engraved h-10 text-sm font-bold" value={asaasDate} onChange={e => setAsaasDate(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] uppercase tracking-[0.2em] font-black text-muted-foreground">Descricao (opcional)</label>
+                        <Input
+                          placeholder="Ex: Protocolo injetavel"
+                          className="field-engraved h-10 text-sm font-bold"
+                          value={asaasDesc}
+                          onChange={e => setAsaasDesc(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                      <Button className="btn-3d-soft" onClick={() => setShowAsaasForm(false)}>CANCELAR</Button>
+                      <Button
+                        className="btn-3d px-6"
+                        onClick={() => createAsaasCharge.mutate()}
+                        disabled={!asaasAmount || parseFloat(asaasAmount) < 5 || createAsaasCharge.isPending}
+                      >
+                        {createAsaasCharge.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                        GERAR LINK DE PAGAMENTO
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {showPaymentForm && (
                 <Card className="panel-3d border-primary/30 animate-in zoom-in-95 duration-200">
@@ -487,7 +577,10 @@ export default function ClientDetail() {
                         debit_card: "CARTÃO DÉBITO",
                         transfer: "TRANSFERÊNCIA",
                         insurance: "CONVÊNIO",
+                        asaas: "ASAAS (LINK)",
                       }[payment.method as string] || (payment.method as string).toUpperCase();
+
+                      const invoiceUrl = (payment as any).asaasInvoiceUrl as string | null;
 
                       return (
                         <div key={payment.id} className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
@@ -512,7 +605,15 @@ export default function ClientDetail() {
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right flex items-center gap-3">
+                            {invoiceUrl && payment.status !== "paid" && (
+                              <Button
+                                className="btn-3d h-8 text-[10px] font-black"
+                                onClick={() => window.open(invoiceUrl, "_blank")}
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> PAGAR
+                              </Button>
+                            )}
                             <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums">
                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payment.amount)}
                             </div>

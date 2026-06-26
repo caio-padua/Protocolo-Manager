@@ -18,6 +18,8 @@ export const clientsTable = pgTable("clients", {
   validationPassword: text("validation_password"),
   examRequestsFolderId: text("exam_requests_folder_id"),
   driveFolderId: text("drive_folder_id"),
+  asaasCustomerId: text("asaas_customer_id"),
+  stripeCustomerId: text("stripe_customer_id"),
   codigoSemantico: text("codigo_semantico"),
   fichaClinica: jsonb("ficha_clinica").default({}),
   needsReview: boolean("needs_review").notNull().default(false),

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CreditCard, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, XCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
@@ -145,6 +145,15 @@ export default function Payments() {
                     <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums text-sm">
                       R$ {payment.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </div>
+                    {(payment as any).asaasInvoiceUrl && payment.status !== "paid" && (
+                      <Button
+                        size="sm"
+                        className="btn-3d"
+                        onClick={() => window.open((payment as any).asaasInvoiceUrl, "_blank")}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> PAGAR
+                      </Button>
+                    )}
                     {payment.status === "pending" && (
                       <Button
                         size="sm"

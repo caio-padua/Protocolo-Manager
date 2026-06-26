@@ -9,6 +9,7 @@ export * from "./ras";
 export * from "./ras-evolutivo";
 export * from "./stock";
 export * from "./payments";
+export * from "./app-settings";
 export * from "./validation-codes";
 export * from "./nursing-assessments";
 export * from "./task-cards";

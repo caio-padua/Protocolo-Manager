@@ -40,8 +40,13 @@ import siteContentRouter from "./site-content";
 import schedulingRouter from "./scheduling";
 import storageRouter from "./storage";
 import collaboratorRouter, { collaboratorGuard } from "./collaborator";
+import asaasRouter from "./asaas";
 
 const router: IRouter = Router();
+
+// Pagamentos Asaas (cobranca + webhook): registrado ANTES do portao de
+// colaborador para o webhook externo do Asaas nao ser bloqueado.
+router.use(asaasRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
