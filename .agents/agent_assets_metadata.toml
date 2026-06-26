@@ -173,3 +173,9 @@ id = "fuoeTnqzYvYWcXtX1xPuw"
 uri = "file://screenshots/fonte-4-lora.jpg"
 type = "image"
 title = "Modelo 4 — Lora (mais legivel)"
+
+[[outputs]]
+id = "UroCHgizuA93aAqaKF_V5"
+uri = "file://cartas/2026-06-26_CLAUDE_master-loop-paxter.md"
+type = "text"
+title = "Carta ao Dr. Claude — Master Loop Paxter (6 ondas)"
