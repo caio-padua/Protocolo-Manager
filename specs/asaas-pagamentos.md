@@ -47,15 +47,19 @@ sozinho (webhook) e atualizando o status no app — começando em ambiente de te
 6. Guardar o id do Customer na tabela `clients` em nova coluna `asaasCustomerId`; se já existir, não
    recriar (idempotente — repetir não duplica).
 
-### 3.3 Cobrança avulsa (parte A)
-7. Na tela de detalhe do cliente, aba Financeiro, ao criar um lançamento o operador pode escolher
-   **"Cobrar pelo Asaas"** com forma PIX, boleto ou cartão.
-8. Ao cobrar: cria a cobrança no Asaas, salva no `payments` o id da cobrança (`asaasChargeId`), o
-   link da fatura (`asaasInvoiceUrl`), e — quando PIX — o QR Code (`pixQrCode` imagem base64) e o
-   "copia e cola" (`pixCopyPaste`); quando boleto, a linha digitável / URL do boleto.
-9. A tela mostra o QR Code do PIX, o botão "copiar código PIX", e o link da fatura. Boleto mostra
-   linha digitável + link.
-10. Cartão parcelado respeita o limite atual de 1 a 12 parcelas (não regredir regra existente).
+### 3.3 Cobrança avulsa (parte A) — caminho principal: PÁGINA HOSPEDADA (clica e paga)
+7. Na tela de detalhe do cliente, aba Financeiro, ao criar um lançamento o operador escolhe
+   **"Cobrar pelo Asaas"**. A forma de pagamento é decidida pelo CLIENTE na página segura do Asaas
+   (PIX, boleto E cartão na mesma página) — não travamos uma única forma, para não perder fonte.
+8. Ao cobrar: cria a cobrança no Asaas e salva no `payments` o id (`asaasChargeId`) e o LINK DA
+   PÁGINA DE PAGAMENTO certificada (`asaasInvoiceUrl`).
+9. O caminho principal do cliente é UM botão **"PAGAR"** que abre a página certificada do Asaas
+   (`invoiceUrl`), onde ele paga cartão/PIX/boleto sem copiar e colar nada. QR Code e "copia e
+   cola" do PIX são apenas alternativa secundária (guardados em `pixQrCode`/`pixCopyPaste`, exibidos
+   só se o cliente pedir), NUNCA o caminho principal.
+10. Cartão parcelado via Asaas: até 21x (Visa/Mastercard) e 12x demais bandeiras, conforme a
+    plataforma (decisão do CEO em 26/06/2026: usar o melhor parcelamento disponível). O lançamento
+    manual existente mantém seu limite atual; a regra de 21x vale só para o caminho Asaas.
 
 ### 3.4 Confirmação automática (webhook) — parte A
 11. Rota `POST /api/asaas/webhook` recebe eventos do Asaas. Ao evento de pagamento confirmado
@@ -87,8 +91,25 @@ sozinho (webhook) e atualizando o status no app — começando em ambiente de te
     de item de menu próprio, pois é ação dentro de uma tela que já tem menu).
 
 ### 3.8 Visão do cliente (somente leitura)
-22. Na Área do Cliente / portal, o cliente vê suas cobranças em aberto com o QR Code do PIX / link,
-    apenas para pagar — sem criar nem editar nada (sem nova superfície de escrita com PII).
+22. Na Área do Cliente / portal, o cliente vê suas cobranças em aberto, cada uma com UM botão
+    **"PAGAR"** que abre a página certificada do Asaas — apenas para pagar, sem criar nem editar
+    nada (sem nova superfície de escrita com PII).
+
+### 3.9 Experiência premium do cliente — "Central de Pagamentos PAXTER"
+23. Caminho de UM clique: em todo lugar onde aparece uma cobrança (Área do Cliente, e-mail,
+    WhatsApp), o botão **"PAGAR"** leva direto à página certificada do Asaas. O cliente NUNCA copia
+    e cola, NUNCA digita chave; ele clica e paga.
+24. Pagar o que está atrasado: a Central lista as cobranças em aberto E as vencidas (overdue), cada
+    uma com "PAGAR". Cobrança vencida pode ser paga no cartão (parcelado) na própria página.
+25. "PAGAR TUDO": opção que soma as cobranças em aberto/vencidas do cliente numa única ida à página
+    de pagamento (gerando uma cobrança consolidada quando fizer sentido), para quitar de uma vez.
+26. Cofre de cartão (1 clique futuro): quando o cliente já pagou de cartão uma vez, oferecer salvar
+    o cartão no cofre do Asaas (tokenizado, fora do nosso servidor) para o próximo pagamento ser de
+    um toque. Opcional e com consentimento.
+27. Envio do link: botão para enviar o link "PAGAR" por WhatsApp e por e-mail ao cliente, com a
+    marca PAXTER.
+28. Certificação: o cartão é digitado SOMENTE na página certificada do Asaas (PCI DSS = Padrão de
+    Segurança de Dados da Indústria de Cartões). O dado do cartão NUNCA passa pelo nosso servidor.
 
 ---
 
@@ -145,7 +166,8 @@ Todo mês o Asaas gera a cobrança e, ao pagar -> webhook -> atualiza membership
 
 | Critério | Como conferir |
 |---|---|
-| Cobrança PIX criada no sandbox aparece com QR Code e copia-e-cola na tela | runtime + screenshot |
+| Botão "PAGAR" abre a página certificada do Asaas (cliente paga cartão/PIX/boleto sem copiar e colar) | runtime + screenshot |
+| Central de Pagamentos lista cobranças em aberto E vencidas, com "PAGAR" e "PAGAR TUDO" | runtime + screenshot |
 | Pagamento simulado no sandbox cai via webhook e vira "paid" sozinho | runtime (log do webhook + status muda) |
 | Assinatura de um Círculo criada no sandbox com cobrança mensal | runtime + registro em `memberships` |
 | Entrada de menu "Assinaturas (Círculos)" existe e abre a tela (REGRA DE OURO) | abrir o menu |
@@ -161,6 +183,8 @@ Todo mês o Asaas gera a cobrança e, ao pagar -> webhook -> atualiza membership
 2. NUNCA marcar pagamento como "pago" sem confirmação real (webhook do Asaas) — nada de "fingir pago".
 3. NUNCA começar em produção: build e teste primeiro no sandbox (dinheiro de mentira).
 4. NÃO quebrar o Financeiro manual atual (continua existindo para quem paga por fora).
+4-A. O caminho do cliente é SEMPRE "clicar e pagar" na página certificada; copia-e-cola/QR é só
+   alternativa secundária, nunca o que se mostra primeiro (exigência do CEO em 26/06/2026).
 5. NÃO regredir a regra de parcelas (1 a 12) nem o cálculo de saldo existente.
 6. NÃO criar coluna `notNull` em tabela já populada sem ALTER/truncate prévio.
 7. NÃO inventar tag de origem entre sistemas (conceito raiz dos primos independentes).
