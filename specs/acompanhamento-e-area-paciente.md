@@ -202,3 +202,49 @@ colidir, vou chamar essas peças componíveis de MÓDULO, nunca "sessão".
 RESUMO EM 1 LINHA: SIM, o Acompanhamento é um MÓDULO componível (com canais WhatsApp/App/médico, queixa
 com prazo VIP e caixa de entrada global) que o Cockpit puxa igual aos outros — e "sessão" fica reservada
 para agendamento, então as peças se chamam MÓDULO.
+
+---
+
+## 9. Menu do Cliente — botão SOLICITAÇÕES + classificação Hermès (CEO 26/06/2026)
+
+[MARTELO CEO 26/06/2026] A Área do Cliente ganha um 3º botão principal: **SOLICITAÇÕES** (ao lado de
+Remarcar Consulta e Meu Protocolo). O acesso/gratuidade de cada solicitação depende da CATEGORIA do
+cliente. Mockup vivo: `area-cliente/AreaCliente.tsx` (ENTREGA 38 no Canvas).
+
+### 9.1 Classificação dos clientes (4 categorias, nomes escolhidos pelo agente)
+
+| Categoria | Faixa | Regra de solicitações |
+|---|---|---|
+| NOIR | 1ª — Topo | Solicitações à vontade, sem custo (concierge ilimitado) |
+| PLATINA | 2ª | Cortesias mensais incluídas + excedente pago |
+| OURO | 3ª | Todas as solicitações pagas (com desconto) |
+| BRONZE | 4ª — Base | Todas as solicitações pagas (preço cheio) |
+
+Regra do CEO: a categoria TOP (NOIR) é gratuita à vontade; as duas inferiores (OURO e BRONZE) são
+tudo pago. PLATINA é o meio-termo (algumas cortesias, excedente pago). Nomes são fáceis de renomear.
+
+### 9.2 Subtítulos do botão SOLICITAÇÕES (o que o cliente pode pedir)
+
+| Solicitação | O que é | Construído hoje? |
+|---|---|---|
+| Solicitar Exames | Novos exames para o acompanhamento | SIM (exam-requests existe) |
+| Encaminhamento | Indicação a outro especialista | SIM (documento existe) |
+| Laudo Médico | Documento do estado de saúde | SIM (documento existe) |
+| Atestado | Comparecimento ou afastamento | SIM (documento existe) |
+| Fórmula à Parte | Manipulado para uma queixa específica | SIM (receita existe) |
+| Abrir Queixa / Pedir Contato | A equipe entra em contato | PENDENTE (sem fluxo próprio) |
+| Renovar Receita | Continuidade do tratamento | PENDENTE |
+| 2ª Via de Documento | Reemitir documento já gerado | PENDENTE |
+
+Os itens PENDENTE aparecem no mockup com selo âmbar "PENDENTE" para não se perder (pedido do CEO).
+
+### 9.3 Provedor de pagamento (recomendação para as categorias pagas)
+
+| Opção | Por que | Recomendação |
+|---|---|---|
+| Asaas | Brasileiro, nasceu para clínicas/profissionais; PIX/boleto/cartão; link de pagamento pronto (leigo só clica); API simples; SPLIT nativo (essencial para repasse ao médico assistente); taxas competitivas | DEFAULT |
+| Mercado Pago | Mais reconhecido pelo paciente; checkout fácil; PIX | Alternativa (split/taxas menos ideais) |
+| Pagar.me (Stone) | Robusto, split, boa API | Alternativa (mais "empresarial") |
+
+O dinheiro cai na conta do CEO (Bradesco/Santander) por transferência/PIX do provedor. Integração real
+só após o CEO criar a conta e fornecer a credencial (secret) — não construir cobrança antes disso.
