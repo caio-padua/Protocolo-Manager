@@ -248,3 +248,34 @@ Os itens PENDENTE aparecem no mockup com selo âmbar "PENDENTE" para não se per
 
 O dinheiro cai na conta do CEO (Bradesco/Santander) por transferência/PIX do provedor. Integração real
 só após o CEO criar a conta e fornecer a credencial (secret) — não construir cobrança antes disso.
+
+---
+
+## 10. Motor de DESEJO na Área do Cliente (CEO 26/06/2026)
+
+[MARTELO CEO 26/06/2026] A Área do Cliente é UMA só (porta única; fonte única de
+verdade, um login). A categoria é um ATRIBUTO do cliente dentro dessa porta, nunca
+uma área separada por plano.
+
+### 10.1 Requisitos do desejo
+| Requisito | Regra |
+|---|---|
+| Plano em destaque | A categoria do cliente aparece em destaque (moldura ouro + selo grande) |
+| Ver os outros planos | Lista comparada dos 4 planos, com o do cliente realçado |
+| Incluso x pago | Cada solicitação mostra se está inclusa ou o preço no plano do cliente; hint "Grátis no NOIR" |
+| Gatilho de upgrade | "Subindo para o plano acima, estes itens passam a inclusos / você economiza R$ X/mês" |
+| Upgrade na hora | Botão "FAZER UPGRADE AGORA" → gera contrato (documento) + link de pagamento |
+
+### 10.2 Viável hoje x pendente
+| Parte | Estado |
+|---|---|
+| Tela do desejo + comparativo + botão upgrade | PRONTO (mockup ENTREGA 38) |
+| Geração de contrato do upgrade | VIÁVEL (já geramos PDF/documento) |
+| Link de pagamento real (Asaas/MercadoPago/Pagar.me) | PENDENTE conta + credencial do CEO |
+| Campo de categoria no banco (clientsTable) | A CRIAR (não existe hoje) |
+| União com upload de exames (aba ENVIAR) | JÁ EXISTE — Solicitar Exames reaproveita |
+
+### 10.3 Acesso de quem NÃO é cliente (prospect) — DECISÃO PENDENTE
+Recomendação do agente: NÃO deixar prospect entrar na área real (dados clínicos/PII;
+dilui exclusividade). Em vez disso, uma VITRINE/DEMO separada (só leitura, dados
+fictícios) depois. Aguardando o CEO escolher (A/B/C).
