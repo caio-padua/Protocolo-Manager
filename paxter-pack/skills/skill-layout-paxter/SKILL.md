@@ -17,6 +17,8 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/alinhamento-espacamento.md` | alinhar por linhas-guia visiveis e definir espacamento (respiro 3D) |
 | `references/revisao-final.md` | ao TERMINAR uma tela: checklist "como cliente" + paridade celular x desktop |
 | `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
+| `references/marca/marca.md` | usar a LOGO: qual peca (loginho com vidro x logo sem vidro) usar em cada fundo; molde visual numerado (`molde-paxter.png`) + referencia de codigo de cada peca |
+| `references/relevo-3d-ouro/tecnica.md` | renderizar TEXTO/WORDMARK/selo em ALTO-RELEVO 3D DOURADO (ex.: "PAXTER" no topo claro): receita das 3 camadas (parede/face/halo), valores testados e armadilhas (contorno "carcomido", tema escuro intacto) + imagens antes/depois. Ler ANTES de mexer em wordmark/selo dourado em relevo |
 
 Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
 INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar
@@ -66,10 +68,19 @@ As definicoes vivem em `artifacts/padcom/src/index.css` (procurar `.panel-3d`, `
 
 ## 2. Tokens da marca
 
+PIVOT NAVY/OURO (lei promulgada em 23/06/2026): a marca Paxter passou a ser **navy + ouro**. O
+verde-petroleo (`#3D7A7A`) e o ciano (`#45B8CC`) SAIRAM do chrome de marca. As classes 3D do
+`index.css` (`btn-3d`, `panel-3d`, `bevel-3d`, etc.) ja foram reapontadas para navy/ouro — por isso,
+onde as tabelas abaixo dizem "verde-petroleo", LEIA navy: a CLASSE e a fonte-da-verdade, o nome da
+cor e legado. Verde, ambar, vermelho e ciano sobrevivem SO como cor de STATUS (ver 4.3), nunca como
+chrome de marca.
+
 | Token | Valor | Uso |
 |---|---|---|
-| Verde-petroleo (primary) | `#3D7A7A` / `hsl(180 30% 28%)` | Sidebar, titulos, barras preenchidas |
-| Ciano (accent) | `#45B8CC` / `hsl(187 72% 48%)` | Destaque do item atual, halos, anel de foco |
+| Navy (primary) | `#16284a` | Sidebar, headers, CTA primario, titulos, barras preenchidas |
+| Ouro (accent) | dourado 3D (clip + text-shadow) | Wordmark, molduras, aneis, selos, realce premium |
+| Ciano | `#45B8CC` / `hsl(187 72% 48%)` | SO status "etapa atual" / foco; nunca chrome de marca |
+| Verde / ambar / vermelho | tailwind green / amber / red | SO status: concluido / limite / erro |
 | Branco | `#FFFFFF` | Fundo de paineis claros |
 | Cantos | radius 6px a 8px (`0.25rem`–`0.375rem`) | SEMPRE quadrados; nunca pill/arredondado infantil |
 | Labels KPI | MAIUSCULO + `tracking` expandido | Rotulos de indicador |
@@ -80,6 +91,30 @@ Toggle quadrado (decisao do CEO, 19/06/2026): o `Switch` usa cantos bem quadrado
 
 Estilo: elegante, empirico, sem infantilidades. Tema escuro tem variantes `.dark` para
 todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
+
+### 2.1 Tipografia
+
+| Familia | Uso | Onde |
+|---|---|---|
+| Lora (serifa humanista) | Texto de PERGUNTA da anamnese do cliente (calma, legivel, leitura longa) | `.leva-q` (index.css); carregada via Google Fonts em `artifacts/padcom/index.html` |
+| Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros) | padrao do app |
+
+Regra (decisao do CEO, 24/06/2026): a serifa **Lora** e reservada a LEITURA do cliente (pergunta da
+anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses continuam sans/MAIUSCULO.
+
+### 2.2 Pele escura "misto" da anamnese do cliente (/anamnese/v2)
+
+Graduada do mockup `anamnese-escura/FonteLora` em 24/06/2026. **Excecao LOCAL** a regra "ciano =
+foco/atual" (secao 4.3): nesta tela a SELECAO de resposta usa OURO (anel + rotulo), nao ciano. O anel
+de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO virou ouro.
+
+| Elemento | Tratamento | Classe |
+|---|---|---|
+| Painel da pergunta (escuro) | navy "misto" CHAPADO (`#14304f -> #0f2442 -> #0b1c34`), verniz topo ~0.18, SEM vidro/backdrop-filter | `.dark .leva-card` |
+| Chip de resposta ATIVO | anel + rotulo OURO (claro `#b9923f`/`#8a6d2f`; escuro `#c2a05a`/`#f4e2a8`) | `.leva-chip[data-active]` |
+| Ouvir / Video | ciano (`#0e7d92` claro / `#5cc4d6` escuro) | `.leva-action` |
+| Gravar / responder por voz | OURO (`#8a6d2f` claro / `#f0c674` escuro) | `.leva-action-rec` |
+| Foco de teclado | continua CIANO | `:focus-visible` |
 
 ## 3. Padroes de composicao
 
@@ -136,6 +171,20 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   `paxter-led-green` SEM `-on`. A faixa entre parenteses
   degrada para "ate M por mes" (so max) ou "a partir de N por mes" (so min). Cor do neon via
   `--alert-glow`. No mobile o alerta empilha (`flex-col` -> `sm:flex-row`). Variante `.dark` incluida.
+- **LINGUAGEM DE ESTADO (glow raro e intencional)** — calibracao promulgada em 21/06/2026 (queixa do
+  CEO de "luzes muito expandidas" + diagnostico do Dr. Chat). REGRA: o glow NAO e decoracao global; um
+  bloco so "acende" quando ha ESTADO REAL (atencao, atraso, alerta, sucesso) ou no HOVER de desktop.
+  No celular nunca depende de hover. O relevo 3D nunca e apagado — calibra-se so a LUZ (blur, alcance,
+  opacidade), nunca o bevel. Classes e quando usar:
+  | Classe | Quando acende | Cor (significado unico, secao 4.3) |
+  |---|---|---|
+  | `pw-hover-luxury` | hover de desktop apenas (tem guarda `@media (hover:none)`) | luz neutra/ciano discreta |
+  | `is-attention` | bloco pede atencao agora | ambar |
+  | `has-side-beacon` + `beacon-amber`/`beacon-red`/`beacon-green`/`beacon-blue` | farol lateral de estado | ambar=atencao, vermelho=atraso/critico, verde=sucesso, ciano=info/foco |
+  | `pw-urgent` (keyframe `pwUrgent`) | urgencia real que precisa pulsar | vermelho |
+  Calibracao aplicada (referencia): `paxter-underglow::after` mais calmo; `paxter-alert` glow de
+  18px/2px -> 10px/1px e opacidade .55 -> .42 (claro e escuro); `neon-hover::after` reduzido. ANTES de
+  criar classe de luz nova, reusar estas + `paxter-underglow`/`paxter-attention`/`paxter-alert`/LEDs.
 - **Porquinho**: SVG INLINE de PERFIL, vetor achatado (nao 3D), nos tons da marca
   (verde-petroleo + ciano), sem dependencia de imagem externa. Definido direto no banner de
   desconto em `novo.tsx` (substitui o antigo PNG 3D realista).
@@ -227,6 +276,34 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
   proibida; usa-se a caixinha, individual e "marcar todas"). Acoes em massa (lupa expandir/recolher,
   "marcar todas") ficam numa barra de altura fixa (`min-h`) acima da lista, para nao empurrar as
   linhas. Todo `Checkbox` sem texto visivel ao lado recebe `aria-label` descritivo.
+- **Padrao 14 — SIMBOLO DA MARCA EM MEDALHAO DE VIDRO (lei promulgada em 23/06/2026)**: o
+  simbolo premium do Paxter (aura+faixa+faisca) NUNCA aparece cru nem dentro de um quadradinho
+  improvisado; vai SEMPRE dentro do medalhao de vidro nitido, por UMA fonte unica:
+  `components/layout/paxter-fx/PaxterSymbolGlass.tsx`. Props: `size` (px do simbolo; padding e
+  raio escalam sozinhos) e `tone` — `dark` (vidro navy translucido, para QUALQUER fundo escuro:
+  sidebar, headers navy, splash) e `light` (vidro champanhe um tom ACIMA do painel, SO em
+  fundo claro). O `tone` vai no wrapper, nunca no simbolo. Vale para TODOS os simbolos da marca,
+  internos e externos (sidebar, anamnese, /anamnese/v2, portal, area, agendar, entrada). UNICA
+  EXCECAO: o SITE publico (`abertura.tsx`, variant `hero` do lockup) segue chapado (sem vidro),
+  por ser a superficie "cartaz". Acessibilidade: o simbolo e DECORATIVO (`aria-hidden` + `alt=""`);
+  ele sempre acompanha o texto "PAXTER" visivel, que ja carrega o nome ao leitor de tela — nao
+  duplicar com `alt="PAXTER"`.
+
+- **Padrao 15 — FAIXA DA IA EM AREAS FIXAS (lei promulgada em 25/06/2026, Mesa de Validacao Clinica)**:
+  quando a inteligencia artificial organiza dados clinicos para o medico, ela NUNCA escreve paragrafo
+  corrido; preenche QUADRANTES de posicao fixa, cada um com rotulo MAIUSCULO + 2-3 topicos curtos (a
+  mesma Densidade B do CEO dentro da tela). A faixa inteira e um `panel-3d` com borda de destaque
+  (roxo-IA `#6a78c4`, `borderWidth: 2`), titulo em `bevel-3d` com icone `Sparkles`, um chip "REVISAR"
+  no canto superior direito e SEMPRE um aviso em rodape ("texto gerado por inteligencia artificial...
+  requer revisao e validacao do medico", com icone `AlertTriangle`). Os quadrantes sao `concave-3d`
+  numa grade FIXA (`grid-cols-2`), nunca `flex-wrap`. A IA PODE comentar correlacao exames<->sintomas,
+  mas o conteudo e sempre revisavel — nunca vira conduta automatica. A IA organiza/redige o que JA esta
+  visual na tela; ela nao substitui os achados estruturados do motor, so os apresenta melhor.
+- **Padrao 16 — BLOCO DE ASSINATURA DO MEDICO (Mesa de Validacao Clinica, 25/06/2026)**: a assinatura
+  e a IMAGEM (JPEG) vinda do cadastro do profissional, exibida numa mini-tela `screen-3d`, ao lado do
+  carimbo (CRM/COREN) e do botao `btn-3d` "Assinar PDF". O documento assinado mostra selo verde
+  ICP-Brasil (`ShieldCheck` esmeralda). Em producao a assinatura NUNCA e fonte cursiva digitada — e
+  sempre o JPEG cadastrado; a fonte cursiva no mockup e so placeholder visual.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
@@ -290,7 +367,34 @@ uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `backgr
 - `Apresentacao` reidrata `itemVolumeTiers` do catalogo por `catalogId` (snapshot do
   orcamento nao persiste override de faixas).
 
-## 6. Linha vermelha (nao cruzar)
+## 6. As tres telas-mae (peles de layout do sistema)
+
+Decisao do CEO (23/06/2026): o sistema tem TRES layouts-mae ("peles"). Toda tela nova NASCE de uma
+delas — nunca um layout avulso. O motor 3D skeuomorfico e a marca sao os mesmos nas tres; o que muda
+e O PUBLICO (quem usa) e o AMBIENTE (claro/escuro, densidade). Nomear cada tela e conceitua-la AQUI
+e pre-requisito para construir/redesenhar qualquer pagina.
+
+| Nº | Nome OFICIAL | Apelido (entre parenteses) | Quem usa | Ambiente |
+|---|---|---|---|---|
+| 1 | layout do sistema interno | (Console) | equipe que OPERA (medico, enfermagem, administrativo) | sidebar navy fixa + conteudo claro; alta densidade operacional |
+| 2 | a denominar (proxima) | — | cliente/paciente (externo) | claro (anamnese clara) |
+| 3 | a denominar | — | cliente/paciente (externo) | escuro (anamnese escura) |
+
+### 6.1 Tela 1 — layout do sistema interno (apelido: Console)
+
+REFORCO (CEO 23/06/2026): o nome OFICIAL desta tela e **"layout do sistema interno"**. A palavra
+**"Console" e SO um apelido informal, sempre entre parenteses** — nunca usar "Console" como nome
+oficial nem batizar a tela so de "Console".
+
+| Atributo | Definicao |
+|---|---|
+| Quem usa | A equipe que OPERA o sistema (medico, enfermagem, administrativo, financeiro) — nunca o cliente |
+| Estrutura | Sidebar navy ESCURA fixa a esquerda (lockup PAXTER puro no topo + menu) + area de conteudo CLARA a direita |
+| Densidade | ALTA — painel operacional com muitos KPIs, cards, listas e tabelas |
+| Tom de cor | Navy (sidebar) + creme/branco (conteudo); ouro SO na marca; relevo 3D skeuomorfico (a essencia) |
+| Exemplos vivos | "Painel de Controle / Visao geral operacional"; Dashboard; Console de Orcamento (secao 5) |
+
+## 7. Linha vermelha (nao cruzar)
 
 - Nao alterar `/api/budgets/calculate` nem o payload de `salvar()` por motivo estetico.
 - Nao trocar cantos quadrados por arredondados infantis.

@@ -1,13 +1,13 @@
 {
   "name": "Paxter Pack",
-  "version": "1.0.0",
-  "generatedAt": "20/06/2026",
+  "version": "1.1.0",
+  "generatedAt": "26/06/2026",
   "skillsRoot": ".agents/skills",
   "files": [
     {
       "path": "paxter-loop/CODIGO-PAXTER.md",
-      "sha256": "ee80825a6e2c066d525599c05030b159edcbfd7c6ccef0d9ba1abf57dad7cbe3",
-      "lines": 312
+      "sha256": "760bfbfab27fde0761ee5dcadf1c4690bd331db60f717ba374648a4bd9504cd2",
+      "lines": 347
     },
     {
       "path": "paxter-loop/SKILL.md",
@@ -30,14 +30,64 @@
       "lines": 256
     },
     {
+      "path": "skill-layout-paxter/references/marca/01-logo-sem-vidro-preto.png",
+      "sha256": "4e10e2df3b24807a402b2cf401747f86b879cd15f96899ebac2f734ba56a7af6",
+      "lines": 2027
+    },
+    {
+      "path": "skill-layout-paxter/references/marca/02-logo-sem-vidro-branco.png",
+      "sha256": "de06381f258b263910cc8a7e4ccf0d3ebbb0b6714bd941d3af29bdb27a6091b8",
+      "lines": 2180
+    },
+    {
+      "path": "skill-layout-paxter/references/marca/03-loginho-vidro-sistema.png",
+      "sha256": "1904d7af36926e16a2f4a7d6015bfc7326e6d17119dafc1c8eefb4eab6f5cbbb",
+      "lines": 364
+    },
+    {
+      "path": "skill-layout-paxter/references/marca/04-loginho-vidro-bege.png",
+      "sha256": "b6a036208d532113aa8272d756c30d87c4c5c13fdf90d5b1f9d78ea9d77f6746",
+      "lines": 375
+    },
+    {
+      "path": "skill-layout-paxter/references/marca/marca.md",
+      "sha256": "e4412c6498ec4790a79e518ad46be98e4f63cc4a183b62c687c95c4295ab0d11",
+      "lines": 47
+    },
+    {
+      "path": "skill-layout-paxter/references/marca/molde-paxter.png",
+      "sha256": "ab4ace4f6024e5b6788b04dce73c10b20882ef92e5597c0166d14301e2c320be",
+      "lines": 2748
+    },
+    {
+      "path": "skill-layout-paxter/references/relevo-3d-ouro/antes-carcomido.jpg",
+      "sha256": "fd0032d969a4fd4cae64e69aae51a04fd2e3ae451438610232e0ac0b6b0007e2",
+      "lines": 563
+    },
+    {
+      "path": "skill-layout-paxter/references/relevo-3d-ouro/depois-limpo.png",
+      "sha256": "6f85461cdbaff5ebe2b3c24c61859f9f0e6960fca674ad8717f53e129e5e43c2",
+      "lines": 1830
+    },
+    {
+      "path": "skill-layout-paxter/references/relevo-3d-ouro/problema-halo-preto.png",
+      "sha256": "f03e0174fcacb432cd712d67dc1bd625847786299df3c747b120f019b80af795",
+      "lines": 2032
+    },
+    {
+      "path": "skill-layout-paxter/references/relevo-3d-ouro/tecnica.md",
+      "sha256": "a49680ce8fea77a9ce889467d1c7bd548976342677def1349ca1ab635aa3e276",
+      "lines": 84
+    },
+    {
       "path": "skill-layout-paxter/references/revisao-final.md",
       "sha256": "d4ae5b2e4166ece4ab963775ae263fc23ec5131f868a5337c56746e09420e834",
       "lines": 43
     },
     {
       "path": "skill-layout-paxter/SKILL.md",
-      "sha256": "bad28ba8f00e0eb28587172d5a0c10656eb957add0f48491ffb032b2746153c1",
-      "lines": 303
+      "sha256": "a3e3fd21a0579a5c6d1a52e0b779d7bfcbd054a325820db95c01d60d4cb3c4d1",
+      "lines": 407
     }
   ]
 }

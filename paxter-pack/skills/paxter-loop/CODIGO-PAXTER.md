@@ -80,6 +80,19 @@ verificar".
 **Art. 22** Não misturar OPERAR (uso clínico real) com ARQUITETAR (construir com agentes) na mesma
 resposta.
 
+**Art. 64** Regra do Ródio (Máximo Esforço). O padrão de toda entrega é o esmero do Loop Diamante:
+não poupar esforço e usar os recursos ao máximo para entregar o melhor possível, nunca o suficiente.
+Diretrizes desta lei:
+(a) Lapidar tela por tela, requisito por requisito, até zero pendência — não parar enquanto houver
+qualquer otimização real possível (acessibilidade, aviso de navegador, consistência visual, robustez).
+(b) Economia de orçamento NUNCA é motivo para entregar menos: o CEO declarou (26/06/2026) que o gasto
+ficou abaixo da expectativa dele e que prefere o uso máximo dos recursos a uma entrega contida.
+Preferir a rodada extra de verificação, o teste visual a mais e a revisão do architect a deixar passar.
+(c) Validar sempre de verdade (app_preview/screenshot/runtime e teste end-to-end), nunca só "compilou".
+(d) Seguir a instrução do CEO ao pé da letra e, ainda assim, ir além no cuidado, sem inventar escopo.
+Esta lei reforça o Art. 18 (zelo acima de velocidade) e o eleva: zelo acima de velocidade E acima de
+economia.
+
 ---
 
 ## TÍTULO IV — DA EQUIPE FIXA
@@ -294,12 +307,33 @@ repositório GitHub nem dá push (ato do CEO pela aba Git) e não escreve no cof
 pasta pronta). Ferramentas: `paxter:pack` (gera selo) e `paxter:audit` (certifica/acusa drift) em
 `@workspace/scripts`. Detalhe operacional em `paxter-pack/README.md` e `paxter-pack/SEED.md`.
 
+**Art. 62** LINGUAGEM DE ESTADO — GLOW RARO E INTENCIONAL (promulgado pela onda Experiencia do Paciente
+em 21/06/2026, queixa do CEO de "luzes muito expandidas"): o brilho (glow) NAO e decoracao global; um
+bloco so acende quando ha ESTADO REAL (atencao=ambar, atraso/critico=vermelho, sucesso=verde,
+info/foco=ciano) ou no HOVER de desktop — no celular nunca depende de hover (guarda `@media (hover:none)`).
+Calibra-se so a LUZ (blur, alcance, opacidade), nunca o relevo 3D (essencia). Antes de criar classe de
+luz nova, reusar as existentes. Detalhe e tabela de classes na skill `skill-layout-paxter`.
+
+**Art. 63 (Título IX)** DOCUMENTO VERIFICAVEL + CAPTURA REMOTA + ATO CLINICO COM VALOR (promulgado pela onda Motor de
+Encantamento em 25/06/2026, visao do CEO). Tres padroes duraveis do produto: (1) VERIFICAVEL — todo
+documento clinico gerado (laudo, encaminhamento, atestado, prontuario, RAS/FAP) leva o MESMO QR de
+verificacao (a lib `qrcode` ja existe em `pdf-signer.ts`/`ras-fap.ts`); o QR aponta para checar a
+autenticidade (assinatura/hash), nao so baixar o PDF. (2) CAPTURA REMOTA — a foto do cliente e a
+rubrica/assinatura do medico, quando remotas, NUNCA sao upload manual nosso: e LINK enviado a pessoa (o
+cliente tira a propria foto pela camera; o medico assina/rubrica do proprio aparelho) e o resultado cai no
+CAMPO certo (foto no cadastro/Drive; assinatura no campo do profissional). (3) ATO COM VALOR — cada ato
+clinico (validacao, avaliacao, exame avulso) pode ter valor e link de pagamento, com repasse ao medico
+assistente visivel no painel dele; a estrutura "bracos de pagamento" ja existe (`specs/bracos-pagamento.md`),
+split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encantamento-consolidacao.md`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 26/06/2026 | Art. 64 (Título III) | Regra do Ródio (Máximo Esforço), promulgada a pedido do CEO após o Loop Diamante (controle financeiro total): padrão de toda entrega é o esmero do Loop Diamante — não poupar esforço, usar os recursos ao máximo, lapidar tela por tela até zero pendência. Economia de orçamento nunca justifica entregar menos; o CEO declarou que o gasto ficou abaixo da expectativa e prefere o uso máximo dos recursos. Sempre validar de verdade (runtime/screenshot/teste end-to-end), seguir a instrução ao pé da letra e ainda ir além no cuidado sem inventar escopo. Eleva o Art. 18: zelo acima de velocidade E de economia. |
+| 25/06/2026 | Art. 63 (Título IX) | Documento verificável + captura remota + ato clínico com valor, promulgado pela onda Motor de Encantamento: QR padrão em todo documento (verifica autenticidade, não só baixa), foto do cliente e assinatura/rubrica do médico sempre por link (nunca upload manual nosso, caem no campo certo), cada ato clínico pode ter valor e link de pagamento com repasse visível ao médico assistente. Roadmap em `specs/motor-encantamento-consolidacao.md`. |
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
 | 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |
@@ -308,4 +342,5 @@ pasta pronta). Ferramentas: `paxter:pack` (gera selo) e `paxter:audit` (certific
 | 20/06/2026 | Art. 56 (Título X) | "Evento é da clínica, não convite", promulgado pelo Pacote B da Agenda Google: `sendUpdates: 'none'` + sem attendee (Convite A); sincronizar atualiza o mesmo evento por builder único e só apaga+recria ao trocar de calendário (Convite B), normalizando `null -> "primary"` antes de comparar; linguagem ✅/❌ e títulos em MAIÚSCULAS sem HTML. |
 | 20/06/2026 | Art. 57 (Título IX) | "Um formato, um motor + feed assinado", promulgado pela SUB-04 Convite .ics: motor único de serialização (rotas chamam, não remontam à mão); .ics PUBLISH com UID estável; reenvio idempotente; feed iCal HMAC com 401 genérico anti-enumeração e só sessões futuras; coluna timestamp Drizzle modo Date exige objeto Date; defer explícito do que pede cron/coluna nova. |
 | 20/06/2026 | Art. 58 a 60 (Título XI) | Aprendizado contínuo e memória distribuída, a pedido do CEO: roteamento de cada aprendizado ao destino durável (Código/skill de layout/memória/specs/cartas); Lei do Layout (toda modelagem registrada na skill `skill-layout-paxter` antes de a tela ficar pronta); cartas entre primos viram documento versionado em `cartas/` com índice. |
+| 21/06/2026 | Art. 62 (Título X) | Linguagem de estado — glow raro e intencional, promulgado pela onda Experiência do Paciente (PWA): glow não é decoração global (só acende em estado real ou hover desktop, nunca depende de hover no celular), calibra-se a luz nunca o relevo 3D; tabela de classes de estado na skill `skill-layout-paxter`. |
 | 20/06/2026 | Art. 61 (Título XI) | Paxter Pack — portabilidade dupla, certificação e auditoria, a pedido do CEO (decisão A+B): pack portável das skills para semear sistemas-primos idênticos; casa-mestra dupla (Obsidian + GitHub `paxter-pack`); fonte viva `.agents/skills/` x espelho gerado `paxter-pack/`; ferramentas `paxter:pack` (selo SHA-256) e `paxter:audit` (acusa drift); agente não cria repo nem dá push, não escreve no cofre. |
