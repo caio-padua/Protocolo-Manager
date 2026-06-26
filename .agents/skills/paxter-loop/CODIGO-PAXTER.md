@@ -301,12 +301,25 @@ info/foco=ciano) ou no HOVER de desktop — no celular nunca depende de hover (g
 Calibra-se so a LUZ (blur, alcance, opacidade), nunca o relevo 3D (essencia). Antes de criar classe de
 luz nova, reusar as existentes. Detalhe e tabela de classes na skill `skill-layout-paxter`.
 
+**Art. 63 (Título IX)** DOCUMENTO VERIFICAVEL + CAPTURA REMOTA + ATO CLINICO COM VALOR (promulgado pela onda Motor de
+Encantamento em 25/06/2026, visao do CEO). Tres padroes duraveis do produto: (1) VERIFICAVEL — todo
+documento clinico gerado (laudo, encaminhamento, atestado, prontuario, RAS/FAP) leva o MESMO QR de
+verificacao (a lib `qrcode` ja existe em `pdf-signer.ts`/`ras-fap.ts`); o QR aponta para checar a
+autenticidade (assinatura/hash), nao so baixar o PDF. (2) CAPTURA REMOTA — a foto do cliente e a
+rubrica/assinatura do medico, quando remotas, NUNCA sao upload manual nosso: e LINK enviado a pessoa (o
+cliente tira a propria foto pela camera; o medico assina/rubrica do proprio aparelho) e o resultado cai no
+CAMPO certo (foto no cadastro/Drive; assinatura no campo do profissional). (3) ATO COM VALOR — cada ato
+clinico (validacao, avaliacao, exame avulso) pode ter valor e link de pagamento, com repasse ao medico
+assistente visivel no painel dele; a estrutura "bracos de pagamento" ja existe (`specs/bracos-pagamento.md`),
+split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encantamento-consolidacao.md`.
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 25/06/2026 | Art. 63 (Título IX) | Documento verificável + captura remota + ato clínico com valor, promulgado pela onda Motor de Encantamento: QR padrão em todo documento (verifica autenticidade, não só baixa), foto do cliente e assinatura/rubrica do médico sempre por link (nunca upload manual nosso, caem no campo certo), cada ato clínico pode ter valor e link de pagamento com repasse visível ao médico assistente. Roadmap em `specs/motor-encantamento-consolidacao.md`. |
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |
 | 19/06/2026 | Art. 51 e 52 (Título X) | Design e revisão visual: fonte-da-verdade do design (skill `skill-layout-paxter`, base "Montagem do Orçamento") e disciplina de revisão final "como cliente" + paridade celular x desktop (layout e funcionalidade dos botões). |
 | 19/06/2026 | Art. 53 (Título X) | Lei "Posição fixa + campo vazio rotulado", promulgada pela reforma da Agenda Semanal: slots fixos por card, "—" para vazio, proibição de `flex-wrap` em cabeçalho, grade de colunas fixas com quadradinho de cor + caixinha (Padrões 12 e 13 da skill `skill-layout-paxter`). |

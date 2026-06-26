@@ -236,7 +236,7 @@ function LinhaExameSug({ e }: { e: ExameSug }) {
   );
 }
 
-/* Injetaveis / implantes — colunas alinhadas: SESSOES | DOSE | INTERVALO */
+/* Injetaveis / implantes — colunas alinhadas: DOSE | SESSOES | FREQUENCIA (ordem do CEO) */
 type Inj = { nome: string; sessoes: string; dose: string; intervalo: string; cor: string; validado: boolean };
 type GrupoInj = { titulo: string; Icon: typeof Syringe; cor: string; itens: Inj[] };
 const GRUPOS_INJ: GrupoInj[] = [
@@ -279,15 +279,15 @@ const GRUPOS_INJ: GrupoInj[] = [
   },
 ];
 
-const COLS_INJ = "grid grid-cols-[14px_1fr_82px_92px_92px_16px_20px] items-center gap-2";
+const COLS_INJ = "grid grid-cols-[14px_1fr_92px_82px_92px_16px_20px] items-center gap-2";
 
 function LinhaInjetavel({ i }: { i: Inj }) {
   return (
     <div className={`bevel-3d px-3 py-1.5 ${COLS_INJ}`}>
       <span className="h-3.5 w-3.5 shrink-0 rounded-[3px]" style={{ background: i.cor, boxShadow: "inset 0 1px 1px rgba(255,255,255,0.5), 0 0 0 1px rgba(0,0,0,0.12)" }} />
       <span className="min-w-0 truncate text-[12px] font-semibold text-[#16294a]">{i.nome}</span>
-      <span className="text-[10.5px] font-bold text-[#16294a]">{i.sessoes}</span>
-      <span className="text-[10.5px] font-semibold text-[#2c3e52]">{i.dose}</span>
+      <span className="text-[10.5px] font-bold text-[#16294a]">{i.dose}</span>
+      <span className="text-[10.5px] font-semibold text-[#2c3e52]">{i.sessoes}</span>
       <span className="text-[10.5px] font-semibold text-[#2c3e52]">{i.intervalo}</span>
       <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#a9883f]" />
       <ChkValidado on={i.validado} />
@@ -512,16 +512,20 @@ export function MesaValidacao() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-5">
-            {/* coluna esquerda: exames sugeridos + formulas */}
-            <div className="flex flex-col">
+          {/* FAIXAS empilhadas (uma embaixo da outra) — pedido do CEO */}
+          <div className="flex flex-col gap-4">
+            {/* faixa: exames sugeridos */}
+            <div>
               <MiniTitulo Icon={Microscope} texto="Exames sugeridos" cor="#2e86c1" contagem={`${EXAMES_SUG.filter((e) => e.validado).length}/${EXAMES_SUG.length}`} />
               <div className="flex flex-col gap-1.5">
                 {EXAMES_SUG.map((e) => (
                   <LinhaExameSug key={e.nome} e={e} />
                 ))}
               </div>
+            </div>
 
+            {/* faixa: formulas / manipulados */}
+            <div>
               <MiniTitulo Icon={FlaskConical} texto="Fórmulas / manipulados" cor="#1e8449" contagem={`${FORMULAS.filter((f) => f.validado).length}/${FORMULAS.length}`} />
               <div className="flex flex-col gap-1.5">
                 {FORMULAS.map((f) => (
@@ -530,29 +534,26 @@ export function MesaValidacao() {
               </div>
             </div>
 
-            {/* coluna direita: injetaveis e implantes — colunas alinhadas */}
-            <div className="flex flex-col">
-              {/* regua de colunas */}
-              <div className={`px-3 pb-1 ${COLS_INJ}`}>
-                <span />
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Item</span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Sessões</span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Dose</span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Intervalo</span>
-                <span />
-                <span />
-              </div>
-              {GRUPOS_INJ.map((g) => (
-                <div key={g.titulo}>
-                  <MiniTitulo Icon={g.Icon} texto={g.titulo} cor={g.cor} contagem={`${g.itens.filter((i) => i.validado).length}/${g.itens.length}`} />
-                  <div className="flex flex-col gap-1.5">
-                    {g.itens.map((i) => (
-                      <LinhaInjetavel key={i.nome} i={i} />
-                    ))}
-                  </div>
-                </div>
-              ))}
+            {/* injetaveis / implantes — uma faixa por via, colunas alinhadas: DOSE | SESSOES | FREQUENCIA */}
+            <div className={`px-3 pb-1 ${COLS_INJ}`}>
+              <span />
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Item</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Dose (mg)</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Sessões</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9fb0c4]">Frequência</span>
+              <span />
+              <span />
             </div>
+            {GRUPOS_INJ.map((g) => (
+              <div key={g.titulo}>
+                <MiniTitulo Icon={g.Icon} texto={g.titulo} cor={g.cor} contagem={`${g.itens.filter((i) => i.validado).length}/${g.itens.length}`} />
+                <div className="flex flex-col gap-1.5">
+                  {g.itens.map((i) => (
+                    <LinhaInjetavel key={i.nome} i={i} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 

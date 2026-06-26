@@ -44,7 +44,7 @@ function Toggle({ on, onClick, locked, label }: { on: boolean; onClick: () => vo
       onClick={onClick}
       aria-pressed={on}
       aria-label={label}
-      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+      className="relative inline-flex h-6 w-11 items-center rounded-[5px] transition-colors"
       style={{
         background: on ? "linear-gradient(180deg,#d8b96a,#a9863f)" : "linear-gradient(160deg,#ece6d7,#f6f1e6)",
         border: on ? "1px solid rgba(120,92,36,0.7)" : "1px solid rgba(184,146,77,0.4)",
@@ -54,7 +54,7 @@ function Toggle({ on, onClick, locked, label }: { on: boolean; onClick: () => vo
       }}
     >
       <span
-        className="absolute h-5 w-5 rounded-full transition-all"
+        className="absolute h-5 w-5 rounded-[3px] transition-all"
         style={{
           left: on ? 22 : 2,
           background: "linear-gradient(180deg,#ffffff,#efe8d6)",
@@ -91,7 +91,7 @@ export function Governanca() {
             <ArrowLeft className="h-3.5 w-3.5" /> Menu
           </span>
           <span className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-white">
-            <ShieldCheck className="h-4 w-4 text-[#e7cd8f]" /> Governança · Quem pode o quê
+            <ShieldCheck className="h-4 w-4 text-[#e7cd8f]" /> Permissões e Acessos · Quem pode o quê
           </span>
         </div>
         <div className="flex items-center gap-2 rounded-md bg-[#0e1c34] px-3 py-1.5" style={{ border: "1px solid rgba(231,205,143,0.30)" }}>
@@ -108,7 +108,7 @@ export function Governanca() {
         <section className="panel-3d mb-5 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-[22px] font-bold tracking-wide text-[#16294a]">Governança e Hierarquia</h1>
+              <h1 className="text-[22px] font-bold tracking-wide text-[#16294a]">Permissões e Acessos</h1>
               <p className="mt-0.5 max-w-3xl text-[12px] leading-relaxed text-[#647c97]">
                 Aqui você (CEO) decide <strong>quem pode usar cada ferramenta</strong>. Ligue o botão para liberar
                 o papel; desligue para bloquear. As telas obedecem na hora: o que estiver bloqueado some para aquele papel.
@@ -203,7 +203,7 @@ export function Governanca() {
         </section>
 
         <p className="mt-6 text-center text-[10px] uppercase tracking-[0.2em] text-[#9fb0c4]">
-          Padcon Conect · Motor de Encantamento · Governança
+          Padcon Conect · Motor de Encantamento · Permissões e Acessos
         </p>
       </main>
     </div>
