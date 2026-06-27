@@ -64,7 +64,12 @@ export default function ConfigAssinatura() {
                 <div className="text-sm font-semibold uppercase tracking-wide">Integracao ativa</div>
                 <div className="text-[12px] text-muted-foreground">Liga/desliga o envio para a ZapSign.</div>
               </div>
-              <Switch checked={active} onCheckedChange={setActive} />
+              <Switch
+                checked={active}
+                onCheckedChange={setActive}
+                aria-label="Integracao ativa"
+                className="scale-125 origin-right data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-amber-400"
+              />
             </div>
 
             <FieldRow label="Token de acesso (API)" hint="Deixe em branco para manter o token atual. Preencha apenas para trocar.">
