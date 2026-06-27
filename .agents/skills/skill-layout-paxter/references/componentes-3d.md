@@ -82,9 +82,10 @@ Armadilha: o `::after` tem `pointer-events:none` e `position:absolute` — o pai
 </span>
 ```
 
-### Luz de status de FERRAMENTA/integracao — respiro de VELA (padrao oficial)
-Padrao aprovado pelo CEO (27/06/2026) para a luzinha que fica ao lado do TITULO
-(bevel saliente) de uma ferramenta/integracao, indicando ligado/desligado:
+### Esquema "luzinha em vela" — luz de status de FERRAMENTA/integracao (padrao oficial)
+Apelido oficial do CEO: **"luzinha em vela"**. Padrao aprovado pelo CEO (27/06/2026) para a
+luzinha que fica ao lado do TITULO (bevel saliente) de uma ferramenta/integracao, indicando
+ligado/desligado:
 ```tsx
 // verde = ligado/ativo, amarelo = desligado/inativo; respiro LENTO (vela)
 <span className={`paxter-led paxter-led-breathe ${ativo ? "paxter-led-green" : "paxter-led-amber"}`} />
