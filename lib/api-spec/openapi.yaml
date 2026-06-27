@@ -3350,6 +3350,11 @@ components:
         photoUrl:
           type: string
           nullable: true
+        preferredAgendaResourceIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -3401,6 +3406,11 @@ components:
           nullable: true
         photoUrl:
           type: string
+          nullable: true
+        preferredAgendaResourceIds:
+          type: array
+          items:
+            type: integer
           nullable: true
         notes:
           type: string

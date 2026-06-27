@@ -48,3 +48,19 @@ resultado e um navy chapado sem relevo. O padrao validado (portao "Continuar") N
 **How to apply:** em qualquer CTA com `btn-3d`, remover `bg-primary`/`text-primary-foreground`
 e usar `text-white`. Mesma logica para selecao "suave" (escala/chips): ativo = degrade
 `hsl(var(--primary)/0.95->0.78/0.80)` + anel ouro 2px (nao `hsl(var(--primary))` solido).
+
+# Armadilha: bevel-3d NAO define cor de texto + classes 3D sao CLARAS por padrao
+
+`bevel-3d` (e `panel-3d`/`concave-3d`/`btn-3d-soft`) so ficam navy/ouro quando ha um
+ancestral `.dark`; sem ele renderizam na variante CLARA (creme). Numa pagina publica
+standalone com fundo navy (ex.: `/foto`), e preciso por a classe `dark` na raiz do
+componente. Alem disso, `bevel-3d` NAO seta `color`: o texto herda. Sobre `.dark .bevel-3d`
+(fundo navy) o texto preto fica ilegivel — adicionar `text-white` explicito no botao.
+
+**Why:** uma spec de tela (item "PAINEIS E BOTOES 3D") pode exigir botoes em ALTO-RELEVO
+(`btn-3d`/`bevel-3d`), NUNCA o vitrificado `btn-3d-soft`, na area destacada (ex.: area de
+foto, cadastro e `/foto`). O architect reprova se sobrar `btn-3d-soft` ali. Para manter
+hierarquia sem usar soft: primario = `btn-3d` (navy/ouro mais fundo), secundario = `bevel-3d`
+(saliente neutro) + `text-white`.
+**How to apply:** pagina dark standalone = `dark` na raiz; `bevel-3d` sempre com cor de
+texto explicita; conferir a spec da tela antes de escolher soft x bevel.

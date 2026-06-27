@@ -59,38 +59,42 @@ function absoluteBaseUrl(req: Request): string {
   return `${proto}://${host}`;
 }
 
-function buildPhotoEmailHTML(clientName: string, link: string): string {
+function buildPhotoEmailHTML(clientName: string, link: string, baseUrl: string): string {
   const firstName = clientName.split(" ")[0] || clientName;
+  // Marca PAXTER na "parte escura da skill": fundo navy com o WORDMARK OFICIAL (arte PNG
+  // servida pelo app), nunca o nome digitado à mão. E-mail não renderiza o SVG/glint da
+  // FONTE ÚNICA, então usamos a mesma arte oficial (URL absoluta) sobre o navy.
+  const wordmarkSrc = `${baseUrl}/brand/paxter-wordmark.png`;
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0; padding:0; background:#0b1220; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220; padding:32px 16px;">
+<body style="margin:0; padding:0; background:#070d1c; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#070d1c; padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; background:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.25);">
-        <tr><td style="background:linear-gradient(135deg,#0f2a3a,#13455a); padding:28px 32px; text-align:center;">
-          <div style="color:#e9c46a; font-size:22px; letter-spacing:3px; font-weight:700;">PAXTER</div>
-          <div style="color:#cfe8ef; font-size:12px; letter-spacing:1px; margin-top:4px;">Instituto Pádua</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; background:#0d1830; border:1px solid rgba(200,160,90,.35); border-radius:14px; overflow:hidden; box-shadow:0 14px 40px rgba(0,0,0,.55);">
+        <tr><td style="background:linear-gradient(160deg,#0f1d3a 0%,#0a1428 60%,#0d1830 100%); padding:34px 32px 28px; text-align:center; border-bottom:1px solid rgba(200,160,90,.28);">
+          <img src="${wordmarkSrc}" width="190" alt="PAXTER" style="display:block; margin:0 auto; width:190px; max-width:80%; height:auto;">
+          <div style="color:#cdb985; font-size:11px; letter-spacing:3px; text-transform:uppercase; margin-top:10px;">Clinical Intelligence System</div>
         </td></tr>
         <tr><td style="padding:32px;">
-          <p style="margin:0 0 16px; color:#1e293b; font-size:18px;">Olá, ${firstName}!</p>
-          <p style="margin:0 0 20px; color:#475569; font-size:15px; line-height:1.6;">
+          <p style="margin:0 0 16px; color:#f4ede0; font-size:18px; font-weight:600;">Olá, ${firstName}!</p>
+          <p style="margin:0 0 22px; color:#c8d2e0; font-size:15px; line-height:1.6;">
             Para deixar o seu cadastro completo, precisamos de uma foto sua.
             É rápido: toque no botão abaixo e envie uma foto pelo próprio celular.
           </p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px auto 24px;">
-            <tr><td align="center" style="border-radius:10px; background:linear-gradient(135deg,#13455a,#1d6f8b);">
-              <a href="${link}" style="display:inline-block; padding:15px 36px; color:#ffffff; font-size:16px; font-weight:600; text-decoration:none;">Enviar minha foto</a>
+            <tr><td align="center" style="border-radius:10px; background:linear-gradient(135deg,#e6c878 0%,#c9a24f 100%); box-shadow:0 6px 16px rgba(201,162,79,.4);">
+              <a href="${link}" style="display:inline-block; padding:15px 38px; color:#0a1428; font-size:16px; font-weight:700; letter-spacing:.5px; text-decoration:none;">Enviar minha foto</a>
             </td></tr>
           </table>
-          <p style="margin:0; color:#94a3b8; font-size:12px; line-height:1.6;">
+          <p style="margin:0; color:#8da0bb; font-size:12px; line-height:1.6;">
             Se o botão não funcionar, copie e cole este endereço no navegador:<br>
-            <span style="color:#475569; word-break:break-all;">${link}</span>
+            <span style="color:#cdb985; word-break:break-all;">${link}</span>
           </p>
-          <p style="margin:20px 0 0; color:#94a3b8; font-size:12px;">Este link é pessoal e expira em 7 dias.</p>
+          <p style="margin:20px 0 0; color:#7e90ab; font-size:12px;">Este link é pessoal e expira em 7 dias.</p>
         </td></tr>
-        <tr><td style="background:#f8fafc; padding:18px 32px; text-align:center; color:#94a3b8; font-size:11px;">
-          Instituto Pádua — Protocolos Injetáveis
+        <tr><td style="background:#0a1428; padding:18px 32px; text-align:center; color:#7e90ab; font-size:11px; letter-spacing:2px; text-transform:uppercase; border-top:1px solid rgba(200,160,90,.18);">
+          Clinical Intelligence System
         </td></tr>
       </table>
     </td></tr>
@@ -129,7 +133,7 @@ router.post("/client-photo/send-link/:id", async (req: Request, res: Response): 
       const result = await sendGmailMessage({
         to: client.email.trim(),
         subject: "Instituto Padua | Envie a sua foto de cadastro",
-        html: buildPhotoEmailHTML(client.name, link),
+        html: buildPhotoEmailHTML(client.name, link, absoluteBaseUrl(req)),
       });
       emailSent = result.success;
       if (!result.success) emailError = result.error;

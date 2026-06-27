@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useCallback } from "react";
@@ -33,6 +34,7 @@ const formSchema = z.object({
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
   locationId: z.string().optional(),
+  preferredAgendaResourceIds: z.array(z.number()).optional(),
   notes: z.string().optional(),
 });
 
@@ -91,6 +93,7 @@ export default function NewClient() {
       comoConheceu: "",
       status: "active",
       locationId: "8",
+      preferredAgendaResourceIds: [],
       notes: "",
     },
   });
@@ -153,6 +156,7 @@ export default function NewClient() {
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
         locationId: values.locationId ? Number(values.locationId) : 8,
+        preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
         notes: values.notes || undefined,
       }},
       {
@@ -327,6 +331,18 @@ export default function NewClient() {
                         </FormItem>
                       );
                     }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="preferredAgendaResourceIds"
+                    render={({ field }) => (
+                      <PreferredAgendasField
+                        locationId={form.watch("locationId")}
+                        value={field.value ?? []}
+                        onChange={field.onChange}
+                      />
+                    )}
                   />
                 </div>
               </div>

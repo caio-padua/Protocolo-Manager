@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, jsonb, boolean, integer, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -33,3 +33,21 @@ export const clientsTable = pgTable("clients", {
 export const insertClientSchema = createInsertSchema(clientsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clientsTable.$inferSelect;
+
+// Junção AGENDA PREFERENCIAL: liga um cliente a uma ou mais agendas (agenda_resources =
+// profissional × clínica). É metadado de preferência do cliente; NÃO altera o motor de agenda.
+// Par (clientId, agendaResourceId) único — não duplica a mesma agenda para o mesmo cliente.
+export const clientPreferredAgendasTable = pgTable(
+  "client_preferred_agendas",
+  {
+    id: serial("id").primaryKey(),
+    clientId: integer("client_id").notNull(),
+    agendaResourceId: integer("agenda_resource_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqClientAgenda: unique("uniq_client_agenda").on(t.clientId, t.agendaResourceId),
+  }),
+);
+
+export type ClientPreferredAgenda = typeof clientPreferredAgendasTable.$inferSelect;

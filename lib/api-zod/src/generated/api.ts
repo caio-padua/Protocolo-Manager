@@ -36,6 +36,7 @@ export const ListClientsResponseItem = zod.object({
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
@@ -58,6 +59,7 @@ export const CreateClientBody = zod.object({
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   notes: zod.string().nullish(),
 });
 
@@ -82,6 +84,7 @@ export const GetClientResponse = zod.object({
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
@@ -107,6 +110,7 @@ export const UpdateClientBody = zod.object({
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   notes: zod.string().nullish(),
 });
 
@@ -124,6 +128,7 @@ export const UpdateClientResponse = zod.object({
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),

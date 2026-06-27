@@ -672,6 +672,7 @@ export interface Client {
   status: ClientStatus;
   locationId?: number | null;
   photoUrl?: string | null;
+  preferredAgendaResourceIds?: number[] | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -699,6 +700,7 @@ export interface CreateClientBody {
   status: CreateClientBodyStatus;
   locationId?: number | null;
   photoUrl?: string | null;
+  preferredAgendaResourceIds?: number[] | null;
   notes?: string | null;
 }
 

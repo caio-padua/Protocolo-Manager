@@ -87,8 +87,8 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
       </div>
 
       <div className="flex flex-col sm:flex-row items-center gap-6 pt-2">
-        <div className="concave-3d rounded-full p-1.5 shrink-0">
-          <div className="w-28 h-28 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+        <div className="concave-3d rounded-[10px] p-1.5 shrink-0">
+          <div className="w-28 h-28 rounded-[6px] overflow-hidden bg-muted flex items-center justify-center">
             {photoUrl ? (
               <img src={photoUrl} alt="Foto do cliente" className="w-full h-full object-cover" />
             ) : (
@@ -105,7 +105,7 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
           </p>
 
           <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={sendLink} disabled={!ready || sending} className="btn-3d-soft">
+            <Button type="button" onClick={sendLink} disabled={!ready || sending} className="btn-3d">
               {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
               ENVIAR LINK AO CLIENTE
             </Button>
@@ -114,7 +114,7 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={!ready || uploading}
-              className="btn-3d-soft"
+              className="btn-3d"
             >
               {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
               ENVIAR FOTO AGORA
@@ -132,7 +132,7 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
             <div className="concave-3d p-2 flex items-center gap-2">
               <Link2 className="w-4 h-4 text-primary shrink-0" />
               <span className="text-[10px] text-muted-foreground truncate flex-1">{lastLink}</span>
-              <Button type="button" size="sm" onClick={copyLink} className="btn-3d-soft h-7 px-2">
+              <Button type="button" size="sm" onClick={copyLink} className="btn-3d h-7 px-2">
                 <Check className="w-3 h-3 mr-1" /> COPIAR
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or } from "drizzle-orm";
-import { db, clientsTable } from "@workspace/db";
+import { eq, ilike, or, inArray } from "drizzle-orm";
+import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
 import {
   ListClientsQueryParams,
   CreateClientBody,
@@ -11,6 +11,66 @@ import {
 
 const router: IRouter = Router();
 
+type ClientRow = typeof clientsTable.$inferSelect;
+
+// Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
+// anexa a lista de agendas preferenciais (junção client_preferred_agendas).
+function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[]) {
+  return {
+    ...c,
+    birthDate: c.birthDate ?? null,
+    address: c.address ?? null,
+    pais: c.pais ?? null,
+    instagram: c.instagram ?? null,
+    comoConheceu: c.comoConheceu ?? null,
+    notes: c.notes ?? null,
+    preferredAgendaResourceIds,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  };
+}
+
+async function getPreferredAgendas(clientId: number): Promise<number[]> {
+  const rows = await db
+    .select({ agendaResourceId: clientPreferredAgendasTable.agendaResourceId })
+    .from(clientPreferredAgendasTable)
+    .where(eq(clientPreferredAgendasTable.clientId, clientId));
+  return rows.map((r) => r.agendaResourceId);
+}
+
+// Substitui (não acumula) as agendas preferenciais do cliente. `ids === undefined` significa
+// "não mexer"; um array (mesmo vazio) significa "passe a valer exatamente este conjunto".
+async function setPreferredAgendas(clientId: number, ids: number[] | null | undefined): Promise<void> {
+  if (ids === undefined) return;
+  await db.delete(clientPreferredAgendasTable).where(eq(clientPreferredAgendasTable.clientId, clientId));
+  const unique = Array.from(new Set((ids ?? []).filter((n) => Number.isInteger(n) && n > 0)));
+  if (unique.length === 0) return;
+  // Data-bound de verdade: só persiste agendas ATIVAS que pertençam à clínica do cliente.
+  // IDs que não passam (clínica errada, inativas, inexistentes) são descartados em silêncio.
+  const [client] = await db
+    .select({ locationId: clientsTable.locationId })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId));
+  if (!client?.locationId) return;
+  const resources = await db
+    .select({
+      id: agendaResourcesTable.id,
+      active: agendaResourcesTable.active,
+      locationId: agendaResourcesTable.locationId,
+    })
+    .from(agendaResourcesTable)
+    .where(inArray(agendaResourcesTable.id, unique));
+  const valid = resources
+    .filter((r) => r.active && r.locationId === client.locationId)
+    .map((r) => r.id);
+  if (valid.length > 0) {
+    await db
+      .insert(clientPreferredAgendasTable)
+      .values(valid.map((agendaResourceId) => ({ clientId, agendaResourceId })))
+      .onConflictDoNothing();
+  }
+}
+
 router.get("/clients", async (req, res): Promise<void> => {
   const query = ListClientsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -18,15 +78,13 @@ router.get("/clients", async (req, res): Promise<void> => {
     return;
   }
 
-  let queryBuilder = db.select().from(clientsTable);
-
   const conditions: ReturnType<typeof ilike>[] = [];
   if (query.data.search) {
     conditions.push(ilike(clientsTable.name, `%${query.data.search}%`));
     conditions.push(ilike(clientsTable.cpf, `%${query.data.search}%`));
   }
 
-  let clients;
+  let clients: ClientRow[];
   if (query.data.status) {
     clients = await db.select().from(clientsTable).where(eq(clientsTable.status, query.data.status));
   } else if (conditions.length > 0) {
@@ -35,17 +93,24 @@ router.get("/clients", async (req, res): Promise<void> => {
     clients = await db.select().from(clientsTable);
   }
 
-  res.json(clients.map(c => ({
-    ...c,
-    birthDate: c.birthDate ?? null,
-    address: c.address ?? null,
-    pais: c.pais ?? null,
-    instagram: c.instagram ?? null,
-    comoConheceu: c.comoConheceu ?? null,
-    notes: c.notes ?? null,
-    createdAt: c.createdAt.toISOString(),
-    updatedAt: c.updatedAt.toISOString(),
-  })));
+  const ids = clients.map((c) => c.id);
+  const junctions = ids.length
+    ? await db
+        .select({
+          clientId: clientPreferredAgendasTable.clientId,
+          agendaResourceId: clientPreferredAgendasTable.agendaResourceId,
+        })
+        .from(clientPreferredAgendasTable)
+        .where(inArray(clientPreferredAgendasTable.clientId, ids))
+    : [];
+  const byClient = new Map<number, number[]>();
+  for (const j of junctions) {
+    const arr = byClient.get(j.clientId) ?? [];
+    arr.push(j.agendaResourceId);
+    byClient.set(j.clientId, arr);
+  }
+
+  res.json(clients.map((c) => serializeClient(c, byClient.get(c.id) ?? [])));
 });
 
 router.post("/clients", async (req, res): Promise<void> => {
@@ -55,18 +120,10 @@ router.post("/clients", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.insert(clientsTable).values(parsed.data).returning();
-  res.status(201).json({
-    ...client,
-    birthDate: client.birthDate ?? null,
-    address: client.address ?? null,
-    pais: client.pais ?? null,
-    instagram: client.instagram ?? null,
-    comoConheceu: client.comoConheceu ?? null,
-    notes: client.notes ?? null,
-    createdAt: client.createdAt.toISOString(),
-    updatedAt: client.updatedAt.toISOString(),
-  });
+  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  const [client] = await db.insert(clientsTable).values(clientData).returning();
+  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
+  res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.get("/clients/:id", async (req, res): Promise<void> => {
@@ -82,17 +139,7 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json({
-    ...client,
-    birthDate: client.birthDate ?? null,
-    address: client.address ?? null,
-    pais: client.pais ?? null,
-    instagram: client.instagram ?? null,
-    comoConheceu: client.comoConheceu ?? null,
-    notes: client.notes ?? null,
-    createdAt: client.createdAt.toISOString(),
-    updatedAt: client.updatedAt.toISOString(),
-  });
+  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.put("/clients/:id", async (req, res): Promise<void> => {
@@ -108,23 +155,21 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.update(clientsTable).set(parsed.data).where(eq(clientsTable.id, params.data.id)).returning();
+  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  // Se só vieram agendas (nenhuma coluna do cliente), o Drizzle recusa update().set({}).
+  // Nesse caso apenas relemos o cliente e tratamos só a junção.
+  let client: ClientRow | undefined;
+  if (Object.keys(clientData).length > 0) {
+    [client] = await db.update(clientsTable).set(clientData).where(eq(clientsTable.id, params.data.id)).returning();
+  } else {
+    [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+  }
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-
-  res.json({
-    ...client,
-    birthDate: client.birthDate ?? null,
-    address: client.address ?? null,
-    pais: client.pais ?? null,
-    instagram: client.instagram ?? null,
-    comoConheceu: client.comoConheceu ?? null,
-    notes: client.notes ?? null,
-    createdAt: client.createdAt.toISOString(),
-    updatedAt: client.updatedAt.toISOString(),
-  });
+  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
+  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.patch("/clients/:id", async (req, res): Promise<void> => {
@@ -140,23 +185,21 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.update(clientsTable).set(parsed.data).where(eq(clientsTable.id, params.data.id)).returning();
+  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  // Se só vieram agendas (nenhuma coluna do cliente), o Drizzle recusa update().set({}).
+  // Nesse caso apenas relemos o cliente e tratamos só a junção.
+  let client: ClientRow | undefined;
+  if (Object.keys(clientData).length > 0) {
+    [client] = await db.update(clientsTable).set(clientData).where(eq(clientsTable.id, params.data.id)).returning();
+  } else {
+    [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+  }
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-
-  res.json({
-    ...client,
-    birthDate: client.birthDate ?? null,
-    address: client.address ?? null,
-    pais: client.pais ?? null,
-    instagram: client.instagram ?? null,
-    comoConheceu: client.comoConheceu ?? null,
-    notes: client.notes ?? null,
-    createdAt: client.createdAt.toISOString(),
-    updatedAt: client.updatedAt.toISOString(),
-  });
+  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
+  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.get("/cep/:cep", async (req, res): Promise<void> => {
