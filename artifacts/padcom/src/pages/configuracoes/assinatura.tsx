@@ -57,7 +57,7 @@ export default function ConfigAssinatura() {
           color="cyan"
           titleTrailing={
             <span
-              className={`paxter-led ${active ? "paxter-led-green" : "paxter-led-amber"}`}
+              className={`paxter-led paxter-led-on ${active ? "paxter-led-green" : "paxter-led-amber"}`}
               aria-label={active ? "Integracao ativa" : "Integracao inativa"}
               title={active ? "Integracao ativa" : "Integracao inativa"}
             />
