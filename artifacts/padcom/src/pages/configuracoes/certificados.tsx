@@ -70,14 +70,22 @@ export default function ConfigCertificados() {
       {status.isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : (
-        <SettingsPanel icon={ShieldCheck} title="Certificado A1 Atual" color="emerald">
+        <SettingsPanel
+          icon={ShieldCheck}
+          title="Certificado A1 Atual"
+          color="emerald"
+          titleTrailing={
+            <span
+              className={`paxter-led paxter-led-breathe ${st?.isSet ? "paxter-led-green" : "paxter-led-amber"}`}
+              aria-label={st?.isSet ? "Certificado configurado" : "Certificado ausente"}
+              title={st?.isSet ? "Certificado configurado" : "Certificado ausente"}
+            />
+          }
+        >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="screen-3d p-3">
               <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Situacao</div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className={`paxter-led ${st?.isSet ? "paxter-led-green" : "paxter-led-off"}`} aria-hidden />
-                <span className="text-sm font-semibold">{st?.isSet ? "Configurado" : "Ausente"}</span>
-              </div>
+              <div className="mt-1 text-sm font-semibold">{st?.isSet ? "Configurado" : "Ausente"}</div>
             </div>
             <div className="screen-3d p-3">
               <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Arquivo</div>

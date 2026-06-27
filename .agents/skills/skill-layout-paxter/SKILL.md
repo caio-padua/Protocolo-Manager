@@ -313,7 +313,10 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   SEM espalhamento) — NUNCA usar `paxter-led-on` (1,4s, rapido e difuso demais) para status de
   ferramenta. UMA luz so por ferramenta: nao repetir LED no badge do segredo (cofre) E no titulo ao
   mesmo tempo. Nao confundir com `paxter-led-alert` (vermelho, `paxter-led-slow`), reservado SO ao
-  alarme da anamnese. Receita completa e armadilhas em `references/componentes-3d.md`.
+  alarme da anamnese. Semantica de "ligado": ferramenta COM switch `active` (ex.: ZapSign) usa o
+  proprio `active`; ferramenta SEM switch (ex.: Asaas, Certificado A1) usa "credencial principal
+  configurada" (`apiKeyStatus.isSet` / `isSet`) como verde. Receita completa e armadilhas em
+  `references/componentes-3d.md`.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 

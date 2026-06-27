@@ -58,7 +58,22 @@ export default function ConfigPagamentos() {
       {q.isLoading ? (
         <Skeleton className="h-72 w-full" />
       ) : (
-        <SettingsPanel icon={CreditCard} title={`Gateway: ${provider.toUpperCase()}`}>
+        <SettingsPanel
+          icon={CreditCard}
+          title={`Gateway: ${provider.toUpperCase()}`}
+          titleTrailing={
+            (() => {
+              const configured = !!q.data?.apiKeyStatus.isSet;
+              return (
+                <span
+                  className={`paxter-led paxter-led-breathe ${configured ? "paxter-led-green" : "paxter-led-amber"}`}
+                  aria-label={configured ? "Gateway configurado" : "Gateway nao configurado"}
+                  title={configured ? "Gateway configurado" : "Gateway nao configurado"}
+                />
+              );
+            })()
+          }
+        >
           <form
             className="space-y-4"
             onSubmit={(e) => {
