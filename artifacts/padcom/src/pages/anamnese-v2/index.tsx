@@ -874,7 +874,7 @@ function QuestionCard({
         <div className="flex shrink-0 items-center gap-1">
           {q.eSinalAlarme && (
             <span className="flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:bg-red-950/60 dark:text-red-300">
-              <span className="paxter-led" aria-hidden="true" />
+              <span className="paxter-led-alert" aria-hidden="true" />
               <AlertTriangle className="h-3 w-3" /> Atenção
             </span>
           )}

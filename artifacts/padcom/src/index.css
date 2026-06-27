@@ -1235,12 +1235,14 @@
 .footer-credit-padua { color: #16294a; }
 .dark .footer-credit-padua { color: #ffffff; }
 
-/* ===== LED do alerta — acende/apaga MUITO lento e suave. ===== */
+/* ===== LED do alerta — acende/apaga MUITO lento e suave. Classe dedicada
+   (paxter-led-alert) para NAO colidir com o sistema canonico .paxter-led
+   (amber/green/red/on/off definido mais acima). ===== */
 @keyframes paxter-led-slow {
   0%, 100% { opacity: 0.2; box-shadow: 0 0 2px rgba(239, 68, 68, 0.45); }
   50% { opacity: 1; box-shadow: 0 0 7px 1px rgba(239, 68, 68, 0.95); }
 }
-.paxter-led {
+.paxter-led-alert {
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -1279,7 +1281,7 @@
   55%, 100% { transform: translateX(320%) skewX(-12deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .paxter-led { animation: none; opacity: 1; }
+  .paxter-led, .paxter-led-alert { animation: none; opacity: 1; }
   .symbol-glint-band { animation: none; opacity: 0; }
 }
 
