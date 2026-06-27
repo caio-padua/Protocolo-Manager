@@ -3,13 +3,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useGetClient, useUpdateClient, getGetClientQueryKey, getListClientsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
+import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,8 +33,15 @@ const formSchema = z.object({
   instagram: z.string().optional(),
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
+  locationId: z.string().optional(),
   notes: z.string().optional(),
 });
+
+interface LocationOption {
+  id: number;
+  name: string;
+  active: boolean;
+}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -114,8 +122,15 @@ export default function EditClient() {
       instagram: "",
       comoConheceu: "",
       status: "active",
+      locationId: "",
       notes: "",
     },
+  });
+
+  const apiBaseLoc = import.meta.env.VITE_API_URL || "/api";
+  const { data: locations } = useQuery<LocationOption[]>({
+    queryKey: ["locations"],
+    queryFn: async () => (await fetch(`${apiBaseLoc}/locations`)).json(),
   });
 
   useEffect(() => {
@@ -138,6 +153,7 @@ export default function EditClient() {
         instagram: (client as any).instagram || "",
         comoConheceu: (client as any).comoConheceu || "",
         status: (client.status as "active" | "inactive" | "pending") || "active",
+        locationId: (client as any).locationId != null ? String((client as any).locationId) : "8",
         notes: client.notes || "",
       });
     }
@@ -195,6 +211,7 @@ export default function EditClient() {
         instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
+        locationId: values.locationId ? Number(values.locationId) : undefined,
         notes: values.notes || undefined,
       }},
       {
@@ -346,8 +363,49 @@ export default function EditClient() {
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name="locationId"
+                    render={({ field }) => {
+                      const list = (locations ?? []).filter(
+                        (l) => l.active || String(l.id) === field.value,
+                      );
+                      return (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
+                            <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
+                          </FormLabel>
+                          <div className="concave-3d p-1">
+                            <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>
+                              <FormControl>
+                                <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                                  <SelectValue placeholder="Selecione a clínica..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {list.map((l) => (
+                                  <SelectItem key={l.id} value={String(l.id)}>
+                                    {l.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
                 </div>
               </div>
+
+              <ClientPhotoCard
+                clientId={id}
+                photoUrl={(client as any).photoUrl}
+                clientEmail={client.email}
+                onUpdated={() => queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) })}
+              />
 
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">

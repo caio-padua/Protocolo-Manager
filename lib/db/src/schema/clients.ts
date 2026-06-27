@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,8 @@ export const clientsTable = pgTable("clients", {
   instagram: text("instagram"),
   comoConheceu: text("como_conheceu"),
   status: text("status").notNull().default("active"),
+  locationId: integer("location_id"),
+  photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
   examRequestsFolderId: text("exam_requests_folder_id"),

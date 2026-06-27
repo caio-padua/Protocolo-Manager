@@ -3344,6 +3344,12 @@ components:
         status:
           type: string
           enum: [active, inactive, pending]
+        locationId:
+          type: integer
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true
@@ -3390,6 +3396,12 @@ components:
         status:
           type: string
           enum: [active, inactive, pending]
+        locationId:
+          type: integer
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
         notes:
           type: string
           nullable: true

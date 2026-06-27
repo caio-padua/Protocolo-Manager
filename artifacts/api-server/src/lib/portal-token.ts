@@ -29,6 +29,36 @@ export function verifyPortalToken(token: string): number | null {
   }
 }
 
+// Token de FOTO de perfil — assinado por HMAC, com validade de 7 dias. O médico
+// gera o link e manda ao cliente (e-mail/WhatsApp); o cliente pode demorar a
+// subir a foto, por isso a janela é maior que a do portal (30 min). O escopo
+// "foto" impede reaproveitar este token nas demais rotas do portal.
+const PHOTO_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function createPhotoToken(clientId: number): string {
+  const exp = Date.now() + PHOTO_TOKEN_TTL_MS;
+  const payload = `foto:${clientId}:${exp}`;
+  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+export function verifyPhotoToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString();
+    const parts = decoded.split(":");
+    if (parts.length !== 4) return null;
+    const [scope, clientIdStr, expStr, sig] = parts;
+    if (scope !== "foto") return null;
+    const payload = `${scope}:${clientIdStr}:${expStr}`;
+    const expected = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+    if (sig !== expected) return null;
+    if (Date.now() > Number(expStr)) return null;
+    return Number(clientIdStr);
+  } catch {
+    return null;
+  }
+}
+
 // SUB-04 item 7: token de FEED iCal — assinado por HMAC, SEM expiração.
 // Uma assinatura de calendário (Google/Apple) é permanente: o app do cliente
 // busca a URL periodicamente. O escopo "ical" no payload impede reaproveitar

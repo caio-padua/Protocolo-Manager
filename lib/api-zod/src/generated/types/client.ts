@@ -19,6 +19,8 @@ export interface Client {
   instagram?: string | null;
   comoConheceu?: string | null;
   status: ClientStatus;
+  locationId?: number | null;
+  photoUrl?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

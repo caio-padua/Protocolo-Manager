@@ -18,5 +18,7 @@ export interface CreateClientBody {
   instagram?: string | null;
   comoConheceu?: string | null;
   status: CreateClientBodyStatus;
+  locationId?: number | null;
+  photoUrl?: string | null;
   notes?: string | null;
 }
