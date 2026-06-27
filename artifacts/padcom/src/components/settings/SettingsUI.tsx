@@ -29,15 +29,18 @@ export function BlockTitle({
   icon: Icon,
   children,
   color = "primary",
+  trailing,
 }: {
   icon: LucideIcon;
   children: ReactNode;
   color?: TitleColor;
+  trailing?: ReactNode;
 }) {
   return (
     <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 mb-4">
       <Icon className={`w-4 h-4 shrink-0 ${COLOR_CLASS[color]}`} />
       <span className="text-[12px] font-semibold uppercase tracking-[0.12em]">{children}</span>
+      {trailing ? <span className="ml-1 inline-flex items-center">{trailing}</span> : null}
     </div>
   );
 }
@@ -48,15 +51,17 @@ export function SettingsPanel({
   title,
   color,
   children,
+  titleTrailing,
 }: {
   icon: LucideIcon;
   title: string;
   color?: TitleColor;
   children: ReactNode;
+  titleTrailing?: ReactNode;
 }) {
   return (
     <section className="panel-3d p-5">
-      <BlockTitle icon={icon} color={color}>
+      <BlockTitle icon={icon} color={color} trailing={titleTrailing}>
         {title}
       </BlockTitle>
       {children}

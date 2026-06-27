@@ -51,7 +51,18 @@ export default function ConfigAssinatura() {
       {q.isLoading ? (
         <Skeleton className="h-56 w-full" />
       ) : (
-        <SettingsPanel icon={PenTool} title="ZapSign" color="cyan">
+        <SettingsPanel
+          icon={PenTool}
+          title="ZapSign"
+          color="cyan"
+          titleTrailing={
+            <span
+              className={`paxter-led ${active ? "paxter-led-green" : "paxter-led-amber"}`}
+              aria-label={active ? "Integracao ativa" : "Integracao inativa"}
+              title={active ? "Integracao ativa" : "Integracao inativa"}
+            />
+          }
+        >
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -64,12 +75,7 @@ export default function ConfigAssinatura() {
                 <div className="text-sm font-semibold uppercase tracking-wide">Integracao ativa</div>
                 <div className="text-[12px] text-muted-foreground">Liga/desliga o envio para a ZapSign.</div>
               </div>
-              <Switch
-                checked={active}
-                onCheckedChange={setActive}
-                aria-label="Integracao ativa"
-                className="scale-125 origin-right data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-amber-400"
-              />
+              <Switch checked={active} onCheckedChange={setActive} aria-label="Integracao ativa" />
             </div>
 
             <FieldRow label="Token de acesso (API)" hint="Deixe em branco para manter o token atual. Preencha apenas para trocar.">
