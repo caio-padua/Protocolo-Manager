@@ -15,6 +15,7 @@ interface PhotoCardProps {
 export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: PhotoCardProps) {
   const ready = Number.isInteger(clientId) && (clientId as number) > 0;
   const [sending, setSending] = useState(false);
+  const [sendingReg, setSendingReg] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lastLink, setLastLink] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -30,14 +31,38 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
       const data = await res.json();
       setLastLink(data.link);
       if (data.emailSent) {
-        toast.success("Link enviado por e-mail ao cliente.");
+        toast.success("Link de foto enviado por e-mail ao cliente.");
       } else {
-        toast.message("Link gerado. Cliente sem e-mail — copie e envie pelo WhatsApp.");
+        toast.message("Link de foto gerado. Cliente sem e-mail — copie e envie pelo WhatsApp.");
       }
     } catch {
       toast.error("Erro ao gerar link.");
     } finally {
       setSending(false);
+    }
+  };
+
+  // Link do CADASTRO COMPLETO (dados + foto, com preenchimento por voz). Gêmeo do
+  // link de foto, mas aponta para a tela pública /cadastro.
+  const sendRegistrationLink = async () => {
+    setSendingReg(true);
+    try {
+      const res = await fetch(`${apiBase}/client-registration/send-link/${clientId}`, { method: "POST" });
+      if (!res.ok) {
+        toast.error("Não foi possível gerar o link de cadastro.");
+        return;
+      }
+      const data = await res.json();
+      setLastLink(data.link);
+      if (data.emailSent) {
+        toast.success("Link de cadastro enviado por e-mail ao cliente.");
+      } else {
+        toast.message("Link de cadastro gerado. Cliente sem e-mail — copie e envie pelo WhatsApp.");
+      }
+    } catch {
+      toast.error("Erro ao gerar link de cadastro.");
+    } finally {
+      setSendingReg(false);
     }
   };
 
@@ -105,9 +130,14 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
           </p>
 
           <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={sendRegistrationLink} disabled={!ready || sendingReg} className="btn-3d">
+              {sendingReg ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+              ENVIAR LINK DE CADASTRO
+            </Button>
+
             <Button type="button" onClick={sendLink} disabled={!ready || sending} className="btn-3d">
               {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-              ENVIAR LINK AO CLIENTE
+              ENVIAR LINK DE FOTO
             </Button>
 
             <Button

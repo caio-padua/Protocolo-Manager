@@ -59,6 +59,36 @@ export function verifyPhotoToken(token: string): number | null {
   }
 }
 
+// Token de CADASTRO completo — assinado por HMAC, validade de 7 dias. O médico
+// gera o link e manda ao cliente; o cliente preenche o cadastro completo (dados
+// + foto) pelo próprio celular. Escopo "cadastro" impede reaproveitar este token
+// nas rotas de foto/portal e vice-versa.
+const REGISTRATION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function createRegistrationToken(clientId: number): string {
+  const exp = Date.now() + REGISTRATION_TOKEN_TTL_MS;
+  const payload = `cadastro:${clientId}:${exp}`;
+  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+export function verifyRegistrationToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString();
+    const parts = decoded.split(":");
+    if (parts.length !== 4) return null;
+    const [scope, clientIdStr, expStr, sig] = parts;
+    if (scope !== "cadastro") return null;
+    const payload = `${scope}:${clientIdStr}:${expStr}`;
+    const expected = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+    if (sig !== expected) return null;
+    if (Date.now() > Number(expStr)) return null;
+    return Number(clientIdStr);
+  } catch {
+    return null;
+  }
+}
+
 // SUB-04 item 7: token de FEED iCal — assinado por HMAC, SEM expiração.
 // Uma assinatura de calendário (Google/Apple) é permanente: o app do cliente
 // busca a URL periodicamente. O escopo "ical" no payload impede reaproveitar

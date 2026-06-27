@@ -49,6 +49,7 @@ import { CollaboratorGate } from "@/components/CollaboratorGate";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
 import Foto from "@/pages/foto";
+import Cadastro from "@/pages/cadastro";
 import Agendar from "@/pages/agendar";
 import Anamnese from "@/pages/anamnese";
 import AnamneseV2 from "@/pages/anamnese-v2";
@@ -90,6 +91,7 @@ function Router() {
     <Switch>
       <Route path="/portal" component={Portal} />
       <Route path="/foto" component={Foto} />
+      <Route path="/cadastro" component={Cadastro} />
       <Route path="/agendar" component={Agendar} />
       <Route path="/anamnese" component={Anamnese} />
       <Route path="/anamnese/v2" component={AnamneseV2} />

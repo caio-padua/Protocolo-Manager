@@ -92,9 +92,8 @@ function buildPhotoEmailHTML(clientName: string, link: string, baseUrl: string):
         </td></tr>
 
         <tr><td style="padding:18px 40px 4px; text-align:center;">
-          <p style="margin:0; color:#c2cee0; font-size:15px; line-height:1.7;">
-            Para concluir o seu cadastro, toque no botão abaixo e envie uma foto do rosto pelo próprio celular. Leva menos de um minuto — bem iluminado e sem óculos escuros.
-          </p>
+          <p style="margin:0 0 14px; color:#c2cee0; font-size:15px; line-height:1.7;">Para concluir o seu cadastro, toque no botão abaixo e envie uma foto do rosto pelo próprio celular.</p>
+          <p style="margin:0; color:#c2cee0; font-size:15px; line-height:1.7;">Leva menos de um minuto — bem iluminado e sem óculos escuros.</p>
         </td></tr>
 
         <tr><td align="center" style="padding:30px 40px 8px;">
