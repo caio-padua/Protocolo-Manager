@@ -10,6 +10,7 @@ import {
 } from "../lib/portal-token.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { sendGmailMessage } from "../lib/google-gmail.js";
+import { ai } from "@workspace/integrations-gemini-ai";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -306,6 +307,104 @@ router.post(
     } catch (error) {
       req.log.error({ err: error }, "Falha ao salvar cadastro do cliente");
       res.status(500).json({ error: "Falha ao salvar cadastro" });
+    }
+  },
+);
+
+/** Tira cercas ```json de uma resposta do Gemini, se houver. */
+function stripJsonFences(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("```")) {
+    return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  }
+  return trimmed;
+}
+
+const DOCUMENT_SCAN_PROMPT = `Você é um leitor de documentos de identidade brasileiros (RG, CNH, CIN ou CPF).
+Receberá a FOTO de um documento. Extraia SOMENTE os dados do TITULAR do documento, em JSON estrito.
+
+REGRAS:
+1. "name": nome completo do titular, exatamente como impresso (sem abreviar). Se ilegível ou ausente, null.
+2. "cpf": número do CPF do titular, apenas os 11 dígitos (sem pontos ou traço). Se ausente, null.
+   - No RG o CPF costuma vir junto do nome/filiação; na CNH vem no campo "CPF".
+3. "birthDate": data de nascimento do titular no formato DD/MM/AAAA. Se ausente, null.
+   - Procure "Data de Nascimento", "DATA NASC", "Nascimento" ou similar.
+4. NÃO invente dados. Se não tiver certeza de um campo, use null.
+5. NÃO inclua nome de pai/mãe (filiação), número do RG, nem qualquer outro campo.
+
+Responda SOMENTE com o objeto JSON {"name":...,"cpf":...,"birthDate":...}, sem comentários, sem markdown.`;
+
+/**
+ * POST /client-registration/scan-document
+ *
+ * Preenchimento rápido por IA: recebe a FOTO de um documento (RG/CNH) + token de
+ * cadastro (anti-IDOR). Manda a imagem ao Gemini e devolve { name, cpf, birthDate }
+ * para a tela preencher. A imagem NÃO é gravada (nem no banco, nem no Object
+ * Storage): vai ao Gemini e é descartada.
+ */
+router.post(
+  "/client-registration/scan-document",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!(await runUpload(req, res))) return;
+    const body = (req.body as Record<string, unknown>) || {};
+    const token = String(body.token || req.query.token || "");
+    const clientId = verifyRegistrationToken(token);
+    if (!clientId) {
+      res.status(401).json({ error: "Link inválido ou expirado" });
+      return;
+    }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "Envie uma foto do documento." });
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES[file.mimetype]) {
+      res.status(400).json({ error: "Formato de imagem não aceito." });
+      return;
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: file.mimetype, data: file.buffer.toString("base64") } },
+              { text: DOCUMENT_SCAN_PROMPT },
+            ],
+          },
+        ],
+        config: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 8192 },
+      });
+
+      const raw = response.text ?? "";
+      if (!raw.trim()) {
+        res.status(502).json({ error: "Não foi possível ler o documento. Tente outra foto." });
+        return;
+      }
+
+      let parsed: { name?: unknown; cpf?: unknown; birthDate?: unknown };
+      try {
+        parsed = JSON.parse(stripJsonFences(raw));
+      } catch {
+        res.status(502).json({ error: "Não foi possível ler o documento. Tente outra foto." });
+        return;
+      }
+
+      const cleanStr = (v: unknown): string | null =>
+        typeof v === "string" && v.trim().length ? v.trim() : null;
+      const cpfDigits = cleanStr(parsed.cpf)?.replace(/\D/g, "") ?? null;
+
+      res.json({
+        name: cleanStr(parsed.name),
+        cpf: cpfDigits && cpfDigits.length === 11 ? cpfDigits : null,
+        birthDate: cleanStr(parsed.birthDate),
+      });
+    } catch (error) {
+      req.log.error({ err: error }, "Falha ao ler documento por IA");
+      res.status(500).json({ error: "Falha ao ler o documento. Tente novamente." });
     }
   },
 );

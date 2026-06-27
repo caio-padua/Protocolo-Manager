@@ -177,6 +177,20 @@ export default function Cadastro() {
   const [comoConheceu, setComoConheceu] = useState("");
   const [locationId, setLocationId] = useState("");
 
+  // Modo do formulário: "simples" (só os 5 obrigatórios + foto) ou "completo"
+  // (todos os campos do cliente). Trocar de modo NÃO apaga o que já foi digitado.
+  const [mode, setMode] = useState<"simples" | "completo">("simples");
+
+  // Preenchimento por IA: foto do documento (RG/CNH) lida pelo Gemini.
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState("");
+  const docInputRef = useRef<HTMLInputElement>(null);
+
+  // Convite animado para o cadastro completo (toca 1x, no penúltimo obrigatório).
+  const inviteShownRef = useRef(false);
+  const [invitePlaying, setInvitePlaying] = useState(false);
+  const [toggleGlow, setToggleGlow] = useState(false);
+
   // Voz
   const [voiceOn, setVoiceOn] = useState(false);
   const [listeningField, setListeningField] = useState<string | null>(null);
@@ -447,11 +461,13 @@ export default function Cadastro() {
       fd.append("email", email.trim());
       fd.append("phone", phone.trim());
       fd.append("birthDate", brDateToIso(birthDate));
-      if (address) fd.append("address", address);
-      if (pais.trim()) fd.append("pais", pais.trim());
-      if (instagram.trim()) fd.append("instagram", instagram.trim());
-      if (comoConheceu) fd.append("comoConheceu", comoConheceu);
-      if (locationId) fd.append("locationId", locationId);
+      if (mode === "completo") {
+        if (address) fd.append("address", address);
+        if (pais.trim()) fd.append("pais", pais.trim());
+        if (instagram.trim()) fd.append("instagram", instagram.trim());
+        if (comoConheceu) fd.append("comoConheceu", comoConheceu);
+        if (locationId) fd.append("locationId", locationId);
+      }
       if (selectedFile) fd.append("file", selectedFile);
 
       const res = await fetch(`${API_BASE}/api/client-registration/submit`, {
@@ -488,7 +504,87 @@ export default function Cadastro() {
     locationId,
     selectedFile,
     token,
+    mode,
   ]);
+
+  // ---------- Preenchimento por IA (foto do documento) ----------
+  const scanDocument = useCallback(
+    async (file: File) => {
+      setError("");
+      setScanNote("");
+      setScanning(true);
+      try {
+        const fd = new FormData();
+        fd.append("token", token);
+        fd.append("file", file);
+        const res = await fetch(`${API_BASE}/api/client-registration/scan-document`, {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setScanNote(data.error || "Não foi possível ler o documento. Tente outra foto.");
+          return;
+        }
+        let filled = 0;
+        if (data.name) {
+          setName(String(data.name));
+          filled++;
+        }
+        if (data.cpf) {
+          setCpf(formatCPF(String(data.cpf)));
+          filled++;
+        }
+        if (data.birthDate) {
+          setBirthDate(formatDate(String(data.birthDate)));
+          filled++;
+        }
+        setScanNote(
+          filled
+            ? "Dados lidos do documento. Confira e ajuste se precisar."
+            : "Não consegui ler os dados. Preencha à mão ou tente outra foto.",
+        );
+      } catch {
+        setScanNote("Erro ao ler o documento. Tente novamente.");
+      } finally {
+        setScanning(false);
+      }
+    },
+    [token],
+  );
+
+  const onPickDoc = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setScanNote("Selecione uma imagem (foto do documento).");
+        return;
+      }
+      void scanDocument(file);
+    },
+    [scanDocument],
+  );
+
+  // ---------- Convite animado (toca 1x no penúltimo obrigatório do Simples) ----------
+  const maybeShowInvite = useCallback(() => {
+    if (mode !== "simples" || inviteShownRef.current) return;
+    const ready =
+      name.trim().length >= 3 &&
+      cpf.replace(/\D/g, "").length === 11 &&
+      birthDate.replace(/\D/g, "").length === 8 &&
+      /^\S+@\S+\.\S+$/.test(email.trim());
+    if (!ready) return;
+    inviteShownRef.current = true;
+    setInvitePlaying(true);
+  }, [mode, name, cpf, birthDate, email]);
+
+  const onInviteEnd = useCallback(() => {
+    setInvitePlaying(false);
+    setToggleGlow(true);
+    window.setTimeout(() => setToggleGlow(false), 6000);
+  }, []);
 
   const activeLocations = locations.filter((l) => l.active || String(l.id) === locationId);
 
@@ -503,6 +599,7 @@ export default function Cadastro() {
     placeholder,
     type = "text",
     inputMode,
+    onBlur,
   }: {
     fieldKey: string;
     label: string;
@@ -513,6 +610,7 @@ export default function Cadastro() {
     placeholder?: string;
     type?: string;
     inputMode?: "text" | "numeric" | "email" | "tel";
+    onBlur?: () => void;
   }) => (
     <div className="space-y-1.5">
       <label className="uppercase tracking-widest text-[10px] font-extrabold text-[#8aa0c4] block">
@@ -525,6 +623,7 @@ export default function Cadastro() {
           placeholder={placeholder}
           value={value}
           onChange={(e) => setter(applyMask(kind, e.target.value))}
+          onBlur={onBlur}
           className="field-engraved flex-1 h-11 px-3 text-white text-sm rounded-[6px] bg-transparent outline-none"
         />
         {voiceOn && (
@@ -585,6 +684,52 @@ export default function Cadastro() {
 
           {!loading && !invalid && !done && (
             <div className="space-y-5">
+              <style>{`
+                @keyframes paxterInvite {
+                  0%   { transform: translateX(120%) scale(0.6); opacity: 0; }
+                  16%  { transform: translateX(0%) scale(1); opacity: 1; }
+                  34%  { transform: translateX(0%) scale(1.12); opacity: 1; }
+                  84%  { transform: translateX(0%) scale(0.96); opacity: 1; }
+                  100% { transform: translateX(120%) scale(0.6); opacity: 0; }
+                }
+                @keyframes paxterToggleGlow {
+                  0%, 100% { box-shadow: 0 0 0 0 rgba(76,201,140,0.0); }
+                  50%      { box-shadow: 0 0 0 4px rgba(76,201,140,0.45); }
+                }
+              `}</style>
+
+              {/* Seletor de modo: Simples x Completo */}
+              <div className="concave-3d p-1 grid grid-cols-2 gap-1" role="tablist" aria-label="Modo do cadastro">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "simples"}
+                  onClick={() => setMode("simples")}
+                  className={`h-10 rounded-[6px] text-[11px] font-extrabold uppercase tracking-widest transition-all ${
+                    mode === "simples" ? "bevel-3d text-[#c2a05a]" : "text-[#7e93b8]"
+                  }`}
+                >
+                  Modo Simples
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "completo"}
+                  onClick={() => setMode("completo")}
+                  style={toggleGlow && mode !== "completo" ? { animation: "paxterToggleGlow 1.1s ease-in-out 3" } : undefined}
+                  className={`h-10 rounded-[6px] text-[11px] font-extrabold uppercase tracking-widest transition-all ${
+                    mode === "completo" ? "bevel-3d text-[#c2a05a]" : "text-[#7e93b8]"
+                  }`}
+                >
+                  Cadastro Completo
+                </button>
+              </div>
+              <p className="text-[#7e93b8] text-[11px] leading-snug -mt-2 px-1">
+                {mode === "simples"
+                  ? "Modo rápido: só os dados essenciais. Você pode completar o resto quando quiser."
+                  : "Cadastro completo: endereço e dados adicionais para aproveitar tudo que a clínica oferece."}
+              </p>
+
               {voiceOn && (
                 <div className="concave-3d p-3 flex items-center gap-2">
                   <Mic className="w-4 h-4 text-[#c2a05a] shrink-0" />
@@ -594,6 +739,43 @@ export default function Cadastro() {
                 </div>
               )}
 
+              {/* Preenchimento rápido por IA (foto do documento) */}
+              <div className="panel-3d p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-white font-semibold text-sm uppercase tracking-wide">Preenchimento Rápido</h2>
+                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#0b1426] bg-[#c2a05a] px-2 py-0.5 rounded-[4px]">IA grátis</span>
+                </div>
+                <p className="text-[#9fb1d0] text-[11px] leading-snug">
+                  Tire uma foto do seu documento (RG ou CNH) e a inteligência artificial preenche nome, CPF e data de nascimento para você. A imagem não é guardada.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => docInputRef.current?.click()}
+                  disabled={scanning}
+                  className="btn-3d-soft w-full h-11 flex items-center justify-center gap-2 rounded-[6px] text-[#c2a05a] text-xs font-extrabold uppercase tracking-widest disabled:opacity-60"
+                >
+                  {scanning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Lendo documento...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4" /> Fotografar documento
+                    </>
+                  )}
+                </button>
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPickDoc}
+                />
+                {scanNote && (
+                  <p className="text-[#9fb1d0] text-[11px] leading-snug">{scanNote}</p>
+                )}
+              </div>
+
               {/* Dados pessoais */}
               <div className="panel-3d p-5 space-y-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -602,11 +784,12 @@ export default function Cadastro() {
                 <Field fieldKey="name" label="Nome Completo" value={name} setter={setName} required placeholder="Ex: João da Silva" />
                 <Field fieldKey="birthDate" label="Data de Nascimento" value={birthDate} setter={setBirthDate} kind="date" required placeholder="00/00/0000" inputMode="numeric" />
                 <Field fieldKey="cpf" label="CPF" value={cpf} setter={setCpf} kind="cpf" required placeholder="000.000.000-00" inputMode="numeric" />
-                <Field fieldKey="email" label="E-mail" value={email} setter={setEmail} required placeholder="joao@exemplo.com" type="email" inputMode="email" />
+                <Field fieldKey="email" label="E-mail" value={email} setter={setEmail} required placeholder="joao@exemplo.com" type="email" inputMode="email" onBlur={maybeShowInvite} />
                 <Field fieldKey="phone" label="Celular" value={phone} setter={setPhone} kind="phone" required placeholder="(00) 00000-0000" inputMode="tel" />
               </div>
 
-              {/* Endereço (opcional) */}
+              {/* Endereço (opcional) — só no modo completo */}
+              {mode === "completo" && (
               <div className="panel-3d p-5 space-y-4">
                 <h2 className="text-white font-semibold text-sm uppercase tracking-wide">Endereço (opcional)</h2>
                 <div className="space-y-1.5">
@@ -620,6 +803,13 @@ export default function Cadastro() {
                         const f = formatCEP(e.target.value);
                         setCep(f);
                         if (f.replace(/\D/g, "").length === 8) lookupCepByValue(f);
+                      }}
+                      onBlur={() => lookupCepByValue(cep)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          lookupCepByValue(cep);
+                        }
                       }}
                       className="field-engraved flex-1 h-11 px-3 text-white text-sm rounded-[6px] bg-transparent outline-none"
                     />
@@ -663,8 +853,10 @@ export default function Cadastro() {
                 </div>
                 <Field fieldKey="pais" label="País" value={pais} setter={setPais} placeholder="BRASIL" />
               </div>
+              )}
 
-              {/* Adicionais (opcional) */}
+              {/* Adicionais (opcional) — só no modo completo */}
+              {mode === "completo" && (
               <div className="panel-3d p-5 space-y-4">
                 <h2 className="text-white font-semibold text-sm uppercase tracking-wide">Adicionais (opcional)</h2>
                 <Field fieldKey="instagram" label="Instagram" value={instagram} setter={setInstagram} placeholder="@usuario" />
@@ -706,6 +898,7 @@ export default function Cadastro() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Foto (opcional) */}
               <div className="panel-3d p-5 space-y-4">
@@ -753,6 +946,39 @@ export default function Cadastro() {
                   <p className="text-[#9fb1d0] text-[11px] text-center leading-relaxed px-1">{cameraNote}</p>
                 )}
               </div>
+
+              {/* Convite animado para o Cadastro Completo (bloqueia digitação ~1,2s) */}
+              {invitePlaying && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center px-6"
+                  style={{ background: "rgba(8,14,28,0.55)", backdropFilter: "blur(2px)" }}
+                  aria-live="polite"
+                >
+                  <div
+                    onAnimationEnd={onInviteEnd}
+                    style={{ animation: "paxterInvite 1.2s cubic-bezier(0.22,1,0.36,1) forwards" }}
+                    className="w-full max-w-xs rounded-[10px] p-6 text-center"
+                  >
+                    <div
+                      className="rounded-[10px] p-6"
+                      style={{
+                        background: "linear-gradient(160deg, rgba(38,108,82,0.92), rgba(24,74,58,0.92))",
+                        border: "1px solid rgba(120,210,170,0.45)",
+                        boxShadow: "0 18px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12)",
+                        backdropFilter: "blur(6px)",
+                      }}
+                    >
+                      <CheckCircle className="w-9 h-9 text-emerald-200 mx-auto mb-3" />
+                      <h3 className="text-white font-bold text-sm uppercase tracking-wide mb-2">
+                        Quer descontos exclusivos?
+                      </h3>
+                      <p className="text-emerald-50 text-[12px] leading-snug">
+                        Clientes com cadastro completo recebem condições e benefícios especiais da clínica. Toque em <span className="font-bold">Cadastro Completo</span> aqui em cima e aproveite.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-md px-3 py-2">
