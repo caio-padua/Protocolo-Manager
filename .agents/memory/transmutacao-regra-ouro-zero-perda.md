@@ -38,3 +38,13 @@ existe `ficha_clinica`, que e dado de saude, outra coisa) -> o vinculo paciente-
 PERDEU na importacao. Para corrigir: ADD COLUMN location_id em clients e religar por CPF (clients
 guarda cpf como chave natural; pacientes nao guardam id_ihe). Catalogo/itens/formulas: contagem
 no banco bate 1:1 com o export (457/54/305/32/12/9) — importacao completa.
+
+**Correcao do CEO (27/06/2026):** o `unidade_id` variado do export (3882 em "Joao Pessoa",
+~300 em varios consultorios, so 3 em Instituto Padua) e ERRO de cadastro do IHE. Na realidade
+TODOS os pacientes sao do Instituto Padua (location id 8). Portanto, ao religar NAO usar o
+unidade_id do export como verdade: default = Instituto Padua; o numero original pode ser
+guardado so como auditoria (rede de seguranca), nunca como vinculo operacional. A ferramenta
+pedida e o "minimo motor de cadastro vinculado a clinica" (MVP): no cadastro do cliente tem
+passo de foto + lista suspensa data-bound de clinica de origem (le `locations`, so cresce ao
+adicionar, "remover"=inativar), autopreenche Instituto Padua, e cresce depois. CUIDADO: clinica
+de ORIGEM (cadastro) != clinica da SESSAO (agenda) que define o endereco do lembrete.
