@@ -27,4 +27,14 @@ inteira num jsonb `dados` (0 perda real). Esse e o padrao a generalizar.
 **How to apply:** antes de importar QUALQUER export do IHE: (1) diagnosticar campos do JSON x
 colunas da tabela; (2) criar colunas para os faltantes (ADD COLUMN, tipo compativel, nullable);
 (3) idealmente guardar a linha crua num jsonb `dados` como rede de seguranca. NUNCA DROP/recriar.
-Nao ha export de clinicas/locais no IHE — cadastro de clinicas (SP/Brasilia) mora no Manager.
+
+**Achado real (verificado no banco em 27/06/2026):** as clinicas/unidades do IHE (que la sao
+empresas multi-tenant) JA estao no Manager como tabela `locations`, com o ID PRESERVADO — os
+`unidade_id` dos pacientes [15,8,9,10,14,19,16,18,1] casam 1:1 com `locations.id`. Conceito do
+CEO: multi-tenant no IHE -> aqui viram clinicas onde o proprio Dr. Caio atende. NAO existe
+arquivo .json de clinicas, mas o cadastro existe (locations). O QUE FALTA (caso classico da
+regra de ouro): o campo `unidade_id` do export de pacientes NAO tem coluna em `clients` (so
+existe `ficha_clinica`, que e dado de saude, outra coisa) -> o vinculo paciente->clinica se
+PERDEU na importacao. Para corrigir: ADD COLUMN location_id em clients e religar por CPF (clients
+guarda cpf como chave natural; pacientes nao guardam id_ihe). Catalogo/itens/formulas: contagem
+no banco bate 1:1 com o export (457/54/305/32/12/9) — importacao completa.
