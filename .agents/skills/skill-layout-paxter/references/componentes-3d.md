@@ -33,7 +33,7 @@ em camadas. Toda classe tem variante `.dark`; ao criar classe nova, crie tambem 
 | Botao aceito | `Button` + `btn-3d-ok` | tecla verde sucesso | estado terminal (so apos aceitar) |
 | Neon no hover | `neon-hover` | luz ciano sobe ao passar o mouse | item clicavel discreto |
 | Neon estavel | `paxter-underglow` | luz que sobe do rodape, NAO pisca | bloco que precisa chamar sem piscar |
-| Luz de status | `paxter-led` (+`-amber`/`-green`/`-red`, `-on`/`-off`) | ponto que pulsa | Agora/Meta, ligado/desligado |
+| Luz de status | `paxter-led` (+`-amber`/`-green`/`-red`, `-on`/`-off`/`-breathe`) | ponto que pulsa | Agora/Meta, ligado/desligado |
 | Toggle | `Switch` quadrado dentro de ToggleWell (`concave-3d`) | liga/desliga afundado | opcao editavel |
 
 ## Esqueletos JSX (copiar e adaptar)
@@ -81,6 +81,21 @@ Armadilha: o `::after` tem `pointer-events:none` e `position:absolute` — o pai
   <span className="paxter-led paxter-led-green paxter-led-on" /> VITRINE
 </span>
 ```
+
+### Luz de status de FERRAMENTA/integracao — respiro de VELA (padrao oficial)
+Padrao aprovado pelo CEO (27/06/2026) para a luzinha que fica ao lado do TITULO
+(bevel saliente) de uma ferramenta/integracao, indicando ligado/desligado:
+```tsx
+// verde = ligado/ativo, amarelo = desligado/inativo; respiro LENTO (vela)
+<span className={`paxter-led paxter-led-breathe ${ativo ? "paxter-led-green" : "paxter-led-amber"}`} />
+```
+- `paxter-led-breathe` = `paxterPulse 3.6s` (acende/apaga LENTO, cadencia de vela). NAO usar
+  `paxter-led-on` (1.4s e rapido demais para status de ferramenta).
+- A cor vem do modificador (`-green`/`-amber`/`-red`); o respiro herda `--led-glow`, entao a vela
+  acende na cor certa.
+- UMA luz so por ferramenta: nao repetir LED no badge do segredo (cofre) e no titulo ao mesmo tempo.
+- Armadilha: existe `.paxter-led-alert` (vermelho, `paxter-led-slow`) SO para o alarme da anamnese —
+  nao confundir com o sistema canonico `.paxter-led`.
 
 ### Toggle quadrado em sulco (ToggleWell — Padrao 5/11)
 ```tsx
