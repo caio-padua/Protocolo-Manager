@@ -54,7 +54,8 @@ Sempre falar com o CEO usando "Saliente" e "Concavo". No codigo usar as classes 
 | Tecla classica | Botao 3D | `btn-3d`, `btn-3d-soft` | Botao que afunda no `:active` |
 | Faixa de incentivo | Banner de incentivo | `incentive-banner` | Degrade mint suave, carrega "quanto falta" |
 | Bevel GROSSO (botao alto) | Bevel grosso | `bevel-3d` | Chanfro saliente forte; impressao de botao grosso que salta da folha |
-| Luz latente (LED) | LED / luz | `paxter-led` (+`-amber`/`-green`/`-red`) + `paxter-led-on` / `-off` | Ponto que acende/apaga (pulso); ciano padrao, amarelo=AGORA, verde=META/OK, vermelho=excede; LED verde SEM `-on` = aceso ESTAVEL (calmo, sem neon) |
+| Luz latente (LED) | LED / luz | `paxter-led` (+`-amber`/`-green`/`-red`) + `paxter-led-on` / `-off` / `-breathe` | Ponto que acende/apaga (pulso); ciano padrao, amarelo=AGORA, verde=META/OK, vermelho=excede; LED verde SEM `-on` = aceso ESTAVEL (calmo, sem neon) |
+| Luzinha em vela (status de ferramenta) | Luzinha em vela | `paxter-led paxter-led-breathe` + `-green`/`-amber` | Luz ao lado do TITULO de uma ferramenta/integracao: respiro LENTO (vela, 3,6s) com halo CONTIDO; verde=ligado, amarelo=desligado. Ver Padrao 17 |
 | Pulso de atencao | Pulso / atencao | `paxter-attention` | Outline ciano que pisca no hover SEM apagar o relevo |
 | Neon estavel de baixo | Underglow | `paxter-underglow` | Luz ciano que sobe do rodape, ESTAVEL (nao pisca), intensa e difusa |
 | Alerta em relevo + neon | Alerta clinico | `paxter-alert` (+`-red`/`-amber`) | Painel de alerta com bevel 3D e neon na propria cor (vermelho/ambar) |
@@ -304,6 +305,15 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   carimbo (CRM/COREN) e do botao `btn-3d` "Assinar PDF". O documento assinado mostra selo verde
   ICP-Brasil (`ShieldCheck` esmeralda). Em producao a assinatura NUNCA e fonte cursiva digitada — e
   sempre o JPEG cadastrado; a fonte cursiva no mockup e so placeholder visual.
+- **Padrao 17 — LUZINHA EM VELA: status de FERRAMENTA/integracao (apelido oficial do CEO, 27/06/2026)**:
+  toda ferramenta/integracao com estado ligado/desligado (ZapSign, Telegram, Asaas, futuras) leva UMA
+  luzinha ao lado do TITULO (placa Bevel saliente do bloco), com a receita unica
+  `paxter-led paxter-led-breathe` + `paxter-led-green` (ligado) / `paxter-led-amber` (desligado). O
+  respiro e LENTO (keyframe `paxterBreathe`, 3,6s — cadencia de vela) e o halo e CONTIDO (blur curto,
+  SEM espalhamento) — NUNCA usar `paxter-led-on` (1,4s, rapido e difuso demais) para status de
+  ferramenta. UMA luz so por ferramenta: nao repetir LED no badge do segredo (cofre) E no titulo ao
+  mesmo tempo. Nao confundir com `paxter-led-alert` (vermelho, `paxter-led-slow`), reservado SO ao
+  alarme da anamnese. Receita completa e armadilhas em `references/componentes-3d.md`.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
