@@ -16,6 +16,12 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
+  Send as TelegramIcon,
+  ShieldCheck,
+  Activity,
+  HeartPulse,
+  Library,
+  Plus,
 } from "lucide-react";
 import { DocumentEditor } from "./Editor";
 import {
@@ -24,10 +30,17 @@ import {
   listarTemplates,
   salvarTemplate,
   enviarParaAssinatura,
+  obterConsentimento,
+  obterContexto,
+  listarClausulas,
+  salvarClausula,
   ApiError,
   type ClienteLite,
   type TimelineItem,
   type Template,
+  type ConsentimentoStatus,
+  type ContextoPaciente,
+  type Clausula,
 } from "@/lib/cartorio-api";
 
 const TIPOS_DOC = [
@@ -41,6 +54,7 @@ const TIPOS_DOC = [
 const CANAIS = [
   { value: "WHATSAPP", label: "WhatsApp", icon: MessageCircle },
   { value: "EMAIL", label: "E-mail", icon: Mail },
+  { value: "TELEGRAM", label: "Telegram", icon: TelegramIcon },
 ];
 
 function statusVisual(status: string): { label: string; cls: string; icon: typeof Clock } {
@@ -57,6 +71,14 @@ function fmtData(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+// Cor da grade clínica → classe de destaque (verde/âmbar/vermelho).
+function corAlerta(cor: string): string {
+  const c = (cor || "").toLowerCase();
+  if (c === "red" || c === "vermelho") return "text-red-700 bg-red-500/10 border-red-500/40";
+  if (c === "yellow" || c === "amarelo") return "text-amber-700 bg-amber-500/10 border-amber-500/40";
+  return "text-emerald-700 bg-emerald-500/10 border-emerald-500/40";
 }
 
 export default function Cartorio() {
@@ -96,6 +118,7 @@ export default function Cartorio() {
   useEffect(() => {
     void recarregarTimeline();
     void recarregarTemplates();
+    void recarregarClausulas();
   }, []);
 
   // ---- Seletor de paciente ----
@@ -134,8 +157,115 @@ export default function Cartorio() {
   const [incluirMedico, setIncluirMedico] = useState(false);
   const [canais, setCanais] = useState<string[]>(["WHATSAPP"]);
   const [templateCodigo, setTemplateCodigo] = useState("");
+  const [escopo, setEscopo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [salvandoTpl, setSalvandoTpl] = useState(false);
+
+  // ---- Selo de consentimento + Contexto + Cláusulas (Ondas 4 e 5) ----
+  const [consent, setConsent] = useState<ConsentimentoStatus | null>(null);
+  const [contexto, setContexto] = useState<ContextoPaciente | null>(null);
+  const [clausulas, setClausulas] = useState<Clausula[]>([]);
+  const [clausulaSel, setClausulaSel] = useState("");
+
+  async function recarregarClausulas() {
+    try {
+      setClausulas(await listarClausulas());
+    } catch {
+      /* exige login; a timeline já avisa */
+    }
+  }
+
+  // Carrega selo + contexto sempre que o paciente (ou escopo) muda.
+  useEffect(() => {
+    if (!paciente) {
+      setConsent(null);
+      setContexto(null);
+      return;
+    }
+    let vivo = true;
+    (async () => {
+      try {
+        const [c, ctx] = await Promise.all([
+          obterConsentimento(paciente.id, escopo.trim() || undefined),
+          obterContexto(paciente.id),
+        ]);
+        if (vivo) {
+          setConsent(c);
+          setContexto(ctx);
+        }
+      } catch {
+        if (vivo) {
+          setConsent(null);
+          setContexto(null);
+        }
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [paciente, escopo]);
+
+  // Deep link: /cartorio?pacienteId=123 pré-seleciona o paciente (via contexto).
+  useEffect(() => {
+    const pid = Number(new URLSearchParams(window.location.search).get("pacienteId"));
+    if (!Number.isInteger(pid) || pid <= 0) return;
+    (async () => {
+      try {
+        const ctx = await obterContexto(pid);
+        setPaciente({
+          id: ctx.paciente.id,
+          name: ctx.paciente.nome,
+          cpf: ctx.paciente.cpf,
+          email: ctx.paciente.email,
+          phone: ctx.paciente.telefone,
+        });
+      } catch {
+        /* paciente inexistente ou sem login — segue manual */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function aplicarClausula(codigo: string) {
+    setClausulaSel("");
+    if (!codigo) return;
+    const cl = clausulas.find((c) => c.codigo === codigo);
+    if (!cl) return;
+    // Injeta no fim do documento atual (achatado no PDF no envio).
+    const base = conteudoHtml.trim() === "<p></p>" ? "" : conteudoHtml;
+    setConteudoHtml(`${base}\n${cl.corpoHtml}`);
+    toast({ title: "Cláusula inserida", description: cl.titulo });
+  }
+
+  // Salva o conteúdo atual do editor como cláusula reutilizável na biblioteca.
+  async function onNovaClausula() {
+    const corpo = conteudoHtml.trim();
+    if (!corpo || corpo === "<p></p>") {
+      toast({
+        title: "Editor vazio",
+        description: "Escreva o texto da cláusula no editor antes de salvar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const tituloCl = window.prompt("Título da cláusula (ex.: Risco de Flebite):")?.trim();
+    if (!tituloCl) return;
+    const codigoCl =
+      window.prompt("Código curto único (ex.: RISCO_FLEBITE):")?.trim().toUpperCase() || "";
+    if (!codigoCl) return;
+    try {
+      await salvarClausula({ codigo: codigoCl, titulo: tituloCl, corpoHtml: corpo });
+      await recarregarClausulas();
+      toast({ title: "Cláusula salva na biblioteca", description: `${tituloCl} (${codigoCl})` });
+    } catch (e) {
+      const err = e as ApiError;
+      toast({
+        title: "Não foi possível salvar a cláusula",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  }
 
   function aplicarTemplate(codigo: string) {
     setTemplateCodigo(codigo);
@@ -178,6 +308,7 @@ export default function Cartorio() {
         titulo: titulo.trim() || undefined,
         incluirMedico,
         canais,
+        escopo: escopo.trim() || undefined,
       });
       toast({
         title: r.mock ? "Enviado em MODO TESTE (mock)" : "Documento enviado para assinatura",
@@ -192,6 +323,7 @@ export default function Cartorio() {
       setTipoDoc("TERMO");
       setIncluirMedico(false);
       setCanais(["WHATSAPP"]);
+      setEscopo("");
       await recarregarTimeline();
     } catch (e) {
       const err = e as ApiError;
@@ -409,6 +541,94 @@ export default function Cartorio() {
             )}
           </div>
 
+          {/* SELO DE CONSENTIMENTO (Onda 4) + escopo */}
+          {paciente && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_minmax(160px,220px)]">
+              <div
+                className={`bevel-3d flex items-center gap-3 px-3 py-2 ${
+                  consent?.ativo
+                    ? "text-emerald-700"
+                    : consent?.travaLigada
+                      ? "text-red-700"
+                      : "text-muted-foreground"
+                }`}
+              >
+                {consent?.ativo ? (
+                  <ShieldCheck className="w-7 h-7 shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-7 h-7 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em]">
+                    {consent?.ativo ? "Consentimento ativo" : "Sem consentimento"}
+                  </div>
+                  <div className="truncate text-[12px]">
+                    {consent?.ativo
+                      ? `Assinado em ${fmtData(consent.concluidoEm ?? null)}${
+                          consent.titulo ? ` • ${consent.titulo}` : ""
+                        }`
+                      : consent?.travaLigada
+                        ? "Trava LIGADA — o ato será bloqueado (409) até assinar."
+                        : "Trava desligada — envio livre. Assine para selar o ato."}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Escopo do ato (opcional)
+                </label>
+                <Input
+                  className="field-engraved"
+                  value={escopo}
+                  onChange={(e) => setEscopo(e.target.value)}
+                  placeholder="Ex.: PROTOCOLO:123"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* CONTEXTO DO PACIENTE (Onda 5) — somente leitura */}
+          {paciente && contexto && (
+            <div className="concave-3d space-y-2 p-3">
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                <Activity className="w-4 h-4" /> Contexto do paciente
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                <span className={`rounded-[4px] border px-2 py-0.5 font-semibold ${corAlerta(contexto.ultimaEnfermagem?.alertColor || (contexto.clinica.redFlag ? "red" : "green"))}`}>
+                  Grade {contexto.clinica.gradeGlobal} • escore {contexto.clinica.escoreTotal}
+                </span>
+                {contexto.clinica.redFlag && (
+                  <span className="inline-flex items-center gap-1 rounded-[4px] border border-red-500/40 bg-red-500/10 px-2 py-0.5 font-semibold text-red-700">
+                    <ShieldAlert className="w-3 h-3" /> Sinal de alarme
+                  </span>
+                )}
+                <span className="text-muted-foreground">
+                  {contexto.sessoes.protocolosAtivos} protocolo(s) ativo(s) • {contexto.sessoes.total} sessão(ões)
+                </span>
+              </div>
+              {contexto.clinica.doencas.length > 0 && (
+                <div className="text-[12px]">
+                  <span className="font-semibold text-muted-foreground">Doenças: </span>
+                  {contexto.clinica.doencas.join(", ")}
+                </div>
+              )}
+              {contexto.ultimaEnfermagem && (
+                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                  <HeartPulse className="w-3.5 h-3.5" />
+                  Enfermagem {fmtData(contexto.ultimaEnfermagem.data)}: adesão {contexto.ultimaEnfermagem.adherenceLevel}, tolerância {contexto.ultimaEnfermagem.tolerance}
+                  {contexto.ultimaEnfermagem.needsTeamContact && (
+                    <span className="font-semibold text-amber-700"> • pede contato</span>
+                  )}
+                </div>
+              )}
+              {contexto.ultimoRasEvolutivo && (
+                <div className="text-[12px] text-muted-foreground">
+                  RAS evolutivo: sessão {contexto.ultimoRasEvolutivo.sessionNumber}/{contexto.ultimoRasEvolutivo.totalSessions} ({Math.round(contexto.ultimoRasEvolutivo.progressPercent)}%)
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tipo + Modelo + Título */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -458,11 +678,39 @@ export default function Cartorio() {
             />
           </div>
 
-          {/* Editor */}
+          {/* Editor + biblioteca de cláusulas (Onda 5) */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Conteúdo
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Conteúdo
+              </label>
+              <div className="flex items-center gap-1.5">
+                <Library className="w-3.5 h-3.5 text-muted-foreground" />
+                <select
+                  className="field-engraved bg-transparent px-2 py-1 text-[12px] outline-none"
+                  value={clausulaSel}
+                  onChange={(e) => aplicarClausula(e.target.value)}
+                  title="Inserir cláusula da biblioteca"
+                >
+                  <option value="">Inserir cláusula…</option>
+                  {clausulas.map((c) => (
+                    <option key={c.id} value={c.codigo}>
+                      {c.titulo} ({c.usoContagem})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Nova cláusula na biblioteca"
+                  onClick={() => void onNovaClausula()}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
             <DocumentEditor value={conteudoHtml} onChange={setConteudoHtml} />
           </div>
 

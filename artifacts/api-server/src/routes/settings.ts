@@ -158,6 +158,43 @@ router.put("/settings/esignature", requireCollaborator, async (req, res): Promis
   res.json(await esignaturePayload());
 });
 
+// ----------------------------------------------------------------- TELEGRAM ---
+// Token do bot vai para o COFRE cifrado (telegram.botToken). Status devolve
+// apenas {isSet, masked}; NUNCA o valor. Sem token => canal opera em MOCK.
+async function telegramPayload(): Promise<unknown> {
+  const activeRaw = await getSetting("telegram.active");
+  const tokenStatus = await getSecretStatus("telegram.botToken");
+  const webhookSecretStatus = await getSecretStatus("telegram.webhookSecret");
+  return { provider: "telegram", active: activeRaw === "true", tokenStatus, webhookSecretStatus };
+}
+
+router.get("/settings/telegram", requireCollaborator, async (_req, res): Promise<void> => {
+  res.json(await telegramPayload());
+});
+
+router.put("/settings/telegram", requireCollaborator, async (req, res): Promise<void> => {
+  const active = req.body?.active;
+  const token = req.body?.token;
+  const webhookSecret = req.body?.webhookSecret;
+  if (active !== undefined && typeof active !== "boolean") {
+    res.status(400).json({ error: "active deve ser booleano" });
+    return;
+  }
+  if (token !== undefined && typeof token !== "string") {
+    res.status(400).json({ error: "token deve ser texto" });
+    return;
+  }
+  if (webhookSecret !== undefined && typeof webhookSecret !== "string") {
+    res.status(400).json({ error: "webhookSecret deve ser texto" });
+    return;
+  }
+  if (typeof active === "boolean") await setSetting("telegram.active", active ? "true" : "false");
+  if (typeof token === "string" && token.trim()) await setSecret("telegram.botToken", token.trim(), actor(req));
+  if (typeof webhookSecret === "string" && webhookSecret.trim())
+    await setSecret("telegram.webhookSecret", webhookSecret.trim(), actor(req));
+  res.json(await telegramPayload());
+});
+
 // ------------------------------------------------------------- CERTIFICADO ---
 router.get("/settings/certificate", requireCollaborator, async (_req, res): Promise<void> => {
   res.json(await getCertificateStatus());

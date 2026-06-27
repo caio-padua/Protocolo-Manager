@@ -46,7 +46,7 @@ import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 import asaasRouter from "./asaas";
 import settingsRouter from "./settings";
 import financeiroRouter from "./financeiro";
-import assinaturasRouter, { assinaturaWebhookRouter } from "./assinaturas";
+import assinaturasRouter, { assinaturaWebhookRouter, telegramWebhookRouter } from "./assinaturas";
 
 const router: IRouter = Router();
 
@@ -57,6 +57,10 @@ router.use(asaasRouter);
 // Webhook de Assinatura Remota (ZapSign): provedor externo sem sessao, tambem
 // registrado ANTES do portao. Autenticidade via header secreto proprio.
 router.use(assinaturaWebhookRouter);
+
+// Webhook do Telegram: o bot chama esta rota; associa chat_id ao paciente.
+// Registrado ANTES do portao (provedor externo sem sessao). Nao usa token aqui.
+router.use(telegramWebhookRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas

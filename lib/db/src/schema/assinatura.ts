@@ -42,6 +42,9 @@ export const assinaturaSolicitacoesTable = pgTable("assinatura_solicitacoes", {
   templateId: integer("template_id"),
   tipoDoc: text("tipo_doc").notNull().default("TERMO"),
   titulo: text("titulo"),
+  // Onda 4 — escopo do ATO que este documento consente (ex.: "PROTOCOLO:123" ou
+  // um tipo de doc "TCLE"). O nervo consentimentoAtivo casa documento <-> ato.
+  escopo: text("escopo"),
   provedorCodigo: text("provedor_codigo").notNull().default("zapsign"),
   provedorEnvelopeId: text("provedor_envelope_id"),
   // RASCUNHO | HIDRATADO | ENVIADO | PARCIAL | CONCLUIDO | REJEITADO | EXPIRADO | FALHA
@@ -109,21 +112,53 @@ export const assinaturaWebhookEventosTable = pgTable(
   }),
 );
 
-export const assinaturaNotificacoesTable = pgTable("assinatura_notificacoes", {
+export const assinaturaNotificacoesTable = pgTable(
+  "assinatura_notificacoes",
+  {
+    id: serial("id").primaryKey(),
+    solicitacaoId: integer("solicitacao_id").notNull(),
+    // EMAIL | WHATSAPP | DRIVE | TELEGRAM
+    canal: text("canal").notNull(),
+    // ENVIO_INICIAL | POS_ASSINATURA | LEMBRETE
+    momento: text("momento").notNull(),
+    destinatario: text("destinatario").notNull(),
+    assunto: text("assunto"),
+    corpo: text("corpo").notNull(),
+    // PENDENTE | ENVIADO | FALHA | PULADO
+    status: text("status").notNull().default("PENDENTE"),
+    enviadoEm: timestamp("enviado_em", { withTimezone: true }),
+    erro: text("erro"),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Onda 3 — idempotência por (solicitacao + canal + momento): reprocessar a
+    // fila ou reenviar não duplica a mesma notificação do mesmo canal/momento.
+    notifUnica: uniqueIndex("assinatura_notif_solicitacao_canal_momento").on(
+      t.solicitacaoId,
+      t.canal,
+      t.momento,
+    ),
+  }),
+);
+
+// Onda 5 — Biblioteca de cláusulas reutilizáveis (nativa). Texto pronto que o
+// redator injeta no editor para casos de risco fora do padrão (off-label,
+// comorbidade etc.). O corpo é "achatado" no PDF no envio, então apagar uma
+// cláusula nunca afeta documentos já gerados.
+export const assinaturaClausulasTable = pgTable("assinatura_clausulas", {
   id: serial("id").primaryKey(),
-  solicitacaoId: integer("solicitacao_id").notNull(),
-  // EMAIL | WHATSAPP | DRIVE
-  canal: text("canal").notNull(),
-  // ENVIO_INICIAL | POS_ASSINATURA | LEMBRETE
-  momento: text("momento").notNull(),
-  destinatario: text("destinatario").notNull(),
-  assunto: text("assunto"),
-  corpo: text("corpo").notNull(),
-  // PENDENTE | ENVIADO | FALHA
-  status: text("status").notNull().default("PENDENTE"),
-  enviadoEm: timestamp("enviado_em", { withTimezone: true }),
-  erro: text("erro"),
+  codigo: text("codigo").notNull().unique(),
+  titulo: text("titulo").notNull(),
+  corpoHtml: text("corpo_html").notNull(),
+  // RISCO | OFF-LABEL | COMORBIDADE | LGPD | OUTRO
+  categoria: text("categoria").notNull().default("OUTRO"),
+  usoContagem: integer("uso_contagem").notNull().default(0),
+  ativo: boolean("ativo").notNull().default(true),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const assinaturaTogglesAdminTable = pgTable("assinatura_toggles_admin", {
@@ -137,6 +172,9 @@ export const assinaturaTogglesAdminTable = pgTable("assinatura_toggles_admin", {
   arquivarNoDrive: boolean("arquivar_no_drive").notNull().default(true),
   exigirAssinaturaMedico: boolean("exigir_assinatura_medico").notNull().default(false),
   exigirTestemunhas: boolean("exigir_testemunhas").notNull().default(false),
+  // Onda 4 — trava de consentimento ADITIVA. Default OFF: nada quebra. Quando
+  // ligada, um ato sem consentimento ativo (paciente+escopo) responde 409.
+  travaConsentimentoAtiva: boolean("trava_consentimento_ativa").notNull().default(false),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -149,3 +187,4 @@ export type AssinaturaTemplate = typeof assinaturaTemplatesTable.$inferSelect;
 export type AssinaturaWebhookEvento = typeof assinaturaWebhookEventosTable.$inferSelect;
 export type AssinaturaNotificacao = typeof assinaturaNotificacoesTable.$inferSelect;
 export type AssinaturaTogglesAdmin = typeof assinaturaTogglesAdminTable.$inferSelect;
+export type AssinaturaClausula = typeof assinaturaClausulasTable.$inferSelect;

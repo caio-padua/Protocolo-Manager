@@ -46,7 +46,7 @@ export type PapelSignatario =
  */
 export type AuthMode = "simples" | "avancada" | "qualificada" | "qualificada_ecnpj";
 
-export type CanalDistribuicao = "EMAIL" | "WHATSAPP" | "DRIVE";
+export type CanalDistribuicao = "EMAIL" | "WHATSAPP" | "DRIVE" | "TELEGRAM";
 
 export type MomentoNotificacao = "ENVIO_INICIAL" | "POS_ASSINATURA" | "LEMBRETE";
 

@@ -23,6 +23,8 @@ import {
 import { logger } from "../logger";
 import { getSecret } from "../secure-settings";
 import { sendWhatsapp } from "../whatsapp";
+import { sendTelegram } from "../telegram";
+import { sendGmailMessage } from "../google-gmail";
 import { uploadFileToDrive } from "../google-drive";
 import { getAdapter } from "./adapters";
 import { htmlParaPdfBase64 } from "./htmlParaPdf";
@@ -94,6 +96,8 @@ export interface EnviarAssinaturaInput {
   /** Signatários extras (ex.: médico/testemunha) além do paciente. */
   signatariosExtras?: Signatario[];
   canais?: CanalDistribuicao[];
+  /** Onda 4 — ato que este documento consente (ex.: "PROTOCOLO:123" ou "TCLE"). */
+  escopo?: string;
   externalId?: string;
   metadataExtra?: Record<string, unknown>;
 }
@@ -240,6 +244,7 @@ export async function enviarAssinatura(
       templateId: templateId ?? null,
       tipoDoc,
       titulo: titulo ?? null,
+      escopo: input.escopo?.trim() || null,
       provedorCodigo: provedor,
       provedorEnvelopeId: resultado.envelopeId,
       zapsignExternalId: externalId,
@@ -276,24 +281,50 @@ export async function enviarAssinatura(
     });
   }
 
-  // 9. Fila de notificação ao paciente (link por WhatsApp) — processada por endpoint.
+  // 9. Fila de notificação MULTICANAL (ENVIO_INICIAL) — processada por endpoint.
+  //    DRIVE não enfileira aqui (arquivamento é pós-assinatura, inline no webhook).
+  //    Idempotente por (solicitacao+canal+momento): reprocessar não duplica.
+  //    Sem destinatário para o canal -> grava PULADO (auditável), nunca trava.
   const linkPaciente =
     (paciente.email && linkPorEmail.get(paciente.email)) ||
     resultado.linksAssinatura[0]?.url ||
     undefined;
-  if (paciente.phone && linkPaciente) {
-    const primeiroNome = paciente.name.split(" ")[0] || paciente.name;
-    const corpo =
-      `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital. ` +
-      `Acesse com seguranca: ${linkPaciente}`;
-    await db.insert(assinaturaNotificacoesTable).values({
-      solicitacaoId,
-      canal: "WHATSAPP",
-      momento: "ENVIO_INICIAL",
-      destinatario: paciente.phone,
-      corpo,
-      status: "PENDENTE",
-    });
+  const primeiroNome = paciente.name.split(" ")[0] || paciente.name;
+  const corpoMsg = linkPaciente
+    ? `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital. ` +
+      `Acesse com seguranca: ${linkPaciente}`
+    : `Ola ${primeiroNome}, o Instituto Padua preparou um documento para sua assinatura digital.`;
+
+  const canaisMsg = canais.filter((c) => c !== "DRIVE");
+  for (const canal of canaisMsg) {
+    const destinatario =
+      canal === "WHATSAPP"
+        ? paciente.phone
+        : canal === "EMAIL"
+          ? paciente.email
+          : canal === "TELEGRAM"
+            ? paciente.telegramChatId
+            : null;
+    const temDestino = Boolean(destinatario && destinatario.trim());
+    await db
+      .insert(assinaturaNotificacoesTable)
+      .values({
+        solicitacaoId,
+        canal,
+        momento: "ENVIO_INICIAL",
+        destinatario: temDestino ? destinatario! : "",
+        assunto: canal === "EMAIL" ? "Instituto Padua | Documento para assinatura" : null,
+        corpo: corpoMsg,
+        status: temDestino ? "PENDENTE" : "PULADO",
+        erro: temDestino ? null : `sem_${canal.toLowerCase()}`,
+      })
+      .onConflictDoNothing({
+        target: [
+          assinaturaNotificacoesTable.solicitacaoId,
+          assinaturaNotificacoesTable.canal,
+          assinaturaNotificacoesTable.momento,
+        ],
+      });
   }
 
   logger.info(
@@ -571,7 +602,8 @@ async function notificarCEO(solicitacaoId: number, tipo: "ASSINADO" | "REJEITADO
 // ---------------------------------------------------------------------------
 // Timeline (DTO para tela / curl).
 // ---------------------------------------------------------------------------
-export async function listarTimeline(limite = 200) {
+export async function listarTimeline(opts: { limite?: number; pacienteId?: number } = {}) {
+  const limite = opts.limite ?? 200;
   const rows = await db
     .select({
       id: assinaturaSolicitacoesTable.id,
@@ -579,6 +611,7 @@ export async function listarTimeline(limite = 200) {
       pacienteNome: clientsTable.name,
       tipoDoc: assinaturaSolicitacoesTable.tipoDoc,
       titulo: assinaturaSolicitacoesTable.titulo,
+      escopo: assinaturaSolicitacoesTable.escopo,
       status: assinaturaSolicitacoesTable.status,
       provedorCodigo: assinaturaSolicitacoesTable.provedorCodigo,
       envelopeId: assinaturaSolicitacoesTable.provedorEnvelopeId,
@@ -588,6 +621,11 @@ export async function listarTimeline(limite = 200) {
     })
     .from(assinaturaSolicitacoesTable)
     .leftJoin(clientsTable, eq(clientsTable.id, assinaturaSolicitacoesTable.pacienteId))
+    .where(
+      opts.pacienteId != null
+        ? eq(assinaturaSolicitacoesTable.pacienteId, opts.pacienteId)
+        : undefined,
+    )
     .orderBy(desc(assinaturaSolicitacoesTable.criadoEm))
     .limit(limite);
   return rows;
@@ -668,6 +706,51 @@ export async function upsertTemplate(input: UpsertTemplateInput) {
 // ---------------------------------------------------------------------------
 // Worker da fila de notificações (endpoint chama; sem cron externo).
 // ---------------------------------------------------------------------------
+type NotificacaoPendente = typeof assinaturaNotificacoesTable.$inferSelect;
+
+/** Resultado de UMA entrega. PULADO (sem destino) NÃO é falha de entrega. */
+type ResultadoEntrega = "ENVIADA" | "PULADO" | "FALHA";
+
+/** Entrega UMA notificação pelo seu canal. */
+async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEntrega> {
+  try {
+    if (!n.destinatario || !n.destinatario.trim()) {
+      // Sem destinatário: registra PULADO (não é falha de entrega).
+      await db
+        .update(assinaturaNotificacoesTable)
+        .set({ status: "PULADO", erro: `sem_${n.canal.toLowerCase()}` })
+        .where(eq(assinaturaNotificacoesTable.id, n.id));
+      return "PULADO";
+    }
+    if (n.canal === "WHATSAPP") {
+      const r = await sendWhatsapp(n.destinatario, n.corpo);
+      if (!r.sent) throw new Error(r.error || "falha_whatsapp");
+    } else if (n.canal === "TELEGRAM") {
+      const r = await sendTelegram(n.destinatario, n.corpo);
+      if (!r.sent) throw new Error(r.error || "falha_telegram");
+    } else if (n.canal === "EMAIL") {
+      const r = await sendGmailMessage({
+        to: n.destinatario,
+        subject: n.assunto || "Instituto Padua | Documento para assinatura",
+        html: `<p>${n.corpo.replace(/\n/g, "<br/>")}</p>`,
+      });
+      if (!r.success) throw new Error(r.error || "falha_email");
+    }
+    // DRIVE: arquivamento é inline no webhook pós-assinatura; aqui só fecha.
+    await db
+      .update(assinaturaNotificacoesTable)
+      .set({ status: "ENVIADO", enviadoEm: new Date(), erro: null })
+      .where(eq(assinaturaNotificacoesTable.id, n.id));
+    return "ENVIADA";
+  } catch (e) {
+    await db
+      .update(assinaturaNotificacoesTable)
+      .set({ status: "FALHA", erro: (e as Error).message })
+      .where(eq(assinaturaNotificacoesTable.id, n.id));
+    return "FALHA";
+  }
+}
+
 export async function processarNotificacoes(limite = 50) {
   const pend = await db
     .select()
@@ -676,27 +759,21 @@ export async function processarNotificacoes(limite = 50) {
     .orderBy(assinaturaNotificacoesTable.criadoEm)
     .limit(limite);
 
+  // Canais externos isolados (Onda H): uma falha de um canal NÃO derruba os
+  // demais. Cada entrega roda via Promise.allSettled e degrada com graça.
+  // PULADO (sem destino) é contado à parte de FALHA para não distorcer métricas.
+  const resultados = await Promise.allSettled(pend.map((n) => entregarNotificacao(n)));
   let enviadas = 0;
+  let puladas = 0;
   let falhas = 0;
-  for (const n of pend) {
-    try {
-      if (n.canal === "WHATSAPP") {
-        const r = await sendWhatsapp(n.destinatario, n.corpo);
-        if (!r.sent) throw new Error(r.error || "falha_whatsapp");
-      }
-      // DRIVE: arquivamento já é inline no webhook; aqui só fecha o registro.
-      await db
-        .update(assinaturaNotificacoesTable)
-        .set({ status: "ENVIADO", enviadoEm: new Date(), erro: null })
-        .where(eq(assinaturaNotificacoesTable.id, n.id));
-      enviadas++;
-    } catch (e) {
-      await db
-        .update(assinaturaNotificacoesTable)
-        .set({ status: "FALHA", erro: (e as Error).message })
-        .where(eq(assinaturaNotificacoesTable.id, n.id));
-      falhas++;
+  for (const r of resultados) {
+    if (r.status !== "fulfilled") {
+      falhas++; // rejeição inesperada do próprio worker
+      continue;
     }
+    if (r.value === "ENVIADA") enviadas++;
+    else if (r.value === "PULADO") puladas++;
+    else falhas++;
   }
-  return { processadas: pend.length, enviadas, falhas };
+  return { processadas: pend.length, enviadas, puladas, falhas };
 }

@@ -45,6 +45,57 @@ export interface EnviarInput {
   titulo?: string;
   incluirMedico?: boolean;
   canais?: string[];
+  escopo?: string;
+}
+
+export interface ConsentimentoStatus {
+  ativo: boolean;
+  escopo: string | null;
+  solicitacaoId?: number;
+  tipoDoc?: string;
+  titulo?: string | null;
+  concluidoEm?: string | null;
+  travaLigada: boolean;
+}
+
+export interface Clausula {
+  id: number;
+  codigo: string;
+  titulo: string;
+  corpoHtml: string;
+  categoria: string;
+  ativo: boolean;
+  usoContagem: number;
+  atualizadoEm: string | null;
+}
+
+export interface ContextoPaciente {
+  paciente: { id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null };
+  clinica: {
+    escoreTotal: number;
+    gradeGlobal: string;
+    redFlag: boolean;
+    doencas: string[];
+    sintomas: string[];
+    alarmes: string[];
+  };
+  ultimaEnfermagem: {
+    data: string;
+    alertColor: string;
+    adherenceLevel: string;
+    tolerance: string;
+    observation: string | null;
+    needsTeamContact: boolean;
+  } | null;
+  ultimoRasEvolutivo: {
+    sessionNumber: number;
+    totalSessions: number;
+    progressPercent: number;
+    alertColor: string;
+    weeklyObservation: string | null;
+  } | null;
+  sessoes: { total: number; protocolosAtivos: number };
+  tokensMesclagem: Record<string, string>;
 }
 
 export interface EnviarResult {
@@ -101,10 +152,46 @@ export async function listarClientes(busca?: string): Promise<ClienteLite[]> {
   }));
 }
 
-export async function listarTimeline(): Promise<TimelineItem[]> {
-  const r = await authFetch("/api/assinaturas/timeline");
+export async function listarTimeline(pacienteId?: number): Promise<TimelineItem[]> {
+  const qs = pacienteId ? `?pacienteId=${pacienteId}` : "";
+  const r = await authFetch(`/api/assinaturas/timeline${qs}`);
   const data = await jsonOrThrow<{ itens: TimelineItem[] }>(r);
   return data.itens;
+}
+
+export async function obterConsentimento(
+  pacienteId: number,
+  escopo?: string,
+): Promise<ConsentimentoStatus> {
+  const qs = new URLSearchParams({ pacienteId: String(pacienteId) });
+  if (escopo) qs.set("escopo", escopo);
+  const r = await authFetch(`/api/assinaturas/consentimento?${qs.toString()}`);
+  return jsonOrThrow<ConsentimentoStatus>(r);
+}
+
+export async function obterContexto(pacienteId: number): Promise<ContextoPaciente> {
+  const r = await authFetch(`/api/assinaturas/contexto/${pacienteId}`);
+  return jsonOrThrow<ContextoPaciente>(r);
+}
+
+export async function listarClausulas(): Promise<Clausula[]> {
+  const r = await authFetch("/api/assinaturas/clausulas");
+  const data = await jsonOrThrow<{ clausulas: Clausula[] }>(r);
+  return data.clausulas;
+}
+
+export async function salvarClausula(input: {
+  codigo: string;
+  titulo?: string;
+  corpoHtml: string;
+  categoria?: string;
+}): Promise<Clausula> {
+  const r = await authFetch("/api/assinaturas/clausulas", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  const data = await jsonOrThrow<{ clausula: Clausula }>(r);
+  return data.clausula;
 }
 
 export async function listarTemplates(): Promise<Template[]> {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,7 +32,17 @@ import {
   AlertTriangle,
   Send,
   ExternalLink,
+  FileSignature,
+  ShieldCheck,
+  ShieldAlert,
+  Plus,
 } from "lucide-react";
+import {
+  listarTimeline,
+  obterConsentimento,
+  type TimelineItem,
+  type ConsentimentoStatus,
+} from "@/lib/cartorio-api";
 
 // ============================================================================
 // ONDA E — COCKPIT DA CONSULTA do Master Loop Paxter.
@@ -98,9 +109,30 @@ function moeda(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function fmtDataCurta(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
 export default function Cockpit() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [clienteId, setClienteId] = useState<number | null>(null);
+
+  // Onda 2 — atalho do Cartório dentro do Cockpit. Reusa o motor de assinatura
+  // (timeline filtrada por paciente + selo de consentimento), sem remontá-lo.
+  const { data: docs } = useQuery<TimelineItem[]>({
+    queryKey: ["cockpit-cartorio", clienteId],
+    enabled: clienteId != null,
+    queryFn: () => listarTimeline(clienteId!),
+  });
+  const { data: consent } = useQuery<ConsentimentoStatus>({
+    queryKey: ["cockpit-consentimento", clienteId],
+    enabled: clienteId != null,
+    queryFn: () => obterConsentimento(clienteId!),
+  });
 
   const { data: clientes } = useQuery<ClienteOpt[]>({
     queryKey: ["cockpit-clientes"],
@@ -137,6 +169,16 @@ export default function Cockpit() {
     },
     onError: () => toast({ title: "Erro ao emitir", variant: "destructive" }),
   });
+
+  const resumoDocs = useMemo(() => {
+    const lista = docs ?? [];
+    let assinados = 0;
+    for (const d of lista) {
+      const s = d.status.toUpperCase();
+      if (s === "CONCLUIDO" || s === "ASSINADO") assinados += 1;
+    }
+    return { assinados, pendentes: lista.length - assinados };
+  }, [docs]);
 
   const gradeCor = useMemo(() => {
     const g = dto?.presente.gradeGlobal ?? "";
@@ -347,6 +389,102 @@ export default function Cockpit() {
             </Accordion>
           </section>
         </div>
+      )}
+
+      {clienteId != null && dto && (
+        <section className="panel-3d mt-4 rounded-lg p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+            <div className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" style={{ color: GOLD }} />
+              <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+                Documentos &amp; Consentimento
+              </h2>
+            </div>
+            <Button
+              className="btn-3d-soft gap-2 font-semibold"
+              style={{ color: GOLD_FORTE }}
+              onClick={() => setLocation(`/cartorio?pacienteId=${clienteId}`)}
+            >
+              <Plus className="h-4 w-4" /> Novo documento
+            </Button>
+          </div>
+
+          {/* Selo de consentimento + resumo pendentes/assinados */}
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div
+              className="screen-3d flex items-center gap-3 rounded-md p-3"
+              style={{ color: consent?.ativo ? "#34d399" : consent?.travaLigada ? "#f87171" : "#94a3b8" }}
+            >
+              {consent?.ativo ? (
+                <ShieldCheck className="h-7 w-7 shrink-0" />
+              ) : (
+                <ShieldAlert className="h-7 w-7 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-widest">
+                  {consent?.ativo ? "Consentimento ativo" : "Sem consentimento"}
+                </div>
+                <div className="truncate text-xs text-slate-300">
+                  {consent?.ativo
+                    ? `Selado em ${fmtDataCurta(consent.concluidoEm ?? null)}`
+                    : consent?.travaLigada
+                      ? "Trava ligada — atos bloqueados até assinar."
+                      : "Trava desligada — sem bloqueio."}
+                </div>
+              </div>
+            </div>
+            <div className="screen-3d rounded-md p-3 text-center">
+              <div className="text-xs uppercase tracking-wide text-slate-400">Pendentes</div>
+              <div className="text-2xl font-bold text-amber-300">{resumoDocs.pendentes}</div>
+            </div>
+            <div className="screen-3d rounded-md p-3 text-center">
+              <div className="text-xs uppercase tracking-wide text-slate-400">Assinados</div>
+              <div className="text-2xl font-bold text-emerald-300">{resumoDocs.assinados}</div>
+            </div>
+          </div>
+
+          {/* Lista dos documentos do paciente */}
+          {!docs || docs.length === 0 ? (
+            <div className="text-sm text-slate-500">Nenhum documento para este cliente ainda.</div>
+          ) : (
+            <ul className="space-y-2">
+              {docs.slice(0, 8).map((d) => {
+                const concluido = d.status.toUpperCase() === "CONCLUIDO" || d.status.toUpperCase() === "ASSINADO";
+                return (
+                  <li
+                    key={d.id}
+                    className="panel-3d-sub flex items-center justify-between gap-3 rounded-md p-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <span className="truncate font-medium">{d.titulo || d.tipoDoc}</span>
+                      <span className="ml-2 text-xs text-slate-400">{fmtDataCurta(d.enviadoEm || d.criadoEm)}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${
+                          concluido ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"
+                        }`}
+                      >
+                        {d.status}
+                      </span>
+                      {concluido && d.envelopeId && (
+                        <a
+                          href={`/api/assinaturas/${d.id}/pdf-assinado`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs underline"
+                          style={{ color: GOLD }}
+                        >
+                          <ExternalLink className="h-3 w-3" /> PDF
+                        </a>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       )}
 
       {emitir.data && (
