@@ -612,6 +612,60 @@ export async function obterPdfAssinado(
 }
 
 // ---------------------------------------------------------------------------
+// Templates (Cartório Onda 1) — biblioteca de modelos reutilizáveis.
+// ---------------------------------------------------------------------------
+export interface UpsertTemplateInput {
+  codigo: string;
+  titulo?: string;
+  tipoDoc?: string;
+  corpoHtml: string;
+  placeholders?: string[];
+  exigeMedico?: boolean;
+  ativo?: boolean;
+}
+
+export async function listarTemplates() {
+  return db
+    .select()
+    .from(assinaturaTemplatesTable)
+    .orderBy(desc(assinaturaTemplatesTable.atualizadoEm));
+}
+
+/** Cria ou atualiza um template por `codigo` (idempotente — caso extremo 4 da spec). */
+export async function upsertTemplate(input: UpsertTemplateInput) {
+  const codigo = (input.codigo || "").trim();
+  if (!codigo) throw new Error("codigo_ausente: informe o codigo do template");
+  if (!input.corpoHtml || !input.corpoHtml.trim()) {
+    throw new Error("conteudo_ausente: informe o corpo do template");
+  }
+  const values = {
+    codigo,
+    titulo: (input.titulo || "").trim() || codigo,
+    tipoDoc: input.tipoDoc || "TERMO",
+    corpoHtml: input.corpoHtml,
+    placeholders: input.placeholders ?? [],
+    exigeMedico: !!input.exigeMedico,
+    ativo: input.ativo ?? true,
+  };
+  const rows = await db
+    .insert(assinaturaTemplatesTable)
+    .values(values)
+    .onConflictDoUpdate({
+      target: assinaturaTemplatesTable.codigo,
+      set: {
+        titulo: values.titulo,
+        tipoDoc: values.tipoDoc,
+        corpoHtml: values.corpoHtml,
+        placeholders: values.placeholders,
+        exigeMedico: values.exigeMedico,
+        ativo: values.ativo,
+      },
+    })
+    .returning();
+  return rows[0]!;
+}
+
+// ---------------------------------------------------------------------------
 // Worker da fila de notificações (endpoint chama; sem cron externo).
 // ---------------------------------------------------------------------------
 export async function processarNotificacoes(limite = 50) {

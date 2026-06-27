@@ -16,7 +16,10 @@ import {
   listarTimeline,
   obterPdfAssinado,
   processarNotificacoes,
+  listarTemplates,
+  upsertTemplate,
   type EnviarAssinaturaInput,
+  type UpsertTemplateInput,
 } from "../lib/assinatura/service";
 import type { ProvedorCodigo } from "../lib/assinatura/types";
 
@@ -73,7 +76,7 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
     const code =
       msg.startsWith("paciente_nao_encontrado") ? 404 :
       msg.startsWith("template_nao_encontrado") ? 404 :
-      msg.startsWith("paciente_sem_canal") ? 422 :
+      msg.startsWith("paciente_sem_canal") ? 400 :
       msg.startsWith("conteudo_ausente") ? 400 : 500;
     req.log.error({ err: msg }, "[assinatura] erro ao enviar");
     res.status(code).json({ error: msg });
@@ -95,7 +98,7 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
     const code =
       msg.startsWith("paciente_nao_encontrado") ? 404 :
       msg.startsWith("template_nao_encontrado") ? 404 :
-      msg.startsWith("paciente_sem_canal") ? 422 :
+      msg.startsWith("paciente_sem_canal") ? 400 :
       msg.startsWith("conteudo_ausente") ? 400 : 500;
     req.log.error({ err: msg }, "[assinatura] erro ao enviar TCLE");
     res.status(code).json({ error: msg });
@@ -109,6 +112,36 @@ assinaturasRouter.get("/assinaturas/timeline", requireCollaborator, async (req, 
   } catch (err) {
     req.log.error({ err: String(err) }, "[assinatura] erro na timeline");
     res.status(500).json({ error: "erro_timeline" });
+  }
+});
+
+assinaturasRouter.get("/assinaturas/templates", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const templates = await listarTemplates();
+    res.status(200).json({ templates });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "[assinatura] erro ao listar templates");
+    res.status(500).json({ error: "erro_templates" });
+  }
+});
+
+assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const body = (req.body || {}) as UpsertTemplateInput;
+    if (!body.codigo || typeof body.codigo !== "string") {
+      res.status(400).json({ error: "codigo_obrigatorio" });
+      return;
+    }
+    const template = await upsertTemplate(body);
+    res.status(200).json({ template });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith("codigo_ausente") || msg.startsWith("conteudo_ausente")) {
+      res.status(400).json({ error: msg });
+      return;
+    }
+    req.log.error({ err: msg }, "[assinatura] erro ao salvar template");
+    res.status(500).json({ error: "erro_salvar_template" });
   }
 });
 

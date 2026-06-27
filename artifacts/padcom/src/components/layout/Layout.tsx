@@ -36,6 +36,7 @@ import {
   Target,
   ShieldCheck,
   PenTool,
+  Stamp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -68,6 +69,7 @@ const navigation: NavEntry[] = [
     icon: Stethoscope,
     children: [
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
+      { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
