@@ -45,6 +45,7 @@ import storageRouter from "./storage";
 import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 import asaasRouter from "./asaas";
 import settingsRouter from "./settings";
+import comunicacaoRouter from "./comunicacao";
 import financeiroRouter from "./financeiro";
 import assinaturasRouter, { assinaturaWebhookRouter, telegramWebhookRouter } from "./assinaturas";
 
@@ -112,6 +113,7 @@ router.use(schedulingRouter);
 router.use(storageRouter);
 router.use(collaboratorRouter);
 router.use(settingsRouter);
+router.use(comunicacaoRouter);
 router.use(financeiroRouter);
 router.use(assinaturasRouter);
 

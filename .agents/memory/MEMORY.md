@@ -60,3 +60,4 @@
 - [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow; logar err.message, nunca o objeto cru (quebra util.inspect).
 - [Laudos de imagem: padrões e armadilhas](exam-imagem-laudos.md) — 1 PDF pode ser conjugado (N exames); nome do arquivo mente e cruza tipo (classificar por conteúdo); imagem tem almoço grátis; RMN é por nível (sacralização quebra contagem).
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse (segredo do cliente) + match ÚNICO (colisão nunca vincula); nunca logar token.
+- [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configurado"; placeholder intencional não recebe error.

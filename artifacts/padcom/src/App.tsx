@@ -64,6 +64,12 @@ import MontagemOrcamento from "@/pages/orcamentos/novo";
 import Parametrizacao from "@/pages/orcamentos/parametrizacao";
 import Vitrine from "@/pages/orcamentos/vitrine";
 import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
+import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
+import ComunicacaoDigital from "@/pages/comunicacao/digital";
+import ComunicacaoEmails from "@/pages/comunicacao/emails";
+import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
+import Hierarquia from "@/pages/hierarquia";
+import Governanca from "@/pages/governanca";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -175,6 +181,13 @@ function Router() {
               </CollaboratorGate>
             </Route>
             
+            <Route path="/comunicacao/mensageria" component={ComunicacaoMensageria} />
+            <Route path="/comunicacao/digital" component={ComunicacaoDigital} />
+            <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
+            <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
+            <Route path="/hierarquia" component={Hierarquia} />
+            <Route path="/governanca" component={Governanca} />
+
             <Route component={NotFound} />
           </Switch>
         </Layout>

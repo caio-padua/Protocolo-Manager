@@ -21,7 +21,6 @@ import {
   Salad,
   Dumbbell,
   FolderTree,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   TestTube,
@@ -37,6 +36,12 @@ import {
   ShieldCheck,
   PenTool,
   Stamp,
+  Mail,
+  MessagesSquare,
+  Smartphone,
+  Cloud,
+  Network,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -109,6 +114,16 @@ const navigation: NavEntry[] = [
     ],
   },
   {
+    name: "Comunicação",
+    icon: MessagesSquare,
+    children: [
+      { name: "Mensageria", href: "/comunicacao/mensageria", icon: MessageSquareText },
+      { name: "Comunicação Digital", href: "/comunicacao/digital", icon: Smartphone },
+      { name: "E-mails", href: "/comunicacao/emails", icon: Mail },
+      { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
+    ],
+  },
+  {
     name: "Configurações & Administração",
     icon: Settings,
     children: [
@@ -125,6 +140,14 @@ const navigation: NavEntry[] = [
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
     ],
   },
+  {
+    name: "Estrutura & Governança",
+    icon: Network,
+    children: [
+      { name: "Hierarquia", href: "/hierarquia", icon: Network },
+      { name: "Governança", href: "/governanca", icon: Landmark },
+    ],
+  },
 ];
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";
@@ -132,7 +155,6 @@ const COLLAPSE_KEY = "paxter.sidebar.collapsed";
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Cadastros: true });
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -201,61 +223,19 @@ export function Layout({ children }: LayoutProps) {
               const Icon = item.icon;
 
               if (isGroup(item)) {
-                const childActive = item.children.some(
-                  (c) => location === c.href || location.startsWith(c.href),
-                );
-                const isOpen = openGroups[item.name] ?? childActive;
+                const SectionIcon = item.icon;
 
-                // Recolhida: clicar no grupo expande a sidebar e abre o grupo.
+                // Recolhida: separador fino + so os icones dos itens (todos a mostra).
                 if (collapsed) {
                   return (
-                    <button
-                      key={item.name}
-                      type="button"
-                      title={item.name}
-                      onClick={() => {
-                        setCollapsed(false);
-                        setOpenGroups((prev) => ({ ...prev, [item.name]: true }));
-                      }}
-                      className={`w-full flex items-center justify-center px-3 py-2.5 rounded-[5px] border transition-all cursor-pointer ${
-                        childActive
-                          ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/40"
-                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
-                      }`}
-                    >
-                      <Icon className="w-[19px] h-[19px] shrink-0" />
-                    </button>
-                  );
-                }
-
-                return (
-                  <div key={item.name}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenGroups((prev) => ({ ...prev, [item.name]: !isOpen }))
-                      }
-                      className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] border transition-all cursor-pointer ${
-                        childActive
-                          ? "text-sidebar-foreground font-medium border-sidebar-primary/40 bg-sidebar-accent/40"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
-                      }`}
-                    >
-                      <Icon
-                        className={`w-[19px] h-[19px] shrink-0 ${
-                          childActive ? "text-sidebar-primary" : "text-sidebar-foreground/50"
-                        }`}
+                    <div key={item.name} className="pt-1">
+                      <div
+                        className="my-1 mx-2 border-t border-sidebar-border/60"
+                        title={item.name}
                       />
-                      <span className="text-sm tracking-wide">{item.name}</span>
-                      <ChevronDown
-                        className={`ml-auto w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-
-                    {/* Submenu — SEM icones, alinhado, fio-guia dourado */}
-                    {isOpen && (
-                      <div className="relative mt-1 mb-1.5 ml-[30px] pl-3.5 space-y-0.5 before:absolute before:left-0 before:top-1 before:bottom-1 before:w-px before:bg-gradient-to-b before:from-sidebar-primary/50 before:via-sidebar-border before:to-transparent">
+                      <div className="space-y-0.5">
                         {item.children.map((child) => {
+                          const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(child.href);
                           return (
@@ -265,22 +245,64 @@ export function Layout({ children }: LayoutProps) {
                               onClick={() => setSidebarOpen(false)}
                             >
                               <div
-                                className={`relative px-3 py-1.5 text-[13px] tracking-wide rounded-[4px] transition-all cursor-pointer ${
+                                title={child.name}
+                                className={`flex items-center justify-center px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
                                   isActive
-                                    ? "bg-sidebar-accent text-sidebar-primary font-semibold"
-                                    : "text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+                                    ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/40"
+                                    : "text-sidebar-foreground/55 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
                                 }`}
                               >
-                                {isActive && (
-                                  <span className="absolute -left-3.5 top-1.5 bottom-1.5 w-[2px] rounded-full bg-sidebar-primary" />
-                                )}
-                                {child.name}
+                                <ChildIcon className="w-[19px] h-[19px] shrink-0" />
                               </div>
                             </Link>
                           );
                         })}
                       </div>
-                    )}
+                    </div>
+                  );
+                }
+
+                // Expandida: rotulo da secao + TODOS os itens SEMPRE visiveis (sem recolher).
+                return (
+                  <div key={item.name} className="pt-2 first:pt-0">
+                    <div className="flex items-center gap-2 px-3 pt-1 pb-1">
+                      <SectionIcon className="w-3.5 h-3.5 shrink-0 text-sidebar-primary/70" />
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+                        {item.name}
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const isActive =
+                          location === child.href || location.startsWith(child.href);
+                        return (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <div
+                              className={`relative flex items-center gap-3 px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
+                                isActive
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
+                                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
+                              }`}
+                            >
+                              {isActive && (
+                                <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />
+                              )}
+                              <ChildIcon
+                                className={`w-[18px] h-[18px] shrink-0 ${
+                                  isActive ? "text-sidebar-primary" : "text-sidebar-foreground/45"
+                                }`}
+                              />
+                              <span className="text-[13px] tracking-wide">{child.name}</span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               }

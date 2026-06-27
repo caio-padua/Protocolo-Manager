@@ -117,3 +117,21 @@ RESUMO EM 1 LINHA: esta spec cria o menu-raiz "Comunicação" com 4 braços-cons
 WhatsApp+Telegram; E-mails; Drive+OneDrive) ligados ao que já existe e honestos onde não existe, e
 deixa "Hierarquia" e "Governança" à mostra como esqueleto para reorganizar depois — sem tocar motores,
 sem expor token, seguindo o design Paxter.
+
+---
+
+## 8. ATUALIZAÇÃO 27/06/2026 — "TUDO À MOSTRA" + decisões de construção
+
+Durante a Fase 2 (Construir), o CEO acrescentou duas ordens que SUBSTITUEM partes da spec acima:
+
+| Tema | Decisão antiga (spec) | Decisão nova (vale) |
+|---|---|---|
+| Comportamento do menu | Grupo recolhível (R1) | SEÇÕES sempre visíveis: rótulo + todos os itens à mostra, SEM toggle de abrir/fechar |
+| Escopo da mudança | Só "Comunicação" | TODO o menu vira seções sempre visíveis (órgãos empilhados, funções semelhantes adjacentes) |
+| Hierarquia/Governança | Dois braços soltos | Reunidos numa seção "Estrutura & Governança" (funções semelhantes, adjacentes) |
+| Portão de acesso (R6) | `CollaboratorGate` | As 6 telas novas NÃO são guardadas — o CEO precisa enxergar os braços; o endpoint de status é leitura sem dado sensível |
+
+Fonte de status real construída: `GET /api/comunicacao/status` → `{telegram, whatsapp, gmail, drive, onedrive}` (só booleanos; nunca expõe token). No modo recolhido, cada seção vira separador fino + ícones.
+
+As pendências (OneDrive real, teste real do Telegram, credenciais Twilio, etc.) foram movidas para o
+multi-spec `specs/roadmap-pendencias-comunicacao.md`.
