@@ -463,6 +463,18 @@
     box-shadow: 0 0 9px 2px var(--led-glow), inset 0 0 3px rgba(255, 255, 255, 0.95);
   }
 }
+/* Respiro de VELA com halo CONTIDO: brilho delimitado (blur curto, sem
+   espalhamento), nao se difunde pela tela ao acender. */
+@keyframes paxterBreathe {
+  0%, 100% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 transparent, inset 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 3px 0 var(--led-glow), inset 0 0 3px rgba(255, 255, 255, 0.95);
+  }
+}
 .paxter-led {
   display: inline-block;
   width: 9px;
@@ -496,7 +508,7 @@
    LED via --led-glow, entao funciona com -green/-amber/-red. Padrao oficial
    para luz de status de FERRAMENTA/integracao (ex.: ZapSign). */
 .paxter-led-breathe {
-  animation: paxterPulse 3.6s ease-in-out infinite;
+  animation: paxterBreathe 3.6s ease-in-out infinite;
 }
 .paxter-led-off {
   background: #cfdada;

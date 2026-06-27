@@ -89,8 +89,8 @@ Padrao aprovado pelo CEO (27/06/2026) para a luzinha que fica ao lado do TITULO
 // verde = ligado/ativo, amarelo = desligado/inativo; respiro LENTO (vela)
 <span className={`paxter-led paxter-led-breathe ${ativo ? "paxter-led-green" : "paxter-led-amber"}`} />
 ```
-- `paxter-led-breathe` = `paxterPulse 3.6s` (acende/apaga LENTO, cadencia de vela). NAO usar
-  `paxter-led-on` (1.4s e rapido demais para status de ferramenta).
+- `paxter-led-breathe` = `paxterBreathe 3.6s` (acende/apaga LENTO + halo CONTIDO: blur curto, sem
+  espalhamento, nao se difunde). NAO usar `paxter-led-on` (1.4s e rapido + halo difuso de 9px).
 - A cor vem do modificador (`-green`/`-amber`/`-red`); o respiro herda `--led-glow`, entao a vela
   acende na cor certa.
 - UMA luz so por ferramenta: nao repetir LED no badge do segredo (cofre) e no titulo ao mesmo tempo.
