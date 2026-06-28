@@ -23,15 +23,27 @@ function escapeHtml(s: string): string {
 export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
   const symbolSrc = `${baseUrl}/api/brand/paxter-symbol.png`;
   const wordmarkSrc = `${baseUrl}/api/brand/paxter-wordmark.png`;
+  // FUNDO "TERNO" azul-marinho (estilo tecido elegante) — mesma linguagem da tela
+  // de abertura: navy com profundidade (gradiente) + brilho dourado discreto no topo
+  // + tramado sutil a cada 22px. Cor sólida de fallback (#0a1430, BEM mais clara que
+  // o antigo #05080f) para clientes que ignoram gradiente/imagem de fundo.
+  const fundoTerno =
+    "background-color:#0a1430; " +
+    "background-image:" +
+    "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)," +
+    "radial-gradient(760px 400px at 85% -8%, rgba(194,160,90,0.10), transparent 60%)," +
+    "radial-gradient(900px 480px at 0% 112%, rgba(34,72,128,0.42), transparent 60%)," +
+    "linear-gradient(180deg,#0b1426 0%,#0e1c3a 55%,#16284e 100%); " +
+    "background-size:22px 22px,auto,auto,auto;";
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"></head>
-<body style="margin:0; padding:0; background:#05080f; font-family:${SANS};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05080f; padding:40px 16px;">
+<body style="margin:0; padding:0; background:#0a1430; font-family:${SANS};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="${fundoTerno} padding:44px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; background:#0b1426; border:1px solid rgba(201,162,79,.30); border-radius:18px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.6);">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; background:#0e1a34; border:1px solid rgba(201,162,79,.34); border-radius:18px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(201,162,79,.06);">
 
-        <tr><td style="background:linear-gradient(170deg,#102043 0%,#0a162e 55%,#0b1426 100%); padding:40px 32px 30px; text-align:center;">
+        <tr><td style="background:linear-gradient(170deg,#16315a 0%,#102043 60%,#0e1a34 100%); padding:40px 32px 30px; text-align:center;">
           <img src="${symbolSrc}" width="84" alt="" style="display:block; margin:0 auto 18px; width:84px; height:auto; border:1px solid rgba(201,162,79,.45); border-radius:18px; box-shadow:0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset;">
           <img src="${wordmarkSrc}" width="196" alt="PAXTER" style="display:block; margin:0 auto; width:196px; max-width:74%; height:auto;">
           <div style="color:#c9a24f; font-family:${SERIF}; font-size:11px; letter-spacing:5px; text-transform:uppercase; margin-top:12px;">Clinical Intelligence System</div>
@@ -41,7 +53,7 @@ export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
 
 ${innerHtml}
 
-        <tr><td style="background:#070f1f; padding:18px 32px; text-align:center; color:#62748f; font-family:${SERIF}; font-size:10px; letter-spacing:3px; text-transform:uppercase; border-top:1px solid rgba(201,162,79,.16);">
+        <tr><td style="background:#0a1326; padding:18px 32px; text-align:center; color:#7686a3; font-family:${SERIF}; font-size:10px; letter-spacing:3px; text-transform:uppercase; border-top:1px solid rgba(201,162,79,.16);">
           Paxter — Clinical Intelligence System
         </td></tr>
 
