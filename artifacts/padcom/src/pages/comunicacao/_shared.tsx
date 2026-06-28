@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 // Base do artefato (prefixo de rota) — padrao usado nas demais paginas.
@@ -164,10 +164,12 @@ export function ToolCard({
 }
 
 // Uma ideia por linha, gravada (insert concavo), espelha a Densidade B.
-export function ExplainRow({ children }: { children: React.ReactNode }) {
+// `noLed` esconde a luzinha a esquerda — usado quando o card ja tem UMA luz no
+// cabecalho e a luz por linha vira poluicao (decisao do CEO 28/06/2026).
+export function ExplainRow({ children, noLed = false }: { children: React.ReactNode; noLed?: boolean }) {
   return (
     <div className="concave-3d flex items-start gap-2.5 px-3 py-2 text-[13px]">
-      <span className="paxter-led paxter-led-green mt-1.5 shrink-0" />
+      {noLed ? null : <span className="paxter-led paxter-led-green mt-1.5 shrink-0" />}
       <span className="text-foreground/80">{children}</span>
     </div>
   );
@@ -207,6 +209,36 @@ export function StatusInsert({
     <span className="concave-3d inline-flex min-w-[124px] shrink-0 items-center justify-center px-3 py-1.5">
       <span className={`text-[11px] font-semibold uppercase tracking-wide ${color}`}>{text}</span>
     </span>
+  );
+}
+
+// Faixa de status do COFRE — SEMPRE presente (configurado OU faltando), na mesma
+// posicao em todos os cards de gateway, para que os campos abaixo fiquem
+// alinhados por uma linha horizontal imaginaria (decisao do CEO 28/06/2026).
+// Linha unica (altura fixa): verde "completo" / ambar "faltam N". O detalhe de
+// QUAL campo falta vem do selo "Vazio" de cada campo — sem lista redundante.
+export function VaultStatusStrip({
+  configured,
+  missingCount,
+}: {
+  configured: boolean;
+  missingCount: number;
+}) {
+  const color = configured
+    ? "text-emerald-700 dark:text-emerald-400"
+    : "text-amber-700 dark:text-amber-400";
+  const text = configured
+    ? "Credenciais completas no cofre"
+    : `Faltam ${missingCount} ${missingCount === 1 ? "credencial" : "credenciais"} — veja os campos marcados “Vazio”`;
+  return (
+    <div className={`concave-3d flex items-center gap-2 px-3 py-2 ${color}`}>
+      {configured ? (
+        <ShieldCheck className="h-4 w-4 shrink-0" />
+      ) : (
+        <KeyRound className="h-4 w-4 shrink-0" />
+      )}
+      <span className="text-[12px] font-semibold uppercase tracking-wide">{text}</span>
+    </div>
   );
 }
 
@@ -307,7 +339,10 @@ export function CredentialField({
   value: string;
   onChange: (v: string) => void;
   onReveal: () => Promise<string | null>;
-  // Limpa o valor revelado antes de exibir (ex.: tirar o prefixo "whatsapp:").
+  // Limpa o valor ao EXIBIR (revelado) E ao DIGITAR (ex.: tirar o prefixo
+  // "whatsapp:", ou manter so digitos no numero de origem do Gupshup). A
+  // sanitizacao definitiva e no servidor; aqui e so para o operador ver o valor
+  // ja limpo enquanto digita.
   normalize?: (v: string) => string;
   placeholder?: string;
 }) {
@@ -334,9 +369,7 @@ export function CredentialField({
   }
 
   const inputType = secret && !revealed ? "password" : "text";
-  const caption = isSet
-    ? `No cofre: ${masked ?? "••••"}${source ? ` · ${source === "env" ? "ambiente" : "cofre"}` : ""}`
-    : "No cofre: —";
+  const sourceLabel = source ? (source === "env" ? "ambiente" : "cofre") : null;
 
   return (
     <div className="space-y-1">
@@ -359,7 +392,7 @@ export function CredentialField({
           type={inputType}
           autoComplete="new-password"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(normalize ? normalize(e.target.value) : e.target.value)}
           placeholder={placeholder ?? (isSet ? "Clique no olho para ver, ou cole um novo valor" : `Cole: ${label}`)}
         />
         <button
@@ -373,7 +406,23 @@ export function CredentialField({
           {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{caption}</p>
+      {/* Legenda do cofre com DESTAQUE no valor (o CEO precisava forcar a atencao
+          para ver que havia algo): rotulo discreto + valor em mono/forte. */}
+      <p className="flex items-center gap-1.5 text-[11px] leading-none">
+        <span className="uppercase tracking-wide text-muted-foreground">No cofre:</span>
+        {isSet ? (
+          <>
+            <span className="font-mono text-[12px] font-bold tracking-wide text-foreground">
+              {masked ?? "••••"}
+            </span>
+            {sourceLabel ? (
+              <span className="uppercase tracking-wide text-muted-foreground">· {sourceLabel}</span>
+            ) : null}
+          </>
+        ) : (
+          <span className="font-semibold text-amber-700 dark:text-amber-400">vazio</span>
+        )}
+      </p>
     </div>
   );
 }

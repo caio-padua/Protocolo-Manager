@@ -10,6 +10,7 @@ import {
   ToggleWell,
   CredentialField,
   ExplainRow,
+  VaultStatusStrip,
   BASE,
 } from "./_shared";
 
@@ -37,15 +38,6 @@ type Gateway = {
   enabled: boolean;
   missingKeys: string[];
   fields: GatewayField[];
-};
-
-// Nome amigavel das chaves que faltam (para o aviso na tela).
-const KEY_LABELS: Record<string, string> = {
-  TWILIO_ACCOUNT_SID: "Identificador da conta (Account SID)",
-  TWILIO_AUTH_TOKEN: "Senha de acesso (Auth Token)",
-  TWILIO_WHATSAPP_FROM: "Número remetente do WhatsApp",
-  GUPSHUP_API_KEY: "Chave de API (API Key)",
-  GUPSHUP_APP_NAME: "Nome do aplicativo (App Name)",
 };
 
 function useGateways() {
@@ -211,6 +203,13 @@ function CredentialsForm({
         // O numero do WhatsApp mostra SO o numero (sem "whatsapp:"); o rotulo ja
         // diz que e do WhatsApp e o motor de envio recoloca o prefixo sozinho.
         const isWhats = f.field === "whatsappFrom";
+        // O Gupshup exige o numero de origem com DDI e SEM "+" (regra da API).
+        const isGupshupSource = f.field === "sourceNumber";
+        const placeholder = isWhats
+          ? "Somente o número, ex.: +14155238886"
+          : isGupshupSource
+            ? "Número com DDI, sem +, ex.: 5511999998888"
+            : undefined;
         return (
           <CredentialField
             key={f.field}
@@ -222,8 +221,14 @@ function CredentialsForm({
             value={values[f.field] ?? ""}
             onChange={(v) => setValues((prev) => ({ ...prev, [f.field]: v }))}
             onReveal={() => revealField(f.field)}
-            normalize={isWhats ? (v) => v.replace(/^whatsapp:/i, "") : undefined}
-            placeholder={isWhats ? "Somente o número, ex.: +14155238886" : undefined}
+            normalize={
+              isWhats
+                ? (v) => v.replace(/^whatsapp:/i, "")
+                : isGupshupSource
+                  ? (v) => v.replace(/[^0-9]/g, "")
+                  : undefined
+            }
+            placeholder={placeholder}
           />
         );
       })}
@@ -287,20 +292,12 @@ function GatewayCard({
       {/* ZONA C — informacao (LED a esquerda, alinhado) */}
       <div className="space-y-2 text-[13px] leading-relaxed text-muted-foreground">{description}</div>
 
-      {/* Aviso honesto de chaves faltando. */}
-      {!gateway.configured && gateway.missingKeys.length > 0 && (
-        <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-[12px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-300">
-          <div className="mb-1 flex items-center gap-1.5 font-semibold uppercase tracking-wide">
-            <KeyRound className="h-3.5 w-3.5" />
-            Faltam credenciais no cofre
-          </div>
-          <ul className="list-disc space-y-0.5 pl-4">
-            {gateway.missingKeys.map((k) => (
-              <li key={k}>{KEY_LABELS[k] ?? k}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Faixa de status do cofre — SEMPRE presente (verde/ambar) na mesma
+          posicao nos dois cards, para alinhar os campos por uma linha imaginaria. */}
+      <VaultStatusStrip
+        configured={gateway.configured}
+        missingCount={gateway.missingKeys.length}
+      />
 
       {/* ZONA D — credenciais (rotulo em cima, insert embaixo, olho que revela). */}
       <CredentialsForm gateway={gateway} onSave={onSaveCredentials} onReveal={onReveal} />
@@ -330,11 +327,11 @@ export default function ComunicacaoGateways() {
           accent="text-emerald-600"
           description={
             <>
-              <ExplainRow>
+              <ExplainRow noLed>
                 Gateway de <strong>WhatsApp</strong> via Twilio. Já existe motor de envio no
                 servidor; basta colar as chaves no cofre para ativar o disparo real.
               </ExplainRow>
-              <ExplainRow>
+              <ExplainRow noLed>
                 Usado em lembretes de sessão, prescrição e avisos ao cliente.
               </ExplainRow>
             </>
@@ -353,11 +350,11 @@ export default function ComunicacaoGateways() {
           accent="text-sky-600"
           description={
             <>
-              <ExplainRow>
+              <ExplainRow noLed>
                 Gateway de <strong>WhatsApp Business</strong> via Gupshup — alternativa ao Twilio.
                 Nesta fase, a tela só mostra o status das credenciais (sem envio ainda).
               </ExplainRow>
-              <ExplainRow>
+              <ExplainRow noLed>
                 Planejado como segundo caminho de envio, à escolha do operador.
               </ExplainRow>
             </>

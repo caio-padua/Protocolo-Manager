@@ -87,6 +87,9 @@ const GATEWAY_FIELDS: Record<GatewayProvider, GatewayFieldDef[]> = {
   gupshup: [
     { field: "apiKey", vaultKey: "gupshup.apiKey", label: "Chave de API (API Key)", envName: "GUPSHUP_API_KEY", secret: true },
     { field: "appName", vaultKey: "gupshup.appName", label: "Nome do aplicativo (App Name)", envName: "GUPSHUP_APP_NAME", secret: false },
+    // A API do Gupshup exige `source` (numero WhatsApp Business, DDI sem "+") em
+    // todo envio — fiacao ja deixada pronta mesmo sem credencial (pesquisa CEO).
+    { field: "sourceNumber", vaultKey: "gupshup.sourceNumber", label: "Número de origem (WhatsApp Business)", envName: "GUPSHUP_SOURCE_NUMBER", secret: false },
   ],
 };
 
@@ -193,10 +196,21 @@ router.put("/comunicacao/gateways/:provider/credentials", requireCollaborator, a
   let saved = 0;
   for (const d of defs) {
     const raw = body[d.field];
-    if (typeof raw === "string" && raw.trim()) {
-      await setSecret(d.vaultKey, raw.trim(), actor);
-      saved += 1;
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    let value = raw.trim();
+    // O numero de origem do Gupshup tem de ser DDI + numero, SO digitos, sem "+"
+    // (regra da API). Sanitiza no servidor (autoritativo, nao confia so no front)
+    // e recusa tamanho implausivel para nao gravar lixo no cofre.
+    if (d.field === "sourceNumber") {
+      value = value.replace(/[^0-9]/g, "");
+      if (value.length < 10 || value.length > 15) {
+        return res.status(400).json({
+          error: "Número de origem inválido: use DDI + número, só dígitos (ex.: 5511999998888)",
+        });
+      }
     }
+    await setSecret(d.vaultKey, value, actor);
+    saved += 1;
   }
   const { fields, missingKeys } = await buildFields(provider as GatewayProvider);
   res.json({

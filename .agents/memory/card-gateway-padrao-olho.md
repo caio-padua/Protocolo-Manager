@@ -42,6 +42,25 @@ do app inteiro (ver `admin-api-sem-auth.md`).
   como `whatsapp:+...`) exibe só o número via prop `normalize`; o rótulo já diz o canal e o motor de
   envio recoloca o prefixo (`whatsapp.ts` normaliza `startsWith("whatsapp:")`).
 - **Luz de vela do cabeçalho fica à DIREITA do nome** (antes colada ao ícone) — melhor concordância.
+- **Luz por linha de descrição some no gateway (`ExplainRow noLed`).** O card já tem UMA luz no
+  cabeçalho; repetir luzinha por linha vira poluição. `noLed` é prop OPCIONAL — fora do gateway
+  (governança, hierarquia, emails…) `ExplainRow` mantém a luz; **nunca** remover globalmente.
+- **Faixa de status do cofre SEMPRE presente (`VaultStatusStrip`).** Substitui a antiga caixa
+  condicional de "chaves faltando" (que só aparecia em erro e desalinhava os cards). Verde
+  "completas" / âmbar "Faltam N". **Why:** posição fixa nos dois cards alinha os campos por uma linha
+  horizontal imaginária. Não lista os nomes que faltam — o selo "Vazio" de cada campo já diz qual.
+- **Máscara mostra os ÚLTIMOS 6 (era 4) + valor em DESTAQUE.** `mask` em `secure-settings.ts`: valor
+  com ≤6 fica todo mascarado (não vaza quase tudo). Legenda "No cofre:" com valor mono/negrito vs
+  rótulo discreto. **Why:** o CEO precisava forçar a vista pra ver que havia algo. **Honestidade:**
+  expõe 6 chars finais (aceitável — owner-only, e o olho revela tudo).
+
+## Gupshup exige 3 credenciais (não 2)
+
+A API do Gupshup precisa de `apikey` (header), `src.name` (= appName) **e** `source` (número WhatsApp
+Business, DDI **sem** "+"). Sem o número de origem não há envio. `isGupshupConfigured` só é true com os
+três no cofre; o campo `sourceNumber` (`gupshup.sourceNumber` → env `GUPSHUP_SOURCE_NUMBER`) normaliza
+para só dígitos. **Por que importa:** descoberto por pesquisa; o card antes só tinha 2 campos e teria
+dado "configurado" sem poder enviar (falsa prontidão). Twilio também tem 3 → ajuda o alinhamento.
 
 ## Armadilha de validação (token de colaborador)
 

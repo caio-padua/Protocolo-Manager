@@ -62,6 +62,7 @@ const ENV_FALLBACK: Record<string, string> = {
   "twilio.whatsappFrom": "TWILIO_WHATSAPP_FROM",
   "gupshup.apiKey": "GUPSHUP_API_KEY",
   "gupshup.appName": "GUPSHUP_APP_NAME",
+  "gupshup.sourceNumber": "GUPSHUP_SOURCE_NUMBER",
 };
 
 function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {
@@ -117,10 +118,12 @@ export async function getSecret(key: string): Promise<string | null> {
   return null;
 }
 
-// Versão síncrona da máscara: mostra só os últimos 4 caracteres.
+// Versão síncrona da máscara: mostra os últimos 6 caracteres (o dono reconhece
+// o próprio valor num relance; o restante continua oculto). Valor muito curto
+// (<= 6) fica totalmente mascarado para não vazar quase tudo.
 function mask(value: string): string {
-  if (value.length <= 4) return "••••";
-  return "••••" + value.slice(-4);
+  if (value.length <= 6) return "••••";
+  return "••••" + value.slice(-6);
 }
 
 export interface SecretStatus {

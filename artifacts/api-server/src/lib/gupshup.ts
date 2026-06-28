@@ -7,9 +7,12 @@
 import { getSecret } from "./secure-settings";
 
 export async function isGupshupConfigured(): Promise<boolean> {
-  const [apiKey, appName] = await Promise.all([
+  // A API do Gupshup precisa das TRÊS para enviar: apikey, src.name (appName) e
+  // source (número WhatsApp Business). Sem qualquer uma, fica "não configurado".
+  const [apiKey, appName, sourceNumber] = await Promise.all([
     getSecret("gupshup.apiKey"),
     getSecret("gupshup.appName"),
+    getSecret("gupshup.sourceNumber"),
   ]);
-  return Boolean(apiKey && appName);
+  return Boolean(apiKey && appName && sourceNumber);
 }

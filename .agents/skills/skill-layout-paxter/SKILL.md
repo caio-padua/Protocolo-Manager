@@ -322,7 +322,7 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   Twilio e Gupshup; replicar nas demais telas de ferramenta)**: todo card de ferramenta/integracao
   segue UMA modelagem fixa, em 4 zonas, com POSICOES FIXAS (Padrao 12 — slot nao desliza com ou sem
   informacao). Componentes reusaveis em `artifacts/padcom/src/pages/comunicacao/_shared.tsx`:
-  `IntegrationCard`, `StatusInsert`, `ToggleWell`, `CredentialField`.
+  `IntegrationCard`, `StatusInsert`, `ToggleWell`, `CredentialField`, `VaultStatusStrip`.
     - ZONA A (cabecalho): icone em placa Bevel PROPORCIONAL (`h-8 w-8`, glifo `h-4 w-4` — nunca o
       `h-9/h-5` antigo, que o CEO julgou grande demais) + nome em MAIUSCULO + LUZ DE VELA (Padrao 17)
       a DIREITA do nome (decisao do CEO em 28/06/2026: melhor concordancia; antes ficava colada ao
@@ -332,8 +332,17 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
       sulco — nunca solto.
     - ZONA B (toggle no TOPO): o liga/desliga ("Gateway ativo") fica LOGO ABAIXO do cabecalho, ANTES
       da informacao, num `ToggleWell` (sulco Concavo, Padrao 5) — nunca misturado no meio do bloco.
-    - ZONA C (informacao): linhas `ExplainRow`, cada uma com a luz a ESQUERDA (`shrink-0`), alinhadas
-      por uma linha vertical imaginaria mesmo com frases de tamanhos diferentes.
+    - ZONA C (informacao): linhas `ExplainRow`. Dentro do card de gateway, a luzinha verde a esquerda
+      de CADA linha vira poluicao (o card ja tem UMA luz de vela no cabecalho) — passar `noLed` para
+      esconde-la (decisao do CEO em 28/06/2026). FORA do gateway (governanca, hierarquia, emails etc.)
+      `ExplainRow` mantem a luz por padrao — NAO remover globalmente.
+    - ZONA C-bis (faixa de status do cofre): logo abaixo da informacao, UMA faixa `VaultStatusStrip`
+      SEMPRE presente (Padrao 12 — nunca aparece/some), na MESMA posicao em todos os cards, para que
+      os campos de credencial abaixo fiquem alinhados por uma linha horizontal imaginaria entre os
+      cards. Linha unica de altura fixa: verde "Credenciais completas no cofre" quando `configured` /
+      ambar "Faltam N credenciais — veja os campos marcados Vazio" caso contrario. NAO lista os nomes
+      das chaves que faltam (redundante) — o detalhe de QUAL falta vem do selo "Vazio" de cada campo.
+      Substitui a antiga caixa condicional de "chaves faltando" (que so aparecia em erro e desalinhava).
     - ZONA D (credencial): por campo, `CredentialField` — na linha do rotulo MAIUSCULO, a DIREITA, um
       SELO em placa Bevel com a PALAVRA de estado: "Configurado" (verde) quando ha valor no cofre /
       "Vazio" (ambar) quando nao ha. O selo e PALAVRA, nao luz: decisao do CEO em 28/06/2026 para
@@ -341,14 +350,22 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
       clicar no olho. HONESTIDADE (anti-simulacao): o selo diz "Configurado" (= guardado no cofre),
       NUNCA "Autenticado"/"Certificado" — o sistema nao testa se a chave realmente funciona. EMBAIXO,
       um retangulo insert Concavo (altura fixa `h-10`) com o input + um OLHO (`Eye`/`EyeOff`), e a
-      legenda fixa ("No cofre: ••••1234 · cofre" ou "No cofre: —"), slot constante. O OLHO revela o
-      VALOR REAL do cofre: o dono logado tem direito de ver o proprio segredo (analogia do CEO: "ver
-      meu proprio RG"). Isso NAO viola a regra de seguranca (Art. 65): o valor nunca trafega por
-      padrao — so sob acao explicita, por rota POST `/reveal` protegida por `requireCollaborator`
-      (mesma protecao da gravacao). Campo vazio = mantem o valor atual ao salvar. Campo que carrega
-      valor com prefixo tecnico (ex.: numero do WhatsApp guardado como `whatsapp:+...`) exibe SO a
-      parte util (o numero) via prop `normalize`; o rotulo ja diz o canal e o motor de envio recoloca
-      o prefixo sozinho — nao repetir a palavra do canal dentro do campo.
+      legenda "No cofre:" com o valor mascarado em DESTAQUE (mono/negrito/`text-foreground`) contra o
+      rotulo discreto (`text-muted-foreground`) — decisao do CEO em 28/06/2026: o valor precisava
+      saltar aos olhos. A mascara mostra os ULTIMOS 6 caracteres (`mask` em `secure-settings.ts`: valor
+      com 6 ou menos fica todo mascarado, para nao vazar quase tudo); o dono reconhece o proprio valor
+      num relance e o OLHO revela o resto. O OLHO revela o VALOR REAL do cofre: o dono logado tem
+      direito de ver o proprio segredo (analogia do CEO: "ver meu proprio RG"). Isso NAO viola a regra
+      de seguranca (Art. 65): o valor nunca trafega por padrao — so sob acao explicita, por rota POST
+      `/reveal` protegida por `requireCollaborator` (mesma protecao da gravacao). Campo vazio = mantem
+      o valor atual ao salvar. Campo que carrega valor com prefixo/forma tecnica exibe SO a parte util
+      via prop `normalize`: numero do WhatsApp guardado como `whatsapp:+...` mostra so o numero; numero
+      de origem do Gupshup so digitos (DDI sem "+", ex.: `5511999998888`, regra da API do Gupshup). O
+      rotulo ja diz o canal e o motor recoloca o prefixo sozinho — nao repetir a palavra do canal no campo.
+    - GUPSHUP (3 campos): `apiKey` (secreto), `appName` (= `src.name`) e `sourceNumber` (numero
+      WhatsApp Business, DDI sem "+"). A API do Gupshup exige os tres em todo envio, entao
+      `isGupshupConfigured` so e verdadeiro com os tres no cofre. Twilio tambem tem 3 campos
+      (accountSid, authToken, whatsappFrom) — ambos com 3 campos ajuda o alinhamento entre cards.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
