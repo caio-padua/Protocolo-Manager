@@ -1,10 +1,14 @@
 // Geração de PDF das receitas (manipulação/blend e controlado isolado).
-import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
+//
+// Consome a Fábrica de Padrão de Documentos (lib/documentos/padrao.ts) para o
+// cabeçalho-mastro, cores da marca, rodapé e paginação. EXCEÇÃO de marca: o
+// receituário usa o emissor "Instituto Pádua" (não PAXTER) — regra clínica.
+// O conteúdo regulatório (faixa Anvisa, SNCR, boilerplate, itens) continua aqui.
+import { rgb, PDFFont, PDFPage } from "pdf-lib";
+import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import type { RecipePlan, PrescriptionItemInput } from "./desmembramento";
 
-const PETROLEO = rgb(0.24, 0.48, 0.48);
-const DARK = rgb(0.1, 0.1, 0.1);
-const GRAY = rgb(0.4, 0.4, 0.4);
+const ALERTA = rgb(0.7, 0.1, 0.1); // vermelho regulatório (SNCR ausente, controlado)
 
 const HEADER_BOILERPLATE = [
   "À Farmácia e ao Paciente:",
@@ -55,87 +59,89 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fab = await iniciarFabrica();
+  const { font, fontBold, margem, larguraConteudo } = fab;
 
-  const pageW = 595.28;
-  const pageH = 841.89;
-  const marginX = 50;
-  const contentW = pageW - marginX * 2;
+  const cabecalho: CabecalhoOpts = {
+    titulo: plan.title,
+    emissor: "instituto_padua",
+  };
 
-  let page = doc.addPage([pageW, pageH]);
-  let y = pageH - 50;
+  let { page, y } = fab.novaPagina(cabecalho);
 
   const ensureSpace = (needed: number) => {
-    if (y - needed < 60) {
-      page = doc.addPage([pageW, pageH]);
-      y = pageH - 50;
+    if (y - needed < 72) {
+      const nova = fab.novaPagina(cabecalho);
+      page = nova.page;
+      y = nova.y;
     }
   };
 
-  const drawLine = (text: string, size: number, useFont: PDFFont, color = DARK, indent = 0) => {
+  const drawLine = (text: string, size: number, useFont: PDFFont, color = COR.tinta, indent = 0) => {
     ensureSpace(size + 4);
-    page.drawText(text, { x: marginX + indent, y, size, font: useFont, color });
+    page.drawText(text, { x: margem + indent, y, size, font: useFont, color });
     y -= size + 4;
   };
 
-  // Cabeçalho clínica
-  page.drawRectangle({ x: 0, y: pageH - 6, width: pageW, height: 6, color: PETROLEO });
-  drawLine("INSTITUTO PADUA — Protocolos Injetáveis", 16, fontBold, PETROLEO);
-  drawLine(plan.title, 12, fontBold, DARK);
-  y -= 4;
-
-  // Faixa de cor Anvisa (controlado)
+  // Faixa de cor Anvisa (controlado) — cores regulatórias preservadas como estão.
   if (plan.recipeType === "controlado_isolado" && plan.anvisaColorName) {
     ensureSpace(22);
     const isWhite = (plan.anvisaColor ?? "").toUpperCase() === "#FFFFFF";
     page.drawRectangle({
-      x: marginX,
+      x: margem,
       y: y - 4,
-      width: contentW,
+      width: larguraConteudo,
       height: 20,
       color: hexToRgb(plan.anvisaColor ?? "#CCCCCC"),
-      borderColor: GRAY,
+      borderColor: COR.cinza,
       borderWidth: isWhite ? 1 : 0,
     });
-    page.drawText(
-      `TIPO ANVISA: ${plan.anvisaType ?? "-"}  •  RECEITUÁRIO ${plan.anvisaColorName.toUpperCase()}`,
-      { x: marginX + 8, y: y + 2, size: 10, font: fontBold, color: isWhite ? DARK : rgb(1, 1, 1) },
-    );
+    page.drawText(`TIPO ANVISA: ${plan.anvisaType ?? "-"}  •  RECEITUÁRIO ${plan.anvisaColorName.toUpperCase()}`, {
+      x: margem + 8,
+      y: y + 2,
+      size: 10,
+      font: fontBold,
+      color: isWhite ? COR.tinta : rgb(1, 1, 1),
+    });
     y -= 30;
   }
 
   // Numeração SNCR
   if (plan.needsSncr) {
     if (ctx.sncrNumber) {
-      drawLine(`Nº Notificação de Receita (SNCR): ${ctx.sncrNumber}`, 10, fontBold, DARK);
+      drawLine(`Nº Notificação de Receita (SNCR): ${ctx.sncrNumber}`, 10, fontBold, COR.tinta);
     } else {
-      drawLine("Nº Notificação de Receita (SNCR): ____________ (sem numeração disponível)", 10, fontBold, rgb(0.7, 0.1, 0.1));
+      drawLine("Nº Notificação de Receita (SNCR): ____________ (sem numeração disponível)", 10, fontBold, ALERTA);
     }
     y -= 2;
   }
 
   // Dados do paciente / médico
-  drawLine(`Paciente: ${ctx.clientName}${ctx.clientCpf ? `  •  CPF: ${ctx.clientCpf}` : ""}`, 10, font, DARK);
+  drawLine(`Paciente: ${ctx.clientName}${ctx.clientCpf ? `  •  CPF: ${ctx.clientCpf}` : ""}`, 10, font, COR.tinta);
   const profLine = `Médico: ${ctx.professionalName ?? "-"}${ctx.professionalCrm ? `  •  CRM: ${ctx.professionalCrm}` : ""}${ctx.professionalUf ? `/${ctx.professionalUf}` : ""}`;
-  drawLine(profLine, 10, font, DARK);
+  drawLine(profLine, 10, font, COR.tinta);
   drawLine(
     `Data: ${ctx.dateBR}${ctx.cid ? `  •  CID: ${ctx.cid}` : ""}${ctx.durationDays ? `  •  Duração: ${ctx.durationDays} dias` : ""}`,
     10,
     font,
-    GRAY,
+    COR.cinza,
   );
   if (ctx.pharmacyName) {
-    drawLine(`Destino: ${ctx.pharmacyName}${ctx.pharmacyType ? ` (${ctx.pharmacyType})` : ""}`, 10, font, GRAY);
+    drawLine(`Destino: ${ctx.pharmacyName}${ctx.pharmacyType ? ` (${ctx.pharmacyType})` : ""}`, 10, font, COR.cinza);
   }
   y -= 6;
 
   // Boilerplate legal
-  page.drawRectangle({ x: marginX, y: y - (HEADER_BOILERPLATE.length * 11) - 4, width: contentW, height: HEADER_BOILERPLATE.length * 11 + 8, color: rgb(0.96, 0.98, 0.98) });
+  ensureSpace(HEADER_BOILERPLATE.length * 11 + 12);
+  page.drawRectangle({
+    x: margem,
+    y: y - HEADER_BOILERPLATE.length * 11 - 4,
+    width: larguraConteudo,
+    height: HEADER_BOILERPLATE.length * 11 + 8,
+    color: rgb(0.95, 0.96, 0.97),
+  });
   for (const l of HEADER_BOILERPLATE) {
-    ensureSpace(11);
-    page.drawText(l, { x: marginX + 6, y: y - 2, size: 7.5, font, color: GRAY });
+    page.drawText(l, { x: margem + 6, y: y - 2, size: 7.5, font, color: COR.cinza });
     y -= 11;
   }
   y -= 10;
@@ -143,11 +149,22 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
   // Itens
   let idx = 1;
   for (const item of plan.items) {
-    drawItem(page, item, idx, { marginX, contentW, font, fontBold }, () => {
-      page = doc.addPage([pageW, pageH]);
-      y = pageH - 50;
-      return { page, y };
-    }, () => y, (ny) => { y = ny; });
+    drawItem(
+      page,
+      item,
+      idx,
+      { margem, larguraConteudo, font, fontBold },
+      () => {
+        const nova = fab.novaPagina(cabecalho);
+        page = nova.page;
+        y = nova.y;
+        return { page, y };
+      },
+      () => y,
+      (ny) => {
+        y = ny;
+      },
+    );
     idx++;
     y -= 8;
   }
@@ -155,29 +172,29 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
   // Assinatura
   ensureSpace(60);
   y -= 24;
-  page.drawLine({ start: { x: marginX, y }, end: { x: marginX + 240, y }, thickness: 1, color: DARK });
+  page.drawLine({ start: { x: margem, y }, end: { x: margem + 240, y }, thickness: 1, color: COR.tinta });
   y -= 14;
-  drawLine(`${ctx.professionalName ?? ""}`, 10, fontBold, DARK);
-  drawLine(`CRM ${ctx.professionalCrm ?? ""}${ctx.professionalUf ? `/${ctx.professionalUf}` : ""}`, 9, font, GRAY);
+  drawLine(`${ctx.professionalName ?? ""}`, 10, fontBold, COR.tinta);
+  drawLine(`CRM ${ctx.professionalCrm ?? ""}${ctx.professionalUf ? `/${ctx.professionalUf}` : ""}`, 9, font, COR.cinza);
 
-  return doc.save();
+  return fab.finalizar();
 }
 
 function drawItem(
   page: PDFPage,
   item: PrescriptionItemInput,
   idx: number,
-  cfg: { marginX: number; contentW: number; font: PDFFont; fontBold: PDFFont },
+  cfg: { margem: number; larguraConteudo: number; font: PDFFont; fontBold: PDFFont },
   newPage: () => { page: PDFPage; y: number },
   getY: () => number,
   setY: (y: number) => void,
 ) {
-  const { marginX, contentW, font, fontBold } = cfg;
+  const { margem, larguraConteudo, font, fontBold } = cfg;
   let curPage = page;
   let y = getY();
 
   const ensure = (needed: number) => {
-    if (y - needed < 60) {
+    if (y - needed < 72) {
       const np = newPage();
       curPage = np.page;
       y = np.y;
@@ -185,16 +202,22 @@ function drawItem(
   };
 
   ensure(18);
-  curPage.drawText(`${idx}. ${item.name}`, { x: marginX, y, size: 11, font: fontBold, color: DARK });
+  curPage.drawText(`${idx}. ${item.name}`, { x: margem, y, size: 11, font: fontBold, color: COR.tinta });
   if (item.isControlled) {
-    curPage.drawText(`[CONTROLADO ${item.anvisaType ?? ""}]`, { x: marginX + contentW - 130, y, size: 8, font: fontBold, color: rgb(0.7, 0.1, 0.1) });
+    curPage.drawText(`[CONTROLADO ${item.anvisaType ?? ""}]`, {
+      x: margem + larguraConteudo - 130,
+      y,
+      size: 8,
+      font: fontBold,
+      color: ALERTA,
+    });
   }
   y -= 16;
 
   if (item.ativos) {
-    for (const l of wrapText(item.ativos, font, 9, contentW - 12)) {
+    for (const l of wrapText(item.ativos, font, 9, larguraConteudo - 12)) {
       ensure(11);
-      curPage.drawText(l, { x: marginX + 12, y, size: 9, font, color: rgb(0.2, 0.2, 0.2) });
+      curPage.drawText(l, { x: margem + 12, y, size: 9, font, color: COR.tinta });
       y -= 11;
     }
   }
@@ -202,9 +225,9 @@ function drawItem(
   const pos = item.posologia || buildPosologia(item);
   if (pos) {
     y -= 2;
-    for (const l of wrapText(`Posologia: ${pos}`, font, 9, contentW - 12)) {
+    for (const l of wrapText(`Posologia: ${pos}`, font, 9, larguraConteudo - 12)) {
       ensure(11);
-      curPage.drawText(l, { x: marginX + 12, y, size: 9, font, color: PETROLEO });
+      curPage.drawText(l, { x: margem + 12, y, size: 9, font, color: COR.navy700 });
       y -= 11;
     }
   }

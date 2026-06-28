@@ -127,6 +127,11 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // and the bundled __dirname resolves to `dist`, so copy pdfkit/js/data -> dist/data.
   const pdfkitDataDir = path.join(path.dirname(globalThis.require.resolve("pdfkit")), "data");
   await cp(pdfkitDataDir, path.resolve(distDir, "data"), { recursive: true });
+
+  // Brand assets (PAXTER wordmark/symbol) used by the document Fábrica (lib/documentos)
+  // are read at runtime from `${__dirname}/assets`. esbuild does not bundle binary
+  // assets, and the bundled __dirname resolves to `dist`, so copy assets -> dist/assets.
+  await cp(path.resolve(artifactDir, "assets"), path.resolve(distDir, "assets"), { recursive: true });
 }
 
 buildAll().catch((err) => {

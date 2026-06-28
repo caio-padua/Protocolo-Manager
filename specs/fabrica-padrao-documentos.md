@@ -1,7 +1,31 @@
-# Spec — Fábrica de Padrão de Documentos (Hermes)
+# Spec — Fábrica de Padrão de Documentos
 
-> Status: RASCUNHO para aprovação do CEO (Fase 1 do Paxter Loop — ESPECIFICAR).
+> Status: EM EXECUÇÃO (Onda 1 entregue). Núcleo + 2 geradores na Fábrica, revisados.
 > Data: 28/06/2026. Autor: Dr. Replit Paxter.
+> Decisões travadas pelo CEO (defaults): 1=A, 2=A, 3=A (cabeçalho+rodapé; cada motor no seu; RAS FAP intocado).
+>
+> Nota de nome: "Hermes Paxter" (Art. 66) é o motor único de ENVIOS (e-mail/WhatsApp/Telegram).
+> Esta Fábrica é o motor de DOCUMENTOS PDF (cabeçalho/rodapé/marca/tipografia). São complementares
+> e compartilham a mesma linguagem visual da marca PAXTER, mas NÃO são o mesmo módulo.
+
+---
+
+## 0. Status de execução (28/06/2026)
+
+| Gerador | Motor | Migrado para a Fábrica | Validação |
+|---|---|---|---|
+| Solicitação de exame (`exam-request-pdf.ts`) | pdf-lib | SIM (piloto) | PDF gerado + conferido visualmente |
+| Receituário (`prescription-pdf.ts`) | pdf-lib | SIM (emissor Instituto Pádua) | PDF gerado + conferido visualmente |
+| Protocolo Completo (`pdf-signer.ts`) | pdf-lib + PAdES | PENDENTE — onda própria | risco alto (assinatura) |
+| RAS assinado (`pdf-signer.ts`) | pdf-lib + PAdES | PENDENTE — onda própria | risco alto (assinatura) |
+| TCLE / termos (`assinatura/`) | pdf-lib/HTML | PENDENTE — onda própria | — |
+| RAS FAP (`ras-fap.ts`) | pdfkit | NÃO ENTRA (Decisão 3A) | linha vermelha |
+
+Núcleo `lib/documentos/padrao.ts` entregue: `iniciarFabrica` → `novaPagina`/`desenharCabecalho`/
+`carimbarRodape`/`finalizar`. Faixa-mastro escura + wordmark ouro (PAXTER ou Instituto Pádua),
+título truncado para não invadir a marca, rodapé com legenda por emissor + "Página i de N".
+`carimbarRodape` é idempotente e separado de `finalizar` (salvar) — pré-requisito do fluxo PAdES:
+no documento assinado, carimbar o rodapé ANTES de entregar `fab.doc` ao assinador, nunca depois.
 
 ---
 

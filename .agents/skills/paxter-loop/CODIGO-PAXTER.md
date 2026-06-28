@@ -103,6 +103,14 @@ pergunta: (a) ação destrutiva ou irreversível (apagar dado, gastar dinheiro r
 (b) mudar uma decisão já travada do CEO (Art. 21); (c) escopo ou arquitetura com trade-off real e ambíguo,
 sem caminho obviamente superior. Fora desses três casos: decidir, anunciar e avançar.
 
+**Art. 68** DADO REAL ANTES DE FIXTURE (promulgado pelo "freio de mão" do CEO em 28/06/2026). Antes de
+gerar QUALQUER valor de teste (CPF, identificador, telefone, e-mail, valor) o agente deve primeiro
+PROCURAR o dado real já existente no projeto — `replit.md`, banco de dados, `certs/`, specs, memória.
+Só sintetiza valor quando comprovadamente não houver fonte real. Inventar um valor que já existe gera
+retrabalho e quebra integridade (caso-origem: cobrança real do Asaas criada sob um CPF inventado, sendo
+que o CPF verdadeiro do titular já constava no `replit.md` e no certificado A1). Esta lei é a aplicação
+prática dos Art. 19 (verificar na fonte) e Art. 20 (proibida a fantasia) ao ato de criar dados de teste.
+
 ---
 
 ## TÍTULO IV — DA EQUIPE FIXA
@@ -368,6 +376,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 28/06/2026 | Art. 68 (Título III) | Dado real antes de fixture, promulgado pelo "freio de mão" do CEO: antes de criar qualquer dado de teste/exemplo (fixture/mock), o agente verifica se já existe o dado REAL no sistema e o usa; fixture só é permitido para validação puramente visual de layout (renderização), nunca para provar fluxo de negócio. Operar o sistema de verdade vence simulação. |
 | 28/06/2026 | Art. 67 (Título III) | Autonomia na opção óbvia, a pedido do CEO: quando há uma opção claramente mais robusta/eficiente/sólida e o CEO já sinalizou que quer "o melhor", o agente segue direto por ela (anunciando a escolha), sem parar para perguntar. Exceções que ainda exigem pergunta: ação destrutiva/irreversível (apagar dado, dinheiro real), mudar decisão travada do CEO (Art. 21), ou escopo/arquitetura ambíguo com trade-off real. |
 | 28/06/2026 | Art. 66 (Título X) | Motor único de envio branded ("Hermes Paxter"), a pedido do CEO: todo envio (e-mail/WhatsApp/Telegram) passa por um motor único que aplica o padrão de marca; e-mail de cadastro é a fonte-da-verdade visual (motor replica, não redesenha); nenhuma rota monta mensagem de marca à mão (Art. 57); WhatsApp/Telegram com banner PAXTER + legenda e degrade para texto; status honesto por canal; padrão registrado na skill `skill-layout-paxter`. Spec: `specs/padrao-envios-paxter.md`. |
 | 28/06/2026 | Art. 65 (Título IX) | Tela autossuficiente — toda chave tem campo na própria tela, promulgado pela onda Fechar Lacunas de Configuração (referência ZapSign): proibido entregar menu só-leitura "configure no servidor" quando a ferramenta depende de chave/token/valor/upload. O segredo entra por `type=password`, o GET devolve só metadado mascarado (isSet + cauda + source), o PUT só grava campos preenchidos, o valor mora no cofre cifrado com fallback de env. Lição de segurança: a rota que devolve metadado de segredo TAMBÉM exige `requireCollaborator` (vazar cauda+origem sem login é proibido) e a tela passa a mandar Bearer em toda leitura. Memória: `config-tela-autossuficiente`. |

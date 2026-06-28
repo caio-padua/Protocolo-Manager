@@ -61,6 +61,21 @@ export async function asaasCreateCustomer(input: AsaasCustomerInput): Promise<{ 
   return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) });
 }
 
+// Atualiza um cliente existente no Asaas (ex.: corrigir CPF/CNPJ do titular).
+// No Asaas a atualizacao e um POST em /customers/{id}.
+export async function asaasUpdateCustomer(
+  id: string,
+  input: AsaasCustomerInput,
+): Promise<{ id: string; cpfCnpj?: string }> {
+  const body = {
+    name: input.name,
+    cpfCnpj: input.cpfCnpj.replace(/\D/g, ""),
+    email: input.email || undefined,
+    mobilePhone: input.phone ? input.phone.replace(/\D/g, "") : undefined,
+  };
+  return asaasFetch(`/customers/${id}`, { method: "POST", body: JSON.stringify(body) });
+}
+
 export interface AsaasChargeInput {
   customerId: string;
   value: number;
