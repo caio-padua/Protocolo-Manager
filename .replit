@@ -33,3 +33,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 TWILIO_WHATSAPP_FROM = "whatsapp:+14155238886"
+
+[userenv.development]
+ZAPSIGN_BASE_URL = "https://api.zapsign.com.br"
