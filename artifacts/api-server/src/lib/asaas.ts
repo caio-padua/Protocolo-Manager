@@ -91,6 +91,85 @@ export async function asaasGetCharge(id: string): Promise<AsaasCharge> {
   return asaasFetch(`/payments/${id}`, { method: "GET" });
 }
 
+// ----- NFS-e (Nota Fiscal de Servico eletronica) — Onda 2 -----
+
+export interface AsaasMunicipalService {
+  id: string;
+  description: string | null;
+  issTax: number | null; // aliquota ISS (%) sugerida pelo Asaas, se houver
+}
+
+// Lista os servicos municipais cadastrados/sugeridos para a conta (para obter o
+// municipalServiceId correto). `description` filtra por texto (ex.: "medicina").
+export async function asaasListMunicipalServices(
+  description?: string,
+): Promise<AsaasMunicipalService[]> {
+  const qs = description ? `?description=${encodeURIComponent(description)}` : "";
+  const page = await asaasFetch(`/invoices/municipalServices${qs}`, { method: "GET" });
+  const data: any[] = Array.isArray(page?.data) ? page.data : [];
+  return data.map((s) => ({
+    id: String(s.id ?? s.municipalServiceId ?? ""),
+    description: s.description ?? s.name ?? null,
+    issTax: s.issTax != null ? Number(s.issTax) : null,
+  }));
+}
+
+export interface AsaasInvoiceInput {
+  // Vinculo: pelo menos UM (payment OU customer OU installment).
+  payment?: string;
+  customer?: string;
+  installment?: string;
+  serviceDescription: string;
+  value: number;
+  effectiveDate: string; // YYYY-MM-DD
+  observations?: string;
+  deductions?: number;
+  // Servico municipal (id da listagem) OU codigo/nome manual.
+  municipalServiceId?: string;
+  municipalServiceCode?: string;
+  municipalServiceName?: string;
+}
+
+export interface AsaasInvoice {
+  id: string;
+  status: string; // SCHEDULED | SYNCHRONIZED | AUTHORIZED | PROCESSING_CANCELLATION | CANCELED | ERROR
+  value: number;
+  effectiveDate: string | null;
+  pdfUrl: string | null;
+  xmlUrl: string | null;
+  rpsSerie: string | null;
+  rpsNumber: string | null;
+  number: string | null;
+}
+
+export async function asaasCreateInvoice(input: AsaasInvoiceInput): Promise<AsaasInvoice> {
+  const body: Record<string, unknown> = {
+    serviceDescription: input.serviceDescription,
+    value: input.value,
+    effectiveDate: input.effectiveDate,
+  };
+  if (input.payment) body.payment = input.payment;
+  if (input.customer) body.customer = input.customer;
+  if (input.installment) body.installment = input.installment;
+  if (input.observations) body.observations = input.observations;
+  if (input.deductions != null) body.deductions = input.deductions;
+  if (input.municipalServiceId) body.municipalServiceId = input.municipalServiceId;
+  if (input.municipalServiceCode) body.municipalServiceCode = input.municipalServiceCode;
+  if (input.municipalServiceName) body.municipalServiceName = input.municipalServiceName;
+  const raw = await asaasFetch("/invoices", { method: "POST", body: JSON.stringify(body) });
+  return {
+    id: String(raw?.id ?? ""),
+    status: String(raw?.status ?? ""),
+    value: Number(raw?.value ?? input.value),
+    effectiveDate: raw?.effectiveDate ?? null,
+    pdfUrl: raw?.pdfUrl ?? null,
+    xmlUrl: raw?.xmlUrl ?? null,
+    rpsSerie: raw?.rpsSerie ?? null,
+    rpsNumber: raw?.rpsNumber ?? null,
+    number: raw?.number ?? null,
+  };
+}
+
 export interface AsaasChargeListItem {
   id: string;
   status: string;

@@ -1,11 +1,17 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, paymentsTable, clientsTable } from "@workspace/db";
-import { asaasCreateCustomer, asaasCreateCharge } from "../lib/asaas";
+import {
+  asaasCreateCustomer,
+  asaasCreateCharge,
+  asaasCreateInvoice,
+  asaasListMunicipalServices,
+} from "../lib/asaas";
 import { getSecret } from "../lib/secure-settings.js";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { sendGmailMessage } from "../lib/google-gmail.js";
+import { requireCollaborator } from "./collaborator.js";
 import {
   montarTextoCobranca,
   montarHtmlCobranca,
@@ -100,7 +106,8 @@ async function createChargeForClient(
 }
 
 // Cria uma cobranca avulsa (pagina hospedada "clica e paga") e salva no payments.
-router.post("/asaas/charge", async (req, res): Promise<void> => {
+// Escrita financeira -> exige colaborador autenticado (padrao do app: financeiro.ts).
+router.post("/asaas/charge", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { clientId, amount, description, dueDate } = req.body || {};
     const vErr = validateChargeInput(clientId, amount);
@@ -140,7 +147,8 @@ router.post("/asaas/charge", async (req, res): Promise<void> => {
 // Lancador de Cobranca multicanal: cria a cobranca E dispara o link de pagamento
 // pelos canais escolhidos (e-mail/WhatsApp/Telegram), com STATUS HONESTO por canal.
 // Nunca diz "enviado" quando foi fallback/mock. O invoiceUrl sempre volta.
-router.post("/asaas/charge/launch", async (req, res): Promise<void> => {
+// Escrita financeira + disparo de mensagens -> exige colaborador autenticado.
+router.post("/asaas/charge/launch", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { clientId, amount, description, dueDate, channels, destinations } = req.body || {};
     const vErr = validateChargeInput(clientId, amount);
@@ -211,9 +219,16 @@ router.post("/asaas/charge/launch", async (req, res): Promise<void> => {
         results.push({ channel: "whatsapp", status: "no_destination", detail: "Cliente sem telefone." });
       } else {
         const r = await sendWhatsapp(phone, texto);
-        if (r.sent && r.via === "twilio") results.push({ channel: "whatsapp", status: "sent", detail: phone });
-        else if (r.via === "link") results.push({ channel: "whatsapp", status: "fallback", detail: r.link });
-        else results.push({ channel: "whatsapp", status: "error", detail: r.error });
+        // HONESTIDADE: "fallback" so quando NAO ha credencial (link manual sem
+        // erro). Twilio configurado mas que falhou e ERRO (com link de socorro),
+        // nunca mascarar como "link gerado".
+        if (r.sent && r.via === "twilio") {
+          results.push({ channel: "whatsapp", status: "sent", detail: phone });
+        } else if (r.error) {
+          results.push({ channel: "whatsapp", status: "error", detail: `${r.error} — link manual: ${r.link}` });
+        } else {
+          results.push({ channel: "whatsapp", status: "fallback", detail: r.link });
+        }
       }
     }
 
@@ -238,6 +253,106 @@ router.post("/asaas/charge/launch", async (req, res): Promise<void> => {
     });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao lancar cobranca Asaas");
+    res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
+  }
+});
+
+// ----- NFS-e (Nota Fiscal de Servico) — Onda 2 -----
+
+// Lista servicos municipais da conta Asaas (para obter o municipalServiceId).
+// Leitura sensivel (config fiscal) -> exige colaborador autenticado.
+router.get("/asaas/invoice/municipal-services", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const description = typeof req.query.description === "string" ? req.query.description : undefined;
+    const list = await asaasListMunicipalServices(description);
+    res.status(200).json({ services: list });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao listar servicos municipais Asaas");
+    res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
+  }
+});
+
+// Lancador de NFS-e: cria/agenda a nota no Asaas com DATA-BIND.
+// Origem: paymentId (nota vinculada a uma cobranca local que tem asaasChargeId)
+// OU clientId (nota avulsa, vinculada ao customer do Asaas).
+// O status retornado e SEMPRE o real do Asaas (nunca simulado). Se a conta nao
+// tiver configuracao fiscal, o Asaas devolve erro e a mensagem real e exibida.
+// Escrita fiscal -> exige colaborador autenticado.
+router.post("/asaas/invoice/launch", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const {
+      paymentId,
+      clientId,
+      serviceDescription,
+      value,
+      effectiveDate,
+      observations,
+      municipalServiceId,
+      municipalServiceCode,
+      municipalServiceName,
+    } = req.body || {};
+
+    if (typeof serviceDescription !== "string" || !serviceDescription.trim()) {
+      res.status(400).json({ error: "serviceDescription (descricao do servico) e obrigatorio." });
+      return;
+    }
+    if (typeof value !== "number" || value <= 0) {
+      res.status(400).json({ error: "value (valor da nota) deve ser um numero positivo." });
+      return;
+    }
+    const eff =
+      typeof effectiveDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)
+        ? effectiveDate
+        : new Date().toISOString().slice(0, 10);
+
+    // Resolve o vinculo (payment OU customer).
+    let paymentRef: string | undefined;
+    let customerRef: string | undefined;
+
+    if (paymentId) {
+      const [payment] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, paymentId));
+      if (!payment) {
+        res.status(404).json({ error: "Cobranca (payment) nao encontrada." });
+        return;
+      }
+      if (!payment.asaasChargeId) {
+        res.status(400).json({
+          error: "Esta cobranca nao tem id do Asaas — nao da para vincular a nota. Use o modo avulso por cliente.",
+        });
+        return;
+      }
+      paymentRef = payment.asaasChargeId;
+    } else if (clientId) {
+      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+      if (!client) {
+        res.status(404).json({ error: "Cliente nao encontrado." });
+        return;
+      }
+      if (!client.asaasCustomerId && !client.cpf) {
+        res.status(400).json({ error: "Cliente sem CPF — o Asaas exige documento para a nota. Cadastre o CPF antes." });
+        return;
+      }
+      customerRef = await ensureCustomer(client);
+    } else {
+      res.status(400).json({ error: "Informe paymentId (nota de uma cobranca) ou clientId (nota avulsa)." });
+      return;
+    }
+
+    const invoice = await asaasCreateInvoice({
+      payment: paymentRef,
+      customer: customerRef,
+      serviceDescription: serviceDescription.trim(),
+      value,
+      effectiveDate: eff,
+      observations: typeof observations === "string" && observations.trim() ? observations.trim() : undefined,
+      municipalServiceId: municipalServiceId || undefined,
+      municipalServiceCode: municipalServiceCode || undefined,
+      municipalServiceName: municipalServiceName || undefined,
+    });
+
+    res.status(201).json({ invoice });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao lancar NFS-e Asaas");
     res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
   }
 });

@@ -41,3 +41,20 @@ pela origem da chave, nao por flag solta.
 - **Dividas registradas (revisao do architect, escala)**: `ensureCustomer` nao e atomico sob concorrencia
   (2 cliques simultaneos no mesmo cliente novo podem criar 2 customers no Asaas); falta job de reconciliacao
   por `charge.id` quando o Asaas cria a cobranca mas o insert local falha. NAO construir sem ordem do CEO.
+
+## NFS-e (Nota Fiscal de Servico) — Onda 2
+
+- **Endpoints**: `POST /v3/invoices` (cria E AGENDA a nota para `effectiveDate`); `GET /v3/invoices/municipalServices?description=`
+  (catalogo de servicos municipais com `id` e `issTax` por servico — vivo, NAO hardcodar a lista do Asaas).
+- **Vinculo (>=1 obrigatorio)**: `payment` (id da cobranca) OU `installment` OU `customer` (nota avulsa).
+- **Obrigatorios**: `serviceDescription`, `value`, `effectiveDate`. Servico: `municipalServiceId` OU
+  `municipalServiceCode`+`municipalServiceName` manual.
+- **Emissao REAL exige config fiscal na conta** (so o dono seta no painel): Inscricao Municipal homologada na
+  prefeitura + certificado A1 e-CNPJ + emissor Pessoa Juridica (Asaas NAO emite NFS-e de PF). Sem isso o Asaas
+  responde erro REAL `"Voce precisa informar suas informacoes fiscais antes de emitir notas fiscais de servico"`.
+  **How to apply**: tela nunca finge sucesso — mostra o erro literal do Asaas; integracao fica 100% cabeada e
+  testavel mesmo antes da config (a chamada chega ao Asaas).
+- **Fiscal fonte da verdade (clinica Tatuape, municipio de Sao Paulo)**: ISS servico medico = 2%; codigos LC 116:
+  4.01 Medicina, 4.03 Hospitais/clinicas (recomendado), 4.08 Fisio, 4.06 Enfermagem.
+- **UX data-bind (preferencia CEO)**: valor puxado de cobranca entra `readOnly` por padrao (protegido), com acao
+  explicita "Editar valor" + aviso de divergencia ao destravar; trocar cobranca/cliente/origem re-protege.

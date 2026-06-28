@@ -43,6 +43,7 @@ import {
   Network,
   Landmark,
   Zap,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -110,6 +111,7 @@ const navigation: NavEntry[] = [
     icon: CreditCard,
     children: [
       { name: "Lançador de Cobrança", href: "/financeiro/cobranca", icon: Zap },
+      { name: "Lançador de NFS-e", href: "/financeiro/nfse", icon: Receipt },
       { name: "Pagamentos", href: "/payments", icon: CreditCard },
       { name: "Conciliação", href: "/financeiro/conciliacao", icon: Scale },
       { name: "Metas & Crescimento", href: "/financeiro/metas", icon: Target },
