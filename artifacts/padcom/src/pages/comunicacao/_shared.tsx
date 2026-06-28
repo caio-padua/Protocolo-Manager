@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 // Base do artefato (prefixo de rota) — padrao usado nas demais paginas.
 export const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -167,6 +169,195 @@ export function ExplainRow({ children }: { children: React.ReactNode }) {
     <div className="concave-3d flex items-start gap-2.5 px-3 py-2 text-[13px]">
       <span className="paxter-led paxter-led-green mt-1.5 shrink-0" />
       <span className="text-foreground/80">{children}</span>
+    </div>
+  );
+}
+
+// ===========================================================================
+// PADRAO DO CARD DE INTEGRACAO/GATEWAY (skill-layout-paxter, Padrao 18).
+// Cabecalho com icone PROPORCIONAL + luz de vela colada ao icone + status
+// TEXTUAL em insert Concavo (largura fixa). Toggle no TOPO (ToggleWell), antes
+// da informacao. Credencial com olho que revela o valor real do cofre.
+// ===========================================================================
+
+// Status TEXTUAL em insert Concavo de largura FIXA (posicao nao desliza).
+// Prioridade: pending > error > on. Cor por estado (verde/ambar/vermelho).
+export function StatusInsert({
+  on,
+  pending = false,
+  error = false,
+  labelOn = "Ligado",
+  labelOff = "Não configurado",
+}: {
+  on: boolean;
+  pending?: boolean;
+  error?: boolean;
+  labelOn?: string;
+  labelOff?: string;
+}) {
+  const text = pending ? "Verificando…" : error ? "Indisponível" : on ? labelOn : labelOff;
+  const color = pending
+    ? "text-muted-foreground"
+    : error
+      ? "text-rose-700 dark:text-rose-400"
+      : on
+        ? "text-emerald-700 dark:text-emerald-400"
+        : "text-amber-700 dark:text-amber-400";
+  return (
+    <span className="concave-3d inline-flex min-w-[124px] shrink-0 items-center justify-center px-3 py-1.5">
+      <span className={`text-[11px] font-semibold uppercase tracking-wide ${color}`}>{text}</span>
+    </span>
+  );
+}
+
+// Toggle em sulco Concavo (Padrao 5): rotulo a esquerda, Switch a direita.
+// Posicao no TOPO do card (antes da informacao) — decisao do CEO 28/06/2026.
+export function ToggleWell({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="concave-3d flex items-center justify-between gap-3 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-foreground/80">{label}</p>
+        {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+// Card de integracao/gateway PADRAO. Cabecalho: icone Bevel pequeno (h-8 w-8)
+// + LED de vela colado ao icone + nome; status TEXTUAL em insert a direita.
+// `toggle` (opcional) renderiza no TOPO, antes do conteudo.
+export function IntegrationCard({
+  icon: Icon,
+  name,
+  accent = "text-primary",
+  on,
+  pending = false,
+  error = false,
+  labelOn,
+  labelOff,
+  toggle,
+  children,
+}: {
+  icon: LucideIcon;
+  name: string;
+  accent?: string;
+  on: boolean;
+  pending?: boolean;
+  error?: boolean;
+  labelOn?: string;
+  labelOff?: string;
+  toggle?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const ledClass = pending ? "" : error ? "paxter-led-red" : on ? "paxter-led-green" : "paxter-led-amber";
+  return (
+    <div className="panel-3d-sub space-y-3 p-4">
+      {/* ZONA A — cabecalho: icone proporcional + LED colado + nome | status em insert */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={`bevel-3d flex h-8 w-8 shrink-0 items-center justify-center ${accent}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <span className={`paxter-led paxter-led-breathe ${ledClass} shrink-0`} />
+          <h3 className="truncate text-sm font-semibold uppercase tracking-[0.08em]">{name}</h3>
+        </div>
+        <StatusInsert on={on} pending={pending} error={error} labelOn={labelOn} labelOff={labelOff} />
+      </div>
+
+      {/* ZONA B — toggle no TOPO (antes da informacao) */}
+      {toggle}
+
+      {/* ZONA C/D — informacao + credenciais */}
+      {children}
+    </div>
+  );
+}
+
+// Campo de credencial PADRAO (Padrao 18): rotulo MAIUSCULO EM CIMA, insert
+// Concavo (retangulo de altura fixa) com input + OLHO que revela o valor real
+// do cofre (carrega so ao clicar; rota protegida). Legenda fixa embaixo (slot
+// constante: "No cofre: ••••1234 · cofre" ou "—"). Posicao nao desliza.
+export function CredentialField({
+  label,
+  isSet,
+  masked,
+  source,
+  secret,
+  value,
+  onChange,
+  onReveal,
+}: {
+  label: string;
+  isSet: boolean;
+  masked?: string | null;
+  source?: string | null;
+  secret: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  onReveal: () => Promise<string | null>;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+
+  async function toggleEye() {
+    if (revealed) {
+      setRevealed(false);
+      return;
+    }
+    // Revelar: se o campo esta vazio e existe segredo, busca o valor real
+    // (acao explicita do dono) e preenche o input para ele ver/editar.
+    if (!value && isSet) {
+      setRevealing(true);
+      try {
+        const real = await onReveal();
+        if (real != null) onChange(real);
+      } finally {
+        setRevealing(false);
+      }
+    }
+    setRevealed(true);
+  }
+
+  const inputType = secret && !revealed ? "password" : "text";
+  const caption = isSet
+    ? `No cofre: ${masked ?? "••••"}${source ? ` · ${source === "env" ? "ambiente" : "cofre"}` : ""}`
+    : "No cofre: —";
+
+  return (
+    <div className="space-y-1">
+      <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </label>
+      <div className="concave-3d flex h-10 items-center gap-1 pl-1 pr-1">
+        <Input
+          className="field-engraved h-8 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+          type={inputType}
+          autoComplete="new-password"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={isSet ? "Clique no olho para ver, ou cole um novo valor" : `Cole: ${label}`}
+        />
+        <button
+          type="button"
+          onClick={toggleEye}
+          disabled={revealing}
+          aria-label={revealed ? `Ocultar ${label}` : `Mostrar ${label}`}
+          aria-pressed={revealed}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-[4px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{caption}</p>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   getJsonSetting,
   setSetting,
   setSecret,
+  getSecret,
   getSecretStatus,
   type SecretStatus,
 } from "../lib/secure-settings";
@@ -211,6 +212,36 @@ router.put("/comunicacao/gateways/:provider/credentials", requireCollaborator, a
       source: f.status.source,
     })),
   });
+});
+
+// REVELA o valor REAL das credenciais do gateway (o "olhinho"). O dono logado
+// tem direito de ver o proprio segredo — analogo a ver o proprio RG. NUNCA
+// trafega por padrao: so sob acao explicita e com a MESMA protecao da gravacao
+// (requireCollaborator). Sem login, nada e revelado. Decifra via getSecret
+// (cofre tem prioridade; cai no env). Campo nao configurado volta como null.
+router.post("/comunicacao/gateways/:provider/reveal", requireCollaborator, async (req, res) => {
+  const provider = req.params.provider;
+  if (provider !== "twilio" && provider !== "gupshup") {
+    return res.status(400).json({ error: "Gateway desconhecido" });
+  }
+  const defs = GATEWAY_FIELDS[provider as GatewayProvider];
+  const entries = await Promise.all(
+    defs.map(async (d) => [d.field, await getSecret(d.vaultKey)] as const),
+  );
+  const values: Record<string, string | null> = {};
+  for (const [field, value] of entries) values[field] = value;
+  const actor = (req as { collaborator?: { professionalId?: number; role?: string } }).collaborator;
+  req.log.info(
+    {
+      event: "gateway_secret_reveal",
+      provider,
+      actorId: actor?.professionalId ?? null,
+      actorRole: actor?.role ?? null,
+      fields: defs.map((d) => d.field),
+    },
+    "Revelacao de credencial de gateway",
+  );
+  res.json({ provider, values });
 });
 
 export default router;
