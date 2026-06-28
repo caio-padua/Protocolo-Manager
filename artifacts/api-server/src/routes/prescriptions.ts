@@ -401,6 +401,49 @@ router.get("/recipes/:id/pdf", async (req, res): Promise<void> => {
   res.send(buf);
 });
 
+// GET /recipes/demo -> abre no navegador um RECEITUÁRIO de AMOSTRA (dados
+// fictícios) para conferir o padrão visual (marca Instituto Pádua). Sem efeito
+// colateral (não grava, não envia, não sobe ao Drive).
+router.get("/recipes/demo", async (_req, res): Promise<void> => {
+  const plans = planDesmembramento([
+    {
+      name: "Tirzepatida 5mg/mL",
+      ativos: "Tirzepatida 5mg",
+      posologia: "Aplicar 0,5mL por via subcutânea, 1x/semana",
+      isControlled: true,
+      anvisaType: "B1",
+    },
+    {
+      name: "Coenzima Q10 100mg",
+      ativos: "Ubiquinona 100mg",
+      posologia: "1 cápsula ao dia, via oral, após o café da manhã",
+      isControlled: false,
+    },
+  ]);
+  const plan = plans[0];
+  if (!plan) {
+    res.status(500).json({ error: "Falha ao montar receituário de amostra" });
+    return;
+  }
+  const pdfBytes = await generateRecipePdf(plan, {
+    clientName: "Cliente de Demonstração",
+    clientCpf: "000.000.000-00",
+    professionalName: "Dr. Caio Padua",
+    professionalCrm: "123456",
+    professionalUf: "SP",
+    cid: "E66.0",
+    durationDays: "84",
+    dateBR: dateBRfull(),
+    pharmacyName: "Farmácia de Manipulação (amostra)",
+    pharmacyType: "Manipulação",
+    sncrNumber: null,
+    sncrStatus: "ok",
+  });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'inline; filename="amostra-receituario.pdf"');
+  res.send(Buffer.from(pdfBytes));
+});
+
 // Formulas vindas do deposito transmutado (catalogo_itens categoria=formula +
 // componentes em catalogo_formulas). Servidas no formato FormulaSeed que a tela
 // de Prescricao consome, para juntar com as formulas curadas (estaticas). Assim

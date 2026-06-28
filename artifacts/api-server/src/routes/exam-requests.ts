@@ -238,4 +238,32 @@ router.get("/exam-requests/file/:token", async (req, res): Promise<void> => {
   res.send(buf);
 });
 
+// GET /exam-requests/demo -> abre no navegador um PDF de AMOSTRA (dados fictícios)
+// para conferir o padrão visual da Fábrica de Documentos. Sem efeito colateral.
+router.get("/exam-requests/demo", async (_req, res): Promise<void> => {
+  const pdfBytes = await generateExamRequestPdf({
+    tipo: "sangue",
+    tipoLabel: "Sangue",
+    clientName: "Cliente de Demonstração",
+    clientCpf: "000.000.000-00",
+    professionalName: "Dr. Caio Padua",
+    professionalCrm: "SP 123456",
+    dateBR: new Date().toLocaleDateString("pt-BR"),
+    observacao: "Documento de amostra (dados fictícios) — padrão visual da Fábrica de Documentos.",
+    items: [
+      { nomeExame: "Hemograma completo", preparo: "Jejum de 4 horas." },
+      { nomeExame: "Glicemia de jejum", preparo: "Jejum de 8 horas." },
+      { nomeExame: "Perfil lipídico (colesterol total, HDL, LDL, triglicerídeos)", preparo: "Jejum de 12 horas." },
+      { nomeExame: "TSH e T4 livre" },
+      { nomeExame: "Vitamina D (25-hidroxivitamina D)" },
+      { nomeExame: "Testosterona total e livre" },
+      { nomeExame: "PSA total" },
+      { nomeExame: "Ferritina, ferro sérico e transferrina" },
+    ],
+  });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'inline; filename="amostra-solicitacao-exames.pdf"');
+  res.send(Buffer.from(pdfBytes));
+});
+
 export default router;
