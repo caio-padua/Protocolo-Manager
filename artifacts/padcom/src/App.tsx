@@ -66,6 +66,7 @@ import MontagemOrcamento from "@/pages/orcamentos/novo";
 import Parametrizacao from "@/pages/orcamentos/parametrizacao";
 import Vitrine from "@/pages/orcamentos/vitrine";
 import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
+import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
 import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
@@ -185,6 +186,7 @@ function Router() {
               </CollaboratorGate>
             </Route>
             
+            <Route path="/comunicacao/gateways" component={ComunicacaoGateways} />
             <Route path="/comunicacao/mensageria" component={ComunicacaoMensageria} />
             <Route path="/comunicacao/digital" component={ComunicacaoDigital} />
             <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
