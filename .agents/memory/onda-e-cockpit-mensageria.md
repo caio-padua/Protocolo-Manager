@@ -21,3 +21,8 @@ description: Padrões e armadilhas do Cockpit (DTO burro) e do agendador de lemb
 - `proximoEnvio` ancora no fuso da clínica (BRT, UTC-3): hora local do período (manhã 8 / tarde 14 / noite 20) + 3h vira hora UTC. Para dia da semana, comparar o getUTCDay do horário deslocado -3h.
 - **ARMADILHA durável:** `agendarLembretes` faz idempotência por "DELETE status=agendado + reinsert". Se outra origem (campanha, outro fluxo) também gravar lembretes `agendado` do mesmo cliente, esse delete os apaga junto.
 - **How to apply:** antes de abrir o agendador a outras origens, escopar o delete por origem/campanha (ex.: coluna `origem` ou `campanhaId`), nunca apagar todo `status=agendado` do cliente.
+
+## Nunca gatear o Motor Único atrás de isXConnected()
+- Chamar `enviarMensagemPaxter` SÓ dentro de `if (await isGmailConnected())` (ou isTwilioConnected etc.) é regressão: o motor já retorna mock honesto (`sent:true, mock:true, via:'mock'`) quando o provedor não está cabeado.
+- **Why:** o gate mata justamente o mock honesto — com Gmail desconectado o envio é silenciosamente pulado, violando o "status honesto por canal" da spec; foi o único bloqueador reprovado pelo architect na onda dos e-mails ricos.
+- **How to apply:** sempre chame o motor; leia `envio.resultados[0]` e logue `mock` vs `sent` por `r0.mock`/`r0.via`. O tipo `PaxterCanalResultado` tem `sent/via/mock/skipped/link/error` — NÃO tem campo `status`.

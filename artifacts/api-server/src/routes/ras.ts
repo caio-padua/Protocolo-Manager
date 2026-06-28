@@ -18,7 +18,8 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail } from "../lib/email-service";
-import { isGmailConnected, sendGmailMessage } from "../lib/google-gmail";
+import { isGmailConnected } from "../lib/google-gmail";
+import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
 
@@ -548,70 +549,44 @@ function buildSubsDemoSubstances(n: number): DemoSub[] {
   return out;
 }
 
-function buildDemoEmailHtml(subs: DemoSub[], clientName: string, valor: string): string {
+function demoBlocks(subs: DemoSub[], clientName: string, valor: string): string[] {
   const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
-  const rows = subs.map((s, i) => `
-    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f5f8fa"};">
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:13px;color:#11233a;font-weight:600;">
+  const rows = subs.map((s) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:13px;color:#f3ead6;font-weight:600;">
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color};margin-right:7px;"></span>${s.name}
       </td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;">${s.dose}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;">${s.via}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;text-align:center;">${s.frequencyDays} / ${s.frequencyDays} dias</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;font-size:12px;color:#475569;text-align:center;">${s.totalSessions}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #e6edf2;color:#C9961D;font-size:13px;letter-spacing:1px;text-align:center;">${stars(s.stars)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;">${s.dose}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;">${s.via}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;text-align:center;">${s.frequencyDays} / ${s.frequencyDays} dias</td>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;text-align:center;">${s.totalSessions}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);color:#c9a24f;font-size:13px;letter-spacing:1px;text-align:center;">${stars(s.stars)}</td>
     </tr>
-    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f5f8fa"};">
-      <td colspan="6" style="padding:0 12px 12px 31px;border-bottom:1px solid #e6edf2;font-size:11.5px;color:#64748b;font-style:italic;">${s.func}</td>
+    <tr>
+      <td colspan="6" style="padding:0 12px 12px 31px;border-bottom:1px solid rgba(201,162,79,.12);font-size:11.5px;color:#7e90ab;font-style:italic;">${s.func}</td>
     </tr>`).join("");
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-  <body style="margin:0;padding:0;background:#eef2f5;font-family:Georgia,'Times New Roman',serif;">
-    <div style="max-width:680px;margin:0 auto;background:#ffffff;">
-      <div style="background:linear-gradient(135deg,#0e1c2e 0%,#1c3a52 60%,#2b5c6b 100%);padding:34px 36px 26px 36px;">
-        <div style="border-bottom:2px solid #C9961D;padding-bottom:14px;">
-          <span style="font-size:30px;font-weight:bold;color:#ffffff;letter-spacing:1px;">RAS</span>
-          <span style="font-size:13px;color:#cfe0ea;margin-left:10px;">REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS</span>
-          <div style="font-size:10px;color:#9fb6c6;letter-spacing:2px;margin-top:4px;">FORMULARIO DE AUDITORIA DE PROCEDIMENTOS &middot; FAP</div>
-        </div>
-        <div style="margin-top:14px;display:flex;justify-content:space-between;">
-          <span style="font-size:12px;color:#cfe0ea;">PAXTER &middot; Clinical Intelligence</span>
-          <span style="font-size:12px;color:#cfe0ea;float:right;">PADCON &middot; Advanced Systems Architecture</span>
-        </div>
-      </div>
-      <div style="padding:30px 36px;">
-        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Paxter</strong></p>
-        <p style="font-size:13px;color:#475569;line-height:1.6;margin:0 0 22px 0;font-family:Arial,Helvetica,sans-serif;">
-          Segue o modelo premium do <strong>RAS FAP</strong> (planilha de auditoria de procedimentos, em PDF paisagem, anexa a este e-mail).
-          Abaixo, o resumo do protocolo-exemplo com as substancias, vias, frequencias e numero de aplicacoes.
-        </p>
-        <div style="background:#0e1c2e;color:#ffffff;padding:14px 18px;border-left:4px solid #C9961D;margin-bottom:20px;font-family:Arial,Helvetica,sans-serif;">
-          <span style="font-size:12px;color:#9fb6c6;">CLIENTE-EXEMPLO</span><br>
-          <span style="font-size:16px;font-weight:bold;">${clientName}</span>
-          <span style="float:right;font-size:15px;font-weight:bold;color:#7fd4c1;">${valor}</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;border:1px solid #d6e0e8;">
-          <thead>
-            <tr style="background:#1c3a52;">
-              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;letter-spacing:.5px;">SUBSTANCIA</th>
-              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;">DOSE</th>
-              <th style="padding:9px 12px;text-align:left;font-size:11px;color:#ffffff;">VIA</th>
-              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">FREQUENCIA</th>
-              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">APLIC.</th>
-              <th style="padding:9px 12px;text-align:center;font-size:11px;color:#ffffff;">EFICACIA</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <p style="font-size:11px;color:#94a3b8;margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-style:italic;">
-          Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
-        </p>
-      </div>
-      <div style="background:#0e1c2e;padding:16px 36px;text-align:center;">
-        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PAXTER &middot; desenvolvido pela PADCON</span>
-      </div>
+  return [`
+    <p style="font-size:13px;color:#c2cee0;line-height:1.6;margin:0 0 18px 0;">Segue o modelo premium do <strong style="color:#c9a24f;">RAS FAP</strong> (planilha de auditoria de procedimentos, em PDF paisagem, anexa a este e-mail). Abaixo, o resumo do protocolo-exemplo com as substancias, vias, frequencias e numero de aplicacoes.</p>
+    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <span style="font-size:12px;color:#7e90ab;">CLIENTE-EXEMPLO</span><br>
+      <span style="font-size:16px;font-weight:bold;color:#f3ead6;">${clientName}</span>
+      <span style="float:right;font-size:15px;font-weight:bold;color:#c9a24f;">${valor}</span>
     </div>
-  </body></html>`;
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr style="background:#102043;">
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTANCIA</th>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;">DOSE</th>
+          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;">VIA</th>
+          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">FREQUENCIA</th>
+          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">APLIC.</th>
+          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">EFICACIA</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-size:11px;color:#7e90ab;margin-top:18px;font-style:italic;">Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.</p>`];
 }
 
 router.get("/ras-fap-demo", async (req, res) => {
@@ -681,16 +656,18 @@ router.get("/ras-fap-demo", async (req, res) => {
     if (authorizedSend) {
       (async () => {
         try {
-          if (await isGmailConnected()) {
-            const r = await sendGmailMessage({
-              to,
-              subject: "Paxter | RAS FAP - Modelo Premium (Demonstracao)",
-              html: buildDemoEmailHtml(demoSubs, clientName, valor),
-              attachments: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            });
-            if (r.success) req.log.info(`RAS FAP demo email sent to ${to}`);
-            else req.log.error(`RAS FAP demo email failed: ${r.error}`);
-          }
+          const doc: PaxterDoc = {
+            eyebrow: "Modelo de apresentacao",
+            titulo: "RAS FAP — Modelo Premium",
+            paragrafos: ["Demonstracao do modelo premium do RAS FAP (dados ficticios)."],
+            blocosHtml: demoBlocks(demoSubs, clientName, valor),
+            anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+            assunto: "Paxter | RAS FAP - Modelo Premium (Demonstracao)",
+          };
+          const envio = await enviarMensagemPaxter(doc, { email: to, nome: clientName }, ["EMAIL"], { baseUrl: absoluteBaseUrl(req) });
+          const r0 = envio.resultados[0];
+          if (r0?.sent) req.log.info(`RAS FAP demo email ${r0?.mock ? "mock" : "sent"} to ${to} (via=${r0?.via ?? "?"})`);
+          else req.log.warn(`RAS FAP demo email nao enviado: ${r0?.error ?? "sem provedor"}`);
         } catch (err: any) {
           req.log.error(`RAS FAP demo email error: ${err.message}`);
         }
@@ -741,66 +718,40 @@ function firstSentence(text: string | null | undefined): string {
   return dot > 0 ? t.slice(0, dot + 1) : t;
 }
 
-function buildFichasEmailHtml(
+function fichasBlocks(
   items: Array<{ name: string; dose: string; via: string; color: string; stars: number; whatIs: string }>,
   clientName: string,
-): string {
+): string[] {
   const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
-  const cards = items.map((s, i) => `
-    <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f6f8fa"};">
-      <td style="padding:12px 14px;border-bottom:1px solid #e6edf2;vertical-align:top;width:46%;">
+  const cards = items.map((s) => `
+    <tr>
+      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);vertical-align:top;width:46%;">
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color};margin-right:7px;"></span>
-        <span style="font-size:13px;color:#11233a;font-weight:bold;">${s.name}</span>
-        <div style="font-size:11px;color:#64748b;margin-top:3px;font-family:Arial,Helvetica,sans-serif;">${s.dose} &middot; ${s.via}</div>
+        <span style="font-size:13px;color:#f3ead6;font-weight:bold;">${s.name}</span>
+        <div style="font-size:11px;color:#7e90ab;margin-top:3px;">${s.dose} &middot; ${s.via}</div>
       </td>
-      <td style="padding:12px 14px;border-bottom:1px solid #e6edf2;color:#C9961D;font-size:13px;letter-spacing:1px;text-align:center;width:14%;">${stars(s.stars)}</td>
-      <td style="padding:12px 14px;border-bottom:1px solid #e6edf2;font-size:11.5px;color:#475569;font-style:italic;font-family:Arial,Helvetica,sans-serif;vertical-align:top;">${s.whatIs}</td>
+      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);color:#c9a24f;font-size:13px;letter-spacing:1px;text-align:center;width:14%;">${stars(s.stars)}</td>
+      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);font-size:11.5px;color:#c2cee0;font-style:italic;vertical-align:top;">${s.whatIs}</td>
     </tr>`).join("");
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-  <body style="margin:0;padding:0;background:#eef2f5;font-family:Georgia,'Times New Roman',serif;">
-    <div style="max-width:680px;margin:0 auto;background:#ffffff;">
-      <div style="background:linear-gradient(135deg,#0e1c2e 0%,#1c3a52 60%,#2b5c6b 100%);padding:34px 36px 26px 36px;">
-        <div style="border-bottom:2px solid #C9961D;padding-bottom:14px;">
-          <span style="font-size:30px;font-weight:bold;color:#ffffff;letter-spacing:1px;">RAS</span>
-          <span style="font-size:13px;color:#cfe0ea;margin-left:10px;">REGISTRO DE ADMINISTRACAO DE SUBSTANCIAS</span>
-          <div style="font-size:10px;color:#9fb6c6;letter-spacing:2px;margin-top:4px;">FICHAS DE SUBSTANCIA &middot; UMA POR FOLHA</div>
-        </div>
-        <div style="margin-top:14px;">
-          <span style="font-size:12px;color:#cfe0ea;">PAXTER &middot; Clinical Intelligence</span>
-          <span style="font-size:12px;color:#cfe0ea;float:right;">PADCON &middot; Advanced Systems Architecture</span>
-        </div>
-      </div>
-      <div style="padding:30px 36px;">
-        <p style="font-size:15px;color:#11233a;margin:0 0 6px 0;">Modelo de apresentacao &mdash; <strong>Paxter</strong></p>
-        <p style="font-size:13px;color:#475569;line-height:1.6;margin:0 0 22px 0;font-family:Arial,Helvetica,sans-serif;">
-          Segue o modelo premium do <strong>RAS assinado</strong> com as <strong>fichas de substancia</strong> (uma folha por substancia, em PDF retrato, anexo a este e-mail).
-          Cada ficha traz: o que e a substancia, sua funcao principal, o impacto por sistema do corpo em barras, os efeitos percebidos e o tempo para perceber o efeito &mdash; tudo a partir da base de dados clinica.
-        </p>
-        <div style="background:#0e1c2e;color:#ffffff;padding:14px 18px;border-left:4px solid #C9961D;margin-bottom:20px;font-family:Arial,Helvetica,sans-serif;">
-          <span style="font-size:12px;color:#9fb6c6;">CLIENTE-EXEMPLO</span><br>
-          <span style="font-size:16px;font-weight:bold;">${clientName}</span>
-          <span style="float:right;font-size:13px;color:#7fd4c1;">${items.length} fichas</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #d6e0e8;">
-          <thead>
-            <tr style="background:#1c3a52;">
-              <th style="padding:9px 14px;text-align:left;font-size:11px;color:#ffffff;letter-spacing:.5px;font-family:Arial,Helvetica,sans-serif;">SUBSTANCIA</th>
-              <th style="padding:9px 14px;text-align:center;font-size:11px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">EFICACIA</th>
-              <th style="padding:9px 14px;text-align:left;font-size:11px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">O QUE E</th>
-            </tr>
-          </thead>
-          <tbody>${cards}</tbody>
-        </table>
-        <p style="font-size:11px;color:#94a3b8;margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-style:italic;">
-          Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.
-        </p>
-      </div>
-      <div style="background:#0e1c2e;padding:16px 36px;text-align:center;">
-        <span style="font-size:11px;color:#9fb6c6;font-family:Arial,Helvetica,sans-serif;">PAXTER &middot; desenvolvido pela PADCON</span>
-      </div>
+  return [`
+    <p style="font-size:13px;color:#c2cee0;line-height:1.6;margin:0 0 18px 0;">Segue o modelo premium do <strong style="color:#c9a24f;">RAS assinado</strong> com as <strong style="color:#c9a24f;">fichas de substancia</strong> (uma folha por substancia, em PDF retrato, anexo a este e-mail). Cada ficha traz: o que e a substancia, sua funcao principal, o impacto por sistema do corpo em barras, os efeitos percebidos e o tempo para perceber o efeito &mdash; tudo a partir da base de dados clinica.</p>
+    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <span style="font-size:12px;color:#7e90ab;">CLIENTE-EXEMPLO</span><br>
+      <span style="font-size:16px;font-weight:bold;color:#f3ead6;">${clientName}</span>
+      <span style="float:right;font-size:13px;color:#c9a24f;">${items.length} fichas</span>
     </div>
-  </body></html>`;
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr style="background:#102043;">
+          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTANCIA</th>
+          <th style="padding:9px 14px;text-align:center;font-size:11px;color:#c9a24f;">EFICACIA</th>
+          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;">O QUE E</th>
+        </tr>
+      </thead>
+      <tbody>${cards}</tbody>
+    </table>
+    <p style="font-size:11px;color:#7e90ab;margin-top:18px;font-style:italic;">Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.</p>`];
 }
 
 router.get("/ras-fichas-demo", async (req, res) => {
@@ -885,16 +836,18 @@ router.get("/ras-fichas-demo", async (req, res) => {
     if (authorizedSend) {
       (async () => {
         try {
-          if (await isGmailConnected()) {
-            const r = await sendGmailMessage({
-              to,
-              subject: "Paxter | RAS - Fichas de Substancia (Modelo Premium)",
-              html: buildFichasEmailHtml(emailItems, clientName),
-              attachments: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            });
-            if (r.success) req.log.info(`RAS fichas demo email sent to ${to}`);
-            else req.log.error(`RAS fichas demo email failed: ${r.error}`);
-          }
+          const doc: PaxterDoc = {
+            eyebrow: "Modelo de apresentacao",
+            titulo: "RAS — Fichas de Substancia",
+            paragrafos: ["Demonstracao do modelo premium das fichas de substancia (dados ficticios)."],
+            blocosHtml: fichasBlocks(emailItems, clientName),
+            anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+            assunto: "Paxter | RAS - Fichas de Substancia (Modelo Premium)",
+          };
+          const envio = await enviarMensagemPaxter(doc, { email: to, nome: clientName }, ["EMAIL"], { baseUrl: absoluteBaseUrl(req) });
+          const r0 = envio.resultados[0];
+          if (r0?.sent) req.log.info(`RAS fichas demo email ${r0?.mock ? "mock" : "sent"} to ${to} (via=${r0?.via ?? "?"})`);
+          else req.log.warn(`RAS fichas demo email nao enviado: ${r0?.error ?? "sem provedor"}`);
         } catch (err: any) {
           req.log.error(`RAS fichas demo email error: ${err.message}`);
         }

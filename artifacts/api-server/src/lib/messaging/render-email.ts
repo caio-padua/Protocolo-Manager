@@ -96,6 +96,16 @@ export function renderPaxterEmail(doc: PaxterDoc, baseUrl: string): string {
         </td></tr>`
     : `<tr><td style="padding:0 40px 28px;"></td></tr>`;
 
+  // Blocos ricos (tabelas/cartões clínicos já re-tematizados navy/ouro) injetados
+  // DENTRO do mesmo card navy, entre os parágrafos e o botão. Alinhados à esquerda
+  // (são tabelas). Ausência == e-mail simples de hoje (sem regressão).
+  const blocosHtml = doc.blocosHtml && doc.blocosHtml.length
+    ? `
+        <tr><td style="padding:8px 32px 4px; text-align:left;">
+          ${doc.blocosHtml.join("\n          ")}
+        </td></tr>`
+    : "";
+
   const inner = `
         <tr><td style="padding:36px 40px 8px; text-align:center;">
           ${eyebrowHtml}
@@ -105,6 +115,7 @@ export function renderPaxterEmail(doc: PaxterDoc, baseUrl: string): string {
         <tr><td style="padding:18px 40px 4px; text-align:center;">
           ${paras}
         </td></tr>
+${blocosHtml}
 ${botaoHtml}
 ${linkFallbackHtml}
 ${rodapeHtml}`;

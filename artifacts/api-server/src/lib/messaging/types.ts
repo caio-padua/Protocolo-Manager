@@ -36,6 +36,13 @@ export interface PaxterDoc {
   assunto?: string;
   /** Anexos do e-mail (PDF de RAS, receitas etc.). Ignorados nos cartões. */
   anexos?: PaxterAnexo[];
+  /**
+   * Blocos de HTML já confiável (tabelas/cartões clínicos) injetados DENTRO do
+   * casco Hermes, entre os parágrafos e o botão. Usado pelos e-mails ricos
+   * (pré-sessão, pós-sessão, protocolo, onboarding, RAS demo) re-tematizados
+   * para navy/ouro. Ignorados nos cartões (WhatsApp/Telegram só leem texto).
+   */
+  blocosHtml?: string[];
 }
 
 export interface PaxterDestino {
