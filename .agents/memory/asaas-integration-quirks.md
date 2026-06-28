@@ -58,3 +58,18 @@ pela origem da chave, nao por flag solta.
   4.01 Medicina, 4.03 Hospitais/clinicas (recomendado), 4.08 Fisio, 4.06 Enfermagem.
 - **UX data-bind (preferencia CEO)**: valor puxado de cobranca entra `readOnly` por padrao (protegido), com acao
   explicita "Editar valor" + aviso de divergencia ao destravar; trocar cobranca/cliente/origem re-protege.
+
+## Transferencias / saque via API (Onda 3) — PERMISSAO da chave
+
+- **Saque via API vem BLOQUEADO por padrao na chave**: `GET /v3/transfers` e `POST /v3/transfers` respondem
+  `{"errors":[{"code":"insufficient_permission","description":"A chave de API fornecida nao possui permissao
+  para realizar operacoes de saque via API."}]}` ate o DONO habilitar a permissao no painel Asaas
+  (Configuracoes > Integracoes/API > permissoes de seguranca da chave). NAO e bug do nosso codigo nem chave
+  invalida (cobranca/saldo funcionam na mesma chave).
+- **GET /v3/finance/balance funciona** com a chave normal (read-only) e retorna `{"balance": <numero>}` — use
+  para diagnostico honesto de saldo antes de orientar teste de transferencia.
+- **Saldo entra por compensacao**: depositar/transferir Pix PARA a conta Asaas credita saldo; cobranca paga
+  tambem credita (menos taxa). O saldo so fica disponivel apos compensar.
+- **How to apply**: antes de pedir ao CEO para testar transferencia pela tela, checar saldo (`/finance/balance`)
+  E a permissao de saque (`GET /transfers`); se vier `insufficient_permission`, avisar que a transferencia vai
+  falhar ate ele liberar a permissao no painel — nao adianta tentar pela tela.
