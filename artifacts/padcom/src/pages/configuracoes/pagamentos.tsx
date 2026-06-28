@@ -5,10 +5,130 @@ import {
 } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Save, KeyRound, Webhook, Link as LinkIcon } from "lucide-react";
+import { CreditCard, Save, KeyRound, Webhook, Link as LinkIcon, Banknote } from "lucide-react";
 import { SettingsPanel, FieldRow, SecretBadge } from "@/components/settings/SettingsUI";
+import { getCollabToken } from "@/lib/collab-auth";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+type SecretStatus = { isSet: boolean; masked?: string | null; source?: string | null };
+type StripePayload = { provider: string; active: boolean; secretKeyStatus: SecretStatus };
+
+// Painel Stripe — guarda a chave secreta (stripe.secretKey) no cofre cifrado
+// pela rota PUT /settings/stripe. A tela so mostra a mascara, nunca o valor.
+function StripePanel() {
+  const { toast } = useToast();
+  const [payload, setPayload] = useState<StripePayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [secretKey, setSecretKey] = useState("");
+  const [active, setActive] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    const t = getCollabToken();
+    setLoading(true);
+    fetch(`${BASE}/api/settings/stripe`, { headers: t ? { Authorization: `Bearer ${t}` } : {} })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("stripe"))))
+      .then((d: StripePayload) => {
+        setPayload(d);
+        setActive(!!d.active);
+      })
+      .catch(() => setPayload(null))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function persist() {
+    setSaving(true);
+    try {
+      const t = getCollabToken();
+      const body: Record<string, unknown> = { active };
+      if (secretKey.trim()) body.secretKey = secretKey.trim();
+      const r = await fetch(`${BASE}/api/settings/stripe`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("save");
+      toast({ title: "Stripe salvo no cofre" });
+      setSecretKey("");
+      load();
+    } catch {
+      toast({ title: "Erro ao salvar Stripe", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Skeleton className="h-64 w-full" />;
+
+  const configured = !!payload?.secretKeyStatus.isSet;
+
+  return (
+    <SettingsPanel
+      icon={Banknote}
+      title="Gateway: STRIPE"
+      titleTrailing={
+        <span
+          className={`paxter-led paxter-led-breathe ${configured ? "paxter-led-green" : "paxter-led-amber"}`}
+          aria-label={configured ? "Stripe configurado" : "Stripe nao configurado"}
+          title={configured ? "Stripe configurado" : "Stripe nao configurado"}
+        />
+      }
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          persist();
+        }}
+      >
+        <div className="concave-3d flex items-center justify-between gap-3 px-3 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Stripe ativo
+          </span>
+          <Switch checked={active} onCheckedChange={setActive} />
+        </div>
+
+        <div className="panel-3d-sub p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-primary" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em]">Chave secreta (Secret Key)</span>
+          </div>
+          <SecretBadge
+            isSet={configured}
+            masked={payload?.secretKeyStatus.masked}
+            source={payload?.secretKeyStatus.source}
+          />
+          <FieldRow label="Nova chave secreta" hint="Comeca com sk_. Deixe em branco para manter a atual.">
+            <Input
+              className="field-engraved"
+              type="password"
+              autoComplete="new-password"
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+              placeholder="sk_live_..."
+            />
+          </FieldRow>
+        </div>
+
+        <div className="flex justify-end">
+          <Button type="submit" className="btn-3d" disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
+      </form>
+    </SettingsPanel>
+  );
+}
 
 export default function ConfigPagamentos() {
   const { toast } = useToast();
@@ -119,6 +239,8 @@ export default function ConfigPagamentos() {
           </form>
         </SettingsPanel>
       )}
+
+      <StripePanel />
     </div>
   );
 }

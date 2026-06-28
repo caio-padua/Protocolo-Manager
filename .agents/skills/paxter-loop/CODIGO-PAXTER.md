@@ -208,6 +208,19 @@ fuso da clínica (sufixo `-03:00`) ou calculado de forma determinística em UTC 
 semana), NUNCA no fuso implícito do servidor, sob pena de erro de um dia/uma hora nas bordas. (20/06/2026 —
 memória: motor-agenda-fuso-fonte)
 
+**Art. 65** TELA AUTOSSUFICIENTE — TODA CHAVE TEM CAMPO NA PRÓPRIA TELA (promulgado pela onda Fechar
+Lacunas de Configuração em 28/06/2026, visão do CEO, referência ZapSign): nenhuma ferramenta que dependa
+de chave, token, segredo, valor ou upload pode nascer como menu SÓ-LEITURA que diz "configure no servidor".
+Toda integração entrega, na sua própria tela, o CAMPO para a pessoa preencher/trocar a credencial (igual o
+ZapSign mostra o campo do token). Regras do padrão: (a) o segredo entra por `<input type="password">`, NUNCA
+trafega de volta em claro — o GET devolve só METADADO mascarado (`isSet` + cauda mascarada + `source` env|cofre),
+nunca o valor; (b) o PUT envia SÓ os campos preenchidos (campo vazio = "não mexer", não apaga o que já existe);
+(c) o valor persiste no cofre cifrado (`secure-settings`/`getSecret`) preservando o fallback de variável de
+ambiente; (d) LIÇÃO DE SEGURANÇA: a rota que devolve metadado de segredo (mascara/`source`) É segredo — exige
+`requireCollaborator` igual à rota que grava; menu de leitura "inofensivo" que vaza cauda+origem sem login é
+inconsistente e PROIBIDO; ao proteger o GET, a tela passa a mandar o `Authorization: Bearer` em TODA leitura,
+não só na escrita. Memória: `.agents/memory/config-tela-autossuficiente.md`.
+
 ---
 
 ## TÍTULO X — DO DESIGN E DA REVISÃO VISUAL
@@ -332,6 +345,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 28/06/2026 | Art. 65 (Título IX) | Tela autossuficiente — toda chave tem campo na própria tela, promulgado pela onda Fechar Lacunas de Configuração (referência ZapSign): proibido entregar menu só-leitura "configure no servidor" quando a ferramenta depende de chave/token/valor/upload. O segredo entra por `type=password`, o GET devolve só metadado mascarado (isSet + cauda + source), o PUT só grava campos preenchidos, o valor mora no cofre cifrado com fallback de env. Lição de segurança: a rota que devolve metadado de segredo TAMBÉM exige `requireCollaborator` (vazar cauda+origem sem login é proibido) e a tela passa a mandar Bearer em toda leitura. Memória: `config-tela-autossuficiente`. |
 | 26/06/2026 | Art. 64 (Título III) | Regra do Ródio (Máximo Esforço), promulgada a pedido do CEO após o Loop Diamante (controle financeiro total): padrão de toda entrega é o esmero do Loop Diamante — não poupar esforço, usar os recursos ao máximo, lapidar tela por tela até zero pendência. Economia de orçamento nunca justifica entregar menos; o CEO declarou que o gasto ficou abaixo da expectativa e prefere o uso máximo dos recursos. Sempre validar de verdade (runtime/screenshot/teste end-to-end), seguir a instrução ao pé da letra e ainda ir além no cuidado sem inventar escopo. Eleva o Art. 18: zelo acima de velocidade E de economia. |
 | 25/06/2026 | Art. 63 (Título IX) | Documento verificável + captura remota + ato clínico com valor, promulgado pela onda Motor de Encantamento: QR padrão em todo documento (verifica autenticidade, não só baixa), foto do cliente e assinatura/rubrica do médico sempre por link (nunca upload manual nosso, caem no campo certo), cada ato clínico pode ter valor e link de pagamento com repasse visível ao médico assistente. Roadmap em `specs/motor-encantamento-consolidacao.md`. |
 | 19/06/2026 | Art. 1º a 50 | Promulgação inicial do Código Paxter: consolidação da arquitetura do CEO (CEO, Densidade B, conduta, equipe, empresas, loop, Canvas, atualização viva) mais os 4 primeiros aprendizados do projeto. |

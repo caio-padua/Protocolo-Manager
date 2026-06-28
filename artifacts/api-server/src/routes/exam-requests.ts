@@ -210,7 +210,7 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
     whatsapp.attempted = true;
     if (!client.phone) {
       whatsapp.error = "Cliente sem telefone cadastrado";
-    } else if (!isWhatsappConfigured()) {
+    } else if (!(await isWhatsappConfigured())) {
       whatsapp.error = "WhatsApp não configurado";
     } else {
       const lines = [

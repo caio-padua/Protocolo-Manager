@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
 // Base do artefato (prefixo de rota) — padrao usado nas demais paginas.
@@ -17,6 +17,18 @@ export function useComunicacaoStatus() {
   const [status, setStatus] = useState<ComunicacaoStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const refetch = useCallback(() => {
+    setLoading(true);
+    return fetch(`${BASE}/api/comunicacao/status`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("status"))))
+      .then((d) => {
+        setStatus(d.status as ComunicacaoStatus);
+        setError(false);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -39,7 +51,7 @@ export function useComunicacaoStatus() {
     };
   }, []);
 
-  return { status, loading, error };
+  return { status, loading, error, refetch };
 }
 
 // Casca da tela: cabecalho em placa Saliente (bevel) + corpo.

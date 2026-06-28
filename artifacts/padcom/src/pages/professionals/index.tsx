@@ -20,11 +20,98 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { User, Plus, Phone, Mail, Stethoscope, Building2, Pencil, BadgeCheck, ShieldCheck, HeartPulse } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { User, Plus, Phone, Mail, Stethoscope, Building2, Pencil, BadgeCheck, ShieldCheck, HeartPulse, PenLine, UploadCloud } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { getCollabToken } from "@/lib/collab-auth";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type ProfType = "medico" | "nao_medico";
+
+// Upload da imagem da assinatura do profissional (PNG/JPEG, ate 2MB).
+// Grava no Object Storage privado pela rota POST /professionals/:id/signature
+// e atualiza a coluna signature_url. So aparece ao EDITAR (precisa do id).
+function SignatureUpload({
+  professionalId,
+  currentUrl,
+  onUploaded,
+}: {
+  professionalId: number;
+  currentUrl: string | null;
+  onUploaded: () => void;
+}) {
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(currentUrl);
+
+  async function handleFile(file: File) {
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast({ title: "Use uma imagem PNG ou JPEG", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Imagem acima de 2MB", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const t = getCollabToken();
+      const r = await fetch(`${BASE}/api/professionals/${professionalId}/signature`, {
+        method: "POST",
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        body: fd,
+      });
+      if (!r.ok) throw new Error("upload");
+      const d = (await r.json()) as { signatureUrl?: string };
+      setPreview(d.signatureUrl ?? null);
+      toast({ title: "Assinatura enviada" });
+      onUploaded();
+    } catch {
+      toast({ title: "Falha ao enviar a assinatura", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+        <PenLine className="h-3 w-3" /> Assinatura (imagem)
+      </Label>
+      <div className="concave-3d flex items-center gap-3 px-3 py-3">
+        <div className="bevel-3d flex h-16 w-32 flex-shrink-0 items-center justify-center overflow-hidden bg-white">
+          {preview ? (
+            <img src={`${BASE}${preview}`} alt="Assinatura" className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Sem assinatura</span>
+          )}
+        </div>
+        <div className="flex-1 space-y-1.5">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
+          />
+          <Button type="button" className="btn-3d-soft" disabled={uploading} onClick={() => inputRef.current?.click()}>
+            <UploadCloud className="mr-2 h-4 w-4" />
+            {uploading ? "Enviando..." : preview ? "Trocar imagem" : "Enviar imagem"}
+          </Button>
+          <p className="text-[10px] font-semibold text-muted-foreground">PNG ou JPEG, fundo branco, até 2MB.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SERVICE_OPTIONS = [
   { value: "presencial", label: "Presencial" },
@@ -54,6 +141,7 @@ export default function Professionals() {
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingSignatureUrl, setEditingSignatureUrl] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -103,6 +191,7 @@ export default function Professionals() {
   const closeDialog = () => {
     setOpen(false);
     setEditingId(null);
+    setEditingSignatureUrl(null);
     setForm(EMPTY_FORM);
   };
 
@@ -114,6 +203,7 @@ export default function Professionals() {
 
   const openEdit = (pro: Professional) => {
     setEditingId(pro.id);
+    setEditingSignatureUrl((pro as Professional & { signatureUrl?: string | null }).signatureUrl ?? null);
     setForm({
       name: pro.name ?? "",
       professionalType: (pro.professionalType as ProfType) || "medico",
@@ -290,6 +380,20 @@ export default function Professionals() {
                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unidade</Label>
                 <Input value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="Clínica Principal" className="field-engraved" />
               </div>
+
+              {editingId ? (
+                <SignatureUpload
+                  professionalId={editingId}
+                  currentUrl={editingSignatureUrl}
+                  onUploaded={() => refetch()}
+                />
+              ) : (
+                <div className="concave-3d px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Salve o profissional primeiro para enviar a assinatura.
+                  </p>
+                </div>
+              )}
 
               <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
                 <Switch checked={form.active} onCheckedChange={(v) => set("active", v)} />

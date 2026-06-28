@@ -1,14 +1,32 @@
 // Envio de WhatsApp via Twilio REST (server-side). Gated por secrets.
-// Quando os secrets não existem, retorna apenas um link wa.me de fallback —
+// As credenciais vêm do COFRE cifrado (twilio.*); getSecret cai para o env
+// (TWILIO_ACCOUNT_SID etc.) quando o cofre está vazio — fallback preservado.
+// Quando nada existe, retorna apenas um link wa.me de fallback —
 // nunca lança, nunca bloqueia o fluxo de prescrição.
 import { logger } from "./logger";
+import { getSecret } from "./secure-settings";
 
-const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || process.env.WHATSAPP_FROM;
+interface TwilioCreds {
+  accountSid: string | null;
+  authToken: string | null;
+  whatsappFrom: string | null;
+}
 
-export function isWhatsappConfigured(): boolean {
-  return Boolean(ACCOUNT_SID && AUTH_TOKEN && WHATSAPP_FROM);
+// Lê as credenciais do cofre (com fallback de env via getSecret). O campo
+// remetente ainda aceita o env legado WHATSAPP_FROM como última opção.
+async function loadTwilioCreds(): Promise<TwilioCreds> {
+  const [accountSid, authToken, whatsappFromRaw] = await Promise.all([
+    getSecret("twilio.accountSid"),
+    getSecret("twilio.authToken"),
+    getSecret("twilio.whatsappFrom"),
+  ]);
+  const whatsappFrom = whatsappFromRaw || process.env.WHATSAPP_FROM || null;
+  return { accountSid, authToken, whatsappFrom };
+}
+
+export async function isWhatsappConfigured(): Promise<boolean> {
+  const c = await loadTwilioCreds();
+  return Boolean(c.accountSid && c.authToken && c.whatsappFrom);
 }
 
 function onlyDigits(phone: string): string {
@@ -34,7 +52,8 @@ export interface WhatsappResult {
 export async function sendWhatsapp(phone: string, message: string): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
 
-  if (!isWhatsappConfigured()) {
+  const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
+  if (!(accountSid && authToken && whatsappFrom)) {
     return { sent: false, via: "link", link };
   }
 
@@ -43,7 +62,7 @@ export async function sendWhatsapp(phone: string, message: string): Promise<What
     if (toDigits.length > 0 && !toDigits.startsWith("55") && toDigits.length <= 11) {
       toDigits = `55${toDigits}`;
     }
-    const fromNumber = WHATSAPP_FROM!.startsWith("whatsapp:") ? WHATSAPP_FROM! : `whatsapp:+${onlyDigits(WHATSAPP_FROM!)}`;
+    const fromNumber = whatsappFrom.startsWith("whatsapp:") ? whatsappFrom : `whatsapp:+${onlyDigits(whatsappFrom)}`;
     const toNumber = `whatsapp:+${toDigits}`;
 
     const body = new URLSearchParams({
@@ -52,10 +71,10 @@ export async function sendWhatsapp(phone: string, message: string): Promise<What
       Body: message,
     });
 
-    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Messages.json`, {
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: "POST",
       headers: {
-        Authorization: "Basic " + Buffer.from(`${ACCOUNT_SID}:${AUTH_TOKEN}`).toString("base64"),
+        Authorization: "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: body.toString(),

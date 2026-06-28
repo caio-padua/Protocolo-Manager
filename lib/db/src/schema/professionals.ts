@@ -34,6 +34,11 @@ export const professionalsTable = pgTable(
     // (scrypt+salt), nunca texto puro. Nulo = colaborador ainda sem acesso.
     loginUsername: text("login_username"),
     passwordHash: text("password_hash"),
+    // Imagem da assinatura/rubrica do profissional (PNG/JPEG). Guardada no
+    // Object Storage privado; aqui fica só o caminho. Nulo = sem assinatura.
+    // Serve a dois caminhos (decisao 28/06/2026): upload direto agora e, no
+    // futuro, captura remota por link — mesmo destino.
+    signatureUrl: text("signature_url"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

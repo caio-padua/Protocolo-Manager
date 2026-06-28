@@ -1,7 +1,11 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import multer, { MulterError } from "multer";
+import { randomUUID } from "node:crypto";
 import { db, professionalsTable, locationProfessionalsTable, sessionsTable, locationsTable, agendaCalendarsTable, professionalAreasTable, professionalSpecialtiesTable } from "@workspace/db";
 import { CreateProfessionalBody } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
+import { requireCollaborator } from "./collaborator.js";
+import { ObjectStorageService } from "../lib/objectStorage.js";
 
 const router: IRouter = Router();
 
@@ -365,5 +369,79 @@ router.delete("/professionals/:id/locations/:locationId", async (req, res): Prom
     );
   res.json({ success: true });
 });
+
+// ---- Assinatura/rubrica do profissional (imagem) ----
+// Upload de PNG/JPEG (<=2MB) para o Object Storage privado. Guarda so o caminho
+// em professionals.signature_url. Escrita protegida por colaborador.
+const signatureUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // assinatura e leve; 2MB sobra
+  fileFilter: (_req, file, cb) => {
+    const ok = file.mimetype === "image/png" || file.mimetype === "image/jpeg";
+    if (!ok) {
+      cb(new MulterError("LIMIT_UNEXPECTED_FILE", "file"));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+// Traduz erros do multer (tamanho/tipo) em 400 com mensagem clara.
+function signatureUploadMw(req: Request, res: Response, next: NextFunction): void {
+  signatureUpload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof MulterError) {
+      const msg =
+        err.code === "LIMIT_FILE_SIZE"
+          ? "Imagem maior que 2 MB. Envie um arquivo menor."
+          : err.code === "LIMIT_UNEXPECTED_FILE"
+            ? "Arquivo invalido. Envie uma imagem PNG ou JPEG."
+            : "Falha no envio do arquivo.";
+      res.status(400).json({ error: msg });
+      return;
+    }
+    if (err) {
+      res.status(400).json({ error: "Falha no envio do arquivo." });
+      return;
+    }
+    next();
+  });
+}
+
+router.post(
+  "/professionals/:id/signature",
+  requireCollaborator,
+  signatureUploadMw,
+  async (req: Request, res: Response): Promise<void> => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Id inválido" });
+      return;
+    }
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "Envie a imagem da assinatura no campo 'file'." });
+      return;
+    }
+    const [row] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, id));
+    if (!row) {
+      res.status(404).json({ error: "Profissional não encontrado" });
+      return;
+    }
+
+    const ext = file.mimetype === "image/png" ? "png" : "jpg";
+    const relativePath = `uploads/signatures/${id}-${randomUUID()}.${ext}`;
+    const objectStorageService = new ObjectStorageService();
+    await objectStorageService.saveUploadObject(relativePath, file.buffer, file.mimetype);
+    const signatureUrl = `/api/storage/objects/${relativePath}`;
+
+    const [updated] = await db
+      .update(professionalsTable)
+      .set({ signatureUrl })
+      .where(eq(professionalsTable.id, id))
+      .returning();
+    const names = await loadTaxonomyNames();
+    res.json(formatProfessional(updated, names.areas, names.specialties));
+  },
+);
 
 export default router;

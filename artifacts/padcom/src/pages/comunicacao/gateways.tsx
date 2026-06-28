@@ -1,14 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
-import { Network, MessageCircle, Webhook, KeyRound } from "lucide-react";
+import { Network, MessageCircle, Webhook, KeyRound, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { SecretBadge } from "@/components/settings/SettingsUI";
 import { ConsoleShell, ToolCard, StatusVela, ExplainRow, BASE } from "./_shared";
 
 // Plataforma Gateway de Comunicacao — Twilio e Gupshup, cada um com a luzinha
-// de vela (status REAL de configuracao) e um toggle (escolha do operador).
-// A luz nunca fica verde sem credencial; o toggle persiste de verdade.
+// de vela (status REAL de configuracao), um toggle (escolha do operador) e os
+// CAMPOS de credencial (gravam no cofre cifrado). A luz nunca fica verde sem
+// credencial; o toggle persiste de verdade; campo vazio = nao altera.
 
 type GatewayProvider = "twilio" | "gupshup";
+
+type GatewayField = {
+  field: string;
+  label: string;
+  secret: boolean;
+  isSet: boolean;
+  masked?: string | null;
+  source?: string | null;
+};
 
 type Gateway = {
   provider: GatewayProvider;
@@ -16,6 +30,7 @@ type Gateway = {
   configured: boolean;
   enabled: boolean;
   missingKeys: string[];
+  fields: GatewayField[];
 };
 
 // Nome amigavel das chaves que faltam (para o aviso na tela).
@@ -35,7 +50,10 @@ function useGateways() {
 
   const load = useCallback(() => {
     setLoading(true);
-    return fetch(`${BASE}/api/comunicacao/gateways`)
+    const token = getCollabToken();
+    return fetch(`${BASE}/api/comunicacao/gateways`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("gateways"))))
       .then((d) => {
         setGateways(d.gateways as Gateway[]);
@@ -48,7 +66,10 @@ function useGateways() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetch(`${BASE}/api/comunicacao/gateways`)
+    const token = getCollabToken();
+    fetch(`${BASE}/api/comunicacao/gateways`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("gateways"))))
       .then((d) => {
         if (!alive) return;
@@ -95,7 +116,91 @@ function useGateways() {
     [load],
   );
 
-  return { gateways, loading, error, toggle, savingProvider };
+  const saveCredentials = useCallback(
+    async (provider: GatewayProvider, values: Record<string, string>) => {
+      const token = getCollabToken();
+      const r = await fetch(`${BASE}/api/comunicacao/gateways/${provider}/credentials`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(values),
+      });
+      if (!r.ok) throw new Error("credentials");
+      await load();
+    },
+    [load],
+  );
+
+  return { gateways, loading, error, toggle, savingProvider, saveCredentials };
+}
+
+// Formulario de credenciais de um gateway — um campo por chave do cofre.
+// Campo vazio = mantem o valor atual (nao sobrescreve). Mostra a mascara.
+function CredentialsForm({
+  gateway,
+  onSave,
+}: {
+  gateway: Gateway;
+  onSave: (provider: GatewayProvider, values: Record<string, string>) => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    const filled = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => v.trim() !== ""),
+    );
+    if (Object.keys(filled).length === 0) {
+      toast({ title: "Preencha ao menos um campo para salvar", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(gateway.provider, filled);
+      toast({ title: `Credenciais de ${gateway.label} salvas no cofre` });
+      setValues({});
+    } catch {
+      toast({ title: "Falha ao salvar credenciais", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="concave-3d space-y-3 px-3 py-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/80">
+        <KeyRound className="h-3.5 w-3.5" />
+        Credenciais (cofre cifrado)
+      </div>
+      {gateway.fields.map((f) => (
+        <div key={f.field} className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              {f.label}
+            </label>
+            <SecretBadge isSet={f.isSet} masked={f.masked} source={f.source} />
+          </div>
+          <Input
+            className="field-engraved"
+            type={f.secret ? "password" : "text"}
+            autoComplete="new-password"
+            value={values[f.field] ?? ""}
+            onChange={(e) => setValues((prev) => ({ ...prev, [f.field]: e.target.value }))}
+            placeholder={f.isSet ? "Deixe em branco para manter" : `Cole: ${f.label}`}
+          />
+        </div>
+      ))}
+      <div className="flex justify-end">
+        <Button type="button" className="btn-3d" disabled={saving} onClick={submit}>
+          <Save className="mr-2 h-4 w-4" />
+          {saving ? "Salvando..." : "Salvar credenciais"}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function GatewayCard({
@@ -104,6 +209,7 @@ function GatewayCard({
   accent,
   description,
   onToggle,
+  onSaveCredentials,
   saving,
   loading,
   error,
@@ -113,6 +219,7 @@ function GatewayCard({
   accent: string;
   description: React.ReactNode;
   onToggle: (enabled: boolean) => void;
+  onSaveCredentials: (provider: GatewayProvider, values: Record<string, string>) => Promise<void>;
   saving: boolean;
   loading: boolean;
   error: boolean;
@@ -166,17 +273,20 @@ function GatewayCard({
           </ul>
         </div>
       )}
+
+      {/* Campos de credencial — gravam no cofre cifrado. */}
+      <CredentialsForm gateway={gateway} onSave={onSaveCredentials} />
     </ToolCard>
   );
 }
 
 export default function ComunicacaoGateways() {
-  const { gateways, loading, error, toggle, savingProvider } = useGateways();
+  const { gateways, loading, error, toggle, savingProvider, saveCredentials } = useGateways();
 
   const twilio = gateways?.find((g) => g.provider === "twilio");
   const gupshup = gateways?.find((g) => g.provider === "gupshup");
 
-  const fallback: Gateway = { provider: "twilio", label: "—", configured: false, enabled: false, missingKeys: [] };
+  const fallback: Gateway = { provider: "twilio", label: "—", configured: false, enabled: false, missingKeys: [], fields: [] };
 
   return (
     <ConsoleShell
@@ -201,6 +311,7 @@ export default function ComunicacaoGateways() {
             </>
           }
           onToggle={(v) => toggle("twilio", v)}
+          onSaveCredentials={saveCredentials}
           saving={savingProvider === "twilio"}
           loading={loading}
           error={error}
@@ -222,6 +333,7 @@ export default function ComunicacaoGateways() {
             </>
           }
           onToggle={(v) => toggle("gupshup", v)}
+          onSaveCredentials={saveCredentials}
           saving={savingProvider === "gupshup"}
           loading={loading}
           error={error}

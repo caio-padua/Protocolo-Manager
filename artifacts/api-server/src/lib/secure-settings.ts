@@ -57,6 +57,11 @@ const ENV_FALLBACK: Record<string, string> = {
   "certificate.password": "CERT_PASSWORD",
   "zapsign.token": "ZAPSIGN_TOKEN",
   "stripe.secretKey": "STRIPE_SECRET_KEY",
+  "twilio.accountSid": "TWILIO_ACCOUNT_SID",
+  "twilio.authToken": "TWILIO_AUTH_TOKEN",
+  "twilio.whatsappFrom": "TWILIO_WHATSAPP_FROM",
+  "gupshup.apiKey": "GUPSHUP_API_KEY",
+  "gupshup.appName": "GUPSHUP_APP_NAME",
 };
 
 function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {

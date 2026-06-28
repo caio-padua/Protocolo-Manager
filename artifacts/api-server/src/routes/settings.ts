@@ -195,6 +195,36 @@ router.put("/settings/telegram", requireCollaborator, async (req, res): Promise<
   res.json(await telegramPayload());
 });
 
+// ------------------------------------------------------------------ STRIPE ---
+// Chave secreta do Stripe (pagamento internacional) vai para o COFRE cifrado
+// (stripe.secretKey). Status devolve apenas {isSet, masked}; NUNCA o valor.
+async function stripePayload(): Promise<unknown> {
+  const activeRaw = await getSetting("stripe.active");
+  const secretKeyStatus = await getSecretStatus("stripe.secretKey");
+  return { provider: "stripe", active: activeRaw === "true", secretKeyStatus };
+}
+
+router.get("/settings/stripe", requireCollaborator, async (_req, res): Promise<void> => {
+  res.json(await stripePayload());
+});
+
+router.put("/settings/stripe", requireCollaborator, async (req, res): Promise<void> => {
+  const active = req.body?.active;
+  const secretKey = req.body?.secretKey;
+  if (active !== undefined && typeof active !== "boolean") {
+    res.status(400).json({ error: "active deve ser booleano" });
+    return;
+  }
+  if (secretKey !== undefined && typeof secretKey !== "string") {
+    res.status(400).json({ error: "secretKey deve ser texto" });
+    return;
+  }
+  if (typeof active === "boolean") await setSetting("stripe.active", active ? "true" : "false");
+  if (typeof secretKey === "string" && secretKey.trim())
+    await setSecret("stripe.secretKey", secretKey.trim(), actor(req));
+  res.json(await stripePayload());
+});
+
 // ------------------------------------------------------------- CERTIFICADO ---
 router.get("/settings/certificate", requireCollaborator, async (_req, res): Promise<void> => {
   res.json(await getCertificateStatus());

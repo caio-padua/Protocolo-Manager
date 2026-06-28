@@ -501,10 +501,11 @@ router.post(
     }
     const message = buildReminderMessage(reqRow, professionalName);
     const result = await sendWhatsapp(reqRow.patientPhone, message);
+    const whatsappConfigured = await isWhatsappConfigured();
     res.json({
       sent: result.sent,
       via: result.via,
-      configured: isWhatsappConfigured(),
+      configured: whatsappConfigured,
       reason: result.sent ? undefined : "twilio_nao_configurado",
       link: result.link,
       preview: message,
