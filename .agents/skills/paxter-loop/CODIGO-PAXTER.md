@@ -283,6 +283,19 @@ do Drizzle em modo Date EXIGE objeto `Date` no insert/where — passar `.toISOSt
 cron/scheduler + coluna nova (ex.: reforço mensal recorrente) DEFERE-SE explicitamente — nunca criar
 coluna morta nem anunciar como pronto (Art. 47). Memória: `.agents/memory/ics-motor-unico.md`.
 
+**Art. 66 (Título X)** MOTOR ÚNICO DE ENVIO BRANDED — "HERMES PAXTER" (promulgado a pedido do CEO em
+28/06/2026, dor declarada: "ter que pedir sempre o mesmo padrão"). Toda mensagem que sai do sistema por
+QUALQUER canal (e-mail, WhatsApp, Telegram) passa por UM único motor de envio que aplica automaticamente o
+padrão de marca PAXTER (fundo navy, card borda ouro, símbolo de vidro + wordmark + "Clinical Intelligence
+System", botão dourado). Regras: (a) o e-mail-modelo (tela de cadastro que coleta dados + foto) é a
+FONTE-DA-VERDADE visual — o motor REPLICA, NUNCA redesenha; (b) nenhuma rota monta HTML/mensagem de marca à
+mão (gerador paralelo gera drift — Art. 57); cada envio fornece SÓ o conteúdo (chamada, título, parágrafos,
+botão, anexo) e o motor veste a marca; (c) WhatsApp e Telegram recebem o MESMO padrão via banner-imagem
+PAXTER + legenda formatada, com degrade gracioso para texto quando a imagem não estiver disponível; (d)
+status honesto por canal (enviado/mock/erro), nunca fingir envio; (e) o padrão é registrado na skill
+`skill-layout-paxter` (Lei do Layout, Art. 59) para herdar nos primos; (f) token de canal NUNCA logado.
+Alvo escrito: `specs/padrao-envios-paxter.md`.
+
 ---
 
 ## TÍTULO XI — DO APRENDIZADO CONTÍNUO E DA MEMÓRIA DISTRIBUÍDA
@@ -345,6 +358,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 28/06/2026 | Art. 66 (Título X) | Motor único de envio branded ("Hermes Paxter"), a pedido do CEO: todo envio (e-mail/WhatsApp/Telegram) passa por um motor único que aplica o padrão de marca; e-mail de cadastro é a fonte-da-verdade visual (motor replica, não redesenha); nenhuma rota monta mensagem de marca à mão (Art. 57); WhatsApp/Telegram com banner PAXTER + legenda e degrade para texto; status honesto por canal; padrão registrado na skill `skill-layout-paxter`. Spec: `specs/padrao-envios-paxter.md`. |
 | 28/06/2026 | Art. 65 (Título IX) | Tela autossuficiente — toda chave tem campo na própria tela, promulgado pela onda Fechar Lacunas de Configuração (referência ZapSign): proibido entregar menu só-leitura "configure no servidor" quando a ferramenta depende de chave/token/valor/upload. O segredo entra por `type=password`, o GET devolve só metadado mascarado (isSet + cauda + source), o PUT só grava campos preenchidos, o valor mora no cofre cifrado com fallback de env. Lição de segurança: a rota que devolve metadado de segredo TAMBÉM exige `requireCollaborator` (vazar cauda+origem sem login é proibido) e a tela passa a mandar Bearer em toda leitura. Memória: `config-tela-autossuficiente`. |
 | 26/06/2026 | Art. 64 (Título III) | Regra do Ródio (Máximo Esforço), promulgada a pedido do CEO após o Loop Diamante (controle financeiro total): padrão de toda entrega é o esmero do Loop Diamante — não poupar esforço, usar os recursos ao máximo, lapidar tela por tela até zero pendência. Economia de orçamento nunca justifica entregar menos; o CEO declarou que o gasto ficou abaixo da expectativa e prefere o uso máximo dos recursos. Sempre validar de verdade (runtime/screenshot/teste end-to-end), seguir a instrução ao pé da letra e ainda ir além no cuidado sem inventar escopo. Eleva o Art. 18: zelo acima de velocidade E de economia. |
 | 25/06/2026 | Art. 63 (Título IX) | Documento verificável + captura remota + ato clínico com valor, promulgado pela onda Motor de Encantamento: QR padrão em todo documento (verifica autenticidade, não só baixa), foto do cliente e assinatura/rubrica do médico sempre por link (nunca upload manual nosso, caem no campo certo), cada ato clínico pode ter valor e link de pagamento com repasse visível ao médico assistente. Roadmap em `specs/motor-encantamento-consolidacao.md`. |
