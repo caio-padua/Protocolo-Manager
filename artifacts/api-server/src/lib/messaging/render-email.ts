@@ -21,8 +21,8 @@ function escapeHtml(s: string): string {
  * Usado pelo renderPaxterEmail e por e-mails ricos que queiram só o casco.
  */
 export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
-  const symbolSrc = `${baseUrl}/brand/paxter-symbol.png`;
-  const wordmarkSrc = `${baseUrl}/brand/paxter-wordmark.png`;
+  const symbolSrc = `${baseUrl}/api/brand/paxter-symbol.png`;
+  const wordmarkSrc = `${baseUrl}/api/brand/paxter-wordmark.png`;
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"></head>
