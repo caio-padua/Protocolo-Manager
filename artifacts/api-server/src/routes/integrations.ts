@@ -69,6 +69,17 @@ async function setCustomMeta(provider: string, meta: CustomMeta[]): Promise<void
   await setSetting(customMetaKey(provider), JSON.stringify(meta));
 }
 
+// URL publica deste sistema (base + caminho do webhook). Em desenvolvimento e
+// em producao o REPLIT_DOMAINS ja traz o dominio certo (o publicado, quando ha).
+// Sem dominio = null (a tela simplesmente nao mostra a linha).
+function publicWebhookUrl(webhookPath?: string): string | null {
+  if (!webhookPath) return null;
+  const domain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0]?.trim();
+  if (!domain) return null;
+  const base = domain.startsWith("http") ? domain : `https://${domain}`;
+  return `${base.replace(/\/$/, "")}${webhookPath}`;
+}
+
 // Monta o payload seguro de uma plataforma (nunca inclui valor de segredo).
 async function buildPayload(def: IntegrationDef): Promise<unknown> {
   const fieldEntries = await Promise.all(
@@ -132,6 +143,7 @@ async function buildPayload(def: IntegrationDef): Promise<unknown> {
     configured,
     missingCount,
     allowCustom: def.allowCustom,
+    webhookUrl: publicWebhookUrl(def.webhookPath),
     fields: fieldEntries,
     custom: customEntries,
   };

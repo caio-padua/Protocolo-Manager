@@ -33,6 +33,7 @@ export interface IntegrationDef {
   fields: IntegrationFieldDef[];
   enabledKey?: string; // app_settings booleano ("true"/"false") — toggle ligar/desligar
   allowCustom: boolean; // permite o operador criar campos extras pela tela
+  webhookPath?: string; // caminho do endpoint de webhook deste sistema (somente-leitura, p/ o operador copiar)
 }
 
 export const INTEGRATIONS: Record<string, IntegrationDef> = {
@@ -40,6 +41,7 @@ export const INTEGRATIONS: Record<string, IntegrationDef> = {
     provider: "asaas",
     label: "Asaas",
     allowCustom: true,
+    webhookPath: "/api/asaas/webhook",
     fields: [
       {
         field: "apiKey",

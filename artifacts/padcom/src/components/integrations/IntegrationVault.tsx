@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { KeyRound, Save, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { KeyRound, Save, Plus, Trash2, AlertTriangle, Webhook, Copy, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ export type IntegrationPayload = {
   configured: boolean;
   missingCount: number;
   allowCustom: boolean;
+  webhookUrl?: string | null;
   fields: IntegrationField[];
   custom: IntegrationCustom[];
 };
@@ -175,6 +176,52 @@ function ConfigFieldRow({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
         />
+      </div>
+    </div>
+  );
+}
+
+// URL do webhook deste sistema — somente leitura, com botao copiar. NAO e
+// segredo: e o endereco publico que o operador (CEO) cola no painel do provedor
+// (ex.: Asaas) para receber as notificacoes. Fica visivel para ele nao precisar
+// pedir a ninguem.
+function WebhookUrlRow({ url }: { url: string }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast({ title: "URL do webhook copiada" });
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast({ title: "Não foi possível copiar — selecione e copie manualmente", variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="concave-3d space-y-2 px-3 py-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/80">
+        <Webhook className="h-3.5 w-3.5" />
+        URL do Webhook (cole no provedor)
+      </div>
+      <p className="text-[12px] leading-relaxed text-muted-foreground">
+        Este é o endereço do nosso sistema. Não é segredo — copie e cole no painel do
+        provedor para ele enviar as notificações de pagamento para cá.
+      </p>
+      <div className="flex items-center gap-2">
+        <Input
+          className="field-engraved h-9 flex-1 font-mono text-[12px]"
+          value={url}
+          readOnly
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label="URL do webhook"
+        />
+        <Button type="button" className="btn-3d-soft shrink-0" onClick={copy}>
+          {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+          {copied ? "Copiado" : "Copiar"}
+        </Button>
       </div>
     </div>
   );
@@ -360,6 +407,8 @@ export function IntegrationVaultCard({
       ) : null}
 
       <VaultStatusStrip configured={configured} missingCount={data?.missingCount ?? 0} />
+
+      {data?.webhookUrl ? <WebhookUrlRow url={data.webhookUrl} /> : null}
 
       <div className="concave-3d space-y-3 px-3 py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/80">
