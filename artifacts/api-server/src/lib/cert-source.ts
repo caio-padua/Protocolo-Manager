@@ -126,6 +126,15 @@ export async function saveCertificate(
   return meta;
 }
 
+// Formata CPF no padrao Brasil (000.000.000-00). Se nao tiver 11 digitos,
+// devolve o valor original (nao inventa mascara em algo que nao e CPF).
+function formatCpf(raw: string | null): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length !== 11) return raw;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
 // Status seguro para a tela (sem expor o arquivo nem a senha).
 export async function getCertificateStatus(): Promise<{
   isSet: boolean;
@@ -142,17 +151,40 @@ export async function getCertificateStatus(): Promise<{
       isSet: true,
       hasPassword,
       fileName: meta.fileName,
-      cpf: meta.cpf,
+      cpf: formatCpf(meta.cpf),
       updatedAt: meta.updatedAt,
     };
   }
   // Fallback: arquivo local existente conta como "configurado".
   const fileExists = fs.existsSync(FILE_CERT_PATH);
+  let localCpf: string | null = null;
+  if (fileExists) {
+    // Le o CPF do titular de dentro do .pfx local, tentando cada senha
+    // candidata (cofre + env). So leitura: nunca derruba a tela se falhar.
+    try {
+      const buffer = fs.readFileSync(FILE_CERT_PATH);
+      const passwords = [vaultPw, process.env.CERT_PASSWORD].filter(
+        (p): p is string => Boolean(p),
+      );
+      for (const pw of passwords) {
+        const check = validatePfx(buffer, pw);
+        if (check.ok && check.cpf) {
+          localCpf = check.cpf;
+          break;
+        }
+      }
+    } catch (e) {
+      logger.error(
+        { err: e instanceof Error ? e.message : String(e) },
+        "cert-source: falha ao extrair CPF do certificado local",
+      );
+    }
+  }
   return {
     isSet: fileExists,
     hasPassword,
     fileName: fileExists ? path.basename(FILE_CERT_PATH) : null,
-    cpf: null,
+    cpf: formatCpf(localCpf),
     updatedAt: null,
   };
 }
