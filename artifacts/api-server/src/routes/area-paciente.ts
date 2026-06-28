@@ -18,7 +18,7 @@ import {
 import { verifyPortalToken } from "../lib/portal-token";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
-import { sendGmailMessage } from "../lib/google-gmail";
+import { enviarMensagemPaxter } from "../lib/messaging/index.js";
 import { z } from "zod/v4";
 
 // ===========================================================================
@@ -772,11 +772,20 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
       const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
       if (client?.email) {
         const dataBr = date.split("-").reverse().join("/");
-        await sendGmailMessage({
-          to: client.email,
-          subject: `Instituto Padua | Remarcacao confirmada | ${dataBr} ${time}`,
-          html: `<p>Olá, ${client.name}.</p><p>Seu atendimento foi remarcado para <strong>${dataBr} às ${time}</strong>${r.session?.unit ? ` (${r.session.unit})` : ""}.</p><p>Se não foi você quem solicitou, entre em contato com a clínica.</p>`,
-        });
+        const local = r.session?.unit ? ` (${r.session.unit})` : "";
+        await enviarMensagemPaxter(
+          {
+            eyebrow: `Olá, ${client.name}`,
+            titulo: "Remarcação confirmada",
+            paragrafos: [
+              `Seu atendimento foi remarcado para ${dataBr} às ${time}${local}.`,
+              "Se não foi você quem solicitou, entre em contato com a clínica.",
+            ],
+            assunto: `Instituto Padua | Remarcacao confirmada | ${dataBr} ${time}`,
+          },
+          { email: client.email, nome: client.name },
+          ["EMAIL"],
+        );
       }
     } catch (e: any) {
       req.log?.warn({ err: e }, "[AreaPaciente] reagendar: e-mail de confirmacao falhou");

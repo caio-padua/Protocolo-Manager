@@ -9,7 +9,7 @@ import {
   verifyRegistrationToken,
 } from "../lib/portal-token.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
-import { sendGmailMessage } from "../lib/google-gmail.js";
+import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { ai } from "@workspace/integrations-gemini-ai";
 
 const router: IRouter = Router();
@@ -58,69 +58,23 @@ function absoluteBaseUrl(req: Request): string {
 }
 
 /**
- * E-mail Hermes do CADASTRO. Estrutura idêntica ao e-mail de foto (símbolo de
- * vidro + wordmark PAXTER + frase em inglês + botão dourado bulletproof). Regra
- * do CEO: cada frase que termina em ponto final começa em SEU PRÓPRIO parágrafo.
+ * Documento Paxter do CADASTRO. A marca (casco Hermes navy/ouro) é vestida pelo
+ * Motor Único — esta rota só descreve o CONTEÚDO (Art. 57/66).
  */
-function buildRegistrationEmailHTML(clientName: string, link: string, baseUrl: string): string {
+function docCadastro(clientName: string, link: string): PaxterDoc {
   const firstName = clientName.split(" ")[0] || clientName;
-  const symbolSrc = `${baseUrl}/brand/paxter-symbol.png`;
-  const wordmarkSrc = `${baseUrl}/brand/paxter-wordmark.png`;
-  const serif = "Georgia,'Times New Roman',Times,serif";
-  const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  const para = "margin:0 0 14px; color:#c2cee0; font-size:15px; line-height:1.7;";
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"></head>
-<body style="margin:0; padding:0; background:#05080f; font-family:${sans};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05080f; padding:40px 16px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; background:#0b1426; border:1px solid rgba(201,162,79,.30); border-radius:18px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.6);">
-
-        <tr><td style="background:linear-gradient(170deg,#102043 0%,#0a162e 55%,#0b1426 100%); padding:40px 32px 30px; text-align:center;">
-          <img src="${symbolSrc}" width="84" alt="" style="display:block; margin:0 auto 18px; width:84px; height:auto; border:1px solid rgba(201,162,79,.45); border-radius:18px; box-shadow:0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset;">
-          <img src="${wordmarkSrc}" width="196" alt="PAXTER" style="display:block; margin:0 auto; width:196px; max-width:74%; height:auto;">
-          <div style="color:#c9a24f; font-family:${serif}; font-size:11px; letter-spacing:5px; text-transform:uppercase; margin-top:12px;">Clinical Intelligence System</div>
-        </td></tr>
-
-        <tr><td style="padding:0 32px;"><div style="height:1px; background:linear-gradient(90deg,rgba(201,162,79,0) 0%,rgba(201,162,79,.6) 50%,rgba(201,162,79,0) 100%);"></div></td></tr>
-
-        <tr><td style="padding:36px 40px 8px; text-align:center;">
-          <div style="color:#c9a24f; font-size:12px; letter-spacing:3px; text-transform:uppercase; margin-bottom:14px;">Olá, ${firstName}</div>
-          <div style="color:#f3ead6; font-family:${serif}; font-size:30px; line-height:1.25; font-weight:400;">Complete o seu cadastro.</div>
-        </td></tr>
-
-        <tr><td style="padding:18px 40px 4px; text-align:center;">
-          <p style="${para}">Para começarmos o seu acompanhamento, toque no botão abaixo e preencha o seu cadastro pelo próprio celular.</p>
-          <p style="${para}">Você pode preencher falando: cada campo tem um microfone.</p>
-          <p style="margin:0; color:#c2cee0; font-size:15px; line-height:1.7;">No final, basta enviar uma foto do rosto.</p>
-        </td></tr>
-
-        <tr><td align="center" style="padding:30px 40px 8px;">
-          <table role="presentation" cellpadding="0" cellspacing="0">
-            <tr><td align="center" bgcolor="#d4ad5c" style="border-radius:12px; background:linear-gradient(135deg,#f0d488 0%,#d4ad5c 48%,#b88a3f 100%); box-shadow:0 10px 24px rgba(184,138,63,.45);">
-              <a href="${link}" style="display:inline-block; padding:17px 46px; color:#0a162e; font-family:${serif}; font-size:15px; font-weight:700; letter-spacing:2px; text-transform:uppercase; text-decoration:none;">Completar meu cadastro</a>
-            </td></tr>
-          </table>
-        </td></tr>
-
-        <tr><td style="padding:22px 40px 0; text-align:center;">
-          <p style="margin:0; color:#7e90ab; font-size:12px; line-height:1.6;">
-            Se o botão não abrir, copie e cole este endereço:<br>
-            <span style="color:#c9a24f; word-break:break-all;">${link}</span>
-          </p>
-          <p style="margin:16px 0 36px; color:#62748f; font-size:11px;">Link pessoal — expira em 7 dias.</p>
-        </td></tr>
-
-        <tr><td style="background:#070f1f; padding:18px 32px; text-align:center; color:#62748f; font-family:${serif}; font-size:10px; letter-spacing:3px; text-transform:uppercase; border-top:1px solid rgba(201,162,79,.16);">
-          Paxter — Clinical Intelligence System
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  return {
+    eyebrow: `Olá, ${firstName}`,
+    titulo: "Complete o seu cadastro.",
+    paragrafos: [
+      "Para começarmos o seu acompanhamento, toque no botão abaixo e preencha o seu cadastro pelo próprio celular.",
+      "Você pode preencher falando: cada campo tem um microfone.",
+      "No final, basta enviar uma foto do rosto.",
+    ],
+    botao: { label: "Completar meu cadastro", url: link },
+    notaRodape: "Link pessoal — expira em 7 dias.",
+    assunto: "Instituto Padua | Complete o seu cadastro",
+  };
 }
 
 /**
@@ -145,22 +99,16 @@ router.post("/client-registration/send-link/:id", async (req: Request, res: Resp
   const token = createRegistrationToken(id);
   const link = `${absoluteBaseUrl(req)}/cadastro?token=${token}`;
 
-  let emailSent = false;
-  let emailError: string | undefined;
-  if (client.email && client.email.trim()) {
-    try {
-      const result = await sendGmailMessage({
-        to: client.email.trim(),
-        subject: "Instituto Padua | Complete o seu cadastro",
-        html: buildRegistrationEmailHTML(client.name, link, absoluteBaseUrl(req)),
-      });
-      emailSent = result.success;
-      if (!result.success) emailError = result.error;
-    } catch (error) {
-      req.log.error({ err: error }, "Falha ao enviar e-mail de cadastro");
-      emailError = "Falha ao enviar e-mail";
-    }
-  }
+  // Envio pelo Motor Único (canal e-mail). A marca é vestida pelo motor.
+  const envio = await enviarMensagemPaxter(
+    docCadastro(client.name, link),
+    { email: client.email ?? null, nome: client.name },
+    ["EMAIL"],
+    { baseUrl: absoluteBaseUrl(req) },
+  );
+  const r0 = envio.resultados[0];
+  const emailSent = r0?.sent ?? false;
+  const emailError = r0 && !r0.sent ? r0.error : undefined;
 
   res.json({ link, emailSent, emailError });
 });

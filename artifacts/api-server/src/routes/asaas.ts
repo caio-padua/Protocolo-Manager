@@ -18,15 +18,14 @@ import {
   type AsaasPixKeyType,
 } from "../lib/asaas";
 import { getSecret } from "../lib/secure-settings.js";
-import { sendWhatsapp } from "../lib/whatsapp.js";
-import { sendTelegram } from "../lib/telegram.js";
-import { sendGmailMessage } from "../lib/google-gmail.js";
 import { requireCollaborator } from "./collaborator.js";
+import { montarAssuntoCobranca, formatBRL, formatDataBR } from "../lib/cobranca-mensagem.js";
 import {
-  montarTextoCobranca,
-  montarHtmlCobranca,
-  montarAssuntoCobranca,
-} from "../lib/cobranca-mensagem.js";
+  enviarMensagemPaxter,
+  absoluteBaseUrl,
+  type PaxterCanal,
+  type PaxterDoc,
+} from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
 
@@ -200,54 +199,53 @@ router.post("/asaas/charge/launch", requireCollaborator, async (req, res): Promi
     const phone = String(destinations?.phone || client.phone || "").trim();
     const telegramChatId = String(destinations?.telegramChatId || client.telegramChatId || "").trim();
 
-    const msg = {
-      nomeCliente: client.name,
-      valor: amount,
-      descricao: (description as string | null) ?? null,
-      vencimento: due,
-      invoiceUrl: charge.invoiceUrl,
+    // Documento ÚNICO (Motor Hermes, Art. 66): a marca é vestida pelo motor nos
+    // 3 canais a partir DESTE doc — esta rota não monta HTML/texto de marca.
+    const ref = (description as string | null)?.trim();
+    const doc: PaxterDoc = {
+      eyebrow: "Cobrança",
+      titulo: "Link de pagamento",
+      paragrafos: [
+        `Olá, ${client.name}. Segue a sua cobrança.`,
+        `Valor: R$ ${formatBRL(amount)}.`,
+        ...(ref ? [`Referente a: ${ref}.`] : []),
+        `Vencimento: ${formatDataBR(due)}.`,
+        `Pague com PIX, cartão ou boleto tocando no botão abaixo.`,
+      ],
+      botao: { label: "Pagar agora", url: charge.invoiceUrl },
+      notaRodape: "Cobrança processada pelo Asaas. Qualquer dúvida, estamos à disposição.",
+      assunto: montarAssuntoCobranca(),
     };
-    const texto = montarTextoCobranca(msg);
 
+    const canais: PaxterCanal[] = [];
+    if (wants.email) canais.push("EMAIL");
+    if (wants.whatsapp) canais.push("WHATSAPP");
+    if (wants.telegram) canais.push("TELEGRAM");
+
+    const envio = await enviarMensagemPaxter(
+      doc,
+      { email, telefone: phone, telegramChatId, nome: client.name },
+      canais,
+      { baseUrl: absoluteBaseUrl(req) },
+    );
+
+    // Mapeia o STATUS HONESTO do motor para o formato esperado pelo front.
+    // Mantém a regra: Twilio que falhou é ERRO (com link de socorro), nunca
+    // mascarado como "link gerado"; fallback só quando não há credencial.
     const results: Array<{ channel: string; status: string; detail?: string }> = [];
-
-    if (wants.email) {
-      if (!email) {
-        results.push({ channel: "email", status: "no_destination", detail: "Cliente sem e-mail." });
-      } else {
-        const r = await sendGmailMessage({ to: email, subject: montarAssuntoCobranca(), html: montarHtmlCobranca(msg) });
-        results.push(
-          r.success
-            ? { channel: "email", status: "sent", detail: email }
-            : { channel: "email", status: "error", detail: r.error },
-        );
-      }
-    }
-
-    if (wants.whatsapp) {
-      if (!phone) {
-        results.push({ channel: "whatsapp", status: "no_destination", detail: "Cliente sem telefone." });
-      } else {
-        const r = await sendWhatsapp(phone, texto);
-        // HONESTIDADE: "fallback" so quando NAO ha credencial (link manual sem
-        // erro). Twilio configurado mas que falhou e ERRO (com link de socorro),
-        // nunca mascarar como "link gerado".
-        if (r.sent && r.via === "twilio") {
-          results.push({ channel: "whatsapp", status: "sent", detail: phone });
-        } else if (r.error) {
-          results.push({ channel: "whatsapp", status: "error", detail: `${r.error} — link manual: ${r.link}` });
-        } else {
-          results.push({ channel: "whatsapp", status: "fallback", detail: r.link });
-        }
-      }
-    }
-
-    if (wants.telegram) {
-      if (!telegramChatId) {
-        results.push({ channel: "telegram", status: "no_destination", detail: "Cliente sem Telegram (chat id)." });
-      } else {
-        const r = await sendTelegram(telegramChatId, texto);
-        if (r.sent && !r.mock) results.push({ channel: "telegram", status: "sent", detail: telegramChatId });
+    for (const r of envio.resultados) {
+      if (r.canal === "EMAIL") {
+        if (r.skipped) results.push({ channel: "email", status: "no_destination", detail: "Cliente sem e-mail." });
+        else if (r.sent) results.push({ channel: "email", status: "sent", detail: email });
+        else results.push({ channel: "email", status: "error", detail: r.error });
+      } else if (r.canal === "WHATSAPP") {
+        if (r.skipped) results.push({ channel: "whatsapp", status: "no_destination", detail: "Cliente sem telefone." });
+        else if (r.sent && r.via === "twilio") results.push({ channel: "whatsapp", status: "sent", detail: phone });
+        else if (r.error) results.push({ channel: "whatsapp", status: "error", detail: `${r.error} — link manual: ${r.link}` });
+        else results.push({ channel: "whatsapp", status: "fallback", detail: r.link });
+      } else if (r.canal === "TELEGRAM") {
+        if (r.skipped) results.push({ channel: "telegram", status: "no_destination", detail: "Cliente sem Telegram (chat id)." });
+        else if (r.sent && !r.mock) results.push({ channel: "telegram", status: "sent", detail: telegramChatId });
         else if (r.mock) results.push({ channel: "telegram", status: "mock", detail: "Sem token configurado: envio simulado." });
         else results.push({ channel: "telegram", status: "error", detail: r.error });
       }

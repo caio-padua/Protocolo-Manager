@@ -51,8 +51,13 @@ import integrationsRouter from "./integrations";
 import comunicacaoRouter from "./comunicacao";
 import financeiroRouter from "./financeiro";
 import assinaturasRouter, { assinaturaWebhookRouter, telegramWebhookRouter } from "./assinaturas";
+import brandRouter from "./brand";
 
 const router: IRouter = Router();
+
+// Banner de marca (imagem pública) — buscado por Twilio/Telegram sem sessão.
+// Registrado ANTES do portão de colaborador.
+router.use(brandRouter);
 
 // Pagamentos Asaas (cobranca + webhook): registrado ANTES do portao de
 // colaborador para o webhook externo do Asaas nao ser bloqueado.

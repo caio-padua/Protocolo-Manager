@@ -367,6 +367,27 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
       `isGupshupConfigured` so e verdadeiro com os tres no cofre. Twilio tambem tem 3 campos
       (accountSid, authToken, whatsappFrom) — ambos com 3 campos ajuda o alinhamento entre cards.
 
+- **Padrao 19 — ENVIO BRANDED PELO MOTOR UNICO "Hermes Paxter" (lei promulgada pelo CEO em 28/06/2026)**:
+  TODA mensagem que sai do sistema para o cliente (e-mail, WhatsApp, Telegram) veste a marca PAXTER
+  navy/ouro por UM motor unico (`artifacts/api-server/src/lib/messaging/`), nunca por HTML montado a
+  mao na rota. A rota so descreve o CONTEUDO num documento neutro `PaxterDoc` (`eyebrow`, `titulo`,
+  `paragrafos[]`, `botao?`, `notaRodape?`, `assunto?`) e chama `enviarMensagemPaxter(doc, destino,
+  canais, ctx)`; o motor escolhe o casco por canal e devolve resultado HONESTO por canal
+  (`{channel, sent, error?}` — anti-simulacao, Art. 47/65).
+    - E-MAIL: casco "Hermes" — fundo navy `#05080f`, cartao `#0b1426` com moldura ouro
+      `rgba(201,162,79,.30)`, cabecalho com SIMBOLO de vidro + WORDMARK PAXTER (PNGs oficiais em
+      `/brand/`, Padrao 14) + subtitulo "CLINICAL INTELLIGENCE SYSTEM", titulo em serifa creme
+      `#f3ead6`, paragrafos `#c2cee0`, BOTAO ouro "bulletproof" (gradiente `#f0d488→#b88a3f`, texto
+      navy). Quando ha `botao`, mostra SEMPRE o endereco por extenso ("Se o botao nao abrir, copie e
+      cole este endereco") para acessibilidade. Uma frase por paragrafo (ritmo TDAH).
+    - WHATSAPP / TELEGRAM: o visual de marca vem de um BANNER-imagem unico (navy + moldura ouro dupla +
+      wordmark PAXTER serifado), gerado por `@napi-rs/canvas` e servido em `GET /api/brand/paxter-banner.png`;
+      a legenda e texto do MESMO doc (WhatsApp markdown `*negrito*`, Telegram HTML `<b>`), assinada
+      "— PAXTER · Clinical Intelligence System".
+    - REGRA-MAE: nenhuma rota nova reescreve casco/banner por conta propria; estende-se o motor. NUNCA
+      logar token (Twilio/Telegram). Canal sem credencial degrada com honestidade (mock/erro nomeado),
+      nunca finge envio.
+
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
 Paradigma travado pelo CEO (19/06/2026): cada INTENCAO tem UM controle e UMA cor. Ao criar ou

@@ -4,8 +4,7 @@ import { db, examRequestPdfsTable, clientsTable, professionalsTable } from "@wor
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-request-pdf";
-import { sendGmailMessage, isGmailConnected } from "../lib/google-gmail";
-import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
+import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
 
@@ -171,59 +170,46 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
     attachments.push({ filename: fileName, content: pdfBuffer, contentType: "application/pdf" });
   }
 
+  // Envio ao cliente via Motor Único de Envio Branded (Hermes Paxter):
+  // o MESMO conteúdo veste a marca em e-mail (com PDFs anexados) e WhatsApp
+  // (banner + legenda com os links). Status honesto por canal.
+  const docExame: PaxterDoc = {
+    eyebrow: `Olá, ${client.name}`,
+    titulo: "Solicitação de Exames",
+    paragrafos: [
+      "Segue a sua solicitação de exames. Cada arquivo agrupa um tipo de exame:",
+      ...created.map((c) => `• ${c.tipoLabel} (${c.examCount}): ${c.url}`),
+      "Apresente os arquivos no laboratório ou clínica de imagem. Em caso de dúvida, fale conosco.",
+    ],
+    anexos: attachments,
+    assunto: `Instituto Padua | Solicitação de Exames | ${stamp.br}`,
+  };
+
   // Envio por e-mail (um e-mail com todos os PDFs anexados)
   let email: { attempted: boolean; success: boolean; error?: string } = { attempted: false, success: false };
   if (body.sendEmail) {
     email.attempted = true;
     if (!client.email) {
       email.error = "Cliente sem e-mail cadastrado";
-    } else if (!(await isGmailConnected())) {
-      email.error = "Gmail não conectado";
     } else {
-      const listHtml = created
-        .map((c) => `<li style="padding:4px 0;color:#334155;font-size:14px;"><strong>${c.tipoLabel}</strong> — ${c.examCount} exame(s)</li>`)
-        .join("");
-      const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f1f5f9;padding:20px;">
-        <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
-          <div style="background:#3D7A7A;padding:18px 24px;"><span style="color:#fff;font-size:18px;font-weight:bold;">INSTITUTO PADUA</span></div>
-          <div style="padding:24px;">
-            <p style="color:#1e293b;font-size:15px;">Olá, ${client.name}.</p>
-            <p style="color:#334155;font-size:14px;">Segue em anexo a sua solicitação de exames. Cada arquivo agrupa um tipo de exame:</p>
-            <ul style="margin:8px 0 16px;padding-left:18px;">${listHtml}</ul>
-            <p style="color:#64748b;font-size:12px;">Apresente os arquivos no laboratório/clínica de imagem. Em caso de dúvida, entre em contato conosco.</p>
-          </div>
-        </div></body></html>`;
-      const r = await sendGmailMessage({
-        to: client.email,
-        subject: `Instituto Padua | Solicitação de Exames | ${stamp.br}`,
-        html,
-        attachments,
-      });
-      email.success = r.success;
-      if (!r.success) email.error = r.error;
+      const envio = await enviarMensagemPaxter(docExame, { email: client.email, nome: client.name }, ["EMAIL"], { baseUrl });
+      const r0 = envio.resultados[0];
+      email.success = r0?.sent ?? false;
+      if (!email.success) email.error = r0?.error ?? "Falha no envio";
     }
   }
 
-  // Envio por WhatsApp (mensagem com links para cada PDF)
+  // Envio por WhatsApp (banner PAXTER + legenda com links para cada PDF)
   let whatsapp: { attempted: boolean; success: boolean; error?: string } = { attempted: false, success: false };
   if (body.sendWhatsapp) {
     whatsapp.attempted = true;
     if (!client.phone) {
       whatsapp.error = "Cliente sem telefone cadastrado";
-    } else if (!(await isWhatsappConfigured())) {
-      whatsapp.error = "WhatsApp não configurado";
     } else {
-      const lines = [
-        `Olá, ${client.name}!`,
-        "",
-        "Segue sua *solicitação de exames* do Instituto Padua:",
-        ...created.map((c) => `• ${c.tipoLabel} (${c.examCount}): ${c.url}`),
-        "",
-        "Apresente os arquivos no laboratório/clínica de imagem.",
-      ];
-      const r = await sendWhatsapp(client.phone, lines.join("\n"));
-      whatsapp.success = r.success;
-      if (!r.success) whatsapp.error = r.error;
+      const envio = await enviarMensagemPaxter(docExame, { telefone: client.phone, nome: client.name }, ["WHATSAPP"], { baseUrl });
+      const r0 = envio.resultados[0];
+      whatsapp.success = r0?.sent ?? false;
+      if (!whatsapp.success) whatsapp.error = r0?.error ?? "Falha no envio";
     }
   }
 

@@ -93,6 +93,16 @@ Preferir a rodada extra de verificação, o teste visual a mais e a revisão do 
 Esta lei reforça o Art. 18 (zelo acima de velocidade) e o eleva: zelo acima de velocidade E acima de
 economia.
 
+**Art. 67** AUTONOMIA NA OPÇÃO ÓBVIA (promulgado a pedido do CEO em 28/06/2026). Quando o agente
+apresentar opções A/B/C e UMA delas for claramente a mais robusta, eficiente e sólida — e o CEO já tiver
+demonstrado que sempre escolhe "o melhor" — o agente NÃO para para perguntar: segue direto pela opção que
+sabe que o CEO escolheria (em regra a mais completa/robusta), ANUNCIANDO a escolha e o porquê, e toca o
+trabalho. Palavra do CEO: "tem autonomia para decisões que você já sabe a minha resposta... eu quero
+sempre o melhor, o mais eficiente, o mais robusto e o mais sólido". Limites que CONTINUAM exigindo
+pergunta: (a) ação destrutiva ou irreversível (apagar dado, gastar dinheiro real, disparar transferência);
+(b) mudar uma decisão já travada do CEO (Art. 21); (c) escopo ou arquitetura com trade-off real e ambíguo,
+sem caminho obviamente superior. Fora desses três casos: decidir, anunciar e avançar.
+
 ---
 
 ## TÍTULO IV — DA EQUIPE FIXA
@@ -358,6 +368,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 28/06/2026 | Art. 67 (Título III) | Autonomia na opção óbvia, a pedido do CEO: quando há uma opção claramente mais robusta/eficiente/sólida e o CEO já sinalizou que quer "o melhor", o agente segue direto por ela (anunciando a escolha), sem parar para perguntar. Exceções que ainda exigem pergunta: ação destrutiva/irreversível (apagar dado, dinheiro real), mudar decisão travada do CEO (Art. 21), ou escopo/arquitetura ambíguo com trade-off real. |
 | 28/06/2026 | Art. 66 (Título X) | Motor único de envio branded ("Hermes Paxter"), a pedido do CEO: todo envio (e-mail/WhatsApp/Telegram) passa por um motor único que aplica o padrão de marca; e-mail de cadastro é a fonte-da-verdade visual (motor replica, não redesenha); nenhuma rota monta mensagem de marca à mão (Art. 57); WhatsApp/Telegram com banner PAXTER + legenda e degrade para texto; status honesto por canal; padrão registrado na skill `skill-layout-paxter`. Spec: `specs/padrao-envios-paxter.md`. |
 | 28/06/2026 | Art. 65 (Título IX) | Tela autossuficiente — toda chave tem campo na própria tela, promulgado pela onda Fechar Lacunas de Configuração (referência ZapSign): proibido entregar menu só-leitura "configure no servidor" quando a ferramenta depende de chave/token/valor/upload. O segredo entra por `type=password`, o GET devolve só metadado mascarado (isSet + cauda + source), o PUT só grava campos preenchidos, o valor mora no cofre cifrado com fallback de env. Lição de segurança: a rota que devolve metadado de segredo TAMBÉM exige `requireCollaborator` (vazar cauda+origem sem login é proibido) e a tela passa a mandar Bearer em toda leitura. Memória: `config-tela-autossuficiente`. |
 | 26/06/2026 | Art. 64 (Título III) | Regra do Ródio (Máximo Esforço), promulgada a pedido do CEO após o Loop Diamante (controle financeiro total): padrão de toda entrega é o esmero do Loop Diamante — não poupar esforço, usar os recursos ao máximo, lapidar tela por tela até zero pendência. Economia de orçamento nunca justifica entregar menos; o CEO declarou que o gasto ficou abaixo da expectativa e prefere o uso máximo dos recursos. Sempre validar de verdade (runtime/screenshot/teste end-to-end), seguir a instrução ao pé da letra e ainda ir além no cuidado sem inventar escopo. Eleva o Art. 18: zelo acima de velocidade E de economia. |

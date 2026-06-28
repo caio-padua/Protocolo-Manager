@@ -49,7 +49,16 @@ export interface WhatsappResult {
   error?: string;
 }
 
-export async function sendWhatsapp(phone: string, message: string): Promise<WhatsappResult> {
+export interface SendWhatsappOptions {
+  /** URL pública de imagem (banner de marca) anexada como mídia da mensagem. */
+  mediaUrl?: string;
+}
+
+export async function sendWhatsapp(
+  phone: string,
+  message: string,
+  opts: SendWhatsappOptions = {},
+): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
@@ -70,6 +79,11 @@ export async function sendWhatsapp(phone: string, message: string): Promise<What
       To: toNumber,
       Body: message,
     });
+    if (opts.mediaUrl && /^https:\/\//.test(opts.mediaUrl)) {
+      // Twilio só aceita MediaUrl público via HTTPS; em dev local sem domínio
+      // público a imagem é simplesmente omitida (degrade gracioso para texto).
+      body.append("MediaUrl", opts.mediaUrl);
+    }
 
     const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: "POST",

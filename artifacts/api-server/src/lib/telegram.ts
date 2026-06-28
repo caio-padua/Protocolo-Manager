@@ -64,3 +64,41 @@ export async function sendTelegram(chatId: string, text: string): Promise<Telegr
     return { sent: false, mock: false, error: (e as Error).message };
   }
 }
+
+/**
+ * Envia uma FOTO (banner de marca) com legenda HTML. Usado pelo Motor Único
+ * para vestir a marca no Telegram. MOCK quando sem token (nunca falha por isso).
+ * Se o sendPhoto falhar por causa da URL da imagem, degrada para sendMessage
+ * (texto puro) — a mensagem chega mesmo sem o banner.
+ */
+export async function sendTelegramPhoto(
+  chatId: string,
+  photoUrl: string,
+  caption: string,
+): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.info({ chatId, len: caption.length }, "[telegram] MOCK envio de foto (sem token no cofre)");
+    return { sent: true, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: photoUrl,
+        caption,
+        parse_mode: "HTML",
+      }),
+    });
+    if (resp.ok) return { sent: true, mock: false };
+    // Degrade gracioso: se a foto não pôde ser buscada, manda só o texto.
+    const corpo = await resp.text().catch(() => "");
+    logger.warn({ status: resp.status, corpo: corpo.slice(0, 140) }, "[telegram] sendPhoto falhou; degradando para texto");
+    return await sendTelegram(chatId, caption);
+  } catch (e) {
+    return { sent: false, mock: false, error: (e as Error).message };
+  }
+}
