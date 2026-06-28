@@ -45,6 +45,7 @@ import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
 import FinanceiroMetas from "@/pages/financeiro/metas";
+import FinanceiroCobranca from "@/pages/financeiro/cobranca";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
@@ -179,6 +180,7 @@ function Router() {
             <Route path="/financeiro/:rest*">
               <CollaboratorGate>
                 <Switch>
+                  <Route path="/financeiro/cobranca" component={FinanceiroCobranca} />
                   <Route path="/financeiro/conciliacao" component={FinanceiroConciliacao} />
                   <Route path="/financeiro/metas" component={FinanceiroMetas} />
                   <Route component={NotFound} />
