@@ -205,3 +205,63 @@ export async function asaasListCharges(max = 300): Promise<AsaasChargeListItem[]
   }
   return out;
 }
+
+// ----- Transferencias (Onda 3) -----
+
+export type AsaasPixKeyType = "CPF" | "CNPJ" | "EMAIL" | "PHONE" | "EVP";
+
+export interface AsaasTransferInput {
+  value: number;
+  pixAddressKey: string;
+  pixAddressKeyType: AsaasPixKeyType;
+  description?: string;
+}
+
+export interface AsaasTransfer {
+  id: string;
+  status: string; // PENDING | BANK_PROCESSING | DONE | FAILED | CANCELLED | ...
+  value: number;
+  effectiveDate: string | null;
+  transferFee: number | null;
+  description: string | null;
+}
+
+function mapTransfer(raw: any): AsaasTransfer {
+  return {
+    id: String(raw?.id ?? ""),
+    status: String(raw?.status ?? ""),
+    value: Number(raw?.value ?? 0),
+    effectiveDate: raw?.effectiveDate ?? raw?.dateCreated ?? null,
+    transferFee: raw?.transferFee != null ? Number(raw.transferFee) : null,
+    description: raw?.description ?? null,
+  };
+}
+
+// Cria uma transferencia Pix (saldo Asaas -> chave Pix da conta autorizada).
+// O status devolvido e SEMPRE o real do Asaas (nunca simulado).
+export async function asaasCreateTransfer(input: AsaasTransferInput): Promise<AsaasTransfer> {
+  const body = {
+    value: input.value,
+    operationType: "PIX",
+    pixAddressKey: input.pixAddressKey,
+    pixAddressKeyType: input.pixAddressKeyType,
+    description: input.description,
+  };
+  const raw = await asaasFetch("/transfers", { method: "POST", body: JSON.stringify(body) });
+  return mapTransfer(raw);
+}
+
+// Lista transferencias do Asaas (paginado) para o historico.
+export async function asaasListTransfers(max = 100): Promise<AsaasTransfer[]> {
+  const out: AsaasTransfer[] = [];
+  let offset = 0;
+  const limit = 100;
+  while (out.length < max) {
+    const page = await asaasFetch(`/transfers?offset=${offset}&limit=${limit}`, { method: "GET" });
+    const data: any[] = Array.isArray(page?.data) ? page.data : [];
+    for (const t of data) out.push(mapTransfer(t));
+    if (!page?.hasMore || data.length === 0) break;
+    offset += limit;
+  }
+  return out.slice(0, max);
+}

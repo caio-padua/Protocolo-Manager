@@ -9,6 +9,7 @@ export * from "./ras";
 export * from "./ras-evolutivo";
 export * from "./stock";
 export * from "./payments";
+export * from "./bank-accounts";
 export * from "./app-settings";
 export * from "./secure-settings";
 export * from "./financial-goals";

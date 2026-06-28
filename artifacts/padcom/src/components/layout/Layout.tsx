@@ -42,6 +42,7 @@ import {
   Cloud,
   Network,
   Landmark,
+  ArrowLeftRight,
   Zap,
   Receipt,
 } from "lucide-react";
@@ -112,6 +113,8 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Lançador de Cobrança", href: "/financeiro/cobranca", icon: Zap },
       { name: "Lançador de NFS-e", href: "/financeiro/nfse", icon: Receipt },
+      { name: "Cadastro de Bancos", href: "/financeiro/bancos", icon: Landmark },
+      { name: "Transferências", href: "/financeiro/transferencias", icon: ArrowLeftRight },
       { name: "Pagamentos", href: "/payments", icon: CreditCard },
       { name: "Conciliação", href: "/financeiro/conciliacao", icon: Scale },
       { name: "Metas & Crescimento", href: "/financeiro/metas", icon: Target },

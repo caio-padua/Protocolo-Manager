@@ -1,11 +1,21 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, paymentsTable, clientsTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
+import {
+  db,
+  paymentsTable,
+  clientsTable,
+  bankAccountsTable,
+  collaboratorAuditTable,
+  professionalsTable,
+} from "@workspace/db";
 import {
   asaasCreateCustomer,
   asaasCreateCharge,
   asaasCreateInvoice,
   asaasListMunicipalServices,
+  asaasCreateTransfer,
+  asaasListTransfers,
+  type AsaasPixKeyType,
 } from "../lib/asaas";
 import { getSecret } from "../lib/secure-settings.js";
 import { sendWhatsapp } from "../lib/whatsapp.js";
@@ -353,6 +363,273 @@ router.post("/asaas/invoice/launch", requireCollaborator, async (req, res): Prom
     res.status(201).json({ invoice });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao lancar NFS-e Asaas");
+    res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
+  }
+});
+
+// ----- Cadastro de Bancos + Transferencias (Onda 3) -----
+
+// Trava de seguranca: maximo por transferencia (ajustavel pelo CEO).
+const TRANSFER_MAX = 5000;
+const TRANSFER_MIN = 1;
+
+function onlyDigits(s: unknown): string {
+  return typeof s === "string" ? s.replace(/\D/g, "") : "";
+}
+
+// Mascara o documento/chave para a auditoria: mostra so os 4 ultimos digitos.
+function maskTail(s: string): string {
+  const d = s.replace(/\s/g, "");
+  if (d.length <= 4) return "****";
+  return `****${d.slice(-4)}`;
+}
+
+// Deriva o tipo da chave Pix quando ela e o proprio documento (CPF/CNPJ).
+function pixTypeFromPerson(personType: string, pixKey: string): AsaasPixKeyType {
+  const digits = pixKey.replace(/\D/g, "");
+  if (digits.length === 11) return "CPF";
+  if (digits.length === 14) return "CNPJ";
+  if (pixKey.includes("@")) return "EMAIL";
+  return personType === "PJ" ? "CNPJ" : "CPF";
+}
+
+function serializeBankAccount(r: typeof bankAccountsTable.$inferSelect) {
+  return {
+    id: r.id,
+    holderName: r.holderName,
+    personType: r.personType,
+    document: r.document,
+    bankName: r.bankName,
+    bankCode: r.bankCode,
+    agency: r.agency,
+    account: r.account,
+    accountType: r.accountType,
+    pixKey: r.pixKey,
+    pixKeyType: r.pixKeyType,
+    active: r.active,
+    note: r.note,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+// Valida o corpo de criacao/edicao de conta. Retorna a mensagem de erro ou null.
+function validateBankBody(b: any): string | null {
+  if (!b || typeof b !== "object") return "Corpo invalido.";
+  if (typeof b.holderName !== "string" || !b.holderName.trim()) return "Titular e obrigatorio.";
+  if (b.personType !== "PF" && b.personType !== "PJ") return "Tipo deve ser PF ou PJ.";
+  const doc = onlyDigits(b.document);
+  if (doc.length !== 11 && doc.length !== 14) return "Documento (CPF/CNPJ) invalido.";
+  if (typeof b.bankName !== "string" || !b.bankName.trim()) return "Banco e obrigatorio.";
+  if (typeof b.agency !== "string" || !b.agency.trim()) return "Agencia e obrigatoria.";
+  if (typeof b.account !== "string" || !b.account.trim()) return "Conta e obrigatoria.";
+  return null;
+}
+
+// GET /asaas/bank-accounts — lista as contas autorizadas (whitelist).
+router.get("/asaas/bank-accounts", requireCollaborator, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(bankAccountsTable).orderBy(desc(bankAccountsTable.active), bankAccountsTable.holderName);
+  res.status(200).json({ accounts: rows.map(serializeBankAccount) });
+});
+
+// POST /asaas/bank-accounts — cria conta.
+router.post("/asaas/bank-accounts", requireCollaborator, async (req, res): Promise<void> => {
+  const b = req.body || {};
+  const vErr = validateBankBody(b);
+  if (vErr) {
+    res.status(400).json({ error: vErr });
+    return;
+  }
+  const doc = onlyDigits(b.document);
+  const pixKey = (typeof b.pixKey === "string" && b.pixKey.trim()) ? b.pixKey.trim() : doc;
+  const pixKeyType = (b.pixKeyType as AsaasPixKeyType) || pixTypeFromPerson(b.personType, pixKey);
+  try {
+    const [row] = await db
+      .insert(bankAccountsTable)
+      .values({
+        holderName: String(b.holderName).trim(),
+        personType: b.personType,
+        document: doc,
+        bankName: String(b.bankName).trim(),
+        bankCode: typeof b.bankCode === "string" && b.bankCode.trim() ? b.bankCode.trim() : null,
+        agency: String(b.agency).trim(),
+        account: String(b.account).trim(),
+        accountType: b.accountType === "CONTA_POUPANCA" ? "CONTA_POUPANCA" : "CONTA_CORRENTE",
+        pixKey,
+        pixKeyType,
+        active: b.active === false ? false : true,
+        note: typeof b.note === "string" && b.note.trim() ? b.note.trim() : null,
+      })
+      .returning();
+    res.status(201).json({ account: serializeBankAccount(row) });
+  } catch (e) {
+    if (e && typeof e === "object" && (e as { code?: string }).code === "23505") {
+      res.status(409).json({ error: "Ja existe uma conta cadastrada com este documento." });
+      return;
+    }
+    throw e;
+  }
+});
+
+// PUT /asaas/bank-accounts/:id — edita conta.
+router.put("/asaas/bank-accounts/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "id invalido." });
+    return;
+  }
+  const b = req.body || {};
+  const vErr = validateBankBody(b);
+  if (vErr) {
+    res.status(400).json({ error: vErr });
+    return;
+  }
+  const doc = onlyDigits(b.document);
+  const pixKey = (typeof b.pixKey === "string" && b.pixKey.trim()) ? b.pixKey.trim() : doc;
+  const pixKeyType = (b.pixKeyType as AsaasPixKeyType) || pixTypeFromPerson(b.personType, pixKey);
+  try {
+    const [row] = await db
+      .update(bankAccountsTable)
+      .set({
+        holderName: String(b.holderName).trim(),
+        personType: b.personType,
+        document: doc,
+        bankName: String(b.bankName).trim(),
+        bankCode: typeof b.bankCode === "string" && b.bankCode.trim() ? b.bankCode.trim() : null,
+        agency: String(b.agency).trim(),
+        account: String(b.account).trim(),
+        accountType: b.accountType === "CONTA_POUPANCA" ? "CONTA_POUPANCA" : "CONTA_CORRENTE",
+        pixKey,
+        pixKeyType,
+        active: b.active === false ? false : true,
+        note: typeof b.note === "string" && b.note.trim() ? b.note.trim() : null,
+      })
+      .where(eq(bankAccountsTable.id, id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Conta nao encontrada." });
+      return;
+    }
+    res.status(200).json({ account: serializeBankAccount(row) });
+  } catch (e) {
+    if (e && typeof e === "object" && (e as { code?: string }).code === "23505") {
+      res.status(409).json({ error: "Ja existe outra conta com este documento." });
+      return;
+    }
+    throw e;
+  }
+});
+
+// DELETE /asaas/bank-accounts/:id — desativa a conta (soft delete: sai da whitelist).
+router.delete("/asaas/bank-accounts/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "id invalido." });
+    return;
+  }
+  const [row] = await db
+    .update(bankAccountsTable)
+    .set({ active: false })
+    .where(eq(bankAccountsTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Conta nao encontrada." });
+    return;
+  }
+  res.status(200).json({ account: serializeBankAccount(row) });
+});
+
+// POST /asaas/transfer — transfere saldo Asaas para uma conta AUTORIZADA (Pix).
+// Travas, em ordem, ANTES de tocar o Asaas: confirmacao -> whitelist -> valor ->
+// limite. So entao chama o provedor. Registra auditoria com destino MASCARADO.
+router.post("/asaas/transfer", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { bankAccountId, value, description, confirm } = req.body || {};
+
+    // 1) Confirmacao obrigatoria (a UI so envia apos o passo de revisao).
+    if (confirm !== true) {
+      res.status(400).json({ error: "Confirmacao obrigatoria: revise e confirme a transferencia antes de enviar." });
+      return;
+    }
+    // 2) Whitelist: a conta precisa existir e estar ativa.
+    const id = Number(bankAccountId);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "bankAccountId e obrigatorio." });
+      return;
+    }
+    const [account] = await db.select().from(bankAccountsTable).where(eq(bankAccountsTable.id, id));
+    if (!account || !account.active) {
+      res.status(404).json({ error: "Conta de destino nao autorizada (nao cadastrada ou inativa)." });
+      return;
+    }
+    // 3) Valor positivo e minimo.
+    if (typeof value !== "number" || !isFinite(value) || value < TRANSFER_MIN) {
+      res.status(400).json({ error: `Valor invalido. Minimo de R$ ${TRANSFER_MIN.toFixed(2).replace(".", ",")} por transferencia.` });
+      return;
+    }
+    // 4) Limite de seguranca por transferencia.
+    if (value > TRANSFER_MAX) {
+      res.status(400).json({
+        error: `Acima do limite de seguranca de R$ ${TRANSFER_MAX.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} por transferencia.`,
+      });
+      return;
+    }
+
+    const pixKey = account.pixKey || account.document;
+    const pixKeyType = (account.pixKeyType as AsaasPixKeyType) || pixTypeFromPerson(account.personType, pixKey);
+
+    // 5) Dispara no Asaas (status sempre real).
+    const transfer = await asaasCreateTransfer({
+      value,
+      pixAddressKey: pixKey,
+      pixAddressKeyType: pixKeyType,
+      description: typeof description === "string" && description.trim() ? description.trim() : `Transferencia para ${account.holderName}`,
+    });
+
+    // 6) Auditoria: quem, quanto e destino MASCARADO (nunca documento/chave inteiros).
+    const actor = req.collaborator!;
+    const [actorProf] = await db
+      .select({ name: professionalsTable.name })
+      .from(professionalsTable)
+      .where(eq(professionalsTable.id, actor.professionalId))
+      .limit(1);
+    try {
+      await db.insert(collaboratorAuditTable).values({
+        professionalId: actor.professionalId,
+        professionalName: actorProf?.name ?? null,
+        action: "write",
+        method: "POST",
+        path: "/asaas/transfer",
+        detail: {
+          bankAccountId: account.id,
+          holderName: account.holderName,
+          bankName: account.bankName,
+          documentMasked: maskTail(account.document),
+          pixKeyMasked: maskTail(pixKey),
+          value,
+          transferId: transfer.id,
+          status: transfer.status,
+        },
+        ip: req.ip ?? null,
+      });
+    } catch {
+      // auditoria nunca derruba a operacao principal
+    }
+
+    res.status(201).json({ transfer });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao transferir via Asaas");
+    res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
+  }
+});
+
+// GET /asaas/transfers — historico de transferencias (status real do Asaas).
+router.get("/asaas/transfers", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const max = Math.min(Number(req.query.max) || 50, 200);
+    const transfers = await asaasListTransfers(max);
+    res.status(200).json({ transfers });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao listar transferencias Asaas");
     res.status(502).json({ error: err instanceof Error ? err.message : "Erro ao falar com o Asaas." });
   }
 });
