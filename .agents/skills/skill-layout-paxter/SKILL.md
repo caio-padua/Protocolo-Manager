@@ -374,8 +374,11 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   `paragrafos[]`, `botao?`, `notaRodape?`, `assunto?`) e chama `enviarMensagemPaxter(doc, destino,
   canais, ctx)`; o motor escolhe o casco por canal e devolve resultado HONESTO por canal
   (`{channel, sent, error?}` — anti-simulacao, Art. 47/65).
-    - E-MAIL: casco "Hermes" — fundo navy `#05080f`, cartao `#0b1426` com moldura ouro
-      `rgba(201,162,79,.30)`, cabecalho com SIMBOLO de vidro + WORDMARK PAXTER (PNGs oficiais em
+    - E-MAIL: casco "Hermes" — fundo "TERNO" navy (v2, 28/06/2026): cor solida de fallback `#0a1430`
+      (MAIS clara que o antigo `#05080f`, que o CEO reprovou por "muito escuro") + gradiente de
+      profundidade `#0b1426->#0e1c3a->#16284e` + brilho dourado discreto no topo + tramado fino a cada
+      22px; cartao `#0e1a34` com moldura ouro
+      `rgba(201,162,79,.34)`, cabecalho com SIMBOLO de vidro + WORDMARK PAXTER (PNGs oficiais em
       `/brand/`, Padrao 14) + subtitulo "CLINICAL INTELLIGENCE SYSTEM", titulo em serifa creme
       `#f3ead6`, paragrafos `#c2cee0`, BOTAO ouro "bulletproof" (gradiente `#f0d488→#b88a3f`, texto
       navy). Quando ha `botao`, mostra SEMPRE o endereco por extenso ("Se o botao nao abrir, copie e
@@ -387,6 +390,20 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
     - REGRA-MAE: nenhuma rota nova reescreve casco/banner por conta propria; estende-se o motor. NUNCA
       logar token (Twilio/Telegram). Canal sem credencial degrada com honestidade (mock/erro nomeado),
       nunca finge envio.
+
+- **Padrao 20 — TABELA DE SUBSTANCIAS ALINHADA no e-mail rico (lei promulgada pelo CEO em 28/06/2026,
+  E-mail Paxter v2; CARTOES descartados pelo CEO na mesma data — ele preferiu a TABELA)**: a lista de
+  substancias de QUALQUER e-mail clinico (pre-sessao, pos-sessao, protocolo, onboarding) e uma TABELA
+  com COLUNAS ALINHADAS na vertical entre TODAS as substancias, sobre painel `#13234a` (um tom ACIMA do
+  card, para "saliente"), com zebra leve nas linhas. Colunas FIXAS, nesta ordem: SUBSTANCIA | DOSE |
+  SESSAO | FREQUENCIA | STATUS. Regras: (1) DOSE so na QUANTIDADE da substancia em miligramagem (ex.:
+  "5 mg") — o motor REMOVE a concentracao "/ N ml" automaticamente (helper `soMiligramas`); (2) nome da
+  substancia em serifa creme `#f3ead6`, ponto colorido semantico opcional antes do nome; (3) SESSAO no
+  formato "4/12"; (4) FREQUENCIA no formato "a cada N dias"; (5) STATUS em pilula (Padrao 4): verde
+  `#0f2a1e/#34d399` = "Aplicado", vermelho `#2a1010/#f87171` = "Nao aplicado"; (6) coluna so aparece se
+  PELO MENOS uma substancia tiver aquele dado (degrade gracioso — sem colunas vazias). Fonte UNICA:
+  `artifacts/api-server/src/lib/messaging/substance-table.ts` (`blocoTabelaSubstancias`); ninguem
+  remonta a tabela a mao (Art. 57). Previa viva: `GET /api/brand/email-preview`.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 

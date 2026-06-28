@@ -10,6 +10,8 @@ import { renderPaxterBannerPng } from "../lib/messaging/banner.js";
 import { renderPaxterEmail } from "../lib/messaging/render-email.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { docAmostraBoasVindas } from "../lib/messaging/sample-doc.js";
+import { enviarMensagemPaxter } from "../lib/messaging/index.js";
+import { getGmailAddress } from "../lib/google-gmail.js";
 
 const router: IRouter = Router();
 
@@ -72,6 +74,32 @@ router.get("/brand/email-preview", (req, res): void => {
   const html = renderPaxterEmail(docAmostraBoasVindas(), absoluteBaseUrl(req));
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
+});
+
+// Envio de TESTE da amostra Paxter para validação na caixa de entrada.
+// Duas travas de segurança (a rota é pública, antes do collaboratorGuard):
+//   1. SOMENTE-DESENVOLVIMENTO — em produção responde 404.
+//   2. AUTOENVIO — só envia para a PRÓPRIA conta Gmail conectada (o "from").
+//      Ignora qualquer destino do corpo, então não é vetor de spam para
+//      terceiros. A ferramenta definitiva de modelos (autenticada, no painel)
+//      entra depois do aval do CEO.
+router.post("/brand/email-test", async (_req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).end();
+    return;
+  }
+  const to = await getGmailAddress();
+  if (!to) {
+    res.status(503).json({ error: "Gmail não conectado" });
+    return;
+  }
+  const envio = await enviarMensagemPaxter(
+    docAmostraBoasVindas(),
+    { email: to, nome: "Dr. Caio" },
+    ["EMAIL"],
+    { baseUrl: absoluteBaseUrl(_req) },
+  );
+  res.json({ resultados: envio.resultados });
 });
 
 export default router;

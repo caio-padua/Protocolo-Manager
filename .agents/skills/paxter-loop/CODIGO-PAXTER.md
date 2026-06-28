@@ -313,6 +313,12 @@ PAXTER + legenda formatada, com degrade gracioso para texto quando a imagem não
 status honesto por canal (enviado/mock/erro), nunca fingir envio; (e) o padrão é registrado na skill
 `skill-layout-paxter` (Lei do Layout, Art. 59) para herdar nos primos; (f) token de canal NUNCA logado.
 Alvo escrito: `specs/padrao-envios-paxter.md`.
+APRIMORAMENTO v2 (E-MAIL PAXTER v2, aprovado pelo CEO em 28/06/2026): o casco do e-mail passa a usar
+fundo "TERNO" navy MAIS claro (fallback `#0a1430` + gradiente de profundidade + brilho dourado + tramado
+fino), porque o CEO reprovou o e-mail "muito escuro"; e a lista de substancias deixa de ser tabela e
+vira CARTOES empilhados de 3 linhas (nome+dose so em mg / sessoes+frequencia / status em pilula), por
+fonte unica `messaging/substance-cards.ts` (`blocoCartoesSubstancias`). Registrado como Padrao 19
+(atualizado) + Padrao 20 (novo) na skill `skill-layout-paxter`. Spec: `specs/onda-emails-ricos-hermes.md`.
 
 ---
 
@@ -376,6 +382,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 28/06/2026 | Art. 66 v2 + Padrao 19/20 (skill) | E-mail Paxter v2 aprovado pelo CEO: fundo "terno" navy MAIS claro (fallback #0a1430 + gradiente + brilho dourado + tramado) substitui o #05080f "muito escuro". A lista de substancias: o CEO TESTOU cartoes e na mesma data DESCARTOU — preferiu a TABELA com COLUNAS ALINHADAS na vertical (SUBSTANCIA \| DOSE \| SESSAO \| FREQUENCIA \| STATUS), dose so em miligramagem (motor remove "/ N ml"), sessao "4/12", frequencia "a cada N dias", status em pilula, coluna omitida se ninguem tiver o dado. Fonte unica `messaging/substance-table.ts` (`blocoTabelaSubstancias`); `substance-cards.ts` removido. Registrado como Padrao 20 (atualizado: TABELA) + Padrao 19 na skill `skill-layout-paxter`. Previa viva: `GET /api/brand/email-preview`; envio de teste dev-only: `POST /api/brand/email-test {to}`. Memoria: `email-paxter-v2-terno-tabela`. |
 | 28/06/2026 | Art. 68 (Título III) | Dado real antes de fixture, promulgado pelo "freio de mão" do CEO: antes de criar qualquer dado de teste/exemplo (fixture/mock), o agente verifica se já existe o dado REAL no sistema e o usa; fixture só é permitido para validação puramente visual de layout (renderização), nunca para provar fluxo de negócio. Operar o sistema de verdade vence simulação. |
 | 28/06/2026 | Art. 67 (Título III) | Autonomia na opção óbvia, a pedido do CEO: quando há uma opção claramente mais robusta/eficiente/sólida e o CEO já sinalizou que quer "o melhor", o agente segue direto por ela (anunciando a escolha), sem parar para perguntar. Exceções que ainda exigem pergunta: ação destrutiva/irreversível (apagar dado, dinheiro real), mudar decisão travada do CEO (Art. 21), ou escopo/arquitetura ambíguo com trade-off real. |
 | 28/06/2026 | Art. 66 (Título X) | Motor único de envio branded ("Hermes Paxter"), a pedido do CEO: todo envio (e-mail/WhatsApp/Telegram) passa por um motor único que aplica o padrão de marca; e-mail de cadastro é a fonte-da-verdade visual (motor replica, não redesenha); nenhuma rota monta mensagem de marca à mão (Art. 57); WhatsApp/Telegram com banner PAXTER + legenda e degrade para texto; status honesto por canal; padrão registrado na skill `skill-layout-paxter`. Spec: `specs/padrao-envios-paxter.md`. |

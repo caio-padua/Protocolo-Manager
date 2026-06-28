@@ -131,3 +131,15 @@ export async function isGmailConnected(): Promise<boolean> {
     return false;
   }
 }
+
+// Endereço da própria conta Gmail conectada (o "from"). Usado para enviar
+// e-mails de TESTE só para a própria caixa, nunca para terceiros.
+export async function getGmailAddress(): Promise<string | null> {
+  try {
+    const gmail = await getUncachableGmailClient();
+    const prof = await gmail.users.getProfile({ userId: "me" });
+    return prof.data.emailAddress ?? null;
+  } catch {
+    return null;
+  }
+}
