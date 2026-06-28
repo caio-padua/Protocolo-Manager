@@ -267,8 +267,9 @@ export function IntegrationCard({
           <div className={`bevel-3d flex h-8 w-8 shrink-0 items-center justify-center ${accent}`}>
             <Icon className="h-4 w-4" />
           </div>
-          <span className={`paxter-led paxter-led-breathe ${ledClass} shrink-0`} />
           <h3 className="truncate text-sm font-semibold uppercase tracking-[0.08em]">{name}</h3>
+          {/* Luz de vela a DIREITA do nome (decisao do CEO 28/06/2026: melhor concordancia). */}
+          <span className={`paxter-led paxter-led-breathe ${ledClass} shrink-0`} />
         </div>
         <StatusInsert on={on} pending={pending} error={error} labelOn={labelOn} labelOff={labelOff} />
       </div>
@@ -295,6 +296,8 @@ export function CredentialField({
   value,
   onChange,
   onReveal,
+  normalize,
+  placeholder,
 }: {
   label: string;
   isSet: boolean;
@@ -304,6 +307,9 @@ export function CredentialField({
   value: string;
   onChange: (v: string) => void;
   onReveal: () => Promise<string | null>;
+  // Limpa o valor revelado antes de exibir (ex.: tirar o prefixo "whatsapp:").
+  normalize?: (v: string) => string;
+  placeholder?: string;
 }) {
   const [revealed, setRevealed] = useState(false);
   const [revealing, setRevealing] = useState(false);
@@ -319,7 +325,7 @@ export function CredentialField({
       setRevealing(true);
       try {
         const real = await onReveal();
-        if (real != null) onChange(real);
+        if (real != null) onChange(normalize ? normalize(real) : real);
       } finally {
         setRevealing(false);
       }
@@ -334,9 +340,19 @@ export function CredentialField({
 
   return (
     <div className="space-y-1">
-      <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </label>
+      {/* Rotulo + SELO de estado (palavra, nao luz): evita "tanta luzinha verde"
+          e diz num relance se o campo tem valor — sem precisar clicar no olho.
+          "Configurado" = guardado no cofre (NUNCA "autenticado": nao testamos a chave). */}
+      <div className="flex items-center justify-between gap-2">
+        <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {label}
+        </label>
+        <span className="bevel-3d inline-flex shrink-0 items-center px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+          <span className={isSet ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>
+            {isSet ? "Configurado" : "Vazio"}
+          </span>
+        </span>
+      </div>
       <div className="concave-3d flex h-10 items-center gap-1 pl-1 pr-1">
         <Input
           className="field-engraved h-8 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
@@ -344,7 +360,7 @@ export function CredentialField({
           autoComplete="new-password"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={isSet ? "Clique no olho para ver, ou cole um novo valor" : `Cole: ${label}`}
+          placeholder={placeholder ?? (isSet ? "Clique no olho para ver, ou cole um novo valor" : `Cole: ${label}`)}
         />
         <button
           type="button"

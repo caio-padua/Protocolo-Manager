@@ -31,6 +31,18 @@ sugeriu gate por papel (só adm/tech) + auditoria. Auditoria foi feita; o gate p
 decisão do CEO porque conflita com a regra "dono vê o próprio segredo" e com o modelo single-tenant
 do app inteiro (ver `admin-api-sem-auth.md`).
 
+## Refinamentos do CEO (28/06/2026)
+
+- **Selo de campo = PALAVRA, não luz.** Cada campo de credencial mostra um selo bevel "Configurado"
+  (verde) / "Vazio" (âmbar) na linha do rótulo, para dizer num relance se tem valor sem clicar no
+  olho. **Why:** o CEO recusou "tanta luzinha verde"; palavra é mais TOC-clara que cor a decodificar.
+- **Honestidade no selo:** dizer "Configurado" (= guardado no cofre), NUNCA "Autenticado/Certificado"
+  — o sistema não testa se a chave funciona. Anti-simulação.
+- **Não repetir o nome do canal dentro do campo.** Valor com prefixo técnico (ex.: WhatsApp guardado
+  como `whatsapp:+...`) exibe só o número via prop `normalize`; o rótulo já diz o canal e o motor de
+  envio recoloca o prefixo (`whatsapp.ts` normaliza `startsWith("whatsapp:")`).
+- **Luz de vela do cabeçalho fica à DIREITA do nome** (antes colada ao ícone) — melhor concordância.
+
 ## Armadilha de validação (token de colaborador)
 
 Telas com `requireCollaborator` não rendem no navegador do `screenshot` (sessão sem token → GET 401

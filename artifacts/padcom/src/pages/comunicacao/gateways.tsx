@@ -207,19 +207,26 @@ function CredentialsForm({
         <KeyRound className="h-3.5 w-3.5" />
         Credenciais (cofre cifrado)
       </div>
-      {gateway.fields.map((f) => (
-        <CredentialField
-          key={f.field}
-          label={f.label}
-          isSet={f.isSet}
-          masked={f.masked}
-          source={f.source}
-          secret={f.secret}
-          value={values[f.field] ?? ""}
-          onChange={(v) => setValues((prev) => ({ ...prev, [f.field]: v }))}
-          onReveal={() => revealField(f.field)}
-        />
-      ))}
+      {gateway.fields.map((f) => {
+        // O numero do WhatsApp mostra SO o numero (sem "whatsapp:"); o rotulo ja
+        // diz que e do WhatsApp e o motor de envio recoloca o prefixo sozinho.
+        const isWhats = f.field === "whatsappFrom";
+        return (
+          <CredentialField
+            key={f.field}
+            label={f.label}
+            isSet={f.isSet}
+            masked={f.masked}
+            source={f.source}
+            secret={f.secret}
+            value={values[f.field] ?? ""}
+            onChange={(v) => setValues((prev) => ({ ...prev, [f.field]: v }))}
+            onReveal={() => revealField(f.field)}
+            normalize={isWhats ? (v) => v.replace(/^whatsapp:/i, "") : undefined}
+            placeholder={isWhats ? "Somente o número, ex.: +14155238886" : undefined}
+          />
+        );
+      })}
       <div className="flex justify-end">
         <Button type="button" className="btn-3d" disabled={saving} onClick={submit}>
           <Save className="mr-2 h-4 w-4" />

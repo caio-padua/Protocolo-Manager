@@ -324,22 +324,31 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   informacao). Componentes reusaveis em `artifacts/padcom/src/pages/comunicacao/_shared.tsx`:
   `IntegrationCard`, `StatusInsert`, `ToggleWell`, `CredentialField`.
     - ZONA A (cabecalho): icone em placa Bevel PROPORCIONAL (`h-8 w-8`, glifo `h-4 w-4` — nunca o
-      `h-9/h-5` antigo, que o CEO julgou grande demais) + LUZ DE VELA (Padrao 17) COLADA ao icone (a
-      luz fica ao lado do icone, nao a direita do card) + nome em MAIUSCULO. A direita, o STATUS
-      TEXTUAL dentro de um insert Concavo (`StatusInsert`) de largura FIXA (`min-w-[124px]`):
-      "Configurado" (verde) / "Sem credenciais" (ambar) / "Indisponivel" (vermelho, em erro) /
-      "Verificando..." (neutro). O texto de status mora no sulco — nunca solto.
+      `h-9/h-5` antigo, que o CEO julgou grande demais) + nome em MAIUSCULO + LUZ DE VELA (Padrao 17)
+      a DIREITA do nome (decisao do CEO em 28/06/2026: melhor concordancia; antes ficava colada ao
+      icone). A direita do card, o STATUS TEXTUAL dentro de um insert Concavo (`StatusInsert`) de
+      largura FIXA (`min-w-[124px]`): "Configurado" (verde) / "Sem credenciais" (ambar) /
+      "Indisponivel" (vermelho, em erro) / "Verificando..." (neutro). O texto de status mora no
+      sulco — nunca solto.
     - ZONA B (toggle no TOPO): o liga/desliga ("Gateway ativo") fica LOGO ABAIXO do cabecalho, ANTES
       da informacao, num `ToggleWell` (sulco Concavo, Padrao 5) — nunca misturado no meio do bloco.
     - ZONA C (informacao): linhas `ExplainRow`, cada uma com a luz a ESQUERDA (`shrink-0`), alinhadas
       por uma linha vertical imaginaria mesmo com frases de tamanhos diferentes.
-    - ZONA D (credencial): por campo, `CredentialField` — rotulo MAIUSCULO EM CIMA, e EMBAIXO um
-      retangulo insert Concavo (altura fixa `h-10`) com o input + um OLHO (`Eye`/`EyeOff`). Legenda
-      fixa abaixo ("No cofre: ••••1234 · cofre" ou "No cofre: —"), slot constante. O OLHO revela o
+    - ZONA D (credencial): por campo, `CredentialField` — na linha do rotulo MAIUSCULO, a DIREITA, um
+      SELO em placa Bevel com a PALAVRA de estado: "Configurado" (verde) quando ha valor no cofre /
+      "Vazio" (ambar) quando nao ha. O selo e PALAVRA, nao luz: decisao do CEO em 28/06/2026 para
+      NAO encher o card de luzinhas verdes e para dizer num relance se o campo tem valor sem precisar
+      clicar no olho. HONESTIDADE (anti-simulacao): o selo diz "Configurado" (= guardado no cofre),
+      NUNCA "Autenticado"/"Certificado" — o sistema nao testa se a chave realmente funciona. EMBAIXO,
+      um retangulo insert Concavo (altura fixa `h-10`) com o input + um OLHO (`Eye`/`EyeOff`), e a
+      legenda fixa ("No cofre: ••••1234 · cofre" ou "No cofre: —"), slot constante. O OLHO revela o
       VALOR REAL do cofre: o dono logado tem direito de ver o proprio segredo (analogia do CEO: "ver
       meu proprio RG"). Isso NAO viola a regra de seguranca (Art. 65): o valor nunca trafega por
       padrao — so sob acao explicita, por rota POST `/reveal` protegida por `requireCollaborator`
-      (mesma protecao da gravacao). Campo vazio = mantem o valor atual ao salvar.
+      (mesma protecao da gravacao). Campo vazio = mantem o valor atual ao salvar. Campo que carrega
+      valor com prefixo tecnico (ex.: numero do WhatsApp guardado como `whatsapp:+...`) exibe SO a
+      parte util (o numero) via prop `normalize`; o rotulo ja diz o canal e o motor de envio recoloca
+      o prefixo sozinho — nao repetir a palavra do canal dentro do campo.
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
