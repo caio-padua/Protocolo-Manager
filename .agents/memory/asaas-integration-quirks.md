@@ -16,6 +16,11 @@ Regras descobertas ligando o gateway Asaas (cobranca avulsa + assinatura). Valem
   na de sandbox (e vice-versa). Um 401 cruzado NAO e chave invalida — e ambiente errado.
 - **Ordem obrigatoria**: criar `POST /customers` (exige `cpfCnpj` valido) ANTES de `POST /payments`
   (o payment referencia o `customer` id). Sem cliente nao ha cobranca.
+- **CPF e validado por digito verificador no `createCustomer`**: cliente com CPF placeholder/invalido
+  (ex.: `000.000.000-14`) faz a cobranca falhar 502 `"O CPF/CNPJ informado e invalido."`. Cobranca real exige
+  CPF checksum-valido. **Cuidado de integridade**: NAO deixar CPF sintetico em cliente REAL como estado final
+  (vira dado mestre inconsistente + identidade de cobranca divergente do titular); usar CPF real do titular ou
+  cliente sandbox dedicado. **How to apply**: para teste de cobranca real, pedir o CPF real ao titular antes.
 - **billingType `UNDEFINED`** ("Pergunte ao Cliente" = pagina com PIX+boleto+cartao) tem valor minimo
   **R$ 5,00**. Para valores menores usar billingType especifico (ex.: PIX).
 - **Pagina "clica e paga"**: o campo `invoiceUrl` da resposta do payment e a pagina hospedada do Asaas
