@@ -1,6 +1,7 @@
 # Spec — Concierge: Pagamento do Encaixe + Narrativa de Escassez (porta de entrada do paciente)
 
-Status: RASCUNHO (aguardando o CEO travar o VALOR da taxa e confirmar o modelo de disponibilidade).
+Status: RASCUNHO (valor TRAVADO: R$ 150,00 = 20% antecipado da consulta de R$ 750,00; falta confirmar
+tipo de Nota Fiscal e modelo de disponibilidade).
 Data: 30/06/2026. Dono: Dr. Replit Paxter. Decisao do CEO: Opcao A (cobranca no nome do paciente).
 
 ## Objetivo (uma frase)
@@ -35,7 +36,8 @@ luta pelo seu horario".
 R1. Passo de pagamento "porta de entrada" redesenhado no padrao navy/ouro (skill-layout-paxter), elegante
     e classico, sem nada que gere antipatia (alinhamento, tipografia classica, simbolo de vidro 3D).
 R2. Opcao A — cobranca no NOME do paciente: ao confirmar Via Concierge, cria a cobranca vinculada ao
-    paciente (nome + CPF), valor = taxa concierge (a definir), e entra no Financeiro automaticamente.
+    paciente (nome + CPF), valor = R$ 150,00 (antecipacao de 20% da consulta, cujo total e R$ 750,00),
+    e entra no Financeiro automaticamente.
 R3. Formas de pagamento exibidas na propria tela (todas):
     R3a. PIX QR dinamico (Asaas) com codigo copia-e-cola — concilia sozinho pelo webhook.
     R3b. PIX copia-e-cola ESTATICO da chave CNPJ 63.865.940/0001-63 (BR Code/EMV gerado offline) — para
@@ -52,6 +54,14 @@ R6. Conciliacao: somente o caminho Asaas (R3a/R3c) avanca a narrativa automatica
     (R3b) fica "aguardando confirmacao do Financeiro" ate baixa manual (honestidade no status).
 R7. Origem dos horarios (R4b): curadoria MANUAL pelo concierge (Dr. Caio nao tem agenda publica). A clinica
     abre 2 a 4 janelas reais por pedido. [DEFAULT proposto — confirmar com o CEO.]
+R8. Nota Fiscal + e-mail fiscal: ao confirmar o pagamento, o sistema emite a Nota Fiscal e envia e-mail
+    com os DADOS DO PRESTADOR (Dr. Caio / empresa) e a descricao do servico, para que planos de saude
+    aceitem o reembolso. Descricao obrigatoria no corpo do e-mail:
+    "Servico de concierge — antecipacao de 20% da consulta. Valor antecipado: R$ 150,00.
+     Valor total da consulta: R$ 750,00."
+R9. Tema ESCURO por padrao na tela de marcacao de consulta, com botao para alternar para o claro.
+R10. A tela de marcacao de consulta sera redesenhada; o CEO vai escolher entre 5 opcoes de layout
+     (exploracao no Canvas), todas melhores que a atual e iniciando no tema escuro.
 
 ## Fluxo (blueprint)
 ```
@@ -83,7 +93,11 @@ Paciente escolhe "Via Concierge"
 - architect aprova requisito por requisito; comunicacao final em Densidade B.
 
 ## Decisoes pendentes do CEO (Fase 1 do loop)
-D1. VALOR da taxa concierge (so o CEO sabe). BLOQUEIA o build.
+D1. RESOLVIDO (30/06/2026): R$ 150,00 = 20% antecipado da consulta de R$ 750,00.
+D4. Tipo de Nota Fiscal: (a) NFS-e oficial (Nota Fiscal de Servico eletronica) — exige cadastro fiscal
+    municipal (inscricao municipal, certificado, integracao com prefeitura/modulo fiscal do Asaas);
+    (b) recibo/comprovante detalhado com os dados do prestador e a descricao, enviado por e-mail (rapido,
+    NAO e NF oficial). DEFAULT recomendado: comecar por (b) e habilitar (a) quando os dados fiscais existirem.
 D2. Tempo "X" da tela "Concierge em acao" (sugestao: nao prender o paciente; mostrar "em ate algumas horas"
     e tambem avisar por WhatsApp/e-mail quando as janelas abrirem). Confirmar.
 D3. Modelo de disponibilidade (R7): curadoria manual (default) x agenda dedicada do Dr. Caio. Confirmar.
