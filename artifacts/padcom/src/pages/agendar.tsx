@@ -441,7 +441,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // Motores: porcentagem animada + mensagem encadeada (so Motor #2) + faixa vermelha transitoria.
   const [pct, setPct] = useState(0);
   const [msgIdx, setMsgIdx] = useState(0);
-  const [showRed, setShowRed] = useState(false);
+  // Faixa de status do Ato IV: 0=vermelho (sem vaga) -> 1=amarelo (verificando concierge) -> 2=verde (Helena disponivel).
+  const [viaPhase, setViaPhase] = useState<0 | 1 | 2>(0);
 
   const createReq = useCreateSchedulingRequest();
   const [success, setSuccess] = useState(false);
@@ -561,12 +562,14 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     return () => cancelAnimationFrame(raf);
   }, [stage]);
 
-  // Faixa vermelha "existe outra possibilidade": surge e some ao entrar nas vias.
+  // Faixa de status do Ato IV: vermelho (0-4s) -> amarelo "verificando" (4-10s) -> verde "Helena disponivel" (10s, permanente).
+  // Tempos calibrados por atencao: ~4s para ler o problema, ~6s de suspense (com spinner) e o verde fica fixo.
   useEffect(() => {
-    if (stage !== "vias") { setShowRed(false); return; }
-    setShowRed(true);
-    const t = setTimeout(() => setShowRed(false), 5000);
-    return () => clearTimeout(t);
+    if (stage !== "vias") { setViaPhase(0); return; }
+    setViaPhase(0);
+    const t1 = setTimeout(() => setViaPhase(1), 4000);   // amarelo: verificando o concierge
+    const t2 = setTimeout(() => setViaPhase(2), 10000);  // verde: Helena disponivel (revela as vias)
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [stage]);
 
   const submit = (finalPath: "concierge" | "fila") => {
@@ -649,13 +652,10 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
           border-radius: 12px;
         }
-        .dc-luxo .dc-redflash { animation: dcRedFlash 5s ease-in-out forwards; }
-        @keyframes dcRedFlash {
-          0% { opacity: 0; transform: translateY(-6px); }
-          12% { opacity: 1; transform: translateY(0); }
-          80% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-4px); visibility: hidden; }
-        }
+        .dc-luxo .dc-status { transition: background-color .8s ease, border-color .8s ease; }
+        .dc-luxo .dc-dot { transition: all .5s ease; }
+        .dc-luxo .dc-dot-live { animation: dcDotPulse 1.2s ease-in-out infinite; }
+        @keyframes dcDotPulse { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.4); opacity: 1; } }
       `}</style>
 
       {/* Cabeçalho editorial */}
@@ -743,20 +743,42 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             <div className="flex flex-col gap-7">
               <section>
                 <h3 className="dc-serif italic dc-gold text-xl mb-3">IV. A Agenda</h3>
-                <p className={`text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                  Não há vaga na data que o senhor escolheu. A próxima abertura na via comum é apenas a partir de <strong className="dc-gold font-semibold">{viaComum.earliestLabel}</strong>.
-                </p>
+                {/* Faixa de status que muda de cor: vermelho (sem vaga) -> amarelo (verificando) -> verde (Helena disponivel) */}
+                <div className={`dc-status flex flex-col gap-3 p-4 rounded-lg border ${
+                  viaPhase === 0 ? "border-red-500/50 bg-red-500/10"
+                  : viaPhase === 1 ? "border-amber-500/50 bg-amber-500/10"
+                  : "border-emerald-500/50 bg-emerald-500/10"
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {viaPhase === 0 && <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />}
+                    {viaPhase === 1 && <Loader2 className="w-5 h-5 shrink-0 text-amber-500 animate-spin" />}
+                    {viaPhase === 2 && <CheckCircle className="w-5 h-5 shrink-0 text-emerald-500" />}
+                    <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
+                      viaPhase === 0 ? (isDark ? "text-red-300" : "text-red-700")
+                      : viaPhase === 1 ? (isDark ? "text-amber-300" : "text-amber-700")
+                      : (isDark ? "text-emerald-300" : "text-emerald-700")
+                    }`}>
+                      {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
+                      {viaPhase === 1 && "Verificando se o serviço de Concierge pode abrir uma exceção para o seu caso…"}
+                      {viaPhase === 2 && "A Helena, sua concierge particular, conseguiu. A sua prioridade foi liberada."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pl-8">
+                    {[0, 1, 2].map((i) => {
+                      const color = i === 0 ? "bg-red-500" : i === 1 ? "bg-amber-500" : "bg-emerald-500";
+                      return (
+                        <span
+                          key={i}
+                          className={`dc-dot w-2 h-2 rounded-full ${color} ${i <= viaPhase ? "opacity-100" : "opacity-25"} ${i === viaPhase ? "dc-dot-live" : ""}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               </section>
 
-              {showRed && (
-                <div className="dc-redflash flex items-start gap-3 p-4 rounded-lg border border-red-500/50 bg-red-500/10">
-                  <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
-                  <p className={`text-sm leading-relaxed ${isDark ? "text-red-300" : "text-red-700"}`}>
-                    Avaliamos o seu caso: o serviço de Concierge está à disposição para o senhor — uma exceção reservada a quem precisa de prioridade.
-                  </p>
-                </div>
-              )}
-
+              {viaPhase === 2 && (
+              <div className="dc-reveal flex flex-col gap-7">
               <div className="flex flex-col gap-5">
                 {/* Via Concierge */}
                 <button type="button" onClick={() => setVia("concierge")} className={`dc-concierge p-7 relative overflow-hidden text-left transition-all ${via === "concierge" ? "ring-2 ring-[#c2a05a]" : ""}`}>
@@ -767,10 +789,13 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] flex items-center justify-center shadow-lg"><Check className="w-5 h-5 text-[#16284a]" /></div>
                       <h4 className="dc-serif text-2xl dc-gold">Via Concierge</h4>
                     </div>
+                    <p className={`text-[14px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                      A <strong className="dc-gold font-semibold">Helena</strong> é a sua concierge particular: quando não há vaga, ela abre uma exceção e organiza pessoalmente o seu atendimento prioritário.
+                    </p>
                     <ul className={`flex flex-col gap-2 text-[14px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Horário já na semana que vem.</li>
-                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Concierge particular cuida do encaixe.</li>
-                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Antecipa R$ 150,00 (20% da consulta).</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Horário já na próxima semana, conforme a sua preferência.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> A Helena acompanha o seu encaixe do início ao fim.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> O senhor antecipa R$ 150,00 (20% da consulta de R$ 750,00); o restante é pago no dia.</li>
                     </ul>
                   </div>
                 </button>
@@ -799,6 +824,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               >
                 Continuar <ArrowRight className="w-4 h-4" />
               </button>
+              </div>
+              )}
             </div>
           )}
 
