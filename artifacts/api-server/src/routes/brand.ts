@@ -76,28 +76,48 @@ router.get("/brand/email-preview", (req, res): void => {
   res.send(html);
 });
 
-// Envio de TESTE da amostra Paxter para validação na caixa de entrada.
-// Duas travas de segurança (a rota é pública, antes do collaboratorGuard):
-//   1. SOMENTE-DESENVOLVIMENTO — em produção responde 404.
-//   2. AUTOENVIO — só envia para a PRÓPRIA conta Gmail conectada (o "from").
-//      Ignora qualquer destino do corpo, então não é vetor de spam para
-//      terceiros. A ferramenta definitiva de modelos (autenticada, no painel)
-//      entra depois do aval do CEO.
-router.post("/brand/email-test", async (_req, res): Promise<void> => {
+// Envio de TESTE da amostra Paxter para validação (e-mail e/ou WhatsApp).
+// Trava de segurança: rota SOMENTE-DESENVOLVIMENTO — em produção responde 404
+// (não vira vetor de envio quando publicado). A ferramenta definitiva de
+// modelos (autenticada, no painel) entra depois do aval do CEO.
+//   - sem corpo: AUTOENVIO de e-mail para a própria conta Gmail conectada.
+//   - { to }: e-mail para o endereço informado (validação do CEO).
+//   - { whats }: WhatsApp para o telefone informado (formato E.164, ex.: +55119...).
+router.post("/brand/email-test", async (req, res): Promise<void> => {
   if (process.env.NODE_ENV === "production") {
     res.status(404).end();
     return;
   }
-  const to = await getGmailAddress();
-  if (!to) {
-    res.status(503).json({ error: "Gmail não conectado" });
-    return;
+  const body = (req.body ?? {}) as { to?: string; whats?: string };
+  const to = String(body.to ?? "").trim();
+  const whats = String(body.whats ?? "").trim();
+
+  const canais: ("EMAIL" | "WHATSAPP")[] = [];
+  let email: string | null = null;
+  if (whats) canais.push("WHATSAPP");
+  if (to) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+      res.status(400).json({ error: "destino (to) inválido" });
+      return;
+    }
+    email = to;
+    canais.push("EMAIL");
   }
+  // Sem nenhum destino informado -> autoenvio de e-mail para a conta conectada.
+  if (canais.length === 0) {
+    email = await getGmailAddress();
+    if (!email) {
+      res.status(503).json({ error: "Gmail não conectado" });
+      return;
+    }
+    canais.push("EMAIL");
+  }
+
   const envio = await enviarMensagemPaxter(
     docAmostraBoasVindas(),
-    { email: to, nome: "Dr. Caio" },
-    ["EMAIL"],
-    { baseUrl: absoluteBaseUrl(_req) },
+    { email, telefone: whats || null, nome: "Dr. Caio" },
+    canais,
+    { baseUrl: absoluteBaseUrl(req) },
   );
   res.json({ resultados: envio.resultados });
 });

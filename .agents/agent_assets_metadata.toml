@@ -191,3 +191,9 @@ id = "WfO3lLz9GsqD8R7VSVSN4"
 uri = "file://amostras-fabrica/02-receituario-instituto-padua.pdf"
 type = "pdf"
 title = "2) Receituário (marca Instituto Pádua)"
+
+[[outputs]]
+id = "QAsVngAojrSyFwdKhJBC7"
+uri = "file://screenshots/email-paxter-v2.jpg"
+type = "image"
+title = "Amostra do e-mail PAXTER v2 (como vai chegar)"
