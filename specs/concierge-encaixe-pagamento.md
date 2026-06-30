@@ -254,3 +254,102 @@ R8. Botao "voltar" do cabecalho: Passo 3 -> Passo 2 -> Passo 1 -> sai do fluxo. 
 - Apos a espera, grade com 2 manha + 2 tarde (R5) — screenshot dark e light.
 - Escolher horario habilita "Confirmar meu horario"; payload leva chosenDate/chosenTime (R6).
 - architect aprova requisito a requisito; comunicacao final em Densidade B.
+
+---
+
+## REVISAO 3 — Calendario primeiro + DOIS motores + Via Comum x Concierge (decisao do CEO, 30/06/2026)
+
+CONCLUSAO: o CEO refinou o fluxo. O cliente comeca escolhendo SO a data num calendario. Um "motor"
+trabalha 3 segundos e revela que naquele dia nao ha vaga, mostrando a data realmente disponivel pela
+via comum (distante: 2,5 a 3,5 meses). So entao aparecem as duas vias bem explicadas. A Via Comum
+mostra dias da semana dentro da janela distante; o Concierge (pago) traz a SEMANA SEGUINTE a
+solicitacao. Esta revisao SUBSTITUI a estrutura/timing da REVISAO 2 (R1-R8) e da MULT SPEC anterior.
+Mantem as linhas vermelhas de dinheiro e a regra "backend intacto" (so campos JA existentes).
+
+DECISAO DE ARQUITETURA (tomada pelo Paxter, nao pelo CEO): horarios SIMULADOS convincentes (opcao A),
+sem consultar a agenda real nesta versao. Ligar na agenda real fica para uma onda futura.
+
+### Mudanca-chave confirmada pelo CEO (a inversao da carencia)
+| Momento | Antes (no ar hoje) | Agora (Revisao 3) |
+|---|---|---|
+| Caminho comum, SEM concierge | nenhuma data antes do pagamento | mostra a data DISTANTE (2,5 a 3,5 meses) |
+| COM concierge, depois do motor | horarios ~3 meses a frente | horarios PROXIMOS (semana seguinte a solicitacao) |
+
+### Fluxo (blueprint)
+```
+Passo 1: Credenciais (nome/telefone/cpf/email) + Desejo + CALENDARIO (escolhe so a data)
+   -> "Prosseguir" (exige nome + telefone + data)
+Passo 2: MOTOR #1 (simbolo Paxter "respirando" + porcentagem no canto inferior direito; ~3s)
+   -> "Nao ha vaga nesse dia" + data realmente disponivel pela via comum (2,5 a 3,5 meses)
+   -> mensagem VERMELHA transitoria ("existe outra possibilidade") surge e some
+   -> tela das DUAS VIAS (texto nao-linear, em topicos/paragrafos, TDAH friendly), 2 cards selecionaveis
+        |
+        |-- VIA COMUM (clica o card)
+        |     -> mostra Segunda a Sexta, 1 horario de manha + 1 de tarde por dia,
+        |        dentro da janela distante, colados a consultas ja existentes
+        |     -> cliente escolhe um -> "Confirmar meu horario" -> sucesso
+        |
+        \-- CONCIERGE (clica o card)
+              -> explica o pagamento (texto em paragrafos) + campos: DIA DA SEMANA e HORARIO
+              -> paga R$ 150,00
+              -> MOTOR #2 (respiracao + porcentagem ao lado + painel translucido ambar com frases encadeadas)
+              -> 1 ou poucas opcoes na SEMANA SEGUINTE a solicitacao, conforme o pedido, coladas a
+                 consultas ja existentes
+              -> cliente escolhe -> "Confirmar meu horario" -> sucesso
+```
+
+### Requisitos exatos (Revisao 3)
+V1. Passo 1, secao "III. O Tempo": remover os selects de periodo e de dia-da-semana e qualquer grade.
+    Deixar APENAS um calendario para o cliente escolher a data desejada (mes + dia). "Prosseguir" exige
+    nome + telefone (>=10 digitos) + data escolhida.
+V2. MOTOR #1 (novo): ao Prosseguir, tela de "trabalhando" curta (~3 segundos): simbolo do Paxter com
+    animacao de "respiracao" (escala aproxima/afasta, suave) e uma porcentagem no CANTO INFERIOR DIREITO
+    subindo de 0 a 100%. Duracao por constante.
+V3. Resultado do MOTOR #1: frase honesta de que naquele dia escolhido nao ha vaga e a proxima
+    disponibilidade pela via comum cai entre 2,5 e 3,5 meses (mostrar a DATA por extenso/dd-mm, NUNCA o
+    numero de meses nem a palavra "meses"/"carencia"). Logo apos, uma faixa/toast VERMELHO transitorio
+    "Existe uma outra possibilidade..." que surge e some sozinho.
+V4. Tela das DUAS VIAS: texto NAO-LINEAR — cada frase em sua linha, em topicos, com fluxo visual
+    (alinhamento por linhas imaginarias), TDAH friendly. Dois cards selecionaveis: "Via Comum" e
+    "Concierge", cada um explicando claramente o que entrega.
+V5. VIA COMUM (card clicado): NAO reabre o calendario. Mostra Segunda a Sexta, com 1 horario de manha +
+    1 de tarde por dia, DENTRO da janela distante (2,5 a 3,5 meses), simulados de modo a parecerem
+    colados a consultas ja existentes (horarios plausiveis de clinica, nunca um horario solto isolado).
+    Cliente escolhe um -> habilita "Confirmar meu horario" -> handleSubmit (path "fila"/comum).
+V6. CONCIERGE (card clicado): explica o pagamento em PARAGRAFOS (cada frase numa linha), mostra o valor
+    R$ 150,00 (20% de R$ 750,00) e dois campos de preferencia: DIA DA SEMANA e HORARIO. Apos o pagamento
+    (botao de pagamento + "Ja realizei o pagamento - continuar", igual hoje, modo demo em dev):
+V7. MOTOR #2: tela "trabalhando" mais longa (constante ~14-18s) com simbolo respirando, porcentagem AO
+    LADO do simbolo e, embaixo, um painel TRANSLUCIDO AMBAR com as frases encadeadas (reaproveitar
+    DC_WORK_MESSAGES). Barra/indicador de progresso reforca o motor.
+V8. Resultado do MOTOR #2: 1 a 4 opcoes na SEMANA SEGUINTE a data da solicitacao (proximas, nao
+    distantes), respeitando o dia-da-semana e o horario que o cliente pediu no concierge, simuladas para
+    parecerem coladas a consultas ja existentes. Cliente escolhe -> "Confirmar meu horario" ->
+    handleSubmit (path "concierge") com chosenDate/chosenTime.
+V9. Botao "voltar" do cabecalho navega coerente: resultado -> via -> duas vias -> Passo 1 -> sai. Trocar
+    a data/preferencia limpa o horario escolhido.
+
+### Linha vermelha (mantida)
+- So o fluxo Dr. Caio usa horarios SIMULADOS; Corpo Clinico/Assistente continua com agenda REAL.
+- Backend intacto: nada de OpenAPI/schema/motor; so os campos JA existentes (chosenDate/chosenTime,
+  earliestDate, preferredWeekday, preferredPeriod, path, dados do paciente).
+- Em dev nenhuma cobranca real (modo demo) — inalterado.
+
+### Casos extremos (Revisao 3)
+1. Cliente volta ao Passo 1 e troca a data: limpa horario escolhido; o MOTOR #1 roda de novo no Prosseguir.
+2. Via Comum com janela distante caindo na virada de ano: exibir so dd/mm (sem ano), sem citar prazo.
+3. Concierge: cliente nao escolhe dia/horario: usar defaults coerentes (qualquer dia / manha) e ainda
+   entregar opcoes proximas.
+4. Domingo nao e oferecido (Via Comum = Segunda a Sexta).
+5. Pagamento nao confirmado: nao avanca para o MOTOR #2 nem mostra horarios.
+
+### Definicao de PRONTO (Revisao 3)
+- Passo 1 mostra so o calendario na secao do tempo (V1) — screenshot dark e light.
+- MOTOR #1 (~3s) com respiracao + porcentagem no canto inferior direito; depois "sem vaga" + data
+  distante + faixa vermelha transitoria (V2/V3) — screenshot.
+- Tela das duas vias com texto em topicos e 2 cards selecionaveis (V4) — screenshot.
+- Via Comum: Seg-Sex, 1 manha + 1 tarde, janela distante (V5) — screenshot.
+- Concierge: explicacao em paragrafos + campos dia/horario -> pagar -> MOTOR #2 (painel ambar) ->
+  opcoes da semana seguinte (V6/V7/V8) — screenshot da espera e do resultado.
+- Nenhum texto cita prazo/meses; backend intacto; nenhuma linha vermelha de dinheiro violada.
+- architect aprova requisito a requisito; comunicacao final em Densidade B.
