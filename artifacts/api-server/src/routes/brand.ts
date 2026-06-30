@@ -12,6 +12,7 @@ import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { docAmostraBoasVindas } from "../lib/messaging/sample-doc.js";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
 import { getGmailAddress } from "../lib/google-gmail.js";
+import { getSecret } from "../lib/secure-settings.js";
 
 const router: IRouter = Router();
 
@@ -127,6 +128,58 @@ router.post("/brand/email-test", async (req, res): Promise<void> => {
     { baseUrl: absoluteBaseUrl(req) },
   );
   res.json({ resultados: envio.resultados });
+});
+
+// Diagnóstico SOMENTE-DESENVOLVIMENTO: pergunta ao Twilio o STATUS REAL das
+// últimas mensagens WhatsApp para um destino. O `sent:true` do envio só prova
+// que o Twilio ACEITOU; a entrega real (delivered/undelivered/failed) e o
+// código de erro só aparecem aqui. Também revela se o remetente é o número de
+// SANDBOX (+14155238886), que exige o destinatário ter "entrado" no sandbox.
+function maskTail(s: string): string {
+  const d = s.replace(/\D/g, "");
+  return d.length <= 4 ? "****" : `…${d.slice(-4)}`;
+}
+router.get("/brand/whatsapp-status", async (req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).end();
+    return;
+  }
+  const raw = String((req.query.to as string) ?? "").trim();
+  const dig = raw.replace(/\D/g, "");
+  if (dig.length < 10 || dig.length > 15) {
+    res.status(400).json({ error: "informe ?to= em E.164, ex.: 11946554000" });
+    return;
+  }
+  const sid = (await getSecret("TWILIO_ACCOUNT_SID")) || process.env.TWILIO_ACCOUNT_SID || "";
+  const token = (await getSecret("TWILIO_AUTH_TOKEN")) || process.env.TWILIO_AUTH_TOKEN || "";
+  if (!sid || !token) {
+    res.status(503).json({ error: "credenciais Twilio ausentes" });
+    return;
+  }
+  const e164 = dig.length === 11 ? `+55${dig}` : `+${dig}`;
+  const url =
+    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json` +
+    `?To=${encodeURIComponent(`whatsapp:${e164}`)}&PageSize=5`;
+  const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+  const r = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+  if (!r.ok) {
+    res.status(502).json({ error: "Twilio respondeu erro", twilioStatus: r.status });
+    return;
+  }
+  const data = (await r.json()) as { messages?: Record<string, unknown>[] };
+  const SANDBOX = "+14155238886";
+  const msgs = (data.messages ?? []).map((m) => {
+    const from = String(m.from ?? "").replace("whatsapp:", "");
+    return {
+      status: m.status,
+      errorCode: m.error_code,
+      errorMessage: m.error_message,
+      dataEnvio: m.date_sent,
+      deRemetente: maskTail(from),
+      ehSandbox: from === SANDBOX,
+    };
+  });
+  res.json({ destino: maskTail(e164), total: msgs.length, mensagens: msgs });
 });
 
 export default router;
