@@ -31,8 +31,7 @@ import {
   CreditCard,
   Stethoscope,
   HeartPulse,
-  ArrowRight,
-  Check
+  ArrowRight
 } from "lucide-react";
 
 // --- Helpers ---
@@ -422,11 +421,11 @@ const FAROL_MS = 10000; // farol (stage "vias"): % sobe de 0 a 100 ate o verde (
 // simbolo respirando (topo) e as mensagens do farol (faixa de baixo) fiquem CONCORRENTES.
 // O wrapper .dark forca as classes 3D (panel-3d/concave-3d/bevel-3d) para a variante navy,
 // independente do tema da pagina, igual a tela "foto do paciente" elogiada pelo CEO.
-function TernoFarol({ pct, children, band }: { pct: number; children: ReactNode; band?: ReactNode }) {
+function TernoFarol({ pct, children, band, fill }: { pct: number; children: ReactNode; band?: ReactNode; fill?: boolean }) {
   return (
     <div className="dark">
       <div
-        className="relative overflow-hidden panel-3d rounded-xl p-6 sm:p-7 min-h-[380px] flex flex-col gap-6"
+        className={`relative overflow-hidden panel-3d rounded-xl p-6 sm:p-7 flex flex-col gap-6 ${fill ? "min-h-[calc(100dvh-10rem)]" : "min-h-[380px]"}`}
         style={{ background: "linear-gradient(180deg, #13233f 0%, #0d1830 100%)" }}
       >
         {/* TOPO: simbolo respirando + texto editorial, SEMPRE visivel */}
@@ -817,8 +816,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         }
         .dc-luxo .dc-reveal { animation: dcReveal .6s cubic-bezier(0.16,1,0.3,1) both; }
         @keyframes dcReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .dc-luxo .dc-breathe { display: inline-flex; animation: dcBreathe 2.6s ease-in-out infinite; }
-        @keyframes dcBreathe { 0%, 100% { transform: scale(0.9); opacity: .82; } 50% { transform: scale(1.06); opacity: 1; } }
+        .dc-luxo .dc-breathe { display: inline-flex; animation: dcBreathe 3s ease-in-out infinite; }
+        @keyframes dcBreathe { 0%, 100% { transform: scale(0.97); opacity: .94; } 50% { transform: scale(1.03); opacity: 1; } }
         .dc-luxo .dc-amber {
           background: ${isDark ? "linear-gradient(180deg, rgba(194,160,90,0.16), rgba(138,109,47,0.07))" : "linear-gradient(180deg, rgba(244,226,168,0.5), rgba(194,160,90,0.14))"};
           border: 1px solid rgba(194,160,90,0.4);
@@ -904,8 +903,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           {/* MOTOR #1 — verificação curta da agenda (mesma moldura terno do farol) */}
           {stage === "motor1" && (
-            <TernoFarol pct={pct}>
-              <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+            <TernoFarol pct={pct} fill>
+              <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
               <p className="dc-serif italic text-lg text-stone-200">Consultando a agenda do Dr. Caio…</p>
             </TernoFarol>
           )}
@@ -916,6 +915,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               {/* FAROL — terno azul-marinho: simbolo respirando no topo + faixa de status embaixo, CONCORRENTES */}
               <TernoFarol
                 pct={pct}
+                fill={viaPhase !== 2}
                 band={
                   <div
                     className={`dc-status relative overflow-hidden rounded-md min-h-[60px] flex items-center pl-5 pr-4 py-3 ${
@@ -945,7 +945,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   </div>
                 }
               >
-                <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+                <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.28em] dc-gold mb-1">IV. A Agenda</p>
                   <p className="dc-serif italic text-lg text-stone-200">
@@ -959,16 +959,14 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               </TernoFarol>
 
               {viaPhase === 2 && (
-              <div className="dc-reveal flex flex-col gap-7">
+              <div className={`dc-reveal flex flex-col gap-7 ${isDark ? "dark" : ""}`}>
               <div className="flex flex-col gap-5">
-                {/* Via Concierge */}
-                <button type="button" onClick={() => setVia("concierge")} className={`dc-concierge p-7 relative overflow-hidden text-left transition-all ${via === "concierge" ? "ring-2 ring-[#c2a05a]" : ""}`}>
-                  <div className="absolute top-0 right-0 p-4 opacity-[0.06] pointer-events-none"><Star className="w-28 h-28 text-[#c2a05a]" /></div>
-                  {via === "concierge" && <div className="absolute top-0 right-0 w-9 h-9 bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#16284a]" /></div>}
-                  <div className="relative z-10 flex flex-col gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] flex items-center justify-center shadow-lg"><Check className="w-5 h-5 text-[#16284a]" /></div>
+                {/* Via Concierge — MESMO padrao 3D (panel-3d) da Via comum, SEM indicio de preferencia */}
+                <button type="button" onClick={() => setVia("concierge")} className={`panel-3d w-full p-6 sm:p-7 rounded-lg text-left transition-all ${via === "concierge" ? "panel-3d-active" : ""}`}>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2.5">
                       <h4 className="dc-serif text-2xl dc-gold">Via Concierge</h4>
+                      <span aria-hidden className="block h-px w-full" style={{ background: isDark ? "linear-gradient(90deg, transparent, rgba(194,160,90,0.5), transparent)" : "linear-gradient(90deg, transparent, rgba(138,109,47,0.45), transparent)", boxShadow: isDark ? "0 1px 0 rgba(255,255,255,0.05)" : "0 1px 0 rgba(255,255,255,0.7)" }} />
                     </div>
                     <p className={`text-[14px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
                       A <strong className="dc-gold font-semibold">Helena</strong> é a sua concierge particular: quando não há vaga, ela abre uma exceção e organiza pessoalmente o seu atendimento prioritário.
@@ -987,14 +985,19 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   <div className="h-px flex-1 bg-gradient-to-l from-transparent via-stone-500/30 to-transparent" />
                 </div>
 
-                {/* Via Comum */}
-                <button type="button" onClick={() => setVia("comum")} className={`w-full p-6 border rounded-lg flex flex-col gap-3 text-left transition-all ${via === "comum" ? (isDark ? "border-slate-400 bg-[#1c335c]" : "border-stone-400 bg-stone-100") : (isDark ? "border-[#233f75] hover:border-[#325291] hover:bg-[#1d335c]" : "border-stone-300 hover:border-stone-400 hover:bg-stone-100")}`}>
-                  <span className={`dc-serif text-xl ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Via comum</span>
-                  <ul className={`flex flex-col gap-2 text-[14px] leading-relaxed ${isDark ? "text-stone-400" : "text-stone-600"}`}>
-                    <li className="flex gap-2"><span className="text-stone-500">•</span> Sem custo.</li>
-                    <li className="flex gap-2"><span className="text-stone-500">•</span> Horários a partir de {viaComum.earliestLabel}.</li>
-                    <li className="flex gap-2"><span className="text-stone-500">•</span> Segunda a sexta, manhã ou tarde.</li>
-                  </ul>
+                {/* Via Comum — MESMO padrao 3D (panel-3d), equilibrada com a Concierge */}
+                <button type="button" onClick={() => setVia("comum")} className={`panel-3d w-full p-6 sm:p-7 rounded-lg text-left transition-all ${via === "comum" ? "panel-3d-active" : ""}`}>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2.5">
+                      <h4 className="dc-serif text-2xl dc-gold">Via comum</h4>
+                      <span aria-hidden className="block h-px w-full" style={{ background: isDark ? "linear-gradient(90deg, transparent, rgba(194,160,90,0.5), transparent)" : "linear-gradient(90deg, transparent, rgba(138,109,47,0.45), transparent)", boxShadow: isDark ? "0 1px 0 rgba(255,255,255,0.05)" : "0 1px 0 rgba(255,255,255,0.7)" }} />
+                    </div>
+                    <ul className={`flex flex-col gap-2 text-[14px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Sem custo.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Horários a partir de {viaComum.earliestLabel}.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Segunda a sexta, manhã ou tarde.</li>
+                    </ul>
+                  </div>
                 </button>
               </div>
 
@@ -1166,6 +1169,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           {stage === "motor2" && (
             <TernoFarol
               pct={pct}
+              fill
               band={
                 <div className="bevel-3d p-4 flex flex-col gap-2 min-h-[120px] justify-center">
                   {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
@@ -1179,7 +1183,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 </div>
               }
             >
-              <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+              <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
               <p className="dc-serif italic text-lg text-stone-200">A Helena está abrindo a sua exceção…</p>
             </TernoFarol>
           )}
