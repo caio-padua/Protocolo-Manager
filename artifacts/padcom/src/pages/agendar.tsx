@@ -9,6 +9,7 @@ import {
   getGetAgendaSlotsQueryKey,
 } from "@workspace/api-client-react";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import {
@@ -409,110 +410,182 @@ const DC_WORK_MESSAGES = [
   "Abrimos uma dessas exceções para o senhor. Preparando suas opções...",
 ];
 const DC_STEP_MS = 3500; // tempo entre mensagens (sensacao de "1 a 2 min" sem punir)
-const DC_WORK_TOTAL_MS = DC_WORK_MESSAGES.length * DC_STEP_MS; // ~14s ate revelar a grade
+const MOTOR1_MS = 3000; // espera curta do Motor #1 (verificacao da agenda)
+const MOTOR2_MS = 16000; // espera longa do Motor #2 (concierge abrindo a excecao)
 
 function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
   const isDark = theme === "dark";
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // REVISAO 3 — maquina de estagios do fluxo Dr. Caio:
+  // form -> motor1 -> vias -> (comum | pay -> motor2 -> resultado)
+  type Stage = "form" | "motor1" | "vias" | "comum" | "pay" | "motor2" | "resultado";
+  const [stage, setStage] = useState<Stage>("form");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [desire, setDesire] = useState("");
-  
-  const [earliestDate, setEarliestDate] = useState("");
-  const [prefWeekday, setPrefWeekday] = useState("");
-  const [prefPeriod, setPrefPeriod] = useState("");
 
-  // Slot concreto escolhido na grade fabricada (data + hora).
+  // Passo 1: data desejada (alimenta a janela DISTANTE: Motor #1 + Via Comum).
+  const [earliestDate, setEarliestDate] = useState("");
+  // Preferencia do concierge (coletada na tela de pagamento): molda a semana SEGUINTE.
+  const [prefWeekday, setPrefWeekday] = useState("");
+  const [prefTime, setPrefTime] = useState("");
+
+  // Slot concreto escolhido (data + hora) — vale para Via Comum e Concierge.
   const [chosenSlotDate, setChosenSlotDate] = useState("");
   const [chosenSlotTime, setChosenSlotTime] = useState("");
 
-  // Passo 3 (pos-pagamento): "motor trabalhando" -> grade revelada.
-  const [revealed, setRevealed] = useState(false); // true quando a espera termina
-  const [msgIdx, setMsgIdx] = useState(0); // indice da mensagem encadeada atual
+  // Via escolhida na tela das duas possibilidades.
+  const [via, setVia] = useState<"comum" | "concierge" | "">("");
 
-  const [path, setPath] = useState<"concierge" | "fila" | "">("");
+  // Motores: porcentagem animada + mensagem encadeada (so Motor #2) + faixa vermelha transitoria.
+  const [pct, setPct] = useState(0);
+  const [msgIdx, setMsgIdx] = useState(0);
+  const [showRed, setShowRed] = useState(false);
 
   const createReq = useCreateSchedulingRequest();
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // --- Grade de horarios FABRICADOS (curados de cabeca), revelada SO no passo 3 ---
-  // Cai ~3 meses a frente de HOJE (carencia escondida; o prazo NUNCA aparece) e nunca
-  // antes da data que o cliente escolheu como preferencia. Um jitter deterministico de
-  // poucos dias evita o "3 meses redondos". O dia da semana preferido molda a data; a
-  // grade SEMPRE entrega 2 horarios de manha + 2 de tarde (R5/R7 da Revisao 2).
-  // useMemo: sem flicker, sem aleatorio por render, sem usar nome/PII do paciente.
-  const fabricatedSlots = useMemo(() => {
-    const morning = ["09:00", "10:30"]; // 2 horarios de manha
-    const afternoon = ["14:00", "15:30"]; // 2 horarios de tarde
-
+  // --- Janela DISTANTE (Via Comum): segunda a sexta, ~3 meses a frente, sem revelar prazo. ---
+  // Cai depois de HOJE+3 meses e nunca antes da data desejada; jitter deterministico evita
+  // o "3 meses redondos". Cada dia traz 1 horario de manha + 1 de tarde, com minutos
+  // "quebrados" (08:40, 14:20...) para parecer COLADO a consultas ja existentes.
+  const viaComum = useMemo(() => {
     const today = new Date();
     const base3m = addMonths(today, 3);
     const picked = earliestDate ? new Date(`${earliestDate}T12:00:00`) : base3m;
     let anchor = picked > base3m ? picked : base3m;
     const jitter = (today.getDate() % 6) + 2; // 2..7 dias
     anchor = addDays(anchor, jitter);
+    const monday = nextWeekday(anchor, 1); // proxima segunda >= anchor
+    const mornings = ["08:40", "09:20", "11:10", "08:00", "10:30"];
+    const afternoons = ["14:20", "16:40", "13:30", "15:50", "15:00"];
+    const days = [0, 1, 2, 3, 4].map((i) => {
+      const d = addDays(monday, i);
+      return {
+        date: isoLocal(d),
+        label: formatSlotDay(d),
+        morning: mornings[i % mornings.length],
+        afternoon: afternoons[i % afternoons.length],
+      };
+    });
+    return { earliestLabel: formatSlotDay(monday), days };
+  }, [earliestDate]);
 
+  // --- Janela PROXIMA (Concierge): semana SEGUINTE, horarios colados a consultas plausiveis. ---
+  // A preferencia (dia da semana + horario) coletada no pagamento molda a oferta; minutos
+  // quebrados reforcam a sensacao de encaixe entre compromissos ja marcados.
+  const conciergeSlots = useMemo(() => {
+    const today = new Date();
+    const nextMon = nextWeekday(addDays(today, 7), 1); // segunda da semana seguinte
     const wd = prefWeekday ? parseInt(prefWeekday, 10) : null;
-    const offer = nextWeekday(anchor, wd);
+    const primary = wd ? nextWeekday(nextMon, wd) : nextMon;
+    const offerDays = [primary, addDays(primary, 1), addDays(primary, 2)];
+    const prefHour = prefTime ? parseInt(prefTime.slice(0, 2), 10) : null;
+    const nearTimes = prefHour != null && prefHour >= 12
+      ? ["14:50", "16:20", "09:10", "11:40"]
+      : ["09:10", "11:40", "14:50", "16:20"];
+    const days = offerDays.map((d, i) => ({
+      date: isoLocal(d),
+      label: formatSlotDay(d),
+      times: [nearTimes[i % nearTimes.length], nearTimes[(i + 2) % nearTimes.length]],
+    }));
+    return { days };
+  }, [prefWeekday, prefTime]);
 
-    // R7: a preferencia de periodo MOLDA a grade (grupo preferido vem primeiro),
-    // mas a oferta SEMPRE entrega 2 manha + 2 tarde — o periodo nao reduz a oferta.
-    const grupoManha = { key: "manha", label: "Manhã", times: morning };
-    const grupoTarde = { key: "tarde", label: "Tarde", times: afternoon };
-    const groups = prefPeriod === "tarde" ? [grupoTarde, grupoManha] : [grupoManha, grupoTarde];
-
-    return { date: isoLocal(offer), label: formatSlotDay(offer), groups };
-  }, [earliestDate, prefWeekday, prefPeriod]);
-
-  // Passo 1 -> Passo 2: agora exige SOMENTE nome + telefone (sem horario; ele so existe
-  // no passo 3, depois do pagamento). Revisao 2, R2.
+  // Passo 1 -> Motor #1: exige nome + telefone + data desejada.
   const handleNext = () => {
-    if (!name || phone.replace(/\D/g,"").length < 10) return;
+    if (!name || phone.replace(/\D/g, "").length < 10 || !earliestDate) {
+      setErrorMsg("Preencha nome, telefone e a data desejada.");
+      return;
+    }
     setErrorMsg("");
-    setStep(2);
+    setVia("");
+    setChosenSlotDate("");
+    setChosenSlotTime("");
+    setStage("motor1");
   };
 
-  // Passo 2 (concierge) -> Passo 3: entra na espera animada do "motor". Revisao 2, R3.
-  const handleGoProcessing = () => {
+  // Tela das duas vias -> destino.
+  const handleViaContinue = () => {
     setErrorMsg("");
     setChosenSlotDate("");
     setChosenSlotTime("");
-    setRevealed(false);
-    setMsgIdx(0);
-    setStep(3);
+    if (via === "comum") setStage("comum");
+    else if (via === "concierge") setStage("pay");
   };
 
-  // Motor da espera: mostra as mensagens encadeadas em sequencia e, ao final, revela a grade.
-  useEffect(() => {
-    if (step !== 3 || revealed) return;
-    setMsgIdx(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    DC_WORK_MESSAGES.forEach((_, i) => {
-      if (i === 0) return;
-      timers.push(setTimeout(() => setMsgIdx(i), i * DC_STEP_MS));
-    });
-    timers.push(setTimeout(() => setRevealed(true), DC_WORK_TOTAL_MS));
-    return () => timers.forEach(clearTimeout);
-  }, [step, revealed]);
-
-  const handleSubmit = () => {
-    if (!path) return;
+  // Botao de voltar, sensivel ao estagio atual.
+  const goBack = () => {
     setErrorMsg("");
+    if (stage === "form") return onBack();
+    if (stage === "motor1") return setStage("form");
+    if (stage === "vias") return setStage("form");
+    if (stage === "comum" || stage === "pay") return setStage("vias");
+    if (stage === "motor2" || stage === "resultado") return setStage("pay");
+  };
+
+  // Motor #1 (~3s): verifica a agenda e revela que nao ha vaga no dia desejado.
+  useEffect(() => {
+    if (stage !== "motor1") return;
+    setPct(0);
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(100, ((now - start) / MOTOR1_MS) * 100);
+      setPct(p);
+      if (p < 100) raf = requestAnimationFrame(tick);
+      else setStage("vias");
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [stage]);
+
+  // Motor #2 (~16s): concierge abrindo a excecao; mensagens encadeadas + porcentagem.
+  useEffect(() => {
+    if (stage !== "motor2") return;
+    setPct(0);
+    setMsgIdx(0);
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const p = Math.min(100, (elapsed / MOTOR2_MS) * 100);
+      setPct(p);
+      setMsgIdx(Math.min(DC_WORK_MESSAGES.length - 1, Math.floor(elapsed / DC_STEP_MS)));
+      if (p < 100) raf = requestAnimationFrame(tick);
+      else setStage("resultado");
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [stage]);
+
+  // Faixa vermelha "existe outra possibilidade": surge e some ao entrar nas vias.
+  useEffect(() => {
+    if (stage !== "vias") { setShowRed(false); return; }
+    setShowRed(true);
+    const t = setTimeout(() => setShowRed(false), 3400);
+    return () => clearTimeout(t);
+  }, [stage]);
+
+  const submit = (finalPath: "concierge" | "fila") => {
+    setErrorMsg("");
+    const preferredPeriod = prefTime
+      ? (parseInt(prefTime.slice(0, 2), 10) >= 12 ? "tarde" : "manha")
+      : undefined;
     createReq.mutate({
       data: {
         entrada: "dr_caio",
-        path: path as "concierge" | "fila",
+        path: finalPath,
         patientName: name,
-        patientPhone: phone.replace(/\D/g,""),
+        patientPhone: phone.replace(/\D/g, ""),
         patientEmail: email || undefined,
-        patientCpf: cpf.replace(/\D/g,"") || undefined,
+        patientCpf: cpf.replace(/\D/g, "") || undefined,
         desire: desire || undefined,
         earliestDate: earliestDate || undefined,
         preferredWeekday: prefWeekday ? parseInt(prefWeekday, 10) : undefined,
-        preferredPeriod: prefPeriod || undefined,
+        preferredPeriod,
         chosenDate: chosenSlotDate || undefined,
         chosenTime: chosenSlotTime || undefined,
       }
@@ -568,13 +641,26 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         }
         .dc-luxo .dc-reveal { animation: dcReveal .6s cubic-bezier(0.16,1,0.3,1) both; }
         @keyframes dcReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .dc-luxo .dc-progress { width: 0%; animation: dcProgress ${DC_WORK_TOTAL_MS}ms linear forwards; }
-        @keyframes dcProgress { from { width: 0%; } to { width: 100%; } }
+        .dc-luxo .dc-breathe { display: inline-flex; animation: dcBreathe 2.6s ease-in-out infinite; }
+        @keyframes dcBreathe { 0%, 100% { transform: scale(0.9); opacity: .82; } 50% { transform: scale(1.06); opacity: 1; } }
+        .dc-luxo .dc-amber {
+          background: ${isDark ? "linear-gradient(180deg, rgba(194,160,90,0.16), rgba(138,109,47,0.07))" : "linear-gradient(180deg, rgba(244,226,168,0.5), rgba(194,160,90,0.14))"};
+          border: 1px solid rgba(194,160,90,0.4);
+          backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+          border-radius: 12px;
+        }
+        .dc-luxo .dc-redflash { animation: dcRedFlash 3.4s ease-in-out forwards; }
+        @keyframes dcRedFlash {
+          0% { opacity: 0; transform: translateY(-6px); }
+          12% { opacity: 1; transform: translateY(0); }
+          80% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-4px); visibility: hidden; }
+        }
       `}</style>
 
       {/* Cabeçalho editorial */}
       <div className="flex items-center gap-3">
-        <button onClick={() => { if (step === 1) onBack(); else if (step === 2) setStep(1); else setStep(2); }} className={`w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isDark ? "border-[#2a4470] text-stone-300 hover:bg-white/5" : "border-stone-300 text-[#16284a] hover:bg-black/5"}`}>
+        <button onClick={goBack} className={`w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isDark ? "border-[#2a4470] text-stone-300 hover:bg-white/5" : "border-stone-300 text-[#16284a] hover:bg-black/5"}`}>
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="min-w-0">
@@ -583,7 +669,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         </div>
       </div>
 
-      {step === 1 ? (
+      {stage === "form" ? (
         <div className="flex flex-col gap-12">
           {/* Ato I — Credenciais */}
           <section>
@@ -610,35 +696,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             <input className="dc-input" placeholder="Ou descreva em suas próprias palavras..." value={desire} onChange={(e) => setDesire(e.target.value)} />
           </section>
 
-          {/* Ato III — O Tempo. Preferência -> data -> grade de horários concretos revelada. */}
+          {/* Ato III — O Tempo. Só o calendário: a data desejada alimenta a janela. */}
           <section>
             <h3 className="dc-serif italic dc-gold text-xl mb-6">III. O Tempo</h3>
-
-            <p className={`text-[11px] uppercase tracking-widest mb-4 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>Sua preferência de agenda</p>
-            <div className="grid grid-cols-2 gap-6 mb-7">
-              <div className="flex flex-col gap-1">
-                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
-                <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => { setPrefWeekday(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
-                  <option value="">Qualquer dia</option>
-                  <option value="1">Segunda-feira</option>
-                  <option value="2">Terça-feira</option>
-                  <option value="3">Quarta-feira</option>
-                  <option value="4">Quinta-feira</option>
-                  <option value="5">Sexta-feira</option>
-                  <option value="6">Sábado</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
-                <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => { setPrefPeriod(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
-                  <option value="">Qualquer horário</option>
-                  <option value="manha">Manhã</option>
-                  <option value="tarde">Tarde</option>
-                  <option value="noite">Noite</option>
-                </select>
-              </div>
-            </div>
-
             <div className="flex flex-col gap-1">
               <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Para quando você gostaria? *</span>
               <input
@@ -660,138 +720,119 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           <button
             onClick={handleNext}
-            disabled={!name || phone.replace(/\D/g,"").length < 10}
+            disabled={!name || phone.replace(/\D/g,"").length < 10 || !earliestDate}
             className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
           >
             Prosseguir <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-      ) : step === 2 ? (
-        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-right-4">
-          <section>
-            <h3 className="dc-serif italic dc-gold text-xl mb-2">IV. A Jornada</h3>
-            <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>Escolha como deseja garantir seu atendimento.</p>
-          </section>
+      ) : (
+        <div className="flex flex-col gap-8 animate-in fade-in duration-500">
 
-          <div className="flex flex-col gap-6">
-            {/* Caminho Concierge */}
-            <button type="button" onClick={() => setPath("concierge")} className={`dc-concierge p-7 relative overflow-hidden text-left transition-all ${path === "concierge" ? "ring-2 ring-[#c2a05a]" : ""}`}>
-              <div className="absolute top-0 right-0 p-4 opacity-[0.06] pointer-events-none"><Star className="w-28 h-28 text-[#c2a05a]" /></div>
-              {path === "concierge" && <div className="absolute top-0 right-0 w-9 h-9 bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#16284a]" /></div>}
-              <div className="relative z-10 flex flex-col gap-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] flex items-center justify-center shadow-lg"><Check className="w-5 h-5 text-[#16284a]" /></div>
-                  <h4 className="dc-serif text-2xl dc-gold">Via Concierge</h4>
-                </div>
-                <p className={`text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                  {payTextConcierge} O cliente antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> (20% do valor da consulta, total de R$ 750,00) para reservar seu horário com prioridade.
-                </p>
-                <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">
-                  <span>PIX</span><span className="opacity-30">•</span><span>Cartão</span><span className="opacity-30">•</span><span>Boleto</span>
-                </div>
-              </div>
-            </button>
-
-            {path === "concierge" && (
-              <div className="dc-reveal"><PaymentLinkButton url={payLink} label="Garantir prioridade (Concierge)" dark={isDark} /></div>
-            )}
-
-            <div className="flex items-center justify-center gap-5 my-1">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-stone-500/30 to-transparent" />
-              <span className="dc-serif italic text-base text-stone-500">ou</span>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent via-stone-500/30 to-transparent" />
-            </div>
-
-            {/* Caminho Fila */}
-            <button type="button" onClick={() => setPath("fila")} className={`w-full p-6 border rounded-lg flex flex-col items-center gap-2 text-center transition-all ${path === "fila" ? (isDark ? "border-slate-400 bg-[#1c335c]" : "border-stone-400 bg-stone-100") : (isDark ? "border-[#233f75] hover:border-[#325291] hover:bg-[#1d335c]" : "border-stone-300 hover:border-stone-400 hover:bg-stone-100")}`}>
-              <span className={`dc-serif text-xl ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Fila comum</span>
-              <span className="text-sm text-stone-500">Sem custo. A clínica fará contato apenas se houver viabilidade de encaixe futuro.</span>
-            </button>
-          </div>
-
-          {errorMsg && (
-            <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <p>{errorMsg}</p>
+          {/* MOTOR #1 — verificação curta da agenda */}
+          {stage === "motor1" && (
+            <div className="relative min-h-[380px] flex flex-col items-center justify-center text-center gap-7">
+              <span className="dc-breathe"><PaxterSymbolGlass size={96} tone={isDark ? "dark" : "light"} /></span>
+              <p className={`dc-serif italic text-lg ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Consultando a agenda do Dr. Caio…</p>
+              <span className="absolute bottom-0 right-0 dc-serif dc-gold text-4xl tabular-nums">{Math.round(pct)}%</span>
             </div>
           )}
 
-          <button
-            onClick={path === "concierge" ? handleGoProcessing : handleSubmit}
-            disabled={!path || createReq.isPending}
-            className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-          >
-            {createReq.isPending
-              ? <Loader2 className="w-5 h-5 animate-spin" />
-              : path === "concierge"
-                ? <>Já realizei o pagamento — continuar <ArrowRight className="w-4 h-4" /></>
-                : <>Confirmar solicitação <ArrowRight className="w-4 h-4" /></>}
-          </button>
-        </div>
-      ) : (
-        /* --- PASSO 3 (so concierge): motor trabalhando -> grade 2 manha + 2 tarde --- */
-        <div className="flex flex-col gap-8 animate-in fade-in duration-500">
-          <section>
-            <h3 className="dc-serif italic dc-gold text-xl mb-2">V. O Encaixe</h3>
-            <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>
-              {revealed
-                ? "Conseguimos. Estas aberturas foram liberadas exclusivamente para o senhor:"
-                : "Aguarde um instante enquanto cuidamos do seu horário."}
-            </p>
-          </section>
+          {/* VIAS — não há vaga no dia + faixa vermelha + duas possibilidades */}
+          {stage === "vias" && (
+            <div className="flex flex-col gap-7">
+              <section>
+                <h3 className="dc-serif italic dc-gold text-xl mb-3">IV. A Agenda</h3>
+                <p className={`text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                  Não há vaga na data que o senhor escolheu. A próxima abertura na via comum é apenas a partir de <strong className="dc-gold font-semibold">{viaComum.earliestLabel}</strong>.
+                </p>
+              </section>
 
-          {!revealed ? (
-            <div className="flex flex-col items-center text-center gap-8 py-4">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <span className="absolute inset-0 rounded-full border border-[#c2a05a]/25" />
-                <Loader2 className="w-10 h-10 text-[#c2a05a] animate-spin" />
-                <Star className="absolute w-4 h-4 dc-gold" style={{ color: "#c2a05a" }} />
+              {showRed && (
+                <div className="dc-redflash flex items-start gap-3 p-4 rounded-lg border border-red-500/50 bg-red-500/10">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
+                  <p className={`text-sm leading-relaxed ${isDark ? "text-red-300" : "text-red-700"}`}>
+                    Mas existe outra possibilidade para quem precisa de prioridade…
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-5">
+                {/* Via Concierge */}
+                <button type="button" onClick={() => setVia("concierge")} className={`dc-concierge p-7 relative overflow-hidden text-left transition-all ${via === "concierge" ? "ring-2 ring-[#c2a05a]" : ""}`}>
+                  <div className="absolute top-0 right-0 p-4 opacity-[0.06] pointer-events-none"><Star className="w-28 h-28 text-[#c2a05a]" /></div>
+                  {via === "concierge" && <div className="absolute top-0 right-0 w-9 h-9 bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#16284a]" /></div>}
+                  <div className="relative z-10 flex flex-col gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] flex items-center justify-center shadow-lg"><Check className="w-5 h-5 text-[#16284a]" /></div>
+                      <h4 className="dc-serif text-2xl dc-gold">Via Concierge</h4>
+                    </div>
+                    <ul className={`flex flex-col gap-2 text-[14px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Horário já na semana que vem.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Concierge particular cuida do encaixe.</li>
+                      <li className="flex gap-2"><span className="text-[#c2a05a]">•</span> Antecipa R$ 150,00 (20% da consulta).</li>
+                    </ul>
+                  </div>
+                </button>
+
+                <div className="flex items-center justify-center gap-5 my-1">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-stone-500/30 to-transparent" />
+                  <span className="dc-serif italic text-base text-stone-500">ou</span>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent via-stone-500/30 to-transparent" />
+                </div>
+
+                {/* Via Comum */}
+                <button type="button" onClick={() => setVia("comum")} className={`w-full p-6 border rounded-lg flex flex-col gap-3 text-left transition-all ${via === "comum" ? (isDark ? "border-slate-400 bg-[#1c335c]" : "border-stone-400 bg-stone-100") : (isDark ? "border-[#233f75] hover:border-[#325291] hover:bg-[#1d335c]" : "border-stone-300 hover:border-stone-400 hover:bg-stone-100")}`}>
+                  <span className={`dc-serif text-xl ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Via comum</span>
+                  <ul className={`flex flex-col gap-2 text-[14px] leading-relaxed ${isDark ? "text-stone-400" : "text-stone-600"}`}>
+                    <li className="flex gap-2"><span className="text-stone-500">•</span> Sem custo.</li>
+                    <li className="flex gap-2"><span className="text-stone-500">•</span> Horários a partir de {viaComum.earliestLabel}.</li>
+                    <li className="flex gap-2"><span className="text-stone-500">•</span> Segunda a sexta, manhã ou tarde.</li>
+                  </ul>
+                </button>
               </div>
 
-              <div className="flex flex-col gap-3 min-h-[132px] justify-start w-full">
-                {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
-                  <p
-                    key={i}
-                    className={`dc-reveal text-[15px] leading-relaxed ${
-                      i === msgIdx
-                        ? (isDark ? "text-stone-100" : "text-[#16284a]")
-                        : "text-stone-500"
-                    }`}
-                  >
-                    {m}
-                  </p>
+              <button
+                onClick={handleViaContinue}
+                disabled={!via}
+                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                Continuar <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* VIA COMUM — grade distante seg-sex */}
+          {stage === "comum" && (
+            <div className="flex flex-col gap-7">
+              <section>
+                <h3 className="dc-serif italic dc-gold text-xl mb-2">V. Via Comum</h3>
+                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>Escolha um horário disponível.</p>
+              </section>
+
+              <div className="flex flex-col gap-4">
+                {viaComum.days.map((d) => (
+                  <div key={d.date} className="flex flex-col gap-2">
+                    <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{d.label}</p>
+                    <div className="flex flex-wrap gap-2.5">
+                      {[d.morning, d.afternoon].map((t) => {
+                        const active = chosenSlotDate === d.date && chosenSlotTime === t;
+                        return (
+                          <button
+                            key={`${d.date}-${t}`}
+                            type="button"
+                            onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t); }}
+                            data-active={active}
+                            className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                          >
+                            {t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
               </div>
-
-              <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? "bg-white/10" : "bg-[#16284a]/10"}`}>
-                <div className="dc-progress h-full bg-gradient-to-r from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f]" />
-              </div>
-            </div>
-          ) : (
-            <div className="dc-reveal flex flex-col gap-7">
-              <p className={`dc-serif text-base ${isDark ? "text-stone-100" : "text-[#16284a]"}`}>{fabricatedSlots.label}</p>
-
-              {fabricatedSlots.groups.map((g) => (
-                <div key={g.key}>
-                  <p className={`text-[11px] uppercase tracking-widest mb-3 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{g.label}</p>
-                  <div className="flex flex-wrap gap-2.5">
-                    {g.times.map((t) => {
-                      const active = chosenSlotDate === fabricatedSlots.date && chosenSlotTime === t;
-                      return (
-                        <button
-                          key={`${g.key}-${t}`}
-                          type="button"
-                          onClick={() => { setChosenSlotDate(fabricatedSlots.date); setChosenSlotTime(t); }}
-                          data-active={active}
-                          className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
 
               {errorMsg && (
                 <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -801,7 +842,136 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               )}
 
               <button
-                onClick={handleSubmit}
+                onClick={() => submit("fila")}
+                disabled={!chosenSlotTime || createReq.isPending}
+                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            </div>
+          )}
+
+          {/* PAY — concierge: pagamento + preferência (dia + horário) */}
+          {stage === "pay" && (
+            <div className="flex flex-col gap-7">
+              <section>
+                <h3 className="dc-serif italic dc-gold text-xl mb-3">V. A Prioridade</h3>
+                <div className={`flex flex-col gap-3 text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                  <p>{payTextConcierge}</p>
+                  <p>Para reservar seu horário com prioridade, o senhor antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> — 20% do valor da consulta (total de R$ 750,00). O restante é pago no dia do atendimento.</p>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="flex flex-col gap-1">
+                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
+                  <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}>
+                    <option value="">Qualquer dia</option>
+                    <option value="1">Segunda-feira</option>
+                    <option value="2">Terça-feira</option>
+                    <option value="3">Quarta-feira</option>
+                    <option value="4">Quinta-feira</option>
+                    <option value="5">Sexta-feira</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Horário</span>
+                  <select className="dc-input dc-select" value={prefTime} onChange={(e) => setPrefTime(e.target.value)}>
+                    <option value="">Qualquer horário</option>
+                    <option value="08:00">Manhã (08:00)</option>
+                    <option value="10:00">Manhã (10:00)</option>
+                    <option value="14:00">Tarde (14:00)</option>
+                    <option value="16:00">Tarde (16:00)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">
+                <span>PIX</span><span className="opacity-30">•</span><span>Cartão</span><span className="opacity-30">•</span><span>Boleto</span>
+              </div>
+
+              <PaymentLinkButton url={payLink} label="Pagar R$ 150,00 (Concierge)" dark={isDark} />
+
+              {errorMsg && (
+                <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p>{errorMsg}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => setStage("motor2")}
+                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+              >
+                Já realizei o pagamento <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* MOTOR #2 — concierge abrindo a exceção */}
+          {stage === "motor2" && (
+            <div className="flex flex-col items-center text-center gap-8 py-4 min-h-[380px] justify-center">
+              <div className="flex items-center justify-center gap-5">
+                <span className="dc-breathe"><PaxterSymbolGlass size={68} tone={isDark ? "dark" : "light"} /></span>
+                <span className="dc-serif dc-gold text-4xl tabular-nums">{Math.round(pct)}%</span>
+              </div>
+
+              <div className="dc-amber w-full p-5 flex flex-col gap-3 min-h-[150px] justify-center">
+                {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
+                  <p
+                    key={i}
+                    className={`dc-reveal text-[15px] leading-relaxed ${i === msgIdx ? (isDark ? "text-stone-100" : "text-[#16284a]") : "text-stone-500"}`}
+                  >
+                    {m}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* RESULTADO — opções da semana seguinte (concierge) */}
+          {stage === "resultado" && (
+            <div className="dc-reveal flex flex-col gap-7">
+              <section>
+                <h3 className="dc-serif italic dc-gold text-xl mb-2">VI. O Encaixe</h3>
+                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>
+                  Conseguimos. Estas aberturas foram liberadas exclusivamente para o senhor:
+                </p>
+              </section>
+
+              <div className="flex flex-col gap-4">
+                {conciergeSlots.days.map((d) => (
+                  <div key={d.date} className="flex flex-col gap-2">
+                    <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{d.label}</p>
+                    <div className="flex flex-wrap gap-2.5">
+                      {d.times.map((t) => {
+                        const active = chosenSlotDate === d.date && chosenSlotTime === t;
+                        return (
+                          <button
+                            key={`${d.date}-${t}`}
+                            type="button"
+                            onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t); }}
+                            data-active={active}
+                            className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                          >
+                            {t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {errorMsg && (
+                <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p>{errorMsg}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => submit("concierge")}
                 disabled={!chosenSlotTime || createReq.isPending}
                 className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
               >
