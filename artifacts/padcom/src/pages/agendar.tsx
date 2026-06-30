@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   useListSiteContent,
@@ -416,6 +416,33 @@ const DC_WORK_MESSAGES = [
 const DC_STEP_MS = 3500; // tempo entre mensagens (sensacao de "1 a 2 min" sem punir)
 const MOTOR1_MS = 3000; // espera curta do Motor #1 (verificacao da agenda)
 const MOTOR2_MS = 16000; // espera longa do Motor #2 (concierge abrindo a excecao)
+const FAROL_MS = 10000; // farol (stage "vias"): % sobe de 0 a 100 ate o verde (Helena disponivel)
+
+// MOLDURA "terno azul-marinho" — reaproveitada por motor1 / vias / motor2 para que o
+// simbolo respirando (topo) e as mensagens do farol (faixa de baixo) fiquem CONCORRENTES.
+// O wrapper .dark forca as classes 3D (panel-3d/concave-3d/bevel-3d) para a variante navy,
+// independente do tema da pagina, igual a tela "foto do paciente" elogiada pelo CEO.
+function TernoFarol({ pct, children, band }: { pct: number; children: ReactNode; band?: ReactNode }) {
+  return (
+    <div className="dark">
+      <div
+        className="relative overflow-hidden panel-3d rounded-xl p-6 sm:p-7 min-h-[380px] flex flex-col gap-6"
+        style={{ background: "linear-gradient(180deg, #13233f 0%, #0d1830 100%)" }}
+      >
+        {/* TOPO: simbolo respirando + texto editorial, SEMPRE visivel */}
+        <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">{children}</div>
+        {/* BAIXO: faixa de status (saliente) a esquerda + WELL da % no canto inferior direito */}
+        <div className="flex items-stretch gap-3">
+          <div className="flex-1 min-w-0">{band}</div>
+          <div className="concave-3d rounded-md px-3 py-2 flex flex-col items-center justify-center shrink-0">
+            <span className="dc-serif dc-gold text-2xl tabular-nums leading-none">{Math.round(pct)}</span>
+            <span className="text-[9px] uppercase tracking-[0.2em] text-stone-400 leading-none mt-1">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
   const isDark = theme === "dark";
@@ -702,9 +729,18 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   useEffect(() => {
     if (stage !== "vias") { setViaPhase(0); return; }
     setViaPhase(0);
+    setPct(0);
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(100, ((now - start) / FAROL_MS) * 100);
+      setPct(p);
+      if (p < 100) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
     const t1 = setTimeout(() => setViaPhase(1), 4000);   // amarelo: verificando o concierge
     const t2 = setTimeout(() => setViaPhase(2), 10000);  // verde: Helena disponivel (revela as vias)
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => { clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(raf); };
   }, [stage]);
 
   const submit = (finalPath: "concierge" | "fila") => {
@@ -864,53 +900,71 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       ) : (
         <div className="flex flex-col gap-8 animate-in fade-in duration-500">
 
-          {/* MOTOR #1 — verificação curta da agenda */}
+          {/* MOTOR #1 — verificação curta da agenda (mesma moldura terno do farol) */}
           {stage === "motor1" && (
-            <div className="relative min-h-[380px] flex flex-col items-center justify-center text-center gap-7">
-              <span className="dc-breathe"><PaxterSymbolGlass size={96} tone={isDark ? "dark" : "light"} /></span>
-              <p className={`dc-serif italic text-lg ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Consultando a agenda do Dr. Caio…</p>
-              <span className="absolute bottom-0 right-0 dc-serif dc-gold text-4xl tabular-nums">{Math.round(pct)}%</span>
-            </div>
+            <TernoFarol pct={pct}>
+              <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+              <p className="dc-serif italic text-lg text-stone-200">Consultando a agenda do Dr. Caio…</p>
+            </TernoFarol>
           )}
 
           {/* VIAS — não há vaga no dia + faixa vermelha + duas possibilidades */}
           {stage === "vias" && (
             <div className="flex flex-col gap-7">
-              <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-3">IV. A Agenda</h3>
-                {/* Faixa de status que muda de cor: vermelho (sem vaga) -> amarelo (verificando) -> verde (Helena disponivel) */}
-                <div className={`dc-status flex flex-col gap-3 p-4 rounded-lg border ${
-                  viaPhase === 0 ? "border-red-500/50 bg-red-500/10"
-                  : viaPhase === 1 ? "border-amber-500/50 bg-amber-500/10"
-                  : "border-emerald-500/50 bg-emerald-500/10"
-                }`}>
-                  <div className="flex items-start gap-3">
-                    {viaPhase === 0 && <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />}
-                    {viaPhase === 1 && <Loader2 className="w-5 h-5 shrink-0 text-amber-500 animate-spin" />}
-                    {viaPhase === 2 && <CheckCircle className="w-5 h-5 shrink-0 text-emerald-500" />}
-                    <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
-                      viaPhase === 0 ? (isDark ? "text-red-300" : "text-red-700")
-                      : viaPhase === 1 ? (isDark ? "text-amber-300" : "text-amber-700")
-                      : (isDark ? "text-emerald-300" : "text-emerald-700")
-                    }`}>
-                      {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
-                      {viaPhase === 1 && "Verificando se o serviço de Concierge pode abrir uma exceção para o seu caso…"}
-                      {viaPhase === 2 && "A Helena, sua concierge particular, conseguiu. A sua prioridade foi liberada."}
-                    </p>
+              {/* FAROL — terno azul-marinho: simbolo respirando no topo + faixa de status embaixo, CONCORRENTES */}
+              <TernoFarol
+                pct={pct}
+                band={
+                  <div
+                    className={`dc-status flex flex-col gap-3 p-4 ${
+                      viaPhase === 0 ? "paxter-alert paxter-alert-red"
+                      : viaPhase === 1 ? "paxter-alert paxter-alert-amber"
+                      : "bevel-3d bevel-3d-ok"
+                    }`}
+                    style={
+                      viaPhase === 0 ? { background: "linear-gradient(180deg, rgba(220,38,38,0.22), rgba(127,29,29,0.14))" }
+                      : viaPhase === 1 ? { background: "linear-gradient(180deg, rgba(245,158,11,0.20), rgba(146,98,7,0.12))" }
+                      : undefined
+                    }
+                  >
+                    <div className="flex items-start gap-3">
+                      {viaPhase === 0 && <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />}
+                      {viaPhase === 1 && <Loader2 className="w-5 h-5 shrink-0 text-amber-400 animate-spin" />}
+                      {viaPhase === 2 && <CheckCircle className="w-5 h-5 shrink-0 text-emerald-400" />}
+                      <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
+                        viaPhase === 0 ? "text-red-200" : viaPhase === 1 ? "text-amber-100" : "text-emerald-100"
+                      }`}>
+                        {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
+                        {viaPhase === 1 && "Verificando se o serviço de Concierge pode abrir uma exceção para o seu caso…"}
+                        {viaPhase === 2 && "A Helena, sua concierge particular, conseguiu. A sua prioridade foi liberada."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 pl-8">
+                      {[0, 1, 2].map((i) => {
+                        const led = i === 0 ? "paxter-led-red" : i === 1 ? "paxter-led-amber" : "paxter-led-green";
+                        return (
+                          <span
+                            key={i}
+                            className={`paxter-led ${led} ${i <= viaPhase ? "paxter-led-on" : "paxter-led-off"}`}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 pl-8">
-                    {[0, 1, 2].map((i) => {
-                      const color = i === 0 ? "bg-red-500" : i === 1 ? "bg-amber-500" : "bg-emerald-500";
-                      return (
-                        <span
-                          key={i}
-                          className={`dc-dot w-2 h-2 rounded-full ${color} ${i <= viaPhase ? "opacity-100" : "opacity-25"} ${i === viaPhase ? "dc-dot-live" : ""}`}
-                        />
-                      );
-                    })}
-                  </div>
+                }
+              >
+                <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] dc-gold mb-1">IV. A Agenda</p>
+                  <p className="dc-serif italic text-lg text-stone-200">
+                    {viaPhase === 0
+                      ? "Conferindo a agenda do Dr. Caio…"
+                      : viaPhase === 1
+                        ? "Acionando o serviço de Concierge…"
+                        : "A sua prioridade foi liberada."}
+                  </p>
                 </div>
-              </section>
+              </TernoFarol>
 
               {viaPhase === 2 && (
               <div className="dc-reveal flex flex-col gap-7">
@@ -1116,25 +1170,26 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             </div>
           )}
 
-          {/* MOTOR #2 — concierge abrindo a exceção */}
+          {/* MOTOR #2 — concierge abrindo a exceção (mesma moldura terno do farol) */}
           {stage === "motor2" && (
-            <div className="flex flex-col items-center text-center gap-8 py-4 min-h-[380px] justify-center">
-              <div className="flex items-center justify-center gap-5">
-                <span className="dc-breathe"><PaxterSymbolGlass size={68} tone={isDark ? "dark" : "light"} /></span>
-                <span className="dc-serif dc-gold text-4xl tabular-nums">{Math.round(pct)}%</span>
-              </div>
-
-              <div className="dc-amber w-full p-5 flex flex-col gap-3 min-h-[150px] justify-center">
-                {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
-                  <p
-                    key={i}
-                    className={`dc-reveal text-[15px] leading-relaxed ${i === msgIdx ? (isDark ? "text-stone-100" : "text-[#16284a]") : "text-stone-500"}`}
-                  >
-                    {m}
-                  </p>
-                ))}
-              </div>
-            </div>
+            <TernoFarol
+              pct={pct}
+              band={
+                <div className="bevel-3d p-4 flex flex-col gap-2 min-h-[120px] justify-center">
+                  {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
+                    <p
+                      key={i}
+                      className={`dc-reveal text-[14px] leading-relaxed ${i === msgIdx ? "text-stone-100" : "text-stone-500"}`}
+                    >
+                      {m}
+                    </p>
+                  ))}
+                </div>
+              }
+            >
+              <span className="dc-breathe"><PaxterSymbolGlass size={92} tone="dark" /></span>
+              <p className="dc-serif italic text-lg text-stone-200">A Helena está abrindo a sua exceção…</p>
+            </TernoFarol>
           )}
 
           {/* RESULTADO — opções da semana seguinte (concierge) */}

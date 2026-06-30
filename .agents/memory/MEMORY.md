@@ -80,3 +80,4 @@
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange (key remount/setValue NÃO resolvem).
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real (grep ^[+-]) antes de reverter.
 - [Grade de horarios fabricados (slice de pool)](grade-horarios-fabricados.md) — pool que alimenta slice(0,2) e slice(0,3) precisa ter >=3 itens senao Dia B encolhe em silencio; fluxo Dr.Caio = horarios fabricados intencionais (linha vermelha revogada), Corpo Clinico = reais.
+- [paxter-alert é só glow ring (sem fill)](paxter-alert-sem-fill.md) — paxter-alert dá bevel+halo na cor, NAO pinta fundo; faixa que lê pela cor precisa de tint inline (aditivo); verde usa bevel-3d-ok que já preenche.
