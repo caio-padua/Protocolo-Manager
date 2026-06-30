@@ -346,7 +346,11 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     return;
   }
 
-  // Regra de Ouro (Entrada 3): caminho obrigatorio e data minima de 3 meses.
+  // Regra de Ouro (Entrada 3): caminho obrigatorio + data desejada valida.
+  // A "janela natural" (3 meses) e o prazo da FILA. O Concierge existe justamente
+  // para ANTECIPAR esse prazo (pagando a prioridade), entao a data desejada do
+  // paciente e SEMPRE livre — o piso de 3 meses se aplica so a data REALMENTE
+  // marcada na fila (chosenDate), nunca a data desejada (earliestDate).
   if (entrada === "dr_caio") {
     const path = data.path ?? "";
     if (path !== "concierge" && path !== "fila") {
@@ -356,20 +360,34 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
       return;
     }
     if (!data.earliestDate) {
-      res
-        .status(400)
-        .json({ error: "Informe a data desejada (a partir de 3 meses)" });
+      res.status(400).json({ error: "Informe a data desejada" });
       return;
     }
-    const min = new Date();
-    min.setMonth(min.getMonth() + 3);
-    min.setHours(0, 0, 0, 0);
-    const chosen = new Date(`${data.earliestDate}T00:00:00`);
-    if (Number.isNaN(chosen.getTime()) || chosen < min) {
-      res.status(400).json({
-        error: "A data do Dr. Caio só pode ser a partir de 3 meses",
-      });
+    const desired = new Date(`${data.earliestDate}T00:00:00`);
+    if (Number.isNaN(desired.getTime())) {
+      res.status(400).json({ error: "Data desejada inválida" });
       return;
+    }
+    if (path === "fila") {
+      // A fila e a janela natural: a vaga marcada e obrigatoria no servidor
+      // (nao confiar no cliente) e tem de cair a partir de 3 meses.
+      if (!data.chosenDate || !data.chosenTime) {
+        res.status(400).json({
+          error: "Escolha uma data e um horário da fila (janela natural).",
+        });
+        return;
+      }
+      const min = new Date();
+      min.setMonth(min.getMonth() + 3);
+      min.setHours(0, 0, 0, 0);
+      const booked = new Date(`${data.chosenDate}T00:00:00`);
+      if (Number.isNaN(booked.getTime()) || booked < min) {
+        res.status(400).json({
+          error:
+            "A vaga da fila do Dr. Caio respeita a janela natural (a partir de 3 meses).",
+        });
+        return;
+      }
     }
   }
 

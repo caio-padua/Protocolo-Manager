@@ -431,12 +431,14 @@ function TernoFarol({ pct, children, band }: { pct: number; children: ReactNode;
       >
         {/* TOPO: simbolo respirando + texto editorial, SEMPRE visivel */}
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">{children}</div>
-        {/* BAIXO: faixa de status (saliente) a esquerda + WELL da % no canto inferior direito */}
-        <div className="flex items-stretch gap-3">
+        {/* BAIXO: faixa de status (cor = estado) a esquerda + WELL da % FIXO no canto
+            inferior direito. O well tem largura/altura FIXAS para que a posicao nunca
+            mude com o numero de digitos (5 -> 49 -> 100) nem com o tamanho da frase. */}
+        <div className="flex items-end gap-4">
           <div className="flex-1 min-w-0">{band}</div>
-          <div className="concave-3d rounded-md px-3 py-2 flex flex-col items-center justify-center shrink-0">
-            <span className="dc-serif dc-gold text-2xl tabular-nums leading-none">{Math.round(pct)}</span>
-            <span className="text-[9px] uppercase tracking-[0.2em] text-stone-400 leading-none mt-1">%</span>
+          <div className="concave-3d rounded-md w-[86px] h-[60px] shrink-0 flex items-baseline justify-center gap-0.5">
+            <span className="dc-serif dc-gold text-3xl tabular-nums leading-none">{Math.round(pct)}</span>
+            <span className="text-[11px] leading-none" style={{ color: "#c2a05a" }}>%</span>
           </div>
         </div>
       </div>
@@ -916,40 +918,30 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 pct={pct}
                 band={
                   <div
-                    className={`dc-status flex flex-col gap-3 p-4 ${
+                    className={`dc-status relative overflow-hidden rounded-md min-h-[60px] flex items-center pl-5 pr-4 py-3 ${
                       viaPhase === 0 ? "paxter-alert paxter-alert-red"
                       : viaPhase === 1 ? "paxter-alert paxter-alert-amber"
                       : "bevel-3d bevel-3d-ok"
                     }`}
                     style={
-                      viaPhase === 0 ? { background: "linear-gradient(180deg, rgba(220,38,38,0.22), rgba(127,29,29,0.14))" }
-                      : viaPhase === 1 ? { background: "linear-gradient(180deg, rgba(245,158,11,0.20), rgba(146,98,7,0.12))" }
+                      viaPhase === 0 ? { background: "linear-gradient(180deg, rgba(220,38,38,0.26), rgba(127,29,29,0.16))" }
+                      : viaPhase === 1 ? { background: "linear-gradient(180deg, rgba(245,158,11,0.24), rgba(146,98,7,0.14))" }
                       : undefined
                     }
                   >
-                    <div className="flex items-start gap-3">
-                      {viaPhase === 0 && <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />}
-                      {viaPhase === 1 && <Loader2 className="w-5 h-5 shrink-0 text-amber-400 animate-spin" />}
-                      {viaPhase === 2 && <CheckCircle className="w-5 h-5 shrink-0 text-emerald-400" />}
-                      <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
-                        viaPhase === 0 ? "text-red-200" : viaPhase === 1 ? "text-amber-100" : "text-emerald-100"
-                      }`}>
-                        {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
-                        {viaPhase === 1 && "Verificando se o serviço de Concierge pode abrir uma exceção para o seu caso…"}
-                        {viaPhase === 2 && "A Helena, sua concierge particular, conseguiu. A sua prioridade foi liberada."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 pl-8">
-                      {[0, 1, 2].map((i) => {
-                        const led = i === 0 ? "paxter-led-red" : i === 1 ? "paxter-led-amber" : "paxter-led-green";
-                        return (
-                          <span
-                            key={i}
-                            className={`paxter-led ${led} ${i <= viaPhase ? "paxter-led-on" : "paxter-led-off"}`}
-                          />
-                        );
-                      })}
-                    </div>
+                    {/* o "farol" e a COR do painel: borda lateral colorida (sem lampadas, sem icones) */}
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-0 h-full w-[3px]"
+                      style={{ background: viaPhase === 0 ? "#ef4444" : viaPhase === 1 ? "#f59e0b" : "#34d399" }}
+                    />
+                    <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
+                      viaPhase === 0 ? "text-red-100" : viaPhase === 1 ? "text-amber-50" : "text-emerald-50"
+                    }`}>
+                      {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
+                      {viaPhase === 1 && "Verificando se o Concierge pode abrir uma exceção para o seu caso…"}
+                      {viaPhase === 2 && "A Helena, sua concierge particular, conseguiu. A sua prioridade foi liberada."}
+                    </p>
                   </div>
                 }
               >
