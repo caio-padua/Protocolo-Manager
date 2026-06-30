@@ -383,10 +383,19 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
       `#f3ead6`, paragrafos `#c2cee0`, BOTAO ouro "bulletproof" (gradiente `#f0d488→#b88a3f`, texto
       navy). Quando ha `botao`, mostra SEMPRE o endereco por extenso ("Se o botao nao abrir, copie e
       cole este endereco") para acessibilidade. Uma frase por paragrafo (ritmo TDAH).
-    - WHATSAPP / TELEGRAM: o visual de marca vem de um BANNER-imagem unico (navy + moldura ouro dupla +
-      wordmark PAXTER serifado), gerado por `@napi-rs/canvas` e servido em `GET /api/brand/paxter-banner.png`;
-      a legenda e texto do MESMO doc (WhatsApp markdown `*negrito*`, Telegram HTML `<b>`), assinada
-      "— PAXTER · Clinical Intelligence System".
+    - WHATSAPP / TELEGRAM: o visual de marca vem de um BANNER-imagem unico, gerado por `@napi-rs/canvas`
+      e servido em `GET /api/brand/paxter-banner.png`. O banner COMPOE as ARTES OFICIAIS 3D (Padrao 14),
+      NUNCA desenha simbolo/wordmark chapado na mao — esta foi a correcao travada pelo CEO em 30/06/2026
+      ("estava chapado, sem o simbolo de vidro 3D do logotipo"). Receita do banner (mesma identidade do
+      cabecalho do e-mail): (1) fundo navy gradiente `#16315a->#102043->#0e1a34` + brilho dourado discreto
+      no topo; (2) moldura ouro DUPLA; (3) SIMBOLO no MEDALHAO DE VIDRO — `paxter-symbol.png` num clipe
+      arredondado com sombra projetada, borda ouro `rgba(201,162,79,.6)` e verniz de vidro no topo
+      (Padrao 14); (4) WORDMARK ouro 3D oficial `paxter-wordmark.png` abaixo; (5) filete ouro + subtitulo
+      "CLINICAL INTELLIGENCE SYSTEM". Sao os MESMOS PNGs oficiais de `assets/` (em producao copiados para
+      `dist/assets/`); o relevo/brilho 3D nao se recria com formas de canvas porque imagem estatica nao
+      roda CSS — usa-se a arte renderizada oficial. A funcao `renderPaxterBannerPng` e ASSINCRONA
+      (`loadImage`) e cacheia o Buffer. A legenda e texto do MESMO doc (WhatsApp markdown `*negrito*`,
+      Telegram HTML `<b>`), assinada "— PAXTER · Clinical Intelligence System".
     - REGRA-MAE: nenhuma rota nova reescreve casco/banner por conta propria; estende-se o motor. NUNCA
       logar token (Twilio/Telegram). Canal sem credencial degrada com honestidade (mock/erro nomeado),
       nunca finge envio.
