@@ -26,7 +26,6 @@ import {
   CreditCard,
   Stethoscope,
   HeartPulse,
-  Info,
   ArrowRight,
   Check
 } from "lucide-react";
@@ -400,9 +399,21 @@ function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void;
 }
 
 // --- DOOR 3: DR CAIO ---
+// Mensagens encadeadas da tela "motor trabalhando" (pos-pagamento do concierge).
+// Texto travado pelo CEO (30/06/2026): justifica o servico pago + revela as vagas
+// reservadas para emergencia abertas como excecao. Ver specs/concierge-encaixe-pagamento.md (Revisao 2).
+const DC_WORK_MESSAGES = [
+  "Seu concierge particular já está em ação.",
+  "Buscando a melhor janela na agenda do Dr. Caio para a sua preferência...",
+  "Mantemos algumas vagas reservadas para casos de emergência.",
+  "Abrimos uma dessas exceções para o senhor. Preparando suas opções...",
+];
+const DC_STEP_MS = 3500; // tempo entre mensagens (sensacao de "1 a 2 min" sem punir)
+const DC_WORK_TOTAL_MS = DC_WORK_MESSAGES.length * DC_STEP_MS; // ~14s ate revelar a grade
+
 function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
   const isDark = theme === "dark";
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -417,56 +428,75 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   const [chosenSlotDate, setChosenSlotDate] = useState("");
   const [chosenSlotTime, setChosenSlotTime] = useState("");
 
+  // Passo 3 (pos-pagamento): "motor trabalhando" -> grade revelada.
+  const [revealed, setRevealed] = useState(false); // true quando a espera termina
+  const [msgIdx, setMsgIdx] = useState(0); // indice da mensagem encadeada atual
+
   const [path, setPath] = useState<"concierge" | "fila" | "">("");
 
   const createReq = useCreateSchedulingRequest();
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // --- Grade de horarios FABRICADOS (curados de cabeca) ---
-  // Caem ~3 meses a frente de HOJE (carencia escondida; o prazo NUNCA aparece) e
-  // nunca antes da data que o cliente escolheu. Um jitter deterministico de poucos
-  // dias evita o "3 meses redondos". As preferencias (dia/periodo) moldam a grade.
+  // --- Grade de horarios FABRICADOS (curados de cabeca), revelada SO no passo 3 ---
+  // Cai ~3 meses a frente de HOJE (carencia escondida; o prazo NUNCA aparece) e nunca
+  // antes da data que o cliente escolheu como preferencia. Um jitter deterministico de
+  // poucos dias evita o "3 meses redondos". O dia da semana preferido molda a data; a
+  // grade SEMPRE entrega 2 horarios de manha + 2 de tarde (R5/R7 da Revisao 2).
   // useMemo: sem flicker, sem aleatorio por render, sem usar nome/PII do paciente.
   const fabricatedSlots = useMemo(() => {
-    if (!earliestDate) return [] as { date: string; label: string; times: string[] }[];
-
-    // Cada periodo precisa de pelo menos 3 horarios para garantir Dia A=2 e Dia B=3.
-    const morning = ["09:00", "10:30", "11:30"];
-    const afternoon = ["14:00", "15:30", "16:30"];
-    const evening = ["18:00", "19:00", "20:00"];
+    const morning = ["09:00", "10:30"]; // 2 horarios de manha
+    const afternoon = ["14:00", "15:30"]; // 2 horarios de tarde
 
     const today = new Date();
     const base3m = addMonths(today, 3);
-    const picked = new Date(`${earliestDate}T12:00:00`);
+    const picked = earliestDate ? new Date(`${earliestDate}T12:00:00`) : base3m;
     let anchor = picked > base3m ? picked : base3m;
     const jitter = (today.getDate() % 6) + 2; // 2..7 dias
     anchor = addDays(anchor, jitter);
 
     const wd = prefWeekday ? parseInt(prefWeekday, 10) : null;
-    const dayA = nextWeekday(anchor, wd);
-    const dayB = nextWeekday(addDays(dayA, 3), wd);
+    const offer = nextWeekday(anchor, wd);
 
-    const periodTimes =
-      prefPeriod === "tarde" ? afternoon : prefPeriod === "noite" ? evening : prefPeriod === "manha" ? morning : null;
+    // R7: a preferencia de periodo MOLDA a grade (grupo preferido vem primeiro),
+    // mas a oferta SEMPRE entrega 2 manha + 2 tarde — o periodo nao reduz a oferta.
+    const grupoManha = { key: "manha", label: "Manhã", times: morning };
+    const grupoTarde = { key: "tarde", label: "Tarde", times: afternoon };
+    const groups = prefPeriod === "tarde" ? [grupoTarde, grupoManha] : [grupoManha, grupoTarde];
 
-    const pool = periodTimes ?? morning;
-    const poolB = periodTimes ?? afternoon;
-    const timesA = pool.slice(0, 2); // Dia A: sempre 2 horarios
-    const timesB = poolB.slice(0, 3); // Dia B: sempre 3 horarios
-
-    return [
-      { date: isoLocal(dayA), label: formatSlotDay(dayA), times: timesA },
-      { date: isoLocal(dayB), label: formatSlotDay(dayB), times: timesB },
-    ];
+    return { date: isoLocal(offer), label: formatSlotDay(offer), groups };
   }, [earliestDate, prefWeekday, prefPeriod]);
 
+  // Passo 1 -> Passo 2: agora exige SOMENTE nome + telefone (sem horario; ele so existe
+  // no passo 3, depois do pagamento). Revisao 2, R2.
   const handleNext = () => {
     if (!name || phone.replace(/\D/g,"").length < 10) return;
-    if (!chosenSlotDate || !chosenSlotTime) return;
     setErrorMsg("");
     setStep(2);
   };
+
+  // Passo 2 (concierge) -> Passo 3: entra na espera animada do "motor". Revisao 2, R3.
+  const handleGoProcessing = () => {
+    setErrorMsg("");
+    setChosenSlotDate("");
+    setChosenSlotTime("");
+    setRevealed(false);
+    setMsgIdx(0);
+    setStep(3);
+  };
+
+  // Motor da espera: mostra as mensagens encadeadas em sequencia e, ao final, revela a grade.
+  useEffect(() => {
+    if (step !== 3 || revealed) return;
+    setMsgIdx(0);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    DC_WORK_MESSAGES.forEach((_, i) => {
+      if (i === 0) return;
+      timers.push(setTimeout(() => setMsgIdx(i), i * DC_STEP_MS));
+    });
+    timers.push(setTimeout(() => setRevealed(true), DC_WORK_TOTAL_MS));
+    return () => timers.forEach(clearTimeout);
+  }, [step, revealed]);
 
   const handleSubmit = () => {
     if (!path) return;
@@ -538,11 +568,13 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         }
         .dc-luxo .dc-reveal { animation: dcReveal .6s cubic-bezier(0.16,1,0.3,1) both; }
         @keyframes dcReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .dc-luxo .dc-progress { width: 0%; animation: dcProgress ${DC_WORK_TOTAL_MS}ms linear forwards; }
+        @keyframes dcProgress { from { width: 0%; } to { width: 100%; } }
       `}</style>
 
       {/* Cabeçalho editorial */}
       <div className="flex items-center gap-3">
-        <button onClick={step === 1 ? onBack : () => setStep(1)} className={`w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isDark ? "border-[#2a4470] text-stone-300 hover:bg-white/5" : "border-stone-300 text-[#16284a] hover:bg-black/5"}`}>
+        <button onClick={() => { if (step === 1) onBack(); else if (step === 2) setStep(1); else setStep(2); }} className={`w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isDark ? "border-[#2a4470] text-stone-300 hover:bg-white/5" : "border-stone-300 text-[#16284a] hover:bg-black/5"}`}>
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="min-w-0">
@@ -617,41 +649,6 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 style={{ colorScheme: isDark ? "dark" : "light" }}
               />
             </div>
-
-            {fabricatedSlots.length > 0 && (
-              <div className="dc-reveal mt-7">
-                <div className="flex items-start gap-3 mb-5">
-                  <Info className="w-4 h-4 text-[#c2a05a] shrink-0 mt-0.5" />
-                  <p className={`text-[13px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                    Trabalhamos com pouquíssimos horários por semana para preservar a excelência de cada atendimento. Estas são as aberturas mais próximas para você:
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-5">
-                  {fabricatedSlots.map((day) => (
-                    <div key={day.date}>
-                      <p className={`dc-serif text-base mb-2.5 ${isDark ? "text-stone-100" : "text-[#16284a]"}`}>{day.label}</p>
-                      <div className="flex flex-wrap gap-2.5">
-                        {day.times.map((t) => {
-                          const active = chosenSlotDate === day.date && chosenSlotTime === t;
-                          return (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => { setChosenSlotDate(day.date); setChosenSlotTime(t); }}
-                              data-active={active}
-                              className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                            >
-                              {t}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
 
           {errorMsg && (
@@ -663,13 +660,13 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           <button
             onClick={handleNext}
-            disabled={!name || phone.replace(/\D/g,"").length < 10 || !chosenSlotTime}
+            disabled={!name || phone.replace(/\D/g,"").length < 10}
             className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
           >
             Prosseguir <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-      ) : (
+      ) : step === 2 ? (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-right-4">
           <section>
             <h3 className="dc-serif italic dc-gold text-xl mb-2">IV. A Jornada</h3>
@@ -720,12 +717,98 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           )}
 
           <button
-            onClick={handleSubmit}
+            onClick={path === "concierge" ? handleGoProcessing : handleSubmit}
             disabled={!path || createReq.isPending}
             className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
           >
-            {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar solicitação <ArrowRight className="w-4 h-4" /></>}
+            {createReq.isPending
+              ? <Loader2 className="w-5 h-5 animate-spin" />
+              : path === "concierge"
+                ? <>Já realizei o pagamento — continuar <ArrowRight className="w-4 h-4" /></>
+                : <>Confirmar solicitação <ArrowRight className="w-4 h-4" /></>}
           </button>
+        </div>
+      ) : (
+        /* --- PASSO 3 (so concierge): motor trabalhando -> grade 2 manha + 2 tarde --- */
+        <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+          <section>
+            <h3 className="dc-serif italic dc-gold text-xl mb-2">V. O Encaixe</h3>
+            <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>
+              {revealed
+                ? "Conseguimos. Estas aberturas foram liberadas exclusivamente para o senhor:"
+                : "Aguarde um instante enquanto cuidamos do seu horário."}
+            </p>
+          </section>
+
+          {!revealed ? (
+            <div className="flex flex-col items-center text-center gap-8 py-4">
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <span className="absolute inset-0 rounded-full border border-[#c2a05a]/25" />
+                <Loader2 className="w-10 h-10 text-[#c2a05a] animate-spin" />
+                <Star className="absolute w-4 h-4 dc-gold" style={{ color: "#c2a05a" }} />
+              </div>
+
+              <div className="flex flex-col gap-3 min-h-[132px] justify-start w-full">
+                {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
+                  <p
+                    key={i}
+                    className={`dc-reveal text-[15px] leading-relaxed ${
+                      i === msgIdx
+                        ? (isDark ? "text-stone-100" : "text-[#16284a]")
+                        : "text-stone-500"
+                    }`}
+                  >
+                    {m}
+                  </p>
+                ))}
+              </div>
+
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? "bg-white/10" : "bg-[#16284a]/10"}`}>
+                <div className="dc-progress h-full bg-gradient-to-r from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f]" />
+              </div>
+            </div>
+          ) : (
+            <div className="dc-reveal flex flex-col gap-7">
+              <p className={`dc-serif text-base ${isDark ? "text-stone-100" : "text-[#16284a]"}`}>{fabricatedSlots.label}</p>
+
+              {fabricatedSlots.groups.map((g) => (
+                <div key={g.key}>
+                  <p className={`text-[11px] uppercase tracking-widest mb-3 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{g.label}</p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {g.times.map((t) => {
+                      const active = chosenSlotDate === fabricatedSlots.date && chosenSlotTime === t;
+                      return (
+                        <button
+                          key={`${g.key}-${t}`}
+                          type="button"
+                          onClick={() => { setChosenSlotDate(fabricatedSlots.date); setChosenSlotTime(t); }}
+                          data-active={active}
+                          className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {errorMsg && (
+                <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p>{errorMsg}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSubmit}
+                disabled={!chosenSlotTime || createReq.isPending}
+                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

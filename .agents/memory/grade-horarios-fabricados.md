@@ -20,3 +20,12 @@ Contexto: fluxo Dr. Caio (entrada "dr_caio") em agendar.tsx — a linha vermelha
 "so horarios reais" foi REVOGADA pelo CEO SO para esse fluxo; horarios fabricados que
 caem ~3 meses a frente (carencia escondida, prazo nunca exibido) sao intencionais ali.
 O fluxo "assistente"/Corpo Clinico continua com horarios REAIS (useGetAgendaSlots).
+
+**Preferencia de periodo MOLDA, nunca REDUZ (R7 da Revisao 2):** a grade do Dr. Caio
+SEMPRE entrega 2 manha + 2 tarde. A preferencia de periodo so REORDENA os grupos
+(periodo preferido aparece primeiro), nao filtra para um unico periodo. Implementado
+como `fabricatedSlots.groups` (array ordenado), nao mais dois arrays fixos
+morning/afternoon. **Why:** o architect reprovou quando `prefPeriod` nao influenciava
+nada (so `prefWeekday` moldava a data); reduzir a oferta a um periodo contraria o R7.
+**How to apply:** preferencia que "molda quando possivel" + "sempre N por categoria" =
+reordenar/realcar, nunca cortar; e incluir a preferencia nas deps do useMemo.

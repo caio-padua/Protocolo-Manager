@@ -201,3 +201,56 @@ G7. PERSISTENCIA sem mexer no backend: enviar no payload (entrada "dr_caio") os 
 - Payload leva chosenDate/chosenTime (G7) — conferido no Network/registro.
 - Nenhuma linha vermelha de dinheiro/contrato violada; backend intacto.
 - architect aprova requisito por requisito; comunicacao final em Densidade B.
+
+---
+
+## REVISAO 2 — Grade APOS o pagamento + "motor trabalhando" (decisao do CEO, 30/06/2026)
+
+CONCLUSAO: a grade de horarios estava no lugar errado (Ato III, ANTES do concierge). O CEO corrigiu o
+entendimento: o cliente so escolhe a PREFERENCIA antes de pagar; a grade de horarios concretos so e
+revelada DEPOIS do pagamento do concierge, apos uma espera animada em que o "motor" simula buscar a
+viabilidade. Esta revisao SUBSTITUI G3, G5 (timing) e G6 desta spec; G1, G2, G4, G7 continuam valendo.
+
+### Fluxo corrigido (blueprint)
+Passo 1 (Credenciais + Desejo + PREFERENCIA: dia/periodo/data) -> Passo 2 (Via Concierge -> paga R$150)
+-> Passo 3 NOVO: tela "motor trabalhando" (mensagens encadeadas) -> revela 2 horarios de MANHA + 2 de
+TARDE -> cliente escolhe um -> "Confirmar meu horario" -> sucesso.
+
+### Requisitos exatos (revisao)
+R1. Ato III (Passo 1) deixa de revelar qualquer grade. Mantem APENAS os campos de preferencia: dia da
+    semana, periodo e a data ("Para quando voce gostaria?"). Nenhuma grade aparece no Passo 1.
+R2. "Prosseguir" (Passo 1 -> Passo 2) volta a exigir SOMENTE nome + telefone (>=10 digitos). NAO exige
+    horario escolhido (nao existe horario nessa etapa).
+R3. Passo 2: caminho "Via Concierge" mostra o botao de pagamento (payLink). Apos o pagamento, um botao
+    "Ja realizei o pagamento - continuar" leva ao Passo 3. O caminho "Fila comum" continua igual
+    (confirma a solicitacao sem grade e sem pagamento).
+R4. Passo 3 (so concierge), fase "trabalhando": espera animada com mensagens ENCADEADAS que aparecem em
+    sequencia, justificando o servico pago e revelando algo que o cliente nao sabia (vagas de emergencia).
+    Texto travado pelo CEO (mistura discreto + esforco + revelacao):
+      (1) "Seu concierge particular ja esta em acao."
+      (2) "Buscando a melhor janela na agenda do Dr. Caio para a sua preferencia..."
+      (3) "Mantemos algumas vagas reservadas para casos de emergencia."
+      (4) "Abrimos uma dessas excecoes para o senhor. Preparando suas opcoes..."
+    Duracao total tunavel por constante (sensacao de "1 a 2 minutos" sem punir o usuario; valor inicial
+    ~14 a 18 segundos). Uma barra/indicador de progresso reforca o "motor" trabalhando.
+R5. Passo 3, fase "revelada": exibe a grade fabricada com EXATAMENTE 2 horarios de MANHA + 2 de TARDE,
+    agrupados por periodo (rotulos "Manha" e "Tarde"), numa data fabricada (G4 continua: ~3 meses a
+    frente, sem exibir prazo/meses/ano alem de dd/mm). Cabecalho da revelacao: "Conseguimos. Estas
+    aberturas foram liberadas exclusivamente para o senhor:".
+R6. Cliente escolhe UM horario (chip). So entao habilita "Confirmar meu horario", que persiste a
+    solicitacao (handleSubmit) com path "concierge" + chosenDate/chosenTime (G7 intacto).
+R7. As preferencias (dia/periodo) MOLDAM a data e os horarios fabricados quando possivel, mas a grade
+    SEMPRE entrega 2 manha + 2 tarde (o periodo preferido nao reduz a oferta a um so periodo).
+R8. Botao "voltar" do cabecalho: Passo 3 -> Passo 2 -> Passo 1 -> sai do fluxo. Trocar
+    preferencia/data limpa qualquer horario escolhido.
+
+### Linha vermelha (mantida)
+- So o fluxo Dr. Caio usa horarios FABRICADOS; Corpo Clinico/Assistente continua com agenda REAL.
+- Backend intacto: nada de OpenAPI/schema/motor; so os campos JA existentes chosenDate/chosenTime.
+
+### Definicao de PRONTO (revisao)
+- Passo 1 nao mostra nenhuma grade (R1); "Prosseguir" exige so nome+telefone (R2) — screenshot.
+- Concierge -> pagar -> continuar -> Passo 3 com mensagens encadeadas (R3/R4) — screenshot da espera.
+- Apos a espera, grade com 2 manha + 2 tarde (R5) — screenshot dark e light.
+- Escolher horario habilita "Confirmar meu horario"; payload leva chosenDate/chosenTime (R6).
+- architect aprova requisito a requisito; comunicacao final em Densidade B.
