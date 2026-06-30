@@ -6,6 +6,10 @@ import {
   useListSchedulingProfessionals,
   useGetAgendaSlots,
   useCreateSchedulingRequest,
+  useCreateConciergeCharge,
+  useGetSchedulingPaymentStatus,
+  getGetSchedulingPaymentStatusQueryKey,
+  useUpdateSchedulingRequest,
   getGetAgendaSlotsQueryKey,
 } from "@workspace/api-client-react";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
@@ -445,8 +449,123 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   const [viaPhase, setViaPhase] = useState<0 | 1 | 2>(0);
 
   const createReq = useCreateSchedulingRequest();
+  const conciergeCharge = useCreateConciergeCharge();
+  const updateReq = useUpdateSchedulingRequest();
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Pagamento real Concierge (Asaas): id da solicitacao + pagina hospedada + status ao vivo.
+  const [requestId, setRequestId] = useState<number | null>(null);
+  const [invoiceUrl, setInvoiceUrl] = useState("");
+  const [payStatus, setPayStatus] = useState<
+    "idle" | "aguardando" | "pago" | "expirado" | "cancelado"
+  >("idle");
+
+  // Polling do status real da cobranca (a cada 4s, so enquanto aguardando).
+  const paymentStatusQuery = useGetSchedulingPaymentStatus(requestId ?? 0, {
+    query: {
+      queryKey: getGetSchedulingPaymentStatusQueryKey(requestId ?? 0),
+      enabled: requestId != null && !!invoiceUrl && payStatus === "aguardando",
+      refetchInterval: 4000,
+    },
+  });
+
+  // Confirmacao automatica: ao Asaas confirmar, avanca sozinho para o Motor #2.
+  useEffect(() => {
+    const s = paymentStatusQuery.data?.status;
+    if (!s || s === payStatus) return;
+    if (s === "pago") {
+      setPayStatus("pago");
+      setStage("motor2");
+    } else if (s === "expirado" || s === "cancelado") {
+      setPayStatus(s);
+    }
+  }, [paymentStatusQuery.data?.status, payStatus]);
+
+  // Gera a cobranca real: cria a solicitacao (uma vez) e abre a pagina hospedada.
+  const doCharge = (id: number, cpfDigits: string) => {
+    conciergeCharge.mutate(
+      { id, data: { patientCpf: cpfDigits } },
+      {
+        onSuccess: (r) => {
+          setInvoiceUrl(r.invoiceUrl);
+          setPayStatus(r.status === "pago" ? "pago" : "aguardando");
+          if (r.status === "pago") setStage("motor2");
+          else if (r.invoiceUrl)
+            window.open(r.invoiceUrl, "_blank", "noopener,noreferrer");
+        },
+        onError: (err: any) =>
+          setErrorMsg(err.message || "Erro ao gerar a cobrança."),
+      },
+    );
+  };
+
+  const handleGenerateCharge = () => {
+    setErrorMsg("");
+    const cpfDigits = cpf.replace(/\D/g, "");
+    if (cpfDigits.length < 11) {
+      setErrorMsg("Informe um CPF válido para gerar a cobrança.");
+      return;
+    }
+    if (requestId != null) {
+      doCharge(requestId, cpfDigits);
+      return;
+    }
+    const preferredPeriod = prefTime
+      ? parseInt(prefTime.slice(0, 2), 10) >= 12
+        ? "tarde"
+        : "manha"
+      : undefined;
+    createReq.mutate(
+      {
+        data: {
+          entrada: "dr_caio",
+          path: "concierge",
+          patientName: name,
+          patientPhone: phone.replace(/\D/g, ""),
+          patientEmail: email || undefined,
+          patientCpf: cpfDigits,
+          desire: desire || undefined,
+          earliestDate: earliestDate || undefined,
+          preferredWeekday: prefWeekday ? parseInt(prefWeekday, 10) : undefined,
+          preferredPeriod,
+        },
+      },
+      {
+        onSuccess: (created) => {
+          setRequestId(created.id);
+          doCharge(created.id, cpfDigits);
+        },
+        onError: (err: any) =>
+          setErrorMsg(err.message || "Erro ao criar a solicitação."),
+      },
+    );
+  };
+
+  // Confirmacao final do horario (Concierge): PATCH na solicitacao ja paga.
+  const confirmConcierge = () => {
+    if (requestId == null) {
+      setErrorMsg("Sessão de pagamento perdida. Recomece o agendamento.");
+      return;
+    }
+    setErrorMsg("");
+    updateReq.mutate(
+      {
+        id: requestId,
+        data: {
+          chosenDate: chosenSlotDate || undefined,
+          chosenTime: chosenSlotTime || undefined,
+        },
+      },
+      {
+        onSuccess: () => setSuccess(true),
+        onError: (err: any) =>
+          setErrorMsg(err.message || "Erro ao confirmar o horário."),
+      },
+    );
+  };
+
+  const chargePending = createReq.isPending || conciergeCharge.isPending;
 
   // --- Janela DISTANTE (Via Comum): segunda a sexta, ~3 meses a frente, sem revelar prazo. ---
   // Cai depois de HOJE+3 meses e nunca antes da data desejada; jitter deterministico evita
@@ -913,11 +1032,22 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 </div>
               </div>
 
+              {/* CPF — obrigatorio para emitir a cobranca real no Asaas. */}
+              <div className="flex flex-col gap-1">
+                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>CPF (para a cobrança)</span>
+                <input
+                  className="dc-input"
+                  inputMode="numeric"
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                  disabled={!!invoiceUrl}
+                />
+              </div>
+
               <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">
                 <span>PIX</span><span className="opacity-30">•</span><span>Cartão</span><span className="opacity-30">•</span><span>Boleto</span>
               </div>
-
-              <PaymentLinkButton url={payLink} label="Pagar R$ 150,00 (Concierge)" dark={isDark} />
 
               {errorMsg && (
                 <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -926,12 +1056,47 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 </div>
               )}
 
-              <button
-                onClick={() => setStage("motor2")}
-                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-              >
-                Já realizei o pagamento <ArrowRight className="w-4 h-4" />
-              </button>
+              {!invoiceUrl ? (
+                /* Passo 1: gerar a cobranca real */
+                <button
+                  onClick={handleGenerateCharge}
+                  disabled={chargePending}
+                  className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Gerar cobrança PIX de R$ 150,00 <ArrowRight className="w-4 h-4" /></>}
+                </button>
+              ) : (
+                /* Passo 2: pagar + painel de status ao vivo (confirmacao automatica) */
+                <div className="flex flex-col gap-4">
+                  <button
+                    onClick={() => window.open(invoiceUrl, "_blank", "noopener,noreferrer")}
+                    className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                  >
+                    Pagar agora (PIX / Cartão / Boleto) <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  {(payStatus === "expirado" || payStatus === "cancelado") ? (
+                    <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <p>{payStatus === "expirado" ? "A cobrança venceu. Abra novamente para pagar." : "A cobrança foi cancelada. Fale com a clínica."}</p>
+                    </div>
+                  ) : (
+                    <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <p className="text-sm">Aguardando a confirmação do pagamento... assim que cair, seguimos automaticamente.</p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => paymentStatusQuery.refetch()}
+                    disabled={paymentStatusQuery.isFetching}
+                    className={`text-xs underline-offset-4 hover:underline disabled:opacity-50 ${isDark ? "text-stone-400" : "text-stone-500"}`}
+                  >
+                    {paymentStatusQuery.isFetching ? "Verificando..." : "Já paguei, verificar agora"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -998,11 +1163,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               )}
 
               <button
-                onClick={() => submit("concierge")}
-                disabled={!chosenSlotTime || createReq.isPending}
+                onClick={confirmConcierge}
+                disabled={!chosenSlotTime || updateReq.isPending}
                 className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
               >
-                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
+                {updateReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
               </button>
             </div>
           )}

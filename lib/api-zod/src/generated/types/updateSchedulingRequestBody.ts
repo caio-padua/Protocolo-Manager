@@ -9,5 +9,6 @@
 export interface UpdateSchedulingRequestBody {
   status?: string;
   notes?: string | null;
-  paymentStatus?: string;
+  chosenDate?: string | null;
+  chosenTime?: string | null;
 }

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -40,6 +40,13 @@ export const schedulingRequestsTable = pgTable("scheduling_requests", {
   // 'concierge' | 'sinal25' | 'estetico_pos' | null
   paymentArm: text("payment_arm"),
   paymentStatus: text("payment_status").notNull().default("nao_aplicavel"),
+
+  // Cobranca real Asaas amarrada a solicitacao Concierge (sem poluir clients).
+  asaasCustomerId: text("asaas_customer_id"),
+  asaasChargeId: text("asaas_charge_id"),
+  asaasInvoiceUrl: text("asaas_invoice_url"),
+  paymentAmount: real("payment_amount"),
+  paidAt: text("paid_at"),
 
   // ciclo de vida da solicitacao
   status: text("status").notNull().default("novo"),

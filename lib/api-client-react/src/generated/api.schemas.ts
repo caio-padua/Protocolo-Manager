@@ -1348,6 +1348,11 @@ export interface SchedulingRequest {
   chosenTime?: string | null;
   paymentArm?: string | null;
   paymentStatus: string;
+  asaasCustomerId?: string | null;
+  asaasChargeId?: string | null;
+  asaasInvoiceUrl?: string | null;
+  paymentAmount?: number | null;
+  paidAt?: string | null;
   status: string;
   notes?: string | null;
   createdAt: string;
@@ -1383,7 +1388,23 @@ export interface CreateSchedulingRequestBody {
 export interface UpdateSchedulingRequestBody {
   status?: string;
   notes?: string | null;
-  paymentStatus?: string;
+  chosenDate?: string | null;
+  chosenTime?: string | null;
+}
+
+export interface ConciergeChargeResult {
+  requestId: number;
+  chargeId: string;
+  invoiceUrl: string;
+  amount: number;
+  status: string;
+}
+
+export interface SchedulingPaymentStatus {
+  status: string;
+  invoiceUrl?: string | null;
+  asaasStatus?: string | null;
+  error?: string;
 }
 
 export interface CatalogOption {
@@ -2035,6 +2056,10 @@ export type ListSchedulingProfessionalsParams = {
 export type ListSchedulingRequestsParams = {
   entrada?: string;
   status?: string;
+};
+
+export type CreateConciergeChargeBody = {
+  patientCpf?: string;
 };
 
 export type ListCatalogOptionsParams = {

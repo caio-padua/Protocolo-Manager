@@ -24,6 +24,11 @@ export interface SchedulingRequest {
   chosenTime?: string | null;
   paymentArm?: string | null;
   paymentStatus: string;
+  asaasCustomerId?: string | null;
+  asaasChargeId?: string | null;
+  asaasInvoiceUrl?: string | null;
+  paymentAmount?: number | null;
+  paidAt?: string | null;
   status: string;
   notes?: string | null;
   createdAt: string;

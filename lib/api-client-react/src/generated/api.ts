@@ -64,11 +64,13 @@ import type {
   Client,
   ClinicsSettings,
   CompanySettings,
+  ConciergeChargeResult,
   ConfirmSubstanceApplicationBody,
   CreateAgendaExceptionBody,
   CreateAgendaResourceBody,
   CreateCatalogOptionBody,
   CreateClientBody,
+  CreateConciergeChargeBody,
   CreatePaymentBody,
   CreatePharmacyBody,
   CreateProfessionalBody,
@@ -128,6 +130,7 @@ import type {
   ReplaceAgendaWindowsBody,
   SchedulingArea,
   SchedulingDoctor,
+  SchedulingPaymentStatus,
   SchedulingProfessional,
   SchedulingRequest,
   SendBatchBody,
@@ -4111,6 +4114,186 @@ export const useUpdateSchedulingRequest = <
 > => {
   return useMutation(getUpdateSchedulingRequestMutationOptions(options));
 };
+
+/**
+ * @summary Create (or reuse) the real Asaas Concierge charge for a request
+ */
+export const getCreateConciergeChargeUrl = (id: number) => {
+  return `/api/scheduling/requests/${id}/concierge-charge`;
+};
+
+export const createConciergeCharge = async (
+  id: number,
+  createConciergeChargeBody?: CreateConciergeChargeBody,
+  options?: RequestInit,
+): Promise<ConciergeChargeResult> => {
+  return customFetch<ConciergeChargeResult>(getCreateConciergeChargeUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createConciergeChargeBody),
+  });
+};
+
+export const getCreateConciergeChargeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createConciergeCharge>>,
+    TError,
+    { id: number; data: BodyType<CreateConciergeChargeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createConciergeCharge>>,
+  TError,
+  { id: number; data: BodyType<CreateConciergeChargeBody> },
+  TContext
+> => {
+  const mutationKey = ["createConciergeCharge"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createConciergeCharge>>,
+    { id: number; data: BodyType<CreateConciergeChargeBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createConciergeCharge(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateConciergeChargeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createConciergeCharge>>
+>;
+export type CreateConciergeChargeMutationBody =
+  BodyType<CreateConciergeChargeBody>;
+export type CreateConciergeChargeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create (or reuse) the real Asaas Concierge charge for a request
+ */
+export const useCreateConciergeCharge = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createConciergeCharge>>,
+    TError,
+    { id: number; data: BodyType<CreateConciergeChargeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createConciergeCharge>>,
+  TError,
+  { id: number; data: BodyType<CreateConciergeChargeBody> },
+  TContext
+> => {
+  return useMutation(getCreateConciergeChargeMutationOptions(options));
+};
+
+/**
+ * @summary Poll the real-time payment status of a Concierge charge
+ */
+export const getGetSchedulingPaymentStatusUrl = (id: number) => {
+  return `/api/scheduling/requests/${id}/payment-status`;
+};
+
+export const getSchedulingPaymentStatus = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SchedulingPaymentStatus> => {
+  return customFetch<SchedulingPaymentStatus>(
+    getGetSchedulingPaymentStatusUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetSchedulingPaymentStatusQueryKey = (id: number) => {
+  return [`/api/scheduling/requests/${id}/payment-status`] as const;
+};
+
+export const getGetSchedulingPaymentStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSchedulingPaymentStatus>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSchedulingPaymentStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSchedulingPaymentStatusQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSchedulingPaymentStatus>>
+  > = ({ signal }) =>
+    getSchedulingPaymentStatus(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSchedulingPaymentStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSchedulingPaymentStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSchedulingPaymentStatus>>
+>;
+export type GetSchedulingPaymentStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Poll the real-time payment status of a Concierge charge
+ */
+
+export function useGetSchedulingPaymentStatus<
+  TData = Awaited<ReturnType<typeof getSchedulingPaymentStatus>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSchedulingPaymentStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSchedulingPaymentStatusQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List catalog options (optionally filtered by kind)

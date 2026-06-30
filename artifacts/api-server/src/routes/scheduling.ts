@@ -14,8 +14,47 @@ import {
 } from "@workspace/api-zod";
 import { computeResourceSlots } from "../lib/agenda-booking.js";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp.js";
+import {
+  asaasCreateCustomer,
+  asaasCreateCharge,
+  asaasGetCharge,
+} from "../lib/asaas.js";
+import { getSetting } from "../lib/secure-settings.js";
 
 const router: IRouter = Router();
+
+// Valor padrao do sinal Concierge (R$). Configuravel por pay.conciergeValue.
+const CONCIERGE_AMOUNT_DEFAULT = 150;
+
+// Mapeia o status cru da cobranca Asaas para o nosso vocabulario interno.
+function mapAsaasPaymentStatus(
+  raw: string,
+): "aguardando" | "pago" | "expirado" | "cancelado" {
+  const up = (raw || "").toUpperCase();
+  if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(up)) return "pago";
+  if (up === "OVERDUE") return "expirado";
+  if (
+    [
+      "REFUNDED",
+      "REFUND_REQUESTED",
+      "CHARGEBACK_REQUESTED",
+      "CHARGEBACK_DISPUTE",
+      "AWAITING_CHARGEBACK_REVERSAL",
+      "DELETED",
+    ].includes(up)
+  ) {
+    return "cancelado";
+  }
+  return "aguardando";
+}
+
+// Resolve o valor do sinal Concierge: config (pay.conciergeValue) -> padrao.
+// Nunca abaixo do minimo do Asaas (R$ 5,00).
+async function resolveConciergeAmount(): Promise<number> {
+  const raw = await getSetting("pay.conciergeValue");
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n >= 5 ? n : CONCIERGE_AMOUNT_DEFAULT;
+}
 
 // Monta a mensagem de lembrete a partir da solicitacao. So texto; nao envia.
 function buildReminderMessage(
@@ -441,6 +480,167 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
   res.status(201).json(formatRequest(row));
 });
 
+// Gera (ou reusa) a cobranca REAL Concierge no Asaas, amarrada a solicitacao.
+// Publico (o fluxo /agendar e publico). Idempotente: devolve a cobranca existente.
+// Pagina hospedada (PIX/cartao/boleto). Nunca marca pago aqui.
+router.post(
+  "/scheduling/requests/:id/concierge-charge",
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    const [row] = await db
+      .select()
+      .from(schedulingRequestsTable)
+      .where(eq(schedulingRequestsTable.id, id))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Solicitação não encontrada" });
+      return;
+    }
+    if (row.entrada !== "dr_caio" || row.path !== "concierge") {
+      res.status(400).json({
+        error: "Cobrança Concierge só vale para o caminho concierge do Dr. Caio.",
+      });
+      return;
+    }
+    // Idempotencia: ja existe cobranca -> devolve a mesma.
+    if (row.asaasChargeId && row.asaasInvoiceUrl) {
+      res.status(200).json({
+        requestId: row.id,
+        chargeId: row.asaasChargeId,
+        invoiceUrl: row.asaasInvoiceUrl,
+        amount: row.paymentAmount ?? (await resolveConciergeAmount()),
+        status: row.paymentStatus,
+      });
+      return;
+    }
+    const cpf = String(req.body?.patientCpf || row.patientCpf || "").replace(
+      /\D/g,
+      "",
+    );
+    if (cpf.length < 11) {
+      res
+        .status(400)
+        .json({ error: "CPF é obrigatório para gerar a cobrança Concierge." });
+      return;
+    }
+    try {
+      let customerId = row.asaasCustomerId;
+      if (!customerId) {
+        const customer = await asaasCreateCustomer({
+          name: row.patientName,
+          cpfCnpj: cpf,
+          email: row.patientEmail,
+          phone: row.patientPhone,
+        });
+        customerId = customer.id;
+      }
+      const amount = await resolveConciergeAmount();
+      const due = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const charge = await asaasCreateCharge({
+        customerId,
+        value: amount,
+        dueDate: due,
+        description: `Concierge — prioridade Dr. Caio — ${row.patientName}`,
+      });
+      const [updated] = await db
+        .update(schedulingRequestsTable)
+        .set({
+          asaasCustomerId: customerId,
+          asaasChargeId: charge.id,
+          asaasInvoiceUrl: charge.invoiceUrl,
+          paymentAmount: amount,
+          patientCpf: cpf,
+          paymentStatus: "aguardando",
+        })
+        .where(eq(schedulingRequestsTable.id, id))
+        .returning();
+      res.status(201).json({
+        requestId: updated.id,
+        chargeId: charge.id,
+        invoiceUrl: charge.invoiceUrl,
+        amount,
+        status: "aguardando",
+      });
+    } catch (err) {
+      req.log.error(
+        { err: String(err) },
+        "Erro ao gerar cobrança Concierge no Asaas",
+      );
+      res.status(502).json({
+        error:
+          err instanceof Error ? err.message : "Erro ao falar com o Asaas.",
+      });
+    }
+  },
+);
+
+// Confirmacao automatica por consulta (polling): le o status real da cobranca no
+// Asaas em tempo real, persiste se mudou e devolve o status mapeado. Publico.
+// Se o Asaas estiver indisponivel, devolve o ultimo status conhecido (nao quebra).
+router.get(
+  "/scheduling/requests/:id/payment-status",
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    const [row] = await db
+      .select()
+      .from(schedulingRequestsTable)
+      .where(eq(schedulingRequestsTable.id, id))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Solicitação não encontrada" });
+      return;
+    }
+    if (!row.asaasChargeId) {
+      res.json({
+        status: row.paymentStatus,
+        invoiceUrl: row.asaasInvoiceUrl ?? null,
+        asaasStatus: null,
+      });
+      return;
+    }
+    try {
+      const charge = await asaasGetCharge(row.asaasChargeId);
+      const mapped = mapAsaasPaymentStatus(charge.status);
+      if (mapped !== row.paymentStatus) {
+        await db
+          .update(schedulingRequestsTable)
+          .set({
+            paymentStatus: mapped,
+            paidAt:
+              mapped === "pago"
+                ? (row.paidAt ?? new Date().toISOString().slice(0, 10))
+                : row.paidAt,
+          })
+          .where(eq(schedulingRequestsTable.id, id));
+      }
+      res.json({
+        status: mapped,
+        invoiceUrl: row.asaasInvoiceUrl ?? charge.invoiceUrl,
+        asaasStatus: charge.status,
+      });
+    } catch (err) {
+      req.log.error(
+        { err: String(err) },
+        "Erro ao consultar status da cobrança Asaas",
+      );
+      res.json({
+        status: row.paymentStatus,
+        invoiceUrl: row.asaasInvoiceUrl ?? null,
+        asaasStatus: null,
+        error: "asaas_indisponivel",
+      });
+    }
+  },
+);
+
 // Atualiza status/notas/pagamento de uma solicitacao (admin).
 router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
@@ -462,9 +662,18 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Solicitação não encontrada" });
     return;
   }
+  // Endpoint publico (o fluxo /agendar e publico). O estado de pagamento e
+  // SERVER-ONLY: so muda via concierge-charge, polling (payment-status) e webhook.
+  // Aqui aceitamos apenas campos seguros — nunca paymentStatus/paidAt/asaas*.
+  const { status, notes, chosenDate, chosenTime } = parsed.data;
+  const changes: Record<string, unknown> = {};
+  if (status !== undefined) changes.status = status;
+  if (notes !== undefined) changes.notes = notes;
+  if (chosenDate !== undefined) changes.chosenDate = chosenDate;
+  if (chosenTime !== undefined) changes.chosenTime = chosenTime;
   const [row] = await db
     .update(schedulingRequestsTable)
-    .set({ ...parsed.data })
+    .set(changes)
     .where(eq(schedulingRequestsTable.id, id))
     .returning();
   res.json(formatRequest(row));

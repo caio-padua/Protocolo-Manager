@@ -990,6 +990,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/SchedulingRequest"
 
+  /scheduling/requests/{id}/concierge-charge:
+    post:
+      operationId: createConciergeCharge
+      tags: [scheduling]
+      summary: Create (or reuse) the real Asaas Concierge charge for a request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientCpf:
+                  type: string
+      responses:
+        "200":
+          description: Existing charge reused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConciergeChargeResult"
+        "201":
+          description: Charge created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConciergeChargeResult"
+
+  /scheduling/requests/{id}/payment-status:
+    get:
+      operationId: getSchedulingPaymentStatus
+      tags: [scheduling]
+      summary: Poll the real-time payment status of a Concierge charge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulingPaymentStatus"
+
   /catalog-options:
     get:
       operationId: listCatalogOptions
@@ -4657,6 +4710,21 @@ components:
           nullable: true
         paymentStatus:
           type: string
+        asaasCustomerId:
+          type: string
+          nullable: true
+        asaasChargeId:
+          type: string
+          nullable: true
+        asaasInvoiceUrl:
+          type: string
+          nullable: true
+        paymentAmount:
+          type: number
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
         status:
           type: string
         notes:
@@ -4732,8 +4800,48 @@ components:
         notes:
           type: string
           nullable: true
-        paymentStatus:
+        chosenDate:
           type: string
+          nullable: true
+        chosenTime:
+          type: string
+          nullable: true
+
+    ConciergeChargeResult:
+      type: object
+      properties:
+        requestId:
+          type: integer
+        chargeId:
+          type: string
+        invoiceUrl:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+      required:
+        - requestId
+        - chargeId
+        - invoiceUrl
+        - amount
+        - status
+
+    SchedulingPaymentStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        invoiceUrl:
+          type: string
+          nullable: true
+        asaasStatus:
+          type: string
+          nullable: true
+        error:
+          type: string
+      required:
+        - status
 
     CatalogOption:
       type: object

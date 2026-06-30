@@ -1629,6 +1629,11 @@ export const ListSchedulingRequestsResponseItem = zod.object({
   chosenTime: zod.string().nullish(),
   paymentArm: zod.string().nullish(),
   paymentStatus: zod.string(),
+  asaasCustomerId: zod.string().nullish(),
+  asaasChargeId: zod.string().nullish(),
+  asaasInvoiceUrl: zod.string().nullish(),
+  paymentAmount: zod.number().nullish(),
+  paidAt: zod.string().nullish(),
   status: zod.string(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
@@ -1668,7 +1673,8 @@ export const UpdateSchedulingRequestParams = zod.object({
 export const UpdateSchedulingRequestBody = zod.object({
   status: zod.string().optional(),
   notes: zod.string().nullish(),
-  paymentStatus: zod.string().optional(),
+  chosenDate: zod.string().nullish(),
+  chosenTime: zod.string().nullish(),
 });
 
 export const UpdateSchedulingRequestResponse = zod.object({
@@ -1689,9 +1695,47 @@ export const UpdateSchedulingRequestResponse = zod.object({
   chosenTime: zod.string().nullish(),
   paymentArm: zod.string().nullish(),
   paymentStatus: zod.string(),
+  asaasCustomerId: zod.string().nullish(),
+  asaasChargeId: zod.string().nullish(),
+  asaasInvoiceUrl: zod.string().nullish(),
+  paymentAmount: zod.number().nullish(),
+  paidAt: zod.string().nullish(),
   status: zod.string(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
+});
+
+/**
+ * @summary Create (or reuse) the real Asaas Concierge charge for a request
+ */
+export const CreateConciergeChargeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateConciergeChargeBody = zod.object({
+  patientCpf: zod.string().optional(),
+});
+
+export const CreateConciergeChargeResponse = zod.object({
+  requestId: zod.number(),
+  chargeId: zod.string(),
+  invoiceUrl: zod.string(),
+  amount: zod.number(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Poll the real-time payment status of a Concierge charge
+ */
+export const GetSchedulingPaymentStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSchedulingPaymentStatusResponse = zod.object({
+  status: zod.string(),
+  invoiceUrl: zod.string().nullish(),
+  asaasStatus: zod.string().nullish(),
+  error: zod.string().optional(),
 });
 
 /**

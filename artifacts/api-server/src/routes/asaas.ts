@@ -7,6 +7,7 @@ import {
   bankAccountsTable,
   collaboratorAuditTable,
   professionalsTable,
+  schedulingRequestsTable,
 } from "@workspace/db";
 import {
   asaasCreateCustomer,
@@ -649,29 +650,62 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
   }
 
   try {
+    // A cobranca pode estar na tabela de pagamentos (clientes) OU amarrada a uma
+    // solicitacao de agendamento Concierge (lead ainda nao cadastrado). Atualiza
+    // as duas fontes que existirem; so ignora se nenhuma reconhecer o charge.
     const [row] = await db
       .select()
       .from(paymentsTable)
       .where(eq(paymentsTable.asaasChargeId, payment.id));
-    if (!row) {
+    const [sreq] = await db
+      .select()
+      .from(schedulingRequestsTable)
+      .where(eq(schedulingRequestsTable.asaasChargeId, payment.id));
+    if (!row && !sreq) {
       // Cobranca desconhecida: nao derruba a rota (Asaas pode reenviar).
       res.status(200).json({ ok: true, ignored: true });
       return;
     }
 
+    const paidDate = payment.paymentDate || new Date().toISOString().slice(0, 10);
+
     if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
-      await db
-        .update(paymentsTable)
-        .set({ status: "paid", paidAt: payment.paymentDate || new Date().toISOString().slice(0, 10) })
-        .where(eq(paymentsTable.id, row.id));
+      if (row) {
+        await db
+          .update(paymentsTable)
+          .set({ status: "paid", paidAt: paidDate })
+          .where(eq(paymentsTable.id, row.id));
+      }
+      if (sreq) {
+        await db
+          .update(schedulingRequestsTable)
+          .set({ paymentStatus: "pago", paidAt: sreq.paidAt ?? paidDate })
+          .where(eq(schedulingRequestsTable.id, sreq.id));
+      }
     } else if (event === "PAYMENT_OVERDUE") {
-      await db.update(paymentsTable).set({ status: "overdue" }).where(eq(paymentsTable.id, row.id));
+      if (row) {
+        await db.update(paymentsTable).set({ status: "overdue" }).where(eq(paymentsTable.id, row.id));
+      }
+      if (sreq) {
+        await db
+          .update(schedulingRequestsTable)
+          .set({ paymentStatus: "expirado" })
+          .where(eq(schedulingRequestsTable.id, sreq.id));
+      }
     } else if (
       event === "PAYMENT_DELETED" ||
       event === "PAYMENT_REFUNDED" ||
       event === "PAYMENT_CHARGEBACK_REQUESTED"
     ) {
-      await db.update(paymentsTable).set({ status: "cancelled" }).where(eq(paymentsTable.id, row.id));
+      if (row) {
+        await db.update(paymentsTable).set({ status: "cancelled" }).where(eq(paymentsTable.id, row.id));
+      }
+      if (sreq) {
+        await db
+          .update(schedulingRequestsTable)
+          .set({ paymentStatus: "cancelado" })
+          .where(eq(schedulingRequestsTable.id, sreq.id));
+      }
     }
 
     res.status(200).json({ ok: true });
