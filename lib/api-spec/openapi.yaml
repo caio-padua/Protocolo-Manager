@@ -1010,6 +1010,11 @@ paths:
               properties:
                 patientCpf:
                   type: string
+                accessToken:
+                  type: string
+                  description: >-
+                    Crachá HMAC da solicitação (emitido na criação). Obrigatório
+                    — sem ele a cobrança é negada (403).
       responses:
         "200":
           description: Existing charge reused
@@ -4732,6 +4737,13 @@ components:
           nullable: true
         createdAt:
           type: string
+        accessToken:
+          type: string
+          nullable: true
+          description: >-
+            Crachá HMAC amarrado a esta solicitação. Devolvido apenas na criação
+            (POST). As rotas públicas de cobrança/status/confirmação exigem este
+            token para impedir acesso por id adivinhado (IDOR/enumeração).
       required:
         - id
         - entrada
@@ -4806,6 +4818,12 @@ components:
         chosenTime:
           type: string
           nullable: true
+        accessToken:
+          type: string
+          nullable: true
+          description: >-
+            Crachá HMAC da solicitação (emitido na criação). Obrigatório no
+            fluxo público para confirmar a posse antes de alterar a solicitação.
 
     ConciergeChargeResult:
       type: object

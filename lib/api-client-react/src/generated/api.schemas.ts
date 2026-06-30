@@ -1356,6 +1356,8 @@ export interface SchedulingRequest {
   status: string;
   notes?: string | null;
   createdAt: string;
+  /** Crachá HMAC amarrado a esta solicitação. Devolvido apenas na criação (POST). As rotas públicas de cobrança/status/confirmação exigem este token para impedir acesso por id adivinhado (IDOR/enumeração). */
+  accessToken?: string | null;
 }
 
 export type CreateSchedulingRequestBodyEntrada =
@@ -1390,6 +1392,8 @@ export interface UpdateSchedulingRequestBody {
   notes?: string | null;
   chosenDate?: string | null;
   chosenTime?: string | null;
+  /** Crachá HMAC da solicitação (emitido na criação). Obrigatório no fluxo público para confirmar a posse antes de alterar a solicitação. */
+  accessToken?: string | null;
 }
 
 export interface ConciergeChargeResult {
@@ -2060,6 +2064,8 @@ export type ListSchedulingRequestsParams = {
 
 export type CreateConciergeChargeBody = {
   patientCpf?: string;
+  /** Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403). */
+  accessToken?: string;
 };
 
 export type ListCatalogOptionsParams = {

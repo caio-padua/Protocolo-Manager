@@ -32,4 +32,6 @@ export interface SchedulingRequest {
   status: string;
   notes?: string | null;
   createdAt: string;
+  /** Crachá HMAC amarrado a esta solicitação. Devolvido apenas na criação (POST). As rotas públicas de cobrança/status/confirmação exigem este token para impedir acesso por id adivinhado (IDOR/enumeração). */
+  accessToken?: string | null;
 }

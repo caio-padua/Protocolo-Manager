@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import {
   db,
   professionalsTable,
@@ -7,7 +7,11 @@ import {
   professionalAreasTable,
   professionalSpecialtiesTable,
 } from "@workspace/db";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
+import {
+  createSchedulingToken,
+  verifySchedulingToken,
+} from "../lib/portal-token.js";
 import {
   CreateSchedulingRequestBody,
   UpdateSchedulingRequestBody,
@@ -54,6 +58,21 @@ async function resolveConciergeAmount(): Promise<number> {
   const raw = await getSetting("pay.conciergeValue");
   const n = raw ? Number(raw) : NaN;
   return Number.isFinite(n) && n >= 5 ? n : CONCIERGE_AMOUNT_DEFAULT;
+}
+
+// Confere o "crachá" de agendamento: lê o token do header (x-scheduling-token)
+// ou do corpo (accessToken) e confirma que ele pertence a ESTA solicitação. O
+// crachá é emitido na criação da solicitação. Sem crachá válido, as rotas
+// públicas de cobrança/status/confirmação negam (403) — assim ninguém manipula
+// a solicitação de outra pessoa apenas adivinhando o número (IDOR/enumeração).
+function schedulingTokenMatches(req: Request, id: number): boolean {
+  const fromHeader = (req.header("x-scheduling-token") || "").trim();
+  const fromBody = String(
+    (req.body && (req.body as { accessToken?: unknown }).accessToken) || "",
+  ).trim();
+  const raw = fromHeader || fromBody;
+  if (!raw) return false;
+  return verifySchedulingToken(raw) === id;
 }
 
 // Monta a mensagem de lembrete a partir da solicitacao. So texto; nao envia.
@@ -477,7 +496,12 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     })
     .returning();
 
-  res.status(201).json(formatRequest(row));
+  // Emite o crachá amarrado a esta solicitação. O frontend o guarda e o envia
+  // nas rotas de cobrança/status/confirmação. Só é devolvido aqui, na criação.
+  res.status(201).json({
+    ...formatRequest(row),
+    accessToken: createSchedulingToken(row.id),
+  });
 });
 
 // Gera (ou reusa) a cobranca REAL Concierge no Asaas, amarrada a solicitacao.
@@ -489,6 +513,11 @@ router.post(
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
       res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    // Crachá obrigatório: prova que quem pede a cobrança é o dono da solicitação.
+    if (!schedulingTokenMatches(req, id)) {
+      res.status(403).json({ error: "Acesso negado a esta solicitação." });
       return;
     }
     const [row] = await db
@@ -506,17 +535,6 @@ router.post(
       });
       return;
     }
-    // Idempotencia: ja existe cobranca -> devolve a mesma.
-    if (row.asaasChargeId && row.asaasInvoiceUrl) {
-      res.status(200).json({
-        requestId: row.id,
-        chargeId: row.asaasChargeId,
-        invoiceUrl: row.asaasInvoiceUrl,
-        amount: row.paymentAmount ?? (await resolveConciergeAmount()),
-        status: row.paymentStatus,
-      });
-      return;
-    }
     const cpf = String(req.body?.patientCpf || row.patientCpf || "").replace(
       /\D/g,
       "",
@@ -528,42 +546,79 @@ router.post(
       return;
     }
     try {
-      let customerId = row.asaasCustomerId;
-      if (!customerId) {
-        const customer = await asaasCreateCustomer({
-          name: row.patientName,
-          cpfCnpj: cpf,
-          email: row.patientEmail,
-          phone: row.patientPhone,
+      // Trava anti-cobrança-dupla: a transação serializa, POR SOLICITAÇÃO, as
+      // chamadas concorrentes (dois cliques/duas abas). pg_advisory_xact_lock é
+      // liberado automaticamente ao fim da transação (commit/rollback/queda de
+      // conexão) — sem risco de trava presa. A leitura "fresca" e a checagem de
+      // idempotência acontecem DENTRO da trava: o segundo a entrar enxerga a
+      // cobrança que o primeiro acabou de criar e devolve a mesma, em vez de
+      // criar uma segunda cobrança no Asaas.
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${id})`);
+
+        const [fresh] = await tx
+          .select()
+          .from(schedulingRequestsTable)
+          .where(eq(schedulingRequestsTable.id, id))
+          .limit(1);
+
+        if (fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
+          return {
+            created: false,
+            requestId: fresh.id,
+            chargeId: fresh.asaasChargeId,
+            invoiceUrl: fresh.asaasInvoiceUrl,
+            amount: fresh.paymentAmount ?? (await resolveConciergeAmount()),
+            status: fresh.paymentStatus,
+          };
+        }
+
+        let customerId = fresh.asaasCustomerId;
+        if (!customerId) {
+          const customer = await asaasCreateCustomer({
+            name: fresh.patientName,
+            cpfCnpj: cpf,
+            email: fresh.patientEmail,
+            phone: fresh.patientPhone,
+          });
+          customerId = customer.id;
+        }
+        const amount = await resolveConciergeAmount();
+        const due = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const charge = await asaasCreateCharge({
+          customerId,
+          value: amount,
+          dueDate: due,
+          description: `Concierge — prioridade Dr. Caio — ${fresh.patientName}`,
         });
-        customerId = customer.id;
-      }
-      const amount = await resolveConciergeAmount();
-      const due = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-      const charge = await asaasCreateCharge({
-        customerId,
-        value: amount,
-        dueDate: due,
-        description: `Concierge — prioridade Dr. Caio — ${row.patientName}`,
+        const [updated] = await tx
+          .update(schedulingRequestsTable)
+          .set({
+            asaasCustomerId: customerId,
+            asaasChargeId: charge.id,
+            asaasInvoiceUrl: charge.invoiceUrl,
+            paymentAmount: amount,
+            patientCpf: cpf,
+            paymentStatus: "aguardando",
+          })
+          .where(eq(schedulingRequestsTable.id, id))
+          .returning();
+        return {
+          created: true,
+          requestId: updated.id,
+          chargeId: charge.id,
+          invoiceUrl: charge.invoiceUrl,
+          amount,
+          status: "aguardando",
+        };
       });
-      const [updated] = await db
-        .update(schedulingRequestsTable)
-        .set({
-          asaasCustomerId: customerId,
-          asaasChargeId: charge.id,
-          asaasInvoiceUrl: charge.invoiceUrl,
-          paymentAmount: amount,
-          patientCpf: cpf,
-          paymentStatus: "aguardando",
-        })
-        .where(eq(schedulingRequestsTable.id, id))
-        .returning();
-      res.status(201).json({
-        requestId: updated.id,
-        chargeId: charge.id,
-        invoiceUrl: charge.invoiceUrl,
-        amount,
-        status: "aguardando",
+
+      res.status(result.created ? 201 : 200).json({
+        requestId: result.requestId,
+        chargeId: result.chargeId,
+        invoiceUrl: result.invoiceUrl,
+        amount: result.amount,
+        status: result.status,
       });
     } catch (err) {
       req.log.error(
@@ -587,6 +642,11 @@ router.get(
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
       res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    // Crachá obrigatório (enviado pelo header x-scheduling-token no polling).
+    if (!schedulingTokenMatches(req, id)) {
+      res.status(403).json({ error: "Acesso negado a esta solicitação." });
       return;
     }
     const [row] = await db
@@ -646,6 +706,11 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
+    return;
+  }
+  // Crachá obrigatório: só o dono da solicitação (fluxo /agendar) pode alterá-la.
+  if (!schedulingTokenMatches(req, id)) {
+    res.status(403).json({ error: "Acesso negado a esta solicitação." });
     return;
   }
   const parsed = UpdateSchedulingRequestBody.safeParse(req.body);

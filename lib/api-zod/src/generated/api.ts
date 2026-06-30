@@ -1637,6 +1637,12 @@ export const ListSchedulingRequestsResponseItem = zod.object({
   status: zod.string(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
+  accessToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Crachá HMAC amarrado a esta solicitação. Devolvido apenas na criação (POST). As rotas públicas de cobrança\/status\/confirmação exigem este token para impedir acesso por id adivinhado (IDOR\/enumeração).",
+    ),
 });
 export const ListSchedulingRequestsResponse = zod.array(
   ListSchedulingRequestsResponseItem,
@@ -1675,6 +1681,12 @@ export const UpdateSchedulingRequestBody = zod.object({
   notes: zod.string().nullish(),
   chosenDate: zod.string().nullish(),
   chosenTime: zod.string().nullish(),
+  accessToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Crachá HMAC da solicitação (emitido na criação). Obrigatório no fluxo público para confirmar a posse antes de alterar a solicitação.",
+    ),
 });
 
 export const UpdateSchedulingRequestResponse = zod.object({
@@ -1703,6 +1715,12 @@ export const UpdateSchedulingRequestResponse = zod.object({
   status: zod.string(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
+  accessToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Crachá HMAC amarrado a esta solicitação. Devolvido apenas na criação (POST). As rotas públicas de cobrança\/status\/confirmação exigem este token para impedir acesso por id adivinhado (IDOR\/enumeração).",
+    ),
 });
 
 /**
@@ -1714,6 +1732,12 @@ export const CreateConciergeChargeParams = zod.object({
 
 export const CreateConciergeChargeBody = zod.object({
   patientCpf: zod.string().optional(),
+  accessToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403).",
+    ),
 });
 
 export const CreateConciergeChargeResponse = zod.object({

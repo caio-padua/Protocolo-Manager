@@ -23,6 +23,10 @@ async function asaasFetch(path: string, init?: RequestInit): Promise<any> {
   const [key, baseUrl] = await Promise.all([resolveApiKey(), resolveBaseUrl()]);
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
+    // Limite de tempo (20s) para nunca pendurar a requisicao se o Asaas travar.
+    // Importante: a geracao da cobranca roda dentro de uma transacao com trava
+    // (pg_advisory_xact_lock); sem este teto a trava ficaria presa esperando.
+    signal: init?.signal ?? AbortSignal.timeout(20000),
     headers: {
       access_token: key,
       "Content-Type": "application/json",

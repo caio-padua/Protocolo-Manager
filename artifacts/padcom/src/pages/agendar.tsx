@@ -456,17 +456,28 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
   // Pagamento real Concierge (Asaas): id da solicitacao + pagina hospedada + status ao vivo.
   const [requestId, setRequestId] = useState<number | null>(null);
+  // Crachá HMAC desta solicitacao (emitido na criacao). Vai em todas as rotas
+  // de cobranca/status/confirmacao; sem ele o servidor nega (403).
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [invoiceUrl, setInvoiceUrl] = useState("");
   const [payStatus, setPayStatus] = useState<
     "idle" | "aguardando" | "pago" | "expirado" | "cancelado"
   >("idle");
 
   // Polling do status real da cobranca (a cada 4s, so enquanto aguardando).
+  // O crachá viaja no header x-scheduling-token (rota GET nao tem corpo).
   const paymentStatusQuery = useGetSchedulingPaymentStatus(requestId ?? 0, {
     query: {
       queryKey: getGetSchedulingPaymentStatusQueryKey(requestId ?? 0),
-      enabled: requestId != null && !!invoiceUrl && payStatus === "aguardando",
+      enabled:
+        requestId != null &&
+        !!invoiceUrl &&
+        !!accessToken &&
+        payStatus === "aguardando",
       refetchInterval: 4000,
+    },
+    request: {
+      headers: accessToken ? { "x-scheduling-token": accessToken } : {},
     },
   });
 
@@ -483,9 +494,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   }, [paymentStatusQuery.data?.status, payStatus]);
 
   // Gera a cobranca real: cria a solicitacao (uma vez) e abre a pagina hospedada.
-  const doCharge = (id: number, cpfDigits: string) => {
+  // O token e passado explicitamente (o state pode nao ter atualizado ainda no
+  // fluxo criar->cobrar dentro do mesmo clique).
+  const doCharge = (id: number, cpfDigits: string, token: string | null) => {
     conciergeCharge.mutate(
-      { id, data: { patientCpf: cpfDigits } },
+      { id, data: { patientCpf: cpfDigits, accessToken: token ?? undefined } },
       {
         onSuccess: (r) => {
           setInvoiceUrl(r.invoiceUrl);
@@ -508,7 +521,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       return;
     }
     if (requestId != null) {
-      doCharge(requestId, cpfDigits);
+      doCharge(requestId, cpfDigits, accessToken);
       return;
     }
     const preferredPeriod = prefTime
@@ -534,7 +547,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       {
         onSuccess: (created) => {
           setRequestId(created.id);
-          doCharge(created.id, cpfDigits);
+          const token = created.accessToken ?? null;
+          setAccessToken(token);
+          doCharge(created.id, cpfDigits, token);
         },
         onError: (err: any) =>
           setErrorMsg(err.message || "Erro ao criar a solicitação."),
@@ -555,6 +570,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         data: {
           chosenDate: chosenSlotDate || undefined,
           chosenTime: chosenSlotTime || undefined,
+          accessToken: accessToken ?? undefined,
         },
       },
       {

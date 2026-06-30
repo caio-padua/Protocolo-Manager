@@ -11,4 +11,6 @@ export interface UpdateSchedulingRequestBody {
   notes?: string | null;
   chosenDate?: string | null;
   chosenTime?: string | null;
+  /** Crachá HMAC da solicitação (emitido na criação). Obrigatório no fluxo público para confirmar a posse antes de alterar a solicitação. */
+  accessToken?: string | null;
 }

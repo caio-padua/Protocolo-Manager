@@ -89,6 +89,41 @@ export function verifyRegistrationToken(token: string): number | null {
   }
 }
 
+// Token de AGENDAMENTO Concierge ("crachá") — assinado por HMAC, validade de
+// 24h. O fluxo público /agendar é anônimo (sem login): ao criar a solicitação,
+// o servidor emite este crachá amarrado ao id da solicitação e o devolve no
+// corpo da resposta. As rotas públicas de cobrança, status de pagamento e
+// confirmação passam a EXIGIR o crachá, impedindo que alguém manipule a
+// solicitação de outra pessoa apenas adivinhando o número (IDOR/enumeração).
+// O escopo "agendar" impede reaproveitar este token nas demais rotas.
+const SCHEDULING_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function createSchedulingToken(requestId: number): string {
+  const exp = Date.now() + SCHEDULING_TOKEN_TTL_MS;
+  const payload = `agendar:${requestId}:${exp}`;
+  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+export function verifySchedulingToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString();
+    const parts = decoded.split(":");
+    if (parts.length !== 4) return null;
+    const [scope, idStr, expStr, sig] = parts;
+    if (scope !== "agendar") return null;
+    const payload = `${scope}:${idStr}:${expStr}`;
+    const expected = createHmac("sha256", TOKEN_SECRET)
+      .update(payload)
+      .digest("hex");
+    if (sig !== expected) return null;
+    if (Date.now() > Number(expStr)) return null;
+    return Number(idStr);
+  } catch {
+    return null;
+  }
+}
+
 // SUB-04 item 7: token de FEED iCal — assinado por HMAC, SEM expiração.
 // Uma assinatura de calendário (Google/Apple) é permanente: o app do cliente
 // busca a URL periodicamente. O escopo "ical" no payload impede reaproveitar
