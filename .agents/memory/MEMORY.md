@@ -77,3 +77,4 @@
 - [Card de gateway + olho do cofre](card-gateway-padrao-olho.md) — Padrão 18; dono logado pode ver o próprio segredo sob ação explícita (não viola Art.65); tela requireCollaborator valida-se injetando token no localStorage.
 - [Tela autossuficiente p/ credenciais](config-tela-autossuficiente.md) — toda chave/token tem campo na própria tela (ZapSign); GET só metadado mascarado (type=password, PUT só preenchidos, cofre+fallback env); rota que vaza máscara/source TAMBÉM exige requireCollaborator + Bearer em toda leitura.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange (key remount/setValue NÃO resolvem).
+- [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real (grep ^[+-]) antes de reverter.

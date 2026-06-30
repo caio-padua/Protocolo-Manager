@@ -25,7 +25,10 @@ import {
   Clock,
   CreditCard,
   Stethoscope,
-  HeartPulse
+  HeartPulse,
+  Info,
+  ArrowRight,
+  Check
 } from "lucide-react";
 
 // --- Helpers ---
@@ -237,6 +240,7 @@ export default function Agendar() {
             title={btnDrCaio}
             payTextConcierge={txtConcierge}
             payLink={linkConcierge}
+            theme={theme}
           />
         )}
 
@@ -362,8 +366,10 @@ function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void;
 }
 
 // --- DOOR 3: DR CAIO ---
-function DrCaioFlow({ onBack, title, payTextConcierge, payLink }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string }) {
+function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
+  const isDark = theme === "dark";
   const [step, setStep] = useState<1 | 2>(1);
+  const [dateTouched, setDateTouched] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -427,161 +433,214 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink }: { onBack: () =
   if (success) return <SuccessState onBack={onBack} isExclusive />;
 
   return (
-    <div className="space-y-6 animate-in zoom-in-95 duration-500">
-      {/* Visual mais cerimonial: fundo escuro no card */}
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={step === 1 ? onBack : () => setStep(1)} className="w-8 h-8 shrink-0 rounded-md bg-transparent border border-border flex items-center justify-center text-primary hover:bg-muted transition-colors">
+    <div className={`dc-luxo space-y-10 animate-in fade-in duration-500 ${isDark ? "dc-dark" : "dc-light"}`}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
+        .dc-luxo .dc-serif { font-family: 'Playfair Display', Georgia, serif; }
+        .dc-luxo .dc-gold {
+          background: linear-gradient(135deg, #f4e2a8 0%, #c2a05a 50%, #8a6d2f 100%);
+          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .dc-luxo .dc-input {
+          width: 100%; background: transparent; border: none;
+          border-bottom: 1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(22,40,74,0.2)"};
+          padding: 13px 0; font-size: 15px; color: ${isDark ? "#e8edf6" : "#16284a"};
+          outline: none; transition: border-color .3s ease; border-radius: 0;
+        }
+        .dc-luxo .dc-input:focus { border-bottom-color: #c2a05a; }
+        .dc-luxo .dc-input::placeholder {
+          color: ${isDark ? "rgba(255,255,255,0.32)" : "rgba(22,40,74,0.4)"};
+          font-family: 'Playfair Display', Georgia, serif; font-style: italic;
+        }
+        .dc-luxo .dc-select {
+          appearance: none;
+          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${isDark ? "%23c2a05a" : "%238a6d2f"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+          background-repeat: no-repeat; background-position: right 2px center; background-size: 1em; padding-right: 22px;
+        }
+        .dc-luxo .dc-chip {
+          border: 1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(22,40,74,0.2)"};
+          background: transparent; color: ${isDark ? "rgba(255,255,255,0.72)" : "rgba(22,40,74,0.72)"};
+          transition: all .25s ease; border-radius: 6px;
+        }
+        .dc-luxo .dc-chip[data-active="true"] {
+          border-color: #c2a05a; color: ${isDark ? "#f4e2a8" : "#8a6d2f"};
+          background: rgba(194,160,90,0.1);
+        }
+        .dc-luxo .dc-concierge {
+          background: ${isDark ? "linear-gradient(180deg, #1d335c 0%, #16284a 100%)" : "linear-gradient(180deg, #ffffff 0%, #f4f2ee 100%)"};
+          border: 1px solid rgba(194,160,90,${isDark ? "0.35" : "0.45"});
+          box-shadow: ${isDark ? "0 12px 32px -12px rgba(0,0,0,0.55)" : "0 12px 32px -12px rgba(22,40,74,0.12)"};
+          border-radius: 8px;
+        }
+        .dc-luxo .dc-reveal { animation: dcReveal .6s cubic-bezier(0.16,1,0.3,1) both; }
+        @keyframes dcReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+
+      {/* Cabeçalho editorial */}
+      <div className="flex items-center gap-3">
+        <button onClick={step === 1 ? onBack : () => setStep(1)} className={`w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors ${isDark ? "border-[#2a4470] text-stone-300 hover:bg-white/5" : "border-stone-300 text-[#16284a] hover:bg-black/5"}`}>
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="min-w-0">
-          <h2 className="font-serif text-2xl text-primary truncate leading-none">{title}</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-accent mt-1">Acesso Exclusivo</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] dc-gold mb-1">Acesso Exclusivo</p>
+          <h2 className={`dc-serif text-2xl leading-none truncate ${isDark ? "text-white" : "text-[#16284a]"}`}>{title}</h2>
         </div>
       </div>
 
-      <div className="panel-3d-hero bg-[#0b1a33] rounded-xl overflow-hidden text-slate-100">
-        <div className="bg-gradient-to-b from-[#16284a] to-[#0b1a33] p-5 sm:p-6 space-y-5">
-          {step === 1 ? (
-            <div className="space-y-4 animate-in fade-in">
-              <p className="text-sm text-slate-200 font-serif mb-6 leading-relaxed">
-                Nossa agenda possui uma carência mínima de 3 meses para novas avaliações, garantindo a excelência do acompanhamento de nossos pacientes.
-              </p>
-              
-              <Field dark label="NOME COMPLETO *" value={name} onChange={setName} placeholder="Seu nome" />
-              <Field dark label="TELEFONE (WHATSAPP) *" value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="(00) 00000-0000" type="tel" />
-              
-              <div className="grid grid-cols-2 gap-3">
-                <Field dark label="CPF (OPCIONAL)" value={cpf} onChange={(v) => setCpf(formatCpf(v))} placeholder="000.000.000-00" type="tel" />
-                <Field dark label="EMAIL (OPCIONAL)" value={email} onChange={setEmail} placeholder="seu@email.com" type="email" />
+      {step === 1 ? (
+        <div className="flex flex-col gap-12">
+          {/* Ato I — Credenciais */}
+          <section>
+            <h3 className="dc-serif italic dc-gold text-xl mb-6">I. Suas Credenciais</h3>
+            <div className="flex flex-col gap-1">
+              <input className="dc-input" placeholder="Nome completo" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="dc-input" type="tel" placeholder="Telefone / WhatsApp" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
+              <div className="grid grid-cols-2 gap-5">
+                <input className="dc-input" type="tel" placeholder="CPF (opcional)" value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} />
+                <input className="dc-input" type="email" placeholder="E-mail (opcional)" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
-
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">O QUE MOTIVA SUA BUSCA?</label>
-                <textarea
-                  className="field-engraved w-full p-3 rounded-md text-sm focus:outline-none min-h-[60px]"
-                  style={{ background: "linear-gradient(180deg, #16284a 0%, #0b1a33 28%)", color: "#e2e8f0", borderColor: "#2a4470" }}
-                  placeholder="Escreva brevemente..."
-                  value={desire}
-                  onChange={(e) => setDesire(e.target.value)}
-                />
-              </div>
-
-              <div className="pt-2 border-t border-[#2a4470]">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">
-                  A PARTIR DE QUAL DATA? (MIN. 3 MESES) *
-                </label>
-                <input
-                  type="date"
-                  min={MIN_DATE_CAIO}
-                  value={earliestDate}
-                  onChange={(e) => setEarliestDate(e.target.value)}
-                  className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none"
-                  style={{ background: "linear-gradient(180deg, #16284a 0%, #0b1a33 28%)", color: "#e2e8f0", borderColor: "#2a4470", colorScheme: "dark" }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">DIA PREFERIDO</label>
-                  <select 
-                    className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none appearance-none"
-                    style={{ background: "linear-gradient(180deg, #16284a 0%, #0b1a33 28%)", color: "#e2e8f0", borderColor: "#2a4470" }}
-                    value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}
-                  >
-                    <option value="">Qualquer dia</option>
-                    <option value="1">Segunda-feira</option>
-                    <option value="2">Terça-feira</option>
-                    <option value="3">Quarta-feira</option>
-                    <option value="4">Quinta-feira</option>
-                    <option value="5">Sexta-feira</option>
-                    <option value="6">Sábado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#c2a05a] mb-1.5">PERÍODO</label>
-                  <select 
-                    className="field-engraved w-full h-11 px-3 rounded-md text-sm focus:outline-none appearance-none"
-                    style={{ background: "linear-gradient(180deg, #16284a 0%, #0b1a33 28%)", color: "#e2e8f0", borderColor: "#2a4470" }}
-                    value={prefPeriod} onChange={(e) => setPrefPeriod(e.target.value)}
-                  >
-                    <option value="">Qualquer horário</option>
-                    <option value="manha">Manhã</option>
-                    <option value="tarde">Tarde</option>
-                    <option value="noite">Noite</option>
-                  </select>
-                </div>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3 bg-red-950/40 border border-red-900 rounded text-red-400 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <p>{errorMsg}</p>
-                </div>
-              )}
-
-              <button
-                onClick={handleNext}
-                disabled={!name || phone.replace(/\D/g,"").length < 10 || !earliestDate}
-                className="w-full h-12 mt-4 bg-gradient-to-b from-[#c2a05a] to-[#a3803c] text-[#152b2b] rounded-md font-black uppercase tracking-widest text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.3)] hover:brightness-110 active:translate-y-px transition-all disabled:opacity-50"
-              >
-                PROSSEGUIR
-              </button>
             </div>
-          ) : (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-              <div className="text-center space-y-2">
-                <h3 className="font-serif text-xl text-[#c2a05a]">Lista de Espera</h3>
-                <p className="text-xs text-slate-300">Escolha como deseja aguardar a disponibilidade.</p>
+          </section>
+
+          {/* Ato II — Desejo */}
+          <section>
+            <h3 className="dc-serif italic dc-gold text-xl mb-6">II. O Desejo</h3>
+            <p className={`text-[11px] uppercase tracking-widest mb-4 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>O que motiva sua busca?</p>
+            <div className="flex flex-wrap gap-2.5 mb-5">
+              {["Harmonização", "Rejuvenescimento", "Toxina Botulínica", "Protocolos Corporais", "Avaliação Exclusiva"].map((m) => (
+                <button key={m} type="button" onClick={() => setDesire(m)} data-active={desire === m} className="dc-chip px-4 py-2.5 text-sm">{m}</button>
+              ))}
+            </div>
+            <input className="dc-input" placeholder="Ou descreva em suas próprias palavras..." value={desire} onChange={(e) => setDesire(e.target.value)} />
+          </section>
+
+          {/* Ato III — O Tempo. Escassez é MOTOR DE RESPOSTA: revela ao tocar a data. */}
+          <section>
+            <h3 className="dc-serif italic dc-gold text-xl mb-6">III. O Tempo</h3>
+
+            <div className="flex flex-col gap-1 mb-1">
+              <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>A partir de qual data? (mínimo 3 meses) *</span>
+              <input
+                type="date"
+                min={MIN_DATE_CAIO}
+                value={earliestDate}
+                onFocus={() => setDateTouched(true)}
+                onClick={() => setDateTouched(true)}
+                onChange={(e) => { setDateTouched(true); setEarliestDate(e.target.value); }}
+                className="dc-input"
+                style={{ colorScheme: isDark ? "dark" : "light" }}
+              />
+            </div>
+
+            {dateTouched && (
+              <div className={`dc-reveal p-5 my-5 rounded-lg flex items-start gap-4 ${isDark ? "bg-[#0d182b] border border-[#233f75]" : "bg-white border border-stone-200"}`}>
+                <Info className="w-5 h-5 text-[#c2a05a] shrink-0 mt-0.5" />
+                <p className={`text-sm leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                  Devido à altíssima procura, nossas primeiras datas regulares abrem a partir de <strong className="dc-gold font-semibold">~3 meses</strong>. Trabalhamos com pouquíssimos horários por semana para preservar a excelência de cada atendimento.
+                </p>
               </div>
+            )}
 
-              <div className="space-y-4">
-                <button
-                  onClick={() => setPath("concierge")}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
-                    path === "concierge" ? "border-[#c2a05a] bg-[#1c335c]" : "border-[#2a4470] bg-[#0b1a33] hover:border-[#c2a05a]/50"
-                  }`}
-                >
-                  {path === "concierge" && <div className="absolute top-0 right-0 w-8 h-8 bg-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#0b1a33]" /></div>}
-                  <h4 className="font-black text-sm uppercase tracking-widest text-[#c2a05a] mb-2">VIA CONCIERGE</h4>
-                  <p className="text-xs text-slate-100 leading-relaxed">{payTextConcierge}</p>
-                </button>
-
-                {path === "concierge" && (
-                  <PaymentLinkButton url={payLink} label="Garantir encaixe (Concierge)" dark />
-                )}
-
-                <button
-                  onClick={() => setPath("fila")}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden ${
-                    path === "fila" ? "border-slate-400 bg-[#1c335c]" : "border-[#2a4470] bg-[#0b1a33] hover:border-slate-400/50"
-                  }`}
-                >
-                  {path === "fila" && <div className="absolute top-0 right-0 w-8 h-8 bg-slate-400 rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#0b1a33]" /></div>}
-                  <h4 className="font-black text-sm uppercase tracking-widest text-slate-300 mb-2">FILA COMUM</h4>
-                  <p className="text-xs text-slate-300/70 leading-relaxed">
-                    Aguarde o prazo estipulado gratuitamente. A clínica fará contato apenas se houver viabilidade de encaixe após o período de 3 meses.
-                  </p>
-                </button>
+            <p className={`text-[11px] uppercase tracking-widest mb-4 mt-6 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>Sua preferência de agenda</p>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex flex-col gap-1">
+                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
+                <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}>
+                  <option value="">Qualquer dia</option>
+                  <option value="1">Segunda-feira</option>
+                  <option value="2">Terça-feira</option>
+                  <option value="3">Quarta-feira</option>
+                  <option value="4">Quinta-feira</option>
+                  <option value="5">Sexta-feira</option>
+                  <option value="6">Sábado</option>
+                </select>
               </div>
+              <div className="flex flex-col gap-1">
+                <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
+                <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => setPrefPeriod(e.target.value)}>
+                  <option value="">Qualquer horário</option>
+                  <option value="manha">Manhã</option>
+                  <option value="tarde">Tarde</option>
+                  <option value="noite">Noite</option>
+                </select>
+              </div>
+            </div>
+          </section>
 
-              {errorMsg && (
-                <div className="p-3 bg-red-950/40 border border-red-900 rounded text-red-400 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <p>{errorMsg}</p>
-                </div>
-              )}
-
-              <button
-                onClick={handleSubmit}
-                disabled={!path || createReq.isPending}
-                className="w-full h-12 mt-4 bg-gradient-to-b from-[#c2a05a] to-[#a3803c] text-[#152b2b] rounded-md font-black uppercase tracking-widest text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.3)] hover:brightness-110 active:translate-y-px transition-all disabled:opacity-50 flex items-center justify-center"
-              >
-                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONFIRMAR SOLICITAÇÃO"}
-              </button>
+          {errorMsg && (
+            <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p>{errorMsg}</p>
             </div>
           )}
+
+          <button
+            onClick={handleNext}
+            disabled={!name || phone.replace(/\D/g,"").length < 10 || !earliestDate}
+            className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            Prosseguir <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-right-4">
+          <section>
+            <h3 className="dc-serif italic dc-gold text-xl mb-2">IV. A Jornada</h3>
+            <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>Escolha como deseja garantir seu atendimento.</p>
+          </section>
+
+          <div className="flex flex-col gap-6">
+            {/* Caminho Concierge */}
+            <button type="button" onClick={() => setPath("concierge")} className={`dc-concierge p-7 relative overflow-hidden text-left transition-all ${path === "concierge" ? "ring-2 ring-[#c2a05a]" : ""}`}>
+              <div className="absolute top-0 right-0 p-4 opacity-[0.06] pointer-events-none"><Star className="w-28 h-28 text-[#c2a05a]" /></div>
+              {path === "concierge" && <div className="absolute top-0 right-0 w-9 h-9 bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] rounded-bl-xl flex items-center justify-center"><CheckCircle className="w-4 h-4 text-[#16284a]" /></div>}
+              <div className="relative z-10 flex flex-col gap-5">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f4e2a8] to-[#c2a05a] flex items-center justify-center shadow-lg"><Check className="w-5 h-5 text-[#16284a]" /></div>
+                  <h4 className="dc-serif text-2xl dc-gold">Via Concierge</h4>
+                </div>
+                <p className={`text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                  {payTextConcierge} O cliente antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> (20% do valor da consulta, total de R$ 750,00) para reservar seu horário com prioridade.
+                </p>
+                <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">
+                  <span>PIX</span><span className="opacity-30">•</span><span>Cartão</span><span className="opacity-30">•</span><span>Boleto</span>
+                </div>
+              </div>
+            </button>
+
+            {path === "concierge" && (
+              <div className="dc-reveal"><PaymentLinkButton url={payLink} label="Garantir prioridade (Concierge)" dark={isDark} /></div>
+            )}
+
+            <div className="flex items-center justify-center gap-5 my-1">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-stone-500/30 to-transparent" />
+              <span className="dc-serif italic text-base text-stone-500">ou</span>
+              <div className="h-px flex-1 bg-gradient-to-l from-transparent via-stone-500/30 to-transparent" />
+            </div>
+
+            {/* Caminho Fila */}
+            <button type="button" onClick={() => setPath("fila")} className={`w-full p-6 border rounded-lg flex flex-col items-center gap-2 text-center transition-all ${path === "fila" ? (isDark ? "border-slate-400 bg-[#1c335c]" : "border-stone-400 bg-stone-100") : (isDark ? "border-[#233f75] hover:border-[#325291] hover:bg-[#1d335c]" : "border-stone-300 hover:border-stone-400 hover:bg-stone-100")}`}>
+              <span className={`dc-serif text-xl ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Fila comum</span>
+              <span className="text-sm text-stone-500">Sem custo. A clínica fará contato apenas se houver viabilidade de encaixe após o período de 3 meses.</span>
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p>{errorMsg}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={!path || createReq.isPending}
+            className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar solicitação <ArrowRight className="w-4 h-4" /></>}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

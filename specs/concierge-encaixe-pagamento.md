@@ -101,3 +101,43 @@ D4. Tipo de Nota Fiscal: (a) NFS-e oficial (Nota Fiscal de Servico eletronica) �
 D2. Tempo "X" da tela "Concierge em acao" (sugestao: nao prender o paciente; mostrar "em ate algumas horas"
     e tambem avisar por WhatsApp/e-mail quando as janelas abrirem). Confirmar.
 D3. Modelo de disponibilidade (R7): curadoria manual (default) x agenda dedicada do Dr. Caio. Confirmar.
+
+---
+
+## MULT SPEC — Onda LUXO Editorial + Motor de Escassez + Botox (30/06/2026)
+
+Status: APROVADO PARA BUILD (autonomia total concedida pelo CEO). Dono: Dr. Replit Paxter.
+Escopo: SO LAYOUT da tela de marcacao; o MECANISMO (estado, hooks, API, regra dos 3 meses,
+concierge x fila, link de pagamento, tela de sucesso) fica intacto. "O que ja temos esta otimo."
+
+### Pedido 1 — Aplicar o layout LUXO na tela REAL
+| Item | Decisao |
+|---|---|
+| Layout escolhido pelo CEO | Editorial Concierge (mockup marcacao-navy/EditorialConcierge) |
+| Onde aplicar | artifacts/padcom/src/pages/agendar.tsx -> fluxo DrCaioFlow (a "marcacao") |
+| Linguagem visual | Playfair Display (serifa italica nos titulos de ato), inputs com linha inferior (editorial), ouro em gradiente, atos I/II/III/IV, card concierge com R$ 150,00 explicito + PIX/Cartao/Boleto, divisor "ou", rodape Instituto Padua/Padcon |
+| Tema | ESCURO por padrao + toggle (useScreenTheme ja existe) — manter |
+| Nao mexer | handlers handleNext/handleSubmit, createReq.mutate, MIN_DATE_CAIO (hoje+3 meses), validacao, payload, SuccessState |
+
+### Pedido 2 — Escassez vira MOTOR DE RESPOSTA (nao formada sobre os itens)
+| Antes | Depois |
+|---|---|
+| Aviso de carencia de 3 meses aparece sempre no topo do passo 1 | Aviso/"imagem" de escassez so REVELA quando o usuario interage com o campo de DATA (foco/clique). Antes disso fica oculto. |
+Regra: e mudanca de LAYOUT/interacao, nao de mecanismo. A regra dos 3 meses (min no input + validacao no handleNext) permanece identica.
+
+### Pedido 3 — Varredura (todas as telas funcionando)
+Typecheck do padcom + carregar as telas-chave (marcacao dark/light + amostra de telas internas) e
+conferir console sem erro novo. Preencher faltas obvias encontradas.
+
+### Pedido 4 — Botox no procedimento (botoes de dose) — interpretacao fonetica
+| Botao de dose | Preco | unit_price_cents | kind |
+|---|---|---|---|
+| Botox (Toxina Botulinica) 100 U | R$ 2.200,00 | 220000 | service |
+| Botox (Toxina Botulinica) 50 U | R$ 1.200,00 | 120000 | service |
+Insercao idempotente em budget_catalog (chave natural = name unico). "sem unidades" = "cem unidades" (100 U).
+
+### Aceite (Densidade B)
+- DrCaioFlow com cara Editorial Concierge nos 2 passos, em dark e light, sem quebrar envio.
+- Escassez some no carregamento e aparece so apos tocar a data.
+- 2 itens Botox no catalogo, aparecendo como botoes de dose no Console de Orcamento.
+- Typecheck padcom verde; sem erro novo no console das telas conferidas.
