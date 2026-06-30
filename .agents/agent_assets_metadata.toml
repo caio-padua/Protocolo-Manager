@@ -197,3 +197,9 @@ id = "QAsVngAojrSyFwdKhJBC7"
 uri = "file://screenshots/email-paxter-v2.jpg"
 type = "image"
 title = "Amostra do e-mail PAXTER v2 (como vai chegar)"
+
+[[outputs]]
+id = "nIPksIEoii9qrTz-fvOS-"
+uri = "file://screenshots/paxter-banner-final.png"
+type = "image"
+title = "Banner PAXTER 3D (WhatsApp/Telegram)"

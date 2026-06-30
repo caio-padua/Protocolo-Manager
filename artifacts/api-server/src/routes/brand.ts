@@ -38,11 +38,16 @@ function lerAssetMarca(nome: string): Buffer {
   throw ultimoErro;
 }
 
-router.get("/brand/paxter-banner.png", (_req, res): void => {
-  const png = renderPaxterBannerPng();
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.end(png);
+router.get("/brand/paxter-banner.png", async (_req, res): Promise<void> => {
+  try {
+    const png = await renderPaxterBannerPng();
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.end(png);
+  } catch {
+    // Falta de asset oficial não pode virar rejeição assíncrona silenciosa.
+    res.status(500).type("text/plain").end("banner indisponível");
+  }
 });
 
 // Símbolo e wordmark usados no CABEÇALHO do e-mail Paxter (render-email.ts).
