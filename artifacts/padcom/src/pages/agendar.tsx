@@ -179,7 +179,7 @@ export default function Agendar() {
 
               {/* Door 1: Injetaveis */}
               <button
-                onClick={() => setLocation("/anamnese")}
+                onClick={() => setLocation("/anamnese/v2")}
                 className="w-full relative group text-left"
               >
                 <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
