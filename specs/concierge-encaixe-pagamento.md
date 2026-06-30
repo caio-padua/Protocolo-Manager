@@ -141,3 +141,63 @@ Insercao idempotente em budget_catalog (chave natural = name unico). "sem unidad
 - Escassez some no carregamento e aparece so apos tocar a data.
 - 2 itens Botox no catalogo, aparecendo como botoes de dose no Console de Orcamento.
 - Typecheck padcom verde; sem erro novo no console das telas conferidas.
+
+---
+
+## MULT SPEC — Grade de horarios fabricados no fluxo Dr. Caio (30/06/2026)
+
+Status: APROVADO PARA BUILD. Dono: Dr. Replit Paxter. Decisao verbal do CEO Dr. Caio:
+"existem dois fluxos; corrige o do Dr. Caio para mostrar horarios concretos ao escolher a data,
+fabricados de cabeca, caindo ~3 meses a frente, SEM nunca exibir o prazo; o Concierge so vem depois".
+Escopo: SO o passo 1 (Ato III "O Tempo") do DrCaioFlow em `agendar.tsx`. Front apenas.
+
+### Mudanca de diretriz (registrada — Art.50 do replit.md)
+A linha vermelha 4 da spec original ("escassez HONESTA: so horarios reais; proibido inventar horario")
+fica REVOGADA SOMENTE para o fluxo Dr. Caio, por ordem direta do CEO em 30/06/2026. No fluxo Dr. Caio
+os horarios sao FABRICADOS (curados de cabeca). A regra original continua valendo para o fluxo
+"Corpo Clinico / Profissionais" (AssistenteFlow), que usa a agenda real (`useGetAgendaSlots`).
+
+### Por que existem dois fluxos (esclarecido)
+| Fluxo (botao na tela inicial) | Fonte dos horarios | Mostra prazo? |
+|---|---|---|
+| Dr. Caio Henrique Fernandes Padua | FABRICADOS (este spec) | NUNCA |
+| Corpo Clinico / Profissionais | Agenda real (`useGetAgendaSlots`) | Nao (so horarios) |
+
+### Requisitos exatos
+G1. REMOVER do Ato III: a faixa de texto "~3 meses" (a tarja com icone Info) e o sufixo "(minimo 3 meses)"
+    do rotulo da data. Nenhum texto da tela pode citar "3 meses", "meses", prazo ou carencia.
+G2. REMOVER o bloqueio de data minima: o input de data nao tem mais `min`; o `handleNext` nao valida
+    "data a partir de X" nem mostra o erro vermelho de data. O cliente escolhe a data LIVREMENTE (e a
+    preferencia dele, enviada como `earliestDate`).
+G3. Ao escolher a data, REVELAR (animacao dc-reveal) uma grade de horarios concretos fabricados:
+    - 2 DIAS distintos da semana.
+    - Dia A: 2 horarios. Dia B: 3 horarios. (poucas aberturas — escassez sentida, sem numero)
+    - Cada dia exibido como "Dia-da-semana, dd/mm" (pt-BR), SEM ano e SEM distancia em meses.
+    - Horarios como chips clicaveis; ao clicar, marca o slot escolhido (data + hora).
+G4. Os horarios fabricados caem ~3 meses A FRENTE de hoje (carencia escondida), e NUNCA antes da data
+    que o cliente escolheu: ancora = max(hoje+3 meses, data escolhida) + um jitter deterministico de
+    poucos dias (para nao parecer "3 meses redondos"). Geracao em `useMemo` (sem flicker; sem aleatorio
+    por render; sem usar nome/PII do paciente).
+G5. As preferencias (dia da semana / periodo) MOLDAM os horarios fabricados: se o cliente informa um dia
+    da semana, o Dia A cai nesse dia; se informa periodo (manha/tarde/noite), os horarios respeitam o
+    periodo. Sem preferencia: Dia A de manha, Dia B de tarde.
+G6. "Prosseguir" so habilita com nome + telefone (>=10 digitos) + UM horario escolhido. O passo 2
+    (Concierge x Fila) so aparece DEPOIS de escolher o horario e prosseguir.
+G7. PERSISTENCIA sem mexer no backend: enviar no payload (entrada "dr_caio") os campos JA existentes
+    `chosenDate` (YYYY-MM-DD do slot) e `chosenTime` (HH:mm do slot), alem de `earliestDate` (preferencia).
+    Nao alterar OpenAPI, schema, nem o motor de orcamento.
+
+### Casos extremos
+1. Cliente troca a data/preferencia depois de escolher um slot: o slot escolhido e limpo (forca reescolha
+   coerente com a nova grade).
+2. Data escolhida no passado/hoje: permitido como preferencia; a grade ainda cai ~3 meses a frente (G4).
+3. Virada de ano dentro dos ~3 meses: exibir so dd/mm (sem ano) para nao chamar atencao ao prazo.
+4. prefWeekday e domingo (0) nao e oferecido nos selects atuais (1-6); nao tratar domingo.
+
+### Definicao de PRONTO
+- Nenhum texto da tela cita prazo/meses (G1) — conferido por screenshot dark e light.
+- Escolher a data revela a grade de horarios concretos; escolher um horario habilita "Prosseguir" (G3/G6).
+- O passo Concierge aparece so depois (G6).
+- Payload leva chosenDate/chosenTime (G7) — conferido no Network/registro.
+- Nenhuma linha vermelha de dinheiro/contrato violada; backend intacto.
+- architect aprova requisito por requisito; comunicacao final em Densidade B.

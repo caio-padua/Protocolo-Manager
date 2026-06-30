@@ -38,6 +38,40 @@ function addMonths(date: Date, months: number) {
   return d;
 }
 
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// "Terça-feira, 07/10" (pt-BR, sem ano — nunca revela a distância em meses)
+function formatSlotDay(date: Date) {
+  const weekday = date.toLocaleDateString("pt-BR", { weekday: "long" });
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${dd}/${mm}`;
+}
+
+// ISO local (YYYY-MM-DD) sem deslize de fuso (não usar toISOString, que vira UTC)
+function isoLocal(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Próximo dia >= "from" que caia no dia-da-semana alvo (0-6); se alvo nulo,
+// devolve o próximo dia ÚTIL (segunda a sexta).
+function nextWeekday(from: Date, target: number | null) {
+  const d = new Date(from);
+  for (let i = 0; i < 14; i++) {
+    const wd = d.getDay();
+    if (target != null ? wd === target : wd >= 1 && wd <= 5) return d;
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
 const formatCpf = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 3) return d;
@@ -369,7 +403,6 @@ function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void;
 function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
   const isDark = theme === "dark";
   const [step, setStep] = useState<1 | 2>(1);
-  const [dateTouched, setDateTouched] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -379,29 +412,58 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   const [earliestDate, setEarliestDate] = useState("");
   const [prefWeekday, setPrefWeekday] = useState("");
   const [prefPeriod, setPrefPeriod] = useState("");
-  
+
+  // Slot concreto escolhido na grade fabricada (data + hora).
+  const [chosenSlotDate, setChosenSlotDate] = useState("");
+  const [chosenSlotTime, setChosenSlotTime] = useState("");
+
   const [path, setPath] = useState<"concierge" | "fila" | "">("");
 
   const createReq = useCreateSchedulingRequest();
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Data minima dinamica: hoje + 3 meses, calculada em runtime (Regra de Ouro).
-  // Nunca hardcoded, para nao "congelar" com o passar do tempo.
-  const MIN_DATE_CAIO = useMemo(
-    () => addMonths(new Date(), 3).toISOString().split("T")[0],
-    [],
-  );
+  // --- Grade de horarios FABRICADOS (curados de cabeca) ---
+  // Caem ~3 meses a frente de HOJE (carencia escondida; o prazo NUNCA aparece) e
+  // nunca antes da data que o cliente escolheu. Um jitter deterministico de poucos
+  // dias evita o "3 meses redondos". As preferencias (dia/periodo) moldam a grade.
+  // useMemo: sem flicker, sem aleatorio por render, sem usar nome/PII do paciente.
+  const fabricatedSlots = useMemo(() => {
+    if (!earliestDate) return [] as { date: string; label: string; times: string[] }[];
+
+    // Cada periodo precisa de pelo menos 3 horarios para garantir Dia A=2 e Dia B=3.
+    const morning = ["09:00", "10:30", "11:30"];
+    const afternoon = ["14:00", "15:30", "16:30"];
+    const evening = ["18:00", "19:00", "20:00"];
+
+    const today = new Date();
+    const base3m = addMonths(today, 3);
+    const picked = new Date(`${earliestDate}T12:00:00`);
+    let anchor = picked > base3m ? picked : base3m;
+    const jitter = (today.getDate() % 6) + 2; // 2..7 dias
+    anchor = addDays(anchor, jitter);
+
+    const wd = prefWeekday ? parseInt(prefWeekday, 10) : null;
+    const dayA = nextWeekday(anchor, wd);
+    const dayB = nextWeekday(addDays(dayA, 3), wd);
+
+    const periodTimes =
+      prefPeriod === "tarde" ? afternoon : prefPeriod === "noite" ? evening : prefPeriod === "manha" ? morning : null;
+
+    const pool = periodTimes ?? morning;
+    const poolB = periodTimes ?? afternoon;
+    const timesA = pool.slice(0, 2); // Dia A: sempre 2 horarios
+    const timesB = poolB.slice(0, 3); // Dia B: sempre 3 horarios
+
+    return [
+      { date: isoLocal(dayA), label: formatSlotDay(dayA), times: timesA },
+      { date: isoLocal(dayB), label: formatSlotDay(dayB), times: timesB },
+    ];
+  }, [earliestDate, prefWeekday, prefPeriod]);
 
   const handleNext = () => {
     if (!name || phone.replace(/\D/g,"").length < 10) return;
-    if (!earliestDate) return;
-    const picked = new Date(earliestDate);
-    const min = new Date(MIN_DATE_CAIO);
-    if (picked < min) {
-      setErrorMsg("A data deve ser a partir de " + MIN_DATE_CAIO.split("-").reverse().join("/"));
-      return;
-    }
+    if (!chosenSlotDate || !chosenSlotTime) return;
     setErrorMsg("");
     setStep(2);
   };
@@ -418,9 +480,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         patientEmail: email || undefined,
         patientCpf: cpf.replace(/\D/g,"") || undefined,
         desire: desire || undefined,
-        earliestDate: earliestDate,
+        earliestDate: earliestDate || undefined,
         preferredWeekday: prefWeekday ? parseInt(prefWeekday, 10) : undefined,
         preferredPeriod: prefPeriod || undefined,
+        chosenDate: chosenSlotDate || undefined,
+        chosenTime: chosenSlotTime || undefined,
       }
     }, {
       onSuccess: () => setSuccess(true),
@@ -514,38 +578,15 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             <input className="dc-input" placeholder="Ou descreva em suas próprias palavras..." value={desire} onChange={(e) => setDesire(e.target.value)} />
           </section>
 
-          {/* Ato III — O Tempo. Escassez é MOTOR DE RESPOSTA: revela ao tocar a data. */}
+          {/* Ato III — O Tempo. Preferência -> data -> grade de horários concretos revelada. */}
           <section>
             <h3 className="dc-serif italic dc-gold text-xl mb-6">III. O Tempo</h3>
 
-            <div className="flex flex-col gap-1 mb-1">
-              <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>A partir de qual data? (mínimo 3 meses) *</span>
-              <input
-                type="date"
-                min={MIN_DATE_CAIO}
-                value={earliestDate}
-                onFocus={() => setDateTouched(true)}
-                onClick={() => setDateTouched(true)}
-                onChange={(e) => { setDateTouched(true); setEarliestDate(e.target.value); }}
-                className="dc-input"
-                style={{ colorScheme: isDark ? "dark" : "light" }}
-              />
-            </div>
-
-            {dateTouched && (
-              <div className={`dc-reveal p-5 my-5 rounded-lg flex items-start gap-4 ${isDark ? "bg-[#0d182b] border border-[#233f75]" : "bg-white border border-stone-200"}`}>
-                <Info className="w-5 h-5 text-[#c2a05a] shrink-0 mt-0.5" />
-                <p className={`text-sm leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                  Devido à altíssima procura, nossas primeiras datas regulares abrem a partir de <strong className="dc-gold font-semibold">~3 meses</strong>. Trabalhamos com pouquíssimos horários por semana para preservar a excelência de cada atendimento.
-                </p>
-              </div>
-            )}
-
-            <p className={`text-[11px] uppercase tracking-widest mb-4 mt-6 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>Sua preferência de agenda</p>
-            <div className="grid grid-cols-2 gap-6">
+            <p className={`text-[11px] uppercase tracking-widest mb-4 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>Sua preferência de agenda</p>
+            <div className="grid grid-cols-2 gap-6 mb-7">
               <div className="flex flex-col gap-1">
                 <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
-                <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}>
+                <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => { setPrefWeekday(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
                   <option value="">Qualquer dia</option>
                   <option value="1">Segunda-feira</option>
                   <option value="2">Terça-feira</option>
@@ -557,7 +598,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               </div>
               <div className="flex flex-col gap-1">
                 <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
-                <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => setPrefPeriod(e.target.value)}>
+                <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => { setPrefPeriod(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
                   <option value="">Qualquer horário</option>
                   <option value="manha">Manhã</option>
                   <option value="tarde">Tarde</option>
@@ -565,6 +606,52 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 </select>
               </div>
             </div>
+
+            <div className="flex flex-col gap-1">
+              <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Para quando você gostaria? *</span>
+              <input
+                type="date"
+                value={earliestDate}
+                onChange={(e) => { setEarliestDate(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                className="dc-input"
+                style={{ colorScheme: isDark ? "dark" : "light" }}
+              />
+            </div>
+
+            {fabricatedSlots.length > 0 && (
+              <div className="dc-reveal mt-7">
+                <div className="flex items-start gap-3 mb-5">
+                  <Info className="w-4 h-4 text-[#c2a05a] shrink-0 mt-0.5" />
+                  <p className={`text-[13px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                    Trabalhamos com pouquíssimos horários por semana para preservar a excelência de cada atendimento. Estas são as aberturas mais próximas para você:
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-5">
+                  {fabricatedSlots.map((day) => (
+                    <div key={day.date}>
+                      <p className={`dc-serif text-base mb-2.5 ${isDark ? "text-stone-100" : "text-[#16284a]"}`}>{day.label}</p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {day.times.map((t) => {
+                          const active = chosenSlotDate === day.date && chosenSlotTime === t;
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => { setChosenSlotDate(day.date); setChosenSlotTime(t); }}
+                              data-active={active}
+                              className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                            >
+                              {t}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           {errorMsg && (
@@ -576,7 +663,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           <button
             onClick={handleNext}
-            disabled={!name || phone.replace(/\D/g,"").length < 10 || !earliestDate}
+            disabled={!name || phone.replace(/\D/g,"").length < 10 || !chosenSlotTime}
             className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
           >
             Prosseguir <ArrowRight className="w-4 h-4" />
@@ -621,7 +708,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             {/* Caminho Fila */}
             <button type="button" onClick={() => setPath("fila")} className={`w-full p-6 border rounded-lg flex flex-col items-center gap-2 text-center transition-all ${path === "fila" ? (isDark ? "border-slate-400 bg-[#1c335c]" : "border-stone-400 bg-stone-100") : (isDark ? "border-[#233f75] hover:border-[#325291] hover:bg-[#1d335c]" : "border-stone-300 hover:border-stone-400 hover:bg-stone-100")}`}>
               <span className={`dc-serif text-xl ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Fila comum</span>
-              <span className="text-sm text-stone-500">Sem custo. A clínica fará contato apenas se houver viabilidade de encaixe após o período de 3 meses.</span>
+              <span className="text-sm text-stone-500">Sem custo. A clínica fará contato apenas se houver viabilidade de encaixe futuro.</span>
             </button>
           </div>
 
