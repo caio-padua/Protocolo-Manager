@@ -565,7 +565,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   useEffect(() => {
     if (stage !== "vias") { setShowRed(false); return; }
     setShowRed(true);
-    const t = setTimeout(() => setShowRed(false), 3400);
+    const t = setTimeout(() => setShowRed(false), 5000);
     return () => clearTimeout(t);
   }, [stage]);
 
@@ -649,7 +649,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
           border-radius: 12px;
         }
-        .dc-luxo .dc-redflash { animation: dcRedFlash 3.4s ease-in-out forwards; }
+        .dc-luxo .dc-redflash { animation: dcRedFlash 5s ease-in-out forwards; }
         @keyframes dcRedFlash {
           0% { opacity: 0; transform: translateY(-6px); }
           12% { opacity: 1; transform: translateY(0); }
@@ -752,7 +752,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 <div className="dc-redflash flex items-start gap-3 p-4 rounded-lg border border-red-500/50 bg-red-500/10">
                   <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
                   <p className={`text-sm leading-relaxed ${isDark ? "text-red-300" : "text-red-700"}`}>
-                    Mas existe outra possibilidade para quem precisa de prioridade…
+                    Avaliamos o seu caso: o serviço de Concierge está à disposição para o senhor — uma exceção reservada a quem precisa de prioridade.
                   </p>
                 </div>
               )}
