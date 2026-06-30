@@ -1,30 +1,29 @@
 ---
-name: E-mail Paxter v2 (fundo terno + tabela de substancia alinhada)
-description: Padrao visual do e-mail branded apos v2 — fundo navy "terno" mais claro e substancias em TABELA de colunas alinhadas (CEO descartou cartoes)
+name: E-mail Paxter v2 (fundo terno + tabela de substancia)
+description: Decisoes duraveis do e-mail branded Paxter v2 — fundo navy "terno" e substancias SEMPRE em tabela de colunas alinhadas (cartoes reprovados)
 ---
 
-Regra: o casco do e-mail Paxter (Hermes, `messaging/render-email.ts` -> `paxterEmailShell`) usa fundo
-"TERNO" navy MAIS claro que o antigo `#05080f` — cor solida de fallback `#0a1430` + gradiente de
-profundidade (`#0b1426->#0e1c3a->#16284e`) + brilho dourado no topo + tramado de 22px; card `#0e1a34`.
-A lista de substancias de e-mail clinico e uma TABELA de colunas ALINHADAS, NUNCA cartoes.
+Decisao do CEO (28/06/2026): o e-mail branded Paxter usa fundo navy "TERNO" (mais claro que o
+quase-preto antigo) e lista substancias SEMPRE como TABELA de colunas alinhadas — NUNCA cartoes
+empilhados (foram testados e descartados na mesma data). Virou Padrao 19/20 da skill
+`skill-layout-paxter` e Art. 66 v2 do Codigo Paxter.
 
-**Tabela de substancia** (fonte unica `messaging/substance-table.ts` -> `blocoTabelaSubstancias`):
-colunas FIXAS, alinhadas na vertical entre TODAS as substancias, sobre painel `#13234a`, zebra leve.
-Ordem: SUBSTANCIA | DOSE | SESSAO | FREQUENCIA | STATUS. (1) DOSE so na quantidade em miligramagem —
-o helper `soMiligramas` REMOVE a concentracao "/ N ml" (ex.: "5 mg / 2 ml" -> "5 mg"); (2) nome em
-serifa creme `#f3ead6`, ponto colorido semantico opcional; (3) SESSAO "4/12"; (4) FREQUENCIA "a cada N
-dias"; (5) STATUS em pilula (verde `#0f2a1e/#34d399` = Aplicado / vermelho `#2a1010/#f87171` = Nao
-aplicado); (6) coluna so aparece se PELO MENOS 1 substancia tiver aquele dado (degrade gracioso).
+Regras duraveis da tabela:
+- Colunas alinhadas na vertical entre TODAS as substancias; ordem SUBSTANCIA | DOSE | SESSAO |
+  FREQUENCIA | STATUS; uma coluna so aparece se PELO MENOS 1 item tiver aquele dado (degrade gracioso).
+- DOSE so na quantidade de massa (miligramagem): remover a concentracao "/ N ml" (ex.: "5 mg / 2 ml"
+  -> "5 mg"). Interpretacao do CEO de "dose so em mg" = TIRAR o volume, mantendo a unidade real
+  (B12 legitimo continua em mcg; nao forcar tudo a "mg").
 
-**Why:** o CEO reprovou o e-mail "muito escuro" (quase preto) e a tabela de 3 colunas apertada;
-aprovou o fundo terno em 28/06/2026. Na mesma data TESTOU cartoes empilhados e os DESCARTOU — preferiu
-de volta a TABELA, agora com colunas alinhadas e dose so em miligramagem. `substance-cards.ts` foi
-removido. Virou Padrao 20 (TABELA) + Padrao 19 na skill `skill-layout-paxter`; Art. 66 v2 no Codigo Paxter.
+**Why:** clientes de e-mail ignoram gradiente/imagem de fundo; e a COR SOLIDA de fallback que garante
+o "menos escuro" — nao confiar so no gradiente. A tabela alinhada foi o que o CEO aprovou para bater
+o olho e comparar substancias num relance (Densidade B: tabela e o carro-chefe).
 
-**How to apply:** qualquer e-mail clinico novo/alterado monta `blocoTabelaSubstancias` em `blocosHtml`
-do PaxterDoc; nunca montar tabela de substancia a mao (Art. 57). Clientes de e-mail ignoram
-gradiente/imagem -> e a COR SOLIDA de fallback que garante o "menos escuro" (nao confiar so no
-gradiente). Previa viva: `GET /api/brand/email-preview` (amostra em `messaging/sample-doc.ts`, fonte
-unica previa+envio). Envio de teste para validacao do CEO: `POST /api/brand/email-test {to}` — rota
-SOMENTE-DESENVOLVIMENTO (404 em producao), nao precisa de segredo, nao loga endereco. A "ferramenta que
-grava o modelo" definitiva (autenticada, no painel) ainda nao foi construida — esperar aval do CEO.
+**How to apply:** montar a lista de substancia pelo motor unico de tabela (fonte compartilhada
+previa+envio), nunca a mao (Art. 57). Previa viva e envio de teste ficam no router de marca; a rota de
+teste e SOMENTE-DESENVOLVIMENTO (404 em producao) e aceita destino explicito (e-mail/WhatsApp) so para
+validacao do CEO — a ferramenta definitiva de modelos (autenticada, no painel) ainda nao existe.
+
+**WhatsApp x e-mail:** o WhatsApp NAO renderiza tabela/HTML — chega banner de marca (imagem) + texto;
+a prova visual cheia (terno + tabela) e exclusiva do e-mail. Twilio WhatsApp esta configurado (From no
+cofre cifrado, nao no env); telefone do destino entra cru e o helper normaliza para 55+DDD.

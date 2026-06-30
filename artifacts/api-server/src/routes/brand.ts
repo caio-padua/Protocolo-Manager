@@ -94,7 +94,14 @@ router.post("/brand/email-test", async (req, res): Promise<void> => {
 
   const canais: ("EMAIL" | "WHATSAPP")[] = [];
   let email: string | null = null;
-  if (whats) canais.push("WHATSAPP");
+  if (whats) {
+    const dig = whats.replace(/\D/g, "");
+    if (dig.length < 10 || dig.length > 15) {
+      res.status(400).json({ error: "destino (whats) inválido — use E.164, ex.: +55119..." });
+      return;
+    }
+    canais.push("WHATSAPP");
+  }
   if (to) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
       res.status(400).json({ error: "destino (to) inválido" });
