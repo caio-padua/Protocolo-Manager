@@ -1,0 +1,348 @@
+/* Molde TERNO (modelo da anamnese) — classes copiadas fielmente do app padcom
+   (artifacts/padcom/src/index.css). Importado só pelos componentes deste grupo. */
+
+.mt-scope {
+  --card-border: 40 25% 82%;
+  --primary: 210 55% 26%;
+  --accent: 40 55% 52%;
+}
+.mt-scope.dark {
+  --card-border: 215 16% 24%;
+  --primary: 210 60% 58%;
+  --accent: 40 60% 60%;
+}
+
+/* ===== RELEVO 3D (painéis brancos elevados) ===== */
+.panel-3d {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid hsl(var(--card-border));
+  border-radius: 0.5rem;
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.40),
+    0 16px 28px -10px rgba(7, 22, 43, 0.26),
+    inset 0 2px 0 rgba(255, 255, 255, 0.97),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.11);
+}
+.panel-3d-sub {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid hsl(var(--card-border));
+  border-radius: 0.375rem;
+  box-shadow:
+    0 26px 40px -14px rgba(7, 22, 43, 0.32),
+    0 10px 18px -6px rgba(7, 22, 43, 0.20),
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -4px 9px rgba(0, 53, 58, 0.09);
+}
+/* HERO = MESMO tamanho do panel-3d, só a BORDA ganha ouro (realce discreto) */
+.panel-3d-hero {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid rgba(184, 146, 77, 0.55);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 40px 60px -18px rgba(7, 22, 43, 0.38),
+    0 16px 26px -10px rgba(7, 22, 43, 0.24),
+    inset 0 2px 0 #ffffff,
+    inset 0 -7px 12px rgba(0, 51, 55, 0.11);
+}
+.concave-3d {
+  background: linear-gradient(160deg, #ece6d7 0%, #f6f1e6 100%);
+  border: 1px solid rgba(184, 146, 77, 0.40);
+  border-radius: 0.25rem;
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.18),
+    inset 0 10px 16px rgba(7, 22, 43, 0.07),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
+.screen-3d {
+  background: linear-gradient(150deg, #ffffff 0%, #f8f4ea 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  border-radius: 0.25rem;
+  box-shadow:
+    0 26px 38px -12px rgba(7, 22, 43, 0.40),
+    0 11px 18px -6px rgba(7, 22, 43, 0.26),
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -7px 12px rgba(0, 53, 58, 0.12);
+}
+.dark .panel-3d,
+.dark .panel-3d-sub,
+.dark .panel-3d-hero {
+  background: linear-gradient(145deg, hsl(215 20% 17%) 0%, hsl(215 22% 14%) 100%);
+  border-color: hsl(var(--card-border));
+  box-shadow:
+    0 18px 30px -14px rgba(0, 0, 0, 0.55),
+    0 6px 12px -6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.40);
+}
+.dark .panel-3d-hero { border-color: rgba(194, 160, 90, 0.62); }
+.dark .concave-3d {
+  background: linear-gradient(160deg, hsl(215 22% 10%) 0%, hsl(215 20% 13%) 100%);
+  border-color: hsl(215 16% 21%);
+  box-shadow:
+    inset 0 4px 8px rgba(0, 0, 0, 0.55),
+    inset 0 10px 16px rgba(0, 0, 0, 0.30),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.04);
+}
+.dark .screen-3d {
+  background: linear-gradient(150deg, hsl(215 20% 18%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 24%);
+  box-shadow:
+    0 20px 32px -14px rgba(0, 0, 0, 0.60),
+    0 8px 14px -6px rgba(0, 0, 0, 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.40);
+}
+
+/* ===== BEVEL grosso ===== */
+.bevel-3d {
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  border-radius: 0.375rem;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.14),
+    0 16px 24px -10px rgba(7, 22, 43, 0.44),
+    0 7px 12px -4px rgba(7, 22, 43, 0.30);
+}
+.dark .bevel-3d {
+  background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 27%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -6px 11px rgba(0, 0, 0, 0.48),
+    0 16px 24px -10px rgba(0, 0, 0, 0.62),
+    0 7px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== BOTÕES 3D ===== */
+.btn-3d {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.55);
+  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px -5px rgba(7, 22, 43, 0.5),
+    0 3px 6px -2px rgba(7, 22, 43, 0.32);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d:hover { filter: brightness(1.10); }
+.btn-3d:active { transform: translateY(2px); }
+.btn-3d-soft {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f1e6 55%, #ece4d2 100%);
+  color: hsl(var(--primary));
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 6px rgba(0, 53, 58, 0.12),
+    0 7px 14px -5px rgba(7, 22, 43, 0.34),
+    0 2px 5px -2px rgba(7, 22, 43, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d-soft:hover { filter: brightness(1.02); }
+.btn-3d-soft:active { transform: translateY(2px); }
+.dark .btn-3d-soft {
+  border-color: hsl(215 16% 26%);
+  background: linear-gradient(180deg, hsl(215 18% 20%) 0%, hsl(215 20% 15%) 100%);
+  color: hsl(214 60% 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.4),
+    0 7px 14px -5px rgba(0, 0, 0, 0.5);
+}
+.btn-3d-ok {
+  border-radius: 0.375rem;
+  border: 1px solid hsl(146 50% 26%);
+  background: linear-gradient(180deg, hsl(145 58% 45%) 0%, hsl(147 50% 36%) 52%, hsl(150 46% 28%) 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px -5px rgba(7, 22, 43, 0.45),
+    0 3px 6px -2px rgba(7, 22, 43, 0.30);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d-ok:hover { filter: brightness(1.05); }
+.btn-3d-ok:active { transform: translateY(2px); }
+
+/* ===== CHIP mecânico (concavo ao selecionar, anel ouro) ===== */
+.leva-chip {
+  position: relative;
+  border-radius: 7px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .12s cubic-bezier(.16, 1, .3, 1), box-shadow .18s ease;
+  background: linear-gradient(180deg, #faf2df 0%, #efe3c9 100%);
+  border: 1px solid rgba(138, 109, 47, 0.30);
+  border-top-color: #fcf6ea;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -2px 5px rgba(138, 109, 47, 0.14),
+    0 5px 0 -1px rgba(15, 28, 53, 0.16),
+    0 9px 14px -5px rgba(15, 28, 53, 0.26);
+  color: #3b4860;
+}
+.leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #efe6d2 0%, #f7f0e1 100%);
+  border-color: #b9923f;
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 3px 6px rgba(138, 109, 47, 0.30),
+    inset 0 1px 1px rgba(138, 109, 47, 0.18),
+    0 0 14px rgba(185, 146, 63, 0.30);
+  color: #8a6d2f;
+}
+.dark .leva-chip {
+  background: linear-gradient(180deg, #31507e 0%, #244067 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.40),
+    0 5px 0 -1px #112444,
+    0 9px 14px -5px rgba(0, 0, 0, 0.60);
+  color: #e3ebf6;
+}
+.dark .leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #1a3055 0%, #234063 100%);
+  border-color: #c2a05a;
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(194, 160, 90, 0.30);
+  color: #f4e2a8;
+}
+
+/* ===== KPI (placa saliente, valor ouro) ===== */
+.leva-kpi {
+  position: relative;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5eedd 100%);
+  border: 1px solid rgba(138, 109, 47, 0.22);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 5px rgba(138, 109, 47, 0.10),
+    0 4px 0 -1px rgba(15, 28, 53, 0.12),
+    0 8px 12px -5px rgba(15, 28, 53, 0.22);
+}
+.leva-kpi-label { color: #6b7689; }
+.leva-kpi-value { color: #8a6d2f; }
+.dark .leva-kpi {
+  background: linear-gradient(180deg, #173052 0%, #112744 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.45),
+    0 4px 0 -1px #0e1f3b,
+    0 8px 12px -5px rgba(0, 0, 0, 0.6);
+}
+.dark .leva-kpi-label { color: #93a4bd; }
+.dark .leva-kpi-value { color: #f4e2a8; }
+
+/* ===== TECIDO TERNO (fundo) ===== */
+.leva-fabric {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(138, 109, 47, 0.10) 0px, rgba(138, 109, 47, 0.10) 1px, transparent 1px, transparent 22px),
+    repeating-linear-gradient(0deg, rgba(15, 28, 53, 0.05) 0px, rgba(15, 28, 53, 0.05) 1px, transparent 1px, transparent 5px),
+    repeating-linear-gradient(90deg, rgba(15, 28, 53, 0.04) 1px, transparent 1px, transparent 5px);
+  opacity: 0.7;
+}
+.dark .leva-fabric {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(176, 208, 245, 0.16) 0px, rgba(176, 208, 245, 0.16) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.22) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(0deg, rgba(176, 208, 245, 0.13) 0px, rgba(176, 208, 245, 0.13) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.24) 1px, transparent 1px, transparent 4px);
+  opacity: 0.9;
+}
+
+/* ===== FAIXA/PAINEL sobre o tecido ===== */
+.leva-band {
+  position: relative;
+  background: linear-gradient(180deg, #fffdf9 0%, #f4ecdb 100%);
+  border: 1px solid rgba(138, 109, 47, 0.22);
+  border-top-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 7px rgba(138, 109, 47, 0.10),
+    0 8px 18px -10px rgba(15, 28, 53, 0.28);
+}
+.dark .leva-band {
+  background: linear-gradient(180deg, #173052 0%, #102540 100%);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-top-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.45),
+    0 8px 18px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* ===== BARRA de progresso envidraçada ===== */
+.paxter-bar-track {
+  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(15, 28, 53, 0.10);
+  border: 1px solid rgba(15, 28, 53, 0.06);
+  box-shadow: inset 0 2px 5px rgba(15, 28, 53, 0.22);
+}
+.dark .paxter-bar-track {
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.62);
+}
+.paxter-bar-fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f4e2a8 0%, #c2a05a 52%, #8a6d2f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.30);
+}
+.paxter-bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.60) 0%, rgba(255,255,255,0.14) 40%, rgba(255,255,255,0) 62%);
+  mix-blend-mode: screen;
+}
+
+/* Selo de realce discreto do Diretor (chip ouro pequeno) */
+.mt-seal {
+  background: linear-gradient(180deg, #f7ec cf 0%, #e7d19a 100%);
+  background: linear-gradient(180deg, #f7eccf 0%, #e7d19a 100%);
+  border: 1px solid rgba(138, 109, 47, 0.55);
+  color: #6f561f;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 4px -1px rgba(15,28,53,0.25);
+}
+.dark .mt-seal {
+  background: linear-gradient(180deg, #3a3320 0%, #2a2415 100%);
+  border-color: rgba(194,160,90,0.6);
+  color: #f4e2a8;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 4px -1px rgba(0,0,0,0.5);
+}
+
+/* Wordmark serif ouro (aproximação da logo Cinzel) */
+.mt-wordmark {
+  font-family: 'Cinzel', 'Playfair Display', serif;
+  letter-spacing: 0.28em;
+  background: linear-gradient(180deg, #f6e6b0 0%, #d8b667 46%, #a8823c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+}
