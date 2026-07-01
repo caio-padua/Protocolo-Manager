@@ -1,6 +1,7 @@
 import { isGmailConnected } from "./google-gmail";
 import { buildVCalendar, durationFromProcedureTypes, nextSequence, type IcsEventInput } from "./ics";
 import { enviarMensagemPaxter, baseUrlFromEnv, type PaxterDoc } from "./messaging/index.js";
+import { blocoTabelaSubstancias } from "./messaging/substance-table.js";
 
 export interface PreSessionEmailData {
   clientName: string;
@@ -210,32 +211,20 @@ function preSessionBlocks(data: PreSessionEmailData): string[] {
     </div>`);
   }
 
-  // Cabecalho do procedimento + tabela de substancias
-  const substanceRows = data.substances.map(s => `
-    <tr>
-      <td style="padding: 12px 16px; border-bottom: 1px solid rgba(201,162,79,.12);">
-        <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${s.color}; margin-right: 8px;"></span>
-        <strong style="color: #f3ead6;">${s.name}</strong>
-        ${s.mainFunction ? `<div style="color: #7e90ab; font-size: 13px; margin-top: 4px;">${s.mainFunction}</div>` : ""}
-      </td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid rgba(201,162,79,.12); text-align: center; color: #c2cee0;">${s.dose}</td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid rgba(201,162,79,.12); text-align: center;">
-        <span style="background: #102043; color: #c9a24f; border: 1px solid rgba(201,162,79,.30); padding: 2px 8px; border-radius: 12px; font-size: 12px;">${s.sessionNumber}/${s.totalSessions}</span>
-      </td>
-    </tr>`).join("");
-
-  blocks.push(`
-    <h2 style="color: #f3ead6; font-family: Georgia,serif; font-size: 18px; margin: 8px 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(201,162,79,.25);">${procedureTypeEmoji(data.substances[0]?.procedureType ?? "iv")} ${data.procedureLabel}</h2>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid rgba(201,162,79,.25); border-radius: 8px; overflow: hidden;">
-      <thead>
-        <tr style="background: #102043;">
-          <th style="padding: 10px 16px; text-align: left; color: #c9a24f; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Substancia</th>
-          <th style="padding: 10px 16px; text-align: center; color: #c9a24f; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Dose</th>
-          <th style="padding: 10px 16px; text-align: center; color: #c9a24f; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Sessao</th>
-        </tr>
-      </thead>
-      <tbody>${substanceRows}</tbody>
-    </table>`);
+  // Cabecalho do procedimento + substancias em CARTOES ALINHADOS (fonte unica
+  // blocoTabelaSubstancias: dose so na miligramagem, colunas alinhadas por
+  // linha vertical imaginaria — decisao do CEO 30/06/2026).
+  blocks.push(
+    `<h2 style="color: #f3ead6; font-family: Georgia,serif; font-size: 18px; margin: 8px 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(201,162,79,.25);">${procedureTypeEmoji(data.substances[0]?.procedureType ?? "iv")} ${data.procedureLabel}</h2>` +
+      blocoTabelaSubstancias(
+        data.substances.map(s => ({
+          nome: s.name,
+          dose: s.dose,
+          sessao: `${s.sessionNumber}/${s.totalSessions}`,
+          cor: s.color,
+        })),
+      ),
+  );
 
   // Primeira sessao: detalhe por substancia + termos de consentimento
   if (data.isFirstSession) {
@@ -267,29 +256,18 @@ function preSessionBlocks(data: PreSessionEmailData): string[] {
 }
 
 function postSessionBlocks(data: PostSessionEmailData): string[] {
-  const substanceRows = data.substances.map(s => `
-    <tr>
-      <td style="padding: 10px 16px; border-bottom: 1px solid rgba(201,162,79,.12);">
-        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${s.color}; margin-right: 6px;"></span>
-        <strong style="color: #f3ead6;">${s.name}</strong>
-      </td>
-      <td style="padding: 10px 16px; border-bottom: 1px solid rgba(201,162,79,.12); text-align: center; color: #c2cee0;">${s.dose}</td>
-      <td style="padding: 10px 16px; border-bottom: 1px solid rgba(201,162,79,.12); text-align: center;">
-        <span style="background: ${s.status === 'applied' ? '#0f2a1e' : '#2a1010'}; color: ${s.status === 'applied' ? '#34d399' : '#f87171'}; border: 1px solid ${s.status === 'applied' ? 'rgba(52,211,153,.35)' : 'rgba(248,113,113,.35)'}; padding: 2px 10px; border-radius: 12px; font-size: 12px;">${s.status === 'applied' ? 'Aplicado' : 'Nao aplicado'}</span>
-      </td>
-    </tr>`).join("");
-
-  const blocks: string[] = [`
-    <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid rgba(201,162,79,.25); border-radius: 8px; overflow: hidden; margin-bottom: 20px;">
-      <thead>
-        <tr style="background: #102043;">
-          <th style="padding: 10px 16px; text-align: left; color: #c9a24f; font-size: 12px; text-transform: uppercase;">Substancia</th>
-          <th style="padding: 10px 16px; text-align: center; color: #c9a24f; font-size: 12px; text-transform: uppercase;">Dose</th>
-          <th style="padding: 10px 16px; text-align: center; color: #c9a24f; font-size: 12px; text-transform: uppercase;">Status</th>
-        </tr>
-      </thead>
-      <tbody>${substanceRows}</tbody>
-    </table>`];
+  // Substancias aplicadas em CARTOES ALINHADOS (mesma fonte unica): dose so na
+  // miligramagem, pilula de status Aplicado/Nao aplicado.
+  const blocks: string[] = [
+    blocoTabelaSubstancias(
+      data.substances.map(s => ({
+        nome: s.name,
+        dose: s.dose,
+        status: s.status === "applied" ? "applied" : "notApplied",
+        cor: s.color,
+      })),
+    ),
+  ];
 
   if (data.rasPdfBuffer) {
     blocks.push(`
@@ -446,19 +424,26 @@ export interface ProtocolEmailData {
 }
 
 function protocolBlocks(data: ProtocolEmailData): string[] {
-  const substList = data.substances
-    .map(s => `<li style="padding: 6px 0; color: #c2cee0; font-size: 14px;">
-      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${s.color}; margin-right: 8px;"></span>
-      <strong style="color: #f3ead6;">${s.name}</strong> — ${s.totalSessions} sessoes
-    </li>`)
-    .join("");
+  // Substancias do protocolo em CARTOES ALINHADOS (mesma fonte unica). Este
+  // e-mail de onboarding nao carrega dose por substancia — o detalhamento
+  // completo (doses e cronograma) vai no RAS FAP anexo, como o texto avisa.
+  // Aqui os cartoes trazem nome + ponto colorido + total de sessoes previstas
+  // (rotulo "Sessoes" na linha 2, sem coluna de frequencia).
+  const substList = blocoTabelaSubstancias(
+    data.substances.map(s => ({
+      nome: s.name,
+      cor: s.color,
+      sessao: String(s.totalSessions),
+      sessaoLabel: "Sessões",
+    })),
+  );
 
   return [`
     <p style="color: #c2cee0; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">Este e-mail tem o objetivo de informar que o seu protocolo medico personalizado <strong style="color: #c9a24f;">${data.protocolTitle}</strong> foi elaborado pelo Dr(a). <strong style="color: #f3ead6;">${data.professionalName}</strong>, com inicio previsto para <strong style="color: #c9a24f;">${formatDateBR(data.startDate)}</strong>.</p>
     <p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">Segue em anexo o documento <strong style="color: #c9a24f;">RAS FAP</strong> (Registro de Administracao de Substancias) contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle presencial de cada aplicacao.</p>
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
       <h3 style="margin: 0 0 12px; color: #c9a24f; font-size: 15px;">Substancias do seu protocolo:</h3>
-      <ul style="margin: 0; padding: 0 0 0 4px; list-style: none;">${substList}</ul>
+      ${substList}
     </div>
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px;">
       <p style="margin: 0; color: #c2cee0; font-size: 13px; line-height: 1.6;"><strong style="color: #c9a24f;">Importante:</strong> Este documento deve ser apresentado em todas as sessoes presenciais para controle e rubrica da enfermeira responsavel. Em caso de duvidas, entre em contato com a clinica.</p>

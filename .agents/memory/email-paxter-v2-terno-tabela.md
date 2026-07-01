@@ -1,43 +1,39 @@
 ---
-name: E-mail Paxter v2 (fundo terno + tabela de substancia)
-description: Decisoes duraveis do e-mail branded Paxter v2 — fundo navy "terno" e substancias SEMPRE em tabela de colunas alinhadas (cartoes reprovados)
+name: E-mail Paxter v2 (fundo terno + cartões alinhados de substância)
+description: Decisões duráveis do e-mail branded Paxter — fundo navy "terno" e substâncias em CARTÕES ALINHADOS por uma linha vertical imaginária (fonte única)
 ---
 
-Decisao do CEO (28/06/2026): o e-mail branded Paxter usa fundo navy "TERNO" (mais claro que o
-quase-preto antigo). Fundo terno segue valendo.
+Fundo navy "TERNO" (mais claro que o quase-preto antigo) — decisão do CEO 28/06/2026, segue valendo.
 
-REFINAMENTO do CEO (30/06/2026) — SUBSTITUI a parte "tabela vs cartoes" da decisao de 28/06:
-a lista de substancia pode SIM ser em CARTOES (um cartao por substancia), DESDE QUE as
-informacoes dentro do cartao fiquem ALINHADAS por uma "linha vertical imaginaria" que se
-repete IGUAL de um cartao para o outro. Ou seja: nao era "cartao" que o CEO reprovava, era
-cartao com dados desalinhados. Cartao alinhado = aprovado.
+**Regra da lista de substância (CEO 30/06/2026):** cada substância é um CARTÃO próprio, mas as
+informações dentro dele ficam ALINHADAS por uma "linha vertical imaginária" que se repete IGUAL de
+um cartão para o outro. Não era o cartão que o CEO reprovava; era o cartão com dados desalinhados.
+Cartão alinhado = aprovado.
 
-Estrutura do cartao aprovada:
-- linha 1: [ponto] Substancia (esquerda) ....... Dose so massa (direita);
-- linha 2: Sessao N/total (esquerda) ....... Frequencia "a cada N dias" (direita);
-- (opcional) pilula de status Aplicado/Nao aplicado.
-- O alinhamento vem de LARGURA FIXA identica das duas colunas internas em TODOS os cartoes
-  (constantes COL_ESQ/COL_DIR em substance-table.ts) — sem isso a "linha imaginaria" quebra.
+Estrutura do cartão:
+- linha 1: [ponto colorido] Substância (esquerda) ....... Dose só massa (direita);
+- linha 2: Sessão N/total (esquerda) ....... Frequência "a cada N dias" (direita);
+- pílula de status (Aplicado / Não aplicado) opcional.
 
-Regras duraveis mantidas:
-- Dose/Sessao/Frequencia alinhadas na vertical entre TODAS as substancias; um dado/linha so
-  aparece se PELO MENOS 1 item tiver aquele dado (degrade gracioso).
-- DOSE so na quantidade de massa (miligramagem): remover a concentracao "/ N ml" (ex.: "5 mg / 2 ml"
-  -> "5 mg"). Interpretacao do CEO de "dose so em mg" = TIRAR o volume, mantendo a unidade real
-  (B12 legitimo continua em mcg; nao forcar tudo a "mg").
+**Why:** o CEO decide por comparação num relance (Densidade B); o alinhamento vertical é o que
+permite bater o olho entre substâncias. O formato pode ser cartão, desde que as colunas caiam na
+MESMA vertical em todos os itens. Fundo: clientes de e-mail ignoram gradiente/imagem — a cor sólida
+de fallback é o que garante o "menos escuro"; não confiar só no gradiente.
 
-**Why:** clientes de e-mail ignoram gradiente/imagem de fundo; e a COR SOLIDA de fallback que garante
-o "menos escuro" — nao confiar so no gradiente. O que o CEO exige e o ALINHAMENTO (bater o olho e
-comparar substancias num relance, Densidade B); o formato pode ser cartao OU tabela, desde que as
-colunas caiam na mesma vertical em todos os itens.
+**How to apply:**
+- A lista é montada SEMPRE pelo motor único `blocoTabelaSubstancias` (substance-table.ts). O
+  alinhamento vem de LARGURA FIXA idêntica das duas colunas internas em todos os cartões — sem isso a
+  linha imaginária quebra. Um dado/linha só aparece se ao menos 1 item o tiver (degrade gracioso).
+  Estender por props opcionais (ex.: `sessaoLabel` para relabelar a linha 2), nunca forkar o motor.
+- DOSE só na massa: remover a concentração "/ N ml" via `soMiligramas` mantendo a unidade real
+  (B12 legítimo continua em mcg; não forçar tudo a "mg").
+- LIÇÃO (30/06/2026): a rota de prévia (`GET /api/brand/email-preview`, via sample-doc.ts) prova só
+  o VISUAL, NÃO o rollout. O motor precisa estar de fato LIGADO em cada gerador de e-mail rico de
+  `email-service.ts` (pré-sessão, pós-sessão, protocolo/onboarding). Já aconteceu de o motor existir
+  e os fluxos reais ainda montarem tabela flat com dose crua — o code_review pega isso. Ao mexer no
+  layout da substância, varrer `email-service.ts` e conferir que todo caminho de produção chama o
+  motor, não só a amostra.
 
-**How to apply:** montar a lista de substancia pelo motor unico `blocoTabelaSubstancias`
-(substance-table.ts, fonte compartilhada previa+envio), nunca a mao (Art. 57) — NAO renomear a
-funcao para nao quebrar os 5 fluxos ricos + sample-doc + google-calendar que a chamam. Previa viva e
-envio de teste ficam no router de marca (GET /api/brand/email-preview); a rota de teste e
-SOMENTE-DESENVOLVIMENTO (404 em producao) e aceita destino explicito (e-mail/WhatsApp) so para
-validacao do CEO — a ferramenta definitiva de modelos (autenticada, no painel) ainda nao existe.
-
-**WhatsApp x e-mail:** o WhatsApp NAO renderiza tabela/HTML — chega banner de marca (imagem) + texto;
-a prova visual cheia (terno + tabela) e exclusiva do e-mail. Twilio WhatsApp esta configurado (From no
-cofre cifrado, nao no env); telefone do destino entra cru e o helper normaliza para 55+DDD.
+**WhatsApp x e-mail:** o WhatsApp não renderiza HTML — chega banner de marca (imagem) + texto; a
+prova visual cheia (terno + cartões) é exclusiva do e-mail. Twilio configurado com From no cofre
+cifrado (não no env); telefone do destino entra cru e o helper normaliza para 55+DDD.

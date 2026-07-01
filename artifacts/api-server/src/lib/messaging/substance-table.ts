@@ -47,6 +47,8 @@ export interface ItemTabelaSubstancia {
   dose?: string;
   /** Sessão atual sobre o total (ex.: "4/12"). */
   sessao?: string;
+  /** Rótulo da coluna esquerda da linha 2 (padrão "Sessão"; ex.: "Sessões"). */
+  sessaoLabel?: string;
   /** Frequência no padrão "a cada N dias". */
   frequencia?: string;
   /** Status da aplicação. Ausente = cartão sem pílula de status. */
@@ -126,7 +128,7 @@ export function blocoTabelaSubstancias(itens: ItemTabelaSubstancia[]): string {
           <tr>
             <td style="width:${COL_ESQ}; padding:0; text-align:left; vertical-align:baseline;">${
               temSessao
-                ? `${rotulo("Sessão")}<span style="color:#c2cee0; font-size:14px; font-variant-numeric:tabular-nums; margin-left:6px;">${esc(it.sessao ?? "")}</span>`
+                ? `${rotulo(it.sessaoLabel ?? "Sessão")}<span style="color:#c2cee0; font-size:14px; font-variant-numeric:tabular-nums; margin-left:6px;">${esc(it.sessao ?? "")}</span>`
                 : ""
             }</td>
             <td style="width:${COL_DIR}; padding:0; text-align:right; vertical-align:baseline;">${
