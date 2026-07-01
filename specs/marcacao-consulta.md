@@ -58,3 +58,17 @@ Decisão de virar rota real em `artifacts/padcom` fica para depois da aprovaçã
 - O navy+ouro permanece no CONSOLE INTERNO (telas do sistema/recepção).
 - "Geração de vídeos por IA" deixa de ser fora de escopo: agora é o Módulo 2
   (`video-personalizado.md`); a faixa de vídeos pode exibir vídeos personalizados.
+
+## DECISÃO TRAVADA — pele por tema (01/07/2026, CEO Dr. Caio)
+O CEO escolheu combinar duas peles de mockup aprovadas, uma por tema:
+
+| Tema      | Modelo escolhido           | Entrega no Canvas | Componente-fonte (mockup)                                             |
+|-----------|----------------------------|-------------------|----------------------------------------------------------------------|
+| CLARO     | "A · Editorial"            | ENTREGA 42        | artifacts/mockup-sandbox/.../marcacao-fusao/FusaoEditorialClaro.tsx   |
+| ESCURO    | "Carteira" (concierge)     | ENTREGA 43        | artifacts/mockup-sandbox/.../marcacao-concierge/ConciergeCarteiraEscuro.tsx |
+
+Não negociável nesta baseline:
+- Separar bloco "CORPO MÉDICO" das "OUTRAS CATEGORIAS".
+- Cartão do Dr. Caio maior/mais largo que os demais; irmãos todos do mesmo tamanho (componente único).
+- DNA do cartão "Via Concierge" (navy #16284a/#1d335c + ouro #f4e2a8/#c2a05a/#8a6d2f, trilho/mastro laminado, selo) no cartão do Dr. Caio; no ESCURO ele é "black card".
+- Escopo até aqui: SÓ mockup. Virar rota real fica para ordem posterior do CEO.
