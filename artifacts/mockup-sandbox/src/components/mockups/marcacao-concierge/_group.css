@@ -1,0 +1,203 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&display=swap');
+
+/* ============================================================
+   MARCAÇÃO — CONCIERGE
+   DNA do cartão "Via Concierge" (tela real /agendar) que o CEO
+   aprovou: placa navy + trilho de ouro laminado + selo. O cartão
+   do Dr. Caio é o "cartão-membro" (navy nos DOIS temas, como um
+   black card); os demais são irmãos calmos e uniformes.
+   Escopo: .cc-scope (claro) / .cc-scope.dark (escuro)
+   ============================================================ */
+
+.cc-scope {
+  --gold: #b9923f;
+  --gold-lite: #f4e2a8;
+  --gold-mid: #c2a05a;
+  --gold-deep: #8a6d2f;
+  --navy: #16284a;
+  --page: #e8ebf1;
+  --ink: #16284a;
+  --muted: #5c6a83;
+  --card-a: #ffffff;
+  --card-b: #f5f1e8;
+  --line: rgba(138, 109, 47, 0.22);
+}
+.cc-scope.dark {
+  --gold: #cba34f;
+  --gold-lite: #f4e2a8;
+  --gold-mid: #c2a05a;
+  --gold-deep: #a8823c;
+  --navy: #16284a;
+  --page: #0a1730;
+  --ink: #eaf0fb;
+  --muted: #93a4bd;
+  --card-a: #1b2f52;
+  --card-b: #152845;
+  --line: rgba(255, 255, 255, 0.06);
+}
+
+.cc-serif {
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+}
+
+/* Fundo discreto (trama fina, quase liso) */
+.cc-paper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(22, 40, 74, 0.03) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(0deg, rgba(22, 40, 74, 0.02) 0 1px, transparent 1px 7px);
+  opacity: 0.7;
+}
+.cc-scope.dark .cc-paper {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(176, 208, 245, 0.05) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(0deg, rgba(176, 208, 245, 0.03) 0 1px, transparent 1px 7px);
+  opacity: 0.5;
+}
+
+/* Texto dourado (clip suave) — usar sobre fundos calmos */
+.cc-gold {
+  background: linear-gradient(180deg, #f4e2a8, #c2a05a 55%, #8a6d2f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- CARTÃO-MEMBRO (Dr. Caio): navy nos DOIS temas ---------- */
+.cc-flagship {
+  position: relative;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1d335c 0%, #16284a 100%);
+  border: 1px solid rgba(194, 160, 90, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 22px 44px -18px rgba(0, 0, 0, 0.62);
+}
+/* brilho guilhochê muito sutil (engine-turned de cartão nobre) */
+.cc-flagship::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.5;
+  background:
+    repeating-radial-gradient(circle at 18% -20%, rgba(194, 160, 90, 0.07) 0 1px, transparent 1px 7px),
+    radial-gradient(120% 90% at 85% 0%, rgba(244, 226, 168, 0.08), transparent 55%);
+}
+
+/* Trilho de ouro laminado (topo) — o detalhe que o CEO gostou */
+.cc-rail {
+  height: 6px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(90deg, #8a6d2f, #f4e2a8 18%, #c2a05a 50%, #f4e2a8 82%, #8a6d2f);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+/* Mastro de ouro laminado (lateral esquerda) — variante Placa */
+.cc-mastro {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  border-radius: 12px 0 0 12px;
+  background: linear-gradient(180deg, #8a6d2f, #f4e2a8 18%, #c2a05a 50%, #f4e2a8 82%, #8a6d2f);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.6), 1px 0 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Selo DIRETOR (chapa de ouro) */
+.cc-seal {
+  background: linear-gradient(180deg, #f4e2a8, #c9a24e);
+  color: #3a2c0e;
+  border: 1px solid rgba(120, 92, 40, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border-radius: 5px;
+}
+
+/* Poço côncavo do ícone dentro do cartão-membro (fundo navy) */
+.cc-well-dark {
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(194, 160, 90, 0.28);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Botão de ouro (CTA do diretor) */
+.cc-btn-gold {
+  color: #2c220b;
+  background: linear-gradient(180deg, #f6e6b0, #cba14e 55%, #a17f37);
+  border: 1px solid rgba(120, 92, 40, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 18px -8px rgba(150, 110, 40, 0.7);
+}
+
+/* Linha fina de "rodapé" do cartão-membro */
+.cc-flag-hair {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(194, 160, 90, 0.45), transparent);
+}
+
+/* ---------- CARTÕES IRMÃOS (uniformes) ---------- */
+.cc-card {
+  position: relative;
+  border-radius: 9px;
+  background: linear-gradient(180deg, var(--card-a), var(--card-b));
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 12px 22px -14px rgba(15, 28, 53, 0.26);
+  overflow: hidden;
+}
+.cc-scope.dark .cc-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 14px 24px -16px rgba(0, 0, 0, 0.6);
+}
+/* fio de ouro discreto no topo (mesma família do trilho, porém fino) */
+.cc-hair-top {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(194, 160, 90, 0.55), transparent);
+}
+/* fio de ouro discreto na lateral (variante Placa) */
+.cc-hair-left {
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, transparent, rgba(194, 160, 90, 0.6), transparent);
+}
+
+/* Poço côncavo do ícone (cartões claros/irmãos) */
+.cc-well {
+  border-radius: 8px;
+  background: rgba(15, 28, 53, 0.05);
+  border: 1px solid rgba(138, 109, 47, 0.18);
+  box-shadow: inset 0 2px 6px rgba(15, 28, 53, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+.cc-scope.dark .cc-well {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* Linha fina divisória de seção */
+.cc-hair {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(138, 109, 47, 0.4), transparent);
+}
+.cc-scope.dark .cc-hair {
+  background: linear-gradient(90deg, transparent, rgba(203, 163, 79, 0.35), transparent);
+}
+
+/* Barra de tema (indicador estático no mockup) */
+.cc-toggle {
+  background: rgba(15, 28, 53, 0.06);
+  border: 1px solid rgba(138, 109, 47, 0.25);
+}
+.cc-scope.dark .cc-toggle {
+  background: rgba(0, 0, 0, 0.28);
+}
