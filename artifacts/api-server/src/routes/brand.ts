@@ -10,6 +10,8 @@ import { renderPaxterBannerPng } from "../lib/messaging/banner.js";
 import { renderPaxterEmail } from "../lib/messaging/render-email.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { docAmostraBoasVindas } from "../lib/messaging/sample-doc.js";
+import { blocoTabelaSubstancias, type ItemTabelaSubstancia } from "../lib/messaging/substance-table.js";
+import type { PaxterDoc } from "../lib/messaging/types.js";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
 import { getGmailAddress } from "../lib/google-gmail.js";
 import { getSecret } from "../lib/secure-settings.js";
@@ -94,9 +96,46 @@ router.post("/brand/email-test", async (req, res): Promise<void> => {
     res.status(404).end();
     return;
   }
-  const body = (req.body ?? {}) as { to?: string; whats?: string };
+  const body = (req.body ?? {}) as {
+    to?: string;
+    whats?: string;
+    titulo?: string;
+    eyebrow?: string;
+    substancias?: Array<Partial<ItemTabelaSubstancia>>;
+  };
   const to = String(body.to ?? "").trim();
   const whats = String(body.whats ?? "").trim();
+
+  // Documento a enviar: por padrão a AMOSTRA fixa; se o corpo trouxer
+  // `substancias`, monta um documento de validação com essas substâncias pelo
+  // MESMO renderer único (cartões alinhados). Só-desenvolvimento, para o CEO
+  // conferir um cenário específico sem precisar criar protocolo real.
+  let doc = docAmostraBoasVindas();
+  const subsIn = Array.isArray(body.substancias) ? body.substancias : null;
+  if (subsIn && subsIn.length > 0) {
+    const itens: ItemTabelaSubstancia[] = subsIn.map(s => ({
+      nome: String(s.nome ?? "").trim() || "Substância",
+      dose: s.dose != null ? String(s.dose) : undefined,
+      sessao: s.sessao != null ? String(s.sessao) : undefined,
+      sessaoLabel: s.sessaoLabel != null ? String(s.sessaoLabel) : undefined,
+      frequencia: s.frequencia != null ? String(s.frequencia) : undefined,
+      status: s.status === "applied" || s.status === "notApplied" ? s.status : undefined,
+      cor: s.cor != null ? String(s.cor) : undefined,
+    }));
+    const tabela = blocoTabelaSubstancias(itens);
+    const custom: PaxterDoc = {
+      eyebrow: String(body.eyebrow ?? "Olá, Dr. Caio"),
+      titulo: String(body.titulo ?? "Seu protocolo"),
+      paragrafos: [
+        "E-mail de amostra para validação do padrão visual PAXTER.",
+        "Abaixo, as substâncias do protocolo em cartões com as informações alinhadas:",
+      ],
+      blocosHtml: [tabela],
+      notaRodape: "Mensagem de AMOSTRA — apenas para validação do layout.",
+      assunto: String(body.titulo ?? "PAXTER | Amostra de protocolo"),
+    };
+    doc = custom;
+  }
 
   const canais: ("EMAIL" | "WHATSAPP")[] = [];
   let email: string | null = null;
@@ -127,7 +166,7 @@ router.post("/brand/email-test", async (req, res): Promise<void> => {
   }
 
   const envio = await enviarMensagemPaxter(
-    docAmostraBoasVindas(),
+    doc,
     { email, telefone: whats || null, nome: "Dr. Caio" },
     canais,
     { baseUrl: absoluteBaseUrl(req) },
