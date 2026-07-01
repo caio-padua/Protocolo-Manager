@@ -31,7 +31,10 @@ import {
   CreditCard,
   Stethoscope,
   HeartPulse,
-  ArrowRight
+  ArrowRight,
+  Crown,
+  Lock,
+  ShieldCheck
 } from "lucide-react";
 
 // --- Helpers ---
@@ -90,10 +93,102 @@ const formatPhone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
+// --- Menu de entrada: cartão do Dr. Caio (destaque, muda por tema) ---
+function FlagshipDrCaio({ theme, name, onClick }: { theme: "dark" | "light"; name: string; onClick: () => void }) {
+  if (theme === "dark") {
+    return (
+      <button onClick={onClick} className="w-full text-left group">
+        <div
+          className="relative rounded-xl overflow-hidden p-5"
+          style={{
+            background: "linear-gradient(155deg, #142744 0%, #0f1f39 55%, #0b1830 100%)",
+            border: "1px solid rgba(184,146,77,0.42)",
+            boxShadow: "0 22px 38px -16px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)",
+          }}
+        >
+          <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg,#8a6d2f,#f4e2a8,#8a6d2f)" }} />
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Crown className="w-3.5 h-3.5" style={{ color: "#f4e2a8" }} />
+              <span className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#f4e2a8" }}>ATENDIMENTO EXCLUSIVO</span>
+            </div>
+            <span className="px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.14em] rounded" style={{ color: "#1a2b4a", background: "linear-gradient(180deg,#f4e2a8,#c2a05a)" }}>DIRETOR</span>
+          </div>
+          <div className="flex items-start gap-3.5">
+            <div className="flex items-center justify-center shrink-0 rounded-lg" style={{ width: 52, height: 52, background: "linear-gradient(160deg,#1c3358,#0f1c35)", border: "1px solid rgba(184,146,77,0.5)" }}>
+              <Crown className="w-6 h-6" style={{ color: "#f4e2a8" }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-serif text-xl font-bold leading-snug line-clamp-2" style={{ color: "#f6f0e0" }}>{name}</div>
+              <div className="text-[11px] mt-1" style={{ color: "#c9b98f" }}>Endocrinologia · Diretor Clínico</div>
+            </div>
+          </div>
+          <p className="text-[11.5px] leading-relaxed mt-3" style={{ color: "#b9c4d8" }}>Consulta premium e protocolos avançados, com acompanhamento pessoal e prioridade de agenda.</p>
+          <div className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-md py-2.5 text-[12px] font-bold tracking-[0.06em]" style={{ color: "#1a2b4a", background: "linear-gradient(180deg,#f4e2a8,#c2a05a)", boxShadow: "0 6px 14px -6px rgba(0,0,0,0.6)" }}>
+            <Sparkles className="w-3.5 h-3.5" /> CONCIERGE EXCLUSIVO <ChevronRight className="w-3.5 h-3.5" />
+          </div>
+          <div className="my-3 h-px" style={{ background: "rgba(184,146,77,0.28)" }} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5"><Lock className="w-3 h-3" style={{ color: "#c9b98f" }} /><span className="text-[9.5px] tracking-[0.12em]" style={{ color: "#b9c4d8" }}>ACESSO PRIORITÁRIO</span></div>
+            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" style={{ color: "#c9b98f" }} /><span className="text-[9.5px] tracking-[0.12em]" style={{ color: "#b9c4d8" }}>AGENDA PROTEGIDA</span></div>
+          </div>
+        </div>
+      </button>
+    );
+  }
+  return (
+    <button onClick={onClick} className="w-full text-left group">
+      <div className="panel-3d-hero rounded-xl p-6 transition-all duration-300 group-hover:panel-3d-active overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#c2a05a] to-yellow-600" />
+        <div className="flex items-center gap-2 mb-2">
+          <Star className="w-4 h-4 text-yellow-600 fill-yellow-600" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-yellow-700">ATENDIMENTO EXCLUSIVO</span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-serif text-xl text-primary font-medium leading-tight line-clamp-2">{name}</h3>
+            <p className="text-xs text-muted-foreground mt-2 leading-snug">Consulta premium e protocolos avançados, com acompanhamento exclusivo.</p>
+          </div>
+          <ChevronRight className="w-6 h-6 text-yellow-600 shrink-0 mt-1" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// --- Menu de entrada: cartão irmão uniforme (agrupadores e categorias) ---
+function CardGrupo({ Icon, eyebrow, name, role, onClick }: { Icon: typeof Stethoscope; eyebrow?: string; name: string; role?: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full text-left group">
+      <div className="panel-3d rounded-xl px-4 flex items-center gap-3 transition-all duration-300 group-hover:panel-3d-active" style={{ minHeight: 72 }}>
+        <div className="field-engraved flex items-center justify-center shrink-0 rounded-md" style={{ width: 44, height: 44 }}>
+          <Icon className="w-[18px] h-[18px] text-accent" />
+        </div>
+        <div className="min-w-0 flex-1">
+          {eyebrow ? <div className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground mb-0.5">{eyebrow}</div> : null}
+          <div className="text-sm font-semibold text-primary leading-snug truncate">{name}</div>
+          {role ? <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{role}</div> : null}
+        </div>
+        <ChevronRight className="w-[18px] h-[18px] text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+// --- Menu de entrada: rótulo de seção (ouro adapta por tema) ---
+function MenuSectionLabel({ theme, children }: { theme: "dark" | "light"; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 pt-2 pb-1">
+      <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: theme === "dark" ? "#f4e2a8" : "#a8823c" }}>{children}</span>
+      <span className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
+
 export default function Agendar() {
   const [, setLocation] = useLocation();
   const { theme, toggle } = useScreenTheme();
-  const [flow, setFlow] = useState<"menu" | "estetico" | "drcaio" | "assistente">("menu");
+  const [flow, setFlow] = useState<"menu" | "estetico" | "drcaio" | "assistente" | "outras">("menu");
 
   const { data: contents = [], isLoading: isLoadingContents } = useListSiteContent();
 
@@ -117,7 +212,8 @@ export default function Agendar() {
   const btnInjetavel = getPhrase("btn_entrada_injetavel", "PROTOCOLOS INJETÁVEIS");
   const btnEstetico = getPhrase("btn_entrada_estetico", "PROTOCOLOS ESTÉTICOS");
   const btnDrCaio = getPhrase("btn_entrada_drcaio", "DR. CAIO HENRIQUE FERNANDES PÁDUA");
-  const btnAssistente = getPhrase("btn_entrada_assistentes", "Corpo Clínico / Profissionais");
+  const btnAssistente = getPhrase("btn_entrada_assistentes", "Médicos Assistentes");
+  const btnOutras = getPhrase("btn_entrada_outras", "Outras Categorias");
 
   const txtEstetico = getText("pay_text_estetico", "Procedimentos estéticos são acertados presencialmente.");
   const txtConcierge = getText("pay_text_concierge", "O serviço Concierge garante encaixe prioritário.");
@@ -152,7 +248,7 @@ export default function Agendar() {
 
       <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
         {flow === "menu" && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2 mt-4">
               <h2 className="text-2xl font-serif text-primary">Como podemos ajudar?</h2>
               <p className="text-sm text-muted-foreground">Escolha o serviço desejado para iniciar seu atendimento.</p>
@@ -160,104 +256,60 @@ export default function Agendar() {
 
             {videoItem?.mediaUrl && <VideoPlayer url={videoItem.mediaUrl} />}
 
-            <div className="space-y-4">
-              {/* Door 3: Dr Caio - Maximum Emphasis */}
-              <button
-                onClick={() => setFlow("drcaio")}
-                className="w-full relative group text-left"
-              >
-                <div className="panel-3d-hero rounded-xl p-6 transition-all duration-300 group-hover:panel-3d-active overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#c2a05a] to-yellow-600" />
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 pr-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Star className="w-4 h-4 text-yellow-600 fill-yellow-600" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-yellow-700">
-                          ATENDIMENTO EXCLUSIVO
-                        </span>
-                      </div>
-                      <h3 className="font-serif text-xl text-primary font-medium leading-tight">
-                        {btnDrCaio}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-2">Consulta premium e protocolos avançados com o Dr. Caio.</p>
-                    </div>
-                    <ChevronRight className="w-6 h-6 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
-                  </div>
-                </div>
-              </button>
+            {/* Dr. Caio — destaque máximo, mais largo (muda por tema) */}
+            <FlagshipDrCaio theme={theme} name={btnDrCaio} onClick={() => setFlow("drcaio")} />
 
-              {/* Door 4: Assistentes - Subordinate to Dr Caio */}
-              <button
+            {/* Corpo Clínico — agrupador recuado (mais estreito que o Dr. Caio) */}
+            <div className="px-2 space-y-3">
+              <MenuSectionLabel theme={theme}>CORPO CLÍNICO</MenuSectionLabel>
+              <CardGrupo
+                Icon={Stethoscope}
+                name={btnAssistente}
+                role="Escolha o profissional para consulta"
                 onClick={() => setFlow("assistente")}
-                className="w-full relative group text-left pl-6"
-              >
-                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1 pr-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <User className="w-4 h-4 text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">
-                          CORPO CLÍNICO
-                        </span>
-                      </div>
-                      <h3 className="font-serif text-lg text-primary">{btnAssistente}</h3>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
-                  </div>
-                </div>
-              </button>
+              />
+            </div>
 
-              <div className="pt-4 pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                    OUTROS SERVIÇOS
-                  </span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
+            {/* Outros serviços — agrupador recuado */}
+            <div className="px-2 space-y-3">
+              <div className="flex items-center gap-3 pt-2 pb-1">
+                <span className="flex-1 h-px bg-border" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">OUTROS SERVIÇOS</span>
+                <span className="flex-1 h-px bg-border" />
               </div>
+              <CardGrupo
+                Icon={Sparkles}
+                name={btnOutras}
+                role="Injetáveis, estética e mais"
+                onClick={() => setFlow("outras")}
+              />
+            </div>
+          </div>
+        )}
 
-              {/* Door 1: Injetaveis */}
-              <button
+        {flow === "outras" && (
+          <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+            <div className="flex items-center gap-3 mb-2">
+              <button onClick={() => setFlow("menu")} className="w-8 h-8 shrink-0 rounded-md bg-card border border-border flex items-center justify-center text-primary hover:bg-muted transition-colors">
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <h2 className="font-serif text-xl text-primary truncate">Outras Categorias</h2>
+            </div>
+            <div className="space-y-3">
+              <CardGrupo
+                Icon={Syringe}
+                eyebrow="INJETÁVEIS"
+                name={btnInjetavel}
+                role="Protocolos e anamnese"
                 onClick={() => setLocation("/anamnese/v2")}
-                className="w-full relative group text-left"
-              >
-                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1 pr-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Syringe className="w-4 h-4 text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">
-                          INJETÁVEIS
-                        </span>
-                      </div>
-                      <h3 className="font-sans text-sm font-bold text-primary uppercase tracking-wide">{btnInjetavel}</h3>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
-                  </div>
-                </div>
-              </button>
-
-              {/* Door 2: Esteticos */}
-              <button
+              />
+              <CardGrupo
+                Icon={Sparkles}
+                eyebrow="ESTÉTICA"
+                name={btnEstetico}
+                role="Procedimentos estéticos"
                 onClick={() => setFlow("estetico")}
-                className="w-full relative group text-left"
-              >
-                <div className="panel-3d rounded-xl p-5 transition-all duration-300 group-hover:panel-3d-active">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1 pr-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-4 h-4 text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">
-                          ESTÉTICA
-                        </span>
-                      </div>
-                      <h3 className="font-sans text-sm font-bold text-primary uppercase tracking-wide">{btnEstetico}</h3>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
-                  </div>
-                </div>
-              </button>
+              />
             </div>
           </div>
         )}
