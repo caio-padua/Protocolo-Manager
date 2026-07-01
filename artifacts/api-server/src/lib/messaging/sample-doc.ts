@@ -8,10 +8,11 @@ import type { PaxterDoc } from "./types";
 import { blocoTabelaSubstancias } from "./substance-table";
 
 export function docAmostraBoasVindas(): PaxterDoc {
-  // Tabela de substâncias (layout aprovado pelo CEO): colunas ALINHADAS na
-  // vertical — Substância | Dose (só miligramagem) | Sessão | Frequência | Status.
-  // A dose entra CRUA com "/ 2 ml" de propósito, para o CEO conferir que o
-  // motor mantém só a miligramagem ("5 mg / 2 ml" -> "5 mg").
+  // Cartões de substância (layout aprovado pelo CEO em 30/06/2026): cada
+  // substância num cartão, com as informações ALINHADAS por uma linha vertical
+  // imaginária — nome + Dose (só miligramagem) na linha 1; Sessão + Frequência
+  // na linha 2. A dose entra CRUA com "/ 2 ml" de propósito, para o CEO conferir
+  // que o motor mantém só a miligramagem ("5 mg / 2 ml" -> "5 mg").
   const tabela = blocoTabelaSubstancias([
     {
       nome: "Tirzepatida",
@@ -53,7 +54,7 @@ export function docAmostraBoasVindas(): PaxterDoc {
     paragrafos: [
       "Este é um e-mail de amostra para você conferir o padrão visual PAXTER.",
       "A cada etapa do tratamento (boas-vindas, lembrete pré-sessão, confirmação pós-sessão e documentos), você receberá uma mensagem como esta — com a mesma identidade no e-mail, no WhatsApp e no Telegram.",
-      "Abaixo, as substâncias da sessão com as colunas alinhadas:",
+      "Abaixo, as substâncias da sessão em cartões com as informações alinhadas:",
     ],
     blocosHtml: [tabela],
     botao: { label: "Acessar minha área", url: "https://app.paxter.exemplo/area" },
