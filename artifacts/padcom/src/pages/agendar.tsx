@@ -25,7 +25,6 @@ import {
   AlertCircle,
   Syringe,
   Sparkles,
-  Star,
   User,
   Clock,
   CreditCard,
@@ -33,7 +32,6 @@ import {
   HeartPulse,
   ArrowRight,
   Crown,
-  Lock,
   ShieldCheck
 } from "lucide-react";
 
@@ -93,93 +91,128 @@ const formatPhone = (v: string) => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
-// --- Menu de entrada: cartão do Dr. Caio (destaque, muda por tema) ---
-function FlagshipDrCaio({ theme, name, onClick }: { theme: "dark" | "light"; name: string; onClick: () => void }) {
+// Remove um prefixo "Consulta com (nossos)" do rótulo — o cartão já traz o eyebrow "CONSULTA COM",
+// então o nome fica só com o essencial (evita duplicar e caber sem quebrar linha no celular).
+function stripConsultaCom(s: string) {
+  return s.replace(/^consulta\s+com\s+(nossos?\s+)?/i, "").trim();
+}
+
+// Paleta por tema — MESMA estrutura visual nos dois; só as cores mudam.
+function flagshipTokens(theme: "dark" | "light") {
   if (theme === "dark") {
-    return (
-      <button onClick={onClick} className="w-full text-left group">
-        <div
-          className="relative rounded-xl overflow-hidden p-5"
-          style={{
-            background: "linear-gradient(155deg, #142744 0%, #0f1f39 55%, #0b1830 100%)",
-            border: "1px solid rgba(184,146,77,0.42)",
-            boxShadow: "0 22px 38px -16px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06)",
-          }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-1" style={{ background: "linear-gradient(90deg,#8a6d2f,#f4e2a8,#8a6d2f)" }} />
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <Crown className="w-3.5 h-3.5" style={{ color: "#f4e2a8" }} />
-              <span className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#f4e2a8" }}>ATENDIMENTO EXCLUSIVO</span>
-            </div>
-            <span className="px-2 py-0.5 text-[8.5px] font-black uppercase tracking-[0.14em] rounded" style={{ color: "#1a2b4a", background: "linear-gradient(180deg,#f4e2a8,#c2a05a)" }}>DIRETOR</span>
-          </div>
-          <div className="flex items-start gap-3.5">
-            <div className="flex items-center justify-center shrink-0 rounded-lg" style={{ width: 52, height: 52, background: "linear-gradient(160deg,#1c3358,#0f1c35)", border: "1px solid rgba(184,146,77,0.5)" }}>
-              <Crown className="w-6 h-6" style={{ color: "#f4e2a8" }} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-serif text-xl font-bold leading-snug line-clamp-2" style={{ color: "#f6f0e0" }}>{name}</div>
-              <div className="text-[11px] mt-1" style={{ color: "#c9b98f" }}>Endocrinologia · Diretor Clínico</div>
-            </div>
-          </div>
-          <p className="text-[11.5px] leading-relaxed mt-3" style={{ color: "#b9c4d8" }}>Consulta premium e protocolos avançados, com acompanhamento pessoal e prioridade de agenda.</p>
-          <div className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-md py-2.5 text-[12px] font-bold tracking-[0.06em]" style={{ color: "#1a2b4a", background: "linear-gradient(180deg,#f4e2a8,#c2a05a)", boxShadow: "0 6px 14px -6px rgba(0,0,0,0.6)" }}>
-            <Sparkles className="w-3.5 h-3.5" /> CONCIERGE EXCLUSIVO <ChevronRight className="w-3.5 h-3.5" />
-          </div>
-          <div className="my-3 h-px" style={{ background: "rgba(184,146,77,0.28)" }} />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5"><Lock className="w-3 h-3" style={{ color: "#c9b98f" }} /><span className="text-[9.5px] tracking-[0.12em]" style={{ color: "#b9c4d8" }}>ACESSO PRIORITÁRIO</span></div>
-            <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" style={{ color: "#c9b98f" }} /><span className="text-[9.5px] tracking-[0.12em]" style={{ color: "#b9c4d8" }}>AGENDA PROTEGIDA</span></div>
-          </div>
-        </div>
-      </button>
-    );
+    return {
+      cardBg: "linear-gradient(155deg,#142744 0%,#0f1f39 55%,#0b1830 100%)",
+      border: "rgba(184,146,77,0.42)",
+      shadow: "0 22px 40px -16px rgba(0,0,0,0.66), inset 0 1px 0 rgba(255,255,255,0.06)",
+      goldBand: "linear-gradient(90deg,#8a6d2f,#f4e2a8,#8a6d2f)",
+      wellBg: "linear-gradient(160deg,#1c3358,#0f1c35)",
+      wellBorder: "rgba(184,146,77,0.5)",
+      gold: "#f4e2a8",
+      accent: "#cbb98a",
+      name: "#f6f0e0",
+      sub: "#c9b98f",
+      text: "#b9c4d8",
+      badgeText: "#1a2b4a",
+      chip: "linear-gradient(180deg,#f4e2a8,#c2a05a)",
+      ctaText: "#1a2b4a",
+      cta: "linear-gradient(180deg,#f4e2a8,#c2a05a)",
+      ctaShadow: "0 10px 20px -9px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5)",
+      hair: "rgba(184,146,77,0.26)",
+    };
   }
+  return {
+    cardBg: "linear-gradient(155deg,#ffffff 0%,#fbf8f1 60%,#f5eede 100%)",
+    border: "rgba(168,130,60,0.5)",
+    shadow: "0 18px 34px -18px rgba(90,68,24,0.32), inset 0 1px 0 rgba(255,255,255,0.9)",
+    goldBand: "linear-gradient(90deg,#c2a05a,#8a6d2f,#c2a05a)",
+    wellBg: "linear-gradient(160deg,#fbf5e7,#efe4cb)",
+    wellBorder: "rgba(168,130,60,0.55)",
+    gold: "#8a6d2f",
+    accent: "#8a6d2f",
+    name: "#16284a",
+    sub: "#6f6142",
+    text: "#55617a",
+    badgeText: "#2a2410",
+    chip: "linear-gradient(180deg,#f0d998,#c2a05a)",
+    ctaText: "#241d08",
+    cta: "linear-gradient(180deg,#f0d998,#c2a05a)",
+    ctaShadow: "0 12px 22px -11px rgba(120,90,30,0.5), inset 0 1px 0 rgba(255,255,255,0.7)",
+    hair: "rgba(168,130,60,0.32)",
+  };
+}
+
+// --- Menu de entrada: cartão do Dr. Caio (destaque). MESMO layout nos 2 temas, só a cor muda. ---
+function FlagshipDrCaio({ theme, name, onClick }: { theme: "dark" | "light"; name: string; onClick: () => void }) {
+  const t = flagshipTokens(theme);
+  const displayName = stripConsultaCom(name);
   return (
     <button onClick={onClick} className="w-full text-left group">
-      <div className="panel-3d-hero rounded-xl p-6 transition-all duration-300 group-hover:panel-3d-active overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#c2a05a] to-yellow-600" />
-        <div className="flex items-center gap-2 mb-2">
-          <Star className="w-4 h-4 text-yellow-600 fill-yellow-600" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-yellow-700">ATENDIMENTO EXCLUSIVO</span>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="font-serif text-xl text-primary font-medium leading-tight line-clamp-2">{name}</h3>
-            <p className="text-xs text-muted-foreground mt-2 leading-snug">Consulta premium e protocolos avançados, com acompanhamento exclusivo.</p>
+      <div
+        className="relative rounded-xl overflow-hidden p-5 transition-transform duration-300 group-hover:-translate-y-0.5"
+        style={{ background: t.cardBg, border: `1px solid ${t.border}`, boxShadow: t.shadow }}
+      >
+        {/* Faixa dourada (topo do cartão) */}
+        <div className="absolute top-0 left-0 right-0" style={{ height: 3, background: t.goldBand }} />
+        {/* Cabeçalho: coroa + selo DIRETOR */}
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="flex items-center justify-center shrink-0 rounded-lg" style={{ width: 46, height: 46, background: t.wellBg, border: `1px solid ${t.wellBorder}` }}>
+            <Crown className="w-[22px] h-[22px]" style={{ color: t.gold }} />
           </div>
-          <ChevronRight className="w-6 h-6 text-yellow-600 shrink-0 mt-1" />
+          <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] rounded" style={{ color: t.badgeText, background: t.chip }}>DIRETOR</span>
+        </div>
+        {/* Eyebrow + nome (sem quebra de linha no celular) + faixa dourada do nome */}
+        <div className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: t.accent }}>CONSULTA COM</div>
+        <div
+          className="font-serif font-semibold mt-1 whitespace-nowrap overflow-hidden text-ellipsis"
+          style={{ color: t.name, fontSize: "clamp(14px,4.3vw,20px)", lineHeight: 1.2 }}
+        >
+          {displayName}
+        </div>
+        <div className="mt-2 rounded-full" style={{ height: 3, width: 56, background: t.goldBand }} />
+        <div className="text-[11px] mt-2" style={{ color: t.sub }}>Endocrinologia · Diretor Clínico</div>
+        {/* Texto do concierge — enxuto */}
+        <p className="text-[11.5px] leading-relaxed mt-3" style={{ color: t.text }}>Consulta premium com prioridade de agenda.</p>
+        {/* CTA alto, maiúsculo, mais saliente */}
+        <div
+          className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg text-[12.5px] font-black uppercase tracking-[0.12em] transition-transform duration-150 group-active:translate-y-0.5"
+          style={{ color: t.ctaText, background: t.cta, boxShadow: t.ctaShadow, minHeight: 52 }}
+        >
+          <Sparkles className="w-4 h-4" /> CONCIERGE EXCLUSIVO <ChevronRight className="w-4 h-4" />
+        </div>
+        {/* Rodapé único e discreto */}
+        <div className="mt-3.5 pt-3 flex items-center gap-1.5" style={{ borderTop: `1px solid ${t.hair}` }}>
+          <ShieldCheck className="w-3.5 h-3.5" style={{ color: t.accent }} />
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.16em]" style={{ color: t.accent }}>AGENDA RESTRITA</span>
         </div>
       </div>
     </button>
   );
 }
 
-// --- Menu de entrada: cartão irmão uniforme (agrupadores e categorias) ---
+// --- Menu de entrada: cartão irmão (botão alto, maiúsculo, 3D saliente) — igual nos 2 temas ---
 function CardGrupo({ Icon, eyebrow, name, role, onClick }: { Icon: typeof Stethoscope; eyebrow?: string; name: string; role?: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full text-left group">
-      <div className="panel-3d rounded-xl px-4 flex items-center gap-3 transition-all duration-300 group-hover:panel-3d-active" style={{ minHeight: 72 }}>
-        <div className="field-engraved flex items-center justify-center shrink-0 rounded-md" style={{ width: 44, height: 44 }}>
-          <Icon className="w-[18px] h-[18px] text-accent" />
+      <div className="panel-3d-hero rounded-xl px-4 flex items-center gap-3.5 transition-all duration-300 group-hover:panel-3d-active group-hover:-translate-y-0.5" style={{ minHeight: 84 }}>
+        <div className="field-engraved flex items-center justify-center shrink-0 rounded-md" style={{ width: 48, height: 48 }}>
+          <Icon className="w-5 h-5 text-accent" />
         </div>
         <div className="min-w-0 flex-1">
-          {eyebrow ? <div className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground mb-0.5">{eyebrow}</div> : null}
-          <div className="text-sm font-semibold text-primary leading-snug truncate">{name}</div>
-          {role ? <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{role}</div> : null}
+          {eyebrow ? <div className="text-[9px] font-black uppercase tracking-[0.18em] text-accent mb-0.5">{eyebrow}</div> : null}
+          <div className="text-[13px] font-black uppercase tracking-[0.06em] text-primary leading-snug truncate">{name}</div>
+          {role ? <div className="text-[11px] text-muted-foreground mt-1 truncate">{role}</div> : null}
         </div>
-        <ChevronRight className="w-[18px] h-[18px] text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+        <ChevronRight className="w-5 h-5 text-accent transition-colors shrink-0" />
       </div>
     </button>
   );
 }
 
-// --- Menu de entrada: rótulo de seção (ouro adapta por tema) ---
+// --- Menu de entrada: rótulo de seção (MESMA cor nos dois rótulos, MAIÚSCULO, à esquerda) ---
 function MenuSectionLabel({ theme, children }: { theme: "dark" | "light"; children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 pt-2 pb-1">
-      <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: theme === "dark" ? "#f4e2a8" : "#a8823c" }}>{children}</span>
+      <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: theme === "dark" ? "#f4e2a8" : "#8a6d2f" }}>{children}</span>
       <span className="flex-1 h-px bg-border" />
     </div>
   );
@@ -264,7 +297,7 @@ export default function Agendar() {
               <MenuSectionLabel theme={theme}>CORPO CLÍNICO</MenuSectionLabel>
               <CardGrupo
                 Icon={Stethoscope}
-                name={btnAssistente}
+                name={stripConsultaCom(btnAssistente)}
                 role="Escolha o profissional para consulta"
                 onClick={() => setFlow("assistente")}
               />
@@ -272,14 +305,10 @@ export default function Agendar() {
 
             {/* Outros serviços — agrupador recuado */}
             <div className="px-2 space-y-3">
-              <div className="flex items-center gap-3 pt-2 pb-1">
-                <span className="flex-1 h-px bg-border" />
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">OUTROS SERVIÇOS</span>
-                <span className="flex-1 h-px bg-border" />
-              </div>
+              <MenuSectionLabel theme={theme}>OUTROS SERVIÇOS</MenuSectionLabel>
               <CardGrupo
                 Icon={Sparkles}
-                name={btnOutras}
+                name={stripConsultaCom(btnOutras)}
                 role="Injetáveis, estética e mais"
                 onClick={() => setFlow("outras")}
               />
