@@ -36,6 +36,19 @@ teal aparecia em paleta categorica, recolorir para `cyan`/`sky` (mantem distinca
 - `components/theme/useScreenTheme.ts` (chave localStorage `paxter.theme`) + `ThemeToggle.tsx`;
   aplica classe `.dark` no wrapper da tela; tokens `.dark` do index.css respondem. Hoje em
   `anamnese-v2` e `agendar`.
+
+- PAINEL/FAROL SEGUE O TEMA DA PAGINA (regra do CEO): qualquer painel grande da tela do cliente
+  (ex.: `TernoFarol` = painel "IV. A AGENDA" do fluxo `/agendar`) NAO pode forcar `.dark`/fundo navy
+  fixo. Deve ser theme-aware por prop `isDark`: wrapper `.dark` so quando dark; fundo condicional
+  (dark navy `#13233f->#0d1830`; light linho creme `#faf6ee->#f1e9d8`) + overlay
+  `<div className="leva-fabric" aria-hidden/>` (risca de giz) + conteudo em `relative z-[1]`;
+  `PaxterSymbolGlass tone={isDark?"dark":"light"}`; texto navy `#16284a` e faixa de status em tons
+  escuros (`red-800/amber-900/emerald-800`) no claro.
+  **Why:** no layout branco o farol aparecia sempre escuro (parecia bug/tela quebrada); o CEO cobrou
+  "terno linho claro risca de giz" no light, mantendo o dark identico ao original.
+  **How to apply:** ao tornar um painel theme-aware, checar TODOS os call sites (o typecheck acusa
+  `Property 'isDark' is missing` se faltar um); o padrao `.leva-fabric` ja existe na `anamnese-v2`.
+  Substitui a nota anterior que pedia para nao tocar no dark do TernoFarol.
 - **Truque de verificacao** (so para screenshot, SEMPRE reverter depois): no topo de `readTheme()`
   por `return "dark";` para forcar o tema escuro, screenshotar, e desfazer. localStorage nao persiste
   entre sessoes de screenshot.

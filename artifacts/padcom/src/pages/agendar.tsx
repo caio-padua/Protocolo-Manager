@@ -499,19 +499,24 @@ const FAROL_MS = 10000; // farol (stage "vias"): % sobe de 0 a 100 ate o verde (
 // simbolo respirando (topo) e as mensagens do farol (faixa de baixo) fiquem CONCORRENTES.
 // O wrapper .dark forca as classes 3D (panel-3d/concave-3d/bevel-3d) para a variante navy,
 // independente do tema da pagina, igual a tela "foto do paciente" elogiada pelo CEO.
-function TernoFarol({ pct, children, band, fill }: { pct: number; children: ReactNode; band?: ReactNode; fill?: boolean }) {
+function TernoFarol({ pct, children, band, fill, isDark }: { pct: number; children: ReactNode; band?: ReactNode; fill?: boolean; isDark: boolean }) {
   return (
-    <div className="dark">
+    <div className={isDark ? "dark" : ""}>
       <div
         className={`relative overflow-hidden panel-3d rounded-xl p-6 sm:p-7 flex flex-col gap-6 ${fill ? "min-h-[calc(100dvh-10rem)]" : "min-h-[380px]"}`}
-        style={{ background: "linear-gradient(180deg, #13233f 0%, #0d1830 100%)" }}
+        style={{ background: isDark
+          ? "linear-gradient(180deg, #13233f 0%, #0d1830 100%)"
+          : "linear-gradient(180deg, #faf6ee 0%, #f1e9d8 100%)" }}
       >
+        {/* TECIDO TERNO: risca de giz sobre creme no CLARO, linho marinho no ESCURO
+            (mesma .leva-fabric da anamnese). Fica atras do conteudo (z-0). */}
+        <div className="leva-fabric" aria-hidden="true" />
         {/* TOPO: simbolo respirando + texto editorial, SEMPRE visivel */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">{children}</div>
+        <div className="relative z-[1] flex-1 flex flex-col items-center justify-center text-center gap-4">{children}</div>
         {/* BAIXO: faixa de status (cor = estado) a esquerda + WELL da % FIXO no canto
             inferior direito. O well tem largura/altura FIXAS para que a posicao nunca
             mude com o numero de digitos (5 -> 49 -> 100) nem com o tamanho da frase. */}
-        <div className="flex items-end gap-4">
+        <div className="relative z-[1] flex items-end gap-4">
           <div className="flex-1 min-w-0">{band}</div>
           <div className="concave-3d rounded-md w-[86px] h-[60px] shrink-0 flex items-baseline justify-center gap-0.5">
             <span className="dc-serif dc-gold text-3xl tabular-nums leading-none">{Math.round(pct)}</span>
@@ -961,9 +966,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           {/* MOTOR #1 — verificação curta da agenda (mesma moldura terno do farol) */}
           {stage === "motor1" && (
-            <TernoFarol pct={pct} fill>
-              <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
-              <p className="dc-serif italic text-lg text-stone-200">Consultando a agenda do Dr. Caio…</p>
+            <TernoFarol pct={pct} fill isDark={isDark}>
+              <span className="dc-breathe"><PaxterSymbolGlass size={104} tone={isDark ? "dark" : "light"} /></span>
+              <p className={`dc-serif italic text-lg ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>Consultando a agenda do Dr. Caio…</p>
             </TernoFarol>
           )}
 
@@ -973,6 +978,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               {/* FAROL — terno azul-marinho: simbolo respirando no topo + faixa de status embaixo, CONCORRENTES */}
               <TernoFarol
                 pct={pct}
+                isDark={isDark}
                 fill={viaPhase !== 2}
                 band={
                   <div
@@ -994,7 +1000,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       style={{ background: viaPhase === 0 ? "#ef4444" : viaPhase === 1 ? "#f59e0b" : "#34d399" }}
                     />
                     <p key={viaPhase} className={`dc-reveal text-sm leading-relaxed ${
-                      viaPhase === 0 ? "text-red-100" : viaPhase === 1 ? "text-amber-50" : "text-emerald-50"
+                      viaPhase === 0 ? (isDark ? "text-red-100" : "text-red-800")
+                      : viaPhase === 1 ? (isDark ? "text-amber-50" : "text-amber-900")
+                      : (isDark ? "text-emerald-50" : "text-emerald-800")
                     }`}>
                       {viaPhase === 0 && "Sua data preferida está esgotada — não há horário livre nela."}
                       {viaPhase === 1 && "Verificando se o Concierge pode abrir uma exceção para o seu caso…"}
@@ -1003,10 +1011,10 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   </div>
                 }
               >
-                <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
+                <span className="dc-breathe"><PaxterSymbolGlass size={104} tone={isDark ? "dark" : "light"} /></span>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.28em] dc-gold mb-1">IV. A Agenda</p>
-                  <p className="dc-serif italic text-lg text-stone-200">
+                  <p className={`dc-serif italic text-lg ${isDark ? "text-stone-200" : "text-[#16284a]"}`}>
                     {viaPhase === 0
                       ? "Conferindo a agenda do Dr. Caio…"
                       : viaPhase === 1
