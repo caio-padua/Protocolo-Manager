@@ -49,6 +49,9 @@ teal aparecia em paleta categorica, recolorir para `cyan`/`sky` (mantem distinca
   **How to apply:** ao tornar um painel theme-aware, checar TODOS os call sites (o typecheck acusa
   `Property 'isDark' is missing` se faltar um); o padrao `.leva-fabric` ja existe na `anamnese-v2`.
   Substitui a nota anterior que pedia para nao tocar no dark do TernoFarol.
+  O CABECALHO publico de `/agendar` tambem recebe o mesmo tecido (mesmo padrao: `panel-3d` +
+  background condicional + overlay `.leva-fabric` + conteudo `z-[1]`), para a caixinha superior
+  casar com o painel de baixo — sem quebrar o `sticky top-0`.
 - **Truque de verificacao** (so para screenshot, SEMPRE reverter depois): no topo de `readTheme()`
   por `return "dark";` para forcar o tema escuro, screenshotar, e desfazer. localStorage nao persiste
   entre sessoes de screenshot.

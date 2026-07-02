@@ -273,9 +273,16 @@ export default function Agendar() {
   return (
     <div className={theme === "dark" ? "dark" : ""}>
     <div className="min-h-[100dvh] bg-background text-foreground font-sans flex flex-col">
-      {/* Header Público */}
-      <header className="panel-3d sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border rounded-none rounded-b-lg">
-        <div className="flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
+      {/* Header Público — mesmo TERNO risca de giz dos paineis (claro linho / escuro navy),
+          para a caixinha superior (simbolo PAXTER + botao de tema) casar com o painel de baixo. */}
+      <header
+        className="relative overflow-hidden panel-3d sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border rounded-none rounded-b-lg"
+        style={{ background: theme === "dark"
+          ? "linear-gradient(180deg, #13233f 0%, #0d1830 100%)"
+          : "linear-gradient(180deg, #faf6ee 0%, #f1e9d8 100%)" }}
+      >
+        <div className="leva-fabric" aria-hidden="true" />
+        <div className="relative z-[1] flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
           <div className="flex items-center gap-2.5 min-w-0">
             <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone="dark" />
           </div>
