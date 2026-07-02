@@ -22,7 +22,9 @@ import {
   asaasCreateCustomer,
   asaasCreateCharge,
   asaasGetCharge,
+  asaasGetPixQrCode,
 } from "../lib/asaas.js";
+import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 
 const router: IRouter = Router();
@@ -608,6 +610,7 @@ router.post(
           value: amount,
           dueDate: due,
           description: `Concierge — prioridade Dr. Caio — ${fresh.patientName}`,
+          billingType: "PIX",
         });
         const [updated] = await tx
           .update(schedulingRequestsTable)
@@ -631,12 +634,36 @@ router.post(
         };
       });
 
+      // QR PIX embutido (pago DENTRO do Paxter). Busca best-effort FORA da trava
+      // para nao segurar o advisory lock durante a chamada de rede. Se o Asaas
+      // nao devolver o QR (ex.: ambiente/permissao), caimos no invoiceUrl —
+      // resposta honesta, sem fingir QR.
+      let pixQrImage: string | null = null;
+      let pixPayload: string | null = null;
+      let pixExpiration: string | null = null;
+      try {
+        const qr = await asaasGetPixQrCode(result.chargeId);
+        if (qr.encodedImage && qr.payload) {
+          pixQrImage = qr.encodedImage;
+          pixPayload = qr.payload;
+          pixExpiration = qr.expirationDate;
+        }
+      } catch (qrErr) {
+        req.log.warn(
+          { err: String(qrErr) },
+          "QR PIX indisponível na cobrança Concierge (usando invoiceUrl)",
+        );
+      }
+
       res.status(result.created ? 201 : 200).json({
         requestId: result.requestId,
         chargeId: result.chargeId,
         invoiceUrl: result.invoiceUrl,
         amount: result.amount,
         status: result.status,
+        pixQrImage,
+        pixPayload,
+        pixExpiration,
       });
     } catch (err) {
       req.log.error(
@@ -718,6 +745,35 @@ router.get(
     }
   },
 );
+
+// Oferta de horarios REAL do concierge (Dr. Caio): confronta a agenda de verdade
+// ANTES do pagamento. Publico (o funil /agendar e publico). Stateless — nao cria
+// nada, so calcula. Query: weekday (1..6), period (manha|tarde), earliest (YYYY-MM-DD).
+router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
+  const rawWeekday = req.query.weekday;
+  const weekday =
+    typeof rawWeekday === "string" && /^[1-6]$/.test(rawWeekday) ? Number(rawWeekday) : null;
+  const rawPeriod = req.query.period;
+  const period = rawPeriod === "manha" || rawPeriod === "tarde" ? rawPeriod : null;
+  const rawEarliest = req.query.earliest;
+  const earliest =
+    typeof rawEarliest === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawEarliest) ? rawEarliest : null;
+  try {
+    const offer = await computeConciergeOffer({
+      preferredWeekday: weekday,
+      preferredPeriod: period,
+      earliestDate: earliest,
+    });
+    if (!offer) {
+      res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
+      return;
+    }
+    res.json(offer);
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao calcular a oferta Concierge");
+    res.status(500).json({ error: "Falha ao calcular a oferta de horários." });
+  }
+});
 
 // Atualiza status/notas/pagamento de uma solicitacao (admin).
 router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {

@@ -1402,6 +1402,45 @@ export interface ConciergeChargeResult {
   invoiceUrl: string;
   amount: number;
   status: string;
+  /** Imagem do QR PIX em base64 (PNG, sem prefixo data:). Null se indisponível. */
+  pixQrImage?: string | null;
+  /** Código PIX copia-e-cola (payload EMV). Null se indisponível. */
+  pixPayload?: string | null;
+  /** Vencimento do QR PIX (ISO), quando informado. */
+  pixExpiration?: string | null;
+}
+
+export type ConciergeOfferChipPeriod =
+  (typeof ConciergeOfferChipPeriod)[keyof typeof ConciergeOfferChipPeriod];
+
+export const ConciergeOfferChipPeriod = {
+  manha: "manha",
+  tarde: "tarde",
+} as const;
+
+export interface ConciergeOfferChip {
+  /** Horário HH:mm. */
+  time: string;
+  period: ConciergeOfferChipPeriod;
+  /** Encaixe — horário colado a um atendimento já ocupado do médico. */
+  contig: boolean;
+}
+
+export interface ConciergeOfferDay {
+  /** Data YYYY-MM-DD. */
+  date: string;
+  /** Dia da semana (0 Dom .. 6 Sáb). */
+  weekday: number;
+  times: ConciergeOfferChip[];
+  note?: string | null;
+}
+
+export interface ConciergeOffer {
+  resourceId: number;
+  resourceName: string;
+  days: ConciergeOfferDay[];
+  /** true = horários sintetizados por janela (fallback), não ocupação real. */
+  generated: boolean;
 }
 
 export interface SchedulingPaymentStatus {
@@ -2067,6 +2106,28 @@ export type CreateConciergeChargeBody = {
   /** Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403). */
   accessToken?: string;
 };
+
+export type GetConciergeOfferParams = {
+  /**
+   * Dia da semana preferido (1 Seg .. 6 Sáb).
+   * @minimum 1
+   * @maximum 6
+   */
+  weekday?: number;
+  period?: GetConciergeOfferPeriod;
+  /**
+   * Piso de data (YYYY-MM-DD).
+   */
+  earliest?: string;
+};
+
+export type GetConciergeOfferPeriod =
+  (typeof GetConciergeOfferPeriod)[keyof typeof GetConciergeOfferPeriod];
+
+export const GetConciergeOfferPeriod = {
+  manha: "manha",
+  tarde: "tarde",
+} as const;
 
 export type ListCatalogOptionsParams = {
   kind?: string;

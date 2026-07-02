@@ -1048,6 +1048,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/SchedulingPaymentStatus"
 
+  /scheduling/concierge-offer:
+    get:
+      operationId: getConciergeOffer
+      tags: [scheduling]
+      summary: Real Concierge time offer (confronts the real agenda before payment)
+      parameters:
+        - name: weekday
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 6
+          description: Dia da semana preferido (1 Seg .. 6 Sáb).
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [manha, tarde]
+        - name: earliest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Piso de data (YYYY-MM-DD).
+      responses:
+        "200":
+          description: Concierge offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConciergeOffer"
+
   /catalog-options:
     get:
       operationId: listCatalogOptions
@@ -4838,12 +4872,82 @@ components:
           type: number
         status:
           type: string
+        pixQrImage:
+          type: string
+          nullable: true
+          description: Imagem do QR PIX em base64 (PNG, sem prefixo data:). Null se indisponível.
+        pixPayload:
+          type: string
+          nullable: true
+          description: Código PIX copia-e-cola (payload EMV). Null se indisponível.
+        pixExpiration:
+          type: string
+          nullable: true
+          description: Vencimento do QR PIX (ISO), quando informado.
       required:
         - requestId
         - chargeId
         - invoiceUrl
         - amount
         - status
+
+    ConciergeOfferChip:
+      type: object
+      properties:
+        time:
+          type: string
+          description: Horário HH:mm.
+        period:
+          type: string
+          enum: [manha, tarde]
+        contig:
+          type: boolean
+          description: Encaixe — horário colado a um atendimento já ocupado do médico.
+      required:
+        - time
+        - period
+        - contig
+
+    ConciergeOfferDay:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Data YYYY-MM-DD.
+        weekday:
+          type: integer
+          description: Dia da semana (0 Dom .. 6 Sáb).
+        times:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConciergeOfferChip"
+        note:
+          type: string
+          nullable: true
+      required:
+        - date
+        - weekday
+        - times
+
+    ConciergeOffer:
+      type: object
+      properties:
+        resourceId:
+          type: integer
+        resourceName:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConciergeOfferDay"
+        generated:
+          type: boolean
+          description: true = horários sintetizados por janela (fallback), não ocupação real.
+      required:
+        - resourceId
+        - resourceName
+        - days
+        - generated
 
     SchedulingPaymentStatus:
       type: object

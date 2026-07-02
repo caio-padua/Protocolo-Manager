@@ -65,6 +65,7 @@ import type {
   ClinicsSettings,
   CompanySettings,
   ConciergeChargeResult,
+  ConciergeOffer,
   ConfirmSubstanceApplicationBody,
   CreateAgendaExceptionBody,
   CreateAgendaResourceBody,
@@ -95,6 +96,7 @@ import type {
   FinancialGoalsSummary,
   GenerateProtocolICS200,
   GetAgendaSlotsParams,
+  GetConciergeOfferParams,
   GetFinancialGoalsSummaryParams,
   GetReconciliationParams,
   HealthStatus,
@@ -4287,6 +4289,106 @@ export function useGetSchedulingPaymentStatus<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetSchedulingPaymentStatusQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Real Concierge time offer (confronts the real agenda before payment)
+ */
+export const getGetConciergeOfferUrl = (params?: GetConciergeOfferParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/scheduling/concierge-offer?${stringifiedParams}`
+    : `/api/scheduling/concierge-offer`;
+};
+
+export const getConciergeOffer = async (
+  params?: GetConciergeOfferParams,
+  options?: RequestInit,
+): Promise<ConciergeOffer> => {
+  return customFetch<ConciergeOffer>(getGetConciergeOfferUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetConciergeOfferQueryKey = (
+  params?: GetConciergeOfferParams,
+) => {
+  return [
+    `/api/scheduling/concierge-offer`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetConciergeOfferQueryOptions = <
+  TData = Awaited<ReturnType<typeof getConciergeOffer>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetConciergeOfferParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getConciergeOffer>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetConciergeOfferQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getConciergeOffer>>
+  > = ({ signal }) => getConciergeOffer(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getConciergeOffer>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetConciergeOfferQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getConciergeOffer>>
+>;
+export type GetConciergeOfferQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Real Concierge time offer (confronts the real agenda before payment)
+ */
+
+export function useGetConciergeOffer<
+  TData = Awaited<ReturnType<typeof getConciergeOffer>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetConciergeOfferParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getConciergeOffer>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetConciergeOfferQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

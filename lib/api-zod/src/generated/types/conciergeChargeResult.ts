@@ -12,4 +12,10 @@ export interface ConciergeChargeResult {
   invoiceUrl: string;
   amount: number;
   status: string;
+  /** Imagem do QR PIX em base64 (PNG, sem prefixo data:). Null se indisponível. */
+  pixQrImage?: string | null;
+  /** Código PIX copia-e-cola (payload EMV). Null se indisponível. */
+  pixPayload?: string | null;
+  /** Vencimento do QR PIX (ISO), quando informado. */
+  pixExpiration?: string | null;
 }

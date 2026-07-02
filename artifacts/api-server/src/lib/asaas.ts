@@ -85,6 +85,9 @@ export interface AsaasChargeInput {
   value: number;
   dueDate: string; // YYYY-MM-DD
   description?: string;
+  // "PIX" gera cobranca PIX (com QR embutido, pago DENTRO do Paxter);
+  // "UNDEFINED" abre a pagina hospedada (cliente escolhe PIX/boleto/cartao).
+  billingType?: "PIX" | "UNDEFINED";
 }
 
 export interface AsaasCharge {
@@ -98,7 +101,7 @@ export interface AsaasCharge {
 export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasCharge> {
   const body = {
     customer: input.customerId,
-    billingType: "UNDEFINED", // pagina hospedada: cliente escolhe PIX/boleto/cartao
+    billingType: input.billingType ?? "UNDEFINED",
     value: input.value,
     dueDate: input.dueDate,
     description: input.description,
@@ -108,6 +111,26 @@ export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasC
 
 export async function asaasGetCharge(id: string): Promise<AsaasCharge> {
   return asaasFetch(`/payments/${id}`, { method: "GET" });
+}
+
+export interface AsaasPixQrCode {
+  // Imagem do QR em base64 (PNG, SEM o prefixo data:) — o front monta o data URI.
+  encodedImage: string;
+  // Codigo "copia-e-cola" (payload EMV do PIX).
+  payload: string;
+  // Vencimento do QR (ISO), quando o Asaas informa.
+  expirationDate: string | null;
+}
+
+// Busca o QR Code PIX de uma cobranca (so existe se a cobranca for billingType PIX).
+// GET /payments/{id}/pixQrCode -> { success, encodedImage, payload, expirationDate }.
+export async function asaasGetPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {
+  const raw = await asaasFetch(`/payments/${paymentId}/pixQrCode`, { method: "GET" });
+  return {
+    encodedImage: String(raw?.encodedImage ?? ""),
+    payload: String(raw?.payload ?? ""),
+    expirationDate: raw?.expirationDate ?? null,
+  };
 }
 
 // ----- NFS-e (Nota Fiscal de Servico eletronica) — Onda 2 -----

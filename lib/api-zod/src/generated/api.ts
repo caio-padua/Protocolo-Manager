@@ -1746,6 +1746,20 @@ export const CreateConciergeChargeResponse = zod.object({
   invoiceUrl: zod.string(),
   amount: zod.number(),
   status: zod.string(),
+  pixQrImage: zod
+    .string()
+    .nullish()
+    .describe(
+      "Imagem do QR PIX em base64 (PNG, sem prefixo data:). Null se indisponível.",
+    ),
+  pixPayload: zod
+    .string()
+    .nullish()
+    .describe("Código PIX copia-e-cola (payload EMV). Null se indisponível."),
+  pixExpiration: zod
+    .string()
+    .nullish()
+    .describe("Vencimento do QR PIX (ISO), quando informado."),
 });
 
 /**
@@ -1760,6 +1774,53 @@ export const GetSchedulingPaymentStatusResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   asaasStatus: zod.string().nullish(),
   error: zod.string().optional(),
+});
+
+/**
+ * @summary Real Concierge time offer (confronts the real agenda before payment)
+ */
+export const getConciergeOfferQueryWeekdayMax = 6;
+
+export const GetConciergeOfferQueryParams = zod.object({
+  weekday: zod.coerce
+    .number()
+    .min(1)
+    .max(getConciergeOfferQueryWeekdayMax)
+    .optional()
+    .describe("Dia da semana preferido (1 Seg .. 6 Sáb)."),
+  period: zod.enum(["manha", "tarde"]).optional(),
+  earliest: zod.coerce
+    .string()
+    .optional()
+    .describe("Piso de data (YYYY-MM-DD)."),
+});
+
+export const GetConciergeOfferResponse = zod.object({
+  resourceId: zod.number(),
+  resourceName: zod.string(),
+  days: zod.array(
+    zod.object({
+      date: zod.string().describe("Data YYYY-MM-DD."),
+      weekday: zod.number().describe("Dia da semana (0 Dom .. 6 Sáb)."),
+      times: zod.array(
+        zod.object({
+          time: zod.string().describe("Horário HH:mm."),
+          period: zod.enum(["manha", "tarde"]),
+          contig: zod
+            .boolean()
+            .describe(
+              "Encaixe — horário colado a um atendimento já ocupado do médico.",
+            ),
+        }),
+      ),
+      note: zod.string().nullish(),
+    }),
+  ),
+  generated: zod
+    .boolean()
+    .describe(
+      "true = horários sintetizados por janela (fallback), não ocupação real.",
+    ),
 });
 
 /**

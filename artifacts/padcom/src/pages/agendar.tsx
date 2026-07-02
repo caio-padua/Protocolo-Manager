@@ -7,6 +7,8 @@ import {
   useGetAgendaSlots,
   useCreateSchedulingRequest,
   useCreateConciergeCharge,
+  useGetConciergeOffer,
+  getGetConciergeOfferQueryKey,
   useGetSchedulingPaymentStatus,
   getGetSchedulingPaymentStatusQueryKey,
   useUpdateSchedulingRequest,
@@ -21,6 +23,8 @@ import {
   ChevronRight,
   ArrowLeft,
   CalendarDays,
+  Copy,
+  Check,
   CheckCircle,
   AlertCircle,
   Syringe,
@@ -484,21 +488,14 @@ function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void;
 }
 
 // --- DOOR 3: DR CAIO ---
-// Mensagens encadeadas da tela "motor trabalhando" (pos-pagamento do concierge).
-// Texto travado pelo CEO (30/06/2026): justifica o servico pago + revela as vagas
-// reservadas para emergencia abertas como excecao. Ver specs/concierge-encaixe-pagamento.md (Revisao 2).
-const DC_WORK_MESSAGES = [
-  "Seu concierge particular já está em ação.",
-  "Buscando a melhor janela na agenda do Dr. Caio para a sua preferência...",
-  "Mantemos algumas vagas reservadas para casos de emergência.",
-  "Abrimos uma dessas exceções para o senhor. Preparando suas opções...",
-];
-const DC_STEP_MS = 3500; // tempo entre mensagens (sensacao de "1 a 2 min" sem punir)
+// Fluxo concierge (Revisao 3, 02/07/2026): a agenda REAL e confrontada ANTES do
+// pagamento (estagio "oferta"), entao o horario ja esta escolhido quando o senhor
+// paga. O antigo "Motor #2" pos-pagamento (teatro que revelava vagas fabricadas)
+// foi removido — pagar e o ultimo passo e leva direto ao sucesso.
 const MOTOR1_MS = 3000; // espera curta do Motor #1 (verificacao da agenda)
-const MOTOR2_MS = 16000; // espera longa do Motor #2 (concierge abrindo a excecao)
 const FAROL_MS = 10000; // farol (stage "vias"): % sobe de 0 a 100 ate o verde (Helena disponivel)
 
-// MOLDURA "terno azul-marinho" — reaproveitada por motor1 / vias / motor2 para que o
+// MOLDURA "terno azul-marinho" — reaproveitada por motor1 / vias para que o
 // simbolo respirando (topo) e as mensagens do farol (faixa de baixo) fiquem CONCORRENTES.
 // O wrapper .dark forca as classes 3D (panel-3d/concave-3d/bevel-3d) para a variante navy,
 // independente do tema da pagina, igual a tela "foto do paciente" elogiada pelo CEO.
@@ -529,8 +526,8 @@ function TernoFarol({ pct, children, band, fill }: { pct: number; children: Reac
 function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBack: () => void; title: string; payTextConcierge: string; payLink: string; theme: "dark" | "light" }) {
   const isDark = theme === "dark";
   // REVISAO 3 — maquina de estagios do fluxo Dr. Caio:
-  // form -> motor1 -> vias -> (comum | pay -> motor2 -> resultado)
-  type Stage = "form" | "motor1" | "vias" | "comum" | "pay" | "motor2" | "resultado";
+  // form -> motor1 -> vias -> (comum | oferta -> pay)
+  type Stage = "form" | "motor1" | "vias" | "comum" | "oferta" | "pay";
   const [stage, setStage] = useState<Stage>("form");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -540,9 +537,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
   // Passo 1: data desejada (alimenta a janela DISTANTE: Motor #1 + Via Comum).
   const [earliestDate, setEarliestDate] = useState("");
-  // Preferencia do concierge (coletada na tela de pagamento): molda a semana SEGUINTE.
+  // Preferencia do concierge (coletada no estagio "oferta"): filtra a agenda REAL.
   const [prefWeekday, setPrefWeekday] = useState("");
-  const [prefTime, setPrefTime] = useState("");
+  const [prefPeriod, setPrefPeriod] = useState<"" | "manha" | "tarde">("");
 
   // Slot concreto escolhido (data + hora) — vale para Via Comum e Concierge.
   const [chosenSlotDate, setChosenSlotDate] = useState("");
@@ -553,7 +550,6 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
   // Motores: porcentagem animada + mensagem encadeada (so Motor #2) + faixa vermelha transitoria.
   const [pct, setPct] = useState(0);
-  const [msgIdx, setMsgIdx] = useState(0);
   // Faixa de status do Ato IV: 0=vermelho (sem vaga) -> 1=amarelo (verificando concierge) -> 2=verde (Helena disponivel).
   const [viaPhase, setViaPhase] = useState<0 | 1 | 2>(0);
 
@@ -569,6 +565,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // de cobranca/status/confirmacao; sem ele o servidor nega (403).
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [invoiceUrl, setInvoiceUrl] = useState("");
+  // QR PIX embutido (pago DENTRO do Paxter). Se o Asaas nao devolver o QR,
+  // caimos honestamente no invoiceUrl (link hospedado) — sem fingir QR.
+  const [pixQrImage, setPixQrImage] = useState<string | null>(null);
+  const [pixPayload, setPixPayload] = useState<string | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
   const [payStatus, setPayStatus] = useState<
     "idle" | "aguardando" | "pago" | "expirado" | "cancelado"
   >("idle");
@@ -590,13 +591,28 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     },
   });
 
-  // Confirmacao automatica: ao Asaas confirmar, avanca sozinho para o Motor #2.
+  // Oferta REAL do concierge: confronta a agenda de verdade (escassez / dia
+  // vizinho / contiguidade) ANTES do pagamento. So dispara no estagio "oferta".
+  const offerParams = {
+    weekday: prefWeekday ? Number(prefWeekday) : undefined,
+    period: prefPeriod || undefined,
+    earliest: earliestDate || undefined,
+  };
+  const offerQuery = useGetConciergeOffer(offerParams, {
+    query: {
+      queryKey: getGetConciergeOfferQueryKey(offerParams),
+      enabled: stage === "oferta",
+    },
+  });
+
+  // Confirmacao automatica: ao Asaas confirmar o PIX, confirma o horario ja
+  // escolhido (PATCH) e vai direto ao sucesso — sem teatro pos-pagamento.
   useEffect(() => {
     const s = paymentStatusQuery.data?.status;
     if (!s || s === payStatus) return;
     if (s === "pago") {
       setPayStatus("pago");
-      setStage("motor2");
+      confirmConcierge();
     } else if (s === "expirado" || s === "cancelado") {
       setPayStatus(s);
     }
@@ -611,10 +627,14 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       {
         onSuccess: (r) => {
           setInvoiceUrl(r.invoiceUrl);
-          setPayStatus(r.status === "pago" ? "pago" : "aguardando");
-          if (r.status === "pago") setStage("motor2");
-          else if (r.invoiceUrl)
-            window.open(r.invoiceUrl, "_blank", "noopener,noreferrer");
+          setPixQrImage(r.pixQrImage ?? null);
+          setPixPayload(r.pixPayload ?? null);
+          if (r.status === "pago") {
+            setPayStatus("pago");
+            confirmConcierge();
+          } else {
+            setPayStatus("aguardando");
+          }
         },
         onError: (err: any) =>
           setErrorMsg(err.message || "Erro ao gerar a cobrança."),
@@ -633,11 +653,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       doCharge(requestId, cpfDigits, accessToken);
       return;
     }
-    const preferredPeriod = prefTime
-      ? parseInt(prefTime.slice(0, 2), 10) >= 12
-        ? "tarde"
-        : "manha"
-      : undefined;
+    const preferredPeriod = prefPeriod || undefined;
     createReq.mutate(
       {
         data: {
@@ -718,26 +734,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     return { earliestLabel: formatSlotDay(monday), days };
   }, [earliestDate]);
 
-  // --- Janela PROXIMA (Concierge): semana SEGUINTE, horarios colados a consultas plausiveis. ---
-  // A preferencia (dia da semana + horario) coletada no pagamento molda a oferta; minutos
-  // quebrados reforcam a sensacao de encaixe entre compromissos ja marcados.
-  const conciergeSlots = useMemo(() => {
-    const today = new Date();
-    const nextMon = nextWeekday(addDays(today, 7), 1); // segunda da semana seguinte
-    const wd = prefWeekday ? parseInt(prefWeekday, 10) : null;
-    const primary = wd ? nextWeekday(nextMon, wd) : nextMon;
-    const offerDays = [primary, addDays(primary, 1), addDays(primary, 2)];
-    const prefHour = prefTime ? parseInt(prefTime.slice(0, 2), 10) : null;
-    const nearTimes = prefHour != null && prefHour >= 12
-      ? ["14:50", "16:20", "09:10", "11:40"]
-      : ["09:10", "11:40", "14:50", "16:20"];
-    const days = offerDays.map((d, i) => ({
-      date: isoLocal(d),
-      label: formatSlotDay(d),
-      times: [nearTimes[i % nearTimes.length], nearTimes[(i + 2) % nearTimes.length]],
-    }));
-    return { days };
-  }, [prefWeekday, prefTime]);
+  // A janela PROXIMA (Concierge) agora vem da agenda REAL via offerQuery — nao ha
+  // mais grade fabricada. Ver estagio "oferta" no render.
 
   // Passo 1 -> Motor #1: exige nome + telefone + data desejada.
   const handleNext = () => {
@@ -758,7 +756,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     setChosenSlotDate("");
     setChosenSlotTime("");
     if (via === "comum") setStage("comum");
-    else if (via === "concierge") setStage("pay");
+    else if (via === "concierge") setStage("oferta");
   };
 
   // Botao de voltar, sensivel ao estagio atual.
@@ -767,8 +765,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     if (stage === "form") return onBack();
     if (stage === "motor1") return setStage("form");
     if (stage === "vias") return setStage("form");
-    if (stage === "comum" || stage === "pay") return setStage("vias");
-    if (stage === "motor2" || stage === "resultado") return setStage("pay");
+    if (stage === "comum" || stage === "oferta") return setStage("vias");
+    if (stage === "pay") return setStage("oferta");
   };
 
   // Motor #1 (~3s): verifica a agenda e revela que nao ha vaga no dia desejado.
@@ -782,25 +780,6 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       setPct(p);
       if (p < 100) raf = requestAnimationFrame(tick);
       else setStage("vias");
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [stage]);
-
-  // Motor #2 (~16s): concierge abrindo a excecao; mensagens encadeadas + porcentagem.
-  useEffect(() => {
-    if (stage !== "motor2") return;
-    setPct(0);
-    setMsgIdx(0);
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const p = Math.min(100, (elapsed / MOTOR2_MS) * 100);
-      setPct(p);
-      setMsgIdx(Math.min(DC_WORK_MESSAGES.length - 1, Math.floor(elapsed / DC_STEP_MS)));
-      if (p < 100) raf = requestAnimationFrame(tick);
-      else setStage("resultado");
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -827,9 +806,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
   const submit = (finalPath: "concierge" | "fila") => {
     setErrorMsg("");
-    const preferredPeriod = prefTime
-      ? (parseInt(prefTime.slice(0, 2), 10) >= 12 ? "tarde" : "manha")
-      : undefined;
+    const preferredPeriod = prefPeriod || undefined;
     createReq.mutate({
       data: {
         entrada: "dr_caio",
@@ -1147,36 +1124,25 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           {stage === "pay" && (
             <div className="flex flex-col gap-7">
               <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-3">V. A Prioridade</h3>
+                <h3 className="dc-serif italic dc-gold text-xl mb-3">VI. A Prioridade</h3>
                 <div className={`flex flex-col gap-3 text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
                   <p>{payTextConcierge}</p>
                   <p>Para reservar seu horário com prioridade, o senhor antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> — 20% do valor da consulta (total de R$ 750,00). O restante é pago no dia do atendimento.</p>
                 </div>
               </section>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
-                  <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => setPrefWeekday(e.target.value)}>
-                    <option value="">Qualquer dia</option>
-                    <option value="1">Segunda-feira</option>
-                    <option value="2">Terça-feira</option>
-                    <option value="3">Quarta-feira</option>
-                    <option value="4">Quinta-feira</option>
-                    <option value="5">Sexta-feira</option>
-                  </select>
+              {/* Resumo do horario ja escolhido no estagio "oferta" (agenda REAL). */}
+              {chosenSlotDate && chosenSlotTime && (
+                <div className={`panel-3d rounded-lg p-4 flex items-center gap-3 ${isDark ? "dark" : ""}`}>
+                  <CalendarDays className="w-5 h-5 text-[#c2a05a] shrink-0" />
+                  <div className="flex flex-col">
+                    <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Horário reservado para o senhor</span>
+                    <span className={`text-sm font-semibold ${isDark ? "text-stone-100" : "text-[#16284a]"}`}>
+                      {formatSlotDay(new Date(`${chosenSlotDate}T12:00:00`))} às {chosenSlotTime}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Horário</span>
-                  <select className="dc-input dc-select" value={prefTime} onChange={(e) => setPrefTime(e.target.value)}>
-                    <option value="">Qualquer horário</option>
-                    <option value="08:00">Manhã (08:00)</option>
-                    <option value="10:00">Manhã (10:00)</option>
-                    <option value="14:00">Tarde (14:00)</option>
-                    <option value="16:00">Tarde (16:00)</option>
-                  </select>
-                </div>
-              </div>
+              )}
 
               {/* CPF — obrigatorio para emitir a cobranca real no Asaas. */}
               <div className="flex flex-col gap-1">
@@ -1212,14 +1178,51 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Gerar cobrança PIX de R$ 150,00 <ArrowRight className="w-4 h-4" /></>}
                 </button>
               ) : (
-                /* Passo 2: pagar + painel de status ao vivo (confirmacao automatica) */
+                /* Passo 2: pagar DENTRO do Paxter — QR + copia-e-cola PIX inline */
                 <div className="flex flex-col gap-4">
-                  <button
-                    onClick={() => window.open(invoiceUrl, "_blank", "noopener,noreferrer")}
-                    className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-                  >
-                    Pagar agora (PIX / Cartão / Boleto) <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {pixQrImage || pixPayload ? (
+                    <div className={`panel-3d rounded-xl p-5 flex flex-col items-center gap-4 ${isDark ? "dark" : ""}`}>
+                      <span className="text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">Pague com PIX — R$ 150,00</span>
+                      {pixQrImage && (
+                        <img
+                          src={`data:image/png;base64,${pixQrImage}`}
+                          alt="QR Code PIX para pagamento"
+                          className="w-52 h-52 rounded-lg bg-white p-2 shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+                        />
+                      )}
+                      {pixPayload && (
+                        <div className="w-full flex flex-col gap-2">
+                          <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>PIX copia e cola</span>
+                          <div className="flex items-stretch gap-2">
+                            <code className={`flex-1 min-w-0 truncate text-[11px] px-3 py-2.5 rounded-md ${isDark ? "bg-black/30 text-stone-300 border border-white/10" : "bg-stone-100 text-stone-600 border border-stone-200"}`}>
+                              {pixPayload}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(pixPayload).then(() => {
+                                  setPixCopied(true);
+                                  setTimeout(() => setPixCopied(false), 2000);
+                                });
+                              }}
+                              className="shrink-0 px-3 rounded-md bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] flex items-center justify-center hover:brightness-105 active:scale-[0.98] transition-all"
+                              aria-label="Copiar código PIX"
+                            >
+                              {pixCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Fallback honesto: Asaas nao devolveu o QR — link hospedado */
+                    <button
+                      onClick={() => window.open(invoiceUrl, "_blank", "noopener,noreferrer")}
+                      className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                    >
+                      Abrir pagamento PIX <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
 
                   {(payStatus === "expirado" || payStatus === "cancelado") ? (
                     <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -1246,62 +1249,75 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             </div>
           )}
 
-          {/* MOTOR #2 — concierge abrindo a exceção (mesma moldura terno do farol) */}
-          {stage === "motor2" && (
-            <TernoFarol
-              pct={pct}
-              fill
-              band={
-                <div className="bevel-3d p-4 flex flex-col gap-2 min-h-[120px] justify-center">
-                  {DC_WORK_MESSAGES.slice(0, msgIdx + 1).map((m, i) => (
-                    <p
-                      key={i}
-                      className={`dc-reveal text-[14px] leading-relaxed ${i === msgIdx ? "text-stone-100" : "text-stone-500"}`}
-                    >
-                      {m}
-                    </p>
-                  ))}
-                </div>
-              }
-            >
-              <span className="dc-breathe"><PaxterSymbolGlass size={104} tone="dark" /></span>
-              <p className="dc-serif italic text-lg text-stone-200">A Helena está abrindo a sua exceção…</p>
-            </TernoFarol>
-          )}
-
-          {/* RESULTADO — opções da semana seguinte (concierge) */}
-          {stage === "resultado" && (
+          {/* OFERTA — agenda REAL confrontada ANTES do pagamento */}
+          {stage === "oferta" && (
             <div className="dc-reveal flex flex-col gap-7">
               <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-2">VI. O Encaixe</h3>
+                <h3 className="dc-serif italic dc-gold text-xl mb-2">V. O Encaixe</h3>
                 <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>
-                  Conseguimos. Estas aberturas foram liberadas exclusivamente para o senhor:
+                  A Helena confrontou a agenda. Diga a sua preferência e ela revela as aberturas reais:
                 </p>
               </section>
 
-              <div className="flex flex-col gap-4">
-                {conciergeSlots.days.map((d) => (
-                  <div key={d.date} className="flex flex-col gap-2">
-                    <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{d.label}</p>
-                    <div className="flex flex-wrap gap-2.5">
-                      {d.times.map((t) => {
-                        const active = chosenSlotDate === d.date && chosenSlotTime === t;
-                        return (
-                          <button
-                            key={`${d.date}-${t}`}
-                            type="button"
-                            onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t); }}
-                            data-active={active}
-                            className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+              {/* Preferencia (dia + periodo) que filtra a agenda REAL. */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="flex flex-col gap-1">
+                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
+                  <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => { setPrefWeekday(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
+                    <option value="">Qualquer dia</option>
+                    <option value="1">Segunda-feira</option>
+                    <option value="2">Terça-feira</option>
+                    <option value="3">Quarta-feira</option>
+                    <option value="4">Quinta-feira</option>
+                    <option value="5">Sexta-feira</option>
+                    <option value="6">Sábado</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
+                  <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => { setPrefPeriod(e.target.value as "" | "manha" | "tarde"); setChosenSlotDate(""); setChosenSlotTime(""); }}>
+                    <option value="">Qualquer período</option>
+                    <option value="manha">Manhã</option>
+                    <option value="tarde">Tarde</option>
+                  </select>
+                </div>
               </div>
+
+              {/* Aberturas reais vindas do motor (offerQuery). */}
+              {offerQuery.isFetching ? (
+                <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <p className="text-sm">Verificando as aberturas na agenda…</p>
+                </div>
+              ) : offerQuery.data && offerQuery.data.days.length > 0 ? (
+                <div className="flex flex-col gap-4">
+                  {offerQuery.data.days.map((d) => (
+                    <div key={d.date} className="flex flex-col gap-2">
+                      <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{formatSlotDay(new Date(`${d.date}T12:00:00`))}</p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {d.times.map((t) => {
+                          const active = chosenSlotDate === d.date && chosenSlotTime === t.time;
+                          return (
+                            <button
+                              key={`${d.date}-${t.time}`}
+                              type="button"
+                              onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t.time); }}
+                              data-active={active}
+                              className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                            >
+                              {t.time}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`p-4 rounded-lg text-sm ${isDark ? "bg-stone-900/40 border border-white/10 text-stone-400" : "bg-stone-50 border border-stone-200 text-stone-600"}`}>
+                  Nenhuma abertura para essa preferência. Tente outro dia ou período.
+                </div>
+              )}
 
               {errorMsg && (
                 <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -1311,11 +1327,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               )}
 
               <button
-                onClick={confirmConcierge}
-                disabled={!chosenSlotTime || updateReq.isPending}
+                onClick={() => { setErrorMsg(""); setStage("pay"); }}
+                disabled={!chosenSlotTime}
                 className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
               >
-                {updateReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
+                Reservar este horário <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           )}
