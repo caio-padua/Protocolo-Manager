@@ -5,9 +5,12 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateConciergeChargeBodyMethod } from "./createConciergeChargeBodyMethod";
 
 export type CreateConciergeChargeBody = {
   patientCpf?: string;
   /** Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403). */
   accessToken?: string;
+  /** Meio de pagamento escolhido. "pix" (padrão) gera QR embutido; "card" abre a fatura hospedada do Asaas (cartão/parcelamento), nunca coletando o cartão na nossa tela. */
+  method?: CreateConciergeChargeBodyMethod;
 };

@@ -90,6 +90,7 @@ export * from "./createCatalogOptionBody";
 export * from "./createClientBody";
 export * from "./createClientBodyStatus";
 export * from "./createConciergeChargeBody";
+export * from "./createConciergeChargeBodyMethod";
 export * from "./createPaymentBody";
 export * from "./createPaymentBodyMethod";
 export * from "./createPaymentBodyStatus";

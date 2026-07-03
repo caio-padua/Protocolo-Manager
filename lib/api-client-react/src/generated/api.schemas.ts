@@ -2101,10 +2101,23 @@ export type ListSchedulingRequestsParams = {
   status?: string;
 };
 
+/**
+ * Meio de pagamento escolhido. "pix" (padrão) gera QR embutido; "card" abre a fatura hospedada do Asaas (cartão/parcelamento), nunca coletando o cartão na nossa tela.
+ */
+export type CreateConciergeChargeBodyMethod =
+  (typeof CreateConciergeChargeBodyMethod)[keyof typeof CreateConciergeChargeBodyMethod];
+
+export const CreateConciergeChargeBodyMethod = {
+  pix: "pix",
+  card: "card",
+} as const;
+
 export type CreateConciergeChargeBody = {
   patientCpf?: string;
   /** Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403). */
   accessToken?: string;
+  /** Meio de pagamento escolhido. "pix" (padrão) gera QR embutido; "card" abre a fatura hospedada do Asaas (cartão/parcelamento), nunca coletando o cartão na nossa tela. */
+  method?: CreateConciergeChargeBodyMethod;
 };
 
 export type GetConciergeOfferParams = {

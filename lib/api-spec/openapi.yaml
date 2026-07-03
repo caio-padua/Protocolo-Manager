@@ -1015,6 +1015,13 @@ paths:
                   description: >-
                     Crachá HMAC da solicitação (emitido na criação). Obrigatório
                     — sem ele a cobrança é negada (403).
+                method:
+                  type: string
+                  enum: [pix, card]
+                  description: >-
+                    Meio de pagamento escolhido. "pix" (padrão) gera QR embutido;
+                    "card" abre a fatura hospedada do Asaas (cartão/parcelamento),
+                    nunca coletando o cartão na nossa tela.
       responses:
         "200":
           description: Existing charge reused

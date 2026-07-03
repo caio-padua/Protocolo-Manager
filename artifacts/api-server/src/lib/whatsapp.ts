@@ -54,6 +54,39 @@ export interface SendWhatsappOptions {
   mediaUrl?: string;
 }
 
+// Consulta o status FINAL da mensagem no Twilio, com no máximo poucas tentativas
+// espaçadas (limite total curto). Só devolve erro quando o Twilio CONFIRMA falha
+// ("failed"/"undelivered", ex.: 63016 fora da janela de 24h). Se após o limite o
+// status ainda for transitório (queued/sending/sent), devolve null: não afirmamos
+// falha nem entrega — a mensagem foi aceita (best-effort). Nunca lança.
+async function verifyDeliveryFailure(
+  accountSid: string,
+  authToken: string,
+  sid: string,
+): Promise<string | null> {
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${sid}.json`;
+  const auth =
+    "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await sleep(1000);
+    try {
+      const r = await fetch(url, { headers: { Authorization: auth } });
+      if (!r.ok) continue;
+      const m = (await r.json().catch(() => ({}))) as {
+        status?: string;
+        error_code?: number | null;
+      };
+      if (m.status === "failed" || m.status === "undelivered") {
+        return m.error_code ? `twilio_${m.error_code}` : `twilio_${m.status}`;
+      }
+    } catch {
+      // best-effort: falha na verificação não vira falha de entrega
+    }
+  }
+  return null;
+}
+
 export async function sendWhatsapp(
   phone: string,
   message: string,
@@ -98,6 +131,39 @@ export async function sendWhatsapp(
       const text = await resp.text();
       logger.warn({ status: resp.status, text }, "Twilio WhatsApp send failed");
       return { sent: false, via: "link", link, error: `HTTP ${resp.status}` };
+    }
+
+    // O 2xx do Twilio só diz que a mensagem foi ACEITA (status "queued"), NÃO
+    // que foi entregue. A falha por estar fora da janela de 24h do WhatsApp
+    // (erro 63016) chega de forma assíncrona, virando status "failed"/
+    // "undelivered" segundos depois. Para não fingir entrega (R-B2), lemos o
+    // corpo da criação e, se não houver erro imediato, fazemos uma verificação
+    // curta e limitada do status final. Se o Twilio confirmar falha, devolvemos
+    // sent:false com o código; se não conseguirmos confirmar a tempo, tratamos
+    // como aceito (best-effort) — nunca afirmamos entrega sem evidência.
+    const created = (await resp.json().catch(() => ({}))) as {
+      sid?: string;
+      status?: string;
+      error_code?: number | null;
+    };
+    if (created.error_code) {
+      const code = `twilio_${created.error_code}`;
+      logger.warn({ code, sid: created.sid }, "Twilio WhatsApp erro imediato");
+      return { sent: false, via: "twilio", link, error: code };
+    }
+    if (created.sid) {
+      const finalError = await verifyDeliveryFailure(
+        accountSid,
+        authToken,
+        created.sid,
+      );
+      if (finalError) {
+        logger.warn(
+          { error: finalError, sid: created.sid },
+          "Twilio WhatsApp não entregue (status final)",
+        );
+        return { sent: false, via: "twilio", link, error: finalError };
+      }
     }
 
     return { sent: true, via: "twilio", link };

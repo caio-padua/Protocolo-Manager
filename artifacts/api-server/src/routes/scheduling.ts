@@ -15,6 +15,7 @@ import {
   verifyBookingStatusToken,
 } from "../lib/portal-token.js";
 import {
+  CreateConciergeChargeBody,
   CreateSchedulingRequestBody,
   UpdateSchedulingRequestBody,
 } from "@workspace/api-zod";
@@ -568,6 +569,21 @@ router.post(
         .json({ error: "CPF é obrigatório para gerar a cobrança Concierge." });
       return;
     }
+    // Meio de pagamento (spec cartão): "pix" (padrão — QR embutido no Paxter) ou
+    // "card" (fatura hospedada do Asaas com cartão/parcelamento, sem NUNCA
+    // coletar o número do cartão na nossa tela). billingType "UNDEFINED" abre a
+    // página hospedada onde o cliente escolhe/parcela; "PIX" mantém o QR inline.
+    // Validação por Zod (R-A4): todos os campos são opcionais, então quem já
+    // chamava sem `method` continua válido; um `method` fora do enum é rejeitado
+    // com 400 em vez de cair silenciosamente no default.
+    const parsedBody = CreateConciergeChargeBody.safeParse(req.body ?? {});
+    if (!parsedBody.success) {
+      res.status(400).json({ error: "Corpo inválido para gerar a cobrança." });
+      return;
+    }
+    const method: "pix" | "card" = parsedBody.data.method === "card" ? "card" : "pix";
+    const billingType: "PIX" | "UNDEFINED" =
+      method === "card" ? "UNDEFINED" : "PIX";
     try {
       // Trava anti-cobrança-dupla: a transação serializa, POR SOLICITAÇÃO, as
       // chamadas concorrentes (dois cliques/duas abas). pg_advisory_xact_lock é
@@ -613,7 +629,7 @@ router.post(
           value: amount,
           dueDate: due,
           description: `Concierge — prioridade Dr. Caio — ${fresh.patientName}`,
-          billingType: "PIX",
+          billingType,
         });
         const [updated] = await tx
           .update(schedulingRequestsTable)
@@ -644,18 +660,23 @@ router.post(
       let pixQrImage: string | null = null;
       let pixPayload: string | null = null;
       let pixExpiration: string | null = null;
-      try {
-        const qr = await asaasGetPixQrCode(result.chargeId);
-        if (qr.encodedImage && qr.payload) {
-          pixQrImage = qr.encodedImage;
-          pixPayload = qr.payload;
-          pixExpiration = qr.expirationDate;
+      // QR PIX só existe para cobrança PIX. No cartão (billingType UNDEFINED) a
+      // fatura hospedada resolve o pagamento — não buscamos QR e devolvemos só o
+      // invoiceUrl, sem fingir QR.
+      if (method === "pix") {
+        try {
+          const qr = await asaasGetPixQrCode(result.chargeId);
+          if (qr.encodedImage && qr.payload) {
+            pixQrImage = qr.encodedImage;
+            pixPayload = qr.payload;
+            pixExpiration = qr.expirationDate;
+          }
+        } catch (qrErr) {
+          req.log.warn(
+            { err: String(qrErr) },
+            "QR PIX indisponível na cobrança Concierge (usando invoiceUrl)",
+          );
         }
-      } catch (qrErr) {
-        req.log.warn(
-          { err: String(qrErr) },
-          "QR PIX indisponível na cobrança Concierge (usando invoiceUrl)",
-        );
       }
 
       res.status(result.created ? 201 : 200).json({

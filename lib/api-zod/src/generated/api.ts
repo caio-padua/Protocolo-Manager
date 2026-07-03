@@ -1738,6 +1738,12 @@ export const CreateConciergeChargeBody = zod.object({
     .describe(
       "Crachá HMAC da solicitação (emitido na criação). Obrigatório — sem ele a cobrança é negada (403).",
     ),
+  method: zod
+    .enum(["pix", "card"])
+    .optional()
+    .describe(
+      'Meio de pagamento escolhido. \"pix\" (padrão) gera QR embutido; \"card\" abre a fatura hospedada do Asaas (cartão\/parcelamento), nunca coletando o cartão na nossa tela.',
+    ),
 });
 
 export const CreateConciergeChargeResponse = zod.object({

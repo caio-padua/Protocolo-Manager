@@ -6,6 +6,7 @@ import {
   generateAccessToken,
 } from "./patient-auth.js";
 import { sendArrivalEmail } from "./email-service.js";
+import { sendWhatsapp } from "./whatsapp.js";
 import { baseUrlFromEnv } from "./messaging/index.js";
 import { createBookingStatusToken } from "./portal-token.js";
 import { logger } from "./logger.js";
@@ -167,7 +168,51 @@ export async function finalizeConciergeBooking(id: number): Promise<void> {
 
   if (!outcome) return;
 
-  // 3) E-mail de chegada (Bloco C), FORA da transacao (rede lenta nao segura a
+  // 3) WhatsApp de chegada (Bloco B da spec cartão): mesmo link de status do
+  //    e-mail, best-effort e INDEPENDENTE do e-mail (roda antes dele para não
+  //    ser pulado pelo early-return de "e-mail ausente"). Fora da janela de 24h
+  //    do WhatsApp o envio pode não entregar — registramos o erro honestamente,
+  //    sem fingir entrega e sem derrubar o finalize. Idempotente: este bloco só
+  //    roda no primeiro finalize (outcome != null), como o e-mail.
+  const phone = onlyDigits(pre.patientPhone);
+  if (!phone) {
+    await db
+      .update(schedulingRequestsTable)
+      .set({ arrivalWhatsappError: "telefone_ausente" })
+      .where(eq(schedulingRequestsTable.id, id));
+  } else {
+    try {
+      const wpp = await sendWhatsapp(
+        phone,
+        `Olá, ${outcome.clientName}! Recebemos o pagamento do seu agendamento com o Dr. Caio. ` +
+          `Acompanhe seu agendamento por aqui: ${statusLink(outcome.requestId)}`,
+      );
+      if (wpp.sent) {
+        await db
+          .update(schedulingRequestsTable)
+          .set({ arrivalWhatsappSentAt: new Date(), arrivalWhatsappError: null })
+          .where(eq(schedulingRequestsTable.id, id));
+      } else {
+        await db
+          .update(schedulingRequestsTable)
+          .set({
+            arrivalWhatsappError: (wpp.error ?? "nao_entregue").slice(0, 200),
+          })
+          .where(eq(schedulingRequestsTable.id, id));
+      }
+    } catch (err) {
+      logger.error(
+        { err: String(err), requestId: id },
+        "Falha ao enviar WhatsApp de chegada",
+      );
+      await db
+        .update(schedulingRequestsTable)
+        .set({ arrivalWhatsappError: "excecao_envio" })
+        .where(eq(schedulingRequestsTable.id, id));
+    }
+  }
+
+  // 4) E-mail de chegada (Bloco C), FORA da transacao (rede lenta nao segura a
   //    trava). Best-effort: falha de e-mail nunca desfaz o cadastro; registra o
   //    erro para a clinica ver (caso extremo 5).
   if (!outcome.clientEmail) {

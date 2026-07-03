@@ -577,6 +577,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // de cobranca/status/confirmacao; sem ele o servidor nega (403).
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [invoiceUrl, setInvoiceUrl] = useState("");
+  // Meio de pagamento escolhido ANTES de gerar a cobrança (spec cartão):
+  // "pix" = QR embutido no Paxter; "card" = fatura hospedada do Asaas.
+  const [payMethod, setPayMethod] = useState<"pix" | "card">("pix");
   // QR PIX embutido (pago DENTRO do Paxter). Se o Asaas nao devolver o QR,
   // caimos honestamente no invoiceUrl (link hospedado) — sem fingir QR.
   const [pixQrImage, setPixQrImage] = useState<string | null>(null);
@@ -634,7 +637,14 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // fluxo criar->cobrar dentro do mesmo clique).
   const doCharge = (id: number, cpfDigits: string, token: string | null) => {
     conciergeCharge.mutate(
-      { id, data: { patientCpf: cpfDigits, accessToken: token ?? undefined } },
+      {
+        id,
+        data: {
+          patientCpf: cpfDigits,
+          accessToken: token ?? undefined,
+          method: payMethod,
+        },
+      },
       {
         onSuccess: (r) => {
           setInvoiceUrl(r.invoiceUrl);
@@ -644,6 +654,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             setPayStatus("pago");
           } else {
             setPayStatus("aguardando");
+          }
+          // Cartão: abrimos a fatura hospedada do Asaas em nova aba (cartão +
+          // parcelamento na página segura); o polling segue confirmando.
+          if (payMethod === "card" && r.invoiceUrl) {
+            window.open(r.invoiceUrl, "_blank", "noopener,noreferrer");
           }
         },
         onError: (err: any) =>
@@ -1274,9 +1289,38 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 />
               </div>
 
-              <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-[#c2a05a] font-semibold">
-                <span>PIX</span><span className="opacity-30">•</span><span>Cartão</span><span className="opacity-30">•</span><span>Boleto</span>
+              {/* Seletor de meio (spec cartão): escolha ANTES de gerar a
+                  cobrança. PIX = QR embutido; Cartão = fatura hospedada. */}
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: "pix", label: "PIX" },
+                  { key: "card", label: "Cartão de crédito" },
+                ] as const).map((opt) => {
+                  const activeOpt = payMethod === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      disabled={!!invoiceUrl}
+                      onClick={() => setPayMethod(opt.key)}
+                      className={`py-2.5 rounded-lg text-[11px] uppercase tracking-widest font-semibold border transition-all disabled:opacity-50 ${
+                        activeOpt
+                          ? "border-[#c2a05a] text-[#c2a05a] bg-[#c2a05a]/10"
+                          : isDark
+                            ? "border-white/10 text-stone-400"
+                            : "border-stone-200 text-stone-500"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
+              <p className={`text-[10px] ${isDark ? "text-stone-500" : "text-stone-400"}`}>
+                {payMethod === "card"
+                  ? "O cartão e o parcelamento são feitos na página segura do Asaas — nunca digitamos seu cartão aqui."
+                  : "PIX pago aqui mesmo, com QR e copia-e-cola."}
+              </p>
 
               {errorMsg && (
                 <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -1292,7 +1336,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   disabled={chargePending}
                   className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                 >
-                  {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Gerar cobrança PIX de R$ 150,00 <ArrowRight className="w-4 h-4" /></>}
+                  {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{payMethod === "card" ? "Pagar com cartão — R$ 150,00" : "Gerar cobrança PIX de R$ 150,00"} <ArrowRight className="w-4 h-4" /></>}
                 </button>
               ) : (
                 /* Passo 2: pagar DENTRO do Paxter — QR + copia-e-cola PIX inline */
@@ -1337,7 +1381,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       onClick={() => window.open(invoiceUrl, "_blank", "noopener,noreferrer")}
                       className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
                     >
-                      Abrir pagamento PIX <ArrowRight className="w-4 h-4" />
+                      {payMethod === "card" ? "Abrir pagamento no cartão" : "Abrir pagamento PIX"} <ArrowRight className="w-4 h-4" />
                     </button>
                   )}
 

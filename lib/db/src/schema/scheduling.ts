@@ -60,6 +60,10 @@ export const schedulingRequestsTable = pgTable("scheduling_requests", {
   finalizedAt: timestamp("finalized_at", { withTimezone: true }),
   arrivalEmailSentAt: timestamp("arrival_email_sent_at", { withTimezone: true }),
   arrivalEmailError: text("arrival_email_error"),
+  arrivalWhatsappSentAt: timestamp("arrival_whatsapp_sent_at", {
+    withTimezone: true,
+  }),
+  arrivalWhatsappError: text("arrival_whatsapp_error"),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
