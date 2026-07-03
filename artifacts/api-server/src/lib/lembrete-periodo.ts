@@ -19,6 +19,7 @@ import { and, eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { sendWhatsapp } from "./whatsapp";
 import { montarSaudacao, templateLembretePrescricao, type Genero } from "./lembrete-templates";
+import { montarMensagemOpus } from "./mensageria-opus";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -286,14 +287,36 @@ export async function executarLembretesPeriodo(
 
     // Gênero não existe hoje em `clients` → tratamento cai no primeiro nome.
     const genero: Genero = "nao_informado";
-    const saudacao = montarSaudacao(ctx.clienteNome, genero, now);
-    const mensagem = templateLembretePrescricao({
-      clienteNome: ctx.clienteNome,
-      clienteGenero: genero,
-      agora: now,
-      saudacao,
-      periodos: ctx.periodos,
-    });
+    // Mensagem RICA (Mensageria Opus). Falha-segura: qualquer erro OU catálogo
+    // vazio cai no template simples — o envio NUNCA quebra por causa da riqueza.
+    let mensagem: string;
+    try {
+      const primeiroNome = (ctx.clienteNome || "").trim().split(/\s+/)[0] || ctx.clienteNome;
+      const rica = await montarMensagemOpus({
+        nome: primeiroNome,
+        agora: now,
+        periodos: ctx.periodos,
+      });
+      mensagem = rica ?? templateLembretePrescricao({
+        clienteNome: ctx.clienteNome,
+        clienteGenero: genero,
+        agora: now,
+        saudacao: montarSaudacao(ctx.clienteNome, genero, now),
+        periodos: ctx.periodos,
+      });
+    } catch (err) {
+      logger.warn(
+        { lembreteId: ctx.id, clienteId: ctx.clienteId, erro: err instanceof Error ? err.message : String(err) },
+        "[lembrete-periodo] montagem Opus falhou; usando template simples",
+      );
+      mensagem = templateLembretePrescricao({
+        clienteNome: ctx.clienteNome,
+        clienteGenero: genero,
+        agora: now,
+        saudacao: montarSaudacao(ctx.clienteNome, genero, now),
+        periodos: ctx.periodos,
+      });
+    }
 
     let resultado: Awaited<ReturnType<typeof sendWhatsapp>>;
     try {

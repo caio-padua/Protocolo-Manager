@@ -50,17 +50,13 @@ export function montarSaudacao(
   return `${cumprimento}\n\n${tratamento}, tudo bem?`;
 }
 
-export function templateLembretePrescricao(dados: LembretePrescricaoDados): string {
-  const saudacao =
-    dados.saudacao ?? montarSaudacao(dados.clienteNome, dados.clienteGenero, dados.agora ?? new Date());
-
+// Só a listagem de PERÍODOS/FÓRMULAS (sem saudação nem rodapé). Reutilizado pelo
+// template simples E pelo montador rico (Mensageria Opus), que injeta este bloco
+// no lugar do placeholder {BLOCO_PRESCRICAO}.
+export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string {
   const linhas: string[] = [];
-  linhas.push(saudacao);
-  linhas.push("");
-  linhas.push("Segue o lembrete da sua prescrição personalizada:");
-
-  for (const periodo of dados.periodos) {
-    linhas.push("");
+  for (const periodo of periodos) {
+    if (linhas.length > 0) linhas.push("");
     linhas.push(`⬛ *Período:* _${periodo.nome}_`);
 
     const cor = periodo.tipo === "tomar" ? "🟩" : "🟨";
@@ -88,7 +84,23 @@ export function templateLembretePrescricao(dados: LembretePrescricaoDados): stri
       }
     }
   }
+  return linhas.join("\n");
+}
 
+export function templateLembretePrescricao(dados: LembretePrescricaoDados): string {
+  const saudacao =
+    dados.saudacao ?? montarSaudacao(dados.clienteNome, dados.clienteGenero, dados.agora ?? new Date());
+
+  const bloco = blocoPrescricaoPeriodos(dados.periodos);
+
+  const linhas: string[] = [];
+  linhas.push(saudacao);
+  linhas.push("");
+  linhas.push("Segue o lembrete da sua prescrição personalizada:");
+  if (bloco) {
+    linhas.push("");
+    linhas.push(bloco);
+  }
   linhas.push("");
   linhas.push("PAXTER — Padcon Conect");
 

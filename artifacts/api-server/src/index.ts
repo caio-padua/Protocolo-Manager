@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startCronJobs } from "./lib/cron";
 import { runSeedSiteContent } from "./lib/seed-site-content";
+import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { refreshCertCache } from "./lib/cert-source";
 
 const rawPort = process.env["PORT"];
@@ -31,5 +32,8 @@ app.listen(port, (err) => {
   );
   runSeedSiteContent((m) => logger.info({ seed: "site-content" }, m)).catch((e) =>
     logger.error({ err: e }, "Falha ao semear site-content"),
+  );
+  runSeedMensageriaOpus((m) => logger.info({ seed: "mensageria-opus" }, m)).catch((e) =>
+    logger.error({ err: e }, "Falha ao semear mensageria-opus"),
   );
 });
