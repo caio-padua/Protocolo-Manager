@@ -1,5 +1,5 @@
 import { Router, type IRouter, Request, Response } from "express";
-import { eq, and, gte, lte, asc, desc } from "drizzle-orm";
+import { eq, and, gte, lte, asc, desc, sql } from "drizzle-orm";
 import {
   db,
   clientsTable,
@@ -15,7 +15,8 @@ import {
   validationCodesTable,
   agendaResourcesTable,
 } from "@workspace/db";
-import { verifyPortalToken } from "../lib/portal-token";
+import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
+import { verifyPassword, hashPassword, isStrongEnough } from "../lib/patient-auth.js";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
@@ -50,6 +51,153 @@ function unauthorized(res: Response) {
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+// Erro GENERICO de acesso (linha vermelha 4 — anti-enumeracao: nunca revela se o
+// CPF existe ou se a senha e que esta errada).
+function badCredentials(res: Response) {
+  res.status(401).json({ error: "CPF ou senha incorretos." });
+}
+
+// Acha o cadastro por CPF comparando so DIGITOS (independe de mascara). Retorna
+// o primeiro; colisao de CPF (2+ cadastros) e tratada na triagem, nao aqui.
+async function findClientByCpf(cpfRaw: string) {
+  const digits = (cpfRaw ?? "").replace(/\D/g, "");
+  if (digits.length !== 11) return null;
+  const [client] = await db
+    .select()
+    .from(clientsTable)
+    .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${digits}`)
+    .limit(1);
+  return client ?? null;
+}
+
+// --- BLOCO D: ACESSO POR CPF + SENHA ---------------------------------------
+// Metodo ADICIONAL de entrada (R11/R15): nao substitui o CPF + data de nascimento.
+// Senha SEMPRE com hash; erros genericos; nunca logar senha/PII (linhas vermelhas).
+
+// Login por CPF + senha. Se a senha for provisoria (mustChangePassword), NAO emite
+// o token de sessao — devolve { mustChangePassword: true } e o front OBRIGA a troca
+// antes de qualquer acao (R13).
+router.post("/area-paciente/login", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cpf = typeof req.body?.cpf === "string" ? req.body.cpf : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!cpf || !password) { badCredentials(res); return; }
+
+    const client = await findClientByCpf(cpf);
+    if (!client || !client.passwordHash) { badCredentials(res); return; }
+    if (!verifyPassword(password, client.passwordHash)) { badCredentials(res); return; }
+
+    if (client.mustChangePassword) {
+      // Senha provisoria valida: exige troca antes de liberar a Area (sem token).
+      res.json({ mustChangePassword: true });
+      return;
+    }
+
+    res.json({
+      id: client.id,
+      name: client.name,
+      cpf: client.cpf,
+      token: createPortalToken(client.id),
+    });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro no login por senha");
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// Troca de senha no 1o acesso (R13): confere a senha provisoria atual, grava a nova
+// (hash), zera mustChangePassword e o token de definicao, e ja emite o token de
+// sessao para o paciente entrar direto.
+router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cpf = typeof req.body?.cpf === "string" ? req.body.cpf : "";
+    const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    if (!cpf || !currentPassword) { badCredentials(res); return; }
+
+    const client = await findClientByCpf(cpf);
+    if (!client || !client.passwordHash) { badCredentials(res); return; }
+    if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res); return; }
+
+    if (!isStrongEnough(newPassword)) {
+      res.status(400).json({ error: "A nova senha precisa ter pelo menos 6 caracteres." });
+      return;
+    }
+    if (verifyPassword(newPassword, client.passwordHash)) {
+      res.status(400).json({ error: "A nova senha precisa ser diferente da atual." });
+      return;
+    }
+
+    await db
+      .update(clientsTable)
+      .set({
+        passwordHash: hashPassword(newPassword),
+        mustChangePassword: false,
+        passwordSetToken: null,
+        passwordSetTokenExpiresAt: null,
+      })
+      .where(eq(clientsTable.id, client.id));
+
+    res.json({
+      id: client.id,
+      name: client.name,
+      cpf: client.cpf,
+      token: createPortalToken(client.id),
+    });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao trocar senha");
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// Definir/recuperar acesso pelo token do e-mail (R14 / caso extremo 6): valida o
+// passwordSetToken (com validade), grava a nova senha e emite o token de sessao.
+router.post("/area-paciente/definir-senha", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    if (!token) { res.status(400).json({ error: "Link inválido ou expirado." }); return; }
+    if (!isStrongEnough(newPassword)) {
+      res.status(400).json({ error: "A senha precisa ter pelo menos 6 caracteres." });
+      return;
+    }
+
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(eq(clientsTable.passwordSetToken, token))
+      .limit(1);
+    if (
+      !client ||
+      !client.passwordSetTokenExpiresAt ||
+      client.passwordSetTokenExpiresAt.getTime() < Date.now()
+    ) {
+      res.status(400).json({ error: "Link inválido ou expirado." });
+      return;
+    }
+
+    await db
+      .update(clientsTable)
+      .set({
+        passwordHash: hashPassword(newPassword),
+        mustChangePassword: false,
+        passwordSetToken: null,
+        passwordSetTokenExpiresAt: null,
+      })
+      .where(eq(clientsTable.id, client.id));
+
+    res.json({
+      id: client.id,
+      name: client.name,
+      cpf: client.cpf,
+      token: createPortalToken(client.id),
+    });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao definir senha");
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
 
 // --- RESUMO -----------------------------------------------------------------
 router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise<void> => {

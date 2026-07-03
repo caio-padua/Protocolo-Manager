@@ -124,6 +124,37 @@ export function verifySchedulingToken(token: string): number | null {
   }
 }
 
+// Token de STATUS do agendamento — assinado por HMAC, validade de 30 dias.
+// Vai no e-mail de chegada (Bloco C, R9): o paciente abre a página de status do
+// pagamento sem login. NÃO pode ser o passwordSetToken (esse é limpo na troca de
+// senha e mataria o link); por isso é stateless e independente do acesso. O escopo
+// "bstatus" impede reaproveitar este token nas demais rotas. Só revela pago/aguardando.
+const BOOKING_STATUS_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function createBookingStatusToken(requestId: number): string {
+  const exp = Date.now() + BOOKING_STATUS_TOKEN_TTL_MS;
+  const payload = `bstatus:${requestId}:${exp}`;
+  const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+export function verifyBookingStatusToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString();
+    const parts = decoded.split(":");
+    if (parts.length !== 4) return null;
+    const [scope, idStr, expStr, sig] = parts;
+    if (scope !== "bstatus") return null;
+    const payload = `${scope}:${idStr}:${expStr}`;
+    const expected = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
+    if (sig !== expected) return null;
+    if (Date.now() > Number(expStr)) return null;
+    return Number(idStr);
+  } catch {
+    return null;
+  }
+}
+
 // SUB-04 item 7: token de FEED iCal — assinado por HMAC, SEM expiração.
 // Uma assinatura de calendário (Google/Apple) é permanente: o app do cliente
 // busca a URL periodicamente. O escopo "ical" no payload impede reaproveitar

@@ -55,6 +55,7 @@ import Portal from "@/pages/portal";
 import Foto from "@/pages/foto";
 import Cadastro from "@/pages/cadastro";
 import Agendar from "@/pages/agendar";
+import AgendarStatus from "@/pages/agendar-status";
 import Anamnese from "@/pages/anamnese";
 import AnamneseV2 from "@/pages/anamnese-v2";
 import AnamneseRevisao from "@/pages/anamnese-v2/revisao";
@@ -97,6 +98,7 @@ function Router() {
       <Route path="/portal" component={Portal} />
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
+      <Route path="/agendar/status/:id" component={AgendarStatus} />
       <Route path="/agendar" component={Agendar} />
       <Route path="/anamnese"><Redirect to="/anamnese/v2" /></Route>
       <Route path="/anamnese/v2" component={AnamneseV2} />

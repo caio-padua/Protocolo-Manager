@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
@@ -174,12 +174,108 @@ export default function Area() {
 // ---------------------------------------------------------------------------
 // LOGIN
 // ---------------------------------------------------------------------------
+// Modos de entrada da tela de acesso:
+//   nascimento -> CPF + data de nascimento (metodo original)
+//   senha      -> CPF + senha (Bloco D)
+//   trocar     -> troca obrigatoria no 1o acesso (senha provisoria)
+//   definir    -> definir/recuperar senha pelo link do e-mail (?definir=token)
+type LoginMode = "nascimento" | "senha" | "trocar" | "definir";
+
+// Casca visual compartilhada por todas as telas de acesso (cabecalho PAXTER +
+// rodape). Evita repetir a moldura em cada modo.
+function LoginShell({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+  return (
+    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
+      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-border/60">
+        <div className="flex items-center gap-3">
+          <a
+            href={PAXTER_SITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="PAXTER — site institucional"
+            className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+          >
+            <PaxterSymbolGlass size={32} tone="dark" />
+          </a>
+          <div>
+            <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
+              PAXTER
+            </h1>
+            <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 flex items-start justify-center px-4 py-10">
+        <div className="w-full max-w-sm space-y-6">
+          {children}
+          <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
+            Instituto Pádua · Paxter — desenvolvido pela Padcon
+          </p>
+          <div className="text-center">
+            <a href={`${API_BASE}/anamnese/v2`}
+              className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
+              <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
+            </a>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function LoginError({ message }: { message: string }) {
+  if (!message) return null;
+  return (
+    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+      <p className="text-red-600 text-sm">{message}</p>
+    </div>
+  );
+}
+
+const INPUT_CLS =
+  "concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg";
+const LABEL_CLS =
+  "block text-primary text-xs font-black uppercase tracking-widest mb-1.5";
+
 function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   const [cpf, setCpf] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [defineToken, setDefineToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<LoginMode>("nascimento");
 
+  // Se o link do e-mail trouxe ?definir=<token>, abre direto a tela de definir
+  // senha e limpa o token da URL (nao fica no historico).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("definir");
+    if (t) {
+      setDefineToken(t);
+      setMode("definir");
+      params.delete("definir");
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (qs ? `?${qs}` : ""),
+      );
+    }
+  }, []);
+
+  const switchMode = useCallback((m: LoginMode) => {
+    setMode(m);
+    setError("");
+    setPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }, []);
+
+  // CPF + data de nascimento (metodo original).
   const handleIdentify = useCallback(async () => {
     const cleanCpf = cpf.replace(/\D/g, "");
     if (cleanCpf.length !== 11) { setError("Digite os 11 dígitos do CPF"); return; }
@@ -199,6 +295,72 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     finally { setLoading(false); }
   }, [cpf, birthDate, onSuccess]);
 
+  // CPF + senha (Bloco D). Se a senha for provisoria, o backend responde
+  // { mustChangePassword: true } SEM token e caimos na tela de troca.
+  const handlePasswordLogin = useCallback(async () => {
+    const cleanCpf = cpf.replace(/\D/g, "");
+    if (cleanCpf.length !== 11) { setError("Digite os 11 dígitos do CPF"); return; }
+    if (!password) { setError("Digite sua senha"); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf: cleanCpf, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "CPF ou senha incorretos."); return; }
+      if (data.mustChangePassword) {
+        setNewPassword(""); setConfirmPassword("");
+        setMode("trocar");
+        return;
+      }
+      onSuccess(data);
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setLoading(false); }
+  }, [cpf, password, onSuccess]);
+
+  // Troca obrigatoria no 1o acesso: mantem o CPF + a senha provisoria (password)
+  // ja digitados e envia a nova.
+  const handleChangePassword = useCallback(async () => {
+    if (newPassword.length < 6) { setError("A nova senha precisa ter pelo menos 6 caracteres"); return; }
+    if (newPassword !== confirmPassword) { setError("As senhas não conferem"); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/trocar-senha`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cpf: cpf.replace(/\D/g, ""),
+          currentPassword: password,
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Não foi possível trocar a senha."); return; }
+      onSuccess(data);
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setLoading(false); }
+  }, [cpf, password, newPassword, confirmPassword, onSuccess]);
+
+  // Definir/recuperar senha pelo token do e-mail.
+  const handleDefinePassword = useCallback(async () => {
+    if (newPassword.length < 6) { setError("A senha precisa ter pelo menos 6 caracteres"); return; }
+    if (newPassword !== confirmPassword) { setError("As senhas não conferem"); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/definir-senha`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: defineToken, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Link inválido ou expirado."); return; }
+      onSuccess(data);
+    } catch { setError("Erro de conexão. Tente novamente."); }
+    finally { setLoading(false); }
+  }, [defineToken, newPassword, confirmPassword, onSuccess]);
+
   // MODO TESTE (apenas ambiente de desenvolvimento): entra com 1 clique como um
   // cliente real de teste, sem digitar CPF nem data. Some no app publicado.
   const modoTeste = import.meta.env.DEV;
@@ -217,104 +379,191 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     finally { setLoading(false); }
   }, [onSuccess]);
 
+  // --- Tela de troca no 1o acesso ---
+  if (mode === "trocar") {
+    return (
+      <LoginShell subtitle="PRIMEIRO ACESSO">
+        <div className="panel-3d rounded-xl overflow-hidden">
+          <div className="bg-primary px-5 py-4">
+            <div className="flex items-center gap-3">
+              <KeyRound className="w-5 h-5 text-accent" />
+              <h2 className="text-white font-black text-sm uppercase tracking-widest">CRIAR SUA SENHA</h2>
+            </div>
+            <p className="text-primary-foreground/80 text-xs mt-1">
+              Você entrou com uma senha provisória. Defina uma senha só sua para continuar.
+            </p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div>
+              <label className={LABEL_CLS}>NOVA SENHA</label>
+              <input
+                type="password" placeholder="mínimo 6 caracteres" value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
+                className={INPUT_CLS}
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLS}>REPITA A NOVA SENHA</label>
+              <input
+                type="password" placeholder="repita a senha" value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleChangePassword(); }}
+                className={INPUT_CLS}
+              />
+            </div>
+            <LoginError message={error} />
+            <button
+              onClick={handleChangePassword}
+              disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
+              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
+            </button>
+          </div>
+        </div>
+      </LoginShell>
+    );
+  }
+
+  // --- Tela de definir/recuperar senha pelo link do e-mail ---
+  if (mode === "definir") {
+    return (
+      <LoginShell subtitle="DEFINIR SENHA">
+        <div className="panel-3d rounded-xl overflow-hidden">
+          <div className="bg-primary px-5 py-4">
+            <div className="flex items-center gap-3">
+              <KeyRound className="w-5 h-5 text-accent" />
+              <h2 className="text-white font-black text-sm uppercase tracking-widest">DEFINIR SENHA</h2>
+            </div>
+            <p className="text-primary-foreground/80 text-xs mt-1">
+              Crie a senha de acesso à sua área.
+            </p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div>
+              <label className={LABEL_CLS}>NOVA SENHA</label>
+              <input
+                type="password" placeholder="mínimo 6 caracteres" value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
+                className={INPUT_CLS}
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLS}>REPITA A NOVA SENHA</label>
+              <input
+                type="password" placeholder="repita a senha" value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleDefinePassword(); }}
+                className={INPUT_CLS}
+              />
+            </div>
+            <LoginError message={error} />
+            <button
+              onClick={handleDefinePassword}
+              disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
+              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
+            </button>
+            <button
+              onClick={() => switchMode("nascimento")}
+              className="w-full text-center text-accent text-xs uppercase tracking-wider hover:text-primary"
+            >
+              Voltar para a identificação
+            </button>
+          </div>
+        </div>
+      </LoginShell>
+    );
+  }
+
+  // --- Telas de entrada normal (nascimento OU senha) ---
+  const porSenha = mode === "senha";
   return (
-    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
-      {/* Header login */}
-      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-border/60">
-        <div className="flex items-center gap-3">
-          <a
-            href={PAXTER_SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="PAXTER — site institucional"
-            className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
-          >
-            <PaxterSymbolGlass size={32} tone="dark" />
-          </a>
-          <div>
-            <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
-              PAXTER
-            </h1>
-            <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
+    <LoginShell subtitle="ÁREA DO PACIENTE">
+      <div className="panel-3d rounded-xl overflow-hidden">
+        {/* Zona 1 — TOP BAR */}
+        <div className="bg-primary px-5 py-4">
+          <div className="flex items-center gap-3">
+            {porSenha ? <KeyRound className="w-5 h-5 text-accent" /> : <User className="w-5 h-5 text-accent" />}
+            <h2 className="text-white font-black text-sm uppercase tracking-widest">
+              {porSenha ? "ENTRAR COM SENHA" : "IDENTIFICAÇÃO"}
+            </h2>
           </div>
-        </div>
-      </header>
-
-      <main className="flex-1 flex items-start justify-center px-4 py-10">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="panel-3d rounded-xl overflow-hidden">
-            {/* Zona 1 — TOP BAR */}
-            <div className="bg-primary px-5 py-4">
-              <div className="flex items-center gap-3">
-                <User className="w-5 h-5 text-accent" />
-                <h2 className="text-white font-black text-sm uppercase tracking-widest">IDENTIFICAÇÃO</h2>
-              </div>
-              <p className="text-primary-foreground/80 text-xs mt-1">
-                CPF + data de nascimento para entrar
-              </p>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">CPF</label>
-                <input
-                  type="tel" inputMode="numeric" placeholder="000.000.000-00" value={cpf}
-                  onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
-                  className="concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">DATA DE NASCIMENTO</label>
-                <input
-                  type="tel" inputMode="numeric" placeholder="DD/MM/AAAA" value={birthDate}
-                  onChange={(e) => { setBirthDate(formatDateInput(e.target.value)); setError(""); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleIdentify(); }}
-                  className="concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
-                />
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-red-600 text-sm">{error}</p>
-                </div>
-              )}
-
-              <button
-                onClick={handleIdentify}
-                disabled={loading || cpf.replace(/\D/g, "").length !== 11 || birthDate.replace(/\D/g, "").length !== 8}
-                className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
-              </button>
-
-              {modoTeste && (
-                <div className="border-t border-dashed border-amber-400/60 pt-3">
-                  <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700 mb-2">Modo Teste</span>
-                  <button
-                    onClick={quickEnter}
-                    disabled={loading}
-                    className="w-full h-11 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border border-amber-500 text-amber-700 rounded-lg hover:bg-amber-50 disabled:opacity-40"
-                  >
-                    ENTRAR SEM CÓDIGO (1 clique)
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
-            Instituto Pádua · Paxter — desenvolvido pela Padcon
+          <p className="text-primary-foreground/80 text-xs mt-1">
+            {porSenha ? "CPF + senha para entrar" : "CPF + data de nascimento para entrar"}
           </p>
-          <div className="text-center">
-            <a href={`${API_BASE}/anamnese/v2`}
-              className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
-              <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
-            </a>
-          </div>
         </div>
-      </main>
-    </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className={LABEL_CLS}>CPF</label>
+            <input
+              type="tel" inputMode="numeric" placeholder="000.000.000-00" value={cpf}
+              onChange={(e) => { setCpf(formatCpf(e.target.value)); setError(""); }}
+              className={INPUT_CLS}
+            />
+          </div>
+
+          {porSenha ? (
+            <div>
+              <label className={LABEL_CLS}>SENHA</label>
+              <input
+                type="password" placeholder="sua senha" value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
+                className={INPUT_CLS}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className={LABEL_CLS}>DATA DE NASCIMENTO</label>
+              <input
+                type="tel" inputMode="numeric" placeholder="DD/MM/AAAA" value={birthDate}
+                onChange={(e) => { setBirthDate(formatDateInput(e.target.value)); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleIdentify(); }}
+                className={INPUT_CLS}
+              />
+            </div>
+          )}
+
+          <LoginError message={error} />
+
+          <button
+            onClick={porSenha ? handlePasswordLogin : handleIdentify}
+            disabled={
+              loading ||
+              cpf.replace(/\D/g, "").length !== 11 ||
+              (porSenha ? password.length === 0 : birthDate.replace(/\D/g, "").length !== 8)
+            }
+            className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
+          </button>
+
+          {/* Alternar metodo de entrada */}
+          <button
+            onClick={() => switchMode(porSenha ? "nascimento" : "senha")}
+            className="w-full text-center text-accent text-xs uppercase tracking-wider hover:text-primary"
+          >
+            {porSenha ? "Entrar com data de nascimento" : "Entrar com senha"}
+          </button>
+
+          {modoTeste && (
+            <div className="border-t border-dashed border-amber-400/60 pt-3">
+              <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700 mb-2">Modo Teste</span>
+              <button
+                onClick={quickEnter}
+                disabled={loading}
+                className="w-full h-11 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border border-amber-500 text-amber-700 rounded-lg hover:bg-amber-50 disabled:opacity-40"
+              >
+                ENTRAR SEM CÓDIGO (1 clique)
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </LoginShell>
   );
 }
 

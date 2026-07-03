@@ -6,11 +6,13 @@ import {
   schedulingRequestsTable,
   professionalAreasTable,
   professionalSpecialtiesTable,
+  clientsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import {
   createSchedulingToken,
   verifySchedulingToken,
+  verifyBookingStatusToken,
 } from "../lib/portal-token.js";
 import {
   CreateSchedulingRequestBody,
@@ -26,6 +28,7 @@ import {
 } from "../lib/asaas.js";
 import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
+import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 
 const router: IRouter = Router();
 
@@ -725,6 +728,14 @@ router.get(
                 : row.paidAt,
           })
           .where(eq(schedulingRequestsTable.id, id));
+        // Transicionou para "pago": dispara a finalizacao (cadastro + acesso +
+        // e-mail de chegada). Fire-and-forget: nao segura a resposta do polling;
+        // e idempotente (advisory lock + finalizedAt) contra o webhook concorrente.
+        if (mapped === "pago") {
+          finalizeConciergeBooking(id).catch((err) =>
+            req.log.error({ err: String(err), id }, "finalizeConciergeBooking (polling) falhou"),
+          );
+        }
       }
       res.json({
         status: mapped,
@@ -743,6 +754,89 @@ router.get(
         error: "asaas_indisponivel",
       });
     }
+  },
+);
+
+// Status de chegada por token (Bloco C, R9): pagina publica que o paciente abre
+// pelo link do e-mail de chegada, SEM login. Token STATELESS (HMAC do id, escopo
+// bstatus) verificado aqui — nao aceita id sem token valido (anti-enumeracao).
+// Reaproveita o mesmo mapAsaasPaymentStatus e nunca diz "confirmado" antes da baixa.
+router.get(
+  "/scheduling/:id/arrival-status",
+  async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params.id);
+    const token = typeof req.query.t === "string" ? req.query.t : "";
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Solicitação inválida." });
+      return;
+    }
+    // O token amarra o id: so abre se o HMAC bater E for do MESMO agendamento.
+    const tokenId = token ? verifyBookingStatusToken(token) : null;
+    if (tokenId === null || tokenId !== id) {
+      res.status(401).json({ error: "Link inválido ou expirado." });
+      return;
+    }
+
+    const [row] = await db
+      .select()
+      .from(schedulingRequestsTable)
+      .where(eq(schedulingRequestsTable.id, id))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Solicitação não encontrada." });
+      return;
+    }
+
+    // Consulta a fonte quando houver cobranca; senao mostra o status gravado.
+    let status = row.paymentStatus;
+    if (row.asaasChargeId) {
+      try {
+        const charge = await asaasGetCharge(row.asaasChargeId);
+        const mapped = mapAsaasPaymentStatus(charge.status);
+        if (mapped !== row.paymentStatus) {
+          await db
+            .update(schedulingRequestsTable)
+            .set({
+              paymentStatus: mapped,
+              paidAt:
+                mapped === "pago"
+                  ? (row.paidAt ?? new Date().toISOString().slice(0, 10))
+                  : row.paidAt,
+            })
+            .where(eq(schedulingRequestsTable.id, id));
+          if (mapped === "pago") {
+            finalizeConciergeBooking(id).catch((err) =>
+              req.log.error(
+                { err: String(err), id },
+                "finalizeConciergeBooking (arrival-status) falhou",
+              ),
+            );
+          }
+        }
+        status = mapped;
+      } catch (err) {
+        req.log.error({ err: String(err), id }, "arrival-status: Asaas indisponível");
+      }
+    }
+
+    // Nome do paciente vem do cadastro vinculado (nao expoe outros dados/PII).
+    let patientName: string | null = row.patientName ?? null;
+    if (row.clientId) {
+      const [client] = await db
+        .select({ name: clientsTable.name })
+        .from(clientsTable)
+        .where(eq(clientsTable.id, row.clientId))
+        .limit(1);
+      if (client?.name) patientName = client.name;
+    }
+
+    res.json({
+      status, // "pago" | "aguardando" | "expirado" | "cancelado" | "gerar" | "nao_aplicavel"
+      chosenDate: row.chosenDate ?? null,
+      chosenTime: row.chosenTime ?? null,
+      patientName,
+      finalized: Boolean(row.finalizedAt),
+    });
   },
 );
 

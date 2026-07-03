@@ -18,6 +18,12 @@ export const clientsTable = pgTable("clients", {
   photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
+  // Acesso leve do paciente a /area (Bloco D): senha com HASH forte (nunca texto puro),
+  // troca obrigatoria no 1o acesso, e um token de definicao/reset com validade.
+  passwordHash: text("password_hash"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  passwordSetToken: text("password_set_token"),
+  passwordSetTokenExpiresAt: timestamp("password_set_token_expires_at", { withTimezone: true }),
   examRequestsFolderId: text("exam_requests_folder_id"),
   driveFolderId: text("drive_folder_id"),
   telegramChatId: text("telegram_chat_id"),

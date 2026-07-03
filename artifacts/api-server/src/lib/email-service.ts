@@ -468,6 +468,113 @@ export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ succ
   return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
 }
 
+export interface ArrivalEmailData {
+  clientName: string;
+  clientEmail: string;
+  clientCpf: string; // apenas digitos
+  triagem: "novo" | "retorno";
+  chosenDate?: string | null; // YYYY-MM-DD
+  chosenTime?: string | null; // HH:mm
+  provisionalPassword?: string | null; // presente => paciente ganha senha de 1o acesso
+  statusUrl: string; // link publico de status do pagamento (R9)
+  accessUrl?: string | null; // presente (sem senha provisoria) => "entrar/recuperar" (R14)
+}
+
+function formatCpfBR(digits: string): string {
+  const d = (digits || "").replace(/\D/g, "").padStart(11, "0").slice(0, 11);
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function arrivalBlocks(data: ArrivalEmailData): string[] {
+  const blocks: string[] = [];
+
+  // 1) Horario reservado.
+  const quando =
+    data.chosenDate
+      ? `${formatDateBR(data.chosenDate)}${data.chosenTime ? ` as ${data.chosenTime}` : ""}`
+      : "a equipe confirmara o melhor horario e avisara voce";
+  blocks.push(`
+    <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid rgba(201,162,79,.25); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+      <tr style="background: #102043;">
+        <th colspan="2" style="padding: 10px 16px; text-align: left; color: #c9a24f; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Horario reservado</th>
+      </tr>
+      <tr>
+        <td style="padding: 10px 16px; border-bottom: 1px solid rgba(201,162,79,.12); color: #7e90ab; font-size: 13px; width: 120px;">Consulta com</td>
+        <td style="padding: 10px 16px; border-bottom: 1px solid rgba(201,162,79,.12); color: #f3ead6; font-size: 13px;">Dr. Caio Henrique Fernandes Padua</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 16px; color: #7e90ab; font-size: 13px;">Quando</td>
+        <td style="padding: 10px 16px; color: #f3ead6; font-size: 13px;"><strong>${quando}</strong></td>
+      </tr>
+    </table>`);
+
+  // 2) Acesso a Area do Paciente.
+  if (data.provisionalPassword) {
+    blocks.push(`
+      <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <h3 style="margin: 0 0 12px; color: #c9a24f; font-size: 15px;">Seu acesso a Area do Paciente</h3>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding: 8px 0; color: #7e90ab; font-size: 13px; width: 130px;">Login (CPF)</td>
+            <td style="padding: 8px 0; color: #f3ead6; font-size: 15px; font-family: Georgia,serif;"><strong>${formatCpfBR(data.clientCpf)}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #7e90ab; font-size: 13px;">Senha provisoria</td>
+            <td style="padding: 8px 0; color: #c9a24f; font-size: 20px; font-family: Georgia,serif; letter-spacing: 3px;"><strong>${data.provisionalPassword}</strong></td>
+          </tr>
+        </table>
+        <p style="margin: 12px 0 0; color: #c2cee0; font-size: 13px; line-height: 1.6;">Por seguranca, o sistema vai <strong style="color:#c9a24f;">pedir que voce troque essa senha no primeiro acesso</strong>. Ela e de uso unico.</p>
+        <div style="text-align:center; margin-top: 16px;">
+          <a href="${data.statusUrl}" style="display:inline-block; background:#c9a24f; color:#0b1730; text-decoration:none; font-weight:700; font-size:14px; padding:12px 28px; border-radius:8px;">Acompanhar meu agendamento</a>
+        </div>
+      </div>`);
+  } else {
+    blocks.push(`
+      <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <h3 style="margin: 0 0 8px; color: #c9a24f; font-size: 15px;">Seu acesso a Area do Paciente</h3>
+        <p style="margin: 0; color: #c2cee0; font-size: 13px; line-height: 1.6;">Voce ja possui acesso. Entre com seu <strong style="color:#f3ead6;">CPF</strong> e sua senha. Se precisar, use o botao abaixo para entrar ou recuperar o acesso.</p>
+        <div style="text-align:center; margin-top: 16px;">
+          <a href="${data.accessUrl ?? data.statusUrl}" style="display:inline-block; background:#c9a24f; color:#0b1730; text-decoration:none; font-weight:700; font-size:14px; padding:12px 28px; border-radius:8px;">Entrar / recuperar acesso</a>
+        </div>
+      </div>`);
+  }
+
+  // 3) Link de status do pagamento (sempre honesto).
+  blocks.push(`
+    <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px 20px;">
+      <p style="margin: 0 0 8px; color: #c9a24f; font-size: 13px; font-weight: 700;">Status do pagamento</p>
+      <p style="margin: 0; color: #c2cee0; font-size: 13px; line-height: 1.6;">Acompanhe a confirmacao do seu pagamento a qualquer momento neste link seguro:</p>
+      <p style="margin: 8px 0 0;"><a href="${data.statusUrl}" style="color:#c9a24f; font-size: 13px; word-break: break-all;">${data.statusUrl}</a></p>
+    </div>`);
+
+  return blocks;
+}
+
+// Bloco C — E-mail de chegada pos-pagamento (concierge Dr. Caio). Confirma cadastro
+// (novo/retorno), horario reservado, acesso (Bloco D) e link de status (R8/R9/R10).
+export async function sendArrivalEmail(data: ArrivalEmailData): Promise<{ success: boolean; error?: string }> {
+  const intro =
+    data.triagem === "novo"
+      ? "Recebemos o seu pagamento e criamos o seu cadastro. Seu horario esta reservado."
+      : "Recebemos o seu pagamento. Reconhecemos o seu cadastro e seu horario esta reservado.";
+
+  const doc: PaxterDoc = {
+    eyebrow: `Ola, ${data.clientName}`,
+    titulo: "Agendamento confirmado",
+    paragrafos: [intro],
+    blocosHtml: arrivalBlocks(data),
+    assunto: "Instituto Padua | Agendamento confirmado | Dr. Caio",
+  };
+  const envio = await enviarMensagemPaxter(
+    doc,
+    { email: data.clientEmail, nome: data.clientName },
+    ["EMAIL"],
+    { baseUrl: baseUrlFromEnv() },
+  );
+  const r0 = envio.resultados[0];
+  return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
+}
+
 export async function isEmailConfigured(): Promise<boolean> {
   return isGmailConnected();
 }

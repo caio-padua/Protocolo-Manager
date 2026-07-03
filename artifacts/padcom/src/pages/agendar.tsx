@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   useListSiteContent,
@@ -624,7 +624,6 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     if (!s || s === payStatus) return;
     if (s === "pago") {
       setPayStatus("pago");
-      confirmConcierge();
     } else if (s === "expirado" || s === "cancelado") {
       setPayStatus(s);
     }
@@ -643,7 +642,6 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           setPixPayload(r.pixPayload ?? null);
           if (r.status === "pago") {
             setPayStatus("pago");
-            confirmConcierge();
           } else {
             setPayStatus("aguardando");
           }
@@ -717,6 +715,99 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       },
     );
   };
+
+  // --- Persistencia do fluxo de pagamento (Bloco A / R3) ---
+  // O celular costuma trocar de app (banco) e voltar; guardamos o minimo em
+  // sessionStorage para NAO perder a solicitacao ja paga/gerada. So persiste
+  // enquanto ha pagamento em andamento (estagio "pay" com cobranca gerada).
+  const FLOW_KEY = "dc_concierge_flow_v1";
+
+  // Restaura um pagamento em andamento ao montar (uma unica vez).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(FLOW_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s?.stage === "pay" && s?.requestId && s?.invoiceUrl) {
+        setStage("pay");
+        setVia("concierge");
+        setName(s.name || "");
+        setPhone(s.phone || "");
+        setEmail(s.email || "");
+        setCpf(s.cpf || "");
+        setDesire(s.desire || "");
+        setEarliestDate(s.earliestDate || "");
+        setPrefWeekday(s.prefWeekday || "");
+        setPrefPeriod(s.prefPeriod || "");
+        setChosenSlotDate(s.chosenSlotDate || "");
+        setChosenSlotTime(s.chosenSlotTime || "");
+        setRequestId(s.requestId);
+        setAccessToken(s.accessToken || null);
+        setInvoiceUrl(s.invoiceUrl || "");
+        setPixQrImage(s.pixQrImage || null);
+        setPixPayload(s.pixPayload || null);
+        setPayStatus(s.payStatus || "aguardando");
+      }
+    } catch {
+      /* sessionStorage indisponivel/corrompido: segue o fluxo normal */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Salva o instantaneo enquanto o pagamento esta em andamento; limpa ao concluir.
+  useEffect(() => {
+    if (success) {
+      try { sessionStorage.removeItem(FLOW_KEY); } catch { /* noop */ }
+      return;
+    }
+    if (stage === "pay" && requestId != null && invoiceUrl) {
+      try {
+        sessionStorage.setItem(
+          FLOW_KEY,
+          JSON.stringify({
+            stage, requestId, accessToken, invoiceUrl, pixQrImage, pixPayload,
+            payStatus, chosenSlotDate, chosenSlotTime, name, phone, email, cpf,
+            desire, earliestDate, prefWeekday, prefPeriod,
+          }),
+        );
+      } catch {
+        /* quota/indisponivel: apenas nao persiste */
+      }
+    }
+  }, [
+    success, stage, requestId, accessToken, invoiceUrl, pixQrImage, pixPayload,
+    payStatus, chosenSlotDate, chosenSlotTime, name, phone, email, cpf, desire,
+    earliestDate, prefWeekday, prefPeriod,
+  ]);
+
+  // Confirmacao automatica UNICA: quando o pagamento e "pago" e temos a
+  // solicitacao, confirma o horario uma vez (vale tanto para o pagamento ao
+  // vivo quanto para um fluxo restaurado). A falha cai na tela de recuperacao.
+  const autoConfirmedRef = useRef(false);
+  useEffect(() => {
+    if (
+      payStatus === "pago" &&
+      !success &&
+      requestId != null &&
+      !autoConfirmedRef.current
+    ) {
+      autoConfirmedRef.current = true;
+      confirmConcierge();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payStatus, success, requestId]);
+
+  // Rotulo do horario reservado (usado na tela final).
+  const reservedSlotLabel = useMemo(() => {
+    if (!chosenSlotDate) return "";
+    try {
+      const d = new Date(`${chosenSlotDate}T12:00:00`);
+      const dia = formatSlotDay(d);
+      return chosenSlotTime ? `${dia} às ${chosenSlotTime}` : dia;
+    } catch {
+      return "";
+    }
+  }, [chosenSlotDate, chosenSlotTime]);
 
   const chargePending = createReq.isPending || conciergeCharge.isPending;
 
@@ -842,7 +933,18 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     });
   };
 
-  if (success) return <SuccessState onBack={onBack} isExclusive />;
+  if (success)
+    return (
+      <SuccessState
+        onBack={onBack}
+        isExclusive
+        booking={
+          payStatus === "pago" && chosenSlotDate
+            ? { date: chosenSlotDate, time: chosenSlotTime, email }
+            : undefined
+        }
+      />
+    );
 
   return (
     <div className={`dc-luxo space-y-10 animate-in fade-in duration-500 ${isDark ? "dc-dark" : "dc-light"}`}>
@@ -1244,6 +1346,17 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <p>{payStatus === "expirado" ? "A cobrança venceu. Abra novamente para pagar." : "A cobrança foi cancelada. Fale com a clínica."}</p>
                     </div>
+                  ) : payStatus === "pago" ? (
+                    /* R1: pagamento ja caiu — mostramos o estado honesto de
+                       "recebido, confirmando o horario" (nao mais "aguardando"). */
+                    <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-emerald-950/30 border border-emerald-900/60 text-emerald-300" : "bg-emerald-50 border border-emerald-200 text-emerald-800"}`}>
+                      {errorMsg ? <AlertCircle className="w-4 h-4 shrink-0" /> : <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+                      <p className="text-sm">
+                        {errorMsg
+                          ? "Pagamento recebido. Tivemos um problema ao reservar seu horário — toque abaixo para recuperar."
+                          : "Pagamento recebido! Confirmando seu horário..."}
+                      </p>
+                    </div>
                   ) : (
                     <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1251,14 +1364,27 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => paymentStatusQuery.refetch()}
-                    disabled={paymentStatusQuery.isFetching}
-                    className={`text-xs underline-offset-4 hover:underline disabled:opacity-50 ${isDark ? "text-stone-400" : "text-stone-500"}`}
-                  >
-                    {paymentStatusQuery.isFetching ? "Verificando..." : "Já paguei, verificar agora"}
-                  </button>
+                  {/* R2: se a confirmacao do horario falhou (pago mas sem reservar),
+                      oferecemos uma acao explicita para reexecutar a confirmacao. */}
+                  {payStatus === "pago" && errorMsg ? (
+                    <button
+                      type="button"
+                      onClick={() => confirmConcierge()}
+                      disabled={updateReq.isPending}
+                      className="w-full py-3 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {updateReq.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Recuperar meu agendamento <ArrowRight className="w-4 h-4" /></>}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => paymentStatusQuery.refetch()}
+                      disabled={paymentStatusQuery.isFetching}
+                      className={`text-xs underline-offset-4 hover:underline disabled:opacity-50 ${isDark ? "text-stone-400" : "text-stone-500"}`}
+                    >
+                      {paymentStatusQuery.isFetching ? "Verificando..." : "Já paguei, verificar agora"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1757,7 +1883,22 @@ function Field({ label, value, onChange, placeholder, type = "text", dark = fals
   );
 }
 
-function SuccessState({ onBack, isExclusive }: { onBack: () => void; isExclusive?: boolean }) {
+function SuccessState({
+  onBack,
+  isExclusive,
+  booking,
+}: {
+  onBack: () => void;
+  isExclusive?: boolean;
+  booking?: { date: string; time: string; email: string };
+}) {
+  // R4: quando o horario ja foi reservado (pago), confirmamos o desfecho real —
+  // horario reservado + pagamento recebido + acesso enviado por e-mail — em vez
+  // do texto generico "entraremos em contato".
+  const fmtDate = (iso: string): string => {
+    const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+  };
   return (
     <div className={`rounded-xl p-8 text-center space-y-6 animate-in zoom-in-95 duration-500 ${isExclusive ? "bg-[#0b1a33] text-slate-100 border border-[#2a4470]" : "panel-3d"}`}>
       <div className="flex justify-center">
@@ -1765,12 +1906,49 @@ function SuccessState({ onBack, isExclusive }: { onBack: () => void; isExclusive
           <CheckCircle className={`w-8 h-8 ${isExclusive ? "text-[#c2a05a]" : "text-accent"}`} />
         </div>
       </div>
-      <div>
-        <h3 className={`font-serif text-2xl mb-2 ${isExclusive ? "text-[#c2a05a]" : "text-primary"}`}>Solicitação Recebida</h3>
-        <p className={`text-sm ${isExclusive ? "text-slate-200/80" : "text-muted-foreground"}`}>
-          Nossa equipe entrará em contato em breve para confirmar seu atendimento.
-        </p>
-      </div>
+
+      {booking ? (
+        <>
+          <div>
+            <h3 className={`font-serif text-2xl mb-2 ${isExclusive ? "text-[#c2a05a]" : "text-primary"}`}>Horário Reservado</h3>
+            <p className={`text-sm ${isExclusive ? "text-slate-200/80" : "text-muted-foreground"}`}>
+              Pagamento recebido e seu horário está garantido.
+            </p>
+          </div>
+
+          {/* Tabela — carro-chefe: o desfecho num relance */}
+          <table className={`w-full text-sm text-left rounded-lg overflow-hidden border ${isExclusive ? "border-[#2a4470]" : "border-border"}`}>
+            <tbody>
+              <tr className={isExclusive ? "bg-[#12244a]" : "bg-slate-100"}>
+                <td className="px-4 py-2.5 font-bold uppercase text-xs tracking-widest w-1/2">Data</td>
+                <td className="px-4 py-2.5 font-mono">{fmtDate(booking.date)}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-bold uppercase text-xs tracking-widest">Horário</td>
+                <td className="px-4 py-2.5 font-mono">{booking.time || "—"}</td>
+              </tr>
+              <tr className={isExclusive ? "bg-[#12244a]" : "bg-slate-100"}>
+                <td className="px-4 py-2.5 font-bold uppercase text-xs tracking-widest">Pagamento</td>
+                <td className="px-4 py-2.5">Recebido</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p className={`text-xs ${isExclusive ? "text-slate-300/80" : "text-muted-foreground"}`}>
+            {booking.email
+              ? <>Enviamos os dados de acesso à sua área para <span className="font-semibold">{booking.email}</span>.</>
+              : "Enviamos os dados de acesso à sua área para o seu e-mail."}
+          </p>
+        </>
+      ) : (
+        <div>
+          <h3 className={`font-serif text-2xl mb-2 ${isExclusive ? "text-[#c2a05a]" : "text-primary"}`}>Solicitação Recebida</h3>
+          <p className={`text-sm ${isExclusive ? "text-slate-200/80" : "text-muted-foreground"}`}>
+            Nossa equipe entrará em contato em breve para confirmar seu atendimento.
+          </p>
+        </div>
+      )}
+
       <button
         onClick={onBack}
         className={`h-11 px-6 rounded-md font-black uppercase tracking-widest text-sm transition-all ${

@@ -53,6 +53,14 @@ export const schedulingRequestsTable = pgTable("scheduling_requests", {
   // 'novo' | 'contatado' | 'agendado' | 'cancelado' | 'devolvido'
   notes: text("notes"),
 
+  // Pos-pagamento (Bloco B): triagem por CPF e vinculo ao cadastro criado/achado.
+  clientId: integer("client_id"),
+  triagem: text("triagem"), // 'novo' | 'retorno'
+  // Idempotencia da finalizacao (cadastro + e-mail + senha) apos o pagamento.
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+  arrivalEmailSentAt: timestamp("arrival_email_sent_at", { withTimezone: true }),
+  arrivalEmailError: text("arrival_email_error"),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

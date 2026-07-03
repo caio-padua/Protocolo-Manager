@@ -19,6 +19,7 @@ import {
   type AsaasPixKeyType,
 } from "../lib/asaas";
 import { getSecret } from "../lib/secure-settings.js";
+import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { requireCollaborator } from "./collaborator.js";
 import { montarAssuntoCobranca, formatBRL, formatDataBR } from "../lib/cobranca-mensagem.js";
 import {
@@ -681,6 +682,12 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
           .update(schedulingRequestsTable)
           .set({ paymentStatus: "pago", paidAt: sreq.paidAt ?? paidDate })
           .where(eq(schedulingRequestsTable.id, sreq.id));
+        // Confirmou o pagamento: finaliza (cadastro + acesso + e-mail de chegada).
+        // Idempotente (advisory lock + finalizedAt) contra o polling concorrente e
+        // contra reenvio de webhook (caso extremo 4). Best-effort: nao derruba a rota.
+        await finalizeConciergeBooking(sreq.id).catch((err) =>
+          req.log.error({ err: String(err), id: sreq.id }, "finalizeConciergeBooking (webhook) falhou"),
+        );
       }
     } else if (event === "PAYMENT_OVERDUE") {
       if (row) {
