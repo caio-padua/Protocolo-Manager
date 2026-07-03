@@ -14,6 +14,7 @@ import {
   lembreteEnviosTable,
   clientsTable,
   type LembretePeriodoJson,
+  type LembreteFormulaJson,
 } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { logger } from "./logger";
@@ -154,11 +155,18 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
 type PeriodoAntigo = "manha" | "tarde" | "noite";
 
 // Item recebido do Cockpit (mesmo formato do motor simples, sem depender dele).
+// Campos ricos (Opção A) são OPCIONAIS: quando vierem, fluem até o template; quando
+// não vierem, o merge (abaixo) preserva o que já foi enriquecido à mão na tela.
 export interface ItemLembretePrescricao {
   tipo: "formula" | "injetavel" | "exame";
   nome: string;
   detalhe?: string;
   periodos?: PeriodoAntigo[];
+  ativoPrincipal?: string;
+  dose?: string;
+  horario?: string;
+  observacaoRefeicao?: string;
+  posologia?: string;
 }
 
 // Mapa período antigo → canônico do IHE (sigla, nome, janela_inicio HH:MM).
@@ -190,6 +198,28 @@ export async function sincronizarLembretePrescricao(
   clienteId: number,
   itens: ItemLembretePrescricao[],
 ): Promise<SincronizarLembreteResult> {
+  // Lê o lembrete existente ANTES do upsert para: (1) preservar campos ricos
+  // enriquecidos à mão na tela (merge por `${sigla}::${nome}`); (2) respeitar o
+  // override manual (ativoManual) ao computar o `ativo` efetivo.
+  const [existente] = await db
+    .select({
+      periodos: lembretesPrescricaoTable.periodos,
+      ativoManual: lembretesPrescricaoTable.ativoManual,
+    })
+    .from(lembretesPrescricaoTable)
+    .where(eq(lembretesPrescricaoTable.clienteId, clienteId))
+    .limit(1);
+
+  // Índice das fórmulas antigas por chave para o merge não-destrutivo.
+  const antigasPorChave = new Map<string, LembreteFormulaJson>();
+  if (existente?.periodos) {
+    for (const per of existente.periodos) {
+      for (const f of per.formulas) {
+        antigasPorChave.set(`${per.sigla ?? ""}::${f.nome}`, f);
+      }
+    }
+  }
+
   // Agrupa fórmulas por período canônico (sigla). Ordem estável (JE..CE via inicio).
   const porSigla = new Map<string, LembretePeriodoJson>();
   const horariosSet = new Set<string>();
@@ -206,7 +236,16 @@ export async function sincronizarLembretePrescricao(
         bloco = { sigla: canon.sigla, nome: canon.nome, tipo: "tomar", formulas: [] };
         porSigla.set(canon.sigla, bloco);
       }
-      bloco.formulas.push({ nome: item.nome, posologia: item.detalhe });
+      // Merge: campo rico novo vence; na ausência, preserva o que já estava salvo.
+      const anterior = antigasPorChave.get(`${canon.sigla}::${item.nome}`);
+      bloco.formulas.push({
+        nome: item.nome,
+        ativoPrincipal: item.ativoPrincipal ?? anterior?.ativoPrincipal,
+        dose: item.dose ?? anterior?.dose,
+        horario: item.horario ?? anterior?.horario,
+        observacaoRefeicao: item.observacaoRefeicao ?? anterior?.observacaoRefeicao,
+        posologia: item.posologia ?? item.detalhe ?? anterior?.posologia,
+      });
       formulas += 1;
     }
   }
@@ -214,17 +253,20 @@ export async function sincronizarLembretePrescricao(
   const horarios = [...horariosSet].sort();
   const periodos = [...porSigla.values()];
   const temItens = periodos.length > 0;
+  // Override manual (Opção B): desligar à mão SEMPRE vence; ligar/nulo segue os itens.
+  const ativoEfetivo = temItens && existente?.ativoManual !== false;
 
   // Upsert atômico por cliente (unique em cliente_id): sem corrida de 2 lembretes.
+  // ativoManual NÃO é tocado aqui (preserva a decisão manual do CEO).
   const [linha] = await db
     .insert(lembretesPrescricaoTable)
-    .values({ clienteId, periodos, horariosEnvio: horarios, ativo: temItens })
+    .values({ clienteId, periodos, horariosEnvio: horarios, ativo: ativoEfetivo })
     .onConflictDoUpdate({
       target: lembretesPrescricaoTable.clienteId,
-      set: { periodos, horariosEnvio: horarios, ativo: temItens, updatedAt: new Date() },
+      set: { periodos, horariosEnvio: horarios, ativo: ativoEfetivo, updatedAt: new Date() },
     })
     .returning({ id: lembretesPrescricaoTable.id });
-  return { lembreteId: linha.id, periodos: periodos.length, horarios, formulas, ativo: temItens };
+  return { lembreteId: linha.id, periodos: periodos.length, horarios, formulas, ativo: ativoEfetivo };
 }
 
 export async function executarLembretesPeriodo(

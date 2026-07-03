@@ -39,6 +39,10 @@ export const lembretesPrescricaoTable = pgTable("lembretes_prescricao", {
     .unique() // 1 lembrete por cliente — trava de idempotência do upsert do Cockpit.
     .references(() => clientsTable.id, { onDelete: "cascade" }),
   ativo: boolean("ativo").notNull().default(true),
+  // Override MANUAL do CEO (Opção B). null = segue o automático; false = desligado
+  // à mão (vence sempre); true = ligado à mão. `ativo` efetivo nunca dispara
+  // lembrete vazio: ativo = temItens && ativoManual !== false.
+  ativoManual: boolean("ativo_manual"),
   periodos: jsonb("periodos").notNull().default([]).$type<LembretePeriodoJson[]>(),
   horariosEnvio: jsonb("horarios_envio").notNull().default([]).$type<string[]>(), // ["07:00","18:00"]
   observacao: text("observacao"),

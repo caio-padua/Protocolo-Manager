@@ -74,6 +74,7 @@ import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
 import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
 import ComunicacaoCartaEncantamento from "@/pages/comunicacao/carta-encantamento";
+import ComunicacaoCentralLembretes from "@/pages/comunicacao/central-lembretes";
 import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
 import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
@@ -201,6 +202,7 @@ function Router() {
             <Route path="/comunicacao/gateways" component={ComunicacaoGateways} />
             <Route path="/comunicacao/mensageria" component={ComunicacaoMensageria} />
             <Route path="/comunicacao/carta-encantamento" component={ComunicacaoCartaEncantamento} />
+            <Route path="/comunicacao/central-lembretes" component={ComunicacaoCentralLembretes} />
             <Route path="/comunicacao/digital" component={ComunicacaoDigital} />
             <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />

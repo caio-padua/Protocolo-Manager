@@ -15,6 +15,7 @@ import {
   Stethoscope,
   Award,
   PenLine,
+  Users,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "./_shared";
 
@@ -217,6 +218,14 @@ export default function CartaEncantamento() {
   const [mostrarBloco, setMostrarBloco] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
+  // Seletor "Cliente real": "" = exemplo estático (default). Ao escolher um
+  // cliente com lembrete, busca a mensagem REAL do motor e a exibe no lugar do
+  // BLOCO_EXEMPLO. O exemplo estático NUNCA é removido — só substituído na tela.
+  const [clientesReais, setClientesReais] = useState<{ clienteId: number; nome: string }[]>([]);
+  const [clienteRealId, setClienteRealId] = useState("");
+  const [previaReal, setPreviaReal] = useState("");
+  const [previaRealLoading, setPreviaRealLoading] = useState(false);
+
   const carregar = useCallback(() => {
     setLoading(true);
     return fetch(`${BASE}/api/mensagens-catalogo`)
@@ -292,15 +301,58 @@ export default function CartaEncantamento() {
       .join("\n\n");
   }, [periodo, dia, semana, status, versiculo, elogio, obs, ass, nome, isSabado, mostrarBloco, fala]);
 
+  // Popula o dropdown "Cliente real" com os clientes que têm lembrete.
+  useEffect(() => {
+    let alive = true;
+    fetch(`${BASE}/api/lembretes`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("lembretes"))))
+      .then((d: { lembretes: { clienteId: number; nome: string }[] }) => {
+        if (alive) setClientesReais(d.lembretes.map((l) => ({ clienteId: l.clienteId, nome: l.nome })));
+      })
+      .catch(() => {
+        if (alive) setClientesReais([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Busca a mensagem REAL do cliente escolhido (vazio = exemplo estático).
+  useEffect(() => {
+    if (!clienteRealId) {
+      setPreviaReal("");
+      return;
+    }
+    let alive = true;
+    setPreviaRealLoading(true);
+    fetch(`${BASE}/api/lembretes/${clienteRealId}/preview`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview"))))
+      .then((d: { mensagem: string }) => {
+        if (alive) setPreviaReal(d.mensagem);
+      })
+      .catch(() => {
+        if (alive) setPreviaReal("");
+      })
+      .finally(() => {
+        if (alive) setPreviaRealLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [clienteRealId]);
+
+  // Mensagem exibida: real (se cliente escolhido e prévia pronta) ou o exemplo.
+  const mensagemExibida = clienteRealId && previaReal ? previaReal : mensagem;
+
   function copiar() {
-    navigator.clipboard.writeText(mensagem).then(() => {
+    navigator.clipboard.writeText(mensagemExibida).then(() => {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
     });
   }
 
   function abrirWhatsapp() {
-    const url = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(mensagemExibida)}`;
     window.open(url, "_blank", "noopener");
   }
 
@@ -498,11 +550,34 @@ export default function CartaEncantamento() {
         <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
           <section className="panel-3d p-4">
             <BlockTitle icon={Send}>Prévia no WhatsApp</BlockTitle>
+
+            {/* Seletor Cliente real (C4) — "— exemplo —" no topo (default) */}
+            <div className="mb-3">
+              <SelectWell
+                icon={Users}
+                label="Cliente real"
+                value={clienteRealId}
+                onChange={setClienteRealId}
+              >
+                <option value="">— exemplo —</option>
+                {clientesReais.map((c) => (
+                  <option key={c.clienteId} value={String(c.clienteId)}>
+                    {c.nome}
+                  </option>
+                ))}
+              </SelectWell>
+              <p className="mt-1 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {clienteRealId
+                  ? "Mostrando a mensagem REAL deste cliente (motor por período)."
+                  : "Mostrando o exemplo estático — escolha um cliente para ver a mensagem real."}
+              </p>
+            </div>
+
             <div
               className="concave-3d whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-foreground/90"
               style={{ maxHeight: "62vh", overflowY: "auto", fontFamily: "'Georgia', serif" }}
             >
-              {mensagem}
+              {previaRealLoading ? "Carregando mensagem real…" : mensagemExibida}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
