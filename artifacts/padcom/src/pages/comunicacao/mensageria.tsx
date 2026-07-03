@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Inbox, Stethoscope, Repeat, ListChecks } from "lucide-react";
+import { Inbox, Stethoscope, Repeat, ListChecks, MessageSquare } from "lucide-react";
 import { ConsoleShell, BlockTitle, ExplainRow, BASE } from "./_shared";
 
 // Console da Mensageria — apresenta o motor de mensagens/lembretes que ja
@@ -54,6 +54,17 @@ export default function ComunicacaoMensageria() {
               </div>
             </div>
           </a>
+          <Link href="/comunicacao/whatsapp-status">
+            <div className="panel-3d-sub flex items-center gap-3 p-4 cursor-pointer">
+              <div className="bevel-3d flex h-9 w-9 items-center justify-center text-primary">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide">Status do WhatsApp</p>
+                <p className="text-[12px] text-muted-foreground">Entrega de cada envio e falhas dos lembretes</p>
+              </div>
+            </div>
+          </Link>
         </div>
       </section>
     </ConsoleShell>

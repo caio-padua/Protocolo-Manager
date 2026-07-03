@@ -17,11 +17,10 @@ import {
   type RespostaMotor,
 } from "../lib/motor-anamnese";
 import {
-  agendarLembretes,
-  processarLembretesVencidos,
-  type ItemLembrete,
-  type AgendarResultado,
-} from "../lib/mensageria";
+  sincronizarLembretePrescricao,
+  executarLembretesPeriodo,
+  type ItemLembretePrescricao,
+} from "../lib/lembrete-periodo";
 import { sendWhatsapp } from "../lib/whatsapp";
 
 const router = Router();
@@ -227,8 +226,10 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
     aprovados += 1;
   }
 
-  // b) AGENDAR LEMBRETES (mensageria inteligente por periodo/dia da semana).
-  const itensLembrete: ItemLembrete[] = [];
+  // b) ALIMENTAR O MOTOR RICO DE LEMBRETE POR PERÍODO (lembretes_prescricao).
+  // Traduz os itens da prescrição em períodos canônicos do IHE. O motor simples
+  // (mensageria.ts) está APOSENTADO — não é mais alimentado aqui.
+  const itensLembrete: ItemLembretePrescricao[] = [];
   for (const f of itensAmarrados.filter((r) => r.itemTipo === "formula"))
     itensLembrete.push({ tipo: "formula", nome: f.itemNome ?? f.itemRef ?? "Formula" });
   for (const inj of itensAmarrados.filter((r) => r.itemTipo === "injetavel"))
@@ -240,20 +241,23 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
   // (mensageria/Twilio/ZapSign) NAO pode derrubar a emissao nem perder a
   // aprovacao dos orcamentos. Cada chamada roda via Promise.allSettled e degrada
   // com graca. Lembretes vem antes do WhatsApp porque o resumo cita a contagem.
-  let lembretes: AgendarResultado = { agendados: 0, porTipo: { formula: 0, exame: 0, injetavel: 0 } };
-  const [lembRes] = await Promise.allSettled([
-    agendarLembretes(clienteId, cliente.name, cliente.phone ?? null, itensLembrete),
-  ]);
+  let lembretes = { formulas: 0, periodos: 0, horarios: [] as string[], ativo: false };
+  const [lembRes] = await Promise.allSettled([sincronizarLembretePrescricao(clienteId, itensLembrete)]);
   if (lembRes.status === "fulfilled") {
-    lembretes = lembRes.value;
+    lembretes = {
+      formulas: lembRes.value.formulas,
+      periodos: lembRes.value.periodos,
+      horarios: lembRes.value.horarios,
+      ativo: lembRes.value.ativo,
+    };
   } else {
-    req.log.error({ err: String(lembRes.reason) }, "[cockpit] falha ao agendar lembretes");
+    req.log.error({ err: String(lembRes.reason) }, "[cockpit] falha ao sincronizar lembretes");
   }
 
   // c) ENVIAR RESUMO p/ MENSAGERIA (WhatsApp; fallback link quando sem Twilio).
   const resumoMsg =
     `PAXTER | ${cliente.name}: consulta finalizada. Grade ${presente.gradeGlobal}. ` +
-    `${aprovados} orcamento(s) aprovado(s), ${lembretes.agendados} lembrete(s) agendado(s). ` +
+    `${aprovados} orcamento(s) aprovado(s), lembretes em ${lembretes.periodos} periodo(s) do dia. ` +
     `Em breve voce recebera os lembretes das suas formulas, exames e injetaveis.`;
   let whatsapp: { sent: boolean; via: string; link: string } = { sent: false, via: "link", link: "" };
   if (cliente.phone) {
@@ -275,10 +279,11 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
   });
 });
 
-// 4) POST /mensageria/processar — worker/cron dispara os lembretes vencidos.
-router.post("/mensageria/processar", async (req, res): Promise<void> => {
-  const limite = Math.min(Number(req.body?.limite) || 50, 200);
-  const resultado = await processarLembretesVencidos(limite);
+// 4) POST /mensageria/processar — worker/cron dispara os lembretes por período.
+// Mantido por compatibilidade; o disparo real agora é o motor rico (o cron
+// interno já roda a cada minuto). Devolve {examinados,enviados,falhas,pulados}.
+router.post("/mensageria/processar", async (_req, res): Promise<void> => {
+  const resultado = await executarLembretesPeriodo();
   res.json(resultado);
 });
 

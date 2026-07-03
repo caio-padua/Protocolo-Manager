@@ -49,9 +49,11 @@ import asaasRouter from "./asaas";
 import settingsRouter from "./settings";
 import integrationsRouter from "./integrations";
 import comunicacaoRouter from "./comunicacao";
+import whatsappStatusRouter from "./whatsapp-status";
 import financeiroRouter from "./financeiro";
 import assinaturasRouter, { assinaturaWebhookRouter, telegramWebhookRouter } from "./assinaturas";
 import brandRouter from "./brand";
+import whatsappWebhookRouter from "./whatsapp-webhook";
 
 const router: IRouter = Router();
 
@@ -70,6 +72,10 @@ router.use(assinaturaWebhookRouter);
 // Webhook do Telegram: o bot chama esta rota; associa chat_id ao paciente.
 // Registrado ANTES do portao (provedor externo sem sessao). Nao usa token aqui.
 router.use(telegramWebhookRouter);
+
+// Webhook de STATUS do Twilio (StatusCallback): atualiza a entrega da mensagem.
+// Registrado ANTES do portao; autenticidade via assinatura X-Twilio-Signature.
+router.use(whatsappWebhookRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
@@ -125,6 +131,7 @@ router.use(collaboratorRouter);
 router.use(settingsRouter);
 router.use(integrationsRouter);
 router.use(comunicacaoRouter);
+router.use(whatsappStatusRouter);
 router.use(financeiroRouter);
 router.use(assinaturasRouter);
 

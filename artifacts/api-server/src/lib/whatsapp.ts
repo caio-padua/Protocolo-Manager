@@ -3,6 +3,14 @@
 // (TWILIO_ACCOUNT_SID etc.) quando o cofre está vazio — fallback preservado.
 // Quando nada existe, retorna apenas um link wa.me de fallback —
 // nunca lança, nunca bloqueia o fluxo de prescrição.
+//
+// RASTREIO (Onda mensageria): cada envio grava uma linha em whatsapp_mensagens_log
+// (com o SID do Twilio e o status inicial) e pede um StatusCallback ao Twilio. O
+// status final chega de forma assíncrona no webhook POST /api/whatsapp/status, que
+// atualiza a linha por MessageSid. O telefone é guardado inteiro no banco (dado
+// nativo do cliente); a API/tela é que mascaram. Nunca logamos o token.
+import { db, whatsappMensagensLogTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { getSecret } from "./secure-settings";
 
@@ -42,16 +50,73 @@ export function buildWhatsappLink(phone: string, message: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
+// URL pública do webhook de status do Twilio (mesma base dos outros webhooks).
+// Em dev local sem domínio público, devolve null e o callback é omitido.
+export function statusCallbackUrl(): string | null {
+  const domain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0]?.trim();
+  if (!domain) return null;
+  const base = domain.startsWith("http") ? domain : `https://${domain}`;
+  return `${base.replace(/\/$/, "")}/api/whatsapp/status`;
+}
+
 export interface WhatsappResult {
   sent: boolean;
   via: "twilio" | "link";
   link: string;
   error?: string;
+  /** id da linha em whatsapp_mensagens_log (para vincular ao lembrete). */
+  logId?: number;
 }
 
 export interface SendWhatsappOptions {
   /** URL pública de imagem (banner de marca) anexada como mídia da mensagem. */
   mediaUrl?: string;
+  /** Contexto do envio (ex.: lembrete_prescricao | cockpit | manual). */
+  contexto?: string;
+  /** Cliente associado (para o rastreio). */
+  clienteId?: number;
+}
+
+// Grava uma linha no log de WhatsApp; nunca lança (best-effort). Devolve o id.
+async function registrarLog(args: {
+  telefone: string;
+  corpo: string;
+  sid?: string | null;
+  status: string;
+  errorCode?: string | null;
+  contexto?: string;
+  clienteId?: number;
+}): Promise<number | undefined> {
+  try {
+    const [row] = await db
+      .insert(whatsappMensagensLogTable)
+      .values({
+        clienteId: args.clienteId ?? null,
+        telefone: args.telefone,
+        corpo: args.corpo,
+        sid: args.sid ?? null,
+        status: args.status,
+        errorCode: args.errorCode ?? null,
+        contexto: args.contexto ?? null,
+      })
+      .returning({ id: whatsappMensagensLogTable.id });
+    return row?.id;
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "falha ao registrar log de WhatsApp");
+    return undefined;
+  }
+}
+
+async function atualizarLog(
+  logId: number | undefined,
+  patch: { status?: string; errorCode?: string | null },
+): Promise<void> {
+  if (!logId) return;
+  try {
+    await db.update(whatsappMensagensLogTable).set(patch).where(eq(whatsappMensagensLogTable.id, logId));
+  } catch (err: any) {
+    logger.warn({ err: err?.message, logId }, "falha ao atualizar log de WhatsApp");
+  }
 }
 
 // Consulta o status FINAL da mensagem no Twilio, com no máximo poucas tentativas
@@ -96,7 +161,15 @@ export async function sendWhatsapp(
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) {
-    return { sent: false, via: "link", link };
+    // Sem Twilio: registra como "link" (não é falha de entrega, é fallback manual).
+    const logId = await registrarLog({
+      telefone: phone,
+      corpo: message,
+      status: "link",
+      contexto: opts.contexto,
+      clienteId: opts.clienteId,
+    });
+    return { sent: false, via: "link", link, logId };
   }
 
   try {
@@ -117,6 +190,9 @@ export async function sendWhatsapp(
       // público a imagem é simplesmente omitida (degrade gracioso para texto).
       body.append("MediaUrl", opts.mediaUrl);
     }
+    // Pede ao Twilio que avise o status final (delivered/failed) no nosso webhook.
+    const callback = statusCallbackUrl();
+    if (callback) body.append("StatusCallback", callback);
 
     const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: "POST",
@@ -130,26 +206,44 @@ export async function sendWhatsapp(
     if (!resp.ok) {
       const text = await resp.text();
       logger.warn({ status: resp.status, text }, "Twilio WhatsApp send failed");
-      return { sent: false, via: "link", link, error: `HTTP ${resp.status}` };
+      const logId = await registrarLog({
+        telefone: phone,
+        corpo: message,
+        status: "failed",
+        errorCode: `HTTP_${resp.status}`,
+        contexto: opts.contexto,
+        clienteId: opts.clienteId,
+      });
+      return { sent: false, via: "link", link, error: `HTTP ${resp.status}`, logId };
     }
 
     // O 2xx do Twilio só diz que a mensagem foi ACEITA (status "queued"), NÃO
     // que foi entregue. A falha por estar fora da janela de 24h do WhatsApp
     // (erro 63016) chega de forma assíncrona, virando status "failed"/
-    // "undelivered" segundos depois. Para não fingir entrega (R-B2), lemos o
-    // corpo da criação e, se não houver erro imediato, fazemos uma verificação
-    // curta e limitada do status final. Se o Twilio confirmar falha, devolvemos
-    // sent:false com o código; se não conseguirmos confirmar a tempo, tratamos
-    // como aceito (best-effort) — nunca afirmamos entrega sem evidência.
+    // "undelivered" segundos depois. Registramos o log com o SID (para o webhook
+    // atualizar depois) e, se não houver erro imediato, fazemos uma verificação
+    // curta. Nunca afirmamos entrega sem evidência.
     const created = (await resp.json().catch(() => ({}))) as {
       sid?: string;
       status?: string;
       error_code?: number | null;
     };
+
+    const logId = await registrarLog({
+      telefone: phone,
+      corpo: message,
+      sid: created.sid ?? null,
+      status: created.status || "queued",
+      errorCode: created.error_code ? `twilio_${created.error_code}` : null,
+      contexto: opts.contexto,
+      clienteId: opts.clienteId,
+    });
+
     if (created.error_code) {
       const code = `twilio_${created.error_code}`;
       logger.warn({ code, sid: created.sid }, "Twilio WhatsApp erro imediato");
-      return { sent: false, via: "twilio", link, error: code };
+      await atualizarLog(logId, { status: "failed", errorCode: code });
+      return { sent: false, via: "twilio", link, error: code, logId };
     }
     if (created.sid) {
       const finalError = await verifyDeliveryFailure(
@@ -162,13 +256,22 @@ export async function sendWhatsapp(
           { error: finalError, sid: created.sid },
           "Twilio WhatsApp não entregue (status final)",
         );
-        return { sent: false, via: "twilio", link, error: finalError };
+        await atualizarLog(logId, { status: "failed", errorCode: finalError });
+        return { sent: false, via: "twilio", link, error: finalError, logId };
       }
     }
 
-    return { sent: true, via: "twilio", link };
+    return { sent: true, via: "twilio", link, logId };
   } catch (err: any) {
     logger.warn({ err: err?.message }, "Twilio WhatsApp exception");
-    return { sent: false, via: "link", link, error: err?.message ?? String(err) };
+    const logId = await registrarLog({
+      telefone: phone,
+      corpo: message,
+      status: "failed",
+      errorCode: "exception",
+      contexto: opts.contexto,
+      clienteId: opts.clienteId,
+    });
+    return { sent: false, via: "link", link, error: err?.message ?? String(err), logId };
   }
 }

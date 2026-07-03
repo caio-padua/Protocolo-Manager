@@ -76,6 +76,7 @@ import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
 import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
 import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
+import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import Hierarquia from "@/pages/hierarquia";
 import Governanca from "@/pages/governanca";
 
@@ -201,6 +202,7 @@ function Router() {
             <Route path="/comunicacao/digital" component={ComunicacaoDigital} />
             <Route path="/comunicacao/emails" component={ComunicacaoEmails} />
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
+            <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/governanca" component={Governanca} />
 
