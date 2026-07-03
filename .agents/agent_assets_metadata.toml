@@ -203,3 +203,9 @@ id = "nIPksIEoii9qrTz-fvOS-"
 uri = "file://screenshots/paxter-banner-final.png"
 type = "image"
 title = "Banner PAXTER 3D (WhatsApp/Telegram)"
+
+[[outputs]]
+id = "CBPyn9YZm5eQ64WG3qMHB"
+uri = "file://.local/exports/protocolo-22-caio.pdf"
+type = "pdf"
+title = "Protocolo Completo — Dr. Caio (id 22, 12 páginas, real)"
