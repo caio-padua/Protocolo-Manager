@@ -21,6 +21,7 @@ import {
   executarLembretesPeriodo,
   type ItemLembretePrescricao,
 } from "../lib/lembrete-periodo";
+import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { sendWhatsapp } from "../lib/whatsapp";
 
 const router = Router();
@@ -231,7 +232,7 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
   // (mensageria.ts) está APOSENTADO — não é mais alimentado aqui.
   const itensLembrete: ItemLembretePrescricao[] = [];
   for (const f of itensAmarrados.filter((r) => r.itemTipo === "formula"))
-    itensLembrete.push({ tipo: "formula", nome: f.itemNome ?? f.itemRef ?? "Formula" });
+    itensLembrete.push(await enriquecerItemFormula(f.itemRef, f.itemNome ?? f.itemRef ?? "Formula"));
   for (const inj of itensAmarrados.filter((r) => r.itemTipo === "injetavel"))
     itensLembrete.push({ tipo: "injetavel", nome: inj.itemNome ?? inj.itemRef ?? "Injetavel" });
   for (const ex of presente.exames.slice(0, 10))

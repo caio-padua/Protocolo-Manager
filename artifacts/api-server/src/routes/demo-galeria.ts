@@ -14,12 +14,15 @@ import {
   substancesTable,
   sessionsTable,
   validationCodesTable,
+  lembretesPrescricaoTable,
   type LembretePeriodoJson,
 } from "@workspace/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { montarMensagemOpus } from "../lib/mensageria-opus";
 import { templateLembretePrescricao, montarSaudacao, type Genero } from "../lib/lembrete-templates";
+import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
+import { derivarFormulasLembrete } from "../lib/formula-manipulada";
 
 const router: IRouter = Router();
 
@@ -137,7 +140,24 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
 
   const pnome = primeiroNome(cliente.name);
   const genero: Genero = "nao_informado";
-  const periodos = montarPeriodos(itensRaw);
+
+  // PERÍODOS pela cadeia REAL: anamnese -> doenças acesas -> fórmulas manipuladas
+  // enriquecidas (padrão ativos/via/posologia). Persiste o lembrete real do cliente
+  // via o mesmo motor do cockpit (sem efeito colateral em orçamentos). Sem fórmula
+  // manipulada, cai no rodízio de injetáveis (mantém a demo viva p/ qualquer cliente).
+  let periodos: LembretePeriodoJson[];
+  const formulasCliente = await derivarFormulasLembrete(clienteId);
+  if (formulasCliente.length > 0) {
+    await sincronizarLembretePrescricao(clienteId, formulasCliente);
+    const [lemb] = await db
+      .select({ periodos: lembretesPrescricaoTable.periodos })
+      .from(lembretesPrescricaoTable)
+      .where(eq(lembretesPrescricaoTable.clienteId, clienteId))
+      .limit(1);
+    periodos = Array.isArray(lemb?.periodos) && lemb.periodos.length ? lemb.periodos : montarPeriodos(itensRaw);
+  } else {
+    periodos = montarPeriodos(itensRaw);
+  }
   const listaSubs = itensRaw.map((i) => `• ${i.nome}${i.dose ? ` — ${i.dose}` : ""}`).join("\n");
   const primeira = sessoes[0];
   const ultima = sessoes[sessoes.length - 1];
@@ -173,7 +193,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
         periodos: [p],
       });
     mensagens.push({
-      tipo: `lembrete_${p.sigla.toLowerCase()}`,
+      tipo: `lembrete_${(p.sigla ?? p.nome).toLowerCase()}`,
       descricao: `Lembrete por período — ${p.nome}`,
       texto,
     });
