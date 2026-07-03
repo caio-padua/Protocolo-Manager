@@ -152,7 +152,7 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
 // janela_inicio de cada período usado. Regra de ouro: 1 mensagem por janela.
 // ============================================================================
 
-type PeriodoAntigo = "manha" | "tarde" | "noite";
+export type PeriodoAntigo = "manha" | "tarde" | "noite";
 
 // Item recebido do Cockpit (mesmo formato do motor simples, sem depender dele).
 // Campos ricos (Opção A) são OPCIONAIS: quando vierem, fluem até o template; quando
@@ -170,7 +170,7 @@ export interface ItemLembretePrescricao {
 }
 
 // Mapa período antigo → canônico do IHE (sigla, nome, janela_inicio HH:MM).
-const MAPA_PERIODO: Record<PeriodoAntigo, { sigla: string; nome: string; inicio: string }> = {
+export const MAPA_PERIODO: Record<PeriodoAntigo, { sigla: string; nome: string; inicio: string }> = {
   manha: { sigla: "IM", nome: "Início da Manhã", inicio: "07:00" },
   tarde: { sigla: "IT", nome: "Início da Tarde", inicio: "13:30" },
   noite: { sigla: "NO", nome: "Noite", inicio: "18:00" },
