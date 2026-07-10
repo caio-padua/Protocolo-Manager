@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Inbox, Stethoscope, Repeat, ListChecks, MessageSquare } from "lucide-react";
+import { Inbox, Stethoscope, Repeat, ListChecks, MessageSquare, Sparkles } from "lucide-react";
 import { ConsoleShell, BlockTitle, ExplainRow, BASE } from "./_shared";
 
 // Console da Mensageria — apresenta o motor de mensagens/lembretes que ja
@@ -27,6 +27,24 @@ export default function ComunicacaoMensageria() {
             profissional responsável (papel: enfermagem, administração, financeiro).
           </ExplainRow>
         </div>
+      </section>
+
+      <section className="panel-3d p-5">
+        <BlockTitle icon={Sparkles}>Fonte principal das mensagens</BlockTitle>
+        <Link href="/comunicacao/carta-encantamento">
+          <div className="panel-3d-sub flex items-center gap-3 p-4 cursor-pointer paxter-alert">
+            <div className="bevel-3d flex h-11 w-11 items-center justify-center text-primary">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide">Carta de Encantamento — Compositor</p>
+              <p className="text-[12px] text-muted-foreground">
+                Tela-dona do catálogo: períodos do dia, dias da semana, semanas do mês, sábado,
+                falas do Dr. Caio e assinatura. Toda edição aqui vale para o lembrete automático.
+              </p>
+            </div>
+          </div>
+        </Link>
       </section>
 
       <section className="panel-3d p-5">
