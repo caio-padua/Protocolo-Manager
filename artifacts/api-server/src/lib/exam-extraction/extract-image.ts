@@ -1,4 +1,5 @@
 import { ai } from "@workspace/integrations-gemini-ai";
+import { Type } from "@google/genai";
 import { compactExamText, inferLabName } from "./pdf-text";
 import { ExtractedImageReportSchema, type ExtractedImageReport } from "./schema-image";
 import { DEFAULT_MODEL, ESCALATION_MODEL, mediaPart } from "./extract";
@@ -38,11 +39,22 @@ REGRAS OBRIGATÓRIAS:
 Responda SOMENTE com o objeto JSON, sem comentários, sem markdown.`;
 
 function stripJsonFences(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("```")) {
-    return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  let s = raw.trim();
+  // Tira cerca de markdown (```json ... ```), mesmo com preambulo antes dela
+  // (ex.: o Gemini responde "Here is the JSON requested:\n```json{...}```").
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  // Recorta do 1o ate o ultimo delimitador de objeto/array, descartando qualquer
+  // texto de preambulo/epilogo que o modelo tenha adicionado fora do JSON.
+  const firstObj = s.indexOf("{");
+  const firstArr = s.indexOf("[");
+  const starts = [firstObj, firstArr].filter((i) => i >= 0);
+  if (starts.length) {
+    const start = Math.min(...starts);
+    const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+    if (end > start) s = s.slice(start, end + 1);
   }
-  return trimmed;
+  return s.trim();
 }
 
 // --- Classificacao por CONTEUDO (nunca por nome de arquivo) --------------------
@@ -81,22 +93,26 @@ export function classifyExamKind(text: string): ExamKind {
 type GeminiContents = Parameters<typeof ai.models.generateContent>[0]["contents"];
 
 async function runImageGemini(contents: GeminiContents, model: string): Promise<ExtractedImageReport> {
-  const response = await ai.models.generateContent({
-    model,
-    contents,
-    config: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 32768 },
-  });
-  const raw = response.text ?? "";
-  if (!raw.trim()) throw new Error("Gemini retornou resposta vazia na extração do laudo de imagem.");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripJsonFences(raw));
-  } catch (err) {
-    throw new Error(
-      `Falha ao parsear JSON do Gemini (imagem): ${(err as Error).message}. Trecho: ${raw.slice(0, 300)}`,
-    );
+  // temperature 0 e DETERMINISTICO: se o modelo devolver preambulo/JSON invalido,
+  // repetir a temperatura 0 daria o MESMO texto ruim. Por isso a 2a tentativa sobe
+  // a temperatura para forcar uma amostragem diferente que respeite o JSON.
+  const attempts = [0, 0.6];
+  let lastErr = "Gemini retornou resposta vazia na extração do laudo de imagem.";
+  for (const temperature of attempts) {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: { responseMimeType: "application/json", temperature, maxOutputTokens: 32768 },
+    });
+    const raw = response.text ?? "";
+    if (!raw.trim()) continue;
+    try {
+      return ExtractedImageReportSchema.parse(JSON.parse(stripJsonFences(raw)));
+    } catch (err) {
+      lastErr = `Falha ao parsear JSON do Gemini (imagem): ${(err as Error).message}. Trecho: ${raw.slice(0, 300)}`;
+    }
   }
-  return ExtractedImageReportSchema.parse(parsed);
+  throw new Error(lastErr);
 }
 
 async function callGeminiImage(text: string, model: string): Promise<ExtractedImageReport> {
@@ -122,33 +138,60 @@ const CLASSIFY_PROMPT = `Você recebe um ARQUIVO (imagem ou PDF). Responda SOMEN
 - kind="lab" para exame laboratorial; kind="imagem" para exame de imagem. Se isExam=false, use kind="lab".
 Sem markdown, sem comentário.`;
 
+// Geracao CONTROLADA (responseSchema): forca o Gemini a emitir SO um objeto que
+// obedece este esquema. Com isso o modelo nao pode devolver preambulo em texto
+// ("Here is the JSON requested:") — falha real observada no run em massa, que o
+// responseMimeType sozinho NAO impede. Este porteiro passa a ser deterministico.
+const CLASSIFY_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    isExam: { type: Type.BOOLEAN },
+    kind: { type: Type.STRING, enum: ["lab", "imagem"] },
+  },
+  required: ["isExam", "kind"],
+} as const;
+
 /**
  * Porteiro de VISAO: dado o arquivo (imagem ou PDF escaneado), decide se e exame
  * e de que tipo. "none" quando nao for exame (nao gasta a extracao pesada).
  */
 export async function classifyMedia(buffer: Buffer, mimeType: string): Promise<"lab" | "imagem" | "none"> {
-  const response = await ai.models.generateContent({
-    model: DEFAULT_MODEL,
-    contents: [{ role: "user", parts: [{ text: CLASSIFY_PROMPT }, mediaPart(buffer, mimeType)] }],
-    config: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 256 },
-  });
-  const raw = response.text ?? "";
+  const contents: GeminiContents = [
+    { role: "user", parts: [{ text: CLASSIFY_PROMPT }, mediaPart(buffer, mimeType)] },
+  ];
+  // temperature 0 e DETERMINISTICO: alguns PDFs fazem o modelo devolver preambulo
+  // em texto ("Here is the JSON requested:") mesmo com responseMimeType/responseSchema.
+  // Repetir a temperatura 0 daria o MESMO texto ruim, entao a 2a tentativa sobe a
+  // temperatura para forcar uma amostragem diferente que respeite o JSON.
+  const attempts = [0, 0.6];
   // IMPORTANTE (fail-open): so retornamos "none" quando o modelo AFIRMA que nao e
   // exame. Resposta vazia/corrompida NAO pode virar "none" — isso gravaria o doc
   // como "ignorado" (permanente) e o dedup por (clientId,hash) impediria reprocessar
-  // um exame verdadeiro numa nova execucao. Nesse caso lancamos: o worker conta
-  // como erro (transitorio), SEM gravar linha, e a proxima run tenta de novo.
-  if (!raw.trim()) throw new Error("Porteiro (classifyMedia): Gemini retornou resposta vazia.");
-  let parsed: { isExam?: boolean; kind?: string };
-  try {
-    parsed = JSON.parse(stripJsonFences(raw)) as { isExam?: boolean; kind?: string };
-  } catch (err) {
-    throw new Error(
-      `Porteiro (classifyMedia): JSON invalido do Gemini: ${(err as Error).message}. Trecho: ${raw.slice(0, 200)}`,
-    );
+  // um exame verdadeiro numa nova execucao. Se TODAS as tentativas falharem lancamos:
+  // o worker conta como erro (transitorio), SEM gravar linha, e a proxima run retenta.
+  let lastErr = "Porteiro (classifyMedia): Gemini retornou resposta vazia.";
+  for (const temperature of attempts) {
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: CLASSIFY_SCHEMA,
+        temperature,
+        maxOutputTokens: 512,
+      },
+    });
+    const raw = response.text ?? "";
+    if (!raw.trim()) continue;
+    try {
+      const parsed = JSON.parse(stripJsonFences(raw)) as { isExam?: boolean; kind?: string };
+      if (!parsed.isExam) return "none";
+      return parsed.kind === "imagem" ? "imagem" : "lab";
+    } catch (err) {
+      lastErr = `Porteiro (classifyMedia): JSON invalido do Gemini: ${(err as Error).message}. Trecho: ${raw.slice(0, 200)}`;
+    }
   }
-  if (!parsed.isExam) return "none";
-  return parsed.kind === "imagem" ? "imagem" : "lab";
+  throw new Error(lastErr);
 }
 
 const IMAGE_MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotografada/escaneada ou PDF sem texto). Faça a LEITURA ÓPTICA do arquivo e extraia os dados conforme as regras acima.`;

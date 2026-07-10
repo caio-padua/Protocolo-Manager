@@ -32,14 +32,22 @@ REGRAS OBRIGATÓRIAS:
 Responda SOMENTE com o objeto JSON, sem comentários, sem markdown.`;
 
 function stripJsonFences(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("```")) {
-    return trimmed
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
+  let s = raw.trim();
+  // Tira cerca de markdown (```json ... ```), mesmo com preambulo antes dela
+  // (ex.: o Gemini responde "Here is the JSON requested:\n```json{...}```").
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  // Recorta do 1o ate o ultimo delimitador de objeto/array, descartando qualquer
+  // texto de preambulo/epilogo que o modelo tenha adicionado fora do JSON.
+  const firstObj = s.indexOf("{");
+  const firstArr = s.indexOf("[");
+  const starts = [firstObj, firstArr].filter((i) => i >= 0);
+  if (starts.length) {
+    const start = Math.min(...starts);
+    const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+    if (end > start) s = s.slice(start, end + 1);
   }
-  return trimmed;
+  return s.trim();
 }
 
 type GeminiContents = Parameters<typeof ai.models.generateContent>[0]["contents"];
@@ -51,31 +59,26 @@ export function mediaPart(buffer: Buffer, mimeType: string): { inlineData: { mim
 
 /** Runner unico: aceita texto puro OU partes multimodais (visão). */
 async function runExamGemini(contents: GeminiContents, model: string): Promise<ExtractedExam> {
-  const response = await ai.models.generateContent({
-    model,
-    contents,
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0,
-      maxOutputTokens: 32768,
-    },
-  });
-
-  const raw = response.text ?? "";
-  if (!raw.trim()) {
-    throw new Error("Gemini retornou resposta vazia na extração do laudo.");
+  // temperature 0 e DETERMINISTICO: se o modelo devolver preambulo/JSON invalido,
+  // repetir a temperatura 0 daria o MESMO texto ruim. Por isso a 2a tentativa sobe
+  // a temperatura para forcar uma amostragem diferente que respeite o JSON.
+  const attempts = [0, 0.6];
+  let lastErr = "Gemini retornou resposta vazia na extração do laudo.";
+  for (const temperature of attempts) {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: { responseMimeType: "application/json", temperature, maxOutputTokens: 32768 },
+    });
+    const raw = response.text ?? "";
+    if (!raw.trim()) continue;
+    try {
+      return ExtractedExamSchema.parse(JSON.parse(stripJsonFences(raw)));
+    } catch (err) {
+      lastErr = `Falha ao parsear JSON do Gemini: ${(err as Error).message}. Trecho: ${raw.slice(0, 300)}`;
+    }
   }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripJsonFences(raw));
-  } catch (err) {
-    throw new Error(
-      `Falha ao parsear JSON do Gemini: ${(err as Error).message}. Trecho: ${raw.slice(0, 300)}`,
-    );
-  }
-
-  return ExtractedExamSchema.parse(parsed);
+  throw new Error(lastErr);
 }
 
 async function callGemini(text: string, model: string): Promise<ExtractedExam> {

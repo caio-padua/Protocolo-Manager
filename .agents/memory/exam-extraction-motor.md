@@ -35,3 +35,19 @@ Vive em `artifacts/api-server/src/lib/exam-extraction/`.
 - Valores devem casar com o PDF real, não com expectativa de teste: a PCR foi extraída certa
   ("Proteína C Reativa Ultra Sensível 0,29 mg/dL") mas o matcher do teste usava o apelido "PCR".
   Teste por LISTA DE APELIDOS, não por nome único.
+
+## JSON do Gemini pelo proxy da Replit: garantia é fraca; retry precisa mudar temperatura
+- Regra: `responseMimeType:"application/json"` E `responseSchema` são **best-effort** pelo proxy
+  de IA da Replit. Uma fração de entradas (PDFs de imagem grandes/escaneados) ainda volta com
+  preâmbulo em TEXTO ("Here is the JSON requested:...") e o `JSON.parse` estoura no 1º caractere.
+  Não os trate como garantia; `stripJsonFences` só recupera quando há `{`/cerca no texto.
+- Regra: **`temperature:0` é determinístico** → repetir a mesma chamada dá o mesmo texto ruim.
+  Retry só ajuda se **subir a temperatura**. Todo runner do motor (porteiro `classifyMedia` +
+  extratores lab/imagem) usa `attempts = [0, 0.6]` e só lança se todas falharem (contrato fail-open
+  intacto). **Why:** sem o bump de temperatura, os mesmos arquivos falhavam idênticos em toda run.
+
+## esbuild pode gerar bundle PARCIAL — conferir token de código no dist
+- Regra: restart plano do api-server (`dev` = `build && start`) já saiu com bundle parcial (metade
+  de uma edição no mesmo arquivo). **How to apply:** ao validar correção por runtime, faça
+  `rm -rf dist && pnpm run build` e confirme com `grep` um TOKEN DE CÓDIGO da mudança no dist
+  (comentário não serve — esbuild remove; mtime do dist também não prova).
