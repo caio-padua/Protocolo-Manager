@@ -33,6 +33,13 @@ export const examDocumentsTable = pgTable(
   labName: text("lab_name"),
   collectionDate: date("collection_date", { mode: "string" }),
   sourcePdfDriveId: text("source_pdf_drive_id"),
+  // Proveniencia do documento: como/onde ele entrou no sistema.
+  // origin: portal | upload | drive-import (importacao em massa do Drive)
+  origin: text("origin"),
+  // caminho de origem no Drive (ex.: "LUCIANO XAVIER MANHOZO / EXAMES")
+  sourcePath: text("source_path"),
+  // tipo do laudo detectado por CONTEUDO: lab | imagem (nunca por nome de arquivo)
+  examKind: text("exam_kind"),
   // recebido -> conferido_1 (C1 operacional) -> conferido (C2 clinica = liberado).
   // O valor clinico so e verdade apos a conferencia humana (2 fases). Documentos
   // legados ja em "conferido" continuam validos (tratados como C2 concluido).

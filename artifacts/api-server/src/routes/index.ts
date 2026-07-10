@@ -58,6 +58,7 @@ import assinaturasRouter, { assinaturaWebhookRouter, telegramWebhookRouter } fro
 import brandRouter from "./brand";
 import whatsappWebhookRouter from "./whatsapp-webhook";
 import demoGaleriaRouter from "./demo-galeria";
+import importarDriveRouter from "./importar-drive";
 
 const router: IRouter = Router();
 
@@ -142,5 +143,6 @@ router.use(whatsappStatusRouter);
 router.use(financeiroRouter);
 router.use(assinaturasRouter);
 router.use(demoGaleriaRouter);
+router.use(importarDriveRouter);
 
 export default router;

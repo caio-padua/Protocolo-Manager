@@ -42,10 +42,18 @@ function stripJsonFences(raw: string): string {
   return trimmed;
 }
 
-async function callGemini(text: string, model: string): Promise<ExtractedExam> {
+type GeminiContents = Parameters<typeof ai.models.generateContent>[0]["contents"];
+
+/** Converte bytes (imagem ou PDF) numa "part" inline para o Gemini ler por visão. */
+export function mediaPart(buffer: Buffer, mimeType: string): { inlineData: { mimeType: string; data: string } } {
+  return { inlineData: { mimeType, data: buffer.toString("base64") } };
+}
+
+/** Runner unico: aceita texto puro OU partes multimodais (visão). */
+async function runExamGemini(contents: GeminiContents, model: string): Promise<ExtractedExam> {
   const response = await ai.models.generateContent({
     model,
-    contents: `${EXTRACTION_PROMPT}\n\n=== TEXTO DO LAUDO ===\n${text}`,
+    contents,
     config: {
       responseMimeType: "application/json",
       temperature: 0,
@@ -68,6 +76,36 @@ async function callGemini(text: string, model: string): Promise<ExtractedExam> {
   }
 
   return ExtractedExamSchema.parse(parsed);
+}
+
+async function callGemini(text: string, model: string): Promise<ExtractedExam> {
+  return runExamGemini(`${EXTRACTION_PROMPT}\n\n=== TEXTO DO LAUDO ===\n${text}`, model);
+}
+
+const MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotografada/escaneada ou PDF sem texto). Faça a LEITURA ÓPTICA do arquivo e extraia os dados conforme as regras acima.`;
+
+/** Extrai um laudo LABORATORIAL diretamente de uma imagem ou PDF escaneado (visão). */
+export async function extractExamFromMedia(
+  buffer: Buffer,
+  mimeType: string,
+  options: { model?: string; disableEscalation?: boolean } = {},
+): Promise<ExtractExamResult> {
+  const firstModel = options.model ?? DEFAULT_MODEL;
+  const contents: GeminiContents = [
+    { role: "user", parts: [{ text: EXTRACTION_PROMPT + MEDIA_SUFFIX }, mediaPart(buffer, mimeType)] },
+  ];
+  const data = await runExamGemini(contents, firstModel);
+  const shouldEscalate =
+    !options.model && !options.disableEscalation && data.confidence < CONFIDENCE_FLOOR;
+  if (shouldEscalate) {
+    try {
+      const escalated = await runExamGemini(contents, ESCALATION_MODEL);
+      return { data: escalated, modelUsed: ESCALATION_MODEL, escalated: true };
+    } catch {
+      return { data, modelUsed: firstModel, escalated: false };
+    }
+  }
+  return { data, modelUsed: firstModel, escalated: false };
 }
 
 export interface ExtractExamOptions {

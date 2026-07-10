@@ -582,6 +582,52 @@ export async function uploadFileToDrive(
   };
 }
 
+export interface DriveChild {
+  id: string;
+  name: string;
+  mimeType: string;
+  isFolder: boolean;
+  size: number | null;
+}
+
+/** Lista os filhos diretos de uma pasta (arquivos e subpastas), paginando tudo. */
+export async function driveListChildren(folderId: string): Promise<DriveChild[]> {
+  const drive = await getUncachableDriveClient();
+  const out: DriveChild[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: "nextPageToken, files(id, name, mimeType, size)",
+      pageSize: 1000,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageToken,
+    });
+    for (const f of res.data.files ?? []) {
+      out.push({
+        id: f.id!,
+        name: f.name ?? "",
+        mimeType: f.mimeType ?? "",
+        isFolder: f.mimeType === "application/vnd.google-apps.folder",
+        size: f.size ? Number(f.size) : null,
+      });
+    }
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return out;
+}
+
+/** Baixa o conteudo bruto de um arquivo do Drive como Buffer. */
+export async function driveDownloadFile(fileId: string): Promise<Buffer> {
+  const drive = await getUncachableDriveClient();
+  const res = await drive.files.get(
+    { fileId, alt: "media", supportsAllDrives: true },
+    { responseType: "arraybuffer" },
+  );
+  return Buffer.from(res.data as ArrayBuffer);
+}
+
 export async function shareWithClient(fileOrFolderId: string, clientEmail: string): Promise<void> {
   const drive = await getUncachableDriveClient();
   try {

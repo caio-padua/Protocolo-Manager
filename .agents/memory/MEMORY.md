@@ -93,4 +93,5 @@
 - [Concierge antecipa a janela natural](concierge-janela-natural.md) — piso de 3 meses vale só na vaga marcada da FILA (chosenDate+chosenTime obrigatorios no server); earliestDate (desejada) sempre livre; concierge isento.
 - [paxter-alert é só glow ring (sem fill)](paxter-alert-sem-fill.md) — paxter-alert dá bevel+halo na cor, NAO pinta fundo; faixa que lê pela cor precisa de tint inline (aditivo); verde usa bevel-3d-ok que já preenche.
 - [Idempotencia doc clinico por paciente](idempotencia-documento-clinico-por-paciente.md) — hash global mistura prontuarios: chave e (cliente,hash); consumo clinico so le docs conferidos.
+- [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open (so ignora nao-exame confirmado); teto conta arquivos processados+sniff.
 - [Conferencia humana de exames (C1/C2)](conferencia-humana-exames.md) — 2 fases (recebido->conferido_1->conferido), selo por coluna maior-id-vence, toggle so afeta Evolucao; fetch cru de /settings/* precisa Bearer manual.

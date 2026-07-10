@@ -8,7 +8,7 @@ import {
   clientsTable,
   professionalsTable,
 } from "@workspace/db";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, ne, desc, and, inArray } from "drizzle-orm";
 import { getSetting } from "../lib/secure-settings";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
 import { extractExamFromText } from "../lib/exam-extraction/extract";
@@ -286,9 +286,14 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
         conf2At: examDocumentsTable.conf2At,
       })
       .from(examDocumentsTable);
+    // Documentos "ignorado" (nao-exame filtrado pelo porteiro da importacao em
+    // massa) nao aparecem na tela de exames — servem so de dedup de custo.
+    const notIgnored = ne(examDocumentsTable.status, "ignorado");
     const docs = clientId
-      ? await base.where(eq(examDocumentsTable.clientId, clientId)).orderBy(desc(examDocumentsTable.id))
-      : await base.orderBy(desc(examDocumentsTable.id));
+      ? await base
+          .where(and(eq(examDocumentsTable.clientId, clientId), notIgnored))
+          .orderBy(desc(examDocumentsTable.id))
+      : await base.where(notIgnored).orderBy(desc(examDocumentsTable.id));
 
     // nome do cliente para exibicao
     const clientIds = [...new Set(docs.map((d) => d.clientId))];
