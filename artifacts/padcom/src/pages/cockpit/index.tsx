@@ -3,13 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ClientPicker } from "@/components/ClientPicker";
 import {
   Accordion,
   AccordionItem,
@@ -213,18 +207,12 @@ export default function Cockpit() {
       <div className="panel-3d mb-5 flex flex-wrap items-center gap-3 rounded-lg p-3">
         <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Cliente</span>
         <div className="min-w-[280px] flex-1">
-          <Select value={clienteId ? String(clienteId) : ""} onValueChange={(v) => setClienteId(Number(v))}>
-            <SelectTrigger className="field-engraved">
-              <SelectValue placeholder="Escolha um cliente para abrir a consulta..." />
-            </SelectTrigger>
-            <SelectContent>
-              {(clientes ?? []).slice(0, 200).map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ClientPicker
+            clientes={clientes ?? []}
+            value={clienteId}
+            onChange={setClienteId}
+            placeholder="Escolha um cliente para abrir a consulta..."
+          />
         </div>
         <Button
           className="btn-3d-soft gap-2 font-semibold"

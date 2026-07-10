@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
+import { ClientPicker } from "@/components/ClientPicker";
 import { getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
 
 // ===========================================================================
@@ -479,18 +480,13 @@ export default function ExamesCliente() {
       <section className="panel-3d p-5">
         <BlockTitle icon={Upload}>1. Receber exame (PDF)</BlockTitle>
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <select
-            className="concave-3d h-10 w-full min-w-0 rounded-md bg-transparent px-3 text-sm"
-            value={clienteId}
-            onChange={(e) => setClienteId(e.target.value)}
-          >
-            <option value="">Todos os clientes (filtro)</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={String(c.id)}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <ClientPicker
+            clientes={clientes}
+            value={clienteId ? Number(clienteId) : null}
+            onChange={(id) => setClienteId(id == null ? "" : String(id))}
+            placeholder="Todos os clientes (filtro)"
+            allOptionLabel="Todos os clientes (filtro)"
+          />
           <input
             ref={fileRef}
             type="file"
