@@ -1,0 +1,567 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FlaskConical,
+  Upload,
+  Loader2,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Microscope,
+  TableProperties,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  RefreshCw,
+  Stamp,
+} from "lucide-react";
+import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
+
+// ===========================================================================
+// EXAMES DO CLIENTE — Trajetoria do Exame Uploadado (spec
+// specs/trajetoria-exame-upload.md). Tela unica com 3 postos de trabalho:
+// 1. Recepcao (upload avulso por seletor de cliente — Modo Duplo)
+// 2. Mesa de Validacao (fila de documentos + conferencia em 1 clique)
+// 3. Evolucao Antes/Depois (comparativo por analito, colunas por data+lab)
+// A leitura por IA demora 70-106 segundos em laudo grande: a tela NUNCA
+// bloqueia — envia, recebe 202 e acompanha por sondagem (polling).
+// ===========================================================================
+
+interface ClienteOption {
+  id: number;
+  name: string;
+}
+
+interface DocRow {
+  id: number;
+  clientId: number;
+  clientName: string;
+  fileName: string;
+  labName: string | null;
+  collectionDate: string | null;
+  status: string;
+  confidence: string | null;
+  modelUsed: string | null;
+  createdAt: string;
+  conferredAt: string | null;
+}
+
+interface ResultRow {
+  id: number;
+  analyteCode: string | null;
+  analyteNameRaw: string;
+  valueRaw: string | null;
+  unitRaw: string | null;
+  refLow: string | null;
+  refHigh: string | null;
+  status: string | null;
+  collectionDate: string | null;
+  labName: string | null;
+}
+
+interface DocDetail extends DocRow {
+  results: ResultRow[];
+}
+
+interface EvolucaoCell {
+  value: string | null;
+  valueNum: number | null;
+  unit: string | null;
+  status: string | null;
+  documentId: number;
+}
+
+interface EvolucaoData {
+  columns: Array<{ key: string; date: string | null; lab: string | null }>;
+  analytes: Array<{
+    key: string;
+    name: string;
+    unit: string | null;
+    refLow: string | null;
+    refHigh: string | null;
+    trend: "subiu" | "caiu" | "estavel" | null;
+    cells: Record<string, EvolucaoCell>;
+  }>;
+}
+
+function formatDateBr(iso: string | null): string {
+  if (!iso) return "—";
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
+
+function statusChip(status: string) {
+  switch (status) {
+    case "processando":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600">
+          <Loader2 className="h-3 w-3 animate-spin" /> Lendo (IA)
+        </span>
+      );
+    case "recebido":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-cyan-600">
+          <Microscope className="h-3 w-3" /> Aguarda conferencia
+        </span>
+      );
+    case "conferido":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+          <CheckCircle2 className="h-3 w-3" /> Conferido
+        </span>
+      );
+    case "erro":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-red-600">
+          <AlertTriangle className="h-3 w-3" /> Erro na leitura
+        </span>
+      );
+    default:
+      return <span className="text-xs text-muted-foreground">{status}</span>;
+  }
+}
+
+function resultStatusClass(status: string | null): string {
+  switch (status) {
+    case "acima":
+      return "bg-red-500/15 text-red-600";
+    case "abaixo":
+      return "bg-amber-500/15 text-amber-600";
+    case "dentro":
+      return "bg-emerald-500/15 text-emerald-700";
+    case "conferencia":
+      return "bg-slate-500/15 text-slate-600";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+export default function ExamesCliente() {
+  // ---- Clientes ----
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
+  const [clienteId, setClienteId] = useState<string>("");
+
+  // ---- Upload ----
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  // ---- Fila ----
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [carregandoDocs, setCarregandoDocs] = useState(true);
+
+  // ---- Mesa de Validacao ----
+  const [docSelecionado, setDocSelecionado] = useState<number | null>(null);
+  const [detalhe, setDetalhe] = useState<DocDetail | null>(null);
+  const [conferindo, setConferindo] = useState(false);
+
+  // ---- Evolucao ----
+  const [evolucao, setEvolucao] = useState<EvolucaoData | null>(null);
+  const [carregandoEvolucao, setCarregandoEvolucao] = useState(false);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/clients`)
+      .then((r) => r.json())
+      .then((d: ClienteOption[]) =>
+        setClientes(
+          [...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+        ),
+      )
+      .catch(() => setClientes([]));
+  }, []);
+
+  const carregarDocs = useCallback(() => {
+    return fetch(`${BASE}/api/exames-lab/documentos`)
+      .then((r) => r.json())
+      .then((d: DocRow[]) => setDocs(Array.isArray(d) ? d : []))
+      .catch(() => undefined)
+      .finally(() => setCarregandoDocs(false));
+  }, []);
+
+  useEffect(() => {
+    void carregarDocs();
+  }, [carregarDocs]);
+
+  // Sondagem: enquanto houver documento "processando", atualiza a cada 5s
+  const temProcessando = docs.some((d) => d.status === "processando");
+  useEffect(() => {
+    if (!temProcessando) return;
+    const t = setInterval(() => {
+      void carregarDocs();
+      if (docSelecionado) void carregarDetalhe(docSelecionado);
+    }, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temProcessando, docSelecionado]);
+
+  const carregarDetalhe = useCallback((id: number) => {
+    return fetch(`${BASE}/api/exames-lab/documentos/${id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("detalhe"))))
+      .then((d: DocDetail) => setDetalhe(d))
+      .catch(() => setDetalhe(null));
+  }, []);
+
+  useEffect(() => {
+    if (docSelecionado) void carregarDetalhe(docSelecionado);
+    else setDetalhe(null);
+  }, [docSelecionado, carregarDetalhe]);
+
+  const carregarEvolucao = useCallback((cid: string) => {
+    if (!cid) {
+      setEvolucao(null);
+      return;
+    }
+    setCarregandoEvolucao(true);
+    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+      .then((r) => r.json())
+      .then((d: EvolucaoData) => setEvolucao(d))
+      .catch(() => setEvolucao(null))
+      .finally(() => setCarregandoEvolucao(false));
+  }, []);
+
+  useEffect(() => {
+    carregarEvolucao(clienteId);
+  }, [clienteId, carregarEvolucao, docs]);
+
+  const enviarExame = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!clienteId || !file) {
+      setAviso("Escolha o cliente e o arquivo PDF antes de enviar.");
+      return;
+    }
+    setEnviando(true);
+    setAviso(null);
+    try {
+      const fd = new FormData();
+      fd.append("clientId", clienteId);
+      fd.append("file", file);
+      const r = await fetch(`${BASE}/api/exames-lab/ingest`, {
+        method: "POST",
+        body: fd,
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Falha no envio");
+      setAviso(
+        d.duplicate
+          ? `Este arquivo ja foi recebido antes (documento ${d.documentId}). Nada foi duplicado.`
+          : `Exame recebido (documento ${d.documentId}). A leitura por inteligencia artificial leva de 1 a 2 minutos — acompanhe na fila abaixo.`,
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      void carregarDocs();
+      setDocSelecionado(d.documentId);
+    } catch (e) {
+      setAviso(`Erro: ${(e as Error).message}`);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const conferir = async () => {
+    if (!docSelecionado) return;
+    setConferindo(true);
+    try {
+      const r = await fetch(
+        `${BASE}/api/exames-lab/documentos/${docSelecionado}/conferir`,
+        { method: "PATCH" },
+      );
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error ?? "Falha ao conferir");
+      }
+      await carregarDetalhe(docSelecionado);
+      void carregarDocs();
+    } catch (e) {
+      setAviso(`Erro: ${(e as Error).message}`);
+    } finally {
+      setConferindo(false);
+    }
+  };
+
+  const docsFiltrados = useMemo(
+    () =>
+      clienteId ? docs.filter((d) => String(d.clientId) === clienteId) : docs,
+    [docs, clienteId],
+  );
+
+  return (
+    <ConsoleShell
+      icon={FlaskConical}
+      title="Exames do Cliente"
+      subtitle="Upload → leitura por IA → Mesa de Validação → Evolução Antes/Depois"
+    >
+      {/* ---- 1. Recepcao (upload avulso) ---- */}
+      <section className="panel-3d p-5">
+        <BlockTitle icon={Upload}>1. Receber exame (PDF)</BlockTitle>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <select
+            className="concave-3d h-10 w-full min-w-0 rounded-md bg-transparent px-3 text-sm"
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+          >
+            <option value="">Todos os clientes (filtro)</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf"
+            className="concave-3d h-10 w-full min-w-0 rounded-md bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-primary/10 file:px-2 file:py-0.5 file:text-xs file:font-semibold file:text-primary"
+          />
+          <button
+            onClick={() => void enviarExame()}
+            disabled={enviando}
+            className="btn-3d-soft inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold uppercase tracking-wide text-primary disabled:opacity-60"
+          >
+            {enviando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            Enviar ao motor
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          O mesmo motor recebe automaticamente os exames que o cliente envia pela
+          Area do Cliente. O valor lido pela IA so vira verdade clinica depois da
+          conferencia humana na Mesa de Validacao.
+        </p>
+        {aviso && (
+          <div className="bevel-3d mt-3 px-3 py-2 text-sm">
+            {aviso}
+          </div>
+        )}
+      </section>
+
+      {/* ---- 2. Fila + Mesa de Validacao ---- */}
+      <section className="panel-3d p-5">
+        <div className="flex items-center justify-between">
+          <BlockTitle icon={Microscope}>2. Mesa de Validação</BlockTitle>
+          <button
+            onClick={() => {
+              setCarregandoDocs(true);
+              void carregarDocs();
+            }}
+            className="btn-3d-soft inline-flex h-8 items-center gap-1.5 px-3 text-xs font-semibold uppercase tracking-wide text-primary"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          </button>
+        </div>
+
+        {carregandoDocs ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando fila…
+          </div>
+        ) : docsFiltrados.length === 0 ? (
+          <p className="py-6 text-sm text-muted-foreground">
+            Nenhum documento na fila{clienteId ? " deste cliente" : ""}.
+          </p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-3">Documento</th>
+                  <th className="py-2 pr-3">Cliente</th>
+                  <th className="py-2 pr-3">Laboratorio</th>
+                  <th className="py-2 pr-3">Coleta</th>
+                  <th className="py-2 pr-3">Situacao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docsFiltrados.map((d) => (
+                  <tr
+                    key={d.id}
+                    onClick={() => setDocSelecionado(d.id)}
+                    className={`cursor-pointer border-b last:border-0 hover:bg-primary/5 ${docSelecionado === d.id ? "bg-primary/10" : ""}`}
+                  >
+                    <td className="py-2 pr-3">
+                      <span className="inline-flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-medium">#{d.id}</span>
+                        <span className="max-w-[220px] truncate text-muted-foreground">
+                          {d.fileName}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">{d.clientName}</td>
+                    <td className="py-2 pr-3">{d.labName ?? "—"}</td>
+                    <td className="py-2 pr-3">{formatDateBr(d.collectionDate)}</td>
+                    <td className="py-2 pr-3">{statusChip(d.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {detalhe && (
+          <div className="concave-3d mt-4 rounded-md p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">
+                  Documento #{detalhe.id} — {detalhe.clientName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {detalhe.labName ?? "Laboratorio nao identificado"} · Coleta{" "}
+                  {formatDateBr(detalhe.collectionDate)} · Confianca da leitura:{" "}
+                  {detalhe.confidence ?? "—"} ({detalhe.modelUsed ?? "—"})
+                </p>
+              </div>
+              {detalhe.status === "recebido" && (
+                <button
+                  onClick={() => void conferir()}
+                  disabled={conferindo}
+                  className="btn-3d-soft inline-flex h-9 items-center gap-2 px-4 text-sm font-semibold uppercase tracking-wide text-emerald-700 disabled:opacity-60"
+                >
+                  {conferindo ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Stamp className="h-4 w-4" />
+                  )}
+                  Conferir (1 clique)
+                </button>
+              )}
+              {detalhe.status === "conferido" && statusChip("conferido")}
+            </div>
+
+            {detalhe.results.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="py-1.5 pr-3">Analito</th>
+                      <th className="py-1.5 pr-3">Valor</th>
+                      <th className="py-1.5 pr-3">Unidade</th>
+                      <th className="py-1.5 pr-3">Referencia</th>
+                      <th className="py-1.5 pr-3">Data</th>
+                      <th className="py-1.5 pr-3">Situacao</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalhe.results.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-1.5 pr-3 font-medium">
+                          {r.analyteNameRaw}
+                          {r.analyteCode && (
+                            <span className="ml-1.5 text-[10px] uppercase text-primary">
+                              {r.analyteCode}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-3">{r.valueRaw ?? "—"}</td>
+                        <td className="py-1.5 pr-3">{r.unitRaw ?? "—"}</td>
+                        <td className="py-1.5 pr-3 text-muted-foreground">
+                          {r.refLow ?? ""}
+                          {r.refLow || r.refHigh ? " a " : "—"}
+                          {r.refHigh ?? ""}
+                        </td>
+                        <td className="py-1.5 pr-3">{formatDateBr(r.collectionDate)}</td>
+                        <td className="py-1.5 pr-3">
+                          <span
+                            className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase ${resultStatusClass(r.status)}`}
+                          >
+                            {r.status ?? "sem ref."}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : detalhe.status === "processando" ? (
+              <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> A inteligencia
+                artificial ainda esta lendo este laudo…
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Nenhum analito extraido deste documento.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ---- 3. Evolucao Antes/Depois ---- */}
+      <section className="panel-3d p-5">
+        <BlockTitle icon={TableProperties}>3. Evolução Antes / Depois</BlockTitle>
+        {!clienteId ? (
+          <p className="py-4 text-sm text-muted-foreground">
+            Escolha um cliente no seletor do bloco 1 para ver o comparativo.
+          </p>
+        ) : carregandoEvolucao ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Montando comparativo…
+          </div>
+        ) : !evolucao || evolucao.analytes.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">
+            Nenhum resultado registrado para este cliente ainda.
+          </p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-3">Analito</th>
+                  {evolucao.columns.map((c) => (
+                    <th key={c.key} className="py-2 pr-3">
+                      <div>{formatDateBr(c.date)}</div>
+                      <div className="font-normal normal-case text-muted-foreground">
+                        {c.lab ?? ""}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="py-2 pr-3">Tendencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {evolucao.analytes.map((a) => (
+                  <tr key={a.key} className="border-b last:border-0">
+                    <td className="py-2 pr-3 font-medium">
+                      {a.name}
+                      {a.unit && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                          {a.unit}
+                        </span>
+                      )}
+                    </td>
+                    {evolucao.columns.map((c) => {
+                      const cell = a.cells[c.key];
+                      return (
+                        <td key={c.key} className="py-2 pr-3">
+                          {cell ? (
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 font-medium ${resultStatusClass(cell.status)}`}
+                            >
+                              {cell.value ?? "—"}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">·</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2 pr-3">
+                      {a.trend === "subiu" && (
+                        <TrendingUp className="h-4 w-4 text-red-500" />
+                      )}
+                      {a.trend === "caiu" && (
+                        <TrendingDown className="h-4 w-4 text-amber-600" />
+                      )}
+                      {a.trend === "estavel" && (
+                        <Minus className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </ConsoleShell>
+  );
+}

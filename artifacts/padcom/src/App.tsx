@@ -74,6 +74,7 @@ import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
 import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
 import ComunicacaoCartaEncantamento from "@/pages/comunicacao/carta-encantamento";
+import ExamesCliente from "@/pages/exames-cliente";
 import ComunicacaoCentralLembretes from "@/pages/comunicacao/central-lembretes";
 import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
@@ -160,6 +161,7 @@ function Router() {
             <Route path="/cockpit" component={Cockpit} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/exames" component={Exames} />
+            <Route path="/exames-cliente" component={ExamesCliente} />
             <Route path="/cadastros/:rest*">
               <CollaboratorGate>
                 <Switch>

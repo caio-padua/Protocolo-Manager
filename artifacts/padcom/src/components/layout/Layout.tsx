@@ -82,6 +82,7 @@ const navigation: NavEntry[] = [
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
+      { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
     ],
   },
   {

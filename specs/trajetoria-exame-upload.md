@@ -338,3 +338,20 @@ Cada caso varia laboratório, unidades e situação. Critério de aprovação po
 | 5 | Tela de conferência humana (1 clique) + Modo Duplo (avulso por seletor) |
 | 6 | Notificação (e-mail + WhatsApp) + visualização em Exames + comparativo antes/depois |
 | 7 | Testes semânticos com os 10 exames + revisão do architect até zero pendência |
+
+---
+
+## REGISTRO DA ONDA CONSTRUIDA (10/07/2026)
+
+Construido e testado com laudo real (DASA, 40+ paginas):
+- `api-server/src/lib/exam-extraction/persist.ts` — parse numero BR, faixa de referencia, casamento por catalogo, classificacao dentro/acima/abaixo, persistencia de resultados atuais + historico "almoco gratis" (1 linha por data+laboratorio).
+- `api-server/src/routes/exames-lab.ts` — POST /ingest (202 assincrono, idempotente por hash sha256), GET /documentos, GET /documentos/:id, PATCH /:id/conferir, GET /evolucao/:clientId; arquivamento no Drive (EXAMES, nome unico com id do documento) e aviso best-effort.
+- Hook no portal (`client-portal.ts`): PDF de tipo exame entra no mesmo motor com sourcePdfDriveId (sem upload duplicado), notify=true.
+- Tela `padcom/src/pages/exames-cliente/` no menu O Ato Medico ("Exames do Cliente"): recepcao com seletor, Mesa de Validacao com polling e conferir em 1 clique, Evolucao Antes/Depois com celulas coloridas e tendencia.
+- Teste real: 108 resultados, 7 datas distintas (almoco gratis), duplicado=true no reenvio, conferido em 1 clique.
+- Pendencias conhecidas: catalogo de analitos ainda VAZIO (analyteCode=null ate semear catalogo); notificacao dispara apenas na trilha do portal.
+
+### Correcoes apos revisao do architect (10/07/2026)
+1. Idempotencia POR PACIENTE: indice unico composto (client_id, hash); mesmo PDF em cliente diferente gera documento proprio. Regressao testada: 2 clientes = 2 docs; reenvio = duplicate.
+2. Evolucao le SOMENTE documentos com status "conferido" (innerJoin): resultado nao conferido nunca entra no comparativo. Regressao testada: doc recebido = 0 analitos na evolucao.
+Revisao final do architect: APROVADO sem pendencia critica.

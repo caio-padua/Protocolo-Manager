@@ -21,10 +21,14 @@ import { z } from "zod/v4";
 // ============================================================================
 
 // 1 por arquivo recebido. hash garante idempotencia (mesmo arquivo nao duplica).
-export const examDocumentsTable = pgTable("exam_documents", {
+export const examDocumentsTable = pgTable(
+  "exam_documents",
+  {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull(),
-  hash: text("hash").notNull().unique(),
+  // Idempotencia POR PACIENTE: mesmo arquivo para o mesmo cliente nao duplica;
+  // o mesmo arquivo em OUTRO cliente gera documento proprio (isolamento).
+  hash: text("hash").notNull(),
   fileName: text("file_name").notNull(),
   labName: text("lab_name"),
   collectionDate: date("collection_date", { mode: "string" }),
@@ -36,7 +40,11 @@ export const examDocumentsTable = pgTable("exam_documents", {
   rawJson: jsonb("raw_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   conferredAt: timestamp("conferred_at", { withTimezone: true }),
-});
+  },
+  (t) => ({
+    uxDocClientHash: uniqueIndex("ux_exam_doc_client_hash").on(t.clientId, t.hash),
+  }),
+);
 
 // 1 por analito por data por laboratorio. Suporta o "almoco gratis": cada data
 // anterior que o proprio laudo traz vira uma linha aqui (coluna no comparativo).

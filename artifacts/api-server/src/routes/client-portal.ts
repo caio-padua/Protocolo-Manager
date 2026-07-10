@@ -9,6 +9,7 @@ import {
   removeDiacritics,
 } from "../lib/google-drive";
 import { createPortalToken, verifyPortalToken } from "../lib/portal-token";
+import { startExamIngestion } from "./exames-lab";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -161,6 +162,34 @@ router.post(
       );
 
       console.log(`[Portal] Upload: ${fileName} -> ${folder} (${client.name})`);
+
+      // Trajetoria do Exame: PDF de exame laboratorial entra no motor de
+      // leitura por IA (assincrono, best-effort — nunca quebra o upload).
+      const EXAM_TYPES = new Set([
+        "exame_sangue",
+        "ultrassom",
+        "tomografia",
+        "ressonancia",
+        "densitometria",
+        "laudo",
+        "outro",
+      ]);
+      if (file.mimetype === "application/pdf" && EXAM_TYPES.has(fileType)) {
+        try {
+          const ingestion = await startExamIngestion({
+            clientId: client.id,
+            buffer: file.buffer,
+            fileName,
+            sourcePdfDriveId: result.fileId,
+            notify: true,
+          });
+          console.log(
+            `[Portal] Exame encaminhado ao motor: doc ${ingestion.documentId}${ingestion.duplicate ? " (duplicado, ja processado)" : ""}`,
+          );
+        } catch (ingestErr: any) {
+          console.error("[Portal] Falha ao encaminhar exame ao motor:", ingestErr.message);
+        }
+      }
 
       res.json({
         success: true,
