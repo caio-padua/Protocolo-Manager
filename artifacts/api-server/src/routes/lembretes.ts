@@ -177,7 +177,34 @@ function sanitizarFormula(raw: unknown): LembreteFormulaJson | null {
     horario: s(o.horario),
     observacaoRefeicao: s(o.observacaoRefeicao),
     posologia: s(o.posologia),
+    ...(o.posologiaManual === true ? { posologiaManual: true } : {}),
   };
+}
+
+// Marca posologiaManual quando o CEO DITOU a posologia na tela: se o texto
+// recebido difere do que estava salvo (chave sigla::nome), a edição é manual e
+// deve SOBREVIVER à re-sincronização do Cockpit (ordem do CEO, 09/07/2026).
+// Posologia apagada limpa a marca (volta a seguir a sugestão do catálogo).
+function marcarPosologiaManual(
+  novos: LembretePeriodoJson[],
+  antigos: LembretePeriodoJson[],
+): void {
+  const antigasPorChave = new Map<string, LembreteFormulaJson>();
+  for (const per of antigos) {
+    for (const f of per.formulas) antigasPorChave.set(`${per.sigla ?? ""}::${f.nome}`, f);
+  }
+  for (const per of novos) {
+    for (const f of per.formulas) {
+      const antes = antigasPorChave.get(`${per.sigla ?? ""}::${f.nome}`);
+      if (!f.posologia) {
+        delete f.posologiaManual;
+      } else if (antes && (antes.posologia ?? "") !== f.posologia) {
+        f.posologiaManual = true;
+      } else if (antes?.posologiaManual && (antes.posologia ?? "") === f.posologia) {
+        f.posologiaManual = true; // edição manual anterior continua valendo
+      }
+    }
+  }
 }
 
 function sanitizarPeriodos(raw: unknown): LembretePeriodoJson[] | null {
@@ -241,6 +268,7 @@ router.patch("/lembretes/:clienteId", async (req, res) => {
   if ("periodos" in body) {
     const san = sanitizarPeriodos(body.periodos);
     if (!san) return res.status(400).json({ error: "periodos malformado" });
+    marcarPosologiaManual(san, atual.periodos);
     periodos = san;
     set.periodos = san;
   }

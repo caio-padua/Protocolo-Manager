@@ -152,7 +152,20 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
 // janela_inicio de cada período usado. Regra de ouro: 1 mensagem por janela.
 // ============================================================================
 
-export type PeriodoAntigo = "manha" | "tarde" | "noite";
+// Chaves internas dos 9 períodos canônicos (espelho da tabela `periodos_dia`,
+// cânone herdado do IHE). "manha/tarde/noite" preservam compatibilidade com o
+// motor simples; os demais foram abertos em 09/07/2026 (ordem do CEO: posologia
+// amarrada aos períodos canônicos — jejum, almoço, ceia etc.).
+export type PeriodoAntigo =
+  | "jejum"
+  | "manha"
+  | "meio_manha"
+  | "almoco"
+  | "tarde"
+  | "meio_tarde"
+  | "noite"
+  | "final_noite"
+  | "ceia";
 
 // Item recebido do Cockpit (mesmo formato do motor simples, sem depender dele).
 // Campos ricos (Opção A) são OPCIONAIS: quando vierem, fluem até o template; quando
@@ -171,9 +184,15 @@ export interface ItemLembretePrescricao {
 
 // Mapa período antigo → canônico do IHE (sigla, nome, janela_inicio HH:MM).
 export const MAPA_PERIODO: Record<PeriodoAntigo, { sigla: string; nome: string; inicio: string }> = {
+  jejum: { sigla: "JE", nome: "Jejum", inicio: "05:00" },
   manha: { sigla: "IM", nome: "Início da Manhã", inicio: "07:00" },
+  meio_manha: { sigla: "MM", nome: "Meio da Manhã", inicio: "09:00" },
+  almoco: { sigla: "AL", nome: "Almoço", inicio: "11:00" },
   tarde: { sigla: "IT", nome: "Início da Tarde", inicio: "13:30" },
+  meio_tarde: { sigla: "MT", nome: "Meio da Tarde", inicio: "16:00" },
   noite: { sigla: "NO", nome: "Noite", inicio: "18:00" },
+  final_noite: { sigla: "FN", nome: "Final da Noite", inicio: "20:00" },
+  ceia: { sigla: "CE", nome: "Ceia", inicio: "22:30" },
 };
 
 // Períodos padrão por tipo (igual ao motor simples): fórmula de manhã e à noite,
@@ -237,14 +256,21 @@ export async function sincronizarLembretePrescricao(
         porSigla.set(canon.sigla, bloco);
       }
       // Merge: campo rico novo vence; na ausência, preserva o que já estava salvo.
+      // EXCEÇÃO (ordem do CEO, 09/07/2026): posologia DITADA à mão na tela
+      // (posologiaManual=true) SOBREVIVE à re-sincronização — vence a sugestão
+      // automática do catálogo.
       const anterior = antigasPorChave.get(`${canon.sigla}::${item.nome}`);
+      const posologiaManual = anterior?.posologiaManual === true && !!anterior.posologia;
       bloco.formulas.push({
         nome: item.nome,
         ativoPrincipal: item.ativoPrincipal ?? anterior?.ativoPrincipal,
         dose: item.dose ?? anterior?.dose,
         horario: item.horario ?? anterior?.horario,
         observacaoRefeicao: item.observacaoRefeicao ?? anterior?.observacaoRefeicao,
-        posologia: item.posologia ?? item.detalhe ?? anterior?.posologia,
+        posologia: posologiaManual
+          ? anterior?.posologia
+          : item.posologia ?? item.detalhe ?? anterior?.posologia,
+        ...(posologiaManual ? { posologiaManual: true } : {}),
       });
       formulas += 1;
     }

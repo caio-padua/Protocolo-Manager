@@ -5,6 +5,7 @@
 // (Sr./Sra.). O Manager NÃO guarda gênero do cliente hoje, então o tratamento
 // cai no primeiro nome (sem Sr./Sra.) — comportamento esperado.
 import type { LembretePeriodoJson } from "@workspace/db";
+import { semAcento } from "@workspace/posologia";
 
 export type Genero = "masculino" | "feminino" | "outro" | "nao_informado";
 
@@ -104,5 +105,6 @@ export function templateLembretePrescricao(dados: LembretePrescricaoDados): stri
   linhas.push("");
   linhas.push("PAXTER — Padcon Conect");
 
-  return linhas.join("\n");
+  // Funil de normalização (regra do CEO, 09/07/2026): mensagem inteira SEM acento.
+  return semAcento(linhas.join("\n"));
 }

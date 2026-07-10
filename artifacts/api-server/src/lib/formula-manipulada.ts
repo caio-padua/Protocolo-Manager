@@ -20,7 +20,7 @@ import { db, catalogoFormulasTable, itemDoencaTable, perguntaDoencaTable, anamne
 import { eq, inArray } from "drizzle-orm";
 import { gatilhoBate } from "./motor-anamnese";
 import { MAPA_PERIODO, type ItemLembretePrescricao, type PeriodoAntigo } from "./lembrete-periodo";
-import { parsePosologia, VIA_LABEL } from "./posologia";
+import { parsePosologia, semAcento, VIA_LABEL } from "@workspace/posologia";
 
 const UNIDADES = /\b(mg|mcg|g|ml|ui|kg|l)\b/gi;
 // Dose numérica de uma substância: número (com vírgula/ponto) + unidade (mg/mcg/g/ml/ui/kg/l).
@@ -60,29 +60,36 @@ function ativoPrincipalDeSubs(subsRaw: string): { nome: string; dose?: string } 
   return { nome: titulo(resto), dose };
 }
 
-// Deriva o período do dia de UMA posologia (café/manhã -> manhã, almoço -> tarde,
-// jantar/treino/noite/deitar -> noite). Sem pista, devolve undefined.
+// Deriva o período canônico do dia de UMA posologia (9 períodos do cânone
+// `periodos_dia`, herdado do IHE — ordem do CEO em 09/07/2026): jejum -> JE,
+// café/manhã -> IM, almoço -> AL, tarde -> IT, jantar/noite/treino -> NO,
+// deitar/dormir -> FN, ceia -> CE. Sem pista, devolve undefined.
 function periodoDaPosologia(poso: string): PeriodoAntigo | undefined {
   const t = poso.toLowerCase();
-  if (/(caf[eé]|manh[aã]|jejum|acordar|desjejum)/.test(t)) return "manha";
-  if (/(almo[cç]o|meio-?dia|tarde)/.test(t)) return "tarde";
-  if (/(jantar|noite|deitar|dormir|treino|ceia)/.test(t)) return "noite";
+  if (/(jejum|acordar)/.test(t)) return "jejum";
+  if (/(caf[eé]|desjejum|manh[aã])/.test(t)) return "manha";
+  if (/(almo[cç]o|meio-?dia)/.test(t)) return "almoco";
+  if (/tarde/.test(t)) return "tarde";
+  if (/ceia/.test(t)) return "ceia";
+  if (/(deitar|dormir)/.test(t)) return "final_noite";
+  if (/(jantar|noite|treino)/.test(t)) return "noite";
   return undefined;
 }
 
 // Frase da refeição/momento a partir do texto cru da posologia (para a linha visível).
+// SEM acento (regra do CEO, 09/07/2026: tudo sem acento para não dar erro).
 function refeicaoDaPosologia(poso: string): string | undefined {
   const t = poso.toLowerCase();
   if (/jejum/.test(t)) return "em jejum";
-  if (/(caf[eé]|desjejum|acordar)/.test(t)) return "no café da manhã";
-  if (/(almo[cç]o|meio-?dia)/.test(t)) return "no almoço";
+  if (/(caf[eé]|desjejum|acordar)/.test(t)) return "no cafe da manha";
+  if (/(almo[cç]o|meio-?dia)/.test(t)) return "no almoco";
   if (/jantar/.test(t)) return "no jantar";
   if (/ceia/.test(t)) return "na ceia";
   if (/treino/.test(t)) return "no treino";
   if (/(deitar|dormir)/.test(t)) return "antes de dormir";
-  if (/manh[aã]/.test(t)) return "pela manhã";
-  if (/tarde/.test(t)) return "à tarde";
-  if (/noite/.test(t)) return "à noite";
+  if (/manh[aã]/.test(t)) return "pela manha";
+  if (/tarde/.test(t)) return "a tarde";
+  if (/noite/.test(t)) return "a noite";
   return undefined;
 }
 
@@ -150,14 +157,15 @@ export async function enriquecerItemFormula(
   const dose = principal?.dose;
   const observacaoRefeicao = obs ? sentenca(obs) : undefined;
 
+  // Campos gerados saem SEM acento (regra do CEO, 09/07/2026).
   const montarItem = (per: PeriodoAntigo, posologia: string | undefined): ItemLembretePrescricao => ({
     tipo: "formula",
-    nome,
-    ativoPrincipal,
+    nome: semAcento(nome),
+    ativoPrincipal: ativoPrincipal ? semAcento(ativoPrincipal) : undefined,
     dose,
     horario: horaFormatada(MAPA_PERIODO[per].inicio),
-    observacaoRefeicao,
-    posologia,
+    observacaoRefeicao: observacaoRefeicao ? semAcento(observacaoRefeicao) : undefined,
+    posologia: posologia ? semAcento(posologia) : undefined,
     periodos: [per],
   });
 

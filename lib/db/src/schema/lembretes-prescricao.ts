@@ -22,6 +22,10 @@ export interface LembreteFormulaJson {
   horario?: string; // HH:MM (BRT)
   observacaoRefeicao?: string;
   posologia?: string;
+  // true = posologia DITADA à mão pelo CEO na Central de Lembretes; a
+  // re-sincronização do Cockpit respeita e NÃO sobrescreve com a sugestão
+  // automática do catálogo (ordem do CEO, 09/07/2026).
+  posologiaManual?: boolean;
 }
 
 // Um período (janela) do lembrete, com suas fórmulas.

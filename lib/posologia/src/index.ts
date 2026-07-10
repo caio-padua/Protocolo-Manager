@@ -418,3 +418,14 @@ export function formatarPosologiaEstruturada(p: PosologiaEstruturada): string {
 
   return partes.length > 0 ? partes.join(", ") : p.raw;
 }
+
+// NORMALIZADOR DE ACENTO (regra do CEO, 09/07/2026): toda mensagem de lembrete
+// sai SEM acento para nao dar erro em nenhum canal. Remove marcas diacriticas
+// (NFD) e troca c-cedilha; preserva emojis, quebras e formatacao (*_).
+export function semAcento(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u00ba/g, "o")
+    .replace(/\u00aa/g, "a");
+}

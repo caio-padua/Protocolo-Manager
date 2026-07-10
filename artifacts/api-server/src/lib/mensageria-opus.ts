@@ -8,6 +8,7 @@ import { db, mensagensCatalogoTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { LembretePeriodoJson } from "@workspace/db";
 import { blocoPrescricaoPeriodos } from "./lembrete-templates";
+import { semAcento } from "@workspace/posologia";
 
 const TIMEZONE = "America/Sao_Paulo";
 const CACHE_TTL_MS = 60_000;
@@ -201,7 +202,9 @@ export async function montarMensagemOpus(dados: MontarOpusDados): Promise<string
     ? `${str(ass.conteudo.saudacao_fechamento)}\n\n*${str(ass.conteudo.nome)}*\n_${str(ass.conteudo.papel)}_\n\n───────────\n${str(ass.conteudo.rodape_linha1)}\n_${str(ass.conteudo.rodape_subtitulo1)}_\n\n${str(ass.conteudo.rodape_linha2)}\n_${str(ass.conteudo.rodape_subtitulo2)}_\n───────────`
     : "";
 
-  return [abertura, prescricao, drCaio, elogioTxt, obsTxt, assBlock]
-    .filter(Boolean)
-    .join("\n\n");
+  // Funil ÚNICO de normalização (regra do CEO, 09/07/2026): a mensagem inteira
+  // sai SEM acento para não dar erro em nenhum canal. Emojis e *_ preservados.
+  return semAcento(
+    [abertura, prescricao, drCaio, elogioTxt, obsTxt, assBlock].filter(Boolean).join("\n\n"),
+  );
 }
