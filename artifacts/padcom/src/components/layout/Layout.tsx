@@ -47,6 +47,7 @@ import {
   ArrowLeftRight,
   Zap,
   Receipt,
+  DownloadCloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -84,6 +85,7 @@ const navigation: NavEntry[] = [
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
       { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
+      { name: "Importação do Drive (ao vivo)", href: "/importar-drive", icon: DownloadCloud },
       { name: "Portal do Paciente (visão)", href: "/portal", icon: ExternalLink, external: true },
     ],
   },

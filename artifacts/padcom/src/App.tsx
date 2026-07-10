@@ -82,6 +82,7 @@ import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import Hierarquia from "@/pages/hierarquia";
 import Governanca from "@/pages/governanca";
+import ImportarDrive from "@/pages/importar-drive";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -162,6 +163,11 @@ function Router() {
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/exames" component={Exames} />
             <Route path="/exames-cliente" component={ExamesCliente} />
+            <Route path="/importar-drive">
+              <CollaboratorGate>
+                <ImportarDrive />
+              </CollaboratorGate>
+            </Route>
             <Route path="/cadastros/:rest*">
               <CollaboratorGate>
                 <Switch>

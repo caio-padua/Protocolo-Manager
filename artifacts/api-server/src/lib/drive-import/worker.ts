@@ -99,6 +99,15 @@ export interface ClientResultEntry {
   nonExam: number;
   errors: number;
 }
+// Feed AO VIVO: cada exame lancado entra aqui (mais recente no topo) para a tela
+// de acompanhamento em tempo real. Limitado a RECENT_CAP itens.
+export interface RecentEntry {
+  clientId: number;
+  clientName: string;
+  fileName: string;
+  kind: "lab" | "imagem";
+  at: string;
+}
 
 export interface ImportState {
   status: "idle" | "scanning" | "running" | "done" | "error";
@@ -126,7 +135,10 @@ export interface ImportState {
   noMatches: NoMatchEntry[];
   errors: ErrorEntry[];
   clientResults: ClientResultEntry[];
+  recent: RecentEntry[];
 }
+
+const RECENT_CAP = 80;
 
 function emptyState(): ImportState {
   return {
@@ -155,6 +167,7 @@ function emptyState(): ImportState {
     noMatches: [],
     errors: [],
     clientResults: [],
+    recent: [],
   };
 }
 
@@ -476,6 +489,15 @@ async function runImport(opts: RunOptions): Promise<void> {
               cr.imageDocs++;
               state.totals.imageDocs++;
             }
+            // Feed ao vivo: registra o exame recem-lancado (mais recente no topo).
+            state.recent.unshift({
+              clientId: client.id,
+              clientName: client.name,
+              fileName: file.name,
+              kind: effect === "lab" ? "lab" : "imagem",
+              at: new Date().toISOString(),
+            });
+            if (state.recent.length > RECENT_CAP) state.recent.length = RECENT_CAP;
           }
         } catch (err) {
           cr.errors++;
