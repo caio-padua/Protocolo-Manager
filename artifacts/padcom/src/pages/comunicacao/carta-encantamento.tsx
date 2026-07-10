@@ -551,6 +551,28 @@ export default function CartaEncantamento() {
           <section className="panel-3d p-4">
             <BlockTitle icon={Send}>Prévia no WhatsApp</BlockTitle>
 
+            {/* Seletor Cliente real — no TOPO, como antes (ordem do CEO, 10/07/2026) */}
+            <div className="mb-3">
+              <SelectWell
+                icon={Users}
+                label="Cliente real"
+                value={clienteRealId}
+                onChange={setClienteRealId}
+              >
+                <option value="">— exemplo —</option>
+                {clientesReais.map((c) => (
+                  <option key={c.clienteId} value={String(c.clienteId)}>
+                    {c.nome}
+                  </option>
+                ))}
+              </SelectWell>
+              <p className="mt-1 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {clienteRealId
+                  ? "Mostrando a mensagem REAL deste cliente (motor por período)."
+                  : "Mostrando o exemplo estático — escolha um cliente para ver a mensagem real."}
+              </p>
+            </div>
+
             <div
               className="concave-3d whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-foreground/90"
               style={{ maxHeight: "62vh", overflowY: "auto", fontFamily: "'Georgia', serif" }}
@@ -573,28 +595,6 @@ export default function CartaEncantamento() {
               >
                 <Send className="h-4 w-4" /> WhatsApp
               </button>
-            </div>
-
-            {/* Seletor Cliente real (C4) — na parte de BAIXO do painel (ordem do CEO, 10/07/2026) */}
-            <div className="mt-3">
-              <SelectWell
-                icon={Users}
-                label="Cliente real"
-                value={clienteRealId}
-                onChange={setClienteRealId}
-              >
-                <option value="">— exemplo —</option>
-                {clientesReais.map((c) => (
-                  <option key={c.clienteId} value={String(c.clienteId)}>
-                    {c.nome}
-                  </option>
-                ))}
-              </SelectWell>
-              <p className="mt-1 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                {clienteRealId
-                  ? "Mostrando a mensagem REAL deste cliente (motor por período)."
-                  : "Mostrando o exemplo estático — escolha um cliente para ver a mensagem real."}
-              </p>
             </div>
           </section>
         </div>
