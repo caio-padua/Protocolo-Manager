@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   FlaskConical,
+  ExternalLink,
   Calendar,
   FileText,
   Box,
@@ -54,7 +55,7 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-type NavLeaf = { name: string; href: string; icon: typeof LayoutDashboard };
+type NavLeaf = { name: string; href: string; icon: typeof LayoutDashboard; external?: boolean };
 type NavGroup = { name: string; icon: typeof LayoutDashboard; children: NavLeaf[] };
 type NavEntry = NavLeaf | NavGroup;
 
@@ -83,6 +84,7 @@ const navigation: NavEntry[] = [
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
       { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
+      { name: "Portal do Paciente (visão)", href: "/portal", icon: ExternalLink, external: true },
     ],
   },
   {
@@ -250,22 +252,38 @@ export function Layout({ children }: LayoutProps) {
                           const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(child.href);
+                          const innerCollapsed = (
+                            <div
+                              title={child.name}
+                              className={`flex items-center justify-center px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
+                                isActive
+                                  ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/40"
+                                  : "text-sidebar-foreground/55 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
+                              }`}
+                            >
+                              <ChildIcon className="w-[19px] h-[19px] shrink-0" />
+                            </div>
+                          );
+                          if (child.external) {
+                            return (
+                              <a
+                                key={child.name}
+                                href={child.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => setSidebarOpen(false)}
+                              >
+                                {innerCollapsed}
+                              </a>
+                            );
+                          }
                           return (
                             <Link
                               key={child.name}
                               href={child.href}
                               onClick={() => setSidebarOpen(false)}
                             >
-                              <div
-                                title={child.name}
-                                className={`flex items-center justify-center px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
-                                  isActive
-                                    ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/40"
-                                    : "text-sidebar-foreground/55 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
-                                }`}
-                              >
-                                <ChildIcon className="w-[19px] h-[19px] shrink-0" />
-                              </div>
+                              {innerCollapsed}
                             </Link>
                           );
                         })}
@@ -288,29 +306,45 @@ export function Layout({ children }: LayoutProps) {
                         const ChildIcon = child.icon;
                         const isActive =
                           location === child.href || location.startsWith(child.href);
+                        const innerExpanded = (
+                          <div
+                            className={`relative flex items-center gap-3 px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
+                              isActive
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
+                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
+                            }`}
+                          >
+                            {isActive && (
+                              <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />
+                            )}
+                            <ChildIcon
+                              className={`w-[18px] h-[18px] shrink-0 ${
+                                isActive ? "text-sidebar-primary" : "text-sidebar-foreground/45"
+                              }`}
+                            />
+                            <span className="text-[13px] tracking-wide">{child.name}</span>
+                          </div>
+                        );
+                        if (child.external) {
+                          return (
+                            <a
+                              key={child.name}
+                              href={child.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setSidebarOpen(false)}
+                            >
+                              {innerExpanded}
+                            </a>
+                          );
+                        }
                         return (
                           <Link
                             key={child.name}
                             href={child.href}
                             onClick={() => setSidebarOpen(false)}
                           >
-                            <div
-                              className={`relative flex items-center gap-3 px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
-                                isActive
-                                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
-                                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
-                              }`}
-                            >
-                              {isActive && (
-                                <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />
-                              )}
-                              <ChildIcon
-                                className={`w-[18px] h-[18px] shrink-0 ${
-                                  isActive ? "text-sidebar-primary" : "text-sidebar-foreground/45"
-                                }`}
-                              />
-                              <span className="text-[13px] tracking-wide">{child.name}</span>
-                            </div>
+                            {innerExpanded}
                           </Link>
                         );
                       })}
