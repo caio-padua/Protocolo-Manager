@@ -75,6 +75,7 @@ import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
 import ComunicacaoCartaEncantamento from "@/pages/comunicacao/carta-encantamento";
 import ExamesCliente from "@/pages/exames-cliente";
+import ConsultaProntuario from "@/pages/consulta";
 import ComunicacaoCentralLembretes from "@/pages/comunicacao/central-lembretes";
 import ComunicacaoDigital from "@/pages/comunicacao/digital";
 import ComunicacaoEmails from "@/pages/comunicacao/emails";
@@ -161,6 +162,7 @@ function Router() {
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/cockpit" component={Cockpit} />
             <Route path="/cartorio" component={Cartorio} />
+            <Route path="/consulta" component={ConsultaProntuario} />
             <Route path="/exames" component={Exames} />
             <Route path="/exames-cliente" component={ExamesCliente} />
             <Route path="/importar-drive">
