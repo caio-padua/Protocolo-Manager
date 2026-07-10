@@ -86,6 +86,44 @@ async function ensureWindows(resourceId: number): Promise<void> {
   await db.insert(agendaWindowsTable).values(STANDARD_WINDOWS.map((w) => ({ resourceId, ...w })));
 }
 
+// Colaborador administrativo (recepcao/administrativo/financeiro): nao_medico,
+// SEM conselho e SEM recurso de agenda -> nunca aparece ao cliente. Idempotente
+// por nome. Guarda category + role (cargo) para a identidade "Sobrenome, Nome (Cargo)".
+async function ensureNonAgendaStaff(opts: {
+  name: string;
+  category: string;
+  role: string;
+  areaId: number;
+  specialtyId: number;
+}): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(professionalsTable)
+    .where(eq(professionalsTable.name, opts.name))
+    .limit(1);
+
+  const fields = {
+    category: opts.category,
+    role: opts.role,
+    professionalType: "nao_medico",
+    areaId: opts.areaId,
+    specialtyId: opts.specialtyId,
+    registrationCouncil: null,
+    registrationNumber: null,
+    crm: null,
+    specialty: null,
+    isPrimaryDoctor: false,
+    active: true,
+    serviceTypes: [] as string[],
+  };
+
+  if (existing) {
+    await db.update(professionalsTable).set(fields).where(eq(professionalsTable.id, existing.id));
+  } else {
+    await db.insert(professionalsTable).values({ name: opts.name, ...fields });
+  }
+}
+
 async function ensureLocation(name: string, address: string): Promise<number> {
   const [existing] = await db.select().from(locationsTable).where(eq(locationsTable.name, name)).limit(1);
   if (existing) return existing.id;
@@ -184,7 +222,10 @@ export async function runSeedTeam(log: SeedLog = noopLog): Promise<void> {
   const enfermagemId = await upsertArea("Enfermagem", "nao_medico", 2);
   const psicologiaId = await upsertArea("Psicologia", "nao_medico", 3);
   const nutricaoId = await upsertArea("Nutrição", "nao_medico", 4);
-  log("Áreas garantidas (Medicina, Enfermagem, Psicologia, Nutrição).");
+  const recepcaoId = await upsertArea("Recepção", "nao_medico", 5);
+  const administrativoId = await upsertArea("Administrativo", "nao_medico", 6);
+  const financeiroId = await upsertArea("Financeiro", "nao_medico", 7);
+  log("Áreas garantidas (Medicina, Enfermagem, Psicologia, Nutrição, Recepção, Administrativo, Financeiro).");
 
   // 2. ESPECIALIZACOES
   const med = {
@@ -209,7 +250,10 @@ export async function runSeedTeam(log: SeedLog = noopLog): Promise<void> {
     clinica: await upsertSpecialty(nutricaoId, "Clínica", 2),
     funcional: await upsertSpecialty(nutricaoId, "Funcional", 3),
   };
-  log("Especializações garantidas para as 4 áreas.");
+  const recepcaoAtendimentoId = await upsertSpecialty(recepcaoId, "Atendimento", 1);
+  const administrativoGestaoId = await upsertSpecialty(administrativoId, "Gestão", 1);
+  const financeiroContasId = await upsertSpecialty(financeiroId, "Contas a Receber", 1);
+  log("Especializações garantidas para as 7 áreas.");
 
   // 3. MEDICOS — Dr. Caio (id 6, primario) + substituicao de Bruno/Helena por UPDATE.
   await db
@@ -356,6 +400,31 @@ export async function runSeedTeam(log: SeedLog = noopLog): Promise<void> {
     locationAddress: "Alameda dos Anapurus, 1200, Moema, São Paulo - SP, CEP 04087-005",
   });
   log("Não-médicos criados: Enf. Mariana Prado, Psic. Rafael Toledo, Nutr. Camila Esteves (presencial + online).");
+
+  // 5. ADMINISTRATIVO (recepcao/administrativo/financeiro): sem agenda, sem
+  // conselho. Cargos ficticios prontos — o CEO so troca os nomes.
+  await ensureNonAgendaStaff({
+    name: "Recep. Beatriz Nunes",
+    category: "recepcao",
+    role: "Recepcionista",
+    areaId: recepcaoId,
+    specialtyId: recepcaoAtendimentoId,
+  });
+  await ensureNonAgendaStaff({
+    name: "Adm. Otávio Ramos",
+    category: "administrativo",
+    role: "Gerente Administrativo",
+    areaId: administrativoId,
+    specialtyId: administrativoGestaoId,
+  });
+  await ensureNonAgendaStaff({
+    name: "Fin. Larissa Coelho",
+    category: "financeiro",
+    role: "Analista Financeiro",
+    areaId: financeiroId,
+    specialtyId: financeiroContasId,
+  });
+  log("Administrativo criado: Recep. Beatriz Nunes, Adm. Otávio Ramos, Fin. Larissa Coelho (sem agenda).");
 
   log("Seed da equipe concluído.");
 }

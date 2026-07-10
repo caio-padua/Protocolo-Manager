@@ -4384,6 +4384,9 @@ components:
         category:
           type: string
           nullable: true
+        role:
+          type: string
+          nullable: true
         professionalType:
           type: string
           nullable: true
@@ -4446,6 +4449,9 @@ components:
         category:
           type: string
           nullable: true
+        role:
+          type: string
+          nullable: true
         professionalType:
           type: string
           nullable: true
@@ -4493,6 +4499,9 @@ components:
           items:
             type: string
         category:
+          type: string
+          nullable: true
+        role:
           type: string
           nullable: true
         professionalType:

@@ -13,8 +13,11 @@ import {
   Minus,
   RefreshCw,
   Stamp,
+  Bot,
+  ShieldCheck,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
+import { getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
 
 // ===========================================================================
 // EXAMES DO CLIENTE — Trajetoria do Exame Uploadado (spec
@@ -43,6 +46,19 @@ interface DocRow {
   modelUsed: string | null;
   createdAt: string;
   conferredAt: string | null;
+  conf1Name: string | null;
+  conf1Cargo: string | null;
+  conf1At: string | null;
+  conf2Name: string | null;
+  conf2Cargo: string | null;
+  conf2At: string | null;
+}
+
+interface ProfOption {
+  id: number;
+  name: string;
+  role: string | null;
+  category: string | null;
 }
 
 interface ResultRow {
@@ -71,7 +87,14 @@ interface EvolucaoCell {
 }
 
 interface EvolucaoData {
-  columns: Array<{ key: string; date: string | null; lab: string | null }>;
+  columns: Array<{
+    key: string;
+    date: string | null;
+    lab: string | null;
+    confLevel: "ia" | "c1" | "c2" | null;
+    conferenteName: string | null;
+    conferenteCargo: string | null;
+  }>;
   analytes: Array<{
     key: string;
     name: string;
@@ -99,8 +122,14 @@ function statusChip(status: string) {
       );
     case "recebido":
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-cyan-600">
-          <Microscope className="h-3 w-3" /> Aguarda conferencia
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+          <Bot className="h-3 w-3" /> IA · aguarda C1
+        </span>
+      );
+    case "conferido_1":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+          <Stamp className="h-3 w-3" /> C1 · aguarda C2
         </span>
       );
     case "conferido":
@@ -135,6 +164,59 @@ function resultStatusClass(status: string | null): string {
   }
 }
 
+// Identidade do colaborador na conferencia: "Sobrenome, Nome (Cargo)".
+// Remove prefixos de tratamento (Dr., Dra., Enf., etc.) para nao duplicar cargo.
+function formatColaborador(name: string | null, cargo: string | null): string {
+  const clean = (name ?? "")
+    .replace(/^(dr\.?|dra\.?|enf\.?|psic\.?|nutr\.?|recep\.?|adm\.?|fin\.?)\s+/i, "")
+    .trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  let base: string;
+  if (parts.length === 0) base = "";
+  else if (parts.length === 1) base = parts[0];
+  else base = `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(" ")}`;
+  const c = (cargo ?? "").trim();
+  if (!base) return c ? `(${c})` : "—";
+  return c ? `${base} (${c})` : base;
+}
+
+// Selo de conferencia por nivel: IA (cinza), C1 (ambar), C2 (verde).
+function ConfSelo({
+  level,
+  conferenteName,
+  conferenteCargo,
+}: {
+  level: "ia" | "c1" | "c2" | null;
+  conferenteName: string | null;
+  conferenteCargo: string | null;
+}) {
+  if (level === "c2") {
+    return (
+      <span className="inline-flex flex-col rounded-md bg-emerald-500/15 px-2 py-0.5 text-emerald-700">
+        <span className="text-[10px] font-bold uppercase tracking-wide">C2 · Clínica</span>
+        <span className="text-[10px] font-medium normal-case">
+          {formatColaborador(conferenteName, conferenteCargo)}
+        </span>
+      </span>
+    );
+  }
+  if (level === "c1") {
+    return (
+      <span className="inline-flex flex-col rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700">
+        <span className="text-[10px] font-bold uppercase tracking-wide">C1 · Operacional</span>
+        <span className="text-[10px] font-medium normal-case">
+          {formatColaborador(conferenteName, conferenteCargo)}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+      <Bot className="h-3 w-3" /> IA · aguarda conferência
+    </span>
+  );
+}
+
 export default function ExamesCliente() {
   // ---- Clientes ----
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
@@ -154,6 +236,19 @@ export default function ExamesCliente() {
   const [detalhe, setDetalhe] = useState<DocDetail | null>(null);
   const [conferindo, setConferindo] = useState(false);
 
+  // ---- Conferentes (colaboradores) ----
+  const [profissionais, setProfissionais] = useState<ProfOption[]>([]);
+  const [conferenteId, setConferenteId] = useState<string>(
+    () => {
+      const p = getCollabProfessional();
+      return p ? String(p.id) : "";
+    },
+  );
+
+  // ---- Toggle global "liberar validacoes" (exames.exigirValidacaoHumana) ----
+  const [exigirValidacao, setExigirValidacao] = useState(true);
+  const [salvandoToggle, setSalvandoToggle] = useState(false);
+
   // ---- Evolucao ----
   const [evolucao, setEvolucao] = useState<EvolucaoData | null>(null);
   const [carregandoEvolucao, setCarregandoEvolucao] = useState(false);
@@ -168,6 +263,57 @@ export default function ExamesCliente() {
       )
       .catch(() => setClientes([]));
   }, []);
+
+  // Colaboradores (conferentes). Todos podem conferir; o padrao e o colaborador logado.
+  useEffect(() => {
+    fetch(`${BASE}/api/professionals`)
+      .then((r) => r.json())
+      .then((d: ProfOption[]) =>
+        setProfissionais(
+          Array.isArray(d)
+            ? [...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+            : [],
+        ),
+      )
+      .catch(() => setProfissionais([]));
+  }, []);
+
+  // Toggle global "liberar validacoes". As rotas /settings/* exigem colaborador,
+  // entao mandamos o token HMAC no cabecalho Authorization.
+  useEffect(() => {
+    const t = getCollabToken();
+    fetch(`${BASE}/api/settings/exames`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("settings"))))
+      .then((d: { exigirValidacaoHumana?: boolean }) =>
+        setExigirValidacao(d.exigirValidacaoHumana !== false),
+      )
+      .catch(() => undefined);
+  }, []);
+
+  const salvarToggle = async (proximo: boolean) => {
+    setExigirValidacao(proximo);
+    setSalvandoToggle(true);
+    try {
+      const t = getCollabToken();
+      const r = await fetch(`${BASE}/api/settings/exames`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(t ? { Authorization: `Bearer ${t}` } : {}),
+        },
+        body: JSON.stringify({ exigirValidacaoHumana: proximo }),
+      });
+      if (!r.ok) throw new Error("toggle");
+      carregarEvolucao(clienteId);
+    } catch {
+      setExigirValidacao(!proximo);
+      setAviso("Nao foi possivel salvar a configuracao de validacao.");
+    } finally {
+      setSalvandoToggle(false);
+    }
+  };
 
   const carregarDocs = useCallback(() => {
     return fetch(`${BASE}/api/exames-lab/documentos`)
@@ -255,13 +401,21 @@ export default function ExamesCliente() {
     }
   };
 
-  const conferir = async () => {
+  const conferir = async (fase: 1 | 2) => {
     if (!docSelecionado) return;
+    if (!conferenteId) {
+      setAviso("Escolha o colaborador conferente antes de conferir.");
+      return;
+    }
     setConferindo(true);
     try {
       const r = await fetch(
         `${BASE}/api/exames-lab/documentos/${docSelecionado}/conferir`,
-        { method: "PATCH" },
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fase, professionalId: Number(conferenteId) }),
+        },
       );
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
@@ -288,6 +442,39 @@ export default function ExamesCliente() {
       title="Exames do Cliente"
       subtitle="Upload → leitura por IA → Mesa de Validação → Evolução Antes/Depois"
     >
+      {/* ---- Toggle global: liberar validacoes ---- */}
+      <section className="panel-3d p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="bevel-3d flex h-9 w-9 flex-shrink-0 items-center justify-center">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">
+                Exigir conferência humana para liberar valores
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {exigirValidacao
+                  ? "LIGADO: a Evolução só mostra valores conferidos pela equipe (C2)."
+                  : "DESLIGADO: a Evolução mostra também valores lidos só pela IA (ainda não conferidos)."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={exigirValidacao}
+            disabled={salvandoToggle}
+            onClick={() => void salvarToggle(!exigirValidacao)}
+            className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${exigirValidacao ? "bg-emerald-500" : "bg-slate-400"}`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${exigirValidacao ? "translate-x-6" : "translate-x-1"}`}
+            />
+          </button>
+        </div>
+      </section>
+
       {/* ---- 1. Recepcao (upload avulso) ---- */}
       <section className="panel-3d p-5">
         <BlockTitle icon={Upload}>1. Receber exame (PDF)</BlockTitle>
@@ -399,7 +586,7 @@ export default function ExamesCliente() {
 
         {detalhe && (
           <div className="concave-3d mt-4 rounded-md p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">
                   Documento #{detalhe.id} — {detalhe.clientName}
@@ -409,20 +596,62 @@ export default function ExamesCliente() {
                   {formatDateBr(detalhe.collectionDate)} · Confianca da leitura:{" "}
                   {detalhe.confidence ?? "—"} ({detalhe.modelUsed ?? "—"})
                 </p>
-              </div>
-              {detalhe.status === "recebido" && (
-                <button
-                  onClick={() => void conferir()}
-                  disabled={conferindo}
-                  className="btn-3d-soft inline-flex h-9 items-center gap-2 px-4 text-sm font-semibold uppercase tracking-wide text-emerald-700 disabled:opacity-60"
-                >
-                  {conferindo ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Stamp className="h-4 w-4" />
+                <div className="mt-2 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+                  {detalhe.conf1Name && (
+                    <span>
+                      C1 (operacional):{" "}
+                      <span className="font-medium text-amber-700">
+                        {formatColaborador(detalhe.conf1Name, detalhe.conf1Cargo)}
+                      </span>{" "}
+                      · {formatDateBr(detalhe.conf1At)}
+                    </span>
                   )}
-                  Conferir (1 clique)
-                </button>
+                  {detalhe.conf2Name && (
+                    <span>
+                      C2 (clínica):{" "}
+                      <span className="font-medium text-emerald-700">
+                        {formatColaborador(detalhe.conf2Name, detalhe.conf2Cargo)}
+                      </span>{" "}
+                      · {formatDateBr(detalhe.conf2At)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {(detalhe.status === "recebido" || detalhe.status === "conferido_1") && (
+                <div className="flex flex-col items-end gap-2">
+                  <select
+                    className="concave-3d h-9 min-w-[200px] rounded-md bg-transparent px-2 text-xs"
+                    value={conferenteId}
+                    onChange={(e) => setConferenteId(e.target.value)}
+                  >
+                    <option value="">Colaborador conferente…</option>
+                    {profissionais.map((p) => (
+                      <option key={p.id} value={String(p.id)}>
+                        {formatColaborador(p.name, p.role)}
+                      </option>
+                    ))}
+                  </select>
+                  {detalhe.status === "recebido" ? (
+                    <button
+                      onClick={() => void conferir(1)}
+                      disabled={conferindo}
+                      className="btn-3d-soft inline-flex h-9 items-center gap-2 px-4 text-sm font-semibold uppercase tracking-wide text-amber-700 disabled:opacity-60"
+                    >
+                      {conferindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stamp className="h-4 w-4" />}
+                      Conferência operacional (C1)
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void conferir(2)}
+                      disabled={conferindo}
+                      className="btn-3d-soft inline-flex h-9 items-center gap-2 px-4 text-sm font-semibold uppercase tracking-wide text-emerald-700 disabled:opacity-60"
+                    >
+                      {conferindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Liberar (conferência clínica C2)
+                    </button>
+                  )}
+                </div>
               )}
               {detalhe.status === "conferido" && statusChip("conferido")}
             </div>
@@ -507,10 +736,17 @@ export default function ExamesCliente() {
                 <tr className="border-b text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-2 pr-3">Analito</th>
                   {evolucao.columns.map((c) => (
-                    <th key={c.key} className="py-2 pr-3">
+                    <th key={c.key} className="py-2 pr-3 align-top">
                       <div>{formatDateBr(c.date)}</div>
                       <div className="font-normal normal-case text-muted-foreground">
                         {c.lab ?? ""}
+                      </div>
+                      <div className="mt-1">
+                        <ConfSelo
+                          level={c.confLevel}
+                          conferenteName={c.conferenteName}
+                          conferenteCargo={c.conferenteCargo}
+                        />
                       </div>
                     </th>
                   ))}

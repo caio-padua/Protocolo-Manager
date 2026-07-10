@@ -15,6 +15,7 @@ export interface CreateProfessionalBody {
   unit?: string | null;
   serviceTypes: string[];
   category?: string | null;
+  role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
   specialtyId?: number | null;

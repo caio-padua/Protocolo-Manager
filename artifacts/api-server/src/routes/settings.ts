@@ -259,4 +259,29 @@ router.post(
   },
 );
 
+// ------------------------------------------------- EXAMES (validacao humana) ---
+// Toggle global "liberar validacoes": quando LIGADO (padrao), a Evolucao do
+// cliente so mostra resultados de documentos CONFERIDOS por humano. Quando
+// DESLIGADO, a Evolucao mostra tudo que ja foi lido pela IA (menos processando/
+// erro). Guardado em app_settings (nao-sensivel). Chave: exames.exigirValidacaoHumana.
+async function examesPayload(): Promise<{ exigirValidacaoHumana: boolean }> {
+  const raw = await getSetting("exames.exigirValidacaoHumana");
+  // Ausente => padrao SEGURO: exigir validacao humana (true).
+  return { exigirValidacaoHumana: raw === null ? true : raw === "true" };
+}
+
+router.get("/settings/exames", requireCollaborator, async (_req, res): Promise<void> => {
+  res.json(await examesPayload());
+});
+
+router.put("/settings/exames", requireCollaborator, async (req, res): Promise<void> => {
+  const value = req.body?.exigirValidacaoHumana;
+  if (typeof value !== "boolean") {
+    res.status(400).json({ error: "exigirValidacaoHumana deve ser booleano" });
+    return;
+  }
+  await setSetting("exames.exigirValidacaoHumana", value ? "true" : "false");
+  res.json(await examesPayload());
+});
+
 export default router;

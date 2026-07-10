@@ -118,9 +118,23 @@ const SERVICE_OPTIONS = [
   { value: "online", label: "Online" },
 ];
 
+// Categoria funcional do colaborador (governa a identidade "Sobrenome, Nome
+// (Cargo)" na conferencia). Recepcao/administrativo/financeiro NAO aparecem ao
+// cliente (nao entram na agenda), mas conferem exames.
+const CATEGORY_OPTIONS = [
+  { value: "medico", label: "Médico(a)" },
+  { value: "enfermagem", label: "Enfermagem" },
+  { value: "recepcao", label: "Recepção" },
+  { value: "administrativo", label: "Administrativo" },
+  { value: "financeiro", label: "Financeiro" },
+  { value: "outro", label: "Outro" },
+];
+
 const EMPTY_FORM = {
   name: "",
   professionalType: "medico" as ProfType,
+  category: "medico" as string,
+  role: "",
   areaId: "" as string,
   specialtyId: "" as string,
   registrationCouncil: "",
@@ -207,6 +221,8 @@ export default function Professionals() {
     setForm({
       name: pro.name ?? "",
       professionalType: (pro.professionalType as ProfType) || "medico",
+      category: (pro as Professional & { category?: string | null }).category ?? "medico",
+      role: (pro as Professional & { role?: string | null }).role ?? "",
       areaId: pro.areaId ? String(pro.areaId) : "",
       specialtyId: pro.specialtyId ? String(pro.specialtyId) : "",
       registrationCouncil: pro.registrationCouncil ?? "",
@@ -245,6 +261,8 @@ export default function Professionals() {
     const body = {
       name: form.name.trim(),
       professionalType: form.professionalType,
+      category: form.category,
+      role: form.role.trim() || null,
       areaId: Number(form.areaId),
       specialtyId: Number(form.specialtyId),
       registrationCouncil: form.registrationCouncil.trim() || null,
@@ -312,6 +330,24 @@ export default function Professionals() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoria funcional</Label>
+                  <Select value={form.category} onValueChange={(v) => v && set("category", v)}>
+                    <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {CATEGORY_OPTIONS.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cargo</Label>
+                  <Input value={form.role} onChange={(e) => set("role", e.target.value)} placeholder="Ex.: Recepcionista, Gerente" className="field-engraved" />
                 </div>
               </div>
 

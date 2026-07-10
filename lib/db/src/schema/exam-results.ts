@@ -33,13 +33,26 @@ export const examDocumentsTable = pgTable(
   labName: text("lab_name"),
   collectionDate: date("collection_date", { mode: "string" }),
   sourcePdfDriveId: text("source_pdf_drive_id"),
-  // recebido | conferido (valor clinico so e verdade apos conferencia humana)
+  // recebido -> conferido_1 (C1 operacional) -> conferido (C2 clinica = liberado).
+  // O valor clinico so e verdade apos a conferencia humana (2 fases). Documentos
+  // legados ja em "conferido" continuam validos (tratados como C2 concluido).
   status: text("status").notNull().default("recebido"),
   confidence: numeric("confidence"),
   modelUsed: text("model_used"),
   rawJson: jsonb("raw_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   conferredAt: timestamp("conferred_at", { withTimezone: true }),
+  // Conferencia em 2 fases (snapshot para auditoria: guarda nome + cargo do
+  // conferente no momento, para o CEO poder renomear os ficticios depois sem
+  // perder o registro). Todas anulaveis (push seguro, sem truncate).
+  conf1ProfessionalId: integer("conf1_professional_id"),
+  conf1Name: text("conf1_name"),
+  conf1Cargo: text("conf1_cargo"),
+  conf1At: timestamp("conf1_at", { withTimezone: true }),
+  conf2ProfessionalId: integer("conf2_professional_id"),
+  conf2Name: text("conf2_name"),
+  conf2Cargo: text("conf2_cargo"),
+  conf2At: timestamp("conf2_at", { withTimezone: true }),
   },
   (t) => ({
     uxDocClientHash: uniqueIndex("ux_exam_doc_client_hash").on(t.clientId, t.hash),

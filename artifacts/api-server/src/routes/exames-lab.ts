@@ -6,8 +6,10 @@ import {
   examDocumentsTable,
   examResultsTable,
   clientsTable,
+  professionalsTable,
 } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
+import { getSetting } from "../lib/secure-settings";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
 import { extractExamFromText } from "../lib/exam-extraction/extract";
 import {
@@ -28,6 +30,32 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
+
+// Rotulo humano do cargo a partir da categoria funcional (usado quando o
+// profissional nao tem `role`/cargo preenchido). So para snapshot de auditoria.
+const CATEGORY_LABEL: Record<string, string> = {
+  medico: "Médico(a)",
+  enfermagem: "Enfermagem",
+  recepcao: "Recepção",
+  administrativo: "Administrativo",
+  financeiro: "Financeiro",
+  outro: "Colaborador(a)",
+};
+
+function cargoLabel(role: string | null, category: string | null): string {
+  const r = (role ?? "").trim();
+  if (r) return r;
+  return CATEGORY_LABEL[category ?? "outro"] ?? "Colaborador(a)";
+}
+
+// recebido -> ia (só a IA leu) | conferido_1 -> c1 (conferência operacional) |
+// conferido -> c2 (conferência clínica = liberado).
+function confLevelFromStatus(status: string): "ia" | "c1" | "c2" | null {
+  if (status === "recebido") return "ia";
+  if (status === "conferido_1") return "c1";
+  if (status === "conferido") return "c2";
+  return null;
+}
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — rotas (Ondas 3 a 6 da spec
@@ -250,6 +278,12 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
         modelUsed: examDocumentsTable.modelUsed,
         createdAt: examDocumentsTable.createdAt,
         conferredAt: examDocumentsTable.conferredAt,
+        conf1Name: examDocumentsTable.conf1Name,
+        conf1Cargo: examDocumentsTable.conf1Cargo,
+        conf1At: examDocumentsTable.conf1At,
+        conf2Name: examDocumentsTable.conf2Name,
+        conf2Cargo: examDocumentsTable.conf2Cargo,
+        conf2At: examDocumentsTable.conf2At,
       })
       .from(examDocumentsTable);
     const docs = clientId
@@ -300,12 +334,28 @@ router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => 
   }
 });
 
-// ---- PATCH /exames-lab/documentos/:id/conferir — 1 clique ----
+// ---- PATCH /exames-lab/documentos/:id/conferir — conferencia humana em 2 fases ----
+// Body: { fase: 1 | 2, professionalId: number }.
+//   fase 1 (C1, operacional): recebido -> conferido_1. Grava conf1* (snapshot).
+//   fase 2 (C2, clinica = liberado): conferido_1 -> conferido. Grava conf2* + conferredAt.
+// O conferente e sempre gravado como SNAPSHOT (nome + cargo do momento), para o
+// CEO poder renomear os ficticios depois sem perder o registro de auditoria.
 router.patch(
   "/exames-lab/documentos/:id/conferir",
   async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
+      const fase = Number(req.body?.fase);
+      const professionalId = Number(req.body?.professionalId);
+      if (fase !== 1 && fase !== 2) {
+        res.status(400).json({ error: "fase deve ser 1 (operacional) ou 2 (clinica)" });
+        return;
+      }
+      if (!Number.isInteger(professionalId) || professionalId <= 0) {
+        res.status(400).json({ error: "professionalId (conferente) e obrigatorio" });
+        return;
+      }
+
       const docs = await db
         .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
         .from(examDocumentsTable)
@@ -314,15 +364,74 @@ router.patch(
         res.status(404).json({ error: "Documento nao encontrado" });
         return;
       }
-      if (docs[0].status === "processando") {
+      const status = docs[0].status;
+      if (status === "processando") {
         res.status(409).json({ error: "Documento ainda em processamento" });
+        return;
+      }
+      if (status === "erro") {
+        res.status(409).json({ error: "Documento com erro de leitura; nao pode ser conferido" });
+        return;
+      }
+
+      // Snapshot do conferente (nome + cargo do momento).
+      const [prof] = await db
+        .select({
+          id: professionalsTable.id,
+          name: professionalsTable.name,
+          role: professionalsTable.role,
+          category: professionalsTable.category,
+        })
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, professionalId))
+        .limit(1);
+      if (!prof) {
+        res.status(404).json({ error: "Conferente nao encontrado" });
+        return;
+      }
+      const cargo = cargoLabel(prof.role, prof.category);
+      const now = new Date();
+
+      if (fase === 1) {
+        if (status !== "recebido") {
+          res.status(409).json({
+            error: "A conferencia operacional (C1) so vale quando o documento esta 'recebido'",
+          });
+          return;
+        }
+        await db
+          .update(examDocumentsTable)
+          .set({
+            status: "conferido_1",
+            conf1ProfessionalId: prof.id,
+            conf1Name: prof.name,
+            conf1Cargo: cargo,
+            conf1At: now,
+          })
+          .where(eq(examDocumentsTable.id, id));
+        res.json({ ok: true, status: "conferido_1" });
+        return;
+      }
+
+      // fase === 2
+      if (status !== "conferido_1") {
+        res.status(409).json({
+          error: "Faca a conferencia operacional (C1) antes da conferencia clinica (C2)",
+        });
         return;
       }
       await db
         .update(examDocumentsTable)
-        .set({ status: "conferido", conferredAt: new Date() })
+        .set({
+          status: "conferido",
+          conf2ProfessionalId: prof.id,
+          conf2Name: prof.name,
+          conf2Cargo: cargo,
+          conf2At: now,
+          conferredAt: now,
+        })
         .where(eq(examDocumentsTable.id, id));
-      res.json({ ok: true });
+      res.json({ ok: true, status: "conferido" });
     } catch (err) {
       console.error("[ExamesLab] Erro ao conferir:", (err as Error).message);
       res.status(500).json({ error: "Erro ao conferir documento" });
@@ -334,10 +443,25 @@ router.patch(
 router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response) => {
   try {
     const clientId = Number(req.params.clientId);
-    // Regra da spec: valor so vira verdade clinica APOS conferencia humana.
-    // A evolucao le somente resultados de documentos CONFERIDOS.
+    // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
+    //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
+    //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
+    //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
+    const rawToggle = await getSetting("exames.exigirValidacaoHumana");
+    const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
+    const statusPermitidos = exigirValidacao
+      ? ["conferido"]
+      : ["recebido", "conferido_1", "conferido"];
+
     const joined = await db
-      .select({ result: examResultsTable })
+      .select({
+        result: examResultsTable,
+        docStatus: examDocumentsTable.status,
+        conf1Name: examDocumentsTable.conf1Name,
+        conf1Cargo: examDocumentsTable.conf1Cargo,
+        conf2Name: examDocumentsTable.conf2Name,
+        conf2Cargo: examDocumentsTable.conf2Cargo,
+      })
       .from(examResultsTable)
       .innerJoin(
         examDocumentsTable,
@@ -346,20 +470,70 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       .where(
         and(
           eq(examResultsTable.clientId, clientId),
-          eq(examDocumentsTable.status, "conferido"),
+          inArray(examDocumentsTable.status, statusPermitidos),
         ),
       )
       .orderBy(examResultsTable.collectionDate, examResultsTable.id);
     const rows = joined.map((j) => j.result);
 
+    // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
+    // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
+    // alimenta a coluna define o selo, alinhado com "ultimo escrito vence".
+    interface ColSeal {
+      docId: number;
+      confLevel: "ia" | "c1" | "c2" | null;
+      conferenteName: string | null;
+      conferenteCargo: string | null;
+    }
+    const seals = new Map<string, ColSeal>();
+    for (const j of joined) {
+      const r = j.result;
+      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+      const prev = seals.get(key);
+      if (prev && prev.docId >= r.examDocumentId) continue;
+      const level = confLevelFromStatus(j.docStatus);
+      // C2: usa snapshot da fase 2 (documentos legados sem snapshot => "conferencia legada").
+      // C1: usa snapshot da fase 1. IA: sem conferente.
+      let conferenteName: string | null = null;
+      let conferenteCargo: string | null = null;
+      if (level === "c2") {
+        conferenteName = j.conf2Name ?? (j.docStatus === "conferido" ? "Conferência legada" : null);
+        conferenteCargo = j.conf2Cargo;
+      } else if (level === "c1") {
+        conferenteName = j.conf1Name;
+        conferenteCargo = j.conf1Cargo;
+      }
+      seals.set(key, {
+        docId: r.examDocumentId,
+        confLevel: level,
+        conferenteName,
+        conferenteCargo,
+      });
+    }
+
     // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
     const columnKeys: string[] = [];
-    const columns: Array<{ key: string; date: string | null; lab: string | null }> = [];
+    const columns: Array<{
+      key: string;
+      date: string | null;
+      lab: string | null;
+      confLevel: "ia" | "c1" | "c2" | null;
+      conferenteName: string | null;
+      conferenteCargo: string | null;
+    }> = [];
     for (const r of rows) {
       const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
       if (!columnKeys.includes(key)) {
         columnKeys.push(key);
-        columns.push({ key, date: r.collectionDate, lab: r.labName });
+        const seal = seals.get(key);
+        columns.push({
+          key,
+          date: r.collectionDate,
+          lab: r.labName,
+          confLevel: seal?.confLevel ?? null,
+          conferenteName: seal?.conferenteName ?? null,
+          conferenteCargo: seal?.conferenteCargo ?? null,
+        });
       }
     }
 
