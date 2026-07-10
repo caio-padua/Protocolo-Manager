@@ -105,7 +105,7 @@ function SelectWell({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="field-engraved h-8 flex-1 bg-transparent text-[13px] text-foreground outline-none"
+        className="field-engraved h-8 w-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none"
       >
         {children}
       </select>
@@ -397,7 +397,7 @@ export default function CartaEncantamento() {
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   placeholder="Primeiro nome do cliente"
-                  className="field-engraved h-8 flex-1 bg-transparent text-[13px] text-foreground outline-none"
+                  className="field-engraved h-8 w-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none"
                 />
               </label>
 
@@ -551,28 +551,6 @@ export default function CartaEncantamento() {
           <section className="panel-3d p-4">
             <BlockTitle icon={Send}>Prévia no WhatsApp</BlockTitle>
 
-            {/* Seletor Cliente real (C4) — "— exemplo —" no topo (default) */}
-            <div className="mb-3">
-              <SelectWell
-                icon={Users}
-                label="Cliente real"
-                value={clienteRealId}
-                onChange={setClienteRealId}
-              >
-                <option value="">— exemplo —</option>
-                {clientesReais.map((c) => (
-                  <option key={c.clienteId} value={String(c.clienteId)}>
-                    {c.nome}
-                  </option>
-                ))}
-              </SelectWell>
-              <p className="mt-1 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                {clienteRealId
-                  ? "Mostrando a mensagem REAL deste cliente (motor por período)."
-                  : "Mostrando o exemplo estático — escolha um cliente para ver a mensagem real."}
-              </p>
-            </div>
-
             <div
               className="concave-3d whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-foreground/90"
               style={{ maxHeight: "62vh", overflowY: "auto", fontFamily: "'Georgia', serif" }}
@@ -595,6 +573,28 @@ export default function CartaEncantamento() {
               >
                 <Send className="h-4 w-4" /> WhatsApp
               </button>
+            </div>
+
+            {/* Seletor Cliente real (C4) — na parte de BAIXO do painel (ordem do CEO, 10/07/2026) */}
+            <div className="mt-3">
+              <SelectWell
+                icon={Users}
+                label="Cliente real"
+                value={clienteRealId}
+                onChange={setClienteRealId}
+              >
+                <option value="">— exemplo —</option>
+                {clientesReais.map((c) => (
+                  <option key={c.clienteId} value={String(c.clienteId)}>
+                    {c.nome}
+                  </option>
+                ))}
+              </SelectWell>
+              <p className="mt-1 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {clienteRealId
+                  ? "Mostrando a mensagem REAL deste cliente (motor por período)."
+                  : "Mostrando o exemplo estático — escolha um cliente para ver a mensagem real."}
+              </p>
             </div>
           </section>
         </div>
