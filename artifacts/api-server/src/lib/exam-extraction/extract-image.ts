@@ -178,7 +178,13 @@ export async function classifyMedia(buffer: Buffer, mimeType: string): Promise<"
         responseMimeType: "application/json",
         responseSchema: CLASSIFY_SCHEMA,
         temperature,
-        maxOutputTokens: 512,
+        // gemini-2.5-flash gasta "thinking tokens" do orcamento de saida: com teto
+        // baixo (512) o JSON vinha TRUNCADO logo no inicio (ex.: {"isExam": true,
+        // "kind": "). Classificacao binaria nao precisa de raciocinio -> desligamos
+        // o thinking; e igualamos o teto ao dos extratores (32768) como rede: se o
+        // proxy ignorar thinkingConfig, o orcamento largo evita o corte mesmo assim.
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 32768,
       },
     });
     const raw = response.text ?? "";

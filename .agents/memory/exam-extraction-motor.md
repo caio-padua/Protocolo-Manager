@@ -36,15 +36,20 @@ Vive em `artifacts/api-server/src/lib/exam-extraction/`.
   ("Proteína C Reativa Ultra Sensível 0,29 mg/dL") mas o matcher do teste usava o apelido "PCR".
   Teste por LISTA DE APELIDOS, não por nome único.
 
-## JSON do Gemini pelo proxy da Replit: garantia é fraca; retry precisa mudar temperatura
-- Regra: `responseMimeType:"application/json"` E `responseSchema` são **best-effort** pelo proxy
-  de IA da Replit. Uma fração de entradas (PDFs de imagem grandes/escaneados) ainda volta com
-  preâmbulo em TEXTO ("Here is the JSON requested:...") e o `JSON.parse` estoura no 1º caractere.
-  Não os trate como garantia; `stripJsonFences` só recupera quando há `{`/cerca no texto.
-- Regra: **`temperature:0` é determinístico** → repetir a mesma chamada dá o mesmo texto ruim.
-  Retry só ajuda se **subir a temperatura**. Todo runner do motor (porteiro `classifyMedia` +
-  extratores lab/imagem) usa `attempts = [0, 0.6]` e só lança se todas falharem (contrato fail-open
-  intacto). **Why:** sem o bump de temperatura, os mesmos arquivos falhavam idênticos em toda run.
+## JSON do Gemini vem TRUNCADO: thinking tokens comem o maxOutputTokens (causa nº1)
+- Regra: no gemini-2.5-flash os **tokens de raciocínio (thinking) contam contra `maxOutputTokens`**.
+  Com teto baixo o JSON vem cortado logo no começo (ex.: `{"isExam": true, "kind": "` →
+  "Unterminated string"), NÃO é preâmbulo. **Fix:** em tarefa que não precisa raciocinar (ex.:
+  classificador binário), passar `thinkingConfig: { thinkingBudget: 0 }` E dar teto largo
+  (`maxOutputTokens: 32768`, igual aos extratores). **Why:** o porteiro `classifyMedia` truncava em
+  vários arquivos (InBody, NUTRICIONISTA) com teto 512; extratores nunca truncavam porque já usavam
+  32768. Diagnóstico de "preâmbulo/temperatura" era incompleto — a causa real era o teto.
+- Regra secundária: `responseMimeType`/`responseSchema` são **best-effort** pelo proxy de IA da
+  Replit; ainda pode vir preâmbulo em texto. `stripJsonFences` recupera quando há `{`/cerca. Como
+  `temperature:0` é determinístico, o retry precisa **subir a temperatura** (`attempts = [0, 0.6]`
+  em todos os runners; só lança se todas falharem — contrato fail-open intacto).
+- Limite duro do proxy: arquivo grande demais → `TooBigBody`/"Body buffer overflow"; não tem retry
+  que resolva (é tamanho do corpo). Cai como erro transitório; não é exame perdido se não for exame.
 
 ## esbuild pode gerar bundle PARCIAL — conferir token de código no dist
 - Regra: restart plano do api-server (`dev` = `build && start`) já saiu com bundle parcial (metade
