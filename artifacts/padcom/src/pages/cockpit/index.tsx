@@ -30,6 +30,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   Plus,
+  TrendingUp,
+  Wrench,
 } from "lucide-react";
 import {
   listarTimeline,
@@ -37,6 +39,10 @@ import {
   type TimelineItem,
   type ConsentimentoStatus,
 } from "@/lib/cartorio-api";
+import EvolucaoExamesPanel from "./panels/EvolucaoExamesPanel";
+import PedidosExamesPanel from "./panels/PedidosExamesPanel";
+import PrescricaoFormulasPanel from "./panels/PrescricaoFormulasPanel";
+import Injetaveis from "./panels/Injetaveis";
 
 // ============================================================================
 // ONDA E — COCKPIT DA CONSULTA do Master Loop Paxter.
@@ -472,6 +478,62 @@ export default function Cockpit() {
               })}
             </ul>
           )}
+        </section>
+      )}
+
+      {clienteId != null && (
+        <section className="panel-3d mt-4 rounded-lg p-4">
+          <div className="mb-3 flex items-center gap-2 border-b border-white/10 pb-2">
+            <Wrench className="h-5 w-5" style={{ color: GOLD }} />
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+              Ferramentas da Consulta
+            </h2>
+            <span className="ml-auto text-xs text-slate-400">
+              Tudo amarrado ao cliente selecionado no topo
+            </span>
+          </div>
+          <Accordion type="multiple" defaultValue={["evolucao"]} className="space-y-2">
+            <AccordionItem value="evolucao" className="panel-3d-sub rounded-md border-0 px-3">
+              <AccordionTrigger className="hover:no-underline" style={{ color: GOLD_FORTE }}>
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" /> Evolução de Exames
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <EvolucaoExamesPanel clientId={clienteId} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="pedidos" className="panel-3d-sub rounded-md border-0 px-3">
+              <AccordionTrigger className="hover:no-underline" style={{ color: GOLD_FORTE }}>
+                <span className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4" /> Pedidos de Exames
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <PedidosExamesPanel clientId={clienteId} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="formulas" className="panel-3d-sub rounded-md border-0 px-3">
+              <AccordionTrigger className="hover:no-underline" style={{ color: GOLD_FORTE }}>
+                <span className="flex items-center gap-2">
+                  <FlaskConical className="h-4 w-4" /> Prescrição de Fórmulas
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <PrescricaoFormulasPanel clientId={clienteId} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="injetaveis" className="panel-3d-sub rounded-md border-0 px-3">
+              <AccordionTrigger className="hover:no-underline" style={{ color: GOLD_FORTE }}>
+                <span className="flex items-center gap-2">
+                  <Syringe className="h-4 w-4" /> Injetáveis
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <Injetaveis clientId={clienteId} />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </section>
       )}
 
