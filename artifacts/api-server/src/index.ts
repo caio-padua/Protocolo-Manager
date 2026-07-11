@@ -5,6 +5,7 @@ import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
+import { seedFaixasExames } from "./lib/exam-extraction/seed-faixas";
 import { refreshCertCache } from "./lib/cert-source";
 
 const rawPort = process.env["PORT"];
@@ -44,4 +45,7 @@ app.listen(port, (err) => {
   seedDirecoesExames()
     .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
     .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
+  seedFaixasExames()
+    .then((r) => logger.info({ seed: "faixas-exames", ...r }, "Cortes de exames semeados"))
+    .catch((e) => logger.error({ err: e }, "Falha ao semear cortes de exames"));
 });

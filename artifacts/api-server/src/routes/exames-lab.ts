@@ -18,6 +18,7 @@ import {
   computeZones,
   overrideZones,
   classifyIntoZones,
+  chaveFaixa,
   type Direction,
   type Zone,
 } from "../lib/exam-extraction/zones";
@@ -612,9 +613,10 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
     const rangeRows = await db.select().from(examAnalyteRangesTable);
     const rangesByCode = new Map<string, typeof rangeRows>();
     for (const r of rangeRows) {
-      const arr = rangesByCode.get(r.analyteCode) ?? [];
+      const rk = chaveFaixa(r.analyteCode);
+      const arr = rangesByCode.get(rk) ?? [];
       arr.push(r);
-      rangesByCode.set(r.analyteCode, arr);
+      rangesByCode.set(rk, arr);
     }
 
     const toNum = (s: string | null): number | null => {
@@ -641,7 +643,9 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       const direction: Direction = resolveDirection(catalogDir, iheDir);
 
       // Zonas: override do Subcadastro OU trisecção do min/max real.
-      const overrideRows = (rangesByCode.get(key) ?? []).map((r) => ({
+      // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
+      // com a semente), independente do code cru da linha.
+      const overrideRows = (rangesByCode.get(chaveFaixa(line.name)) ?? []).map((r) => ({
         faixaName: r.faixaName,
         low: toNum(r.low),
         high: toNum(r.high),
@@ -753,7 +757,7 @@ router.get("/exames-lab/faixas", async (req: Request, res: Response) => {
     const ovRows = await db
       .select()
       .from(examAnalyteRangesTable)
-      .where(eq(examAnalyteRangesTable.analyteCode, code));
+      .where(eq(examAnalyteRangesTable.analyteCode, chaveFaixa(code)));
     const override = overrideZones(
       ovRows.map((r) => ({
         faixaName: r.faixaName,
@@ -882,11 +886,12 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
     }
 
     if (zones) {
-      await db.delete(examAnalyteRangesTable).where(eq(examAnalyteRangesTable.analyteCode, code));
+      const rangeKey = chaveFaixa(code);
+      await db.delete(examAnalyteRangesTable).where(eq(examAnalyteRangesTable.analyteCode, rangeKey));
       if (zones.length) {
         await db.insert(examAnalyteRangesTable).values(
           zones.map((z, i) => ({
-            analyteCode: code,
+            analyteCode: rangeKey,
             faixaName: z.faixaName,
             low: z.low === null ? null : String(z.low),
             high: z.high === null ? null : String(z.high),

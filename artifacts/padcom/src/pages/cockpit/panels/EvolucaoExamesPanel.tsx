@@ -13,9 +13,6 @@ import {
   PinOff,
   ChevronDown,
   ChevronRight,
-  SlidersHorizontal,
-  Save,
-  RotateCcw,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -74,12 +71,6 @@ const ZONE_ROTULO: Record<string, string> = {
   ACEITAVEL: "ACEITÁVEL",
   EXCELENTE: "EXCELENTE",
 };
-const DIRECTION_ROTULO: Record<string, string> = {
-  higher_better: "Quanto MAIOR, melhor",
-  lower_better: "Quanto MENOR, melhor",
-  target: "Melhor no MEIO (alvo)",
-};
-
 // ---- tipos do payload ----
 interface ZonePayload {
   key: "below" | "t1" | "t2" | "t3" | "above";
@@ -406,7 +397,7 @@ function CartaoGrafico({
                   formatter={(v: number | string) => [`${v} ${analyte.unit ?? ""}`.trim(), "Valor"]}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="valor"
                   stroke={NAVY}
                   strokeWidth={2.5}
@@ -478,255 +469,6 @@ const LAYOUTS: { id: LayoutMode; label: string }[] = [
   { id: "sanfona", label: "Sanfona" },
   { id: "fixo", label: "Fixo (rodapé)" },
 ];
-
-interface FaixaEdit {
-  faixaName: string;
-  low: string;
-  high: string;
-  color: string;
-}
-interface FaixasResp {
-  analyteCode: string;
-  displayName: string;
-  direction: "higher_better" | "lower_better" | "target";
-  refLow: number | null;
-  refHigh: number | null;
-  hasOverride: boolean;
-  zones: ZonePayload[] | null;
-}
-
-function BlocoEditavel({
-  analytes,
-  onSalvo,
-}: {
-  analytes: EvolucaoAnalyte[];
-  onSalvo: () => void;
-}) {
-  const [code, setCode] = useState<string>("");
-  const [carregando, setCarregando] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [direction, setDirection] = useState<"higher_better" | "lower_better" | "target">("target");
-  const [faixas, setFaixas] = useState<FaixaEdit[]>([]);
-  const [hasOverride, setHasOverride] = useState(false);
-
-  const carregar = useCallback((c: string) => {
-    if (!c) return;
-    setCarregando(true);
-    setMsg(null);
-    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(c)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("faixas"))))
-      .then((d: FaixasResp) => {
-        setDirection(d.direction);
-        setHasOverride(d.hasOverride);
-        setFaixas(
-          (d.zones ?? []).map((z) => ({
-            faixaName: z.name,
-            low: z.low == null ? "" : String(z.low),
-            high: z.high == null ? "" : String(z.high),
-            color: z.color,
-          })),
-        );
-      })
-      .catch(() => setMsg("Não consegui carregar as faixas deste exame."))
-      .finally(() => setCarregando(false));
-  }, []);
-
-  const escolher = (c: string) => {
-    setCode(c);
-    carregar(c);
-  };
-
-  const editar = (i: number, campo: keyof FaixaEdit, valor: string) => {
-    setFaixas((prev) => prev.map((f, idx) => (idx === i ? { ...f, [campo]: valor } : f)));
-  };
-
-  const salvar = () => {
-    if (!code) return;
-    setSalvando(true);
-    setMsg(null);
-    const zones = faixas.map((f, i) => ({
-      faixaName: f.faixaName.trim() || `FAIXA ${i + 1}`,
-      low: f.low.trim() === "" ? null : Number(f.low.replace(",", ".")),
-      high: f.high.trim() === "" ? null : Number(f.high.replace(",", ".")),
-      color: f.color,
-      ordem: i + 1,
-    }));
-    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(code)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direction, zones }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("save"))))
-      .then((res: { directionSaved: boolean }) => {
-        setHasOverride(true);
-        setMsg(
-          res.directionSaved
-            ? "Faixas e direção salvas."
-            : "Faixas salvas. (A direção só grava em exames com código de catálogo; este ficou pela faixa.)",
-        );
-        onSalvo();
-      })
-      .catch(() => setMsg("Falha ao salvar."))
-      .finally(() => setSalvando(false));
-  };
-
-  const restaurar = () => {
-    if (!code) return;
-    setSalvando(true);
-    setMsg(null);
-    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(code)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ zones: [], resetDirection: true }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("reset"))))
-      .then(() => {
-        setMsg("Voltou ao padrão do IHE (direção e trisecção).");
-        carregar(code);
-        onSalvo();
-      })
-      .catch(() => setMsg("Falha ao restaurar."))
-      .finally(() => setSalvando(false));
-  };
-
-  return (
-    <section className="panel-3d mt-5 p-4">
-      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-        <SlidersHorizontal className="h-4 w-4" style={{ color: "#9a7b32" }} /> Cadastro de Faixas por Exame
-      </div>
-      <p className="mb-3 text-[11px] text-[#647c97]">
-        Escolha um exame para ajustar a DIREÇÃO (o que é "excelente") e as cinco faixas. Deixe o mínimo em branco
-        para "abaixo de tudo" e o máximo em branco para "acima de tudo". Sem edição, vale o padrão do IHE
-        (trisecção do mínimo/máximo do laudo).
-      </p>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select
-          value={code}
-          onChange={(e) => escolher(e.target.value)}
-          className="concave-3d min-w-[240px] rounded-[6px] px-3 py-2 text-[13px] font-semibold text-[#16294a]"
-        >
-          <option value="">— escolher exame —</option>
-          {analytes.map((a) => (
-            <option key={a.key} value={a.key}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-        {carregando && <Loader2 className="h-4 w-4 animate-spin text-[#647c97]" />}
-        {code && hasOverride && (
-          <span className="rounded-[5px] px-2 py-1 text-[9px] font-bold uppercase tracking-wide" style={{ background: `${GOLD}22`, color: "#9a7b32" }}>
-            faixa personalizada
-          </span>
-        )}
-      </div>
-
-      {code && !carregando && (
-        <>
-          {/* direção */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Direção:</span>
-            {(["higher_better", "lower_better", "target"] as const).map((d) => {
-              const ativo = direction === d;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDirection(d)}
-                  className={`rounded-[5px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                  style={ativo ? { color: "#fff", background: NAVY } : { color: NAVY }}
-                >
-                  {DIRECTION_ROTULO[d]}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 5 faixas */}
-          <div className="space-y-2">
-            {faixas.length === 0 && (
-              <div className="concave-3d px-3 py-4 text-center text-[12px] text-[#647c97]">
-                Este exame não tem mínimo/máximo no laudo, então não há faixa padrão. Preencha as faixas abaixo
-                para criar uma.
-              </div>
-            )}
-            {faixas.map((f, i) => (
-              <div key={i} className="concave-3d flex flex-wrap items-center gap-2 px-2 py-2">
-                <span className="w-5 text-center text-[11px] font-bold text-[#647c97]">{i + 1}</span>
-                <input
-                  value={f.faixaName}
-                  onChange={(e) => editar(i, "faixaName", e.target.value)}
-                  placeholder="Nome da faixa"
-                  className="min-w-[130px] flex-1 rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] font-semibold text-[#16294a]"
-                />
-                <label className="flex items-center gap-1 text-[10px] font-semibold text-[#647c97]">
-                  mín
-                  <input
-                    value={f.low}
-                    onChange={(e) => editar(i, "low", e.target.value)}
-                    placeholder="—"
-                    className="w-[64px] rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] text-[#16294a]"
-                  />
-                </label>
-                <label className="flex items-center gap-1 text-[10px] font-semibold text-[#647c97]">
-                  máx
-                  <input
-                    value={f.high}
-                    onChange={(e) => editar(i, "high", e.target.value)}
-                    placeholder="—"
-                    className="w-[64px] rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] text-[#16294a]"
-                  />
-                </label>
-                <input
-                  type="color"
-                  value={f.color}
-                  onChange={(e) => editar(i, "color", e.target.value)}
-                  title="Cor da faixa"
-                  className="h-8 w-9 cursor-pointer rounded-[5px] border border-[#16294a]/15 bg-white"
-                />
-              </div>
-            ))}
-          </div>
-
-          {faixas.length < 5 && (
-            <button
-              type="button"
-              onClick={() =>
-                setFaixas((prev) => [...prev, { faixaName: `FAIXA ${prev.length + 1}`, low: "", high: "", color: "#7a9a4a" }])
-              }
-              className="btn-3d-soft mt-2 rounded-[5px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#16294a]"
-            >
-              + adicionar faixa
-            </button>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={salvar}
-              disabled={salvando}
-              className="btn-3d flex items-center gap-1.5 rounded-[6px] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white disabled:opacity-60"
-              style={{ background: NAVY }}
-            >
-              {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Salvar faixas
-            </button>
-            <button
-              type="button"
-              onClick={restaurar}
-              disabled={salvando}
-              className="btn-3d-soft flex items-center gap-1.5 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-60"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Restaurar padrão IHE
-            </button>
-            {msg && <span className="text-[11px] font-semibold text-[#647c97]">{msg}</span>}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
 
 // ============================================================== PAINEL ========
 export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) {
@@ -1118,10 +860,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         </section>
       )}
 
-      {/* bloco editável (F5) */}
-      <BlocoEditavel analytes={analytes} onSalvo={() => carregar(clientId)} />
-
-      {/* ferramenta GLOBAL de direção (mesma do menu Cadastros) */}
+      {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes */}
       <div className="mt-5">
         <button
           type="button"
@@ -1129,11 +868,11 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
         >
           {mostrarDirecoes ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          Cadastro de Direção de TODOS os exames
+          Cadastro de Faixas de TODOS os exames
         </button>
         {mostrarDirecoes && (
           <div className="mt-3">
-            <DirecaoExamesTool titulo="Direção dos Exames (catálogo completo)" />
+            <DirecaoExamesTool titulo="Faixas dos Exames (catálogo completo)" />
           </div>
         )}
       </div>

@@ -46,8 +46,22 @@ export const ZONE_COLOR: Record<ZoneLabel, string> = {
   EXCELENTE: "#3f7a3f", // verde forte — no terço favorável
 };
 
+/**
+ * Chave canônica de uma faixa por exame (tabela exam_analyte_ranges).
+ * Unifica a leitura/gravação nos três pontos (/evolucao, GET/PUT /faixas e a
+ * semente): remove acentos, apara e minúsculo. Assim uma faixa editada no
+ * Cockpit reflete na Config e vice-versa, e a semente casa com a Evolução.
+ */
+export function chaveFaixa(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 // Rótulo de cada posição por direção (spec §3, motor do IHE).
-const LABELS_BY_DIRECTION: Record<Direction, Record<ZoneKey, ZoneLabel>> = {
+export const LABELS_BY_DIRECTION: Record<Direction, Record<ZoneKey, ZoneLabel>> = {
   higher_better: {
     below: "ALERTA",
     t1: "INSUFICIENTE",
