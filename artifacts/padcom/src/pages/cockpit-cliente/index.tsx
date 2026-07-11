@@ -22,6 +22,7 @@ import AnamnesePreviaPanel from "./panels/AnamnesePreviaPanel";
 import ExamesEnviadosPanel from "./panels/ExamesEnviadosPanel";
 import ContratosTimelineInline from "./panels/ContratosTimelineInline";
 import ClienteCracha from "./panels/ClienteCracha";
+import AcompanhamentoDiarioPanel from "./panels/AcompanhamentoDiarioPanel";
 
 // ===========================================================================
 // COCKPIT DO CLIENTE (Cockpit da Consulta — Onda 3, 14/07/2026):
@@ -132,7 +133,7 @@ export default function CockpitCliente() {
     <div className="min-h-screen w-full font-sans" style={{ background: CREAM }}>
       {/* Faixa de topo navy — sem wordmark PAXTER (o sidebar ja carrega a marca) */}
       <header
-        className="flex flex-wrap items-center justify-between gap-3 px-7 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
         style={{
           background: "linear-gradient(180deg,#1b3260 0%,#16294a 60%,#101f3a 100%)",
           borderBottom: "1px solid rgba(231,205,143,0.35)",
@@ -151,7 +152,7 @@ export default function CockpitCliente() {
       </header>
 
       {/* Régua de abas */}
-      <nav className="flex flex-wrap items-end gap-1 px-7 pt-3" style={{ background: "#13233f" }}>
+      <nav className="flex flex-wrap items-end gap-1 px-4 pt-3" style={{ background: "#13233f" }}>
         {ABAS.map(({ id, rotulo, Icon }) => {
           const ativo = aba === id;
           return (
@@ -159,13 +160,21 @@ export default function CockpitCliente() {
               key={id}
               type="button"
               onClick={() => selecionarAba(id)}
-              className={`flex items-center gap-1.5 rounded-t-[5px] px-4 py-2 text-[12px] font-semibold uppercase tracking-wide ${
-                ativo ? "text-[#16294a]" : "text-slate-300 hover:text-white"
+              className={`flex items-center gap-1.5 rounded-t-[6px] px-4 py-2 text-[12px] font-semibold uppercase tracking-wide transition-transform ${
+                ativo ? "-translate-y-px text-[#16294a]" : "text-slate-300 hover:text-white"
               }`}
               style={
                 ativo
-                  ? { background: CREAM, borderTop: "2px solid #e7cd8f" }
-                  : { background: "rgba(255,255,255,0.04)" }
+                  ? {
+                      background: "linear-gradient(180deg,#fbf6ea 0%,#f1e7cf 100%)",
+                      borderTop: "2px solid #e7cd8f",
+                      boxShadow:
+                        "0 -6px 12px -4px rgba(231,205,143,0.55), inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -3px 6px rgba(22,41,74,0.10)",
+                    }
+                  : {
+                      background: "rgba(255,255,255,0.05)",
+                      boxShadow: "inset 0 2px 5px rgba(0,0,0,0.28)",
+                    }
               }
             >
               <Icon className="h-3.5 w-3.5" />
@@ -176,7 +185,7 @@ export default function CockpitCliente() {
       </nav>
 
       {/* Conteúdo claro */}
-      <main className="px-7 py-6">
+      <main className="px-4 py-6">
         {clienteId == null ? (
           <div className="panel-3d mx-auto mt-10 max-w-xl p-8 text-center">
             <UserRound className="mx-auto mb-3 h-8 w-8" style={{ color: "#9a7b32" }} />
@@ -193,6 +202,9 @@ export default function CockpitCliente() {
           <div key={clienteId}>
             {/* Crachá clínico rico (cadastro + quadro clínico) */}
             <ClienteCracha clientId={clienteId} />
+
+            {/* Faixa de acompanhamento diário reportado pelo cliente */}
+            <AcompanhamentoDiarioPanel clientId={clienteId} />
 
             {aba === "prescricao" && <PrescricaoPage clientId={clienteId} embedded />}
             {aba === "injetaveis" && (

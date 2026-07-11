@@ -44,5 +44,6 @@ export * from "./lembretes-prescricao";
 export * from "./document-templates";
 export * from "./medical-certificates";
 export * from "./referrals";
+export * from "./pulso-diario";
 
 export * from "./assinatura";

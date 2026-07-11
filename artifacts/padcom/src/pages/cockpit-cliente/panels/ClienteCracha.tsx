@@ -53,10 +53,31 @@ type CockpitDto = {
   };
 };
 
+// Data de nascimento chega em formatos variados: "1972-03-14" (data pura),
+// "1972-03-14T00:00:00.000Z" (timestamp completo) ou "14/03/1972" (BR). O bug
+// antigo concatenava "T12:00:00-03:00" sobre o timestamp completo → data inválida
+// → NaN → devolvia o ISO cru ("ano-primeiro"). Aqui extraímos ano/mês/dia e
+// montamos a data ao MEIO-DIA local (imune a fuso), aceitando os três formatos.
+function parseData(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // ISO (data ou timestamp)
+  if (m) {
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); // BR DD/MM/AAAA
+  if (m) {
+    const dt = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
 function idade(birthDate?: string | null): number | null {
-  if (!birthDate) return null;
-  const d = new Date(`${birthDate}T12:00:00-03:00`);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parseData(birthDate);
+  if (!d) return null;
   const hoje = new Date();
   let anos = hoje.getFullYear() - d.getFullYear();
   const m = hoje.getMonth() - d.getMonth();
@@ -65,9 +86,8 @@ function idade(birthDate?: string | null): number | null {
 }
 
 function dataBr(iso?: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(`${iso}T12:00:00-03:00`);
-  if (Number.isNaN(d.getTime())) return iso;
+  const d = parseData(iso);
+  if (!d) return "—";
   return d.toLocaleDateString("pt-BR");
 }
 
@@ -108,7 +128,11 @@ function Campo({
         {icon}
         {rotulo}
       </div>
-      <div className="truncate text-[12px] font-semibold" style={{ color: NAVY }} title={valor}>
+      <div
+        className="concave-3d truncate px-2 py-1 text-[12px] font-semibold"
+        style={{ color: NAVY }}
+        title={valor}
+      >
         {valor || "—"}
       </div>
     </div>
@@ -138,24 +162,26 @@ function BlocoChips({
         {icon}
         {rotulo}
       </div>
-      {itens.length === 0 ? (
-        <span className="text-[12px] font-semibold" style={{ color: "#9aa7b6" }}>
-          —
-        </span>
-      ) : (
-        <div className="flex flex-wrap gap-1">
-          {itens.map((t, i) => (
-            <span
-              key={`${t}-${i}`}
-              className="rounded-[4px] px-2 py-0.5 text-[11px] font-semibold"
-              style={{ color: cor, background: fundo, border: `1px solid ${cor}44` }}
-              title={t}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="concave-3d px-2 py-1.5">
+        {itens.length === 0 ? (
+          <span className="text-[12px] font-semibold" style={{ color: "#9aa7b6" }}>
+            —
+          </span>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {itens.map((t, i) => (
+              <span
+                key={`${t}-${i}`}
+                className="rounded-[4px] px-2 py-0.5 text-[11px] font-semibold"
+                style={{ color: cor, background: fundo, border: `1px solid ${cor}44` }}
+                title={t}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -220,11 +246,11 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
       <div className="flex flex-col gap-0 lg:flex-row">
         {/* ZONA 1 — IDENTIDADE (foto + nome) */}
         <div
-          className="flex items-center gap-4 p-5 lg:w-[340px] lg:shrink-0"
+          className="flex items-center gap-3 p-4 lg:w-[290px] lg:shrink-0"
           style={{ borderRight: `1px solid ${BORDER}` }}
         >
           <div
-            className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[8px]"
+            className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[8px]"
             style={{ background: "#eef1f5", border: `2px solid ${GOLD}` }}
           >
             {client?.photoUrl && !fotoQuebrada ? (
@@ -235,12 +261,12 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
                 onError={() => setFotoQuebrada(true)}
               />
             ) : (
-              <UserRound className="h-9 w-9" style={{ color: "#9aa7b6" }} />
+              <UserRound className="h-7 w-7" style={{ color: "#9aa7b6" }} />
             )}
           </div>
           <div className="min-w-0">
             <div
-              className="truncate text-[20px] font-bold leading-tight"
+              className="truncate text-[17px] font-bold leading-tight"
               style={{ color: NAVY }}
               title={client?.name}
             >
@@ -266,7 +292,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
 
         {/* ZONA 2 — CADASTRO */}
         <div
-          className="grid grid-cols-2 content-start gap-x-5 gap-y-3 p-5 lg:w-[300px] lg:shrink-0"
+          className="grid grid-cols-2 content-start gap-x-4 gap-y-2.5 p-4 lg:w-[260px] lg:shrink-0"
           style={{ borderRight: `1px solid ${BORDER}`, background: "rgba(154,123,50,0.04)" }}
         >
           <Campo icon={<CalendarDays className="h-3 w-3" />} rotulo="Nascimento" valor={dataBr(client?.birthDate)} />
@@ -280,7 +306,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
         </div>
 
         {/* ZONA 3 — CLÍNICO (a mais destacada) */}
-        <div className="flex-1 p-5">
+        <div className="flex-1 p-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: NAVY }}>
               <Stethoscope className="h-3.5 w-3.5" style={{ color: GOLD }} /> Quadro Clínico
@@ -330,15 +356,13 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
               cor={NAVY}
               fundo="rgba(22,41,74,0.06)"
             />
-            {clinico.habitos.length > 0 && (
-              <BlocoChips
-                icon={<Cigarette className="h-3 w-3" />}
-                rotulo="Hábitos"
-                itens={clinico.habitos}
-                cor="#647c97"
-                fundo="rgba(100,124,151,0.10)"
-              />
-            )}
+            <BlocoChips
+              icon={<Cigarette className="h-3 w-3" />}
+              rotulo="Hábitos"
+              itens={clinico.habitos}
+              cor="#647c97"
+              fundo="rgba(100,124,151,0.10)"
+            />
           </div>
         </div>
       </div>
