@@ -30,6 +30,8 @@ import Dieta from "@/pages/dieta";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import Cockpit from "@/pages/cockpit";
+import CockpitCliente from "@/pages/cockpit-cliente";
+import CockpitAnamnese from "@/pages/cockpit-anamnese";
 import Cartorio from "@/pages/cartorio";
 import Exames from "@/pages/exames";
 import CadastroExames from "@/pages/cadastros/exames";
@@ -163,6 +165,8 @@ function Router() {
             <Route path="/treino" component={Treino} />
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/cockpit" component={Cockpit} />
+            <Route path="/cockpit-cliente" component={CockpitCliente} />
+            <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
             <Route path="/exames" component={Exames} />

@@ -82,7 +82,9 @@ const navigation: NavEntry[] = [
     name: "O Ato Médico",
     icon: Stethoscope,
     children: [
-      { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
+      { name: "Cockpit da Consulta", href: "/cockpit-cliente", icon: Stethoscope },
+      { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
+      { name: "Cockpit (formato antigo)", href: "/cockpit", icon: Stethoscope },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
@@ -265,7 +267,7 @@ export function Layout({ children }: LayoutProps) {
                         {item.children.map((child) => {
                           const ChildIcon = child.icon;
                           const isActive =
-                            location === child.href || location.startsWith(child.href);
+                            location === child.href || location.startsWith(`${child.href}/`);
                           const innerCollapsed = (
                             <div
                               title={child.name}
@@ -319,7 +321,7 @@ export function Layout({ children }: LayoutProps) {
                       {item.children.map((child) => {
                         const ChildIcon = child.icon;
                         const isActive =
-                          location === child.href || location.startsWith(child.href);
+                          location === child.href || location.startsWith(`${child.href}/`);
                         const innerExpanded = (
                           <div
                             className={`relative flex items-center gap-3 px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${

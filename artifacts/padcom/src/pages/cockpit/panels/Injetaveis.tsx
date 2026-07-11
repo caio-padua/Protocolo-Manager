@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "wouter";
-import { useListProtocols } from "@workspace/api-client-react";
+import { useListProtocols, useListSubstances } from "@workspace/api-client-react";
 import { formatStatus } from "@/lib/status";
 import {
   Loader2,
@@ -33,7 +33,16 @@ function fmtData(iso: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
-export default function Injetaveis({ clientId }: { clientId: number }) {
+export default function Injetaveis({
+  clientId,
+  filtroProcedimento,
+  ocultarBotaoNovo,
+}: {
+  clientId: number;
+  /** Sem filtro = todos (cockpit antigo). "implante" = só protocolos com implante; "injetavel" = só com IV/IM. */
+  filtroProcedimento?: "implante" | "injetavel";
+  ocultarBotaoNovo?: boolean;
+}) {
   const [, setLocation] = useLocation();
 
   const {
@@ -47,9 +56,32 @@ export default function Injetaveis({ clientId }: { clientId: number }) {
     { query: { queryKey: ["cockpit-injetaveis-protocols", clientId] } },
   );
 
-  const lista = useMemo(() => protocols ?? [], [protocols]);
+  const { data: substances, isLoading: carregandoSubstancias } = useListSubstances({
+    query: {
+      queryKey: ["cockpit-injetaveis-substances"],
+      enabled: !!filtroProcedimento,
+    },
+  });
 
-  if (isLoading) {
+  const aguardandoFiltro = !!filtroProcedimento && carregandoSubstancias;
+
+  const lista = useMemo(() => {
+    const todos = protocols ?? [];
+    if (!filtroProcedimento) return todos;
+    if (substances == null) return [];
+    const implantIds = new Set(
+      substances.filter((s) => s.procedureType === "implant").map((s) => s.id),
+    );
+    if (filtroProcedimento === "implante") {
+      return todos.filter((p) => p.items.some((i) => implantIds.has(i.substanceId)));
+    }
+    return todos.filter((p) => p.items.some((i) => !implantIds.has(i.substanceId)));
+  }, [protocols, substances, filtroProcedimento]);
+
+  const rotuloTipo =
+    filtroProcedimento === "implante" ? "implantes" : "injetáveis";
+
+  if (isLoading || aguardandoFiltro) {
     return (
       <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando protocolos…
@@ -79,30 +111,36 @@ export default function Injetaveis({ clientId }: { clientId: number }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-          {lista.length} protocolo(s) deste cliente
+          {lista.length} protocolo(s) de {rotuloTipo} deste cliente
         </p>
-        <button
-          type="button"
-          onClick={() => setLocation("/protocols/new")}
-          className="btn-3d-soft inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
-          style={{ color: GOLD_FORTE }}
-        >
-          <Plus className="h-4 w-4" /> Lançar novo protocolo
-        </button>
+        {!ocultarBotaoNovo && (
+          <button
+            type="button"
+            onClick={() => setLocation("/protocols/new")}
+            className="btn-3d-soft inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: GOLD_FORTE }}
+          >
+            <Plus className="h-4 w-4" /> Lançar novo protocolo
+          </button>
+        )}
       </div>
 
       {lista.length === 0 ? (
         <div className="concave-3d flex flex-col items-center justify-center gap-2 rounded-md py-10 text-center">
           <Syringe className="h-8 w-8 text-slate-500" />
-          <p className="text-sm text-slate-400">Nenhum protocolo de injetáveis para este cliente.</p>
-          <button
-            type="button"
-            onClick={() => setLocation("/protocols/new")}
-            className="btn-3d-soft mt-1 inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
-            style={{ color: GOLD_FORTE }}
-          >
-            <Plus className="h-4 w-4" /> Lançar novo protocolo
-          </button>
+          <p className="text-sm text-slate-400">
+            Nenhum protocolo de {rotuloTipo} para este cliente.
+          </p>
+          {!ocultarBotaoNovo && (
+            <button
+              type="button"
+              onClick={() => setLocation("/protocols/new")}
+              className="btn-3d-soft mt-1 inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
+              style={{ color: GOLD_FORTE }}
+            >
+              <Plus className="h-4 w-4" /> Lançar novo protocolo
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

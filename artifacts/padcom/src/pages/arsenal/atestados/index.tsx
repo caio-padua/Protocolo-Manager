@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
+import { CidPicker } from "@/components/CidPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
   VARIAVEIS_DOC, aplicarVariaveis, montarValores, dataHojeBR,
@@ -281,10 +282,7 @@ export default function AtestadosPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">CID</label>
-                  <input
-                    className="field-engraved h-10 w-full px-3"
-                    value={cid} onChange={(e) => setCid(e.target.value)} placeholder="ex.: J06.9"
-                  />
+                  <CidPicker value={cid} onChange={setCid} placeholder="ex.: J06.9 ou gripe" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Finalidade</label>

@@ -60,6 +60,7 @@ import whatsappWebhookRouter from "./whatsapp-webhook";
 import demoGaleriaRouter from "./demo-galeria";
 import importarDriveRouter from "./importar-drive";
 import atestadosRouter from "./atestados";
+import cid10Router from "./cid10";
 import encaminhamentosRouter from "./encaminhamentos";
 import documentTemplatesRouter from "./document-templates";
 
@@ -148,6 +149,7 @@ router.use(assinaturasRouter);
 router.use(demoGaleriaRouter);
 router.use(importarDriveRouter);
 router.use(atestadosRouter);
+router.use(cid10Router);
 router.use(encaminhamentosRouter);
 router.use(documentTemplatesRouter);
 
