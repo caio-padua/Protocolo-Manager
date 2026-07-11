@@ -22,27 +22,37 @@ comparar, gráfico no perfil superior, e um bloco editável no final para cadast
 Conclusão: o motor de faixas está pela metade. Falta (a) cadastrar as faixas, (b) o endpoint devolver a faixa de
 cada valor, (c) a tela pintar as 5 faixas no número e no gráfico, (d) um bloco editável para o CEO manter as faixas.
 
-## 3. Modelo das CINCO faixas (semântica ditada pelo CEO; editável por exame)
+## 3. Modelo das CINCO faixas (motor do IHE, verificado na fonte; editável por exame)
 
-Zona de referência normal = intervalo [mínimo, máximo] do exame. Esse intervalo normal é dividido em TRÊS terços.
+Rastreamento à exaustão CONCLUÍDO no repositório `caio-padua/Integrative-Health-Engine` (branch `replit-agent`).
+Fontes verificadas: `artifacts/api-server/src/lib/laboratorio/motorClassificacaoIntegrativa.ts` (o motor),
+`artifacts/api-server/src/db/migrations/026_exames2_5zonas.sql` (as 5 zonas + nomes editáveis),
+`artifacts/clinica-motor/src/pages/pacientes/exames-grafico.tsx` (render + cores).
 
-| Ordem | Faixa | Onde o valor cai | Cor (padrão) | Rótulo |
+Regra do IHE (cópia fiel): a zona normal [mínimo, máximo] é dividida em TRÊS terços iguais
+(INFERIOR / MÉDIO / SUPERIOR). Cada exame tem uma DIREÇÃO (`terco_excelente` no IHE = `direction` no Manager):
+qual terço é o "excelente". Isso é o que varia de exame para exame e é editável.
+
+| Posição do valor | direction=higher_better | direction=lower_better | direction=target (meio) | Cor padrão |
 |---|---|---|---|---|
-| 1 | ALERTA | abaixo do mínimo | Vermelho `#b4413c` | ALERTA |
-| 2 | SUFICIENTE (baixa) | terço inferior da zona normal | Verde-oliva `#8a9a3f` | SUFICIENTE |
-| 3 | EXCELENTE | terço central da zona normal | Verde forte `#3f7a3f` | EXCELENTE |
-| 4 | SUFICIENTE (alta) | terço superior da zona normal | Verde-oliva `#8a9a3f` | SUFICIENTE |
-| 5 | ATENÇÃO | acima do máximo | Âmbar-laranja `#c17a2b` | ATENÇÃO |
+| abaixo do mínimo | ALERTA | ATENÇÃO | ALERTA | ALERTA verm. `#b4413c` / ATENÇÃO laranja `#c17a2b` |
+| terço inferior | INSUFICIENTE | EXCELENTE | SUFICIENTE | ver rótulo |
+| terço médio | SUFICIENTE | SUFICIENTE | EXCELENTE | ver rótulo |
+| terço superior | EXCELENTE | INSUFICIENTE | SUFICIENTE | ver rótulo |
+| acima do máximo | ATENÇÃO | ALERTA | ATENÇÃO | ver rótulo |
 
-Regras:
-- São CINCO faixas com QUATRO cores (SUFICIENTE aparece dos dois lados do meio).
-- Padrão = trisecção da zona normal. É um PADRÃO editável: cada exame pode ter min/máx próprios por faixa no
-  bloco editável (tabela `exam_analyte_ranges`), então nenhuma semântica clínica fica chumbada no código.
-- Art.47 (zero dado inventado): a faixa é DERIVADA do mínimo/máximo reais do exame por regra escrita e visível;
-  exame sem referência mínima/máxima continua "conferência" (cinza), nunca ganha faixa fantasia.
-- "Rastrear à exaustão como o IHE" (ponto 8): a busca automática no repositório do IHE não retornou as regras por
-  código. Portanto o padrão é a trisecção acima + cadastro editável; se depois o CEO trouxer as faixas exatas do
-  IHE, elas entram pelo bloco editável sem retrabalho.
+Paleta dos rótulos: ALERTA `#b4413c` (vermelho) · ATENÇÃO `#c17a2b` (laranja) · INSUFICIENTE `#d0a53f` (âmbar) ·
+SUFICIENTE `#7a9a4a` (verde-oliva) · EXCELENTE `#3f7a3f` (verde forte).
+
+Origem REAL da direção (Art.47, zero dado inventado):
+1. `exam_analyte_catalog.direction` (higher_better / lower_better / target) se preenchida.
+2. senão, casar pelo nome com `direcao_favoravel_exame` (tabela transmutada do IHE, já com dados:
+   SUBIR_BOM→higher_better, DESCER_BOM/INFERIOR→lower_better).
+3. senão, `target` (meio = excelente), neutro — e o CEO ajusta no bloco editável.
+
+A trisecção usa o mínimo/máximo REAIS do laudo (`exam_results.ref_low/ref_high`). Exame sem mínimo/máximo continua
+"conferência" (cinza), nunca ganha faixa fantasia. As faixas são um PADRÃO editável: se houver linhas em
+`exam_analyte_ranges` para o analito, elas mandam (o servidor já prefere faixa interna — `persist.ts`).
 
 ## 4. Escopo de tela (aba EVOLUÇÃO)
 

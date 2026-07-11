@@ -5,10 +5,22 @@ import {
   db,
   examDocumentsTable,
   examResultsTable,
+  examAnalyteCatalogTable,
+  examAnalyteRangesTable,
+  direcaoFavoravelExameTable,
   clientsTable,
   professionalsTable,
 } from "@workspace/db";
-import { eq, ne, desc, and, inArray } from "drizzle-orm";
+import { eq, ne, desc, and, or, inArray, sql } from "drizzle-orm";
+import { z } from "zod/v4";
+import {
+  resolveDirection,
+  computeZones,
+  overrideZones,
+  classifyIntoZones,
+  type Direction,
+  type Zone,
+} from "../lib/exam-extraction/zones";
 import { getSetting } from "../lib/secure-settings";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
 import { extractExamFromText } from "../lib/exam-extraction/extract";
@@ -577,6 +589,40 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       });
     }
 
+    // ---- Motor de FAIXAS (5 zonas): direção real + trisecção do min/max real --
+    // Direção: 1) exam_analyte_catalog.direction; 2) direcao_favoravel_exame
+    // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
+    // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
+    const catRows = await db
+      .select({ code: examAnalyteCatalogTable.code, direction: examAnalyteCatalogTable.direction })
+      .from(examAnalyteCatalogTable);
+    const dirByCode = new Map<string, string | null>();
+    for (const c of catRows) dirByCode.set(c.code, c.direction);
+
+    const dirRows = await db
+      .select({
+        nome: direcaoFavoravelExameTable.nomeExame,
+        dir: direcaoFavoravelExameTable.direcaoFavoravel,
+      })
+      .from(direcaoFavoravelExameTable);
+    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+    const dirByName = new Map<string, string | null>();
+    for (const d of dirRows) dirByName.set(norm(d.nome), d.dir);
+
+    const rangeRows = await db.select().from(examAnalyteRangesTable);
+    const rangesByCode = new Map<string, typeof rangeRows>();
+    for (const r of rangeRows) {
+      const arr = rangesByCode.get(r.analyteCode) ?? [];
+      arr.push(r);
+      rangesByCode.set(r.analyteCode, arr);
+    }
+
+    const toNum = (s: string | null): number | null => {
+      if (s === null) return null;
+      const n = Number(String(s).replace(",", "."));
+      return Number.isFinite(n) ? n : null;
+    };
+
     const analytes = [...lines.entries()].map(([key, line]) => {
       // tendencia: compara os 2 ultimos valores numericos
       const nums = columns
@@ -588,14 +634,47 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
         const last = nums[nums.length - 1];
         trend = last > prev ? "subiu" : last < prev ? "caiu" : "estavel";
       }
+
+      // Direção do exame (código canônico primeiro; senão pelo nome cru).
+      const catalogDir = key ? (dirByCode.get(key) ?? null) : null;
+      const iheDir = dirByName.get(norm(line.name)) ?? null;
+      const direction: Direction = resolveDirection(catalogDir, iheDir);
+
+      // Zonas: override do Subcadastro OU trisecção do min/max real.
+      const overrideRows = (rangesByCode.get(key) ?? []).map((r) => ({
+        faixaName: r.faixaName,
+        low: toNum(r.low),
+        high: toNum(r.high),
+        color: r.color,
+        ordem: r.ordem,
+      }));
+      const zones: Zone[] | null =
+        overrideZones(overrideRows) ??
+        computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
+
+      // Classifica cada célula na sua zona (cor honesta da faixa).
+      const cellsObj = Object.fromEntries(
+        [...line.cells.entries()].map(([ck, cell]) => {
+          const z = classifyIntoZones(cell.valueNum, zones);
+          return [
+            ck,
+            { ...cell, zone: z ? { key: z.key, name: z.name, color: z.color } : null },
+          ];
+        }),
+      );
+
       return {
         key,
         name: line.name,
         unit: line.unit,
         refLow: line.refLow,
         refHigh: line.refHigh,
+        direction,
+        zones: zones
+          ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
+          : null,
         trend,
-        cells: Object.fromEntries(line.cells),
+        cells: cellsObj,
       };
     });
 
@@ -604,6 +683,168 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
   } catch (err) {
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });
+  }
+});
+
+// ===========================================================================
+// CRUD das FAIXAS por exame (bloco editável do painel EVOLUÇÃO).
+// Sem auth nova — segue o padrão single-tenant/proxy dos demais routers admin.
+// A direção grava em exam_analyte_catalog.direction (upsert quando há code);
+// as zonas gravam em exam_analyte_ranges (delete+insert por analyteCode).
+// ===========================================================================
+
+// GET faixas de um analito: direção resolvida + min/max do laudo mais recente +
+// zonas (override do Subcadastro OU trisecção) + se há override salvo.
+// Código vai por QUERY (?code=...) — analitos têm `%`, espaço e `/` no nome,
+// que quebram o casamento de rota do Express/proxy quando vão no path.
+router.get("/exames-lab/faixas", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.query.code || "").trim();
+    if (!code) return res.status(400).json({ error: "code obrigatório" });
+
+    // Catálogo (displayName + direção salva) — casa por code.
+    const [cat] = await db
+      .select()
+      .from(examAnalyteCatalogTable)
+      .where(eq(examAnalyteCatalogTable.code, code))
+      .limit(1);
+
+    // Último resultado (por code OU por nome cru minúsculo) para o min/max real.
+    const [latest] = await db
+      .select({
+        name: examResultsTable.analyteNameRaw,
+        refLow: examResultsTable.refLow,
+        refHigh: examResultsTable.refHigh,
+      })
+      .from(examResultsTable)
+      .where(
+        or(
+          eq(examResultsTable.analyteCode, code),
+          sql`lower(${examResultsTable.analyteNameRaw}) = ${code.toLowerCase()}`,
+        ),
+      )
+      .orderBy(desc(examResultsTable.id))
+      .limit(1);
+
+    const displayName = cat?.displayName ?? latest?.name ?? code;
+
+    // Direção pelo IHE (casa por nome). Normalização robusta em JS (mesma
+    // estratégia do endpoint de evolução): remove acentos dos DOIS lados, pois
+    // o `upper()` do Postgres não remove diacríticos e nomes acentuados falham.
+    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+    const nameForDir = norm(displayName);
+    const dirRows = await db
+      .select({
+        nome: direcaoFavoravelExameTable.nomeExame,
+        dir: direcaoFavoravelExameTable.direcaoFavoravel,
+      })
+      .from(direcaoFavoravelExameTable);
+    const iheDir = dirRows.find((d) => norm(d.nome) === nameForDir)?.dir ?? null;
+    const direction: Direction = resolveDirection(cat?.direction ?? null, iheDir);
+
+    const toNum = (s: string | null): number | null => {
+      if (s === null || s === undefined) return null;
+      const n = Number(String(s).replace(",", "."));
+      return Number.isFinite(n) ? n : null;
+    };
+    const refLow = toNum(latest?.refLow ?? null);
+    const refHigh = toNum(latest?.refHigh ?? null);
+
+    const ovRows = await db
+      .select()
+      .from(examAnalyteRangesTable)
+      .where(eq(examAnalyteRangesTable.analyteCode, code));
+    const override = overrideZones(
+      ovRows.map((r) => ({
+        faixaName: r.faixaName,
+        low: toNum(r.low),
+        high: toNum(r.high),
+        color: r.color,
+        ordem: r.ordem,
+      })),
+    );
+    const zones: Zone[] | null = override ?? computeZones(refLow, refHigh, direction);
+
+    return res.json({
+      analyteCode: code,
+      displayName,
+      direction,
+      refLow,
+      refHigh,
+      hasOverride: !!override,
+      zones: zones
+        ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
+        : null,
+    });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /faixas falhou");
+    return res.status(500).json({ error: "Falha ao carregar faixas" });
+  }
+});
+
+const faixaZonaSchema = z.object({
+  faixaName: z.string().min(1).max(40),
+  low: z.number().nullable(),
+  high: z.number().nullable(),
+  color: z.string().min(1).max(20),
+  ordem: z.number().int().min(0),
+});
+const putFaixasSchema = z.object({
+  direction: z.enum(["higher_better", "lower_better", "target"]).optional(),
+  zones: z.array(faixaZonaSchema).max(5).optional(),
+  // resetDirection: limpa a direção customizada no catálogo para voltar ao
+  // padrão do IHE (direcao_favoravel_exame por nome). Usado no "Restaurar".
+  resetDirection: z.boolean().optional(),
+});
+
+// PUT faixas: grava direção (se houver linha no catálogo) e substitui as zonas.
+router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.query.code || "").trim();
+    if (!code) return res.status(400).json({ error: "code obrigatório" });
+
+    const parsed = putFaixasSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const { direction, zones, resetDirection } = parsed.data;
+
+    let directionSaved = false;
+    if (resetDirection) {
+      // Volta ao padrão do IHE: apaga o override de direção no catálogo.
+      await db
+        .update(examAnalyteCatalogTable)
+        .set({ direction: null })
+        .where(eq(examAnalyteCatalogTable.code, code));
+    } else if (direction) {
+      const upd = await db
+        .update(examAnalyteCatalogTable)
+        .set({ direction })
+        .where(eq(examAnalyteCatalogTable.code, code))
+        .returning({ id: examAnalyteCatalogTable.id });
+      directionSaved = upd.length > 0;
+    }
+
+    if (zones) {
+      await db.delete(examAnalyteRangesTable).where(eq(examAnalyteRangesTable.analyteCode, code));
+      if (zones.length) {
+        await db.insert(examAnalyteRangesTable).values(
+          zones.map((z, i) => ({
+            analyteCode: code,
+            faixaName: z.faixaName,
+            low: z.low === null ? null : String(z.low),
+            high: z.high === null ? null : String(z.high),
+            color: z.color,
+            ordem: z.ordem ?? i + 1,
+          })),
+        );
+      }
+    }
+
+    return res.json({ ok: true, analyteCode: code, directionSaved, zonesSaved: zones?.length ?? 0 });
+  } catch (e) {
+    req.log?.error({ err: e }, "PUT /faixas falhou");
+    return res.status(500).json({ error: "Falha ao salvar faixas" });
   }
 });
 

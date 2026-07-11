@@ -9,6 +9,13 @@ import {
   MousePointerClick,
   FlaskConical,
   X,
+  Pin,
+  PinOff,
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  Save,
+  RotateCcw,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -23,45 +30,75 @@ import {
 import { BASE } from "../../comunicacao/_shared";
 
 // ===========================================================================
-// PAINEL: EVOLUCAO DE EXAMES (client-scoped) — fiel ao mockup
-//   artifacts/mockup-sandbox/src/components/mockups/acompanhamento/Exames.tsx
-// Adaptado aos dados REAIS do motor: GET /api/exames-lab/evolucao/:clientId.
-// Tema CLARO 3D Paxter (cockpit-cliente é cream).
-// - Nome do exame CONGELADO à esquerda; datas rolam na horizontal.
-// - Clique numa faixa (linha) EMPILHA o gráfico daquele exame à direita.
-// - O gráfico plota SÓ os pontos que têm valor (eixo X não estica).
-// - Cabeçalho de cada coluna mostra a DATA (grande) + laboratório + conferência.
-// - Cor por STATUS real (dentro/acima/abaixo/conferência) — sem zonas fictícias.
+// PAINEL: EVOLUCAO DE EXAMES (client-scoped) — motor de 5 FAIXAS do IHE.
+//   Backend: GET /api/exames-lab/evolucao/:clientId (agora com direção + zonas
+//   por analito e zona por célula) e CRUD /api/exames-lab/faixas?code=...
+//
+// Requisitos do CEO atendidos aqui:
+//   (1) CINCO faixas no número (planilha) e no gráfico, semântica oficial do IHE.
+//   (2) Números NÍTIDOS: valor sempre em navy forte; a faixa vira faixinha
+//       lateral + tint, nunca tinge o dígito (que ficava apagado).
+//   (3) Nome do exame em UP-BEVEL (relevo saliente).
+//   (4) Botões das faixas em BEVEL (bevel-3d).
+//   (5) Tendência numa BOLINHA no rodapé do gráfico.
+//   (6) FIXAR coluna(s) para comparar (alfinete no cabeçalho).
+//   (7) TODAS as opções de layout como TOGGLE in-tool: ao lado / topo largura
+//       total / sanfona / fixo.
+//   (9) BLOCO EDITÁVEL no final (direção + 5 faixas por exame).
 // ===========================================================================
 
 const NAVY = "#16294a";
 const MUTED = "#647c97";
 const GOLD = "#b8924d";
 const NOME_BG = "#e9ecf1";
+const PIN_BG = "#eef1f6";
 
-// Cor por status real do resultado (o motor só entrega status + refLow/refHigh,
-// não as 5 zonas do mockup; então a cor honesta vem do status).
-type StatusKey = "dentro" | "acima" | "abaixo" | "conferencia";
-const STATUS_COR: Record<StatusKey, { cor: string; rotulo: string }> = {
-  dentro: { cor: "#2f8f4e", rotulo: "Dentro" },
-  acima: { cor: "#c0392b", rotulo: "Acima" },
-  abaixo: { cor: "#e07b39", rotulo: "Abaixo" },
-  conferencia: { cor: MUTED, rotulo: "Conferência" },
+// Larguras FIXAS: o cálculo do "grudar" das colunas fixadas depende disso.
+const NAME_W = 200; // coluna do nome (congelada à esquerda)
+const COL_W = 62; // largura de cada coluna de data
+const GAP = 8; // gap-2 entre células
+
+// Paleta oficial dos rótulos (espelha zones.ts do backend).
+const ZONE_COLOR: Record<string, string> = {
+  ALERTA: "#b4413c",
+  ATENCAO: "#c17a2b",
+  INSUFICIENTE: "#d0a53f",
+  SUFICIENTE: "#7a9a4a",
+  EXCELENTE: "#3f7a3f",
+};
+const ZONE_ROTULO: Record<string, string> = {
+  ALERTA: "ALERTA",
+  ATENCAO: "ATENÇÃO",
+  INSUFICIENTE: "INSUFICIENTE",
+  SUFICIENTE: "SUFICIENTE",
+  EXCELENTE: "EXCELENTE",
+};
+const DIRECTION_ROTULO: Record<string, string> = {
+  higher_better: "Quanto MAIOR, melhor",
+  lower_better: "Quanto MENOR, melhor",
+  target: "Melhor no MEIO (alvo)",
 };
 
-function corStatus(status: string | null): string {
-  if (status === "dentro" || status === "acima" || status === "abaixo" || status === "conferencia") {
-    return STATUS_COR[status].cor;
-  }
-  return MUTED;
+// ---- tipos do payload ----
+interface ZonePayload {
+  key: "below" | "t1" | "t2" | "t3" | "above";
+  name: string;
+  color: string;
+  low: number | null;
+  high: number | null;
 }
-
+interface CellZone {
+  key: string;
+  name: string;
+  color: string;
+}
 interface EvolucaoCell {
   value: string | null;
   valueNum: number | null;
   unit: string | null;
   status: string | null;
   documentId: number;
+  zone: CellZone | null;
 }
 interface EvolucaoColumn {
   key: string;
@@ -77,6 +114,8 @@ interface EvolucaoAnalyte {
   unit: string | null;
   refLow: string | null;
   refHigh: string | null;
+  direction: "higher_better" | "lower_better" | "target";
+  zones: ZonePayload[] | null;
   trend: "subiu" | "caiu" | "estavel" | null;
   cells: Record<string, EvolucaoCell>;
 }
@@ -85,7 +124,6 @@ interface EvolucaoData {
   analytes: EvolucaoAnalyte[];
 }
 
-// dd/mm (dia+mês) e o ano separado, para o cabeçalho em duas linhas
 function diaMes(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -96,64 +134,77 @@ function ano(iso: string | null): string {
   const m = iso.match(/^(\d{4})/);
   return m ? m[1] : "";
 }
-// dd/mm/aa curto para o eixo do gráfico
 function dataCurta(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : iso;
 }
-
 function toNum(s: string | null): number | null {
   if (s == null) return null;
   const n = Number(String(s).replace(",", "."));
   return Number.isFinite(n) ? n : null;
 }
 
-// Config de tendência (LED + ícone). Semântica mantida do painel anterior:
-// subiu=alerta vermelho, caiu=verde, estável=âmbar.
 const TEND = {
-  subiu: { rotulo: "SUBIU", cor: "text-red-700", led: "paxter-led-red", Icon: TrendingUp },
-  caiu: { rotulo: "CAIU", cor: "text-emerald-700", led: "paxter-led-green", Icon: TrendingDown },
-  estavel: { rotulo: "ESTÁVEL", cor: "text-amber-700", led: "paxter-led-amber", Icon: Minus },
+  subiu: { rotulo: "SUBIU", cor: "text-red-700", hex: "#b4413c", led: "paxter-led-red", Icon: TrendingUp },
+  caiu: { rotulo: "CAIU", cor: "text-emerald-700", hex: "#3f7a3f", led: "paxter-led-green", Icon: TrendingDown },
+  estavel: { rotulo: "ESTÁVEL", cor: "text-amber-700", hex: "#c17a2b", led: "paxter-led-amber", Icon: Minus },
 } as const;
 
-// ---- célula de valor ----
+// ------------------------------------------------------------------ célula ---
 function Cela({
   cell,
   atual,
-  showStrip,
-  neonStatus,
+  acesa,
+  sticky,
+  left,
+  mostrarFaixas,
 }: {
   cell: EvolucaoCell | undefined;
   atual: boolean;
-  showStrip: boolean;
-  neonStatus: StatusKey | null;
+  acesa: boolean;
+  sticky: boolean;
+  left: number;
+  mostrarFaixas: boolean;
 }) {
+  const stickyStyle = sticky
+    ? { position: "sticky" as const, left, zIndex: 1, background: PIN_BG }
+    : {};
   if (!cell || cell.value == null) {
     return (
-      <div className="flex min-w-[58px] items-center justify-center py-1.5 text-[12px] text-[#b3bccb]">
+      <div
+        className="flex shrink-0 items-center justify-center py-1.5 text-[12px] text-[#b3bccb]"
+        style={{ width: COL_W, ...stickyStyle }}
+      >
         —
       </div>
     );
   }
-  const cor = corStatus(cell.status);
-  const aceso = neonStatus !== null && cell.status === neonStatus;
+  const cor = cell.zone?.color ?? MUTED;
+  // A faixinha (tarja + tint) só aparece quando o toggle "Faixinha de cor" está
+  // ligado. Desligado, fica só o número navy nítido, sem cor de faixa.
+  const temZona = !!cell.zone && mostrarFaixas;
   return (
     <div
-      className={`relative min-w-[58px] overflow-hidden rounded-[4px] py-1.5 text-center ${
+      className={`relative shrink-0 overflow-hidden rounded-[4px] py-1.5 text-center ${
         atual ? "screen-3d" : "concave-3d"
       }`}
-      style={
-        aceso
+      style={{
+        width: COL_W,
+        ...(acesa
           ? { boxShadow: `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}`, transition: "box-shadow .15s" }
-          : { transition: "box-shadow .15s" }
-      }
-      title={`${cell.value} ${cell.unit ?? ""} · ${STATUS_COR[(cell.status as StatusKey) ?? "conferencia"]?.rotulo ?? "—"}`}
+          : { transition: "box-shadow .15s" }),
+        ...stickyStyle,
+        ...(sticky ? {} : temZona ? { background: `${cor}14` } : {}),
+      }}
+      title={`${cell.value} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}`}
     >
-      {showStrip && <span className="absolute left-0 top-0 h-full w-[5px]" style={{ background: cor }} />}
+      {/* faixinha de cor à esquerda: a FAIXA vive aqui, não no dígito */}
+      {temZona && <span className="absolute left-0 top-0 h-full w-[5px]" style={{ background: cor }} />}
+      {/* número SEMPRE navy forte e nítido */}
       <span
-        className={atual ? "text-[12px] font-bold" : "text-[11px] font-semibold"}
-        style={{ color: cell.status ? cor : "#3a4a63", paddingLeft: showStrip ? 5 : 0 }}
+        className={atual ? "text-[13px] font-black" : "text-[12px] font-bold"}
+        style={{ color: NAVY, paddingLeft: temZona ? 6 : 0 }}
       >
         {cell.value}
       </span>
@@ -161,22 +212,52 @@ function Cela({
   );
 }
 
-// ---- cabeçalho da coluna: DATA grande + ano + lab + conferência ----
-function ColunaCabecalho({ c, ultima }: { c: EvolucaoColumn; ultima: boolean }) {
+// ---------------------------------------------------------- cabeçalho coluna --
+function ColunaCabecalho({
+  c,
+  ultima,
+  fixada,
+  onFixar,
+  sticky,
+  left,
+}: {
+  c: EvolucaoColumn;
+  ultima: boolean;
+  fixada: boolean;
+  onFixar: () => void;
+  sticky: boolean;
+  left: number;
+}) {
+  const stickyStyle = sticky
+    ? { position: "sticky" as const, left, zIndex: 3, background: PIN_BG }
+    : {};
   return (
-    <div className="flex min-w-[58px] flex-col items-center px-0.5 text-center">
+    <div
+      className="flex shrink-0 flex-col items-center px-0.5 text-center"
+      style={{ width: COL_W, ...stickyStyle }}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onFixar();
+        }}
+        title={fixada ? "Soltar coluna" : "Fixar coluna para comparar"}
+        className="mb-0.5 flex h-4 w-4 items-center justify-center rounded-[3px]"
+        style={fixada ? { color: GOLD } : { color: "#9aa6b6" }}
+      >
+        {fixada ? <Pin className="h-3 w-3" fill={GOLD} /> : <PinOff className="h-3 w-3" />}
+      </button>
       <span className={`text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}>
         {diaMes(c.date)}
       </span>
       <span className="text-[9px] font-bold leading-none text-[#8a97a9]">{ano(c.date)}</span>
-      <span className="mt-1 max-w-[64px] truncate text-[9px] font-semibold leading-tight" style={{ color: GOLD }}>
+      <span className="mt-1 max-w-[60px] truncate text-[9px] font-semibold leading-tight" style={{ color: GOLD }}>
         {c.lab ?? "Lab. —"}
       </span>
       <span className="mt-0.5 text-[8px] font-medium leading-tight text-[#8a97a9]">
         {c.conferenteName ? (
-          <>
-            {c.confLevel === "c2" ? "Conferido" : "Lançado"}
-          </>
+          c.confLevel === "c2" ? "Conferido" : "Lançado"
         ) : (
           <span className="inline-flex items-center gap-0.5">
             <Bot className="h-2.5 w-2.5" /> Aguardando
@@ -187,7 +268,7 @@ function ColunaCabecalho({ c, ultima }: { c: EvolucaoColumn; ultima: boolean }) 
   );
 }
 
-// ---- cartão de gráfico (um por exame selecionado, empilhados à direita) ----
+// ----------------------------------------------------- cartão de gráfico ------
 function CartaoGrafico({
   analyte,
   columns,
@@ -199,28 +280,49 @@ function CartaoGrafico({
   ordem: number;
   onRemover: () => void;
 }) {
-  // SÓ pontos com valor — assim o eixo X não estica com datas vazias.
   const data = useMemo(
     () =>
       columns
         .map((c) => {
           const cell = analyte.cells[c.key];
           return cell && cell.valueNum != null
-            ? { data: dataCurta(c.date), valor: cell.valueNum, status: cell.status }
+            ? {
+                data: dataCurta(c.date),
+                valor: cell.valueNum,
+                cor: cell.zone?.color ?? MUTED,
+                zona: cell.zone?.name ?? null,
+              }
             : null;
         })
-        .filter((d): d is { data: string; valor: number; status: string | null } => d != null),
+        .filter((d): d is { data: string; valor: number; cor: string; zona: string | null } => d != null),
     [analyte, columns],
   );
 
-  const refLow = toNum(analyte.refLow);
-  const refHigh = toNum(analyte.refHigh);
-
-  // último valor + status para o cabeçalho do cartão
+  const zones = analyte.zones;
   const ultimo = data.length > 0 ? data[data.length - 1] : null;
-  const corUltimo = corStatus(ultimo?.status ?? null);
-
+  const corUltimo = ultimo?.cor ?? MUTED;
+  const rotuloUltimo = ultimo?.zona ? ZONE_ROTULO[ultimo.zona] ?? ultimo.zona : "—";
   const tend = analyte.trend ? TEND[analyte.trend] : TEND.estavel;
+
+  // Domínio do eixo Y: engloba valores + limites finitos das zonas.
+  const dominio = useMemo(() => {
+    const vals: number[] = data.map((d) => d.valor);
+    if (zones) {
+      for (const z of zones) {
+        if (z.low != null) vals.push(z.low);
+        if (z.high != null) vals.push(z.high);
+      }
+    }
+    if (!vals.length) return { min: 0, max: 1 };
+    let min = Math.min(...vals);
+    let max = Math.max(...vals);
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+    const folga = (max - min) * 0.08;
+    return { min: min - folga, max: max + folga };
+  }, [data, zones]);
 
   return (
     <section className="panel-3d p-3">
@@ -237,7 +339,7 @@ function CartaoGrafico({
             <div className="flex items-center gap-2">
               {ultimo && <span className="text-[15px] font-bold text-[#16294a]">{ultimo.valor}</span>}
               {analyte.unit && <span className="text-[10px] text-[#647c97]">{analyte.unit}</span>}
-              {refLow != null && refHigh != null && (
+              {analyte.refLow && analyte.refHigh && (
                 <span className="text-[10px] text-[#647c97]">
                   ref {analyte.refLow}–{analyte.refHigh}
                 </span>
@@ -245,21 +347,15 @@ function CartaoGrafico({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="bevel-3d flex items-center gap-1 px-2 py-1">
-            <span className={`paxter-led ${tend.led} paxter-led-on`} />
-            <span className={`text-[9px] font-bold uppercase ${tend.cor}`}>{tend.rotulo}</span>
-          </span>
-          <button
-            type="button"
-            onClick={onRemover}
-            title="Tirar este gráfico"
-            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
-            style={{ background: "rgba(22,41,74,0.06)" }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onRemover}
+          title="Tirar este gráfico"
+          className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
+          style={{ background: "rgba(22,41,74,0.06)" }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {data.length === 0 ? (
@@ -272,16 +368,18 @@ function CartaoGrafico({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,41,74,0.10)" />
-                {refLow != null && refHigh != null && (
+                {/* CINCO faixas oficiais do IHE como fundo do gráfico */}
+                {zones?.map((z) => (
                   <ReferenceArea
-                    y1={refLow}
-                    y2={refHigh}
-                    fill="#2f8f4e"
-                    fillOpacity={0.12}
-                    stroke="#2f8f4e"
-                    strokeOpacity={0.3}
+                    key={z.key}
+                    y1={z.low ?? dominio.min}
+                    y2={z.high ?? dominio.max}
+                    fill={z.color}
+                    fillOpacity={0.16}
+                    stroke={z.color}
+                    strokeOpacity={0.22}
                   />
-                )}
+                ))}
                 <XAxis
                   dataKey="data"
                   tick={{ fill: MUTED, fontSize: 10 }}
@@ -293,7 +391,7 @@ function CartaoGrafico({
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
                   width={44}
-                  domain={["auto", "auto"]}
+                  domain={[dominio.min, dominio.max]}
                 />
                 <Tooltip
                   contentStyle={{
@@ -320,22 +418,35 @@ function CartaoGrafico({
         </div>
       )}
 
-      {ultimo && (
-        <div className="concave-3d mt-2 flex items-center gap-2 px-3 py-2">
-          <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: corUltimo }} />
-          <span className="text-[13px] font-bold leading-tight" style={{ color: corUltimo }}>
-            {STATUS_COR[(ultimo.status as StatusKey) ?? "conferencia"]?.rotulo ?? "—"}
-          </span>
-          <span className="ml-auto text-[11px] font-semibold text-[#647c97]">
-            {ultimo.valor} {analyte.unit ?? ""}
+      {/* RODAPÉ: situação atual + tendência na BOLINHA (requisito 5) */}
+      <div className="mt-2 flex items-center gap-2">
+        {ultimo && (
+          <div className="concave-3d flex flex-1 items-center gap-2 px-3 py-2">
+            <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: corUltimo }} />
+            <span className="text-[13px] font-bold leading-tight" style={{ color: corUltimo }}>
+              {rotuloUltimo}
+            </span>
+            <span className="ml-auto text-[11px] font-semibold text-[#647c97]">
+              {ultimo.valor} {analyte.unit ?? ""}
+            </span>
+          </div>
+        )}
+        <div
+          className="bevel-3d flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full"
+          title={`Tendência: ${tend.rotulo}`}
+          style={{ border: `2px solid ${tend.hex}` }}
+        >
+          <tend.Icon className="h-4 w-4" style={{ color: tend.hex }} />
+          <span className="text-[7px] font-black uppercase leading-none" style={{ color: tend.hex }}>
+            {tend.rotulo}
           </span>
         </div>
-      )}
+      </div>
     </section>
   );
 }
 
-// ---- interruptor (toggle) estilo Paxter ----
+// -------------------------------------------------- interruptor (toggle) ------
 function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => void; texto: string }) {
   return (
     <button
@@ -358,13 +469,275 @@ function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => 
   );
 }
 
+// --------------------------------------------------- bloco editável (F5) ------
+type LayoutMode = "lado" | "topo" | "sanfona" | "fixo";
+const LAYOUTS: { id: LayoutMode; label: string }[] = [
+  { id: "lado", label: "Ao lado" },
+  { id: "topo", label: "Topo largura total" },
+  { id: "sanfona", label: "Sanfona" },
+  { id: "fixo", label: "Fixo (rodapé)" },
+];
+
+interface FaixaEdit {
+  faixaName: string;
+  low: string;
+  high: string;
+  color: string;
+}
+interface FaixasResp {
+  analyteCode: string;
+  displayName: string;
+  direction: "higher_better" | "lower_better" | "target";
+  refLow: number | null;
+  refHigh: number | null;
+  hasOverride: boolean;
+  zones: ZonePayload[] | null;
+}
+
+function BlocoEditavel({
+  analytes,
+  onSalvo,
+}: {
+  analytes: EvolucaoAnalyte[];
+  onSalvo: () => void;
+}) {
+  const [code, setCode] = useState<string>("");
+  const [carregando, setCarregando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [direction, setDirection] = useState<"higher_better" | "lower_better" | "target">("target");
+  const [faixas, setFaixas] = useState<FaixaEdit[]>([]);
+  const [hasOverride, setHasOverride] = useState(false);
+
+  const carregar = useCallback((c: string) => {
+    if (!c) return;
+    setCarregando(true);
+    setMsg(null);
+    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(c)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("faixas"))))
+      .then((d: FaixasResp) => {
+        setDirection(d.direction);
+        setHasOverride(d.hasOverride);
+        setFaixas(
+          (d.zones ?? []).map((z) => ({
+            faixaName: z.name,
+            low: z.low == null ? "" : String(z.low),
+            high: z.high == null ? "" : String(z.high),
+            color: z.color,
+          })),
+        );
+      })
+      .catch(() => setMsg("Não consegui carregar as faixas deste exame."))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const escolher = (c: string) => {
+    setCode(c);
+    carregar(c);
+  };
+
+  const editar = (i: number, campo: keyof FaixaEdit, valor: string) => {
+    setFaixas((prev) => prev.map((f, idx) => (idx === i ? { ...f, [campo]: valor } : f)));
+  };
+
+  const salvar = () => {
+    if (!code) return;
+    setSalvando(true);
+    setMsg(null);
+    const zones = faixas.map((f, i) => ({
+      faixaName: f.faixaName.trim() || `FAIXA ${i + 1}`,
+      low: f.low.trim() === "" ? null : Number(f.low.replace(",", ".")),
+      high: f.high.trim() === "" ? null : Number(f.high.replace(",", ".")),
+      color: f.color,
+      ordem: i + 1,
+    }));
+    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(code)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction, zones }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("save"))))
+      .then((res: { directionSaved: boolean }) => {
+        setHasOverride(true);
+        setMsg(
+          res.directionSaved
+            ? "Faixas e direção salvas."
+            : "Faixas salvas. (A direção só grava em exames com código de catálogo; este ficou pela faixa.)",
+        );
+        onSalvo();
+      })
+      .catch(() => setMsg("Falha ao salvar."))
+      .finally(() => setSalvando(false));
+  };
+
+  const restaurar = () => {
+    if (!code) return;
+    setSalvando(true);
+    setMsg(null);
+    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(code)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ zones: [], resetDirection: true }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("reset"))))
+      .then(() => {
+        setMsg("Voltou ao padrão do IHE (direção e trisecção).");
+        carregar(code);
+        onSalvo();
+      })
+      .catch(() => setMsg("Falha ao restaurar."))
+      .finally(() => setSalvando(false));
+  };
+
+  return (
+    <section className="panel-3d mt-5 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+        <SlidersHorizontal className="h-4 w-4" style={{ color: "#9a7b32" }} /> Cadastro de Faixas por Exame
+      </div>
+      <p className="mb-3 text-[11px] text-[#647c97]">
+        Escolha um exame para ajustar a DIREÇÃO (o que é "excelente") e as cinco faixas. Deixe o mínimo em branco
+        para "abaixo de tudo" e o máximo em branco para "acima de tudo". Sem edição, vale o padrão do IHE
+        (trisecção do mínimo/máximo do laudo).
+      </p>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={code}
+          onChange={(e) => escolher(e.target.value)}
+          className="concave-3d min-w-[240px] rounded-[6px] px-3 py-2 text-[13px] font-semibold text-[#16294a]"
+        >
+          <option value="">— escolher exame —</option>
+          {analytes.map((a) => (
+            <option key={a.key} value={a.key}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        {carregando && <Loader2 className="h-4 w-4 animate-spin text-[#647c97]" />}
+        {code && hasOverride && (
+          <span className="rounded-[5px] px-2 py-1 text-[9px] font-bold uppercase tracking-wide" style={{ background: `${GOLD}22`, color: "#9a7b32" }}>
+            faixa personalizada
+          </span>
+        )}
+      </div>
+
+      {code && !carregando && (
+        <>
+          {/* direção */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Direção:</span>
+            {(["higher_better", "lower_better", "target"] as const).map((d) => {
+              const ativo = direction === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDirection(d)}
+                  className={`rounded-[5px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                  style={ativo ? { color: "#fff", background: NAVY } : { color: NAVY }}
+                >
+                  {DIRECTION_ROTULO[d]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 5 faixas */}
+          <div className="space-y-2">
+            {faixas.length === 0 && (
+              <div className="concave-3d px-3 py-4 text-center text-[12px] text-[#647c97]">
+                Este exame não tem mínimo/máximo no laudo, então não há faixa padrão. Preencha as faixas abaixo
+                para criar uma.
+              </div>
+            )}
+            {faixas.map((f, i) => (
+              <div key={i} className="concave-3d flex flex-wrap items-center gap-2 px-2 py-2">
+                <span className="w-5 text-center text-[11px] font-bold text-[#647c97]">{i + 1}</span>
+                <input
+                  value={f.faixaName}
+                  onChange={(e) => editar(i, "faixaName", e.target.value)}
+                  placeholder="Nome da faixa"
+                  className="min-w-[130px] flex-1 rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] font-semibold text-[#16294a]"
+                />
+                <label className="flex items-center gap-1 text-[10px] font-semibold text-[#647c97]">
+                  mín
+                  <input
+                    value={f.low}
+                    onChange={(e) => editar(i, "low", e.target.value)}
+                    placeholder="—"
+                    className="w-[64px] rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] text-[#16294a]"
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-[10px] font-semibold text-[#647c97]">
+                  máx
+                  <input
+                    value={f.high}
+                    onChange={(e) => editar(i, "high", e.target.value)}
+                    placeholder="—"
+                    className="w-[64px] rounded-[5px] border border-[#16294a]/15 bg-white px-2 py-1 text-[12px] text-[#16294a]"
+                  />
+                </label>
+                <input
+                  type="color"
+                  value={f.color}
+                  onChange={(e) => editar(i, "color", e.target.value)}
+                  title="Cor da faixa"
+                  className="h-8 w-9 cursor-pointer rounded-[5px] border border-[#16294a]/15 bg-white"
+                />
+              </div>
+            ))}
+          </div>
+
+          {faixas.length < 5 && (
+            <button
+              type="button"
+              onClick={() =>
+                setFaixas((prev) => [...prev, { faixaName: `FAIXA ${prev.length + 1}`, low: "", high: "", color: "#7a9a4a" }])
+              }
+              className="btn-3d-soft mt-2 rounded-[5px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#16294a]"
+            >
+              + adicionar faixa
+            </button>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={salvar}
+              disabled={salvando}
+              className="btn-3d flex items-center gap-1.5 rounded-[6px] px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white disabled:opacity-60"
+              style={{ background: NAVY }}
+            >
+              {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar faixas
+            </button>
+            <button
+              type="button"
+              onClick={restaurar}
+              disabled={salvando}
+              className="btn-3d-soft flex items-center gap-1.5 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-60"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Restaurar padrão IHE
+            </button>
+            {msg && <span className="text-[11px] font-semibold text-[#647c97]">{msg}</span>}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ============================================================== PAINEL ========
 export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) {
   const [data, setData] = useState<EvolucaoData | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
-  const [mostrarFaixas, setMostrarFaixas] = useState(false);
-  const [filtroStatus, setFiltroStatus] = useState<StatusKey | null>(null);
+  const [mostrarFaixas, setMostrarFaixas] = useState(true);
+  const [zonaAcesa, setZonaAcesa] = useState<string | null>(null);
+  const [fixadas, setFixadas] = useState<string[]>([]);
+  const [layout, setLayout] = useState<LayoutMode>("lado");
+  const [colapsados, setColapsados] = useState<string[]>([]);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
@@ -379,19 +752,49 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       .finally(() => setCarregando(false));
   }, []);
 
-  // Trocar de cliente re-alimenta e limpa a seleção do cliente anterior.
   useEffect(() => {
     setSelecionados([]);
+    setFixadas([]);
     carregar(clientId);
   }, [clientId, carregar]);
 
   const analytes = data?.analytes ?? [];
-  const columns = data?.columns ?? [];
-  const ultimaCol = columns.length > 0 ? columns[columns.length - 1].key : null;
+  const columnsRaw = data?.columns ?? [];
+  const ultimaColKey = columnsRaw.length > 0 ? columnsRaw[columnsRaw.length - 1].key : null;
 
-  const alternar = (key: string) => {
+  // Colunas fixadas vão primeiro (grudadas); as demais rolam.
+  const orderedColumns = useMemo(() => {
+    const pin = fixadas.filter((k) => columnsRaw.some((c) => c.key === k));
+    const pinCols = pin.map((k) => columnsRaw.find((c) => c.key === k)!);
+    const rest = columnsRaw.filter((c) => !fixadas.includes(c.key));
+    return { pinCols, list: [...pinCols, ...rest] };
+  }, [columnsRaw, fixadas]);
+
+  // Offset de "grudar" de cada coluna fixada: depois do nome (200) + gap.
+  const stickyLeft = (displayIndex: number) => NAME_W + GAP + displayIndex * (COL_W + GAP);
+
+  const zonasPresentes = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of analytes) {
+      for (const c of Object.values(a.cells)) {
+        if (c.zone) m.set(c.zone.name, c.zone.color);
+      }
+    }
+    // ordem canônica primeiro; depois o resto
+    const ordem = ["ALERTA", "ATENCAO", "INSUFICIENTE", "SUFICIENTE", "EXCELENTE"];
+    return [...m.entries()].sort((a, b) => {
+      const ia = ordem.indexOf(a[0]);
+      const ib = ordem.indexOf(b[0]);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+  }, [analytes]);
+
+  const alternar = (key: string) =>
     setSelecionados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
-  };
+  const fixar = (key: string) =>
+    setFixadas((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  const colapsar = (key: string) =>
+    setColapsados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   const analytePorKey = useMemo(() => {
     const m = new Map<string, EvolucaoAnalyte>();
@@ -406,7 +809,6 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       </div>
     );
   }
-
   if (erro) {
     return (
       <div className="bevel-3d flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-sm text-red-700">
@@ -423,116 +825,209 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       </div>
     );
   }
-
-  if (columns.length === 0 || analytes.length === 0) {
+  if (columnsRaw.length === 0 || analytes.length === 0) {
     return <p className="py-6 text-sm text-[#647c97]">Nenhum exame para este cliente ainda.</p>;
   }
 
-  return (
-    <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[1fr_380px]">
-      {/* ESQUERDA — planilha: nome congelado + datas rolando */}
-      <section className="panel-3d min-w-0 p-4">
-        <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-          <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
-        </div>
+  // --------- Região de gráficos (reusada em todos os layouts) ---------
+  const graficos =
+    selecionados.length === 0 ? (
+      <div className="concave-3d flex flex-col items-center gap-2 px-4 py-10 text-center">
+        <MousePointerClick className="h-6 w-6 text-[#647c97]" />
+        <span className="text-[12px] text-[#647c97]">
+          Clique num exame na planilha para abrir o gráfico aqui. Você pode empilhar vários.
+        </span>
+      </div>
+    ) : layout === "sanfona" ? (
+      // SANFONA: cada gráfico numa aba que abre/fecha, largura total.
+      <div className="space-y-2">
+        {selecionados.map((key, i) => {
+          const a = analytePorKey.get(key);
+          if (!a) return null;
+          const aberto = !colapsados.includes(key);
+          return (
+            <div key={key} className="panel-3d-sub">
+              <button
+                type="button"
+                onClick={() => colapsar(key)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left"
+              >
+                {aberto ? <ChevronDown className="h-4 w-4 text-[#647c97]" /> : <ChevronRight className="h-4 w-4 text-[#647c97]" />}
+                <span className="text-[13px] font-bold text-[#16294a]">{a.name}</span>
+                <span className="ml-auto text-[10px] font-semibold uppercase text-[#647c97]">
+                  {aberto ? "fechar" : "abrir"}
+                </span>
+              </button>
+              {aberto && (
+                <div className="px-2 pb-2">
+                  <CartaoGrafico analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      // TOPO / FIXO usam grade; LADO empilha em coluna (via wrapper).
+      <div
+        className={
+          layout === "lado"
+            ? "flex flex-col gap-3"
+            : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        }
+      >
+        {selecionados.map((key, i) => {
+          const a = analytePorKey.get(key);
+          if (!a) return null;
+          return (
+            <CartaoGrafico key={key} analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+          );
+        })}
+      </div>
+    );
 
-        {/* controles: acender faixa por status + toggle de cor por valor */}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#16294a]/10 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Acender:</span>
+  const cabecalhoGraficos = (
+    <div className="mb-2 flex items-center justify-between">
+      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+        Gráficos abertos ({selecionados.length})
+      </span>
+      {selecionados.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setSelecionados([])}
+          className="text-[10px] font-bold uppercase tracking-wide text-[#647c97] hover:text-[#c0392b]"
+        >
+          Limpar
+        </button>
+      )}
+    </div>
+  );
+
+  // ----------------------------- planilha -----------------------------
+  const planilha = (
+    <section className="panel-3d min-w-0 p-4">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+        <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
+      </div>
+
+      {/* controles */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#16294a]/10 pb-3">
+        {/* botões de FAIXA em BEVEL (requisito 4) */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Acender faixa:</span>
+          <button
+            type="button"
+            onClick={() => setZonaAcesa(null)}
+            className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
+            style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+          >
+            Todas
+          </button>
+          {zonasPresentes.map(([nome, cor]) => {
+            const ativo = zonaAcesa === nome;
+            return (
+              <button
+                key={nome}
+                type="button"
+                onClick={() => setZonaAcesa(ativo ? null : nome)}
+                className={`flex items-center gap-1 rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                style={ativo ? { background: cor, color: "#fff", boxShadow: `0 0 8px 1px ${cor}` } : { color: cor }}
+              >
+                <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: cor }} />
+                {ZONE_ROTULO[nome] ?? nome}
+              </button>
+            );
+          })}
+        </div>
+        <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
+      </div>
+
+      {/* toggle de LAYOUT (requisito 7) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Gráficos:</span>
+        {LAYOUTS.map((l) => {
+          const ativo = layout === l.id;
+          return (
             <button
+              key={l.id}
               type="button"
-              onClick={() => setFiltroStatus(null)}
-              className="rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
-              style={
-                filtroStatus === null
-                  ? { background: NAVY, color: "#fff" }
-                  : { background: "rgba(22,41,74,0.08)", color: NAVY }
-              }
+              onClick={() => setLayout(l.id)}
+              className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+              style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
             >
-              Todos
+              {l.label}
             </button>
-            {(["dentro", "acima", "abaixo"] as StatusKey[]).map((s) => {
-              const ativo = filtroStatus === s;
-              const cor = STATUS_COR[s].cor;
+          );
+        })}
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+        <span className="flex items-center gap-1">
+          <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
+        </span>
+        <span className="flex items-center gap-1">
+          <Pin className="h-3.5 w-3.5" /> Alfinete no cabeçalho fixa a coluna
+        </span>
+      </div>
+
+      {/* planilha com rolagem lateral; nome + colunas fixadas grudam à esquerda */}
+      <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+        <div className="min-w-max">
+          {/* cabeçalho */}
+          <div className="flex items-end gap-2 pb-2">
+            <div
+              className="sticky left-0 z-[4] flex shrink-0 items-end px-2 py-1"
+              style={{ width: NAME_W, background: NOME_BG }}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">
+                Exame (congelado)
+              </span>
+            </div>
+            {orderedColumns.list.map((c, idx) => {
+              const isPinned = idx < orderedColumns.pinCols.length;
               return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setFiltroStatus(ativo ? null : s)}
-                  className="flex items-center gap-1 rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
-                  style={
-                    ativo
-                      ? { background: cor, color: "#fff", boxShadow: `0 0 8px 1px ${cor}` }
-                      : { background: "rgba(22,41,74,0.06)", color: cor }
-                  }
-                >
-                  <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: cor }} />
-                  {STATUS_COR[s].rotulo}
-                </button>
+                <ColunaCabecalho
+                  key={c.key}
+                  c={c}
+                  ultima={c.key === ultimaColKey}
+                  fixada={fixadas.includes(c.key)}
+                  onFixar={() => fixar(c.key)}
+                  sticky={isPinned}
+                  left={isPinned ? stickyLeft(idx) : 0}
+                />
               );
             })}
-          </div>
-          <Toggle
-            ligado={mostrarFaixas}
-            onToggle={() => setMostrarFaixas((v) => !v)}
-            texto="Faixa de cor por valor"
-          />
-        </div>
-
-        <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
-          <span className="flex items-center gap-1">
-            <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para empilhar o gráfico ao lado
-          </span>
-          <span className="hidden items-center gap-1 sm:flex">← role para ver todas as datas →</span>
-        </div>
-
-        {/* janela com rolagem lateral; a coluna do nome fica congelada */}
-        <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
-          <div className="min-w-max">
-            {/* cabeçalho */}
-            <div className="flex items-end gap-2 pb-2">
-              <div
-                className="sticky left-0 z-[2] flex w-[200px] shrink-0 items-end px-2 py-1"
-                style={{ background: NOME_BG }}
-              >
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">
-                  Exame (congelado)
-                </span>
-              </div>
-              {columns.map((c) => (
-                <ColunaCabecalho key={c.key} c={c} ultima={c.key === ultimaCol} />
-              ))}
-              <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
-                Tendência
-              </div>
+            <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
+              Tendência
             </div>
+          </div>
 
-            {/* linhas */}
-            <div className="space-y-2">
-              {analytes.map((a) => {
-                const selecionada = selecionados.includes(a.key);
-                const tend = a.trend ? TEND[a.trend] : TEND.estavel;
-                return (
+          {/* linhas */}
+          <div className="space-y-2">
+            {analytes.map((a) => {
+              const selecionada = selecionados.includes(a.key);
+              const tend = a.trend ? TEND[a.trend] : TEND.estavel;
+              return (
+                <div
+                  key={a.key}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => alternar(a.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      alternar(a.key);
+                    }
+                  }}
+                  className="panel-3d-sub flex cursor-pointer items-center gap-2 py-2 pr-2"
+                  style={selecionada ? { outline: `2px solid ${GOLD}`, outlineOffset: "-2px" } : undefined}
+                >
+                  {/* nome congelado em UP-BEVEL (requisito 3) */}
                   <div
-                    key={a.key}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => alternar(a.key)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        alternar(a.key);
-                      }
-                    }}
-                    className="panel-3d-sub flex cursor-pointer items-center gap-2 py-2 pr-2"
-                    style={selecionada ? { outline: `2px solid ${GOLD}`, outlineOffset: "-2px" } : undefined}
+                    className="sticky left-0 z-[3] flex shrink-0 flex-col justify-center"
+                    style={{ width: NAME_W, background: NOME_BG }}
                   >
-                    {/* nome congelado */}
-                    <div
-                      className="sticky left-0 z-[2] flex w-[200px] shrink-0 flex-col justify-center px-2 py-0.5"
-                      style={{ background: NOME_BG, boxShadow: "7px 0 7px -5px rgba(0,0,0,0.18)" }}
-                    >
+                    <div className="bevel-3d mx-1 flex flex-col justify-center rounded-[6px] px-2 py-1">
                       <div className="flex items-center gap-1.5">
                         {selecionada && (
                           <span
@@ -540,7 +1035,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                             style={{ background: GOLD, boxShadow: `0 0 6px 1px ${GOLD}` }}
                           />
                         )}
-                        <span className="text-[12px] font-semibold leading-tight text-[#16294a]">{a.name}</span>
+                        <span className="text-[12px] font-bold leading-tight text-[#16294a]">{a.name}</span>
                       </div>
                       <div className="text-[9px] uppercase tracking-wide text-[#647c97]">
                         {[a.unit, a.refLow && a.refHigh ? `ref ${a.refLow}–${a.refHigh}` : null]
@@ -548,78 +1043,81 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                           .join(" · ") || "—"}
                       </div>
                     </div>
-                    {/* valores por data */}
-                    {columns.map((c) => (
+                  </div>
+                  {/* valores por data */}
+                  {orderedColumns.list.map((c, idx) => {
+                    const isPinned = idx < orderedColumns.pinCols.length;
+                    const cell = a.cells[c.key];
+                    const acesa = zonaAcesa !== null && cell?.zone?.name === zonaAcesa;
+                    return (
                       <Cela
                         key={c.key}
-                        cell={a.cells[c.key]}
-                        atual={c.key === ultimaCol}
-                        showStrip={mostrarFaixas}
-                        neonStatus={filtroStatus}
+                        cell={cell}
+                        atual={c.key === ultimaColKey}
+                        acesa={acesa}
+                        sticky={isPinned}
+                        left={isPinned ? stickyLeft(idx) : 0}
+                        mostrarFaixas={mostrarFaixas}
                       />
-                    ))}
-                    {/* tendência */}
-                    <div className="bevel-3d flex w-[92px] shrink-0 items-center justify-center gap-1 py-1.5">
-                      <span className={`paxter-led ${tend.led} paxter-led-on`} />
-                      <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
-                      <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>
-                        {tend.rotulo}
-                      </span>
-                    </div>
+                    );
+                  })}
+                  {/* tendência */}
+                  <div className="bevel-3d flex w-[92px] shrink-0 items-center justify-center gap-1 py-1.5">
+                    <span className={`paxter-led ${tend.led} paxter-led-on`} />
+                    <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
+                    <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      </div>
 
-        <p className="mt-4 text-[11px] italic text-[#647c97]">
-          Uma planilha só: o nome do exame fica congelado à esquerda e as datas rolam para o lado. Clique numa
-          linha para empilhar o gráfico dela ao lado; "Acender" destaca só os valores daquela situação; o
-          interruptor liga a faixinha de cor por valor.
-        </p>
-      </section>
+      <p className="mt-4 text-[11px] italic text-[#647c97]">
+        Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na
+        listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha
+        onde os gráficos aparecem no seletor "Gráficos". No fim da tela você edita as faixas de cada exame.
+      </p>
+    </section>
+  );
 
-      {/* DIREITA — gráficos empilhados (um por exame clicado) */}
-      <aside className="flex flex-col gap-3 self-start xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Gráficos abertos ({selecionados.length})
-          </span>
-          {selecionados.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSelecionados([])}
-              className="text-[10px] font-bold uppercase tracking-wide text-[#647c97] hover:text-[#c0392b]"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
+  // ----------------------------- montagem por layout -----------------------------
+  return (
+    <div>
+      {layout === "topo" && selecionados.length > 0 && (
+        <section className="panel-3d mb-5 p-4">
+          {cabecalhoGraficos}
+          {graficos}
+        </section>
+      )}
 
-        {selecionados.length === 0 ? (
-          <div className="concave-3d flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <MousePointerClick className="h-6 w-6 text-[#647c97]" />
-            <span className="text-[12px] text-[#647c97]">
-              Clique num exame na planilha para abrir o gráfico aqui. Você pode empilhar vários.
-            </span>
-          </div>
-        ) : (
-          selecionados.map((key, i) => {
-            const a = analytePorKey.get(key);
-            if (!a) return null;
-            return (
-              <CartaoGrafico
-                key={key}
-                analyte={a}
-                columns={columns}
-                ordem={i + 1}
-                onRemover={() => alternar(key)}
-              />
-            );
-          })
+      <div className={layout === "lado" ? "grid grid-cols-1 items-start gap-5 xl:grid-cols-[1fr_380px]" : "block"}>
+        {planilha}
+        {layout === "lado" && (
+          <aside className="flex flex-col gap-3 self-start xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
+            {cabecalhoGraficos}
+            {graficos}
+          </aside>
         )}
-      </aside>
+      </div>
+
+      {(layout === "sanfona" || layout === "fixo") && (
+        <section
+          className={
+            layout === "fixo"
+              ? "panel-3d sticky bottom-2 z-[5] mt-5 p-4 shadow-lg"
+              : "panel-3d mt-5 p-4"
+          }
+          style={layout === "fixo" ? { maxHeight: "46vh", overflowY: "auto" } : undefined}
+        >
+          {cabecalhoGraficos}
+          {graficos}
+        </section>
+      )}
+
+      {/* bloco editável (F5) */}
+      <BlocoEditavel analytes={analytes} onSalvo={() => carregar(clientId)} />
     </div>
   );
 }
