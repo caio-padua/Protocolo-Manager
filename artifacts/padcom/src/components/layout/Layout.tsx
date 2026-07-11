@@ -52,7 +52,6 @@ import {
   Send,
   Files,
   Compass,
-  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -163,8 +162,7 @@ const navigation: NavEntry[] = [
       { name: "Equipe (Profissionais)", href: "/cadastros/equipe", icon: Stethoscope },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
-      { name: "Direção dos Exames", href: "/cadastros/direcao-exames", icon: Compass },
-      { name: "Planilha de Faixas", href: "/cadastros/planilha-faixas", icon: Table2 },
+      { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },
