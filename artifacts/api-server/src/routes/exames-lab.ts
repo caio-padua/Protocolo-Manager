@@ -7,6 +7,7 @@ import {
   examResultsTable,
   examAnalyteCatalogTable,
   examAnalyteRangesTable,
+  examAnalyteUnitsTable,
   direcaoFavoravelExameTable,
   clientsTable,
   professionalsTable,
@@ -29,6 +30,7 @@ import {
   persistExtractedResults,
   finalizeDocument,
   markDocumentError,
+  normUnit,
 } from "../lib/exam-extraction/persist";
 import {
   ensureClientFolderStructure,
@@ -560,6 +562,7 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       value: string | null;
       valueNum: number | null;
       unit: string | null;
+      unitConverted: boolean;
       status: string | null;
       documentId: number;
     }
@@ -584,7 +587,9 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       line.cells.set(colKey, {
         value: r.valueRaw,
         valueNum: r.valueCanonical === null ? null : Number(r.valueCanonical),
-        unit: r.unitRaw,
+        // Quando houve conversao, mostra a NOSSA unidade (o valueNum ja e canonico).
+        unit: r.unitConverted ? (r.unitCanonical ?? r.unitRaw) : r.unitRaw,
+        unitConverted: !!r.unitConverted,
         status: r.status,
         documentId: r.examDocumentId,
       });
@@ -645,7 +650,13 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       // Zonas: override do Subcadastro OU trisecção do min/max real.
       // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
       // com a semente), independente do code cru da linha.
-      const overrideRows = (rangesByCode.get(chaveFaixa(line.name)) ?? []).map((r) => ({
+      // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
+      // sinonimos casados); cai para o nome cru quando a linha nao casou.
+      const overrideRows = (
+        rangesByCode.get(chaveFaixa(key)) ??
+        rangesByCode.get(chaveFaixa(line.name)) ??
+        []
+      ).map((r) => ({
         faixaName: r.faixaName,
         low: toNum(r.low),
         high: toNum(r.high),
@@ -897,6 +908,7 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
             high: z.high === null ? null : String(z.high),
             color: z.color,
             ordem: z.ordem ?? i + 1,
+            source: "manual",
           })),
         );
       }
@@ -977,6 +989,209 @@ router.get("/exames-lab/direcoes", async (req: Request, res: Response) => {
   } catch (e) {
     req.log?.error({ err: e }, "GET /direcoes falhou");
     return res.status(500).json({ error: "Falha ao listar direções" });
+  }
+});
+
+// ===========================================================================
+// PLANILHA GERAL de curadoria (unidade padrão + 5 faixas de TODOS os exames).
+// GET  /exames-lab/catalogo-faixas — uma linha por exame: nome, direção,
+//   unidade canônica, lista de unidades (dropdown), 5 cortes De/Até, flag
+//   quantitativo e flag "tem edição manual".
+// PUT  /exames-lab/catalogo-faixas — grava SÓ a unidade padrão escolhida no
+//   dropdown (as faixas/direção continuam pelo PUT /faixas por code).
+// A ferramenta mestre-detalhe (DirecaoExamesTool) segue intacta; esta é a
+// visão em massa. As duas gravam no mesmo backend (mesma chave chaveFaixa).
+// ===========================================================================
+router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) => {
+  try {
+    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+    const toNum = (s: string | null): number | null => {
+      if (s === null || s === undefined) return null;
+      const n = Number(String(s).replace(",", "."));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const [cats, unitRows, rangeRows, dirRows, reais] = await Promise.all([
+      db.select().from(examAnalyteCatalogTable).where(eq(examAnalyteCatalogTable.active, true)),
+      db.select().from(examAnalyteUnitsTable),
+      db.select().from(examAnalyteRangesTable),
+      db
+        .select({
+          nome: direcaoFavoravelExameTable.nomeExame,
+          dir: direcaoFavoravelExameTable.direcaoFavoravel,
+        })
+        .from(direcaoFavoravelExameTable),
+      db
+        .select({ name: examResultsTable.analyteNameRaw, n: sql<number>`count(*)` })
+        .from(examResultsTable)
+        .groupBy(examResultsTable.analyteNameRaw),
+    ]);
+
+    // Unidades por analito (ordenadas), faixas por chave, direção por nome.
+    const unitsByCode = new Map<string, typeof unitRows>();
+    for (const u of unitRows) {
+      const arr = unitsByCode.get(u.analyteCode) ?? [];
+      arr.push(u);
+      unitsByCode.set(u.analyteCode, arr);
+    }
+    const rangesByKey = new Map<string, typeof rangeRows>();
+    for (const r of rangeRows) {
+      const arr = rangesByKey.get(r.analyteCode) ?? [];
+      arr.push(r);
+      rangesByKey.set(r.analyteCode, arr);
+    }
+    const dirByNorm = new Map<string, string | null>();
+    for (const d of dirRows) dirByNorm.set(norm(d.nome), d.dir);
+
+    const buildRanges = (key: string) =>
+      (rangesByKey.get(key) ?? [])
+        .slice()
+        .sort((a, b) => a.ordem - b.ordem)
+        .map((r) => ({
+          faixaName: r.faixaName,
+          low: toNum(r.low),
+          high: toNum(r.high),
+          color: r.color,
+          ordem: r.ordem,
+        }));
+    const hasManual = (key: string) =>
+      (rangesByKey.get(key) ?? []).some((r) => r.source === "manual");
+
+    // Chaves conhecidas do catálogo (code + displayName + sinônimos) para não
+    // duplicar linha quando o nome cru do laudo é sinônimo de um exame curado.
+    const known = new Set<string>();
+    for (const c of cats) {
+      known.add(chaveFaixa(c.code));
+      known.add(chaveFaixa(c.displayName));
+      for (const s of c.synonyms ?? []) known.add(chaveFaixa(s));
+    }
+
+    type Row = {
+      code: string;
+      displayName: string;
+      direction: Direction;
+      canonicalUnit: string | null;
+      units: { unit: string; factorToCanonical: number | null; isCanonical: boolean; active: boolean }[];
+      zones: { faixaName: string; low: number | null; high: number | null; color: string | null; ordem: number }[];
+      quantitativo: boolean;
+      hasManualEdit: boolean;
+      inCatalog: boolean;
+    };
+
+    const rows: Row[] = cats.map((c) => {
+      const units = (unitsByCode.get(c.code) ?? [])
+        .slice()
+        .sort((a, b) => a.ordem - b.ordem)
+        .map((u) => ({
+          unit: u.unit,
+          factorToCanonical: toNum(u.factorToCanonical),
+          isCanonical: u.isCanonical,
+          active: u.active,
+        }));
+      const zones = buildRanges(chaveFaixa(c.code));
+      return {
+        code: c.code,
+        displayName: c.displayName,
+        direction: resolveDirection(c.direction ?? null, dirByNorm.get(norm(c.displayName)) ?? null),
+        canonicalUnit: c.canonicalUnit,
+        units,
+        zones,
+        quantitativo: units.length > 0 || zones.length > 0,
+        hasManualEdit: hasManual(chaveFaixa(c.code)),
+        inCatalog: true,
+      };
+    });
+
+    // Exames REAIS de laudos que ainda não estão no catálogo (a preencher).
+    const consolid = new Map<string, { displayName: string; count: number }>();
+    for (const r of reais) {
+      if (!r.name) continue;
+      if (known.has(chaveFaixa(r.name))) continue;
+      const k = norm(r.name);
+      const cur = consolid.get(k);
+      if (cur) {
+        cur.count += Number(r.n) || 0;
+        if (r.name.length < cur.displayName.length) cur.displayName = r.name;
+      } else {
+        consolid.set(k, { displayName: r.name, count: Number(r.n) || 0 });
+      }
+    }
+    for (const { displayName } of consolid.values()) {
+      const code = displayName.toLowerCase();
+      const zones = buildRanges(chaveFaixa(code));
+      rows.push({
+        code,
+        displayName,
+        direction: resolveDirection(null, dirByNorm.get(norm(displayName)) ?? null),
+        canonicalUnit: null,
+        units: [],
+        zones,
+        quantitativo: zones.length > 0,
+        hasManualEdit: hasManual(chaveFaixa(code)),
+        inCatalog: false,
+      });
+    }
+
+    rows.sort(
+      (a, b) =>
+        Number(b.inCatalog) - Number(a.inCatalog) ||
+        a.displayName.localeCompare(b.displayName, "pt-BR"),
+    );
+
+    return res.json(rows);
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /catalogo-faixas falhou");
+    return res.status(500).json({ error: "Falha ao carregar planilha de exames" });
+  }
+});
+
+const putCatalogoUnidadeSchema = z.object({
+  code: z.string().min(1).max(160),
+  canonicalUnit: z.string().min(1).max(40),
+});
+
+// PUT /catalogo-faixas — define a UNIDADE PADRÃO (dropdown) de um exame do
+// catálogo: marca isCanonical na unidade escolhida (e desmarca as demais) +
+// grava canonical_unit no catálogo. Não mexe em faixas/direção.
+router.put("/exames-lab/catalogo-faixas", async (req: Request, res: Response) => {
+  try {
+    const parsed = putCatalogoUnidadeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const { code, canonicalUnit } = parsed.data;
+
+    const units = await db
+      .select()
+      .from(examAnalyteUnitsTable)
+      .where(eq(examAnalyteUnitsTable.analyteCode, code));
+    if (units.length === 0) {
+      return res.status(404).json({ error: "Exame sem unidades cadastradas" });
+    }
+    const alvo = units.find((u) => normUnit(u.unit) === normUnit(canonicalUnit));
+    if (!alvo) {
+      return res.status(400).json({ error: "Unidade não pertence a este exame" });
+    }
+
+    // Marca só a escolhida como canônica.
+    for (const u of units) {
+      const shouldBe = u.id === alvo.id;
+      if (u.isCanonical !== shouldBe) {
+        await db
+          .update(examAnalyteUnitsTable)
+          .set({ isCanonical: shouldBe })
+          .where(eq(examAnalyteUnitsTable.id, u.id));
+      }
+    }
+    await db
+      .update(examAnalyteCatalogTable)
+      .set({ canonicalUnit: alvo.unit })
+      .where(eq(examAnalyteCatalogTable.code, code));
+
+    return res.json({ ok: true, code, canonicalUnit: alvo.unit });
+  } catch (e) {
+    req.log?.error({ err: e }, "PUT /catalogo-faixas falhou");
+    return res.status(500).json({ error: "Falha ao salvar unidade padrão" });
   }
 });
 

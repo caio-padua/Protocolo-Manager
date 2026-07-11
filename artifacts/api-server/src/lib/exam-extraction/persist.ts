@@ -4,6 +4,7 @@ import {
   examResultsTable,
   examAnalyteCatalogTable,
   examAnalyteRangesTable,
+  examAnalyteUnitsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
@@ -110,6 +111,82 @@ function matchAnalyte(catalog: CatalogEntry[], rawName: string): string | null {
   return null;
 }
 
+/**
+ * Normaliza um rotulo de unidade para casar variacoes de escrita:
+ * minusculo, sem acento, micro (µ) vira "u", sem espacos. Ex.: "µg/dL",
+ * "ug / dL", "MCG/DL"(nao — mcg fica mcg) -> comparaveis quando iguais.
+ */
+export function normUnit(u: string | null): string {
+  if (!u) return "";
+  return u
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/µ|μ/g, "u")
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+interface UnitInfo {
+  canonicalUnit: string | null;
+  /** unidade normalizada -> fator para a unidade canonica */
+  factors: Map<string, number>;
+}
+
+async function loadUnits(): Promise<Map<string, UnitInfo>> {
+  const rows = await db
+    .select()
+    .from(examAnalyteUnitsTable)
+    .where(eq(examAnalyteUnitsTable.active, true));
+  const map = new Map<string, UnitInfo>();
+  for (const r of rows) {
+    const info = map.get(r.analyteCode) ?? { canonicalUnit: null, factors: new Map<string, number>() };
+    const f = r.factorToCanonical === null ? null : Number(r.factorToCanonical);
+    if (f !== null && Number.isFinite(f)) info.factors.set(normUnit(r.unit), f);
+    if (r.isCanonical) info.canonicalUnit = r.unit;
+    map.set(r.analyteCode, info);
+  }
+  return map;
+}
+
+interface ConvResult {
+  /** fator aplicado (1 = nao converteu) */
+  factor: number;
+  /** unidade a gravar em unitCanonical */
+  unitCanonical: string | null;
+  /** true quando a varredura teve de converter a unidade do laudo */
+  converted: boolean;
+  /** unidade do laudo difere da canonica MAS nao temos fator -> conferir */
+  unknownUnit: boolean;
+}
+
+/**
+ * Decide a conversao de um analito casado. Regras:
+ *  - sem catalogo de unidade OU sem unidade no laudo -> nao converte (rotulo cru);
+ *  - unidade do laudo == canonica -> normaliza o rotulo p/ o nosso, fator 1;
+ *  - unidade diferente COM fator -> converte (fator) e grava unidade canonica;
+ *  - unidade diferente SEM fator -> NAO converte (mantem cru; sinaliza revisao
+ *    deixando converted=false — o laudo entra como veio, o humano confere).
+ */
+function resolveConversion(
+  info: UnitInfo | undefined,
+  rawUnit: string | null,
+): ConvResult {
+  if (!info || !info.canonicalUnit || !rawUnit) {
+    return { factor: 1, unitCanonical: rawUnit, converted: false, unknownUnit: false };
+  }
+  const rawU = normUnit(rawUnit);
+  const canU = normUnit(info.canonicalUnit);
+  if (rawU === canU) {
+    return { factor: 1, unitCanonical: info.canonicalUnit, converted: false, unknownUnit: false };
+  }
+  const factor = info.factors.get(rawU);
+  if (factor === undefined) {
+    // Unidade diferente e sem fator: NAO inventa conversao (linha vermelha).
+    return { factor: 1, unitCanonical: rawUnit, converted: false, unknownUnit: true };
+  }
+  return { factor, unitCanonical: info.canonicalUnit, converted: true, unknownUnit: false };
+}
+
 export interface PersistExamInput {
   documentId: number;
   clientId: number;
@@ -133,6 +210,7 @@ export async function persistExtractedResults(
 ): Promise<PersistExamSummary> {
   const { documentId, clientId, extracted } = input;
   const catalog = await loadCatalog();
+  const unitsByCode = await loadUnits();
   const collectionIso = brDateToIso(extracted.collectionDate);
   const lab = extracted.labName ?? null;
 
@@ -148,12 +226,23 @@ export async function persistExtractedResults(
     if (code) summary.matched++;
     else summary.unmatched++;
 
-    const value = parseBrazilNumber(analyte.value);
-    const ref = parseReferenceRange(analyte.referenceRange);
+    const rawValue = parseBrazilNumber(analyte.value);
+    const rawRef = parseReferenceRange(analyte.referenceRange);
+    const info = code ? unitsByCode.get(code) : undefined;
+
+    // Conversao para a unidade CANONICA (quando o laudo veio em outra unidade
+    // e temos o fator). valueCanonical/refLow/refHigh ficam SEMPRE na nossa
+    // unidade — e por eles que as faixas internas classificam o resultado.
+    const conv = resolveConversion(info, analyte.unit);
+    const applyFactor = (n: number | null): number | null =>
+      n === null ? null : n * conv.factor;
+
+    const value = applyFactor(rawValue);
+    const ref = { low: applyFactor(rawRef.low), high: applyFactor(rawRef.high) };
     const status = classifyByRef(value, ref.low, ref.high);
 
     // Faixas internas (Subcadastro) tem prioridade sobre a referencia do laudo
-    // quando existirem para o analito casado.
+    // quando existirem para o analito casado. Classifica pelo valor CANONICO.
     let finalStatus: string | null = status;
     if (code && value !== null) {
       const ranges = await db
@@ -167,6 +256,8 @@ export async function persistExtractedResults(
       });
       if (faixa) finalStatus = faixa.faixaName;
     }
+    // Unidade diferente sem fator: honesto -> pede conferencia humana.
+    if (conv.unknownUnit) finalStatus = "conferencia";
 
     const inserted = await db
       .insert(examResultsTable)
@@ -178,7 +269,8 @@ export async function persistExtractedResults(
         valueRaw: analyte.value,
         unitRaw: analyte.unit,
         valueCanonical: value === null ? null : String(value),
-        unitCanonical: analyte.unit,
+        unitCanonical: conv.unitCanonical,
+        unitConverted: conv.converted,
         refLow: ref.low === null ? null : String(ref.low),
         refHigh: ref.high === null ? null : String(ref.high),
         status: finalStatus,
@@ -189,12 +281,20 @@ export async function persistExtractedResults(
       .returning({ id: examResultsTable.id });
     if (inserted.length > 0) summary.resultsInserted++;
 
-    // "Almoco gratis": cada ponto historico do proprio laudo vira linha propria
+    // "Almoco gratis": cada ponto historico do proprio laudo vira linha propria.
+    // O ponto historico pode ter unidade propria; converte-o de forma isolada.
     for (const point of analyte.history) {
       const histIso = brDateToIso(point.date);
       if (!histIso || histIso === collectionIso) continue;
-      const histValue = parseBrazilNumber(point.value);
-      const histStatus = classifyByRef(histValue, ref.low, ref.high);
+      const histUnitRaw = point.unit ?? analyte.unit;
+      const histConv = resolveConversion(info, histUnitRaw);
+      const rawHist = parseBrazilNumber(point.value);
+      const histValue = rawHist === null ? null : rawHist * histConv.factor;
+      // Unidade histórica diferente sem fator: honesto -> pede conferência humana
+      // (mesma regra do ponto principal; não classifica com valor não convertido).
+      const histStatus = histConv.unknownUnit
+        ? "conferencia"
+        : classifyByRef(histValue, ref.low, ref.high);
       const histInserted = await db
         .insert(examResultsTable)
         .values({
@@ -203,9 +303,10 @@ export async function persistExtractedResults(
           analyteCode: code,
           analyteNameRaw: analyte.name,
           valueRaw: point.value,
-          unitRaw: point.unit ?? analyte.unit,
+          unitRaw: histUnitRaw,
           valueCanonical: histValue === null ? null : String(histValue),
-          unitCanonical: point.unit ?? analyte.unit,
+          unitCanonical: histConv.unitCanonical,
+          unitConverted: histConv.converted,
           refLow: ref.low === null ? null : String(ref.low),
           refHigh: ref.high === null ? null : String(ref.high),
           status: histStatus,

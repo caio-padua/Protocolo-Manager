@@ -13,6 +13,7 @@ import {
   PinOff,
   ChevronDown,
   ChevronRight,
+  Check,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -91,6 +92,7 @@ interface EvolucaoCell {
   status: string | null;
   documentId: number;
   zone: CellZone | null;
+  unitConverted?: boolean;
 }
 interface EvolucaoColumn {
   key: string;
@@ -189,7 +191,9 @@ function Cela({
         ...stickyStyle,
         ...(sticky ? {} : temZona ? { background: `${cor}14` } : {}),
       }}
-      title={`${cell.value} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}`}
+      title={`${cell.value} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}${
+        cell.unitConverted ? " · unidade revisada (convertida para a padrão)" : ""
+      }`}
     >
       {/* faixinha de cor à esquerda: a FAIXA vive aqui, não no dígito */}
       {temZona && <span className="absolute left-0 top-0 h-full w-[5px]" style={{ background: cor }} />}
@@ -200,6 +204,16 @@ function Cela({
       >
         {cell.value}
       </span>
+      {/* selo "revisado": unidade diferente foi convertida para a padrão na varredura */}
+      {cell.unitConverted && (
+        <span
+          aria-label="unidade revisada (convertida para a padrão)"
+          className="absolute right-[3px] top-[2px] inline-flex items-center justify-center"
+          style={{ color: GOLD }}
+        >
+          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+        </span>
+      )}
     </div>
   );
 }

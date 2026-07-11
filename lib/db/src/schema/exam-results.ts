@@ -85,6 +85,9 @@ export const examResultsTable = pgTable(
     refHigh: numeric("ref_high"),
     // dentro | acima | abaixo | conferencia (sem conversao conhecida -> conferencia)
     status: text("status"),
+    // true quando a unidade do laudo diferiu da nossa canonica e o valor foi
+    // convertido por fator conhecido (exam_analyte_units) -> mostra selo "revisado".
+    unitConverted: boolean("unit_converted").notNull().default(false),
     collectionDate: date("collection_date", { mode: "string" }),
     labName: text("lab_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -131,6 +134,10 @@ export const examAnalyteRangesTable = pgTable("exam_analyte_ranges", {
   high: numeric("high"),
   color: text("color"),
   ordem: integer("ordem").notNull().default(0),
+  // origem da faixa: "seed" (curadoria semeada no boot) | "manual" (editada pelo
+  // medico via planilha/DirecaoExamesTool). O seeder so recria faixa quando a
+  // chave esta vazia; a marca de origem alimenta a flag "tem edicao manual".
+  source: text("source").notNull().default("manual"),
 });
 
 // Unidades por analito — nada hard-coded. Uma marcada como isCanonical (nossa
