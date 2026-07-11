@@ -1071,6 +1071,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
       displayName: string;
       direction: Direction;
       canonicalUnit: string | null;
+      synonyms: string[];
       units: { unit: string; factorToCanonical: number | null; isCanonical: boolean; active: boolean }[];
       zones: { faixaName: string; low: number | null; high: number | null; color: string | null; ordem: number }[];
       quantitativo: boolean;
@@ -1094,6 +1095,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         displayName: c.displayName,
         direction: resolveDirection(c.direction ?? null, dirByNorm.get(norm(c.displayName)) ?? null),
         canonicalUnit: c.canonicalUnit,
+        synonyms: c.synonyms ?? [],
         units,
         zones,
         quantitativo: units.length > 0 || zones.length > 0,
@@ -1124,6 +1126,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         displayName,
         direction: resolveDirection(null, dirByNorm.get(norm(displayName)) ?? null),
         canonicalUnit: null,
+        synonyms: [],
         units: [],
         zones,
         quantitativo: zones.length > 0,
@@ -1192,6 +1195,212 @@ router.put("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
   } catch (e) {
     req.log?.error({ err: e }, "PUT /catalogo-faixas falhou");
     return res.status(500).json({ error: "Falha ao salvar unidade padrão" });
+  }
+});
+
+// ===========================================================================
+// APELIDOS (aliases) + UNIDADES por exame — curadoria universal.
+// Vale para QUALQUER linha da planilha: se o exame ainda não existe no catálogo
+// (é só um nome cru de laudo), a gravação PROMOVE o exame ao catálogo (INSERT)
+// para o motor de varredura passar a reconhecê-lo. O motor (persist.ts) casa o
+// nome do laudo contra displayName + synonyms — logo, salvar apelido já ensina
+// o scanner, sem tocar o motor.
+// ===========================================================================
+
+// Resolve o code do catálogo para um exame (existente ou a promover) a partir do
+// conjunto já carregado. Retorna o code canônico e a linha existente (se houver).
+function resolverCodeCatalogo(
+  all: { code: string; displayName: string; synonyms: string[] | null }[],
+  code: string,
+  displayName: string,
+): { targetCode: string; existente: (typeof all)[number] | undefined } {
+  const existentePorCode = all.find((c) => c.code === code);
+  if (existentePorCode) return { targetCode: existentePorCode.code, existente: existentePorCode };
+  const canon = chaveFaixa(displayName);
+  const existentePorNome = all.find(
+    (c) => c.code === canon || chaveFaixa(c.displayName) === canon,
+  );
+  if (existentePorNome) return { targetCode: existentePorNome.code, existente: existentePorNome };
+  return { targetCode: canon, existente: undefined };
+}
+
+const putAliasesSchema = z.object({
+  code: z.string().min(1).max(200),
+  displayName: z.string().min(1).max(200),
+  synonyms: z.array(z.string().max(120)).max(5),
+});
+
+// PUT /catalogo-faixas/aliases — grava os apelidos CURADOS (até 5 visíveis) de um
+// exame. Não destrutivo: apelidos internos além dos 5 (vindos da semente) são
+// preservados. Unicidade: nenhum apelido pode colidir com o nome elegível ou
+// apelido de OUTRO exame (400). Promove ao catálogo se o exame ainda não existe.
+router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Response) => {
+  try {
+    const parsed = putAliasesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const { code, displayName } = parsed.data;
+
+    const all = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+        synonyms: examAnalyteCatalogTable.synonyms,
+      })
+      .from(examAnalyteCatalogTable);
+
+    const { targetCode, existente } = resolverCodeCatalogo(all, code, displayName);
+
+    // Chaves de identidade dos OUTROS exames (nome elegível + apelidos).
+    const donoPorChave = new Map<string, string>();
+    for (const c of all) {
+      if (c.code === targetCode) continue;
+      donoPorChave.set(chaveFaixa(c.code), c.displayName);
+      donoPorChave.set(chaveFaixa(c.displayName), c.displayName);
+      for (const s of c.synonyms ?? []) donoPorChave.set(chaveFaixa(s), c.displayName);
+    }
+
+    // Limpa entradas + normaliza; remove vazios e o que igualar o próprio nome.
+    const chaveNome = chaveFaixa(displayName);
+    const incoming: string[] = [];
+    const vistos = new Set<string>();
+    for (const raw of parsed.data.synonyms) {
+      const s = raw.trim();
+      if (!s) continue;
+      const k = chaveFaixa(s);
+      if (k === chaveNome) continue; // apelido == nome elegível: ignora (não é erro)
+      if (vistos.has(k)) continue; // duplicado no próprio exame: dedup silencioso
+      const dono = donoPorChave.get(k);
+      if (dono) {
+        return res.status(400).json({
+          error: `O apelido "${s}" já pertence ao exame "${dono}". Cada apelido só pode apontar para um exame.`,
+          term: s,
+          conflictsWith: dono,
+        });
+      }
+      vistos.add(k);
+      incoming.push(s);
+    }
+
+    // Não destrutivo: preserva apelidos internos além dos 5 primeiros.
+    const internosOverflow = (existente?.synonyms ?? []).slice(5);
+    const finalSyn: string[] = [];
+    const finalKeys = new Set<string>();
+    for (const s of [...incoming, ...internosOverflow]) {
+      const k = chaveFaixa(s);
+      if (k === chaveNome || finalKeys.has(k)) continue;
+      finalKeys.add(k);
+      finalSyn.push(s);
+    }
+
+    if (existente) {
+      await db
+        .update(examAnalyteCatalogTable)
+        .set({ synonyms: finalSyn })
+        .where(eq(examAnalyteCatalogTable.code, targetCode));
+    } else {
+      await db.insert(examAnalyteCatalogTable).values({
+        code: targetCode,
+        displayName,
+        synonyms: finalSyn,
+        active: true,
+      });
+    }
+
+    return res.json({ ok: true, code: targetCode, synonyms: finalSyn, promoted: !existente });
+  } catch (e) {
+    req.log?.error({ err: e }, "PUT /catalogo-faixas/aliases falhou");
+    return res.status(500).json({ error: "Falha ao salvar apelidos" });
+  }
+});
+
+const putUnidadesSchema = z.object({
+  code: z.string().min(1).max(200),
+  displayName: z.string().min(1).max(200),
+  units: z
+    .array(
+      z.object({
+        unit: z.string().min(1).max(40),
+        factorToCanonical: z.number().positive(),
+        isCanonical: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(5),
+});
+
+// PUT /catalogo-faixas/unidades — define até 5 unidades comuns de um exame, com
+// UMA marcada como padrão (canônica, fator 1) e as demais com fator de conversão.
+// Substitui o conjunto de unidades daquele exame. Promove ao catálogo se preciso.
+router.put("/exames-lab/catalogo-faixas/unidades", async (req: Request, res: Response) => {
+  try {
+    const parsed = putUnidadesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const { displayName, units } = parsed.data;
+
+    // Dedup de unidade (por normUnit) dentro do payload.
+    const vistas = new Set<string>();
+    for (const u of units) {
+      const k = normUnit(u.unit);
+      if (vistas.has(k)) {
+        return res.status(400).json({ error: `Unidade repetida no exame: "${u.unit}".` });
+      }
+      vistas.add(k);
+    }
+
+    // Exatamente uma canônica (se nenhuma marcada, a primeira vira padrão).
+    const marcadas = units.filter((u) => u.isCanonical);
+    if (marcadas.length > 1) {
+      return res.status(400).json({ error: "Marque apenas UMA unidade como padrão." });
+    }
+    const canonicalUnit = (marcadas[0] ?? units[0]).unit;
+
+    const all = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+        synonyms: examAnalyteCatalogTable.synonyms,
+      })
+      .from(examAnalyteCatalogTable);
+    const { targetCode, existente } = resolverCodeCatalogo(all, parsed.data.code, displayName);
+
+    // Garante a linha do catálogo (promoção).
+    if (!existente) {
+      await db.insert(examAnalyteCatalogTable).values({
+        code: targetCode,
+        displayName,
+        synonyms: [],
+        canonicalUnit,
+        active: true,
+      });
+    }
+
+    // Substitui o conjunto de unidades do exame.
+    await db.delete(examAnalyteUnitsTable).where(eq(examAnalyteUnitsTable.analyteCode, targetCode));
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      const ehCanon = normUnit(u.unit) === normUnit(canonicalUnit);
+      await db.insert(examAnalyteUnitsTable).values({
+        analyteCode: targetCode,
+        unit: u.unit,
+        factorToCanonical: String(ehCanon ? 1 : u.factorToCanonical),
+        isCanonical: ehCanon,
+        active: true,
+        ordem: i + 1,
+      });
+    }
+    await db
+      .update(examAnalyteCatalogTable)
+      .set({ canonicalUnit })
+      .where(eq(examAnalyteCatalogTable.code, targetCode));
+
+    return res.json({ ok: true, code: targetCode, canonicalUnit, promoted: !existente });
+  } catch (e) {
+    req.log?.error({ err: e }, "PUT /catalogo-faixas/unidades falhou");
+    return res.status(500).json({ error: "Falha ao salvar unidades" });
   }
 });
 

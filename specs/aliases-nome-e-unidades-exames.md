@@ -22,8 +22,10 @@ laudo; e cada exame passa a expor as 5 unidades mais comuns (uma marcada como pa
      backend continua com `synonyms` (lista ilimitada). Salvar é NÃO destrutivo: se houver mais de 5
      apelidos internos (vindos da semente), os excedentes aparecem como etiquetas somente-leitura
      ("+N internos") e são PRESERVADOS no salvar; os 5 slots editam os 5 primeiros curados.
-- R3 5 unidades por exame: a planilha mostra até 5 unidades comuns por exame; o dropdown de unidade
-     padrão (já existente) escolhe qual é a canônica (`isCanonical`). Sem hard-code no motor.
+- R3 5 unidades por exame: a planilha permite CURAR até 5 unidades comuns por exame (adicionar,
+     editar rótulo, informar o fator de conversão para a canônica, remover) e marcar UMA como padrão
+     (canônica, fator 1). Substitui o conjunto de unidades do exame no salvar. O dropdown de unidade
+     padrão (já existente) segue funcionando. Sem hard-code no motor.
 - R4 Matching: o conjunto de chaves da varredura passa a incluir os apelidos curados (já incluía os
      `synonyms`); nome-apelido do laudo (ex.: "25-OH vitamina D") resolve para o nome elegível
      ("Vitamina D"). SÓ ESTENDER o conjunto de chaves; NÃO reescrever o motor.
@@ -34,6 +36,11 @@ laudo; e cada exame passa a expor as 5 unidades mais comuns (uma marcada como pa
      apelido de outro exame), bloquear a gravação e devolver 400 com a colisão apontada.
 - R7 Persistência espelhada: PUT salva; GET catalogo-faixas devolve apelidos + unidades; a
      Evolução e a DirecaoExamesTool continuam lendo da MESMA chave, sem regressão.
+- R8 Promoção universal ("todos os exames possíveis"): a planilha lista exames curados MAIS os nomes
+     crus vindos de laudos que ainda não estão no catálogo. Curar apelido/unidade de QUALQUER linha
+     PROMOVE o exame ao catálogo (INSERT com code = chave canônica do nome), passando a ser
+     reconhecido pelo motor. Assim o MECANISMO cobre 100% dos exames; a SEMENTE cobre de fábrica os
+     comuns (curadoria honesta — não se inventa apelido de nome de laudo desconhecido).
 
 ## Casos extremos
 - Menos de 5 apelidos → slots vazios em branco (não inventar apelido).
