@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useCreateProtocol, useValidateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,20 @@ const FREQUENCY_OPTIONS = [
   { value: "monthly", label: "Mensal (a cada 30 dias)", days: 30 },
   { value: "custom", label: "Personalizado", days: 0 },
 ];
+
+const VIA_CATEGORIES = [
+  { id: "im", label: "Intramuscular" },
+  { id: "iv", label: "Endovenoso" },
+  { id: "sc", label: "Subcutâneo" },
+  { id: "implant", label: "Implante" },
+  { id: "outros", label: "Outros" },
+] as const;
+
+function viaOf(procedureType?: string | null): string {
+  const t = (procedureType || "").toLowerCase();
+  if (t === "im" || t === "iv" || t === "sc" || t === "implant") return t;
+  return "outros";
+}
 
 interface SubstanceSlot {
   id: string;
@@ -58,8 +73,20 @@ function getEndDate(slot: SubstanceSlot): string {
 
 interface Location { id: number; name: string; type: string; color: string; address: string | null; }
 
-export default function NovoProtocolo() {
+export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCreated }: { clientId?: number; embedded?: boolean; onCreated?: (id: number) => void } = {}) {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  // Em modo embutido (Cockpit) o lançador NUNCA navega: fica inline, invalida as
+  // listas para o painel de injetáveis atualizar e avisa via onCreated. Fora do
+  // cockpit, o comportamento original de ir ao detalhe do protocolo é mantido.
+  const irAoProtocolo = (id: number) => {
+    if (embedded) {
+      queryClient.invalidateQueries();
+      onCreated?.(id);
+      return;
+    }
+    setLocation(`/protocols/${id}`);
+  };
   const { toast } = useToast();
   const { data: clients } = useListClients();
   const { data: substances } = useListSubstances();
@@ -67,14 +94,19 @@ export default function NovoProtocolo() {
   const [locations, setLocations] = useState<Location[]>([]);
 
   const [step, setStep] = useState<"configurar" | "resumo">("configurar");
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(clientIdProp != null ? String(clientIdProp) : "");
   const [professionalId, setProfessionalId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("08:00");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
   const [comboLoading, setComboLoading] = useState(false);
+  const [activeVia, setActiveVia] = useState<string>("all");
   const comboRef = useRef(false);
+
+  useEffect(() => {
+    if (clientIdProp != null) setClientId(String(clientIdProp));
+  }, [clientIdProp]);
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}api/locations`)
@@ -88,7 +120,7 @@ export default function NovoProtocolo() {
       onSuccess: (data) => {
         if (comboRef.current) return;
         toast({ title: "Protocolo lançado!", description: "Sessões serão geradas após validação." });
-        setLocation(`/protocols/${data.id}`);
+        irAoProtocolo(data.id);
       },
       onError: () => {
         if (comboRef.current) return;
@@ -103,6 +135,18 @@ export default function NovoProtocolo() {
   const selectedProfessional = professionals?.find(p => String(p.id) === professionalId);
   const selectedLocation = locations.find(l => String(l.id) === locationId);
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
+
+  const viaCounts = useMemo(() => {
+    const c: Record<string, number> = { all: substances?.length ?? 0, im: 0, iv: 0, sc: 0, implant: 0, outros: 0 };
+    (substances ?? []).forEach(s => { c[viaOf(s.procedureType)]++; });
+    return c;
+  }, [substances]);
+
+  const substancesFiltered = useMemo(() => {
+    const all = substances ?? [];
+    if (activeVia === "all") return all;
+    return all.filter(s => viaOf(s.procedureType) === activeVia);
+  }, [substances, activeVia]);
 
   const addSlot = () => {
     if (slots.length >= 10) return;
@@ -184,7 +228,7 @@ export default function NovoProtocolo() {
       URL.revokeObjectURL(url);
       toast({ title: "Protocolo lançado e RAS FAP gerado!", description: "PDF baixado para impressao e enviado ao Drive do cliente." });
       comboRef.current = false;
-      setLocation(`/protocols/${created.id}`);
+      irAoProtocolo(created.id);
     } catch (err: any) {
       if (createdId !== null) {
         toast({
@@ -193,7 +237,7 @@ export default function NovoProtocolo() {
           variant: "destructive",
         });
         comboRef.current = false;
-        setLocation(`/protocols/${createdId}`);
+        irAoProtocolo(createdId);
       } else {
         toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RAS FAP", variant: "destructive" });
       }
@@ -315,16 +359,18 @@ export default function NovoProtocolo() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setLocation("/protocols")}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Voltar
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight">Lançador de Protocolo</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">Preencha os dados e adicione as substâncias do protocolo.</p>
+      {!embedded && (
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setLocation("/protocols")}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold uppercase tracking-tight">Lançador de Protocolo</h1>
+            <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">Preencha os dados e adicione as substâncias do protocolo.</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* BLOCO 1 - DADOS GERAIS */}
       <Card className="panel-3d">
@@ -338,14 +384,25 @@ export default function NovoProtocolo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Cliente *</Label>
-              <div className="field-engraved rounded-md p-1">
-                <ClientCombobox
-                  clients={clients ?? []}
-                  value={clientId}
-                  onChange={setClientId}
-                  placeholder="Selecione o cliente"
-                />
-              </div>
+              {clientIdProp != null ? (
+                <div className="field-engraved rounded-md px-3 py-2.5">
+                  <span className="font-bold uppercase tracking-tight text-sm">
+                    {selectedClient?.name ?? "Cliente selecionado"}
+                  </span>
+                  {selectedClient?.cpf && (
+                    <span className="ml-2 text-xs text-muted-foreground tabular-nums font-medium">{selectedClient.cpf}</span>
+                  )}
+                </div>
+              ) : (
+                <div className="field-engraved rounded-md p-1">
+                  <ClientCombobox
+                    clients={clients ?? []}
+                    value={clientId}
+                    onChange={setClientId}
+                    placeholder="Selecione o cliente"
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Médico Responsável *</Label>
@@ -425,6 +482,29 @@ export default function NovoProtocolo() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Categoria de Via</Label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveVia("all")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${activeVia === "all" ? "btn-3d" : "btn-3d-soft"}`}
+              >
+                Todas <span className="font-mono opacity-70">{viaCounts.all}</span>
+              </button>
+              {VIA_CATEGORIES.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setActiveVia(c.id)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition ${activeVia === c.id ? "btn-3d" : "btn-3d-soft"}`}
+                >
+                  {c.label} <span className="font-mono opacity-70">{viaCounts[c.id] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {slots.map((slot, idx) => (
             <div key={slot.id} className="relative p-5 panel-3d-sub space-y-4 transition-all"
               style={{ borderLeftColor: slot.substanceId ? slot.substanceColor : undefined, borderLeftWidth: slot.substanceId ? 5 : 1 }}>
@@ -455,7 +535,7 @@ export default function NovoProtocolo() {
                       <SelectValue placeholder="Escolha a substância..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {substances?.map(s => (
+                      {substancesFiltered.map(s => (
                         <SelectItem key={s.id} value={String(s.id)}>
                           <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />

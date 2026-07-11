@@ -131,10 +131,10 @@ function Router() {
             
             <Route path="/substances" component={Substances} />
 
-            <Route path="/prescricao" component={Prescricao} />
+            <Route path="/prescricao" component={() => <Prescricao />} />
             
             <Route path="/protocols" component={Protocols} />
-            <Route path="/protocols/new" component={NewProtocol} />
+            <Route path="/protocols/new" component={() => <NewProtocol />} />
             <Route path="/protocols/:id" component={ProtocolDetail} />
 
             <Route path="/orcamentos/parametrizacao" component={Parametrizacao} />
@@ -169,7 +169,7 @@ function Router() {
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
-            <Route path="/exames" component={Exames} />
+            <Route path="/exames" component={() => <Exames />} />
             <Route path="/exames-cliente" component={ExamesCliente} />
             <Route path="/importar-drive">
               <CollaboratorGate>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -146,19 +146,27 @@ function classifyTipo(
   return "SANGUE";
 }
 
-export default function ExamesPage() {
+export default function ExamesPage({
+  clientId: clientIdProp,
+  embedded,
+  initialViewMode,
+}: { clientId?: number; embedded?: boolean; initialViewMode?: ViewMode } = {}) {
   const { toast } = useToast();
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<string>(clientIdProp ? String(clientIdProp) : "");
   const [professionalId, setProfessionalId] = useState<string>("");
   const [categoria, setCategoria] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("lista");
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode ?? (embedded ? "bloco" : "lista"));
   const [blocoSearch, setBlocoSearch] = useState("");
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [observacao, setObservacao] = useState("");
   const [sendEmail, setSendEmail] = useState(false);
   const [sendWhatsapp, setSendWhatsapp] = useState(false);
   const [result, setResult] = useState<EmitResult | null>(null);
+
+  useEffect(() => {
+    if (clientIdProp) setClientId(String(clientIdProp));
+  }, [clientIdProp]);
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -384,18 +392,20 @@ export default function ExamesPage() {
   const canEmit = clientId && cartList.length > 0 && !emitMutation.isPending;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
-        <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
-          <ClipboardList className="w-6 h-6" />
+    <div className={embedded ? "space-y-6" : "p-6 space-y-6"}>
+      {!embedded && (
+        <div className="panel-3d p-4 flex items-center gap-4 border-l-4 border-primary/60">
+          <div className="bevel-3d w-12 h-12 flex items-center justify-center text-primary shrink-0">
+            <ClipboardList className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Prescritor de Exames</h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+              Separa SANGUE e IMAGEM e gera PDF por tipo, sem misturar.
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">Prescritor de Exames</h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-            Separa SANGUE e IMAGEM e gera PDF por tipo, sem misturar.
-          </p>
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Catálogo de exames */}
@@ -523,6 +533,47 @@ export default function ExamesPage() {
                     <Skeleton key={i} className="h-12 w-full" />
                   ))}
                 </div>
+              ) : embedded ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredBlocos.map((b) => (
+                    <div
+                      key={b.codigoBloco}
+                      className="panel-3d-sub border-l-4 border-primary/50 p-3 flex flex-col"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
+                        {b.tipoMacro && (
+                          <Badge variant="secondary" className="text-[10px] uppercase">
+                            {b.tipoMacro}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="space-y-3 flex-1">
+                        {b.graus.map((g) => (
+                          <div key={g.grau} className="concave-3d p-2.5 flex flex-col">
+                            <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                              {g.grau} ({g.exames.length})
+                            </div>
+                            <ul className="space-y-0.5 mb-2 flex-1">
+                              {g.exames.map((ex, i) => (
+                                <li key={i} className="text-xs text-muted-foreground">
+                                  {ex.nomeExame}
+                                </li>
+                              ))}
+                            </ul>
+                            <Button
+                              size="sm"
+                              className="btn-3d-soft w-full"
+                              onClick={() => addBlocoGrau(b, g)}
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar painel
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <Accordion type="multiple" className="space-y-2">
                   {filteredBlocos.map((b) => (
@@ -584,12 +635,18 @@ export default function ExamesPage() {
           <div className="panel-3d p-4 space-y-3">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</label>
-              <ClientCombobox
-                clients={clients ?? []}
-                value={clientId}
-                onChange={setClientId}
-                placeholder="Selecionar paciente"
-              />
+              {clientIdProp ? (
+                <div className="field-engraved px-3 py-2 text-sm text-foreground/90">
+                  {clients?.find((c) => String(c.id) === clientId)?.name ?? "Paciente selecionado"}
+                </div>
+              ) : (
+                <ClientCombobox
+                  clients={clients ?? []}
+                  value={clientId}
+                  onChange={setClientId}
+                  placeholder="Selecionar paciente"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">

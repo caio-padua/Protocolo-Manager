@@ -54,30 +54,17 @@ export const HEADER_BOILERPLATE = `À Farmácia de Manipulação e ao Paciente:
 
 export const SEPARATOR = '\n________________________________________________________________\n\n';
 
-// ===== EDITE AQUI A LISTA DEFINITIVA DE PERÍODOS =====
+// ===== PERÍODOS CANÔNICOS DA MENSAGERIA (9) =====
 export const PERIODOS: string[] = [
-  'Em Jejum',
-  'Ao Acordar',
-  'Antes do Café da Manhã',
-  'Durante o Café da Manhã',
-  'Após o Café da Manhã',
-  '2h Antes do Almoço',
-  '30 min Antes do Almoço',
-  '10 min Antes do Almoço',
-  'Antes do Almoço',
-  'Durante o Almoço',
-  'Após o Almoço',
-  'À Tarde',
-  '2h Antes do Jantar',
-  '30 min Antes do Jantar',
-  '10 min Antes do Jantar',
-  'Antes do Jantar',
-  'Durante o Jantar',
-  'Após o Jantar',
-  '1 hora Antes de Dormir',
-  'Antes de Dormir',
-  'Antes do Treino',
-  '20 min antes do treino',
+  'Jejum',
+  'Início da Manhã',
+  'Meio da Manhã',
+  'Almoço',
+  'Início da Tarde',
+  'Meio da Tarde',
+  'Noite',
+  'Final da Noite',
+  'Ceia',
 ];
 export const VIAS: string[] = ['VO', 'SL', 'Tópico', 'Uso externo'];
 

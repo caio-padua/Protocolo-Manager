@@ -54,11 +54,30 @@ do paciente — tudo sob o sistema de design Paxter (skill-layout-paxter).
    (Padrão 8). Atuar como médico: o cockpit tem que servir a decisão clínica num
    relance.
 
-## Decisão do CEO (campos fixos do crachá clínico) — A DEFINIR
-Default recomendado (visão médica): FOTO | NOME (grande) + IDADE + SEXO |
-campos fixos: ALERGIAS, PATOLOGIAS/COMORBIDADES (diagnósticos), MEDICAÇÕES
-CONTÍNUAS, TIPO SANGUÍNEO, e um resumo de HÁBITOS (tabagismo/álcool). Fonte:
-`fichaClinica` (jsonb) + achados da anamnese. Aguardando confirmação do CEO.
+## Decisão do CEO (14/07/2026): crachá completo, autonomia 100%
+CEO pediu "a, b e c juntos" — juntar dados de cadastro E clínicos, pensando como
+médico. Crachá em 3 zonas (Padrão 12/13 da skill — grade fixa, campo sem dado = "—"):
+
+Zona 1 IDENTIDADE (esquerda): FOTO (photoUrl; silhueta se vazio) | NOME grande |
+IDADE (derivada de dataNascimento) + SEXO | CPF | contato (telefone/instagram).
+
+Zona 2 CADASTRO: DATA DE NASCIMENTO | ENDEREÇO resumido (cidade/estado; completo
+no hover/tooltip) | COMO CONHECEU.
+
+Zona 3 CLÍNICO (a mais destacada, visão médica):
+- PATOLOGIAS DIAGNOSTICADAS (confirmadas) — chips.
+- SUSPEITAS / A INVESTIGAR — chips em tom de alerta.
+- ALERGIAS — chip vermelho (segurança).
+- MEDICAÇÕES CONTÍNUAS.
+- HÁBITOS relevantes (tabagismo/álcool) quando houver.
+- SINAL DE ALERTA da anamnese (cor verde/amarelo/vermelho) se existir.
+Fonte: `fichaClinica` (jsonb) + achados da anamnese (dto.passado). Campo sem dado = "—".
+
+## Ajustes do CEO nas outras frentes (14/07/2026)
+- EXAMES EM COLUNAS: usar o layout em colunas que o CEO gostou (as faixas/blocos
+  como colunas, estilo do Canvas), com os botões de selecionar exame por faixa.
+- MANTER GRÁFICO ABAIXO: a interação atual "clico no exame e o gráfico aparece
+  embaixo" (Evolução) DEVE ser mantida — não remover.
 
 ## Casos extremos
 - Cliente sem `photoUrl`: silhueta neutra (não quebra layout).

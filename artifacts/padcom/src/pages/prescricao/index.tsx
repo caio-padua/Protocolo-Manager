@@ -1,4 +1,4 @@
-import { useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useState, type ElementType } from "react";
 import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
   CheckCircle2, ArrowUp, ArrowDown, Layers, Clock, FolderPlus,
@@ -14,6 +14,7 @@ import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
+import { BASE } from "../comunicacao/_shared";
 
 const NAVY = "#16284a";
 const OURO = "#c9a24e";
@@ -38,7 +39,17 @@ interface PatientData {
   dataNascimento: string;
 }
 
-export default function PrescricaoPage() {
+interface ClientData {
+  name: string;
+  cpf: string | null;
+  phone: string | null;
+  email: string | null;
+  birthDate: string | null;
+}
+
+export default function PrescricaoPage(
+  { clientId, embedded }: { clientId?: number; embedded?: boolean } = {},
+) {
   const [patient, setPatient] = useState<PatientData>({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
   const [duracao, setDuracao] = useState("30");
   const [cid, setCid] = useState("");
@@ -48,6 +59,29 @@ export default function PrescricaoPage() {
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
   const [customProtocolos, setCustomProtocolos] = useState<Protocolo[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // Modo embutido (cockpit): busca o cliente e preenche o paciente automaticamente,
+  // pulando o formulário manual. Sem clientId, a tela funciona como standalone.
+  const { data: clientData } = useQuery<ClientData>({
+    queryKey: ["prescricao-client", clientId],
+    queryFn: async () => {
+      const r = await fetch(`${BASE}/api/clients/${clientId}`);
+      if (!r.ok) throw new Error("Falha ao carregar cliente");
+      return r.json();
+    },
+    enabled: !!clientId,
+  });
+
+  useEffect(() => {
+    if (!clientData) return;
+    setPatient({
+      nome: clientData.name ?? "",
+      cpf: clientData.cpf ?? "",
+      telefone: clientData.phone ?? "",
+      email: clientData.email ?? "",
+      dataNascimento: clientData.birthDate ?? "",
+    });
+  }, [clientData]);
 
   // Roteamento p/ farmácias + emissão
   const { toast } = useToast();
@@ -343,31 +377,44 @@ export default function PrescricaoPage() {
       `}</style>
 
       {/* PAGE HEADER */}
-      <div className="no-print screen-3d flex items-center justify-between gap-4 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <span className="bevel-3d inline-flex w-11 h-11 items-center justify-center text-primary">
-            <Stethoscope className="w-6 h-6" />
-          </span>
-          <div>
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Prescrição de Fórmulas</h1>
-            <p className="text-[11px] tracking-[0.22em] uppercase text-primary font-semibold">
-              Montador de Receitas Manipuladas
-            </p>
+      {!embedded && (
+        <div className="no-print screen-3d flex items-center justify-between gap-4 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="bevel-3d inline-flex w-11 h-11 items-center justify-center text-primary">
+              <Stethoscope className="w-6 h-6" />
+            </span>
+            <div>
+              <h1 className="text-xl font-bold text-foreground tracking-tight">Prescrição de Fórmulas</h1>
+              <p className="text-[11px] tracking-[0.22em] uppercase text-primary font-semibold">
+                Montador de Receitas Manipuladas
+              </p>
+            </div>
           </div>
+          <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
         </div>
-        <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
-      </div>
+      )}
 
       {/* BLOCO — DADOS DO CLIENTE */}
       <section className="no-print panel-3d p-5">
         <BlockTitle icon={User} color="text-primary">Dados do Cliente</BlockTitle>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-4">
-          <input className={`md:col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
-          <input className={inputCls} placeholder="CPF" value={patient.cpf} onChange={(e) => setPatient({ ...patient, cpf: e.target.value })} />
-          <input className={inputCls} placeholder="Telefone" value={patient.telefone} onChange={(e) => setPatient({ ...patient, telefone: e.target.value })} />
-          <input className={inputCls} placeholder="E-mail" value={patient.email} onChange={(e) => setPatient({ ...patient, email: e.target.value })} />
-          <input type="date" className={inputCls} value={patient.dataNascimento} onChange={(e) => setPatient({ ...patient, dataNascimento: e.target.value })} />
-        </div>
+        {clientId ? (
+          <div className="mt-4">
+            <div className="text-lg font-semibold text-foreground">{patient.nome || "Carregando cliente…"}</div>
+            <div className="text-xs text-muted-foreground">
+              {[patient.cpf ? `CPF ${patient.cpf}` : null, idade ? `${idade} anos` : null, patient.telefone, patient.email]
+                .filter(Boolean)
+                .join(" · ") || "sem dados de contato"}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-4">
+            <input className={`md:col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
+            <input className={inputCls} placeholder="CPF" value={patient.cpf} onChange={(e) => setPatient({ ...patient, cpf: e.target.value })} />
+            <input className={inputCls} placeholder="Telefone" value={patient.telefone} onChange={(e) => setPatient({ ...patient, telefone: e.target.value })} />
+            <input className={inputCls} placeholder="E-mail" value={patient.email} onChange={(e) => setPatient({ ...patient, email: e.target.value })} />
+            <input type="date" className={inputCls} value={patient.dataNascimento} onChange={(e) => setPatient({ ...patient, dataNascimento: e.target.value })} />
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
           <div className="concave-3d flex items-center gap-2 px-3 py-1.5">
             <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Duração:</label>

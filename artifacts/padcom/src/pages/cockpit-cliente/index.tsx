@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useListClients } from "@workspace/api-client-react";
 import { ClientPicker } from "@/components/ClientPicker";
 import {
@@ -12,21 +12,25 @@ import {
   UserRound,
 } from "lucide-react";
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
-import PedidosExamesPanel from "@/pages/cockpit/panels/PedidosExamesPanel";
-import PrescricaoFormulasPanel from "@/pages/cockpit/panels/PrescricaoFormulasPanel";
 import Injetaveis from "@/pages/cockpit/panels/Injetaveis";
-import LancadorInline from "./panels/LancadorInline";
+import PrescricaoPage from "@/pages/prescricao";
+import NovoProtocolo from "@/pages/protocols/new";
+import ExamesPage from "@/pages/exames";
 import DocumentosPanel from "./panels/DocumentosPanel";
 import AvisoSemAnamnese from "./panels/AvisoSemAnamnese";
 import AnamnesePreviaPanel from "./panels/AnamnesePreviaPanel";
 import ExamesEnviadosPanel from "./panels/ExamesEnviadosPanel";
 import ContratosTimelineInline from "./panels/ContratosTimelineInline";
+import ClienteCracha from "./panels/ClienteCracha";
 
 // ===========================================================================
-// COCKPIT DO CLIENTE (Cockpit da Consulta — formato do print do CEO):
+// COCKPIT DO CLIENTE (Cockpit da Consulta — Onda 3, 14/07/2026):
 // faixa superior navy + regua de abas + conteudo CLARO (skill-layout-paxter).
-// Seleciona o cliente UMA vez; todas as ferramentas inline, sem trocar de tela.
-// Spec: specs/cockpit-cliente-abas.md
+// Seleciona o cliente UMA vez e persiste (localStorage + URL ?cliente=ID) para
+// sobreviver ao sair/voltar. As abas Prescricao/Injetaveis/Implantes/Exames
+// renderizam as TELAS ORIGINAIS embutidas (fonte unica), nao copias divergentes.
+// Um crachá clinico rico (cadastro + quadro clinico) abre o cabeçalho.
+// Spec: specs/cockpit-cliente-onda3-consolidacao.md
 // ===========================================================================
 
 const NAVY = "#16294a";
@@ -51,35 +55,82 @@ const ABAS: { id: AbaId; rotulo: string; Icon: typeof FlaskConical }[] = [
   { id: "anamnese", rotulo: "Anamnese Prévia", Icon: ClipboardCheck },
 ];
 
-function idade(birthDate: string | null | undefined): number | null {
-  if (!birthDate) return null;
-  const d = new Date(`${birthDate}T12:00:00-03:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  const hoje = new Date();
-  let anos = hoje.getFullYear() - d.getFullYear();
-  const m = hoje.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && hoje.getDate() < d.getDate())) anos--;
-  return anos;
+const LS_CLIENTE = "cockpit.clienteId";
+const LS_ABA = "cockpit.aba";
+
+// Persistencia (BUG da Onda 3): cliente selecionado sobrevive ao sair/voltar.
+// Le da URL (?cliente=ID) primeiro; depois do localStorage.
+function lerClienteInicial(): number | null {
+  try {
+    const q = new URLSearchParams(window.location.search).get("cliente");
+    if (q && /^\d+$/.test(q)) return Number(q);
+    const ls = localStorage.getItem(LS_CLIENTE);
+    if (ls && /^\d+$/.test(ls)) return Number(ls);
+  } catch {
+    /* ambiente sem window/localStorage: segue sem persistencia */
+  }
+  return null;
+}
+
+function lerAbaInicial(): AbaId {
+  try {
+    const q = new URLSearchParams(window.location.search).get("aba");
+    if (q && ABAS.some((a) => a.id === q)) return q as AbaId;
+    const s = localStorage.getItem(LS_ABA);
+    if (s && ABAS.some((a) => a.id === s)) return s as AbaId;
+  } catch {
+    /* ignore */
+  }
+  return "prescricao";
 }
 
 export default function CockpitCliente() {
-  const [clienteId, setClienteId] = useState<number | null>(null);
-  const [aba, setAba] = useState<AbaId>("prescricao");
+  const [clienteId, setClienteIdState] = useState<number | null>(lerClienteInicial);
+  const [aba, setAbaState] = useState<AbaId>(lerAbaInicial);
+
+  function selecionarCliente(id: number | null) {
+    setClienteIdState(id);
+    try {
+      if (id == null) localStorage.removeItem(LS_CLIENTE);
+      else localStorage.setItem(LS_CLIENTE, String(id));
+      const url = new URL(window.location.href);
+      if (id == null) url.searchParams.delete("cliente");
+      else url.searchParams.set("cliente", String(id));
+      window.history.replaceState({}, "", url.toString());
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function selecionarAba(a: AbaId) {
+    setAbaState(a);
+    try {
+      localStorage.setItem(LS_ABA, a);
+      const url = new URL(window.location.href);
+      url.searchParams.set("aba", a);
+      window.history.replaceState({}, "", url.toString());
+    } catch {
+      /* ignore */
+    }
+  }
 
   const { data: clients } = useListClients();
   const opcoes = useMemo(
     () => (clients ?? []).map((c) => ({ id: c.id, name: c.name })),
     [clients],
   );
-  const cliente = useMemo(
-    () => (clients ?? []).find((c) => c.id === clienteId) ?? null,
-    [clients, clienteId],
-  );
-  const anos = idade(cliente?.birthDate);
+
+  // Se o cliente persistido nao existir mais no banco, limpa a selecao.
+  useEffect(() => {
+    if (clienteId != null && clients && !clients.some((c) => c.id === clienteId)) {
+      selecionarCliente(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, clienteId]);
 
   return (
     <div className="min-h-screen w-full font-sans" style={{ background: CREAM }}>
-      {/* Faixa de topo navy */}
+      {/* Faixa de topo navy — sem wordmark PAXTER (o sidebar ja carrega a marca) */}
       <header
         className="flex flex-wrap items-center justify-between gap-3 px-7 py-3"
         style={{
@@ -87,43 +138,16 @@ export default function CockpitCliente() {
           borderBottom: "1px solid rgba(231,205,143,0.35)",
         }}
       >
-        <div className="flex items-center gap-3">
-          <span
-            className="font-serif text-[19px] font-semibold tracking-[0.16em]"
-            style={{ color: "#e7cd8f", textShadow: "0 1px 0 rgba(0,0,0,0.45)" }}
-          >
-            PAXTER
-          </span>
-          <span className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
-            Cockpit da Consulta
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <ClientPicker
-            clientes={opcoes}
-            value={clienteId}
-            onChange={(id) => setClienteId(id)}
-            placeholder="Selecionar cliente…"
-            triggerClassName="min-w-[240px] bg-white/95 text-[#16294a]"
-          />
-          <div className="text-right leading-tight">
-            {cliente ? (
-              <>
-                <div className="text-[13px] font-semibold uppercase tracking-wide text-white">
-                  {cliente.name}
-                </div>
-                <div className="text-[11px] text-slate-300">
-                  {cliente.cpf ? `CPF ${cliente.cpf}` : "CPF não informado"}
-                  {anos != null ? ` · ${anos} anos` : ""}
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 text-[12px] text-slate-300">
-                <UserRound className="h-4 w-4" /> Nenhum cliente selecionado
-              </div>
-            )}
-          </div>
-        </div>
+        <span className="text-[12px] font-semibold uppercase tracking-[0.22em] text-slate-200">
+          Cockpit da Consulta
+        </span>
+        <ClientPicker
+          clientes={opcoes}
+          value={clienteId}
+          onChange={(id) => selecionarCliente(id)}
+          placeholder="Selecionar cliente…"
+          triggerClassName="min-w-[260px] bg-white/95 text-[#16294a]"
+        />
       </header>
 
       {/* Régua de abas */}
@@ -134,7 +158,7 @@ export default function CockpitCliente() {
             <button
               key={id}
               type="button"
-              onClick={() => setAba(id)}
+              onClick={() => selecionarAba(id)}
               className={`flex items-center gap-1.5 rounded-t-[5px] px-4 py-2 text-[12px] font-semibold uppercase tracking-wide ${
                 ativo ? "text-[#16294a]" : "text-slate-300 hover:text-white"
               }`}
@@ -167,10 +191,13 @@ export default function CockpitCliente() {
           </div>
         ) : (
           <div key={clienteId}>
-            {aba === "prescricao" && <PrescricaoFormulasPanel clientId={clienteId} />}
+            {/* Crachá clínico rico (cadastro + quadro clínico) */}
+            <ClienteCracha clientId={clienteId} />
+
+            {aba === "prescricao" && <PrescricaoPage clientId={clienteId} embedded />}
             {aba === "injetaveis" && (
               <div className="space-y-6">
-                <LancadorInline clientId={clienteId} tipo="injetavel" />
+                <NovoProtocolo clientId={clienteId} embedded />
                 <Injetaveis
                   clientId={clienteId}
                   filtroProcedimento="injetavel"
@@ -180,7 +207,7 @@ export default function CockpitCliente() {
             )}
             {aba === "implantes" && (
               <div className="space-y-6">
-                <LancadorInline clientId={clienteId} tipo="implante" />
+                <NovoProtocolo clientId={clienteId} embedded />
                 <Injetaveis
                   clientId={clienteId}
                   filtroProcedimento="implante"
@@ -191,7 +218,7 @@ export default function CockpitCliente() {
             {aba === "exames" && (
               <div className="space-y-4">
                 <AvisoSemAnamnese clientId={clienteId} />
-                <PedidosExamesPanel clientId={clienteId} />
+                <ExamesPage clientId={clienteId} embedded />
                 <ExamesEnviadosPanel clientId={clienteId} />
               </div>
             )}
