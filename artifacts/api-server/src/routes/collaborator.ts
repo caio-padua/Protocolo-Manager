@@ -8,6 +8,8 @@ import {
   anamneseFindingsTable,
   anamneseRefusalsTable,
   anamneseGroupNotesTable,
+  anamneseSessionAnswersTable,
+  anamneseQuestionarioTable,
 } from "@workspace/db";
 import { eq, sql, desc, and, inArray, isNotNull } from "drizzle-orm";
 import {
@@ -447,7 +449,7 @@ router.get(
       return;
     }
 
-    const [findings, refusals, notes] = await Promise.all([
+    const [findings, refusals, notes, respostas] = await Promise.all([
       db
         .select()
         .from(anamneseFindingsTable)
@@ -461,7 +463,34 @@ router.get(
         .select()
         .from(anamneseGroupNotesTable)
         .where(eq(anamneseGroupNotesTable.sessionId, id)),
+      // Respostas cruas + enunciado da pergunta (join por questionRowId -> id
+      // numerico do questionario; perguntaId REPETE e nunca e chave).
+      db
+        .select({
+          id: anamneseSessionAnswersTable.id,
+          perguntaId: anamneseSessionAnswersTable.perguntaId,
+          valor: anamneseSessionAnswersTable.valor,
+          respondidoEm: anamneseSessionAnswersTable.respondidoEm,
+          pergunta: anamneseQuestionarioTable.pergunta,
+          bloco: anamneseQuestionarioTable.bloco,
+          sistema: anamneseQuestionarioTable.sistema,
+          tipoResposta: anamneseQuestionarioTable.tipoResposta,
+          ordem: anamneseQuestionarioTable.ordem,
+        })
+        .from(anamneseSessionAnswersTable)
+        .leftJoin(
+          anamneseQuestionarioTable,
+          eq(anamneseQuestionarioTable.id, anamneseSessionAnswersTable.questionRowId),
+        )
+        .where(eq(anamneseSessionAnswersTable.sessionId, id)),
     ]);
+
+    const respostasOrdenadas = [...respostas].sort((a, b) => {
+      const blocoA = a.bloco ?? "";
+      const blocoB = b.bloco ?? "";
+      if (blocoA !== blocoB) return blocoA.localeCompare(blocoB, "pt-BR");
+      return (a.ordem ?? 0) - (b.ordem ?? 0);
+    });
 
     res.json({
       id: session.id,
@@ -488,6 +517,16 @@ router.get(
         id: n.id,
         grupo: n.grupo,
         observacao: n.observacao,
+      })),
+      respostas: respostasOrdenadas.map((r) => ({
+        id: r.id,
+        perguntaId: r.perguntaId ?? null,
+        pergunta: r.pergunta ?? null,
+        bloco: r.bloco ?? null,
+        sistema: r.sistema ?? null,
+        tipoResposta: r.tipoResposta ?? null,
+        valor: r.valor,
+        respondidoEm: r.respondidoEm.toISOString(),
       })),
     });
   },

@@ -6,6 +6,7 @@ import {
   Syringe,
   Gem,
   ClipboardList,
+  ClipboardCheck,
   TrendingUp,
   FileText,
   UserRound,
@@ -17,6 +18,9 @@ import Injetaveis from "@/pages/cockpit/panels/Injetaveis";
 import LancadorInline from "./panels/LancadorInline";
 import DocumentosPanel from "./panels/DocumentosPanel";
 import AvisoSemAnamnese from "./panels/AvisoSemAnamnese";
+import AnamnesePreviaPanel from "./panels/AnamnesePreviaPanel";
+import ExamesEnviadosPanel from "./panels/ExamesEnviadosPanel";
+import ContratosTimelineInline from "./panels/ContratosTimelineInline";
 
 // ===========================================================================
 // COCKPIT DO CLIENTE (Cockpit da Consulta — formato do print do CEO):
@@ -34,6 +38,7 @@ type AbaId =
   | "implantes"
   | "exames"
   | "evolucao"
+  | "anamnese"
   | "documentos";
 
 const ABAS: { id: AbaId; rotulo: string; Icon: typeof FlaskConical }[] = [
@@ -43,6 +48,7 @@ const ABAS: { id: AbaId; rotulo: string; Icon: typeof FlaskConical }[] = [
   { id: "exames", rotulo: "Exames", Icon: ClipboardList },
   { id: "evolucao", rotulo: "Evolução", Icon: TrendingUp },
   { id: "documentos", rotulo: "Documentos", Icon: FileText },
+  { id: "anamnese", rotulo: "Anamnese Prévia", Icon: ClipboardCheck },
 ];
 
 function idade(birthDate: string | null | undefined): number | null {
@@ -155,8 +161,8 @@ export default function CockpitCliente() {
             </div>
             <p className="mt-2 text-sm text-[#647c97]">
               Escolha o cliente na faixa superior. Todas as ferramentas da consulta
-              (prescrição, injetáveis, implantes, exames, evolução e documentos)
-              ficam nesta tela, sem trocar de página.
+              (prescrição, injetáveis, implantes, exames, evolução, anamnese prévia
+              e documentos) ficam nesta tela, sem trocar de página.
             </p>
           </div>
         ) : (
@@ -186,10 +192,17 @@ export default function CockpitCliente() {
               <div className="space-y-4">
                 <AvisoSemAnamnese clientId={clienteId} />
                 <PedidosExamesPanel clientId={clienteId} />
+                <ExamesEnviadosPanel clientId={clienteId} />
               </div>
             )}
             {aba === "evolucao" && <EvolucaoExamesPanel clientId={clienteId} />}
-            {aba === "documentos" && <DocumentosPanel clientId={clienteId} />}
+            {aba === "anamnese" && <AnamnesePreviaPanel clientId={clienteId} />}
+            {aba === "documentos" && (
+              <div className="space-y-6">
+                <DocumentosPanel clientId={clienteId} />
+                <ContratosTimelineInline clientId={clienteId} />
+              </div>
+            )}
           </div>
         )}
       </main>
