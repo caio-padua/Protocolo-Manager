@@ -41,5 +41,8 @@ export * from "./mensageria";
 export * from "./mensagens-catalogo";
 export * from "./whatsapp-log";
 export * from "./lembretes-prescricao";
+export * from "./document-templates";
+export * from "./medical-certificates";
+export * from "./referrals";
 
 export * from "./assinatura";

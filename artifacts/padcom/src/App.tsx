@@ -83,6 +83,9 @@ import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import Hierarquia from "@/pages/hierarquia";
 import Governanca from "@/pages/governanca";
 import ImportarDrive from "@/pages/importar-drive";
+import Atestados from "@/pages/arsenal/atestados";
+import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
+import ModelosDocumento from "@/pages/arsenal/modelos";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -218,6 +221,10 @@ function Router() {
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/governanca" component={Governanca} />
+
+            <Route path="/arsenal/atestados" component={Atestados} />
+            <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
+            <Route path="/arsenal/modelos" component={ModelosDocumento} />
 
             <Route component={NotFound} />
           </Switch>

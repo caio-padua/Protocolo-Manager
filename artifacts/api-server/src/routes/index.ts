@@ -59,6 +59,9 @@ import brandRouter from "./brand";
 import whatsappWebhookRouter from "./whatsapp-webhook";
 import demoGaleriaRouter from "./demo-galeria";
 import importarDriveRouter from "./importar-drive";
+import atestadosRouter from "./atestados";
+import encaminhamentosRouter from "./encaminhamentos";
+import documentTemplatesRouter from "./document-templates";
 
 const router: IRouter = Router();
 
@@ -144,5 +147,8 @@ router.use(financeiroRouter);
 router.use(assinaturasRouter);
 router.use(demoGaleriaRouter);
 router.use(importarDriveRouter);
+router.use(atestadosRouter);
+router.use(encaminhamentosRouter);
+router.use(documentTemplatesRouter);
 
 export default router;

@@ -97,4 +97,5 @@
 - [Token de colaborador p/ curl](collab-token-curl-regen.md) — token = base64url("collab:id:role:exp:sig") com sig HMAC em HEX do conjunto todo (nao segmentos .); some no restart, regerar; ler createCollaboratorToken antes.
 - [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open (so ignora nao-exame confirmado); teto conta arquivos processados+sniff.
 - [Conferencia humana de exames (C1/C2)](conferencia-humana-exames.md) — 2 fases (recebido->conferido_1->conferido), selo por coluna maior-id-vence, toggle so afeta Evolucao; fetch cru de /settings/* precisa Bearer manual.
+- [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente), não só no front; rotas gêmeas com contrato idêntico (pdfData + 400 em clientId inválido).
 - [Cockpit por painéis autossuficientes](cockpit-painel-consolidacao.md) — consolidar telas num cockpit = painéis burros {clientId} que reusam o motor real e limpam estado ao trocar cliente; paralelizar com 1 arquivo novo por subagente.

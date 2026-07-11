@@ -48,6 +48,9 @@ import {
   Zap,
   Receipt,
   DownloadCloud,
+  FileSignature,
+  Send,
+  Files,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -101,6 +104,15 @@ const navigation: NavEntry[] = [
       { name: "Orçamentos", href: "/orcamentos", icon: Calculator },
       { name: "Farmácias", href: "/pharmacies", icon: Building2 },
       { name: "SNCR", href: "/sncr", icon: Hash },
+    ],
+  },
+  {
+    name: "Arsenal Clínico",
+    icon: Stamp,
+    children: [
+      { name: "Atestados", href: "/arsenal/atestados", icon: FileSignature },
+      { name: "Encaminhamentos", href: "/arsenal/encaminhamentos", icon: Send },
+      { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
     ],
   },
   {
