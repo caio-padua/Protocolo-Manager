@@ -35,6 +35,7 @@ import CockpitAnamnese from "@/pages/cockpit-anamnese";
 import Cartorio from "@/pages/cartorio";
 import Exames from "@/pages/exames";
 import CadastroExames from "@/pages/cadastros/exames";
+import CadastroDirecaoExames from "@/pages/cadastros/direcao-exames";
 import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
 import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
@@ -180,6 +181,7 @@ function Router() {
               <CollaboratorGate>
                 <Switch>
                   <Route path="/cadastros/exames" component={CadastroExames} />
+                  <Route path="/cadastros/direcao-exames" component={CadastroDirecaoExames} />
                   <Route path="/cadastros/listas" component={CadastroListas} />
                   <Route path="/cadastros/clinicas" component={CadastroClinicas} />
                   <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />

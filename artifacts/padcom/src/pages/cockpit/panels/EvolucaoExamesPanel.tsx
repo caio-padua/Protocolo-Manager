@@ -28,6 +28,7 @@ import {
   YAxis,
 } from "recharts";
 import { BASE } from "../../comunicacao/_shared";
+import { DirecaoExamesTool } from "@/components/DirecaoExamesTool";
 
 // ===========================================================================
 // PAINEL: EVOLUCAO DE EXAMES (client-scoped) — motor de 5 FAIXAS do IHE.
@@ -63,14 +64,14 @@ const ZONE_COLOR: Record<string, string> = {
   ALERTA: "#b4413c",
   ATENCAO: "#c17a2b",
   INSUFICIENTE: "#d0a53f",
-  SUFICIENTE: "#7a9a4a",
+  ACEITAVEL: "#7a9a4a",
   EXCELENTE: "#3f7a3f",
 };
 const ZONE_ROTULO: Record<string, string> = {
   ALERTA: "ALERTA",
   ATENCAO: "ATENÇÃO",
   INSUFICIENTE: "INSUFICIENTE",
-  SUFICIENTE: "SUFICIENTE",
+  ACEITAVEL: "ACEITÁVEL",
   EXCELENTE: "EXCELENTE",
 };
 const DIRECTION_ROTULO: Record<string, string> = {
@@ -738,6 +739,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   const [fixadas, setFixadas] = useState<string[]>([]);
   const [layout, setLayout] = useState<LayoutMode>("lado");
   const [colapsados, setColapsados] = useState<string[]>([]);
+  const [mostrarDirecoes, setMostrarDirecoes] = useState(false);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
@@ -1118,6 +1120,23 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
       {/* bloco editável (F5) */}
       <BlocoEditavel analytes={analytes} onSalvo={() => carregar(clientId)} />
+
+      {/* ferramenta GLOBAL de direção (mesma do menu Cadastros) */}
+      <div className="mt-5">
+        <button
+          type="button"
+          onClick={() => setMostrarDirecoes((v) => !v)}
+          className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+        >
+          {mostrarDirecoes ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          Cadastro de Direção de TODOS os exames
+        </button>
+        {mostrarDirecoes && (
+          <div className="mt-3">
+            <DirecaoExamesTool titulo="Direção dos Exames (catálogo completo)" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -22,7 +22,7 @@ export type ZoneLabel =
   | "ALERTA"
   | "ATENCAO"
   | "INSUFICIENTE"
-  | "SUFICIENTE"
+  | "ACEITAVEL"
   | "EXCELENTE";
 
 export interface Zone {
@@ -42,7 +42,7 @@ export const ZONE_COLOR: Record<ZoneLabel, string> = {
   ALERTA: "#b4413c", // vermelho — fora, exige médico
   ATENCAO: "#c17a2b", // laranja — fora, exige contexto clínico
   INSUFICIENTE: "#d0a53f", // âmbar — dentro, longe do alvo
-  SUFICIENTE: "#7a9a4a", // verde-oliva — dentro, aceitável
+  ACEITAVEL: "#7a9a4a", // verde-oliva — dentro, aceitável
   EXCELENTE: "#3f7a3f", // verde forte — no terço favorável
 };
 
@@ -51,22 +51,22 @@ const LABELS_BY_DIRECTION: Record<Direction, Record<ZoneKey, ZoneLabel>> = {
   higher_better: {
     below: "ALERTA",
     t1: "INSUFICIENTE",
-    t2: "SUFICIENTE",
+    t2: "ACEITAVEL",
     t3: "EXCELENTE",
     above: "ATENCAO",
   },
   lower_better: {
     below: "ATENCAO",
     t1: "EXCELENTE",
-    t2: "SUFICIENTE",
+    t2: "ACEITAVEL",
     t3: "INSUFICIENTE",
     above: "ALERTA",
   },
   target: {
     below: "ALERTA",
-    t1: "SUFICIENTE",
+    t1: "ACEITAVEL",
     t2: "EXCELENTE",
-    t3: "SUFICIENTE",
+    t3: "ACEITAVEL",
     above: "ATENCAO",
   },
 };

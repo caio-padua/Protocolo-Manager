@@ -792,12 +792,24 @@ const faixaZonaSchema = z.object({
 const putFaixasSchema = z.object({
   direction: z.enum(["higher_better", "lower_better", "target"]).optional(),
   zones: z.array(faixaZonaSchema).max(5).optional(),
-  // resetDirection: limpa a direção customizada no catálogo para voltar ao
-  // padrão do IHE (direcao_favoravel_exame por nome). Usado no "Restaurar".
+  // displayName: nome do exame para casar/gravar a direção em
+  // direcao_favoravel_exame (a fonte REAL que o motor lê). Sem ele, derivamos
+  // do último resultado do laudo (mesma estratégia do GET).
+  displayName: z.string().min(1).max(160).optional(),
+  // resetDirection: apaga a direção customizada (direcao_favoravel_exame por
+  // nome + catálogo) para voltar ao padrão. Usado no "Restaurar".
   resetDirection: z.boolean().optional(),
 });
 
-// PUT faixas: grava direção (se houver linha no catálogo) e substitui as zonas.
+// Tradução da direção do motor para o vocabulário da tabela do IHE.
+const DIR_TO_IHE: Record<Direction, string> = {
+  higher_better: "SUBIR_BOM",
+  lower_better: "DESCER_BOM",
+  target: "ALVO",
+};
+
+// PUT faixas: grava a DIREÇÃO em direcao_favoravel_exame (upsert por nome
+// normalizado — a fonte que o motor consulta) e substitui as zonas.
 router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
   try {
     const code = String(req.query.code || "").trim();
@@ -809,20 +821,64 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
     }
     const { direction, zones, resetDirection } = parsed.data;
 
+    // Nome do exame que casa a direção: displayName do corpo OU derivado do
+    // último resultado real (por code OU nome cru minúsculo) OU o próprio code.
+    let displayName = (parsed.data.displayName ?? "").trim();
+    if (!displayName) {
+      const [latest] = await db
+        .select({ name: examResultsTable.analyteNameRaw })
+        .from(examResultsTable)
+        .where(
+          or(
+            eq(examResultsTable.analyteCode, code),
+            sql`lower(${examResultsTable.analyteNameRaw}) = ${code.toLowerCase()}`,
+          ),
+        )
+        .orderBy(desc(examResultsTable.id))
+        .limit(1);
+      displayName = latest?.name ?? code;
+    }
+    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+    const nomeNorm = norm(displayName);
+
     let directionSaved = false;
+    // Todas as linhas de direção (tabela pequena) para casar por nome normalizado.
+    const dirAll = await db
+      .select({ id: direcaoFavoravelExameTable.id, nome: direcaoFavoravelExameTable.nomeExame })
+      .from(direcaoFavoravelExameTable);
+
     if (resetDirection) {
-      // Volta ao padrão do IHE: apaga o override de direção no catálogo.
+      // Volta ao padrão: apaga as linhas de direção que casam por nome + limpa
+      // o catálogo (compat).
+      const alvo = dirAll.filter((d) => norm(d.nome) === nomeNorm).map((d) => d.id);
+      if (alvo.length) {
+        await db
+          .delete(direcaoFavoravelExameTable)
+          .where(inArray(direcaoFavoravelExameTable.id, alvo));
+      }
       await db
         .update(examAnalyteCatalogTable)
         .set({ direction: null })
         .where(eq(examAnalyteCatalogTable.code, code));
     } else if (direction) {
-      const upd = await db
+      const ihe = DIR_TO_IHE[direction];
+      const existente = dirAll.find((d) => norm(d.nome) === nomeNorm);
+      if (existente) {
+        await db
+          .update(direcaoFavoravelExameTable)
+          .set({ direcaoFavoravel: ihe })
+          .where(eq(direcaoFavoravelExameTable.id, existente.id));
+      } else {
+        await db
+          .insert(direcaoFavoravelExameTable)
+          .values({ nomeExame: displayName, direcaoFavoravel: ihe, grupoExame: "MANUAL" });
+      }
+      directionSaved = true;
+      // Compat: se houver linha no catálogo, grava a direção lá também.
+      await db
         .update(examAnalyteCatalogTable)
         .set({ direction })
-        .where(eq(examAnalyteCatalogTable.code, code))
-        .returning({ id: examAnalyteCatalogTable.id });
-      directionSaved = upd.length > 0;
+        .where(eq(examAnalyteCatalogTable.code, code));
     }
 
     if (zones) {
@@ -845,6 +901,77 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
   } catch (e) {
     req.log?.error({ err: e }, "PUT /faixas falhou");
     return res.status(500).json({ error: "Falha ao salvar faixas" });
+  }
+});
+
+// ===========================================================================
+// GET /exames-lab/direcoes — lista consolidada para a TELA DE CADASTRO de
+// direção (menu Cadastros + Cockpit). Une (a) a curadoria de direção
+// (direcao_favoravel_exame) com (b) os analitos REAIS dos laudos (exam_results),
+// consolidando variações de caixa por nome normalizado. Cada item traz a
+// direção RESOLVIDA (higher/lower/target), o grupo, a contagem de resultados e
+// se já tem direção explícita cadastrada.
+// ===========================================================================
+router.get("/exames-lab/direcoes", async (req: Request, res: Response) => {
+  try {
+    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+
+    const dirRows = await db
+      .select({
+        nome: direcaoFavoravelExameTable.nomeExame,
+        dir: direcaoFavoravelExameTable.direcaoFavoravel,
+        grupo: direcaoFavoravelExameTable.grupoExame,
+      })
+      .from(direcaoFavoravelExameTable);
+    const dirByNorm = new Map<string, { dir: string | null; grupo: string | null }>();
+    for (const d of dirRows) dirByNorm.set(norm(d.nome), { dir: d.dir, grupo: d.grupo });
+
+    // Exames reais por frequência (nome cru do laudo).
+    const reais = await db
+      .select({ name: examResultsTable.analyteNameRaw, n: sql<number>`count(*)` })
+      .from(examResultsTable)
+      .groupBy(examResultsTable.analyteNameRaw);
+
+    // Consolida por nome normalizado (agrupa variações de caixa). Guarda o nome
+    // de exibição mais CURTO (costuma ser o canônico) e soma as contagens.
+    const mapa = new Map<string, { displayName: string; count: number }>();
+    for (const r of reais) {
+      if (!r.name) continue;
+      const k = norm(r.name);
+      const n = Number(r.n) || 0;
+      const cur = mapa.get(k);
+      if (cur) {
+        cur.count += n;
+        if (r.name.length < cur.displayName.length) cur.displayName = r.name;
+      } else {
+        mapa.set(k, { displayName: r.name, count: n });
+      }
+    }
+    // Inclui exames curados que ainda não apareceram em nenhum laudo.
+    for (const d of dirRows) {
+      const k = norm(d.nome);
+      if (!mapa.has(k)) mapa.set(k, { displayName: d.nome, count: 0 });
+    }
+
+    const lista = [...mapa.entries()].map(([k, v]) => {
+      const d = dirByNorm.get(k);
+      return {
+        code: v.displayName.toLowerCase(),
+        displayName: v.displayName,
+        direction: resolveDirection(null, d?.dir ?? null),
+        grupo: d?.grupo ?? null,
+        count: v.count,
+        hasDirection: !!d?.dir,
+      };
+    });
+    lista.sort(
+      (a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName, "pt-BR"),
+    );
+
+    return res.json(lista);
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /direcoes falhou");
+    return res.status(500).json({ error: "Falha ao listar direções" });
   }
 });
 

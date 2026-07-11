@@ -4,6 +4,7 @@ import { startCronJobs } from "./lib/cron";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
+import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { refreshCertCache } from "./lib/cert-source";
 
 const rawPort = process.env["PORT"];
@@ -40,4 +41,7 @@ app.listen(port, (err) => {
   runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
     logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
   );
+  seedDirecoesExames()
+    .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
+    .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
 });
