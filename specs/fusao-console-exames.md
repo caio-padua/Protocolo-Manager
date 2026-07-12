@@ -19,6 +19,19 @@ As duas ferramentas operam sobre o MESMO universo de exames e editam campos DISJ
 
 Como os campos não se sobrepõem, a fusão é encaixe: reunir os dois editores no detalhe do mesmo exame.
 
+## Atualização (12/07/2026) — ferramenta única + rótulo de faixa editável
+
+Decisão do CEO cumprida nesta onda:
+
+1. Passou a existir UMA única ferramenta = a mais completa (ConsoleExamesTool). As duas antigas
+   (DirecaoExamesTool e PlanilhaFaixasTool) foram APAGADAS.
+2. A MESMA tela aparece na Configuração (/cadastros/console-exames) e no Cockpit da Consulta
+   (EvolucaoExamesPanel passou a importar/renderizar ConsoleExamesTool).
+3. O NOME de cada uma das 5 faixas é editável por exame, independente (campo `faixaName` no Slot;
+   `<input>` por faixa; salva via PUT /faixas com `.trim()` + fallback `ZONE_ROTULO` por direção,
+   limite de 40 caracteres). A prévia e o badge de leitura exibem o nome customizado.
+4. A COR das faixas continua NÃO editável — sempre derivada da severidade/posição (`ZONE_COLOR`).
+
 ## Requisitos exatos (numerados)
 
 1. Nova tela mestre-detalhe chamada **Console de Exames**, num componente NOVO

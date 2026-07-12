@@ -19,4 +19,10 @@ detalhe carregado por fetch ao selecionar), dois riscos reais aparecem:
 por esses dois pontos (race média/alta + merge com perda).
 
 **How to apply:** qualquer tela mestre-detalhe com detalhe async + lista por merge de 2 fontes.
-Preservar o componente antigo se ele estiver embutido em outra tela (ex.: DirecaoExamesTool no Cockpit).
+
+Atualização (12/07/2026): a duplicidade de ferramentas de faixas de exames FOI eliminada por
+ordem do CEO. Existe UMA única ferramenta (ConsoleExamesTool), a mais completa, usada tanto na
+Configuração (/cadastros/console-exames) quanto embutida no Cockpit (EvolucaoExamesPanel).
+DirecaoExamesTool e PlanilhaFaixasTool foram apagados — não "preservar o componente antigo".
+O rótulo de cada uma das 5 faixas é editável por exame (campo faixaName, PUT /faixas, max 40,
+trim + fallback ZONE_ROTULO por direção); a COR nunca é editável (sempre ZONE_COLOR por severidade).

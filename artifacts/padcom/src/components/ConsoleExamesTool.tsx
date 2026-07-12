@@ -102,10 +102,12 @@ interface FaixasResp {
   zones: ZonaDetalhe[] | null;
 }
 
-// Faixa editável na tela: só os cortes; o rótulo é derivado da direção+posição.
+// Faixa editável na tela: rótulo (nome livre por exame) + cortes De/Até.
+// A COR não é editável — vem sempre por severidade/posição (ZONE_COLOR).
 interface Slot {
   low: number | null;
   high: number | null;
+  faixaName: string;
 }
 interface UnitDraft {
   unit: string;
@@ -113,12 +115,18 @@ interface UnitDraft {
   isCanonical: boolean;
 }
 
-// 5 cortes a partir das zonas (detalhe da API ou linha do catálogo).
-function slotsFromZones(zones: { low: number | null; high: number | null }[] | null | undefined): Slot[] {
+// 5 cortes + rótulo a partir das zonas (detalhe da API ou linha do catálogo).
+// O rótulo é livre por exame; se vier vazio, cai no nome-base da posição/direção.
+function slotsFromZones(
+  zones: { low: number | null; high: number | null; faixaName?: string; name?: string }[] | null | undefined,
+  direction: Direction,
+): Slot[] {
+  const labels = FAIXAS_POR_DIRECAO[direction];
   const out: Slot[] = [];
   for (let i = 0; i < 5; i++) {
     const z = zones?.[i];
-    out.push({ low: z?.low ?? null, high: z?.high ?? null });
+    const nome = (z?.faixaName ?? z?.name ?? "").trim() || ZONE_ROTULO[labels[i]];
+    out.push({ low: z?.low ?? null, high: z?.high ?? null, faixaName: nome });
   }
   return out;
 }
@@ -177,7 +185,7 @@ function BlockTitle({ icon: Icon, children }: { icon: typeof Compass; children: 
   );
 }
 
-// Barra-prévia + leitura da faixa do valor atual (rótulos travados nas 5 nomenclaturas).
+// Barra-prévia + leitura da faixa do valor atual (rótulo livre por exame; cor por severidade).
 function BarraFaixas({
   slots,
   direction,
@@ -199,7 +207,7 @@ function BarraFaixas({
         <span>maior valor</span>
       </div>
       <div className="flex gap-[2px]">
-        {slots.map((_, i) => (
+        {slots.map((s, i) => (
           <div
             key={i}
             className="min-w-0 rounded-[4px] px-1 py-2 text-center text-[8px] font-black uppercase leading-tight text-white"
@@ -209,9 +217,9 @@ function BarraFaixas({
               outline: idx === i ? `2px solid ${GOLD}` : "none",
               outlineOffset: idx === i ? "1px" : undefined,
             }}
-            title={ZONE_ROTULO[labels[i]]}
+            title={s.faixaName || ZONE_ROTULO[labels[i]]}
           >
-            <span className="block truncate">{ZONE_ROTULO[labels[i]]}</span>
+            <span className="block truncate">{s.faixaName || ZONE_ROTULO[labels[i]]}</span>
           </div>
         ))}
       </div>
@@ -226,7 +234,7 @@ function BarraFaixas({
           <>
             {fonte === "ref" ? "O valor de referência" : "O valor de teste"} <b>{fmt(valor)}</b> cai na faixa{" "}
             <span className="rounded-[3px] px-1.5 py-0.5 text-[9px] font-black uppercase text-white" style={{ background: ZONE_COLOR[labels[idx]] }}>
-              {ZONE_ROTULO[labels[idx]]}
+              {slots[idx].faixaName || ZONE_ROTULO[labels[idx]]}
             </span>
           </>
         )}
@@ -244,7 +252,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
   // Detalhe (faixas)
   const [direcao, setDirecao] = useState<Direction>("target");
-  const [slots, setSlots] = useState<Slot[]>(slotsFromZones(null));
+  const [slots, setSlots] = useState<Slot[]>(slotsFromZones(null, "target"));
   const [refLow, setRefLow] = useState<number | null>(null);
   const [refHigh, setRefHigh] = useState<number | null>(null);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
@@ -340,7 +348,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("faixas"))))
       .then((resp: FaixasResp) => {
         if (!vigente()) return;
-        const novos = slotsFromZones(resp.zones ?? row.zones);
+        const novos = slotsFromZones(resp.zones ?? row.zones, resp.direction ?? row.direction);
         setDirecao(resp.direction ?? row.direction);
         setSlots(novos);
         setRefLow(resp.refLow);
@@ -350,7 +358,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .catch(() => {
         if (!vigente()) return;
         // fallback: usa as zonas já vindas do catálogo
-        const novos = slotsFromZones(row.zones);
+        const novos = slotsFromZones(row.zones, row.direction);
         setDirecao(row.direction);
         setSlots(novos);
         setRefLow(null);
@@ -380,13 +388,18 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     });
   };
 
+  // Rótulo livre por faixa, independente por exame (backend aceita até 40 chars).
+  const editarRotulo = (i: number, valor: string) => {
+    setSlots((prev) => prev.map((s, j) => (j === i ? { ...s, faixaName: valor } : s)));
+  };
+
   const salvarFaixas = () => {
     if (!atual) return;
     setSalvandoFaixas(true);
     setMsg(null);
     const labels = FAIXAS_POR_DIRECAO[direcao];
     const zones = slots.map((s, i) => ({
-      faixaName: ZONE_ROTULO[labels[i]],
+      faixaName: (s.faixaName.trim() || ZONE_ROTULO[labels[i]]).slice(0, 40),
       low: s.low,
       high: s.high,
       color: ZONE_COLOR[labels[i]],
@@ -569,8 +582,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       </div>
       <p className="mb-3 text-[11px]" style={{ color: MUTED }}>
         Tudo de um exame numa tela só: <b>apelidos</b> (como o laudo escreve), <b>unidades</b> (com a padrão e o
-        fator de conversão), a <b>direção</b> (o que é "excelente") e os <b>cortes De/Até</b> das 5 faixas. Os
-        rótulos das faixas são fixos nas 5 nomenclaturas oficiais; a cor é fixa por severidade.{" "}
+        fator de conversão), a <b>direção</b> (o que é "excelente") e os <b>cortes De/Até</b> das 5 faixas. O
+        rótulo de cada faixa é editável por exame; a cor é fixa por severidade.{" "}
         <span className="mx-0.5 inline-flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 align-middle text-[8px] font-black uppercase text-white" style={{ background: GOLD }}>
           <Check className="h-2.5 w-2.5" /> rev
         </span>
@@ -823,7 +836,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     </div>
 
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>
-                      As 5 faixas (rótulos fixos; só os cortes De/Até são editáveis)
+                      As 5 faixas (rótulo, De e Até editáveis por exame)
                     </div>
                     <div className="mb-3 space-y-1.5">
                       {slots.map((s, i) => {
@@ -832,13 +845,15 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                         return (
                           <div key={i} className="flex items-center gap-2">
                             <span className="h-6 w-1.5 shrink-0 rounded-[2px]" style={{ background: cor }} />
-                            <span
-                              className="inline-flex min-w-0 flex-1 items-center rounded-[4px] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white"
-                              style={{ background: cor }}
-                              title={ZONE_ROTULO[label]}
-                            >
-                              <span className="truncate">{ZONE_ROTULO[label]}</span>
-                            </span>
+                            <input
+                              value={s.faixaName}
+                              onChange={(e) => editarRotulo(i, e.target.value)}
+                              maxLength={40}
+                              aria-label={`${atual.displayName} faixa ${i + 1} rótulo`}
+                              placeholder={ZONE_ROTULO[label]}
+                              className="min-w-0 flex-1 rounded-[4px] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white outline-none placeholder:text-white/70"
+                              style={{ background: cor, border: "none" }}
+                            />
                             <div className="flex shrink-0 items-center gap-1">
                               <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>De</span>
                               <input

@@ -26,7 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { BASE } from "../../comunicacao/_shared";
-import { DirecaoExamesTool } from "@/components/DirecaoExamesTool";
+import { ConsoleExamesTool } from "@/components/ConsoleExamesTool";
 
 // ===========================================================================
 // PAINEL: EVOLUCAO DE EXAMES (client-scoped) — motor de 5 FAIXAS do IHE.
@@ -886,7 +886,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         </button>
         {mostrarDirecoes && (
           <div className="mt-3">
-            <DirecaoExamesTool titulo="Faixas dos Exames (catálogo completo)" />
+            <ConsoleExamesTool titulo="Faixas dos Exames (catálogo completo)" />
           </div>
         )}
       </div>
