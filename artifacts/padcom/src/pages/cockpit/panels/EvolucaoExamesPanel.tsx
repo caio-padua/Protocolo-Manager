@@ -57,14 +57,6 @@ const NAME_W = 200; // coluna do nome (congelada à esquerda)
 const COL_W = 62; // largura de cada coluna de data
 const GAP = 8; // gap-2 entre células
 
-// Paleta oficial dos rótulos (espelha zones.ts do backend).
-const ZONE_COLOR: Record<string, string> = {
-  ALERTA: "#b4413c",
-  ATENCAO: "#c17a2b",
-  INSUFICIENTE: "#d0a53f",
-  ACEITAVEL: "#7a9a4a",
-  EXCELENTE: "#3f7a3f",
-};
 const ZONE_ROTULO: Record<string, string> = {
   ALERTA: "ALERTA",
   ATENCAO: "ATENÇÃO",
@@ -144,6 +136,18 @@ const TEND = {
   caiu: { rotulo: "CAIU", cor: "text-emerald-700", hex: "#3f7a3f", led: "paxter-led-green", Icon: TrendingDown },
   estavel: { rotulo: "ESTÁVEL", cor: "text-amber-700", hex: "#c17a2b", led: "paxter-led-amber", Icon: Minus },
 } as const;
+
+// SINALIZAR FAIXA: 5 posições fixas do MENOR valor ao MAIOR (espelha ZoneKey do
+// backend: below→t1→t2→t3→above). O filtro é por POSIÇÃO, nunca por nome — assim
+// os nomes custom de cada exame não poluem a planilha (eles vivem só no gráfico
+// individual). A célula acesa brilha na cor da própria faixa daquele exame.
+const FAIXAS_POSICAO = [
+  { key: "below", label: "1/5 Extremo Baixo" },
+  { key: "t1", label: "2/5 Baixo" },
+  { key: "t2", label: "3/5 Médio" },
+  { key: "t3", label: "4/5 Alto" },
+  { key: "above", label: "5/5 Extremo Alto" },
+] as const;
 
 // ------------------------------------------------------------------ célula ---
 function Cela({
@@ -531,22 +535,6 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   // Offset de "grudar" de cada coluna fixada: depois do nome (200) + gap.
   const stickyLeft = (displayIndex: number) => NAME_W + GAP + displayIndex * (COL_W + GAP);
 
-  const zonasPresentes = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of analytes) {
-      for (const c of Object.values(a.cells)) {
-        if (c.zone) m.set(c.zone.name, c.zone.color);
-      }
-    }
-    // ordem canônica primeiro; depois o resto
-    const ordem = ["ALERTA", "ATENCAO", "INSUFICIENTE", "SUFICIENTE", "EXCELENTE"];
-    return [...m.entries()].sort((a, b) => {
-      const ia = ordem.indexOf(a[0]);
-      const ib = ordem.indexOf(b[0]);
-      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-    });
-  }, [analytes]);
-
   const alternar = (key: string) =>
     setSelecionados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   const fixar = (key: string) =>
@@ -670,9 +658,11 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
 
       {/* controles */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#16294a]/10 pb-3">
-        {/* botões de FAIXA em BEVEL (requisito 4) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Acender faixa:</span>
+        {/* SINALIZAR FAIXA — 5 botões fixos por POSIÇÃO, em up bevel (saliente).
+            Filtra por zone.key (below→above), não por nome: os nomes custom de
+            cada exame ficam só no gráfico individual, sem poluir a planilha. */}
+        <div className="bevel-3d flex flex-wrap items-center gap-1.5 rounded-[7px] px-2.5 py-2">
+          <span className="mr-1 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Sinalizar faixa:</span>
           <button
             type="button"
             onClick={() => setZonaAcesa(null)}
@@ -681,18 +671,17 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           >
             Todas
           </button>
-          {zonasPresentes.map(([nome, cor]) => {
-            const ativo = zonaAcesa === nome;
+          {FAIXAS_POSICAO.map((f) => {
+            const ativo = zonaAcesa === f.key;
             return (
               <button
-                key={nome}
+                key={f.key}
                 type="button"
-                onClick={() => setZonaAcesa(ativo ? null : nome)}
-                className={`flex items-center gap-1 rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                style={ativo ? { background: cor, color: "#fff", boxShadow: `0 0 8px 1px ${cor}` } : { color: cor }}
+                onClick={() => setZonaAcesa(ativo ? null : f.key)}
+                className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
               >
-                <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: cor }} />
-                {ZONE_ROTULO[nome] ?? nome}
+                {f.label}
               </button>
             );
           })}
@@ -806,7 +795,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                   {orderedColumns.list.map((c, idx) => {
                     const isPinned = idx < orderedColumns.pinCols.length;
                     const cell = a.cells[c.key];
-                    const acesa = zonaAcesa !== null && cell?.zone?.name === zonaAcesa;
+                    const acesa = zonaAcesa !== null && cell?.zone?.key === zonaAcesa;
                     return (
                       <Cela
                         key={c.key}

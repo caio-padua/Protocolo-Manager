@@ -95,3 +95,22 @@ Decisão do CEO cumprida nesta onda:
 2. NUNCA remover a `DirecaoExamesTool` (Cockpit depende dela).
 3. NUNCA mudar a semântica das cores das faixas nem o mapa `FAIXAS_POR_DIRECAO` (fonte única).
 4. Mudança é de APRESENTAÇÃO + reunião de editores; nada de inventar campo novo fora desta spec.
+
+---
+
+## Addendum — "Sinalizar faixa" por POSIÇÃO (Opção B, decisão do CEO em 12/07/2026)
+
+Refinamento da linha de filtro do painel EXAMES—EVOLUÇÃO no Cockpit (`EvolucaoExamesPanel.tsx`).
+
+| Item | Antes | Agora |
+|---|---|---|
+| Rótulo | "Acender faixa" | "Sinalizar faixa" |
+| Botões | lista dinâmica que acumulava TODO `zone.name` distinto (poluía com nomes custom) | 5 fixos por POSIÇÃO |
+| Chave do filtro | `cell.zone.name` (nome custom) | `cell.zone.key` (`below→t1→t2→t3→above`) |
+| Visual do controle | flex simples | painel em `bevel-3d` (up bevel saliente) |
+
+Os 5 botões fixos: `1/5 Extremo Baixo` (below), `2/5 Baixo` (t1), `3/5 Médio` (t2), `4/5 Alto` (t3), `5/5 Extremo Alto` (above).
+
+Trade-off aceito pelo CEO (avisado, Art. 50): "posição" mistura significado clínico conforme a direção do exame (o valor mais baixo é ruim num exame de "quanto maior melhor" e bom num de "quanto menor melhor"). A célula acesa continua brilhando na cor da PRÓPRIA faixa daquele exame (`cell.zone.color`). Os nomes custom por exame vivem só no gráfico individual — nunca na planilha global.
+
+Sem mudança no backend (o endpoint de evolução já envia `cell.zone.key`).
