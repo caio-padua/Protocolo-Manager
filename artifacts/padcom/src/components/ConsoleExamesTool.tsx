@@ -298,6 +298,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [triFaxinando, setTriFaxinando] = useState(false);
   const [triResumo, setTriResumo] = useState<string | null>(null);
   const [triResolvendo, setTriResolvendo] = useState<number | null>(null);
+  // Seletor manual: virar apelido de OUTRO exame do catálogo (não só o sugerido).
+  const [triApelidoAberto, setTriApelidoAberto] = useState<number | null>(null);
+  const [triApelidoBusca, setTriApelidoBusca] = useState("");
+  const [triErro, setTriErro] = useState<{ id: number; texto: string } | null>(null);
   const [triAberta, setTriAberta] = useState(false);
 
   const carregarTriagem = useCallback(() => {
@@ -385,19 +389,29 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const resolverTriagem = useCallback(
     (id: number, acao: "apelido" | "novo" | "ignorar", targetCode?: string) => {
       setTriResolvendo(id);
+      setTriErro(null);
       fetch(`${BASE}/api/exames-lab/triagem/${id}/resolver`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ acao, targetCode }),
       })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("resolver"))))
+        .then(async (r) => {
+          if (!r.ok) {
+            const body = (await r.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(body?.error ?? "Falha ao resolver o item.");
+          }
+          return r.json();
+        })
         .then(() => {
+          setTriApelidoAberto(null);
+          setTriApelidoBusca("");
           setTriPend((prev) => prev.filter((x) => x.id !== id));
           carregarTriagem();
           if (acao !== "ignorar") carregar();
         })
-        .catch(() => {
-          /* mantém na fila se falhar */
+        .catch((e: unknown) => {
+          // mantém na fila e explica o motivo (ex.: 409 grafia já pertence a outro exame)
+          setTriErro({ id, texto: e instanceof Error ? e.message : "Falha ao resolver o item." });
         })
         .finally(() => setTriResolvendo(null));
     },
@@ -750,7 +764,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     </div>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   {t.suggestedCode && (
                     <button
                       type="button"
@@ -758,11 +772,25 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                       disabled={triResolvendo === t.id}
                       className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
                       style={{ color: NAVY }}
-                      title="Virar apelido do exame sugerido"
+                      title={t.suggestedName ? `Virar apelido de ${t.suggestedName} (sugerido pelo sistema)` : "Virar apelido do exame sugerido"}
                     >
-                      <Tags className="h-3 w-3" /> Virar apelido
+                      <Tags className="h-3 w-3" /> {t.suggestedName ? `Apelido de ${t.suggestedName}` : "Virar apelido"}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTriErro(null);
+                      setTriApelidoBusca("");
+                      setTriApelidoAberto((cur) => (cur === t.id ? null : t.id));
+                    }}
+                    disabled={triResolvendo === t.id}
+                    className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
+                    style={{ color: NAVY }}
+                    title="Virar apelido de OUTRO exame já cadastrado (você escolhe qual)"
+                  >
+                    <Search className="h-3 w-3" /> Apelido de outro…
+                  </button>
                   <button
                     type="button"
                     onClick={() => resolverTriagem(t.id, "novo")}
@@ -784,6 +812,72 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     {triResolvendo === t.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} Ignorar
                   </button>
                 </div>
+
+                {triErro && triErro.id === t.id && (
+                  <div className="w-full rounded-[6px] px-2 py-1.5 text-[9px] font-bold uppercase tracking-wide" style={{ background: "#f7e4e2", color: "#b4413c" }}>
+                    {triErro.texto}
+                  </div>
+                )}
+
+                {triApelidoAberto === t.id && (
+                  <div className="panel-3d-sub w-full rounded-[6px] p-2">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.1em]" style={{ color: NAVY }}>
+                      <Tags className="h-3 w-3" style={{ color: GOLD }} /> Escolha o exame já cadastrado que recebe "{t.sampleName}" como apelido
+                    </div>
+                    <div className="concave-3d mb-1.5 flex items-center gap-1.5 rounded-[6px] px-2 py-1">
+                      <Search className="h-3 w-3 shrink-0" style={{ color: MUTED }} />
+                      <input
+                        type="text"
+                        value={triApelidoBusca}
+                        onChange={(e) => setTriApelidoBusca(e.target.value)}
+                        placeholder="Buscar exame do cadastro…"
+                        autoFocus
+                        className="w-full bg-transparent text-[11px] outline-none"
+                        style={{ color: NAVY }}
+                      />
+                    </div>
+                    <div className="max-h-[180px] space-y-1 overflow-y-auto pr-1">
+                      {(() => {
+                        const q = norm(triApelidoBusca.trim());
+                        const lista = rows
+                          .filter((r) => r.inCatalog)
+                          .filter(
+                            (r) =>
+                              !q ||
+                              norm(r.displayName).includes(q) ||
+                              norm(r.grupo ?? "").includes(q) ||
+                              (r.synonyms ?? []).some((s) => norm(s).includes(q)),
+                          )
+                          .slice(0, 40);
+                        if (lista.length === 0) {
+                          return (
+                            <div className="px-2 py-2 text-[10px] font-semibold" style={{ color: MUTED }}>
+                              Nenhum exame do cadastro encontrado.
+                            </div>
+                          );
+                        }
+                        return lista.map((r) => (
+                          <button
+                            key={r.code}
+                            type="button"
+                            onClick={() => resolverTriagem(t.id, "apelido", r.code)}
+                            disabled={triResolvendo === t.id}
+                            className="btn-3d-soft flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-[11px] font-semibold disabled:opacity-60"
+                            style={{ color: NAVY }}
+                            title={`Virar apelido de ${r.displayName}`}
+                          >
+                            <span className="truncate">{r.displayName}</span>
+                            {r.origin === "descoberto" && (
+                              <span className="shrink-0 text-[8px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
+                                descoberto
+                              </span>
+                            )}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

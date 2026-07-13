@@ -1455,6 +1455,22 @@ router.get("/exames-lab/triagem", async (req: Request, res: Response) => {
       .orderBy(desc(examAnalyteCatalogTable.id))
       .limit(50);
 
+    // Nome de exibição do exame sugerido (para o rótulo do botão na fila).
+    const sugCodes = Array.from(
+      new Set(fila.map((r) => r.suggestedCode).filter((c): c is string => !!c)),
+    );
+    const nomePorCode = new Map<string, string>();
+    if (sugCodes.length > 0) {
+      const nomes = await db
+        .select({
+          code: examAnalyteCatalogTable.code,
+          displayName: examAnalyteCatalogTable.displayName,
+        })
+        .from(examAnalyteCatalogTable)
+        .where(inArray(examAnalyteCatalogTable.code, sugCodes));
+      for (const n of nomes) nomePorCode.set(n.code, n.displayName);
+    }
+
     return res.json({
       pendentes: fila.map((r) => ({
         id: r.id,
@@ -1462,6 +1478,7 @@ router.get("/exames-lab/triagem", async (req: Request, res: Response) => {
         occurrences: r.occurrences,
         kind: r.kind,
         suggestedCode: r.suggestedCode,
+        suggestedName: r.suggestedCode ? nomePorCode.get(r.suggestedCode) ?? null : null,
         reason: r.reason,
       })),
       descobertos: achados,
