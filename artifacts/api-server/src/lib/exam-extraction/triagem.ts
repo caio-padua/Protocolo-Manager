@@ -23,6 +23,39 @@ import {
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { normalizeAnalyteName } from "./persist";
 import { chaveFaixa } from "./zones";
+import { getSetting } from "../secure-settings";
+
+// ---------------------------------------------------------------------------
+// Opcoes de automacao (Configuracao de Exames — tela do CEO). O motor obedece:
+//   triagemAtiva OFF  -> nada e automatizado: toda grafia nao casada vai p/ fila
+//   autoCriarDescoberto OFF -> exame novo vai p/ fila (A CONFERIR), nao cria
+//   autoAbsorver OFF  -> apelido de alta confianca vai p/ fila, nao absorve
+// ---------------------------------------------------------------------------
+export interface TriagemOptions {
+  autoCriarDescoberto: boolean;
+  autoAbsorver: boolean;
+}
+
+const DEFAULT_OPTS: TriagemOptions = { autoCriarDescoberto: true, autoAbsorver: true };
+
+/**
+ * Le as chaves de automacao de app_settings e devolve as opcoes EFETIVAS do
+ * motor. Se a triagem automatica estiver desligada, forca tudo para a fila
+ * (autoCriar=false e autoAbsorver=false). Ausente => ligado (padrao seguro).
+ */
+export async function readTriagemOptions(): Promise<TriagemOptions> {
+  const [ta, ac, aa] = await Promise.all([
+    getSetting("exames.triagemAtiva"),
+    getSetting("exames.autoCriarDescoberto"),
+    getSetting("exames.autoAbsorverApelidoAltaConfianca"),
+  ]);
+  const triagemAtiva = ta === null ? true : ta === "true";
+  if (!triagemAtiva) return { autoCriarDescoberto: false, autoAbsorver: false };
+  return {
+    autoCriarDescoberto: ac === null ? true : ac === "true",
+    autoAbsorver: aa === null ? true : aa === "true",
+  };
+}
 
 export type TriagemKind = "apelido" | "novo" | "ambiguo" | "nao_exame";
 
@@ -425,7 +458,9 @@ export interface BackfillSummary {
  * FAXINA A EXAUSTAO — processa toda grafia crua sem code (analyte_code IS NULL),
  * agrupada por chave normalizada, aplicando o motor. Idempotente e sem perda.
  */
-export async function runTriagemBackfill(): Promise<BackfillSummary> {
+export async function runTriagemBackfill(
+  opts: TriagemOptions = DEFAULT_OPTS,
+): Promise<BackfillSummary> {
   const catalog = await loadCatalogFull();
 
   const rawRows = await db
@@ -468,18 +503,30 @@ export async function runTriagemBackfill(): Promise<BackfillSummary> {
     const variants = Array.from(cluster.variants);
 
     if (cls.kind === "apelido" && cls.code) {
-      for (const v of variants) {
-        const ok = await absorbAsAlias(cls.code, v, catalog);
-        if (ok) summary.linhasCarimbadas += await setResultCodeForRaw(v, cls.code);
+      if (!opts.autoAbsorver) {
+        // automacao desligada: apelido espera decisao humana na fila.
+        await upsertTriagem(cluster.rep, "ambiguo", cls.code, "apelido aguardando conferência humana");
+        summary.ambiguos++;
+      } else {
+        for (const v of variants) {
+          const ok = await absorbAsAlias(cls.code, v, catalog);
+          if (ok) summary.linhasCarimbadas += await setResultCodeForRaw(v, cls.code);
+        }
+        summary.apelidos++;
       }
-      summary.apelidos++;
     } else if (cls.kind === "novo") {
-      const code = await createDiscoveredExam(cluster.rep, catalog, variants);
-      for (const v of variants) {
-        await absorbAsAlias(code, v, catalog);
-        summary.linhasCarimbadas += await setResultCodeForRaw(v, code);
+      if (!opts.autoCriarDescoberto) {
+        // automacao desligada: exame novo vira "A CONFERIR" em vez de cadastro.
+        await upsertTriagem(cluster.rep, "ambiguo", null, "exame novo aguardando conferência humana");
+        summary.ambiguos++;
+      } else {
+        const code = await createDiscoveredExam(cluster.rep, catalog, variants);
+        for (const v of variants) {
+          await absorbAsAlias(code, v, catalog);
+          summary.linhasCarimbadas += await setResultCodeForRaw(v, code);
+        }
+        summary.novos++;
       }
-      summary.novos++;
     } else if (cls.kind === "ambiguo") {
       await upsertTriagem(cluster.rep, "ambiguo", cls.code, cls.reason);
       summary.ambiguos++;
@@ -500,14 +547,23 @@ export async function runTriagemBackfill(): Promise<BackfillSummary> {
 export async function triageOnImport(
   rawName: string,
   catalog: CatalogEntryFull[],
+  opts: TriagemOptions = DEFAULT_OPTS,
 ): Promise<string | null> {
   try {
     const cls = classifyRawName(rawName, catalog);
     if (cls.kind === "apelido" && cls.code) {
+      if (!opts.autoAbsorver) {
+        await upsertTriagem(rawName, "ambiguo", cls.code, "apelido aguardando conferência humana");
+        return null;
+      }
       const ok = await absorbAsAlias(cls.code, rawName, catalog);
       return ok ? cls.code : null;
     }
     if (cls.kind === "novo") {
+      if (!opts.autoCriarDescoberto) {
+        await upsertTriagem(rawName, "ambiguo", null, "exame novo aguardando conferência humana");
+        return null;
+      }
       return await createDiscoveredExam(rawName, catalog, [rawName]);
     }
     await upsertTriagem(

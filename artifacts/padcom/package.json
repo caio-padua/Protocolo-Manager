@@ -75,7 +75,8 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "wouter": "^3.3.5",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@workspace/governanca": "workspace:*"
   },
   "dependencies": {
     "radix-ui": "^1.4.3"

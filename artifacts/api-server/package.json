@@ -40,7 +40,8 @@
     "pino-http": "^10",
     "qrcode": "^1.5.4",
     "tesseract.js": "^7.0.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@workspace/governanca": "workspace:*"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

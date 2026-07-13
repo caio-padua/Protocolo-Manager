@@ -8,7 +8,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
-import { loadCatalogFull, triageOnImport } from "./triagem";
+import { loadCatalogFull, triageOnImport, readTriagemOptions } from "./triagem";
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — persistencia (Onda 3 da spec)
@@ -199,6 +199,7 @@ export async function persistExtractedResults(
   const { documentId, clientId, extracted } = input;
   const catalog = await loadCatalogFull();
   const unitsByCode = await loadUnits();
+  const triagemOpts = await readTriagemOptions();
   const collectionIso = brDateToIso(extracted.collectionDate);
   const lab = extracted.labName ?? null;
 
@@ -213,7 +214,7 @@ export async function persistExtractedResults(
     // Casa no catalogo; se nao casar, a Sala de Triagem resolve (apelido/novo)
     // ou enfileira (ambiguo/nao_exame) sem NUNCA quebrar a importacao.
     let code = matchAnalyte(catalog, analyte.name);
-    if (!code) code = await triageOnImport(analyte.name, catalog);
+    if (!code) code = await triageOnImport(analyte.name, catalog, triagemOpts);
     if (code) summary.matched++;
     else summary.unmatched++;
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { usePermissoes } from "@/lib/permissoes";
 import {
   LayoutDashboard,
   Users,
@@ -163,6 +164,7 @@ const navigation: NavEntry[] = [
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
+      { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },
@@ -177,15 +179,59 @@ const navigation: NavEntry[] = [
     icon: Network,
     children: [
       { name: "Hierarquia", href: "/hierarquia", icon: Network },
-      { name: "Governança", href: "/governanca", icon: Landmark },
+      { name: "Governança", href: "/cadastros/governanca", icon: Landmark },
     ],
   },
 ];
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";
 
+// Mapa href de menu -> ferramentaId da matriz de Governanca. So os itens aqui
+// sao gateados por papel; os demais aparecem sempre (fluxo aberto). Um href sem
+// entrada aqui nunca some por permissao.
+// Governanca NAO entra aqui de proposito: a spec (Parte 4) manda o nao-CEO ver a
+// tela em modo leitura, entao o item de menu nunca some por papel (a edicao e que
+// e bloqueada, dentro da tela). Exames_config entra: e reservada ao CEO e some
+// para os demais.
+const HREF_FERRAMENTA: Record<string, string> = {
+  // Exames
+  "/importar-drive": "exames_importar",
+  "/exames-cliente": "exames_mesa",
+  "/cadastros/console-exames": "exames_faixas",
+  "/cadastros/config-exames": "exames_config",
+  // Documentos (Arsenal Clinico)
+  "/arsenal/atestados": "atestado",
+  "/arsenal/encaminhamentos": "encaminhamento",
+  // Clinico
+  "/protocols": "protocolo",
+  "/ras": "ras",
+  "/anamnese/revisao": "anamnese",
+  "/mega-anamnese": "anamnese",
+  "/cockpit-anamnese": "anamnese",
+  "/agenda": "agenda",
+  "/agenda/motor": "agenda",
+  // Gestao
+  "/stock": "estoque",
+  "/cadastros/equipe": "corpo_clinico",
+  // Financeiro: todas as telas do grupo respondem a ferramenta "financeiro"
+  "/financeiro/cobranca": "financeiro",
+  "/financeiro/nfse": "financeiro",
+  "/financeiro/bancos": "financeiro",
+  "/financeiro/transferencias": "financeiro",
+  "/payments": "financeiro",
+  "/financeiro/conciliacao": "financeiro",
+  "/financeiro/metas": "financeiro",
+};
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  const { pode } = usePermissoes();
+
+  // Esconde do menu o que o papel nao pode usar (menu obedece a matriz).
+  const podeVer = (href: string): boolean => {
+    const ferramentaId = HREF_FERRAMENTA[href];
+    return ferramentaId ? pode(ferramentaId) : true;
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -266,7 +312,7 @@ export function Layout({ children }: LayoutProps) {
                         title={item.name}
                       />
                       <div className="space-y-0.5">
-                        {item.children.map((child) => {
+                        {item.children.filter((c) => podeVer(c.href)).map((child) => {
                           const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(`${child.href}/`);
@@ -320,7 +366,7 @@ export function Layout({ children }: LayoutProps) {
                       </span>
                     </div>
                     <div className="space-y-0.5">
-                      {item.children.map((child) => {
+                      {item.children.filter((c) => podeVer(c.href)).map((child) => {
                         const ChildIcon = child.icon;
                         const isActive =
                           location === child.href || location.startsWith(`${child.href}/`);

@@ -44,6 +44,7 @@ import {
   createDiscoveredExam,
   setResultCodeForRaw,
   setResultCodeForNormKey,
+  readTriagemOptions,
 } from "../lib/exam-extraction/triagem";
 import { examAnalyteTriagemTable } from "@workspace/db";
 import { sendWhatsapp } from "../lib/whatsapp";
@@ -1424,7 +1425,8 @@ router.put("/exames-lab/catalogo-faixas/unidades", async (req: Request, res: Res
 // crua ainda sem code. Idempotente e sem perda. Devolve o resumo por destino.
 router.post("/exames-lab/triagem/backfill", async (req: Request, res: Response) => {
   try {
-    const summary = await runTriagemBackfill();
+    const opts = await readTriagemOptions();
+    const summary = await runTriagemBackfill(opts);
     return res.json({ ok: true, ...summary });
   } catch (e) {
     req.log?.error({ err: e }, "POST /exames-lab/triagem/backfill falhou");

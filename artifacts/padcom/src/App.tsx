@@ -35,6 +35,7 @@ import CockpitAnamnese from "@/pages/cockpit-anamnese";
 import Cartorio from "@/pages/cartorio";
 import Exames from "@/pages/exames";
 import CadastroExames from "@/pages/cadastros/exames";
+import CadastroConfigExames from "@/pages/cadastros/config-exames";
 import CadastroConsoleExames from "@/pages/cadastros/console-exames";
 import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
@@ -180,6 +181,8 @@ function Router() {
             <Route path="/cadastros/:rest*">
               <CollaboratorGate>
                 <Switch>
+                  <Route path="/cadastros/config-exames" component={CadastroConfigExames} />
+                  <Route path="/cadastros/governanca" component={Governanca} />
                   <Route path="/cadastros/exames" component={CadastroExames} />
                   <Route path="/cadastros/console-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/direcao-exames" component={CadastroConsoleExames} />
@@ -228,7 +231,6 @@ function Router() {
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/hierarquia" component={Hierarquia} />
-            <Route path="/governanca" component={Governanca} />
 
             <Route path="/arsenal/atestados" component={Atestados} />
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />

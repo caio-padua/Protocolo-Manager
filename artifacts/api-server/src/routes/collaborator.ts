@@ -185,7 +185,13 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
 router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<void> => {
   const claims = req.collaborator!;
   const [prof] = await db
-    .select({ id: professionalsTable.id, name: professionalsTable.name, role: professionalsTable.role })
+    .select({
+      id: professionalsTable.id,
+      name: professionalsTable.name,
+      role: professionalsTable.role,
+      category: professionalsTable.category,
+      isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
+    })
     .from(professionalsTable)
     .where(eq(professionalsTable.id, claims.professionalId))
     .limit(1);
