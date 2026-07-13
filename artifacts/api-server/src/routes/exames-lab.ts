@@ -37,6 +37,15 @@ import {
   uploadFileToDrive,
   removeDiacritics,
 } from "../lib/google-drive";
+import {
+  runTriagemBackfill,
+  loadCatalogFull,
+  absorbAsAlias,
+  createDiscoveredExam,
+  setResultCodeForRaw,
+  setResultCodeForNormKey,
+} from "../lib/exam-extraction/triagem";
+import { examAnalyteTriagemTable } from "@workspace/db";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 
@@ -1077,6 +1086,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
       quantitativo: boolean;
       hasManualEdit: boolean;
       inCatalog: boolean;
+      origin: "catalogo" | "descoberto" | null;
     };
 
     const rows: Row[] = cats.map((c) => {
@@ -1101,6 +1111,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         quantitativo: units.length > 0 || zones.length > 0,
         hasManualEdit: hasManual(chaveFaixa(c.code)),
         inCatalog: true,
+        origin: (c.origin as "catalogo" | "descoberto" | null) ?? "catalogo",
       };
     });
 
@@ -1132,6 +1143,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         quantitativo: zones.length > 0,
         hasManualEdit: hasManual(chaveFaixa(code)),
         inCatalog: false,
+        origin: null,
       });
     }
 
@@ -1401,6 +1413,132 @@ router.put("/exames-lab/catalogo-faixas/unidades", async (req: Request, res: Res
   } catch (e) {
     req.log?.error({ err: e }, "PUT /catalogo-faixas/unidades falhou");
     return res.status(500).json({ error: "Falha ao salvar unidades" });
+  }
+});
+
+// ===========================================================================
+// SALA DE TRIAGEM — faxina em massa + fila de conferencia humana
+// ===========================================================================
+
+// POST /exames-lab/triagem/backfill — roda a FAXINA A EXAUSTAO sobre toda grafia
+// crua ainda sem code. Idempotente e sem perda. Devolve o resumo por destino.
+router.post("/exames-lab/triagem/backfill", async (req: Request, res: Response) => {
+  try {
+    const summary = await runTriagemBackfill();
+    return res.json({ ok: true, ...summary });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/triagem/backfill falhou");
+    return res.status(500).json({ error: "Falha ao rodar a faxina de triagem" });
+  }
+});
+
+// GET /exames-lab/triagem — lista a fila pendente (ambiguo + nao_exame) e conta
+// os cadastros DESCOBERTO ja criados automaticamente pela faxina.
+router.get("/exames-lab/triagem", async (req: Request, res: Response) => {
+  try {
+    const fila = await db
+      .select()
+      .from(examAnalyteTriagemTable)
+      .where(eq(examAnalyteTriagemTable.status, "pendente"))
+      .orderBy(desc(examAnalyteTriagemTable.occurrences));
+
+    // ACHADOS recentes: cadastros criados automaticamente pela faxina (origin=descoberto)
+    const achados = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+      })
+      .from(examAnalyteCatalogTable)
+      .where(eq(examAnalyteCatalogTable.origin, "descoberto"))
+      .orderBy(desc(examAnalyteCatalogTable.id))
+      .limit(50);
+
+    return res.json({
+      pendentes: fila.map((r) => ({
+        id: r.id,
+        sampleName: r.sampleName,
+        occurrences: r.occurrences,
+        kind: r.kind,
+        suggestedCode: r.suggestedCode,
+        reason: r.reason,
+      })),
+      descobertos: achados,
+      totais: {
+        ambiguos: fila.filter((r) => r.kind === "ambiguo").length,
+        naoExames: fila.filter((r) => r.kind === "nao_exame").length,
+        descobertos: achados.length,
+      },
+    });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/triagem falhou");
+    return res.status(500).json({ error: "Falha ao listar a triagem" });
+  }
+});
+
+const resolverTriagemSchema = z.object({
+  // apelido -> funde no exame alvo (targetCode obrigatorio)
+  // novo     -> cria cadastro DESCOBERTO a partir da grafia
+  // ignorar  -> marca como nao-exame, sai da fila (nao entra no motor)
+  acao: z.enum(["apelido", "novo", "ignorar"]),
+  targetCode: z.string().optional(),
+});
+
+// POST /exames-lab/triagem/:id/resolver — decisao humana de UMA linha da fila.
+router.post("/exames-lab/triagem/:id/resolver", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "id inválido" });
+    const parsed = resolverTriagemSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const { acao, targetCode } = parsed.data;
+
+    const rows = await db
+      .select()
+      .from(examAnalyteTriagemTable)
+      .where(eq(examAnalyteTriagemTable.id, id))
+      .limit(1);
+    if (rows.length === 0) return res.status(404).json({ error: "Item não encontrado" });
+    const item = rows[0];
+
+    let carimbadas = 0;
+    let code: string | null = null;
+
+    if (acao === "apelido") {
+      if (!targetCode) return res.status(400).json({ error: "targetCode é obrigatório para apelido" });
+      const catalog = await loadCatalogFull();
+      const ok = await absorbAsAlias(targetCode, item.sampleName, catalog);
+      if (!ok) {
+        return res.status(409).json({ error: "Essa grafia já pertence a outro exame; não fundi." });
+      }
+      code = targetCode;
+      // carimba TODO o cluster (todas as grafias com o mesmo normKey), nao so a amostra
+      const stamp = await setResultCodeForNormKey(item.normKey, targetCode);
+      for (const v of stamp.variants) await absorbAsAlias(targetCode, v, catalog);
+      carimbadas = stamp.carimbadas;
+    } else if (acao === "novo") {
+      const catalog = await loadCatalogFull();
+      code = await createDiscoveredExam(item.sampleName, catalog, [item.sampleName]);
+      const stamp = await setResultCodeForNormKey(item.normKey, code);
+      for (const v of stamp.variants) await absorbAsAlias(code, v, catalog);
+      carimbadas = stamp.carimbadas;
+    }
+    // "ignorar" apenas resolve a linha (fica fora do motor).
+
+    await db
+      .update(examAnalyteTriagemTable)
+      .set({
+        status: "resolvido",
+        resolution: acao === "apelido" ? "apelido" : acao === "novo" ? "novo" : "ignorado",
+        updatedAt: new Date(),
+      })
+      .where(eq(examAnalyteTriagemTable.id, id));
+
+    return res.json({ ok: true, code, carimbadas });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/triagem/:id/resolver falhou");
+    return res.status(500).json({ error: "Falha ao resolver o item da triagem" });
   }
 });
 

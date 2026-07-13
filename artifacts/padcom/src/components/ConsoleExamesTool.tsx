@@ -10,6 +10,10 @@ import {
   X,
   Tags,
   Ruler,
+  Wand2,
+  AlertTriangle,
+  Sparkles,
+  Ban,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
 import {
@@ -70,10 +74,27 @@ interface CatalogoRow {
   quantitativo: boolean;
   hasManualEdit: boolean;
   inCatalog: boolean;
+  origin: "catalogo" | "descoberto" | null;
 }
 interface FusedRow extends CatalogoRow {
   grupo: string | null;
   count: number;
+}
+
+// Sala de Triagem: grafias que NÃO foram absorvidas sozinhas na faxina.
+interface TriagemItem {
+  id: number;
+  sampleName: string;
+  occurrences: number;
+  kind: "ambiguo" | "nao_exame";
+  suggestedCode: string | null;
+  suggestedName?: string | null;
+  reason: string | null;
+}
+interface TriagemTotais {
+  ambiguos: number;
+  naoExames: number;
+  descobertos: number;
 }
 
 interface DirecaoItem {
@@ -270,6 +291,28 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [salvandoUnidades, setSalvandoUnidades] = useState(false);
   const [msg, setMsg] = useState<{ kind: "faixas" | "apelidos" | "unidades"; ok: boolean; texto: string } | null>(null);
 
+  // ---- Sala de Triagem (faxina em massa + fila de conferência humana) ----
+  const [triPend, setTriPend] = useState<TriagemItem[]>([]);
+  const [triDesc, setTriDesc] = useState<{ code: string; displayName: string }[]>([]);
+  const [triTot, setTriTot] = useState<TriagemTotais>({ ambiguos: 0, naoExames: 0, descobertos: 0 });
+  const [triFaxinando, setTriFaxinando] = useState(false);
+  const [triResumo, setTriResumo] = useState<string | null>(null);
+  const [triResolvendo, setTriResolvendo] = useState<number | null>(null);
+  const [triAberta, setTriAberta] = useState(false);
+
+  const carregarTriagem = useCallback(() => {
+    fetch(`${BASE}/api/exames-lab/triagem`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("triagem"))))
+      .then((d: { pendentes: TriagemItem[]; descobertos?: { code: string; displayName: string }[]; totais: TriagemTotais }) => {
+        setTriPend(d.pendentes ?? []);
+        setTriDesc(d.descobertos ?? []);
+        setTriTot(d.totais ?? { ambiguos: 0, naoExames: 0, descobertos: 0 });
+      })
+      .catch(() => {
+        /* silencioso: a triagem é auxiliar, não derruba a tela */
+      });
+  }, []);
+
   const carregar = useCallback(() => {
     setCarregando(true);
     setErro(false);
@@ -303,6 +346,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             quantitativo: true,
             hasManualEdit: d.hasDirection,
             inCatalog: false,
+            origin: null,
             grupo: d.grupo,
             count: d.count,
           });
@@ -317,12 +361,58 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     carregar();
   }, [carregar]);
 
+  useEffect(() => {
+    carregarTriagem();
+  }, [carregarTriagem]);
+
+  const rodarFaxina = useCallback(() => {
+    setTriFaxinando(true);
+    setTriResumo(null);
+    fetch(`${BASE}/api/exames-lab/triagem/backfill`, { method: "POST" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("backfill"))))
+      .then((d: { apelidos: number; novos: number; ambiguos: number; naoExames: number; linhasCarimbadas: number }) => {
+        setTriResumo(
+          `Faxina concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) DESCOBERTO criado(s), ` +
+            `${d.ambiguos} a conferir, ${d.naoExames} ignorado(s) · ${d.linhasCarimbadas} resultado(s) carimbado(s).`,
+        );
+        carregarTriagem();
+        carregar();
+      })
+      .catch(() => setTriResumo("Não consegui rodar a faxina agora."))
+      .finally(() => setTriFaxinando(false));
+  }, [carregarTriagem, carregar]);
+
+  const resolverTriagem = useCallback(
+    (id: number, acao: "apelido" | "novo" | "ignorar", targetCode?: string) => {
+      setTriResolvendo(id);
+      fetch(`${BASE}/api/exames-lab/triagem/${id}/resolver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao, targetCode }),
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("resolver"))))
+        .then(() => {
+          setTriPend((prev) => prev.filter((x) => x.id !== id));
+          carregarTriagem();
+          if (acao !== "ignorar") carregar();
+        })
+        .catch(() => {
+          /* mantém na fila se falhar */
+        })
+        .finally(() => setTriResolvendo(null));
+    },
+    [carregarTriagem, carregar],
+  );
+
   const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   const filtrados = useMemo(() => {
+    // R13 da spec: o bloco de CADASTRO mostra só cadastros reais (inCatalog=true).
+    // Grafias cruas/fallback ficam fora daqui — vivem na Sala de Triagem.
+    const base = rows.filter((r) => r.inCatalog);
     const q = norm(busca.trim());
-    if (!q) return rows;
-    return rows.filter(
+    if (!q) return base;
+    return base.filter(
       (r) =>
         norm(r.displayName).includes(q) ||
         norm(r.grupo ?? "").includes(q) ||
@@ -590,6 +680,138 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         marca exames já conferidos por um profissional.
       </p>
 
+      {/* ===================== SALA DE TRIAGEM ===================== */}
+      <div className="panel-3d-sub mb-4 rounded-[6px] p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: NAVY }}>
+            <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
+              <Sparkles className="h-3 w-3" /> {triTot.descobertos} descobertos
+            </span>
+            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: "#b4413c" }}>
+              <AlertTriangle className="h-3 w-3" /> {triTot.ambiguos} a conferir
+            </span>
+            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: MUTED }}>
+              <Ban className="h-3 w-3" /> {triTot.naoExames} ignorados
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="min-w-0 flex-1 text-[10px]" style={{ color: MUTED }}>
+            A <b>faxina</b> varre toda grafia de laudo: apelido de alta confiança é absorvido sozinho, exame novo
+            vira cadastro <b>DESCOBERTO</b> ativo, e o que ficou <b>ambíguo</b> espera sua decisão aqui — em
+            quarentena, fora do motor. Nada é perdido.
+          </p>
+          <button
+            type="button"
+            onClick={rodarFaxina}
+            disabled={triFaxinando}
+            className="btn-3d inline-flex shrink-0 items-center gap-1.5 rounded-[6px] px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white disabled:opacity-60"
+            style={{ background: NAVY }}
+          >
+            {triFaxinando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            {triFaxinando ? "Rodando faxina…" : "Rodar faxina"}
+          </button>
+          {triPend.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTriAberta((v) => !v)}
+              className="btn-3d-soft inline-flex shrink-0 items-center gap-1.5 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide"
+              style={{ color: NAVY }}
+            >
+              {triAberta ? "Fechar fila" : `Abrir fila (${triPend.length})`}
+            </button>
+          )}
+        </div>
+
+        {triResumo && (
+          <div className="concave-3d mt-2 rounded-[6px] px-3 py-2 text-[10px] font-semibold" style={{ color: NAVY }}>
+            {triResumo}
+          </div>
+        )}
+
+        {triAberta && triPend.length > 0 && (
+          <div className="mt-3 max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
+            {triPend.map((t) => (
+              <div key={t.id} className="concave-3d flex flex-wrap items-center gap-2 rounded-[6px] px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-bold" style={{ color: NAVY }}>
+                    {t.sampleName}
+                    <span className="ml-1.5 text-[9px] font-semibold" style={{ color: MUTED }}>
+                      {t.occurrences}×
+                    </span>
+                  </div>
+                  {t.reason && (
+                    <div className="truncate text-[9px] font-semibold uppercase tracking-wide" style={{ color: t.kind === "ambiguo" ? "#b4413c" : MUTED }}>
+                      {t.reason}
+                    </div>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {t.suggestedCode && (
+                    <button
+                      type="button"
+                      onClick={() => resolverTriagem(t.id, "apelido", t.suggestedCode ?? undefined)}
+                      disabled={triResolvendo === t.id}
+                      className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
+                      style={{ color: NAVY }}
+                      title="Virar apelido do exame sugerido"
+                    >
+                      <Tags className="h-3 w-3" /> Virar apelido
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => resolverTriagem(t.id, "novo")}
+                    disabled={triResolvendo === t.id}
+                    className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
+                    style={{ color: GOLD }}
+                    title="Criar como exame novo (DESCOBERTO)"
+                  >
+                    <Sparkles className="h-3 w-3" /> Criar novo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resolverTriagem(t.id, "ignorar")}
+                    disabled={triResolvendo === t.id}
+                    className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
+                    style={{ color: MUTED }}
+                    title="Ignorar (não é exame)"
+                  >
+                    {triResolvendo === t.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} Ignorar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {triAberta && triDesc.length > 0 && (
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: GOLD }}>
+              <Sparkles className="h-3 w-3" /> Achados recentes ({triDesc.length})
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {triDesc.map((d) => (
+                <button
+                  key={d.code}
+                  type="button"
+                  onClick={() => setSelecionado(d.code)}
+                  className="concave-3d inline-flex items-center rounded-[6px] px-2 py-1 text-[10px] font-semibold"
+                  style={{ color: NAVY }}
+                  title="Abrir cadastro DESCOBERTO"
+                >
+                  {d.displayName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         {/* ===================== MESTRE (lista) ===================== */}
         <div>
@@ -674,7 +896,23 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                 <div className="text-[15px] font-black" style={{ color: NAVY }}>
                   {atual.displayName}
                 </div>
-                <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>
+                {atual.origin && (
+                  <div className="mt-1">
+                    <span
+                      className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em]"
+                      style={{ color: atual.origin === "descoberto" ? GOLD : NAVY }}
+                      title={
+                        atual.origin === "descoberto"
+                          ? "Exame criado automaticamente pela faxina (grafia nova encontrada nos laudos)"
+                          : "Exame do catálogo original (57 exames-base)"
+                      }
+                    >
+                      {atual.origin === "descoberto" ? <Sparkles className="h-2.5 w-2.5" /> : <Check className="h-2.5 w-2.5" />}
+                      {atual.origin === "descoberto" ? "Descoberto" : "Catálogo"}
+                    </span>
+                  </div>
+                )}
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>
                   {atual.grupo ? `${atual.grupo} · ` : ""}
                   {atual.count > 0 ? `${atual.count} resultado(s) nos laudos` : "sem resultado em laudo ainda"}
                   {refLow !== null && refHigh !== null && (

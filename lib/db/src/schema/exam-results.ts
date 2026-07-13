@@ -118,6 +118,39 @@ export const examAnalyteCatalogTable = pgTable("exam_analyte_catalog", {
   // higher_better | lower_better | target
   direction: text("direction"),
   active: boolean("active").notNull().default(true),
+  // Proveniencia do cadastro (selo de ORIGEM na tela):
+  //   "catalogo"   -> exame da nossa base oficial (os 57 semeados)
+  //   "descoberto" -> garimpado de um laudo e criado automaticamente pela Triagem
+  origin: text("origin").notNull().default("catalogo"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// Sala de Triagem — fila de grafias cruas que a Triagem NAO resolveu sozinha.
+// So caem aqui os casos "ambiguo" (parece variante de exame existente -> conferencia
+// humana) e "nao_exame" (bioimpedancia/subitem -> ignorar por padrao). Apelido de
+// alta confianca e exame novo distinto sao aplicados automaticamente e NAO entram aqui.
+// Idempotente por normKey (mesma grafia nao gera duas linhas). Zero perda: nenhuma
+// grafia crua fica sem destino (vira apelido, cadastro novo, ou linha aqui).
+export const examAnalyteTriagemTable = pgTable("exam_analyte_triagem", {
+  id: serial("id").primaryKey(),
+  // chave canonica (normalizeAnalyteName da grafia crua) — dedup da fila
+  normKey: text("norm_key").notNull().unique(),
+  // grafia crua representativa (a mais curta vista)
+  sampleName: text("sample_name").notNull(),
+  occurrences: integer("occurrences").notNull().default(0),
+  // ambiguo | nao_exame
+  kind: text("kind").notNull(),
+  // melhor palpite de exame do catalogo (so para ambiguo)
+  suggestedCode: text("suggested_code"),
+  reason: text("reason"),
+  // pendente | resolvido
+  status: text("status").notNull().default("pendente"),
+  // apelido | novo | ignorado (preenchido ao resolver)
+  resolution: text("resolution"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
@@ -173,6 +206,11 @@ export const insertExamAnalyteCatalogSchema = createInsertSchema(examAnalyteCata
   createdAt: true,
   updatedAt: true,
 });
+export const insertExamAnalyteTriagemSchema = createInsertSchema(examAnalyteTriagemTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export const insertExamAnalyteRangeSchema = createInsertSchema(examAnalyteRangesTable).omit({
   id: true,
 });
@@ -186,6 +224,8 @@ export type ExamResult = typeof examResultsTable.$inferSelect;
 export type InsertExamResult = z.infer<typeof insertExamResultSchema>;
 export type ExamAnalyteCatalog = typeof examAnalyteCatalogTable.$inferSelect;
 export type InsertExamAnalyteCatalog = z.infer<typeof insertExamAnalyteCatalogSchema>;
+export type ExamAnalyteTriagem = typeof examAnalyteTriagemTable.$inferSelect;
+export type InsertExamAnalyteTriagem = z.infer<typeof insertExamAnalyteTriagemSchema>;
 export type ExamAnalyteRange = typeof examAnalyteRangesTable.$inferSelect;
 export type InsertExamAnalyteRange = z.infer<typeof insertExamAnalyteRangeSchema>;
 export type ExamAnalyteUnit = typeof examAnalyteUnitsTable.$inferSelect;

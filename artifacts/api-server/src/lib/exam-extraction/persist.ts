@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
+import { loadCatalogFull, triageOnImport } from "./triagem";
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — persistencia (Onda 3 da spec)
@@ -87,20 +88,7 @@ export function brDateToIso(raw: string | null): string | null {
 
 interface CatalogEntry {
   code: string;
-  displayName: string;
   keys: Set<string>;
-}
-
-async function loadCatalog(): Promise<CatalogEntry[]> {
-  const rows = await db
-    .select()
-    .from(examAnalyteCatalogTable)
-    .where(eq(examAnalyteCatalogTable.active, true));
-  return rows.map((r) => {
-    const keys = new Set<string>([normalizeAnalyteName(r.displayName)]);
-    for (const s of r.synonyms ?? []) keys.add(normalizeAnalyteName(s));
-    return { code: r.code, displayName: r.displayName, keys };
-  });
 }
 
 function matchAnalyte(catalog: CatalogEntry[], rawName: string): string | null {
@@ -209,7 +197,7 @@ export async function persistExtractedResults(
   input: PersistExamInput,
 ): Promise<PersistExamSummary> {
   const { documentId, clientId, extracted } = input;
-  const catalog = await loadCatalog();
+  const catalog = await loadCatalogFull();
   const unitsByCode = await loadUnits();
   const collectionIso = brDateToIso(extracted.collectionDate);
   const lab = extracted.labName ?? null;
@@ -222,7 +210,10 @@ export async function persistExtractedResults(
   };
 
   for (const analyte of extracted.analytes) {
-    const code = matchAnalyte(catalog, analyte.name);
+    // Casa no catalogo; se nao casar, a Sala de Triagem resolve (apelido/novo)
+    // ou enfileira (ambiguo/nao_exame) sem NUNCA quebrar a importacao.
+    let code = matchAnalyte(catalog, analyte.name);
+    if (!code) code = await triageOnImport(analyte.name, catalog);
     if (code) summary.matched++;
     else summary.unmatched++;
 
