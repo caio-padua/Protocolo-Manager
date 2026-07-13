@@ -120,7 +120,7 @@ interface UnitInfo {
   factors: Map<string, number>;
 }
 
-async function loadUnits(): Promise<Map<string, UnitInfo>> {
+export async function loadUnits(): Promise<Map<string, UnitInfo>> {
   const rows = await db
     .select()
     .from(examAnalyteUnitsTable)
@@ -155,7 +155,7 @@ interface ConvResult {
  *  - unidade diferente SEM fator -> NAO converte (mantem cru; sinaliza revisao
  *    deixando converted=false — o laudo entra como veio, o humano confere).
  */
-function resolveConversion(
+export function resolveConversion(
   info: UnitInfo | undefined,
   rawUnit: string | null,
 ): ConvResult {

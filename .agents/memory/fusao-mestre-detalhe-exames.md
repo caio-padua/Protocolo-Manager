@@ -26,3 +26,12 @@ Configuração (/cadastros/console-exames) quanto embutida no Cockpit (EvolucaoE
 DirecaoExamesTool e PlanilhaFaixasTool foram apagados — não "preservar o componente antigo".
 O rótulo de cada uma das 5 faixas é editável por exame (campo faixaName, PUT /faixas, max 40,
 trim + fallback ZONE_ROTULO por direção); a COR nunca é editável (sempre ZONE_COLOR por severidade).
+
+Nuance do reqId (13/07/2026): o guard por `useRef` protege o `then/catch` da PRÓPRIA busca, mas
+há uma janela extra — trocar de item ANTES de o próximo painel disparar sua busca. A resposta
+tardia do item anterior ainda casaria o reqId vigente. Correção: no `useEffect` de reset por troca
+de seleção, INCREMENTAR o mesmo ref (`ref.current++`) para invalidar buscas em voo imediatamente,
+mesmo que o próximo painel só carregue sob demanda (ex.: lista de laudos aberta por clique).
+**Why:** o architect reprovou por vazamento entre exames num painel lazy (só carrega ao abrir).
+**How to apply:** todo fetch async cujo disparo é lazy/opcional precisa que o reset da entidade-pai
+bumpe o ref, não só o início da própria busca.

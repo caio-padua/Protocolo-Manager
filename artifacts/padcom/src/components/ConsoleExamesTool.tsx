@@ -18,6 +18,10 @@ import {
   ExternalLink,
   Download,
   FileText,
+  Combine,
+  ArrowLeftRight,
+  Undo2,
+  History,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
 import {
@@ -110,6 +114,16 @@ interface ProcedenciaItem {
   collectionDate: string | null;
   createdAt: string;
   driveUrl: string | null;
+}
+// Curadoria: lote (batch) de uma operação englobar/transferir, para listar e desfazer.
+interface LoteResumo {
+  batchId: string;
+  operation: "englobar" | "transferir";
+  sourceCode: string | null;
+  targetCode: string;
+  resultados: number;
+  createdAt: string | null;
+  undone: boolean;
 }
 interface TriagemTotais {
   ambiguos: number;
@@ -329,6 +343,27 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [proc, setProc] = useState<{ key: string; loading: boolean; itens: ProcedenciaItem[] } | null>(null);
   // Guard de corrida: clique rápido A→B não deixa a resposta lenta de A sobrescrever B.
   const procReqRef = useRef(0);
+
+  // ---- Curadoria: ENGLOBAR / TRANSFERIR / DESFAZER ----
+  const [impacto, setImpacto] = useState<{ resultados: number; clientes: number; documentos: number } | null>(null);
+  const impactoReqRef = useRef(0);
+  const traProcReqRef = useRef(0);
+  // Englobar (este exame vira apelido de outro).
+  const [engTarget, setEngTarget] = useState<string>("");
+  const [engBusca, setEngBusca] = useState("");
+  const [engConfirmOficial, setEngConfirmOficial] = useState(false);
+  const [engBusy, setEngBusy] = useState(false);
+  // Transferir (mover resultados deste exame para outro).
+  const [traTarget, setTraTarget] = useState<string>("");
+  const [traBusca, setTraBusca] = useState("");
+  const [traTodas, setTraTodas] = useState(true);
+  const [traSel, setTraSel] = useState<Record<number, number>>({}); // examDocumentId -> clientId
+  const [traProc, setTraProc] = useState<{ loading: boolean; itens: ProcedenciaItem[] } | null>(null);
+  const [traBusy, setTraBusy] = useState(false);
+  // Operações recentes + desfazer.
+  const [lotes, setLotes] = useState<LoteResumo[]>([]);
+  const [undoBusy, setUndoBusy] = useState<string | null>(null);
+  const [curMsg, setCurMsg] = useState<{ kind: "eng" | "tra" | "undo"; ok: boolean; texto: string } | null>(null);
   const abrirProcedencia = (key: string, url: string) => {
     if (proc && proc.key === key) {
       setProc(null);
@@ -416,6 +451,133 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     );
   };
 
+  // ---- Curadoria: cargas + ações ----
+  const carregarLotes = useCallback(() => {
+    fetch(`${BASE}/api/exames-lab/reassignments?limit=20`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("lotes"))))
+      .then((d: { lotes?: LoteResumo[] }) => setLotes(d.lotes ?? []))
+      .catch(() => {
+        /* silencioso: painel auxiliar */
+      });
+  }, []);
+
+  const carregarTraProc = () => {
+    const alvo = selecionado;
+    if (!alvo) return;
+    // Guard de corrida: troca rápida A→B não pode deixar a resposta lenta de A
+    // sobrescrever os laudos de B. Só aplica se o pedido ainda for o vigente E
+    // o exame selecionado ainda for o mesmo de quando a busca começou.
+    const reqId = ++traProcReqRef.current;
+    setTraProc({ loading: true, itens: [] });
+    fetch(`${BASE}/api/exames-lab/catalogo/${encodeURIComponent(alvo)}/procedencia`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("proc"))))
+      .then((d: { itens?: ProcedenciaItem[] }) => {
+        if (traProcReqRef.current !== reqId) return;
+        setTraProc({ loading: false, itens: d.itens ?? [] });
+      })
+      .catch(() => {
+        if (traProcReqRef.current !== reqId) return;
+        setTraProc({ loading: false, itens: [] });
+      });
+  };
+
+  const executarEnglobar = () => {
+    const src = selecionado;
+    const tgt = engTarget;
+    if (!src || !tgt) return;
+    setEngBusy(true);
+    setCurMsg(null);
+    fetch(`${BASE}/api/exames-lab/exames/englobar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceCode: src, targetCode: tgt, confirmOficial: engConfirmOficial }),
+    })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "Falha ao englobar.");
+        return d as { moved: number; aliasesAdded: string[]; sourceDeactivated: boolean };
+      })
+      .then((d) => {
+        setCurMsg({
+          kind: "eng",
+          ok: true,
+          texto: `Englobado: ${d.moved} resultado(s) movido(s)${d.aliasesAdded.length ? `, ${d.aliasesAdded.length} apelido(s) absorvido(s)` : ""}${d.sourceDeactivated ? ", origem desativada" : ""}.`,
+        });
+        setEngTarget("");
+        setEngBusca("");
+        setEngConfirmOficial(false);
+        setSelecionado(tgt); // vai para o exame de destino
+        carregar();
+        carregarLotes();
+      })
+      .catch((e) => setCurMsg({ kind: "eng", ok: false, texto: (e as Error).message }))
+      .finally(() => setEngBusy(false));
+  };
+
+  const executarTransferir = async () => {
+    const src = selecionado;
+    const tgt = traTarget;
+    if (!src || !tgt) return;
+    setTraBusy(true);
+    setCurMsg(null);
+    try {
+      let moved = 0;
+      const post = async (body: Record<string, unknown>) => {
+        const r = await fetch(`${BASE}/api/exames-lab/exames/transferir`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((d as { error?: string }).error || "Falha ao transferir.");
+        return (d as { moved: number }).moved;
+      };
+      const sel = Object.entries(traSel);
+      if (traTodas || sel.length === 0) {
+        moved = await post({ targetCode: tgt, sourceCode: src });
+      } else {
+        // Por documento: um lote por laudo escolhido (cada um desfaz-se em separado).
+        for (const [docId, clientId] of sel) {
+          moved += await post({ targetCode: tgt, sourceCode: src, examDocumentId: Number(docId), clientId });
+        }
+      }
+      setCurMsg({ kind: "tra", ok: true, texto: `Transferido: ${moved} resultado(s).` });
+      setTraTarget("");
+      setTraBusca("");
+      setTraSel({});
+      setTraTodas(true);
+      setTraProc(null);
+      carregar();
+      carregarLotes();
+    } catch (e) {
+      setCurMsg({ kind: "tra", ok: false, texto: (e as Error).message });
+    } finally {
+      setTraBusy(false);
+    }
+  };
+
+  const executarDesfazer = (batchId: string) => {
+    setUndoBusy(batchId);
+    setCurMsg(null);
+    fetch(`${BASE}/api/exames-lab/reassignments/${batchId}/desfazer`, { method: "POST" })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "Falha ao desfazer.");
+        return d as { undone: number; reactivatedSource: boolean; aliasesRemoved: string[] };
+      })
+      .then((d) => {
+        setCurMsg({
+          kind: "undo",
+          ok: true,
+          texto: `Desfeito: ${d.undone} resultado(s) restaurado(s)${d.reactivatedSource ? ", origem reativada" : ""}.`,
+        });
+        carregar();
+        carregarLotes();
+      })
+      .catch((e) => setCurMsg({ kind: "undo", ok: false, texto: (e as Error).message }))
+      .finally(() => setUndoBusy(null));
+  };
+
   const carregarTriagem = useCallback(() => {
     fetch(`${BASE}/api/exames-lab/triagem`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("triagem"))))
@@ -480,6 +642,41 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   useEffect(() => {
     carregarTriagem();
   }, [carregarTriagem]);
+
+  useEffect(() => {
+    carregarLotes();
+  }, [carregarLotes]);
+
+  // Ao trocar o exame selecionado: buscar a prévia de impacto e zerar os rascunhos
+  // de englobar/transferir (evita vazar o alvo de um exame para o próximo).
+  useEffect(() => {
+    setEngTarget("");
+    setEngBusca("");
+    setEngConfirmOficial(false);
+    setTraTarget("");
+    setTraBusca("");
+    setTraTodas(true);
+    setTraSel({});
+    setTraProc(null);
+    // Invalida qualquer busca de laudos em voo do exame anterior (guard de corrida).
+    traProcReqRef.current++;
+    setCurMsg(null);
+    if (!selecionado) {
+      setImpacto(null);
+      return;
+    }
+    const reqId = ++impactoReqRef.current;
+    fetch(`${BASE}/api/exames-lab/exames/${encodeURIComponent(selecionado)}/impacto`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("impacto"))))
+      .then((d: { resultados: number; clientes: number; documentos: number }) => {
+        if (impactoReqRef.current === reqId) {
+          setImpacto({ resultados: d.resultados, clientes: d.clientes, documentos: d.documentos });
+        }
+      })
+      .catch(() => {
+        if (impactoReqRef.current === reqId) setImpacto(null);
+      });
+  }, [selecionado]);
 
   const rodarFaxina = useCallback(() => {
     setTriFaxinando(true);
@@ -547,6 +744,55 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   }, [rows, busca]);
 
   const atual = rows.find((r) => r.code === selecionado) ?? null;
+
+  // Busca de exame DESTINO (para englobar/transferir): lista rolável de exames
+  // do catálogo, exceto o próprio exame de origem.
+  const renderExamPicker = (value: string, onPick: (code: string) => void, texto: string, setTexto: (s: string) => void) => {
+    const q = norm(texto.trim());
+    const opts = rows
+      .filter((r) => r.inCatalog && r.code !== selecionado)
+      .filter((r) => !q || norm(r.displayName).includes(q) || (r.synonyms ?? []).some((s) => norm(s).includes(q)))
+      .slice(0, 40);
+    const picked = rows.find((r) => r.code === value) ?? null;
+    return (
+      <div>
+        <input
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Buscar exame destino…"
+          className="w-full rounded-[4px] border px-2 py-1 text-[11px] font-semibold outline-none"
+          style={{ borderColor: "#d5dbe6", color: NAVY }}
+        />
+        {picked && (
+          <div className="mt-1 text-[10px] font-bold" style={{ color: GOLD }}>
+            Destino: {picked.displayName}
+          </div>
+        )}
+        <div className="concave-3d mt-1.5 max-h-[160px] space-y-1 overflow-y-auto rounded-[6px] p-1">
+          {opts.length === 0 ? (
+            <div className="px-2 py-2 text-[10px] font-semibold" style={{ color: MUTED }}>
+              Nenhum exame encontrado.
+            </div>
+          ) : (
+            opts.map((o) => (
+              <button
+                key={o.code}
+                type="button"
+                onClick={() => onPick(o.code)}
+                className={`flex w-full items-center justify-between gap-2 rounded-[4px] px-2 py-1 text-left text-[11px] font-semibold ${o.code === value ? "btn-3d" : "btn-3d-soft"}`}
+                style={o.code === value ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+              >
+                <span className="truncate">{o.displayName}</span>
+                <span className="shrink-0 text-[9px]" style={{ color: o.code === value ? "#fff" : MUTED }}>
+                  {o.count}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const carregarDetalhe = useCallback((row: FusedRow) => {
     // Guard de corrida: clique A→B rápido não pode deixar a resposta lenta de A
@@ -1422,6 +1668,190 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   {proc?.key === `code:${atual.code}` ? "Ocultar procedência" : "Ver procedência"}
                 </button>
                 {renderProcPanel(`code:${atual.code}`)}
+              </div>
+
+              {/* ---------- ENGLOBAR (este exame vira apelido de outro) ---------- */}
+              <div className="panel-3d-sub rounded-[6px] p-3">
+                <BlockTitle icon={Combine}>Englobar neste padrão</BlockTitle>
+                <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
+                  Funde <b style={{ color: NAVY }}>{atual.displayName}</b> dentro de um exame do catálogo: move os
+                  resultados, absorve as grafias como apelidos e <b>desativa</b> este exame. Reversível pelo botão Desfazer.
+                </div>
+                <div className="concave-3d mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: NAVY }}>
+                  <span>Impacto:</span>
+                  <span>{impacto?.resultados ?? atual.count} resultado(s)</span>
+                  <span style={{ color: MUTED }}>·</span>
+                  <span>{impacto?.clientes ?? "—"} cliente(s)</span>
+                  <span style={{ color: MUTED }}>·</span>
+                  <span>{impacto?.documentos ?? "—"} laudo(s)</span>
+                </div>
+                {renderExamPicker(engTarget, setEngTarget, engBusca, setEngBusca)}
+                {atual.origin === "catalogo" && (
+                  <label className="mt-2 flex items-start gap-1.5 text-[10px] font-semibold" style={{ color: "#b4413c" }}>
+                    <input
+                      type="checkbox"
+                      checked={engConfirmOficial}
+                      onChange={(e) => setEngConfirmOficial(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    Este é um exame OFICIAL do catálogo. Confirmo que quero englobá-lo mesmo assim.
+                  </label>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={executarEnglobar}
+                    disabled={engBusy || !engTarget || (atual.origin === "catalogo" && !engConfirmOficial)}
+                    className="btn-3d inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                    style={{ background: NAVY }}
+                  >
+                    {engBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Combine className="h-3.5 w-3.5" />}
+                    Englobar
+                  </button>
+                  {curMsg?.kind === "eng" && (
+                    <span className={`text-[10px] font-semibold ${curMsg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>{curMsg.texto}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ---------- TRANSFERIR RESULTADO(S) ---------- */}
+              <div className="panel-3d-sub rounded-[6px] p-3">
+                <BlockTitle icon={ArrowLeftRight}>Transferir resultado(s)</BlockTitle>
+                <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
+                  Move resultados alocados por engano deste exame para outro. Não desativa nada; é no nível do resultado.
+                  Reversível pelo botão Desfazer.
+                </div>
+                {renderExamPicker(traTarget, setTraTarget, traBusca, setTraBusca)}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: traTodas ? GOLD : MUTED }}>
+                    <input type="radio" name={`tra-modo-${atual.code}`} checked={traTodas} onChange={() => { setTraTodas(true); setTraSel({}); }} />
+                    Todos os {impacto?.resultados ?? atual.count} resultado(s)
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: !traTodas ? GOLD : MUTED }}>
+                    <input
+                      type="radio"
+                      name={`tra-modo-${atual.code}`}
+                      checked={!traTodas}
+                      onChange={() => { setTraTodas(false); if (!traProc) carregarTraProc(); }}
+                    />
+                    Escolher por laudo
+                  </label>
+                </div>
+                {!traTodas && (
+                  <div className="panel-3d-sub mt-2 rounded-[6px] p-2">
+                    {traProc?.loading ? (
+                      <div className="flex items-center gap-2 px-2 py-3 text-[11px]" style={{ color: MUTED }}>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando laudos…
+                      </div>
+                    ) : !traProc || traProc.itens.length === 0 ? (
+                      <div className="px-2 py-2 text-[10px] font-semibold" style={{ color: MUTED }}>
+                        Nenhum laudo encontrado para este exame.
+                      </div>
+                    ) : (
+                      <div className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
+                        {traProc.itens.map((p) => {
+                          const marcado = p.examDocumentId in traSel;
+                          return (
+                            <label key={p.examDocumentId} className="concave-3d flex cursor-pointer items-start gap-2 rounded-[6px] px-2 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={marcado}
+                                onChange={(e) =>
+                                  setTraSel((prev) => {
+                                    const next = { ...prev };
+                                    if (e.target.checked) next[p.examDocumentId] = p.clientId;
+                                    else delete next[p.examDocumentId];
+                                    return next;
+                                  })
+                                }
+                                className="mt-0.5"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: NAVY }}>
+                                  <FileText className="h-3 w-3 shrink-0" style={{ color: GOLD }} />
+                                  <span className="truncate">{p.clientName}</span>
+                                </span>
+                                <span className="mt-0.5 block truncate text-[9px] font-semibold" style={{ color: MUTED }} title={p.fileName}>
+                                  {p.fileName}
+                                  {(p.valueRaw || p.unitRaw) && <> · {[p.valueRaw, p.unitRaw].filter(Boolean).join(" ")}</>}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={executarTransferir}
+                    disabled={traBusy || !traTarget || (!traTodas && Object.keys(traSel).length === 0)}
+                    className="btn-3d inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                    style={{ background: NAVY }}
+                  >
+                    {traBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowLeftRight className="h-3.5 w-3.5" />}
+                    Transferir
+                  </button>
+                  {curMsg?.kind === "tra" && (
+                    <span className={`text-[10px] font-semibold ${curMsg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>{curMsg.texto}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ---------- OPERAÇÕES RECENTES / DESFAZER ---------- */}
+              <div className="panel-3d-sub rounded-[6px] p-3">
+                <BlockTitle icon={History}>Operações recentes · desfazer</BlockTitle>
+                <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
+                  Últimos englobamentos e transferências. Cada lote pode ser desfeito, restaurando o estado anterior.
+                </div>
+                {lotes.length === 0 ? (
+                  <div className="concave-3d rounded-[6px] px-3 py-2 text-[10px] font-semibold" style={{ color: MUTED }}>
+                    Nenhuma operação registrada ainda.
+                  </div>
+                ) : (
+                  <div className="max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
+                    {lotes.map((l) => (
+                      <div key={l.batchId} className="concave-3d flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[6px] px-3 py-2">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide" style={{ color: l.operation === "englobar" ? NAVY : GOLD }}>
+                          {l.operation === "englobar" ? <Combine className="h-3 w-3" /> : <ArrowLeftRight className="h-3 w-3" />}
+                          {l.operation}
+                        </span>
+                        <span className="text-[10px] font-semibold" style={{ color: NAVY }}>
+                          {l.sourceCode ? `${l.sourceCode} → ` : ""}
+                          {l.targetCode} · {l.resultados} resultado(s)
+                        </span>
+                        {l.createdAt && (
+                          <span className="text-[9px] font-semibold" style={{ color: MUTED }}>
+                            {new Date(l.createdAt).toLocaleString("pt-BR")}
+                          </span>
+                        )}
+                        <div className="ml-auto">
+                          {l.undone ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide" style={{ color: MUTED }}>
+                              <Check className="h-3 w-3" /> Desfeito
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => executarDesfazer(l.batchId)}
+                              disabled={undoBusy === l.batchId}
+                              className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-50"
+                              style={{ color: "#b4413c" }}
+                            >
+                              {undoBusy === l.batchId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />}
+                              Desfazer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {curMsg?.kind === "undo" && (
+                  <div className={`mt-2 text-[10px] font-semibold ${curMsg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>{curMsg.texto}</div>
+                )}
               </div>
             </div>
           )}

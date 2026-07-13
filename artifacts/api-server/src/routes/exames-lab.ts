@@ -49,6 +49,14 @@ import {
   readTriagemOptions,
 } from "../lib/exam-extraction/triagem";
 import { examAnalyteTriagemTable } from "@workspace/db";
+import {
+  englobarExame,
+  transferirResultados,
+  desfazerLote,
+  impactoExame,
+  listarLotes,
+  ReassignError,
+} from "../lib/exam-extraction/reassign";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 
@@ -1720,5 +1728,97 @@ router.get("/exames-lab/documento/:docId/arquivo", async (req: Request, res: Res
     return res.status(500).json({ error: "Falha ao baixar o arquivo" });
   }
 });
+
+// ============================================================================
+// Ferramentas de curadoria: ENGLOBAR + TRANSFERIR + DESFAZER (motor em reassign.ts).
+// Spec: specs/exame-englobar-transferir.md.
+// ============================================================================
+
+function handleReassignError(res: Response, e: unknown, log: Request["log"], ctx: string) {
+  if (e instanceof ReassignError) {
+    return res.status(e.status).json({ error: e.message });
+  }
+  log?.error({ err: e }, ctx);
+  return res.status(500).json({ error: "Falha na operação de curadoria" });
+}
+
+// Prévia de impacto de um exame (nº de resultados/clientes/documentos + origem).
+router.get("/exames-lab/exames/:code/impacto", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code ?? "").trim();
+    if (!code) return res.status(400).json({ error: "code inválido" });
+    return res.json(await impactoExame(code));
+  } catch (e) {
+    return handleReassignError(res, e, req.log, "GET /exames-lab/exames/:code/impacto falhou");
+  }
+});
+
+const englobarSchema = z.object({
+  sourceCode: z.string().min(1),
+  targetCode: z.string().min(1),
+  confirmOficial: z.boolean().optional(),
+});
+
+// ENGLOBAR um exame cadastrado (source) dentro de um exame padrão (target).
+router.post("/exames-lab/exames/englobar", async (req: Request, res: Response) => {
+  try {
+    const parsed = englobarSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Corpo inválido" });
+    const { sourceCode, targetCode, confirmOficial } = parsed.data;
+    const out = await englobarExame(sourceCode, targetCode, confirmOficial ?? false);
+    return res.json(out);
+  } catch (e) {
+    return handleReassignError(res, e, req.log, "POST /exames-lab/exames/englobar falhou");
+  }
+});
+
+const transferirSchema = z.object({
+  targetCode: z.string().min(1),
+  resultIds: z.array(z.number().int()).optional(),
+  sourceCode: z.string().optional(),
+  examDocumentId: z.number().int().optional(),
+  clientId: z.number().int().optional(),
+});
+
+// TRANSFERIR resultado(s) de um exame para outro (nível resultado).
+router.post("/exames-lab/exames/transferir", async (req: Request, res: Response) => {
+  try {
+    const parsed = transferirSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Corpo inválido" });
+    const out = await transferirResultados(parsed.data);
+    return res.json(out);
+  } catch (e) {
+    return handleReassignError(res, e, req.log, "POST /exames-lab/exames/transferir falhou");
+  }
+});
+
+// Lista os últimos lotes de curadoria (para o painel DESFAZER).
+router.get("/exames-lab/reassignments", async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    return res.json({ lotes: await listarLotes(limit) });
+  } catch (e) {
+    return handleReassignError(res, e, req.log, "GET /exames-lab/reassignments falhou");
+  }
+});
+
+// DESFAZER um lote de curadoria (restaura estado anterior fielmente; idempotente).
+router.post(
+  "/exames-lab/reassignments/:batchId/desfazer",
+  async (req: Request, res: Response) => {
+    try {
+      const batchId = String(req.params.batchId ?? "").trim();
+      if (!batchId) return res.status(400).json({ error: "batchId inválido" });
+      return res.json(await desfazerLote(batchId));
+    } catch (e) {
+      return handleReassignError(
+        res,
+        e,
+        req.log,
+        "POST /exames-lab/reassignments/:batchId/desfazer falhou",
+      );
+    }
+  },
+);
 
 export default router;

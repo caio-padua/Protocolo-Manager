@@ -192,6 +192,37 @@ export const examAnalyteUnitsTable = pgTable(
   }),
 );
 
+// Trilha de auditoria das ferramentas de curadoria (ENGLOBAR / TRANSFERIR).
+// 1 linha POR resultado afetado; batchId agrupa uma operação para permitir DESFAZER.
+// Guarda o ESTADO ANTERIOR completo do resultado (para restaurar fielmente).
+export const examResultReassignmentsTable = pgTable("exam_result_reassignments", {
+  id: serial("id").primaryKey(),
+  batchId: text("batch_id").notNull(),
+  // "englobar" | "transferir"
+  operation: text("operation").notNull(),
+  sourceCode: text("source_code"),
+  targetCode: text("target_code").notNull(),
+  resultId: integer("result_id").notNull(),
+  clientId: integer("client_id"),
+  examDocumentId: integer("exam_document_id"),
+  // Estado ANTERIOR do resultado (para desfazer).
+  prevAnalyteCode: text("prev_analyte_code"),
+  prevValueCanonical: numeric("prev_value_canonical"),
+  prevUnitCanonical: text("prev_unit_canonical"),
+  prevRefLow: numeric("prev_ref_low"),
+  prevRefHigh: numeric("prev_ref_high"),
+  prevStatus: text("prev_status"),
+  prevUnitConverted: boolean("prev_unit_converted").notNull().default(false),
+  // Snapshot do lote (só na 1ª linha do batch): estado do catálogo afetado no englobar.
+  // { sourceWasActive: bool, aliasesAdded: string[] } — usado no desfazer.
+  catalogSnapshot: jsonb("catalog_snapshot").$type<{
+    sourceWasActive?: boolean;
+    aliasesAdded?: string[];
+  } | null>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+});
+
 // ---- Insert schemas + tipos ----
 export const insertExamDocumentSchema = createInsertSchema(examDocumentsTable).omit({
   id: true,
