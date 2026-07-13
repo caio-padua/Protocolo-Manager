@@ -303,6 +303,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [triApelidoBusca, setTriApelidoBusca] = useState("");
   const [triErro, setTriErro] = useState<{ id: number; texto: string } | null>(null);
   const [triAberta, setTriAberta] = useState(false);
+  // Demanda 1: revelar editores de unidade/faixa em exame "não quantitativo" (Opção A).
+  const [revelarQuant, setRevelarQuant] = useState<string | null>(null);
 
   const carregarTriagem = useCallback(() => {
     fetch(`${BASE}/api/exames-lab/triagem`)
@@ -443,6 +445,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     const vigente = () => detalheReqRef.current === reqId;
     setCarregandoDetalhe(true);
     setMsg(null);
+    setRevelarQuant(null);
     // rascunhos de identidade/medida vêm da linha do catálogo (já em memória)
     setAliasDraft(aliasSlots(row.synonyms));
     setAliasOverflow((row.synonyms ?? []).slice(5));
@@ -519,7 +522,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         setRows((prev) =>
           prev.map((r) =>
             r.code === atual.code
-              ? { ...r, direction: direcao, hasManualEdit: true, zones: zones.map((z) => ({ ...z })) }
+              ? { ...r, direction: direcao, hasManualEdit: true, quantitativo: true, zones: zones.map((z) => ({ ...z })) }
               : r,
           ),
         );
@@ -678,6 +681,13 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const totalRevisado = rows.filter((r) => r.quantitativo && r.hasManualEdit).length;
   const totalQuant = rows.filter((r) => r.quantitativo).length;
   const naoQuant = atual != null && !atual.quantitativo;
+  // Demanda 1: editores liberados quando o exame já é quantitativo OU quando o usuário revelou.
+  const editorLiberado = !naoQuant || (atual != null && revelarQuant === atual.code);
+  const tornarQuant = () => {
+    if (!atual) return;
+    setRevelarQuant(atual.code);
+    setUnitDraft((prev) => (prev.length === 0 ? [{ unit: "", factor: "", isCanonical: true }] : prev));
+  };
 
   return (
     <section className="panel-3d p-4">
@@ -1066,9 +1076,19 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               {/* ---------- MEDIDA (unidades) ---------- */}
               <div className="panel-3d-sub rounded-[6px] p-3">
                 <BlockTitle icon={Ruler}>Medida · Unidades</BlockTitle>
-                {naoQuant ? (
-                  <div className="text-[10px] font-semibold uppercase" style={{ color: MUTED }}>
-                    Exame não quantitativo — sem unidade numérica.
+                {!editorLiberado ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-[10px] font-semibold uppercase" style={{ color: MUTED }}>
+                      Exame não quantitativo — sem unidade numérica.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={tornarQuant}
+                      className="btn-3d-soft inline-flex items-center gap-1 self-start rounded-[6px] px-2 py-1.5 text-[10px] font-bold"
+                      style={{ color: NAVY }}
+                    >
+                      <Plus className="h-3 w-3" /> Tornar quantitativo (cadastrar unidade e faixas)
+                    </button>
                   </div>
                 ) : (
                   <>
@@ -1131,9 +1151,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               {/* ---------- SIGNIFICADO CLÍNICO (direção + faixas) ---------- */}
               <div className="panel-3d-sub rounded-[6px] p-3">
                 <BlockTitle icon={Compass}>Significado clínico · Direção &amp; Faixas</BlockTitle>
-                {naoQuant ? (
+                {!editorLiberado ? (
                   <div className="text-[10px] font-semibold uppercase" style={{ color: MUTED }}>
-                    Exame não quantitativo — sem faixas numéricas.
+                    Exame não quantitativo — cadastre a unidade acima para liberar as faixas.
                   </div>
                 ) : carregandoDetalhe ? (
                   <div className="flex items-center gap-2 px-2 py-6 text-[12px]" style={{ color: MUTED }}>

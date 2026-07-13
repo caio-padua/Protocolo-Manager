@@ -22,7 +22,7 @@ Requisitos:
 1.4 Cadastrar os nomes (rótulos) das faixas e os valores (mínimo/máximo).
 1.5 Salvar reusando os endpoints existentes (`PUT /catalogo-faixas/unidades` e `PUT /faixas`), sem tocar o motor.
 
-Status: A ESPECIFICAR (primeiro do loop).
+Status: CONCLUÍDA em 13/07/2026 (spec em specs/exame-descoberto-quantitativo.md; architect PASS).
 
 ---
 
