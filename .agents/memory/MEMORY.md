@@ -110,3 +110,4 @@
 - [Seed materializador não destrutivo](seed-materializer-nao-destrutivo.md) — UPSERT do boot NÃO pode sobrescrever no conflito coluna que a UI edita (canonicalUnit/isCanonical/direction); só semear no INSERT; prova = 2º boot "inseridas:0".
 - [Governança por camada de tela](governanca-camada-de-tela.md) — matriz Ferramenta×Papel obedecida no front (não auth server); item read-only NÃO entra no filtro de menu; rota legada fora do gate = brecha; tela reservada exige guarda própria (URL direta).
 - [Triagem: resolução carimba o cluster inteiro](exames-triagem-resolucao.md) — linha dedup por normKey representa N grafias; resolver carimba TODAS (não só sampleName) senão fica analyte_code NULL; espelhar ações do backfill.
+- [Nome interno do exame: comparar x gerar identidade](exame-code-identidade-slug.md) — chaveFaixa compara/casa; slugInterno gera code fatiado só de exames NOVOS; nunca reescrever code existente; casar por nome vem antes de createDiscoveredExam.

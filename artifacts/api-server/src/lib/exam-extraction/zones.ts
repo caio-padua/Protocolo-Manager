@@ -60,6 +60,33 @@ export function chaveFaixa(s: string): string {
     .toLowerCase();
 }
 
+/**
+ * NOME INTERNO ("code") específico e fatiado — o "genótipo" fixo de um exame.
+ * Ex.: "Vitamina D 25-OH (Calcidiol)" -> "vitamina-d-25oh-calcidiol".
+ *
+ * Papel DIFERENTE de chaveFaixa (que normaliza para COMPARAR/casar grafias):
+ * slugInterno GERA a identidade de exames NOVOS. Nunca reescreve codes que já
+ * existem. Regras (spec nome-interno-especifico-exame.md):
+ *   1. tira acento + minúsculo
+ *   2. parênteses viram separador (o conteúdo permanece)
+ *   3. vírgula entre dígitos vira hífen (1,25 -> 1-25)
+ *   4. forma da molécula cola (25-OH / 25 OH -> 25oh)
+ *   5. qualquer outro separador vira hífen
+ *   6. colapsa hífens repetidos e apara as pontas
+ */
+export function slugInterno(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[()]/g, " ")
+    .replace(/(\d),(\d)/g, "$1-$2")
+    .replace(/(\d)[\s-]+([a-z]{1,3})\b/g, "$1$2")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 // Rótulo de cada posição por direção (spec §3, motor do IHE).
 export const LABELS_BY_DIRECTION: Record<Direction, Record<ZoneKey, ZoneLabel>> = {
   higher_better: {

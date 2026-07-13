@@ -22,7 +22,7 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { normalizeAnalyteName } from "./persist";
-import { chaveFaixa } from "./zones";
+import { chaveFaixa, slugInterno } from "./zones";
 import { getSetting } from "../secure-settings";
 
 // ---------------------------------------------------------------------------
@@ -337,8 +337,9 @@ function tidyDisplay(raw: string): string {
 
 /**
  * Cria (ou reaproveita) um cadastro DESCOBERTO ativo a partir de uma grafia crua.
- * code = chaveFaixa(grafia); onConflictDoNothing garante ZERO duplicado. Atualiza
- * o catalogo em memoria. Retorna o code final.
+ * code = slugInterno(grafia) — o "nome interno" fatiado e específico (genótipo
+ * fixo); onConflictDoNothing garante ZERO duplicado. Atualiza o catalogo em
+ * memoria. Retorna o code final.
  */
 export async function createDiscoveredExam(
   rawName: string,
@@ -346,7 +347,7 @@ export async function createDiscoveredExam(
   extraSynonyms: string[] = [],
 ): Promise<string> {
   const display = tidyDisplay(rawName);
-  const code = chaveFaixa(display);
+  const code = slugInterno(display);
   const synonyms = Array.from(
     new Set(
       extraSynonyms
