@@ -1338,6 +1338,109 @@ router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Resp
   }
 });
 
+// PUT /catalogo/renomear — renomeia o NOME PADRAO (display_name) de um exame
+// mantendo a IDENTIDADE (code) FIXA. Zero perda: o nome anterior vira apelido
+// automatico e resultados/faixas/unidades (que apontam para o code) ficam intactos.
+// Nao funde exames: colisao com nome/apelido/code de OUTRO exame -> 400 (use Englobar).
+const putRenomearSchema = z.object({
+  code: z.string().min(1).max(200),
+  novoNome: z.string().min(1).max(200),
+  // grafia atual mostrada na tela — usada so quando o exame ainda nao esta no
+  // catalogo (linha de fallback vinda de resultados): entra como apelido para
+  // preservar o casamento das grafias ja capturadas.
+  nomeAtual: z.string().max(200).optional(),
+});
+
+router.put("/exames-lab/catalogo/renomear", async (req: Request, res: Response) => {
+  try {
+    const parsed = putRenomearSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
+    }
+    const code = parsed.data.code.trim();
+    const novoNome = parsed.data.novoNome.trim();
+    if (!novoNome) {
+      return res.status(400).json({ error: "O nome padrão não pode ficar vazio." });
+    }
+
+    const all = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+        synonyms: examAnalyteCatalogTable.synonyms,
+      })
+      .from(examAnalyteCatalogTable);
+
+    const existente = all.find((c) => c.code === code);
+    const chaveNovo = chaveFaixa(novoNome);
+
+    // Unicidade: o novo nome nao pode colidir com code/nome/apelido de OUTRO exame.
+    for (const c of all) {
+      if (c.code === code) continue;
+      const chaves = new Set<string>([
+        chaveFaixa(c.code),
+        chaveFaixa(c.displayName),
+        ...(c.synonyms ?? []).map((s) => chaveFaixa(s)),
+      ]);
+      if (chaves.has(chaveNovo)) {
+        return res.status(400).json({
+          error: `O nome "${novoNome}" já pertence ao exame "${c.displayName}". Para unir exames use a ferramenta Englobar.`,
+          conflictsWith: c.displayName,
+        });
+      }
+    }
+
+    // Nome anterior: fonte de verdade = banco; fallback = nomeAtual do front.
+    const nomeAnterior = (existente?.displayName ?? parsed.data.nomeAtual ?? "").trim();
+
+    // Idempotente: renomear para o mesmo nome (ignorando acento/caixa) = no-op.
+    if (existente && chaveFaixa(nomeAnterior) === chaveNovo) {
+      return res.json({
+        ok: true,
+        code,
+        displayName: existente.displayName,
+        synonyms: existente.synonyms ?? [],
+        unchanged: true,
+      });
+    }
+
+    // Preserva os apelidos existentes + injeta o nome anterior (sem duplicar e
+    // sem igualar o proprio nome novo).
+    const finalSyn: string[] = [];
+    const keys = new Set<string>();
+    const push = (s: string) => {
+      const t = s.trim();
+      if (!t) return;
+      const k = chaveFaixa(t);
+      if (k === chaveNovo || keys.has(k)) return;
+      keys.add(k);
+      finalSyn.push(t);
+    };
+    for (const s of existente?.synonyms ?? []) push(s);
+    if (nomeAnterior) push(nomeAnterior);
+
+    if (existente) {
+      await db
+        .update(examAnalyteCatalogTable)
+        .set({ displayName: novoNome, synonyms: finalSyn })
+        .where(eq(examAnalyteCatalogTable.code, code));
+    } else {
+      await db.insert(examAnalyteCatalogTable).values({
+        code,
+        displayName: novoNome,
+        synonyms: finalSyn,
+        active: true,
+        origin: "descoberto",
+      });
+    }
+
+    return res.json({ ok: true, code, displayName: novoNome, synonyms: finalSyn });
+  } catch (e) {
+    req.log?.error({ err: e }, "PUT /catalogo/renomear falhou");
+    return res.status(500).json({ error: "Falha ao renomear exame" });
+  }
+});
+
 const putUnidadesSchema = z.object({
   code: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),

@@ -315,15 +315,17 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [valorTesteRaw, setValorTesteRaw] = useState("");
 
   // Rascunhos IDENTIDADE / MEDIDA
+  const [nomeDraft, setNomeDraft] = useState("");
   const [aliasDraft, setAliasDraft] = useState<string[]>(["", "", "", "", ""]);
   const [aliasOverflow, setAliasOverflow] = useState<string[]>([]);
   const [unitDraft, setUnitDraft] = useState<UnitDraft[]>([]);
 
   const detalheReqRef = useRef(0);
   const [salvandoFaixas, setSalvandoFaixas] = useState(false);
+  const [salvandoNome, setSalvandoNome] = useState(false);
   const [salvandoApelidos, setSalvandoApelidos] = useState(false);
   const [salvandoUnidades, setSalvandoUnidades] = useState(false);
-  const [msg, setMsg] = useState<{ kind: "faixas" | "apelidos" | "unidades"; ok: boolean; texto: string } | null>(null);
+  const [msg, setMsg] = useState<{ kind: "faixas" | "nome" | "apelidos" | "unidades"; ok: boolean; texto: string } | null>(null);
 
   // ---- Sala de Triagem (faxina em massa + fila de conferência humana) ----
   const [triPend, setTriPend] = useState<TriagemItem[]>([]);
@@ -804,6 +806,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     setRevelarQuant(null);
     setProc(null);
     // rascunhos de identidade/medida vêm da linha do catálogo (já em memória)
+    setNomeDraft(row.displayName);
     setAliasDraft(aliasSlots(row.synonyms));
     setAliasOverflow((row.synonyms ?? []).slice(5));
     setUnitDraft(unitDraftFrom(row.units));
@@ -920,6 +923,45 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   // Promoção pode mudar o code — remapeia a seleção.
   const aplicarNovoCode = (oldCode: string, newCode: string) => {
     if (oldCode !== newCode) setSelecionado((c) => (c === oldCode ? newCode : c));
+  };
+
+  // Renomeia o NOME PADRAO. O code (identidade) fica fixo; o nome anterior vira
+  // apelido automatico no backend — zero perda.
+  const salvarNome = () => {
+    if (!atual) return;
+    const nome = nomeDraft.trim();
+    if (!nome || nome === atual.displayName) return;
+    setSalvandoNome(true);
+    setMsg(null);
+    fetch(`${BASE}/api/exames-lab/catalogo/renomear`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: atual.code, novoNome: nome, nomeAtual: atual.displayName }),
+    })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j?.error || "Falha ao salvar o nome.");
+        return j;
+      })
+      .then((j) => {
+        const displayName: string = j.displayName ?? nome;
+        const synonyms: string[] = j.synonyms ?? [];
+        setRows((prev) =>
+          prev.map((x) =>
+            x.code === atual.code ? { ...x, displayName, synonyms, inCatalog: true } : x,
+          ),
+        );
+        setNomeDraft(displayName);
+        setAliasDraft(aliasSlots(synonyms));
+        setAliasOverflow(synonyms.slice(5));
+        setMsg({
+          kind: "nome",
+          ok: true,
+          texto: "Nome salvo. O nome anterior virou apelido — nada se perdeu.",
+        });
+      })
+      .catch((e) => setMsg({ kind: "nome", ok: false, texto: (e as Error).message }))
+      .finally(() => setSalvandoNome(false));
   };
 
   const salvarApelidos = () => {
@@ -1396,7 +1438,41 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
               {/* ---------- IDENTIDADE (apelidos) ---------- */}
               <div className="panel-3d-sub rounded-[6px] p-3">
-                <BlockTitle icon={Tags}>Identidade · Apelidos</BlockTitle>
+                <BlockTitle icon={Tags}>Identidade · Nome e Apelidos</BlockTitle>
+                <div className="mb-3">
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>
+                    Nome padrão (como aparece nas telas e laudos)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={nomeDraft}
+                      onChange={(e) => setNomeDraft(e.target.value)}
+                      placeholder="Nome padrão do exame"
+                      className="min-w-0 flex-1 rounded-[4px] border px-2 py-1 text-[12px] font-semibold outline-none"
+                      style={{ borderColor: "#d5dbe6", color: NAVY }}
+                    />
+                    <button
+                      type="button"
+                      onClick={salvarNome}
+                      disabled={
+                        salvandoNome || !nomeDraft.trim() || nomeDraft.trim() === (atual?.displayName ?? "")
+                      }
+                      className="btn-3d inline-flex shrink-0 items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                      style={{ background: NAVY }}
+                    >
+                      {salvandoNome ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      Salvar nome
+                    </button>
+                  </div>
+                  <div className="mt-1 text-[9px]" style={{ color: MUTED }}>
+                    Ao renomear, o nome anterior vira apelido automático. Nada se perde.
+                  </div>
+                  {msg?.kind === "nome" && (
+                    <span className={`mt-0.5 block text-[10px] font-semibold ${msg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>
+                      {msg.texto}
+                    </span>
+                  )}
+                </div>
                 <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
                   Até 5 apelidos (como o laudo pode escrever este exame). A varredura já procura por eles.
                 </div>
