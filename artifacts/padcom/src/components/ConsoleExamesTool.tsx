@@ -14,6 +14,10 @@ import {
   AlertTriangle,
   Sparkles,
   Ban,
+  MapPin,
+  ExternalLink,
+  Download,
+  FileText,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
 import {
@@ -90,6 +94,22 @@ interface TriagemItem {
   suggestedCode: string | null;
   suggestedName?: string | null;
   reason: string | null;
+}
+
+// Demanda 2: procedência — de onde veio a grafia (cliente + arquivo de laudo).
+interface ProcedenciaItem {
+  examDocumentId: number;
+  clientId: number;
+  clientName: string;
+  fileName: string;
+  sourcePdfDriveId: string | null;
+  sourcePath: string | null;
+  valueRaw: string | null;
+  unitRaw: string | null;
+  grafiaCrua: string | null;
+  collectionDate: string | null;
+  createdAt: string;
+  driveUrl: string | null;
 }
 interface TriagemTotais {
   ambiguos: number;
@@ -305,6 +325,96 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [triAberta, setTriAberta] = useState(false);
   // Demanda 1: revelar editores de unidade/faixa em exame "não quantitativo" (Opção A).
   const [revelarQuant, setRevelarQuant] = useState<string | null>(null);
+  // Demanda 2: procedência aberta (por card da triagem ou por exame do catálogo).
+  const [proc, setProc] = useState<{ key: string; loading: boolean; itens: ProcedenciaItem[] } | null>(null);
+  // Guard de corrida: clique rápido A→B não deixa a resposta lenta de A sobrescrever B.
+  const procReqRef = useRef(0);
+  const abrirProcedencia = (key: string, url: string) => {
+    if (proc && proc.key === key) {
+      setProc(null);
+      return;
+    }
+    const reqId = ++procReqRef.current;
+    setProc({ key, loading: true, itens: [] });
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("proc"))))
+      .then((d: { itens?: ProcedenciaItem[] }) => {
+        if (procReqRef.current === reqId) setProc({ key, loading: false, itens: d.itens ?? [] });
+      })
+      .catch(() => {
+        if (procReqRef.current === reqId) setProc({ key, loading: false, itens: [] });
+      });
+  };
+  const renderProcPanel = (key: string) => {
+    if (!proc || proc.key !== key) return null;
+    return (
+      <div className="panel-3d-sub mt-1.5 w-full rounded-[6px] p-2">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.1em]" style={{ color: NAVY }}>
+          <MapPin className="h-3 w-3" style={{ color: GOLD }} /> Procedência — de onde veio esta grafia
+        </div>
+        {proc.loading ? (
+          <div className="flex items-center gap-2 px-2 py-3 text-[11px]" style={{ color: MUTED }}>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando origem…
+          </div>
+        ) : proc.itens.length === 0 ? (
+          <div className="px-2 py-2 text-[10px] font-semibold" style={{ color: MUTED }}>
+            Nenhuma origem encontrada para esta grafia.
+          </div>
+        ) : (
+          <div className="max-h-[260px] space-y-1.5 overflow-y-auto pr-1">
+            {proc.itens.map((p) => (
+              <div key={p.examDocumentId} className="concave-3d rounded-[6px] px-2 py-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: NAVY }}>
+                  <FileText className="h-3 w-3 shrink-0" style={{ color: GOLD }} />
+                  <span className="truncate">{p.clientName}</span>
+                </div>
+                <div className="mt-0.5 truncate text-[9px] font-semibold" style={{ color: MUTED }} title={p.fileName}>
+                  {p.fileName}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px]" style={{ color: MUTED }}>
+                  {(p.valueRaw || p.unitRaw) && (
+                    <span>
+                      Valor: <b style={{ color: NAVY }}>{[p.valueRaw, p.unitRaw].filter(Boolean).join(" ")}</b>
+                    </span>
+                  )}
+                  {p.collectionDate && <span>Coleta: {p.collectionDate.split("-").reverse().join("/")}</span>}
+                  {p.grafiaCrua && <span className="truncate">Grafia: “{p.grafiaCrua}”</span>}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {p.sourcePdfDriveId ? (
+                    <>
+                      {p.driveUrl && (
+                        <a
+                          href={p.driveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
+                          style={{ color: NAVY }}
+                        >
+                          <ExternalLink className="h-3 w-3" /> Abrir no Drive
+                        </a>
+                      )}
+                      <a
+                        href={`${BASE}/api/exames-lab/documento/${p.examDocumentId}/arquivo`}
+                        className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
+                        style={{ color: GOLD }}
+                      >
+                        <Download className="h-3 w-3" /> Baixar
+                      </a>
+                    </>
+                  ) : (
+                    <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>
+                      arquivo não está no Drive
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const carregarTriagem = useCallback(() => {
     fetch(`${BASE}/api/exames-lab/triagem`)
@@ -446,6 +556,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     setCarregandoDetalhe(true);
     setMsg(null);
     setRevelarQuant(null);
+    setProc(null);
     // rascunhos de identidade/medida vêm da linha do catálogo (já em memória)
     setAliasDraft(aliasSlots(row.synonyms));
     setAliasOverflow((row.synonyms ?? []).slice(5));
@@ -821,6 +932,15 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   >
                     {triResolvendo === t.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} Ignorar
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => abrirProcedencia(`triagem:${t.id}`, `${BASE}/api/exames-lab/triagem/${t.id}/procedencia`)}
+                    className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
+                    style={{ color: proc?.key === `triagem:${t.id}` ? GOLD : MUTED }}
+                    title="Ver de onde veio esta grafia (cliente e arquivo de laudo)"
+                  >
+                    <MapPin className="h-3 w-3" /> Procedência
+                  </button>
                 </div>
 
                 {triErro && triErro.id === t.id && (
@@ -828,6 +948,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     {triErro.texto}
                   </div>
                 )}
+
+                {renderProcPanel(`triagem:${t.id}`)}
 
                 {triApelidoAberto === t.id && (
                   <div className="panel-3d-sub w-full rounded-[6px] p-2">
@@ -1277,6 +1399,29 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     </div>
                   </>
                 )}
+              </div>
+
+              {/* ---------- PROCEDÊNCIA (de onde vieram os resultados) ---------- */}
+              <div className="panel-3d-sub rounded-[6px] p-3">
+                <BlockTitle icon={MapPin}>Procedência · de onde vieram os resultados</BlockTitle>
+                <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
+                  Clientes e arquivos de laudo que originaram este exame. Abra no Drive ou baixe pelo sistema para conferir a fonte.
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    abrirProcedencia(
+                      `code:${atual.code}`,
+                      `${BASE}/api/exames-lab/catalogo/${encodeURIComponent(atual.code)}/procedencia`,
+                    )
+                  }
+                  className="btn-3d-soft inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: proc?.key === `code:${atual.code}` ? GOLD : NAVY }}
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  {proc?.key === `code:${atual.code}` ? "Ocultar procedência" : "Ver procedência"}
+                </button>
+                {renderProcPanel(`code:${atual.code}`)}
               </div>
             </div>
           )}

@@ -37,7 +37,9 @@ Requisitos:
 2.3 Mostrar a data do laudo e o valor bruto detectado quando houver.
 2.4 Novo endpoint de procedência ligando a grafia (normKey) → `exam_results` → `exam_documents`.
 
-Status: A ESPECIFICAR (segundo do loop).
+Status: CONCLUÍDA em 13/07/2026 (Opção C — abrir no Drive E baixar pelo sistema; spec em
+specs/exame-procedencia-download.md; architect PASS). 3 rotas de leitura/download em exames-lab.ts +
+painel "Procedência" na triagem e no detalhe do catálogo (ConsoleExamesTool.tsx).
 
 ---
 

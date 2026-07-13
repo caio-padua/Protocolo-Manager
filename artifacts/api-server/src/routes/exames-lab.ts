@@ -12,7 +12,7 @@ import {
   clientsTable,
   professionalsTable,
 } from "@workspace/db";
-import { eq, ne, desc, and, or, inArray, sql } from "drizzle-orm";
+import { eq, ne, desc, and, or, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   resolveDirection,
@@ -31,11 +31,13 @@ import {
   finalizeDocument,
   markDocumentError,
   normUnit,
+  normalizeAnalyteName,
 } from "../lib/exam-extraction/persist";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
   removeDiacritics,
+  driveDownloadFile,
 } from "../lib/google-drive";
 import {
   runTriagemBackfill,
@@ -1558,6 +1560,164 @@ router.post("/exames-lab/triagem/:id/resolver", async (req: Request, res: Respon
   } catch (e) {
     req.log?.error({ err: e }, "POST /exames-lab/triagem/:id/resolver falhou");
     return res.status(500).json({ error: "Falha ao resolver o item da triagem" });
+  }
+});
+
+// ===== Demanda 2: procedência da grafia + abrir/baixar o laudo original =====
+
+function driveUrlFrom(id: string | null): string | null {
+  return id ? `https://drive.google.com/file/d/${id}/view` : null;
+}
+
+interface ProcedenciaItem {
+  examDocumentId: number;
+  clientId: number;
+  clientName: string;
+  fileName: string;
+  sourcePdfDriveId: string | null;
+  sourcePath: string | null;
+  valueRaw: string | null;
+  unitRaw: string | null;
+  grafiaCrua: string | null;
+  collectionDate: string | null;
+  createdAt: Date;
+  driveUrl: string | null;
+}
+
+// Monta a lista de arquivos de origem, agrupada por documento (um arquivo = uma linha).
+// - filtro "code": linhas cujo analyteCode == valor (exame do catálogo).
+// - filtro "normKey": linhas cruas (sem code) cujo analyteNameRaw normaliza para o normKey
+//   do cluster de triagem (mesmo casamento usado em setResultCodeForNormKey).
+async function montarProcedencia(
+  filtro: "code" | "normKey",
+  valor: string,
+): Promise<ProcedenciaItem[]> {
+  if (!valor) return [];
+  const rows = await db
+    .select({
+      examDocumentId: examResultsTable.examDocumentId,
+      clientId: examResultsTable.clientId,
+      clientName: clientsTable.name,
+      analyteNameRaw: examResultsTable.analyteNameRaw,
+      valueRaw: examResultsTable.valueRaw,
+      unitRaw: examResultsTable.unitRaw,
+      fileName: examDocumentsTable.fileName,
+      sourcePdfDriveId: examDocumentsTable.sourcePdfDriveId,
+      sourcePath: examDocumentsTable.sourcePath,
+      collectionDate: examDocumentsTable.collectionDate,
+      createdAt: examDocumentsTable.createdAt,
+    })
+    .from(examResultsTable)
+    .innerJoin(examDocumentsTable, eq(examResultsTable.examDocumentId, examDocumentsTable.id))
+    .innerJoin(clientsTable, eq(examResultsTable.clientId, clientsTable.id))
+    .where(
+      filtro === "code"
+        ? eq(examResultsTable.analyteCode, valor)
+        : isNull(examResultsTable.analyteCode),
+    );
+
+  const filtradas =
+    filtro === "code"
+      ? rows
+      : rows.filter(
+          (r) => !!r.analyteNameRaw && normalizeAnalyteName(r.analyteNameRaw) === valor,
+        );
+
+  const porDoc = new Map<number, ProcedenciaItem>();
+  for (const r of filtradas) {
+    if (porDoc.has(r.examDocumentId)) continue;
+    porDoc.set(r.examDocumentId, {
+      examDocumentId: r.examDocumentId,
+      clientId: r.clientId,
+      clientName: r.clientName,
+      fileName: r.fileName,
+      sourcePdfDriveId: r.sourcePdfDriveId,
+      sourcePath: r.sourcePath,
+      valueRaw: r.valueRaw,
+      unitRaw: r.unitRaw,
+      grafiaCrua: r.analyteNameRaw,
+      collectionDate: r.collectionDate,
+      createdAt: r.createdAt,
+      driveUrl: driveUrlFrom(r.sourcePdfDriveId),
+    });
+  }
+  return Array.from(porDoc.values()).sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  );
+}
+
+// GET procedência de um item pendente da triagem (por normKey do cluster).
+router.get("/exames-lab/triagem/:id/procedencia", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "id inválido" });
+    const rows = await db
+      .select({ normKey: examAnalyteTriagemTable.normKey })
+      .from(examAnalyteTriagemTable)
+      .where(eq(examAnalyteTriagemTable.id, id))
+      .limit(1);
+    if (rows.length === 0) return res.status(404).json({ error: "Item não encontrado" });
+    const itens = await montarProcedencia("normKey", rows[0].normKey);
+    return res.json({ itens });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/triagem/:id/procedencia falhou");
+    return res.status(500).json({ error: "Falha ao carregar a procedência" });
+  }
+});
+
+// GET procedência de um exame do catálogo (por code).
+router.get("/exames-lab/catalogo/:code/procedencia", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code ?? "").trim();
+    if (!code) return res.status(400).json({ error: "code inválido" });
+    const itens = await montarProcedencia("code", code);
+    return res.json({ itens });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/catalogo/:code/procedencia falhou");
+    return res.status(500).json({ error: "Falha ao carregar a procedência" });
+  }
+});
+
+// GET baixa/abre o arquivo original do laudo pelo próprio sistema (robusto: não
+// depende do usuário estar logado na conta Google). inline=1 abre no navegador.
+router.get("/exames-lab/documento/:docId/arquivo", async (req: Request, res: Response) => {
+  try {
+    const docId = Number(req.params.docId);
+    if (!Number.isFinite(docId)) return res.status(400).json({ error: "docId inválido" });
+    const docs = await db
+      .select({
+        fileName: examDocumentsTable.fileName,
+        driveId: examDocumentsTable.sourcePdfDriveId,
+      })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, docId))
+      .limit(1);
+    if (docs.length === 0) return res.status(404).json({ error: "Documento não encontrado" });
+    const doc = docs[0];
+    if (!doc.driveId) {
+      return res.status(404).json({ error: "Este documento não tem arquivo no Drive." });
+    }
+    const buf = await driveDownloadFile(doc.driveId);
+    const fname = (doc.fileName || `documento-${docId}.pdf`).replace(/[\r\n"]/g, "");
+    const ext = fname.split(".").pop()?.toLowerCase() ?? "";
+    const contentType =
+      ext === "pdf"
+        ? "application/pdf"
+        : ext === "png"
+          ? "image/png"
+          : ext === "jpg" || ext === "jpeg"
+            ? "image/jpeg"
+            : "application/octet-stream";
+    const disp = req.query.inline === "1" ? "inline" : "attachment";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `${disp}; filename*=UTF-8''${encodeURIComponent(fname)}`,
+    );
+    return res.send(buf);
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/documento/:docId/arquivo falhou");
+    return res.status(500).json({ error: "Falha ao baixar o arquivo" });
   }
 });
 
