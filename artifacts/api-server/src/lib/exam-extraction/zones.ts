@@ -61,6 +61,27 @@ export function chaveFaixa(s: string): string {
 }
 
 /**
+ * CHAVE DE VARIANTE — forma COMPACTA de um nome de exame para reconhecer
+ * grafias coladas/separadas como o MESMO exame: "CA-125", "CA 125" e "CA125"
+ * viram todas "ca125". Remove acento, caixa, pontuação E espaços.
+ *
+ * Papel DIFERENTE de chaveFaixa (que preserva espaços e amarra faixas/resultados
+ * — NÃO mude chaveFaixa). chaveVariante é usada SÓ nos pontos de casamento de
+ * identidade (triagem/scanner e validações de unicidade do catálogo).
+ *
+ * Guarda anti-falso-positivo: só compare variantes com >= VARIANTE_MIN
+ * caracteres (siglas curtas como "T4" ficam de fora do casamento compacto).
+ */
+export const VARIANTE_MIN = 4;
+export function chaveVariante(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
  * NOME INTERNO ("code") específico e fatiado — o "genótipo" fixo de um exame.
  * Ex.: "Vitamina D 25-OH (Calcidiol)" -> "vitamina-d-25oh-calcidiol".
  *

@@ -22,7 +22,7 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { normalizeAnalyteName } from "./persist";
-import { chaveFaixa, slugInterno } from "./zones";
+import { chaveFaixa, chaveVariante, slugInterno, VARIANTE_MIN } from "./zones";
 import { getSetting } from "../secure-settings";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +71,8 @@ export interface CatalogEntryFull {
   displayName: string;
   /** chaves normalizadas (displayName + sinonimos) para casamento exato */
   keys: Set<string>;
+  /** chaves COMPACTAS (chaveVariante, >= VARIANTE_MIN) p/ casar colado/hifen/espaco */
+  compact: Set<string>;
   /** tokens fortes do displayName para deteccao de ambiguidade */
   tokens: Set<string>;
 }
@@ -194,8 +196,13 @@ export function buildCatalogEntry(
 ): CatalogEntryFull {
   const keys = new Set<string>([normalizeAnalyteName(displayName)]);
   for (const s of synonyms ?? []) keys.add(normalizeAnalyteName(s));
+  const compact = new Set<string>();
+  for (const k of keys) {
+    const v = chaveVariante(k);
+    if (v.length >= VARIANTE_MIN) compact.add(v);
+  }
   const tokens = strongTokens(normalizeAnalyteName(displayName));
-  return { code, displayName, keys, tokens };
+  return { code, displayName, keys, compact, tokens };
 }
 
 export function classifyRawName(
@@ -209,6 +216,22 @@ export function classifyRawName(
   for (const e of catalog) {
     if (e.keys.has(key)) {
       return { kind: "apelido", code: e.code, reason: "casa exato no catalogo" };
+    }
+  }
+
+  // (a2) casamento por VARIANTE compacta: "ca125" / "ca 125" / "ca-125" sao o
+  // mesmo exame. Igualdade compacta e quase-exata, entao vale mesmo com token
+  // de perigo (a igualdade implica os mesmos tokens).
+  const compactKey = chaveVariante(key);
+  if (compactKey.length >= VARIANTE_MIN) {
+    for (const e of catalog) {
+      if (e.compact.has(compactKey)) {
+        return {
+          kind: "apelido",
+          code: e.code,
+          reason: "variante de grafia (colado/hifen/espaco)",
+        };
+      }
     }
   }
 
@@ -326,7 +349,11 @@ export async function absorbAsAlias(
       .set({ synonyms: [...syns, rawName.trim()] })
       .where(eq(examAnalyteCatalogTable.code, targetCode));
   }
-  if (target) target.keys.add(key);
+  if (target) {
+    target.keys.add(key);
+    const v = chaveVariante(key);
+    if (v.length >= VARIANTE_MIN) target.compact.add(v);
+  }
   return true;
 }
 

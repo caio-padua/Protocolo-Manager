@@ -9,6 +9,7 @@ import {
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
 import { loadCatalogFull, triageOnImport, readTriagemOptions } from "./triagem";
+import { chaveVariante, VARIANTE_MIN } from "./zones";
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — persistencia (Onda 3 da spec)
@@ -89,12 +90,21 @@ export function brDateToIso(raw: string | null): string | null {
 interface CatalogEntry {
   code: string;
   keys: Set<string>;
+  /** chaves compactas (chaveVariante) — presentes quando vem de loadCatalogFull */
+  compact?: Set<string>;
 }
 
 function matchAnalyte(catalog: CatalogEntry[], rawName: string): string | null {
   const key = normalizeAnalyteName(rawName);
   for (const entry of catalog) {
     if (entry.keys.has(key)) return entry.code;
+  }
+  // Variante compacta: "ca125" / "ca 125" / "ca-125" sao o mesmo exame.
+  const ck = chaveVariante(key);
+  if (ck.length >= VARIANTE_MIN) {
+    for (const entry of catalog) {
+      if (entry.compact?.has(ck)) return entry.code;
+    }
   }
   return null;
 }

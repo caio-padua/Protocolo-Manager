@@ -20,6 +20,8 @@ import {
   overrideZones,
   classifyIntoZones,
   chaveFaixa,
+  chaveVariante,
+  VARIANTE_MIN,
   type Direction,
   type Zone,
 } from "../lib/exam-extraction/zones";
@@ -1244,17 +1246,29 @@ function resolverCodeCatalogo(
     (c) => c.code === canon || chaveFaixa(c.displayName) === canon,
   );
   if (existentePorNome) return { targetCode: existentePorNome.code, existente: existentePorNome };
+  // Variante compacta: "CA 125" e "CA-125" apontam para o MESMO cadastro.
+  const vNome = chaveVariante(displayName);
+  if (vNome.length >= VARIANTE_MIN) {
+    const existentePorVariante = all.find(
+      (c) =>
+        chaveVariante(c.code) === vNome ||
+        chaveVariante(c.displayName) === vNome ||
+        (c.synonyms ?? []).some((s) => chaveVariante(s) === vNome),
+    );
+    if (existentePorVariante)
+      return { targetCode: existentePorVariante.code, existente: existentePorVariante };
+  }
   return { targetCode: canon, existente: undefined };
 }
 
 const putAliasesSchema = z.object({
   code: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),
-  synonyms: z.array(z.string().max(120)).max(5),
+  synonyms: z.array(z.string().max(120)).max(12),
 });
 
-// PUT /catalogo-faixas/aliases — grava os apelidos CURADOS (até 5 visíveis) de um
-// exame. Não destrutivo: apelidos internos além dos 5 (vindos da semente) são
+// PUT /catalogo-faixas/aliases — grava os apelidos CURADOS (até 12 visíveis) de um
+// exame. Não destrutivo: apelidos internos além dos 12 (vindos da semente) são
 // preservados. Unicidade: nenhum apelido pode colidir com o nome elegível ou
 // apelido de OUTRO exame (400). Promove ao catálogo se o exame ainda não existe.
 router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Response) => {
@@ -1276,12 +1290,23 @@ router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Resp
     const { targetCode, existente } = resolverCodeCatalogo(all, code, displayName);
 
     // Chaves de identidade dos OUTROS exames (nome elegível + apelidos).
+    // donoPorVariante: mesma proteção na forma COMPACTA ("ca125" = "ca 125").
     const donoPorChave = new Map<string, string>();
+    const donoPorVariante = new Map<string, string>();
+    const addVariante = (s: string, dono: string) => {
+      const v = chaveVariante(s);
+      if (v.length >= VARIANTE_MIN && !donoPorVariante.has(v)) donoPorVariante.set(v, dono);
+    };
     for (const c of all) {
       if (c.code === targetCode) continue;
       donoPorChave.set(chaveFaixa(c.code), c.displayName);
       donoPorChave.set(chaveFaixa(c.displayName), c.displayName);
-      for (const s of c.synonyms ?? []) donoPorChave.set(chaveFaixa(s), c.displayName);
+      addVariante(c.code, c.displayName);
+      addVariante(c.displayName, c.displayName);
+      for (const s of c.synonyms ?? []) {
+        donoPorChave.set(chaveFaixa(s), c.displayName);
+        addVariante(s, c.displayName);
+      }
     }
 
     // Limpa entradas + normaliza; remove vazios e o que igualar o próprio nome.
@@ -1294,7 +1319,10 @@ router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Resp
       const k = chaveFaixa(s);
       if (k === chaveNome) continue; // apelido == nome elegível: ignora (não é erro)
       if (vistos.has(k)) continue; // duplicado no próprio exame: dedup silencioso
-      const dono = donoPorChave.get(k);
+      const v = chaveVariante(s);
+      const dono =
+        donoPorChave.get(k) ??
+        (v.length >= VARIANTE_MIN ? donoPorVariante.get(v) : undefined);
       if (dono) {
         return res.status(400).json({
           error: `O apelido "${s}" já pertence ao exame "${dono}". Cada apelido só pode apontar para um exame.`,
@@ -1306,8 +1334,8 @@ router.put("/exames-lab/catalogo-faixas/aliases", async (req: Request, res: Resp
       incoming.push(s);
     }
 
-    // Não destrutivo: preserva apelidos internos além dos 5 primeiros.
-    const internosOverflow = (existente?.synonyms ?? []).slice(5);
+    // Não destrutivo: preserva apelidos internos além dos 12 primeiros.
+    const internosOverflow = (existente?.synonyms ?? []).slice(12);
     const finalSyn: string[] = [];
     const finalKeys = new Set<string>();
     for (const s of [...incoming, ...internosOverflow]) {
@@ -1373,16 +1401,19 @@ router.put("/exames-lab/catalogo/renomear", async (req: Request, res: Response) 
 
     const existente = all.find((c) => c.code === code);
     const chaveNovo = chaveFaixa(novoNome);
+    const varNovo = chaveVariante(novoNome);
 
-    // Unicidade: o novo nome nao pode colidir com code/nome/apelido de OUTRO exame.
+    // Unicidade: o novo nome nao pode colidir com code/nome/apelido de OUTRO
+    // exame — nem na forma exata (chaveFaixa) nem na COMPACTA (chaveVariante:
+    // "CA 125" x "CA-125" x "CA125" sao o mesmo exame).
     for (const c of all) {
       if (c.code === code) continue;
-      const chaves = new Set<string>([
-        chaveFaixa(c.code),
-        chaveFaixa(c.displayName),
-        ...(c.synonyms ?? []).map((s) => chaveFaixa(s)),
-      ]);
-      if (chaves.has(chaveNovo)) {
+      const nomes = [c.code, c.displayName, ...(c.synonyms ?? [])];
+      const chaves = new Set<string>(nomes.map((s) => chaveFaixa(s)));
+      const colideVariante =
+        varNovo.length >= VARIANTE_MIN &&
+        nomes.some((s) => chaveVariante(s) === varNovo);
+      if (chaves.has(chaveNovo) || colideVariante) {
         return res.status(400).json({
           error: `O nome "${novoNome}" já pertence ao exame "${c.displayName}". Para unir exames use a ferramenta Englobar.`,
           conflictsWith: c.displayName,

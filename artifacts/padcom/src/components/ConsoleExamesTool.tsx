@@ -185,8 +185,9 @@ function slotsFromZones(
   }
   return out;
 }
+const MAX_APELIDOS = 12;
 function aliasSlots(synonyms: string[]): string[] {
-  const s = (synonyms ?? []).slice(0, 5);
+  const s = (synonyms ?? []).slice(0, MAX_APELIDOS);
   while (s.length < 5) s.push("");
   return s;
 }
@@ -808,7 +809,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     // rascunhos de identidade/medida vêm da linha do catálogo (já em memória)
     setNomeDraft(row.displayName);
     setAliasDraft(aliasSlots(row.synonyms));
-    setAliasOverflow((row.synonyms ?? []).slice(5));
+    setAliasOverflow((row.synonyms ?? []).slice(MAX_APELIDOS));
     setUnitDraft(unitDraftFrom(row.units));
     // faixas: detalhe autoritativo (traz refLow/refHigh p/ a prévia)
     fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(row.code)}`)
@@ -953,7 +954,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         );
         setNomeDraft(displayName);
         setAliasDraft(aliasSlots(synonyms));
-        setAliasOverflow(synonyms.slice(5));
+        setAliasOverflow(synonyms.slice(MAX_APELIDOS));
         setMsg({
           kind: "nome",
           ok: true,
@@ -987,7 +988,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         );
         aplicarNovoCode(atual.code, newCode);
         setAliasDraft(aliasSlots(synonyms));
-        setAliasOverflow(synonyms.slice(5));
+        setAliasOverflow(synonyms.slice(MAX_APELIDOS));
         setMsg({ kind: "apelidos", ok: true, texto: "Apelidos salvos. A varredura já busca por eles." });
       })
       .catch((e) => setMsg({ kind: "apelidos", ok: false, texto: (e as Error).message }))
@@ -1474,7 +1475,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   )}
                 </div>
                 <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
-                  Até 5 apelidos (como o laudo pode escrever este exame). A varredura já procura por eles.
+                  Até {MAX_APELIDOS} apelidos (como o laudo pode escrever este exame). A varredura já procura por eles.
                 </div>
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {aliasDraft.map((a, i) => (
@@ -1488,6 +1489,16 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     />
                   ))}
                 </div>
+                {aliasDraft.length < MAX_APELIDOS && (
+                  <button
+                    type="button"
+                    onClick={() => setAliasDraft((d) => (d.length < MAX_APELIDOS ? [...d, ""] : d))}
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-[4px] border px-2 py-1 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ borderColor: "#d5dbe6", color: NAVY }}
+                  >
+                    + Apelido ({aliasDraft.length}/{MAX_APELIDOS})
+                  </button>
+                )}
                 {aliasOverflow.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
                     <span className="text-[8px] font-bold uppercase" style={{ color: MUTED }}>
