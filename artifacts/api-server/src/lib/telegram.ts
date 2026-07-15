@@ -104,6 +104,36 @@ export async function sendTelegramPhoto(
 }
 
 /**
+ * Envia uma FIGURINHA animada (WebP 512x512) no Telegram via sendSticker.
+ * Não aceita legenda — a figurinha chega limpa, como sticker nativo.
+ * MOCK quando sem token (nunca falha por isso). Best-effort: falha silenciosa.
+ */
+export async function sendTelegramSticker(
+  chatId: string,
+  stickerUrl: string,
+): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.info({ chatId }, "[telegram] MOCK figurinha (sem token no cofre)");
+    return { sent: true, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendSticker`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, sticker: stickerUrl }),
+    });
+    if (resp.ok) return { sent: true, mock: false };
+    const corpo = await resp.text().catch(() => "");
+    logger.warn({ status: resp.status, corpo: corpo.slice(0, 140) }, "[telegram] sendSticker falhou");
+    return { sent: false, mock: false, error: `telegram_sticker_${resp.status}` };
+  } catch (e) {
+    return { sent: false, mock: false, error: (e as Error).message };
+  }
+}
+
+/**
  * Envia uma ANIMAÇÃO (banner de marca com a faísca, GIF) com legenda HTML.
  * sendAnimation preserva o movimento (sendPhoto congelaria o GIF).
  * Degrade gracioso em cascata: animação -> foto estática -> texto puro.

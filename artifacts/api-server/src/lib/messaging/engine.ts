@@ -5,8 +5,8 @@
 // ponto de quebrar o fluxo de quem chama; cada canal é isolado em try/catch.
 // ============================================================================
 import { sendGmailMessage } from "../google-gmail";
-import { sendWhatsapp } from "../whatsapp";
-import { sendTelegramAnimation } from "../telegram";
+import { sendWhatsapp, sendWhatsappStickerOnly } from "../whatsapp";
+import { sendTelegramAnimation, sendTelegramSticker } from "../telegram";
 import { renderPaxterEmail, assuntoPadrao } from "./render-email";
 import { renderWhatsappCaption, renderTelegramCaption } from "./render-text";
 import { baseUrlFromEnv } from "./base-url";
@@ -34,6 +34,12 @@ export function paxterBannerMp4Url(baseUrl: string): string {
   return `${baseUrl}/api/brand/paxter-banner.mp4`;
 }
 
+/** Figurinha animada WebP 512x512 — final de cada mensagem WhatsApp/Telegram.
+ *  Decisão do CEO (15/07/2026): sticker encerra o contato, nunca o abre. */
+export function paxterStickerUrl(baseUrl: string): string {
+  return `${baseUrl}/api/brand/paxter-sticker.webp`;
+}
+
 export async function enviarMensagemPaxter(
   doc: PaxterDoc,
   destino: PaxterDestino,
@@ -42,6 +48,7 @@ export async function enviarMensagemPaxter(
 ): Promise<PaxterEnvioResultado> {
   const baseUrl = ctx.baseUrl || baseUrlFromEnv();
   const bannerUrl = paxterBannerUrl(baseUrl);
+  const stickerUrl = paxterStickerUrl(baseUrl);
   const resultados: PaxterCanalResultado[] = [];
 
   for (const canal of canais) {
@@ -69,13 +76,16 @@ export async function enviarMensagemPaxter(
         continue;
       }
       try {
-        // WhatsApp: banner ESTÁTICO (PNG). Decisão do CEO em 15/07/2026 (opção A):
-        // vídeo no WhatsApp aparece com botão de play (não toca sozinho), então o
-        // canal usa a imagem nítida; a animação vive no Telegram e no e-mail.
+        // 1ª mensagem: banner estático (PNG) + texto. Decisão CEO 15/07/2026.
         const r = await sendWhatsapp(phone, renderWhatsappCaption(doc), {
           mediaUrl: bannerUrl,
         });
         resultados.push({ canal, sent: r.sent, via: r.via, link: r.link, error: r.error });
+        // 2ª mensagem: figurinha animada no final (best-effort, não afeta resultado).
+        // Decisão CEO 15/07/2026: sticker encerra o contato, nunca o abre.
+        if (r.sent) {
+          void sendWhatsappStickerOnly(phone, stickerUrl, { contexto: "sticker_final" });
+        }
       } catch (e: unknown) {
         resultados.push({ canal, sent: false, via: "twilio", error: (e as Error)?.message ?? String(e) });
       }
@@ -86,9 +96,14 @@ export async function enviarMensagemPaxter(
         continue;
       }
       try {
-        // Faísca no Telegram: sendAnimation com o GIF (sendPhoto congelaria).
+        // 1ª mensagem: faísca (GIF animado) + texto. sendAnimation preserva o movimento.
         const r = await sendTelegramAnimation(chatId, paxterBannerGifUrl(baseUrl), bannerUrl, renderTelegramCaption(doc));
         resultados.push({ canal, sent: r.sent, via: "telegram", mock: r.mock, error: r.error });
+        // 2ª mensagem: figurinha animada no final (best-effort, não afeta resultado).
+        // Decisão CEO 15/07/2026: sticker encerra o contato, nunca o abre.
+        if (r.sent && !r.mock) {
+          void sendTelegramSticker(chatId, stickerUrl);
+        }
       } catch (e: unknown) {
         resultados.push({ canal, sent: false, via: "telegram", error: (e as Error)?.message ?? String(e) });
       }

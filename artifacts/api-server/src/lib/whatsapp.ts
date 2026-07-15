@@ -77,6 +77,50 @@ export interface SendWhatsappOptions {
   clienteId?: number;
 }
 
+/**
+ * Envia APENAS uma mídia (figurinha WebP) via Twilio, sem corpo de texto.
+ * Best-effort: nunca lança, nunca bloqueia o fluxo principal.
+ * Decisão do CEO (15/07/2026): figurinha vai ao FINAL de cada mensagem.
+ */
+export async function sendWhatsappStickerOnly(
+  phone: string,
+  mediaUrl: string,
+  opts: Pick<SendWhatsappOptions, "contexto" | "clienteId"> = {},
+): Promise<{ sent: boolean; error?: string }> {
+  const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
+  if (!(accountSid && authToken && whatsappFrom)) return { sent: false, error: "sem_credenciais" };
+  if (!/^https:\/\//.test(mediaUrl)) return { sent: false, error: "url_invalida" };
+  try {
+    let toDigits = onlyDigits(phone);
+    if (toDigits.length > 0 && !toDigits.startsWith("55") && toDigits.length <= 11) toDigits = `55${toDigits}`;
+    const fromNumber = whatsappFrom.startsWith("whatsapp:") ? whatsappFrom : `whatsapp:+${onlyDigits(whatsappFrom)}`;
+    const toNumber = `whatsapp:+${toDigits}`;
+    const body = new URLSearchParams({ From: fromNumber, To: toNumber, MediaUrl: mediaUrl });
+    const callback = statusCallbackUrl();
+    if (callback) body.append("StatusCallback", callback);
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      logger.warn({ status: resp.status, text }, "[whatsapp] figurinha: send falhou");
+      return { sent: false, error: `HTTP_${resp.status}` };
+    }
+    const created = (await resp.json().catch(() => ({}))) as { sid?: string; error_code?: number | null };
+    if (created.error_code) return { sent: false, error: `twilio_${created.error_code}` };
+    logger.info({ sid: created.sid, contexto: opts.contexto }, "[whatsapp] figurinha enviada");
+    return { sent: true };
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "[whatsapp] figurinha: exception");
+    return { sent: false, error: err?.message ?? String(err) };
+  }
+}
+
 // Grava uma linha no log de WhatsApp; nunca lança (best-effort). Devolve o id.
 async function registrarLog(args: {
   telefone: string;
