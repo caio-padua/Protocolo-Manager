@@ -116,4 +116,5 @@
 - [Nome interno do exame: comparar x gerar identidade](exame-code-identidade-slug.md) — chaveFaixa compara/casa; slugInterno gera code fatiado só de exames NOVOS; nunca reescrever code existente; casar por nome vem antes de createDiscoveredExam.
 - [active=false polissemico (catálogo exames)](exam-catalog-active-polissemico.md) — estado reversível exige selo próprio (ignored_at), nunca sobrecarregar booleano já usado por Englobar/legado.
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
+- [Telegram bot compartilhado — takeover](telegram-bot-compartilhado-takeover.md) — quem faz polling consome updates (escuta 0 com token válido); setWebhook assume com exclusividade (quebra o primo, exige consentimento); setMyName renomeia via API.
 - [Pipeline ffmpeg via stdin](ffmpeg-stdin-pipeline.md) — stdin.on(error) obrigatório (EPIPE derruba o Node); race(drain,fim); GIF via palettegen+sierra2_4a (sem stat_mode); dedup em voo + tmp único.
