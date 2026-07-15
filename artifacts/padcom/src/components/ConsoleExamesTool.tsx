@@ -708,13 +708,13 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("backfill"))))
       .then((d: { apelidos: number; novos: number; ambiguos: number; naoExames: number; linhasCarimbadas: number }) => {
         setTriResumo(
-          `Faxina concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) novo(s) criado(s) marcado(s) NÃO CADASTRADO, ` +
+          `Varredura concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) novo(s) criado(s) marcado(s) NÃO CADASTRADO, ` +
             `${d.ambiguos} a conferir, ${d.naoExames} ignorado(s) · ${d.linhasCarimbadas} resultado(s) carimbado(s).`,
         );
         carregarTriagem();
         carregar();
       })
-      .catch(() => setTriResumo("Não consegui rodar a faxina agora."))
+      .catch(() => setTriResumo("Não consegui rodar a varredura agora."))
       .finally(() => setTriFaxinando(false));
   }, [carregarTriagem, carregar]);
 
@@ -1266,7 +1266,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             </div>
             {(
               [
-                { n: 1, texto: "O laudo chega e a FAXINA lê cada grafia de exame.", cor: NAVY },
+                { n: 1, texto: "O laudo chega e a VARREDURA lê cada grafia de exame.", cor: NAVY },
                 { n: 2, texto: "Grafia conhecida → vira apelido sozinha. Nada a fazer.", cor: "#3f7a3f" },
                 { n: 3, texto: "Exame novo → entra ativo como NÃO CADASTRADO (confira quando puder).", cor: GOLD },
                 { n: 4, texto: "Dúvida → fica em quarentena em A CONFERIR (você decide aqui).", cor: "#b4413c" },
@@ -1297,7 +1297,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             style={{ background: NAVY }}
           >
             {triFaxinando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-            {triFaxinando ? "Rodando faxina…" : "Rodar faxina"}
+            {triFaxinando ? "Rodando varredura…" : "Rodar varredura"}
           </button>
           {triPend.length > 0 && (
             <button
@@ -1656,7 +1656,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                       style={{ color: atual.origin === "descoberto" ? GOLD : NAVY }}
                       title={
                         atual.origin === "descoberto"
-                          ? "Exame criado automaticamente pela faxina (grafia nova encontrada nos laudos)"
+                          ? "Exame criado automaticamente pela varredura (grafia nova encontrada nos laudos)"
                           : "Exame do catálogo original (57 exames-base)"
                       }
                     >
