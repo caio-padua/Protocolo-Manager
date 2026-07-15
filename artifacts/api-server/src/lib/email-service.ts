@@ -281,7 +281,7 @@ function postSessionBlocks(data: PostSessionEmailData): string[] {
 
 export async function sendPreSessionEmail(data: PreSessionEmailData): Promise<{ success: boolean; error?: string }> {
   const procType = data.substances[0]?.procedureType ?? "iv";
-  const subject = `Instituto Padua | ${procedureTypeLabel(procType)} | ${data.validationCode}`;
+  const subject = `PAXTER | ${procedureTypeLabel(procType)} | ${data.validationCode}`;
 
   // SUB-04: anexa o convite .ics (PUBLISH, UID estável, SEQUENCE, fuso BRT) para
   // o cliente ADICIONAR à própria agenda. Só anexa quando há sessionId.
@@ -340,7 +340,7 @@ export async function sendProtocolOnboardingEmail(data: OnboardingEmailData): Pr
     return { success: false, error: "no sessions to onboard" };
   }
   const ics = buildVCalendar(data.events, { calName: `Instituto Pádua — ${data.clientName}` });
-  const subject = `Instituto Padua | Bem-vindo ao seu protocolo | Agenda anexada`;
+  const subject = `PAXTER | Bem-vindo ao seu protocolo | Agenda anexada`;
 
   const doc: PaxterDoc = {
     eyebrow: `Ola, ${data.clientName}`,
@@ -385,7 +385,7 @@ function onboardingBlocks(data: OnboardingEmailData): string[] {
 }
 
 export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<{ success: boolean; error?: string }> {
-  const subject = `Instituto Padua | Sessao Concluida | ${formatDateBR(data.scheduledDate)}`;
+  const subject = `PAXTER | Sessao Concluida | ${formatDateBR(data.scheduledDate)}`;
 
   const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
   if (data.rasPdfBuffer && data.rasId) {
@@ -461,7 +461,7 @@ export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ succ
       content: data.pdfBuffer,
       contentType: "application/pdf",
     }],
-    assunto: "Instituto Padua | Protocolo medico personalizado",
+    assunto: "PAXTER | Protocolo medico personalizado",
   };
   const envio = await enviarMensagemPaxter(doc, { email: data.clientEmail, nome: data.clientName }, ["EMAIL"], { baseUrl: baseUrlFromEnv() });
   const r0 = envio.resultados[0];
@@ -563,7 +563,7 @@ export async function sendArrivalEmail(data: ArrivalEmailData): Promise<{ succes
     titulo: "Agendamento confirmado",
     paragrafos: [intro],
     blocosHtml: arrivalBlocks(data),
-    assunto: "Instituto Padua | Agendamento confirmado | Dr. Caio",
+    assunto: "PAXTER | Agendamento confirmado | Dr. Caio",
   };
   const envio = await enviarMensagemPaxter(
     doc,

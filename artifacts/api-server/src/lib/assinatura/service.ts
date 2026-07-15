@@ -313,7 +313,7 @@ export async function enviarAssinatura(
         canal,
         momento: "ENVIO_INICIAL",
         destinatario: temDestino ? destinatario! : "",
-        assunto: canal === "EMAIL" ? "Instituto Padua | Documento para assinatura" : null,
+        assunto: canal === "EMAIL" ? "PAXTER | Documento para assinatura" : null,
         corpo: corpoMsg,
         status: temDestino ? "PENDENTE" : "PULADO",
         erro: temDestino ? null : `sem_${canal.toLowerCase()}`,
@@ -731,7 +731,7 @@ async function entregarNotificacao(n: NotificacaoPendente): Promise<ResultadoEnt
     } else if (n.canal === "EMAIL") {
       const r = await sendGmailMessage({
         to: n.destinatario,
-        subject: n.assunto || "Instituto Padua | Documento para assinatura",
+        subject: n.assunto || "PAXTER | Documento para assinatura",
         html: `<p>${n.corpo.replace(/\n/g, "<br/>")}</p>`,
       });
       if (!r.success) throw new Error(r.error || "falha_email");
