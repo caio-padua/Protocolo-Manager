@@ -24,14 +24,14 @@ async function getAccessToken(): Promise<string> {
   }
 
   connectionSettings = await fetch(
-    "https://" + hostname + "/api/v2/connection?include_secrets=true&connector_names=google-drive",
+    "https://" + hostname + "/api/v2/connection?include_secrets=true",
     {
       headers: {
         Accept: "application/json",
         "X-Replit-Token": xReplitToken,
       },
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  ).then(res => res.json()).then(data => data.items?.find((i: any) => i.connector_name === "google-drive"));
 
   const accessToken = connectionSettings?.settings?.access_token || connectionSettings?.settings?.oauth?.credentials?.access_token;
   if (!connectionSettings || !accessToken) {
