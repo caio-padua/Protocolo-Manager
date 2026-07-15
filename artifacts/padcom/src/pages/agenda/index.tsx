@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
+import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -122,6 +123,7 @@ function SessionCard({
   onDownloadICS,
   onSendPreEmail,
   onSendPostEmail,
+  onReschedule,
 }: {
   session: any;
   isToday: boolean;
@@ -136,6 +138,7 @@ function SessionCard({
   onDownloadICS: (id: number, name: string) => void;
   onSendPreEmail: (s: any) => void;
   onSendPostEmail: (s: any) => void;
+  onReschedule: (s: any) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const whatsappLink = buildWhatsAppLink(session);
@@ -179,6 +182,10 @@ function SessionCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60 panel-3d">
+                  <DropdownMenuItem onClick={() => onReschedule(session)} className="gap-2 font-bold uppercase tracking-widest text-[10px] text-accent">
+                    <Calendar className="h-4 w-4 text-accent" /> Reagendar Sessão
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => onAssessment(session)} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
                     <ClipboardList className="h-4 w-4 text-primary" /> Avaliação de Enfermagem
                   </DropdownMenuItem>
@@ -365,6 +372,7 @@ function DaySessionList({
   onDownloadICS,
   onSendPreEmail,
   onSendPostEmail,
+  onReschedule,
 }: {
   day: Date;
   sessions: any[];
@@ -379,6 +387,7 @@ function DaySessionList({
   onDownloadICS: (id: number, name: string) => void;
   onSendPreEmail: (s: any) => void;
   onSendPostEmail: (s: any) => void;
+  onReschedule: (s: any) => void;
 }) {
   if (sessions.length === 0) {
     return (
@@ -413,6 +422,7 @@ function DaySessionList({
             onDownloadICS={onDownloadICS}
             onSendPreEmail={onSendPreEmail}
             onSendPostEmail={onSendPostEmail}
+            onReschedule={onReschedule}
           />
         );
       })}
@@ -447,6 +457,10 @@ export default function Agenda() {
   const [assessmentSession, setAssessmentSession] = useState<any>(null);
   const [emailSending, setEmailSending] = useState<number | null>(null);
   const [calSyncing, setCalSyncing] = useState<number | null>(null);
+
+  // ── REAGENDADOR ───────────────────────────────────────────────────────────
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleSession, setRescheduleSession] = useState<any>(null);
 
   // ── RANGE DE DATAS POR MODO ───────────────────────────────────────────────
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -621,6 +635,7 @@ export default function Agenda() {
     onDownloadICS: downloadSessionICS,
     onSendPreEmail: sendPreSessionEmail,
     onSendPostEmail: sendPostSessionEmail,
+    onReschedule: (s: any) => { setRescheduleSession(s); setRescheduleOpen(true); },
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1023,6 +1038,14 @@ export default function Agenda() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── REAGENDADOR (painel deslizante) ── */}
+      <RescheduleDrawer
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+        session={rescheduleSession}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }
