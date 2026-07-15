@@ -394,6 +394,52 @@ export async function renderPaxterBannerMp4(): Promise<Buffer> {
   return emVooMp4;
 }
 
+/**
+ * FIGURINHA ANIMADA (WebP 512x512) — experimento opção B do CEO (15/07/2026):
+ * figurinha é o ÚNICO formato que toca sozinho no WhatsApp. Exigências do
+ * WhatsApp: quadrado 512x512, WebP, < 500 KB, sem legenda. O cartão navy do
+ * banner é desenhado centralizado sobre fundo TRANSPARENTE (letterbox), com
+ * cantos arredondados — visual de figurinha de verdade.
+ */
+let cachedStickerWebp: Buffer | null = null;
+let emVooSticker: Promise<Buffer> | null = null;
+
+export async function renderPaxterStickerWebp(): Promise<Buffer> {
+  if (cachedStickerWebp) return cachedStickerWebp;
+  if (!emVooSticker) {
+    emVooSticker = (async () => {
+      const quadros = await gerarQuadros();
+      const LADO = 512;
+      const cardW = LADO;
+      const cardH = Math.round((cardW * ANIM_H) / ANIM_W); // ~269
+      const y = Math.round((LADO - cardH) / 2);
+      const raio = 28;
+      const pngs: Buffer[] = quadros.map((q) => {
+        const c = createCanvas(LADO, LADO);
+        const ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, LADO, LADO); // fundo transparente
+        roundRectPath(ctx, 0, y, cardW, cardH, raio);
+        ctx.save();
+        ctx.clip();
+        ctx.drawImage(q, 0, y, cardW, cardH);
+        ctx.restore();
+        return c.toBuffer("image/png");
+      });
+      // Só a varredura (sem a pausa longa): figurinha precisa ficar < 500 KB.
+      const buf = await rodarFfmpeg(
+        ["-vcodec", "libwebp", "-lossless", "0", "-q:v", "62", "-loop", "0", "-an", "-f", "webp"],
+        ".webp",
+        pngs,
+      );
+      cachedStickerWebp = buf;
+      return buf;
+    })().finally(() => {
+      emVooSticker = null;
+    });
+  }
+  return emVooSticker;
+}
+
 /** Pré-aquece os caches animados no boot (não bloqueia; loga falha). */
 export function aquecerBannersAnimados(): void {
   renderPaxterBannerGif().catch((e) =>

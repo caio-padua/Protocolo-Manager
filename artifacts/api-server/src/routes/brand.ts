@@ -6,7 +6,7 @@
 import { Router, type IRouter } from "express";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { renderPaxterBannerPng, renderPaxterBannerGif, renderPaxterBannerMp4 } from "../lib/messaging/banner.js";
+import { renderPaxterBannerPng, renderPaxterBannerGif, renderPaxterBannerMp4, renderPaxterStickerWebp } from "../lib/messaging/banner.js";
 import { renderPaxterEmail } from "../lib/messaging/render-email.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { docAmostraBoasVindas } from "../lib/messaging/sample-doc.js";
@@ -82,6 +82,19 @@ router.get("/brand/paxter-banner.mp4", async (_req, res): Promise<void> => {
     res.end(mp4);
   } catch {
     res.status(500).type("text/plain").end("banner animado indisponível");
+  }
+});
+
+// FIGURINHA animada (WebP 512x512) — experimento opção B: único formato que
+// toca sozinho no WhatsApp (enviado sem legenda, como sticker).
+router.get("/brand/paxter-sticker.webp", async (_req, res): Promise<void> => {
+  try {
+    const webp = await renderPaxterStickerWebp();
+    res.setHeader("Content-Type", "image/webp");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.end(webp);
+  } catch {
+    res.status(500).type("text/plain").end("figurinha indisponível");
   }
 });
 
