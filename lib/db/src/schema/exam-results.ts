@@ -117,6 +117,10 @@ export const examAnalyteCatalogTable = pgTable("exam_analyte_catalog", {
   molarMass: numeric("molar_mass"),
   // higher_better | lower_better | target
   direction: text("direction"),
+  // true quando as faixas de referencia deste analito variam por sexo
+  // (hormonios sexo-dependentes). Liga o toggle na tela e diz ao leitor de
+  // resultado para escolher o conjunto de faixas conforme o sexo do cliente.
+  sexDependent: boolean("sex_dependent").notNull().default(false),
   // natureza do registro: blood (analito de sangue/soro/urina — padrao),
   // imaging (medida de laudo de imagem), body_composition (bioimpedancia/
   // antropometria) ou fragment (pedaco de laudo que virou "exame" por engano).
@@ -172,6 +176,10 @@ export const examAnalyteRangesTable = pgTable("exam_analyte_ranges", {
   high: numeric("high"),
   color: text("color"),
   ordem: integer("ordem").notNull().default(0),
+  // dimensao de sexo da faixa: 'any' (padrao, faixa unica) | 'male' | 'female'.
+  // A chave logica da faixa passa a ser (analyte_code + sex + ordem). Nao muda
+  // chaveFaixa (continua amarrando por analyte_code); sex e dimensao interna.
+  sex: text("sex").notNull().default("any"),
   // origem da faixa: "seed" (curadoria semeada no boot) | "manual" (editada pelo
   // medico via planilha/DirecaoExamesTool). O seeder so recria faixa quando a
   // chave esta vazia; a marca de origem alimenta a flag "tem edicao manual".

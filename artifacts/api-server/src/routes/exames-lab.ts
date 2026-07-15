@@ -622,10 +622,32 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
     // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
     // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
     const catRows = await db
-      .select({ code: examAnalyteCatalogTable.code, direction: examAnalyteCatalogTable.direction })
+      .select({
+        code: examAnalyteCatalogTable.code,
+        direction: examAnalyteCatalogTable.direction,
+        sexDependent: examAnalyteCatalogTable.sexDependent,
+      })
       .from(examAnalyteCatalogTable);
     const dirByCode = new Map<string, string | null>();
-    for (const c of catRows) dirByCode.set(c.code, c.direction);
+    const sexDepByCode = new Map<string, boolean>();
+    for (const c of catRows) {
+      dirByCode.set(c.code, c.direction);
+      sexDepByCode.set(c.code, c.sexDependent ?? false);
+    }
+
+    // Sexo do cliente (clients.ficha_clinica.sexo: 'M' | 'F') para escolher o
+    // conjunto de faixas dos analitos sexo-dependentes. Fallback 'any'.
+    const [clientRow] = await db
+      .select({ ficha: clientsTable.fichaClinica })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, clientId))
+      .limit(1);
+    const rawSexo = ((clientRow?.ficha as { sexo?: string } | null)?.sexo ?? "")
+      .toString()
+      .trim()
+      .toUpperCase();
+    const clientSex: "male" | "female" | null =
+      rawSexo === "M" ? "male" : rawSexo === "F" ? "female" : null;
 
     const dirRows = await db
       .select({
@@ -674,11 +696,22 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       // com a semente), independente do code cru da linha.
       // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
       // sinonimos casados); cai para o nome cru quando a linha nao casou.
-      const overrideRows = (
+      const allRows =
         rangesByCode.get(chaveFaixa(key)) ??
         rangesByCode.get(chaveFaixa(line.name)) ??
-        []
-      ).map((r) => ({
+        [];
+      // Escolha do conjunto por sexo: analito sexo-dependente + sexo do cliente
+      // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
+      // vazio); caso contrario usa apenas a faixa geral 'any'.
+      const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
+      const pickBySex = (() => {
+        if (isSexDep && clientSex) {
+          const bySex = allRows.filter((r) => r.sex === clientSex);
+          if (bySex.length) return bySex;
+        }
+        return allRows.filter((r) => (r.sex ?? "any") === "any");
+      })();
+      const overrideRows = pickBySex.map((r) => ({
         faixaName: r.faixaName,
         low: toNum(r.low),
         high: toNum(r.high),
@@ -791,16 +824,21 @@ router.get("/exames-lab/faixas", async (req: Request, res: Response) => {
       .select()
       .from(examAnalyteRangesTable)
       .where(eq(examAnalyteRangesTable.analyteCode, chaveFaixa(code)));
-    const override = overrideZones(
-      ovRows.map((r) => ({
+    // Separa as faixas gravadas por dimensao de sexo ('any' | 'male' | 'female').
+    const toZoneInput = (rows: typeof ovRows) =>
+      rows.map((r) => ({
         faixaName: r.faixaName,
         low: toNum(r.low),
         high: toNum(r.high),
         color: r.color,
         ordem: r.ordem,
-      })),
-    );
-    const zones: Zone[] | null = override ?? computeZones(refLow, refHigh, direction);
+      }));
+    const overrideAny = overrideZones(toZoneInput(ovRows.filter((r) => (r.sex ?? "any") === "any")));
+    const overrideMale = overrideZones(toZoneInput(ovRows.filter((r) => r.sex === "male")));
+    const overrideFemale = overrideZones(toZoneInput(ovRows.filter((r) => r.sex === "female")));
+    const zones: Zone[] | null = overrideAny ?? computeZones(refLow, refHigh, direction);
+    const mapZones = (zz: Zone[] | null) =>
+      zz ? zz.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high })) : null;
 
     return res.json({
       analyteCode: code,
@@ -808,10 +846,11 @@ router.get("/exames-lab/faixas", async (req: Request, res: Response) => {
       direction,
       refLow,
       refHigh,
-      hasOverride: !!override,
-      zones: zones
-        ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
-        : null,
+      sexDependent: cat?.sexDependent ?? false,
+      hasOverride: !!overrideAny,
+      zones: mapZones(zones),
+      zonesMale: mapZones(overrideMale),
+      zonesFemale: mapZones(overrideFemale),
     });
   } catch (e) {
     req.log?.error({ err: e }, "GET /faixas falhou");
@@ -836,6 +875,11 @@ const putFaixasSchema = z.object({
   // resetDirection: apaga a direção customizada (direcao_favoravel_exame por
   // nome + catálogo) para voltar ao padrão. Usado no "Restaurar".
   resetDirection: z.boolean().optional(),
+  // sex: dimensao de sexo das zonas gravadas ('any' padrao | 'male' | 'female').
+  // O replace de faixas afeta SO o conjunto daquele sexo.
+  sex: z.enum(["any", "male", "female"]).optional(),
+  // sexDependent: liga/desliga o flag no catalogo (analito varia por sexo).
+  sexDependent: z.boolean().optional(),
 });
 
 // Tradução da direção do motor para o vocabulário da tabela do IHE.
@@ -856,7 +900,8 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ error: "Dados inválidos", details: parsed.error.issues });
     }
-    const { direction, zones, resetDirection } = parsed.data;
+    const { direction, zones, resetDirection, sexDependent } = parsed.data;
+    const sex = parsed.data.sex ?? "any";
 
     // Nome do exame que casa a direção: displayName do corpo OU derivado do
     // último resultado real (por code OU nome cru minúsculo) OU o próprio code.
@@ -918,9 +963,25 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
         .where(eq(examAnalyteCatalogTable.code, code));
     }
 
+    // Liga/desliga o flag sex_dependent no catalogo, se enviado.
+    if (typeof sexDependent === "boolean") {
+      await db
+        .update(examAnalyteCatalogTable)
+        .set({ sexDependent })
+        .where(eq(examAnalyteCatalogTable.code, code));
+    }
+
     if (zones) {
       const rangeKey = chaveFaixa(code);
-      await db.delete(examAnalyteRangesTable).where(eq(examAnalyteRangesTable.analyteCode, rangeKey));
+      // Replace afeta SO o conjunto do sexo em questao (preserva os demais).
+      await db
+        .delete(examAnalyteRangesTable)
+        .where(
+          and(
+            eq(examAnalyteRangesTable.analyteCode, rangeKey),
+            eq(examAnalyteRangesTable.sex, sex),
+          ),
+        );
       if (zones.length) {
         await db.insert(examAnalyteRangesTable).values(
           zones.map((z, i) => ({
@@ -930,13 +991,14 @@ router.put("/exames-lab/faixas", async (req: Request, res: Response) => {
             high: z.high === null ? null : String(z.high),
             color: z.color,
             ordem: z.ordem ?? i + 1,
+            sex,
             source: "manual",
           })),
         );
       }
     }
 
-    return res.json({ ok: true, analyteCode: code, directionSaved, zonesSaved: zones?.length ?? 0 });
+    return res.json({ ok: true, analyteCode: code, directionSaved, zonesSaved: zones?.length ?? 0, sex });
   } catch (e) {
     req.log?.error({ err: e }, "PUT /faixas falhou");
     return res.status(500).json({ error: "Falha ao salvar faixas" });
@@ -1072,8 +1134,11 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
     const dirByNorm = new Map<string, string | null>();
     for (const d of dirRows) dirByNorm.set(norm(d.nome), d.dir);
 
+    // Planilha em massa mostra UM conjunto (faixa geral 'any'); a curadoria por
+    // sexo acontece no editor por analito (GET/PUT /faixas com ?sex=).
     const buildRanges = (key: string) =>
       (rangesByKey.get(key) ?? [])
+        .filter((r) => (r.sex ?? "any") === "any")
         .slice()
         .sort((a, b) => a.ordem - b.ordem)
         .map((r) => ({
@@ -1117,6 +1182,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
       inCatalog: boolean;
       origin: "catalogo" | "descoberto" | null;
       kind: string;
+      sexDependent: boolean;
     };
 
     const rows: Row[] = cats.map((c) => {
@@ -1143,6 +1209,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         inCatalog: true,
         origin: (c.origin as "catalogo" | "descoberto" | null) ?? "catalogo",
         kind: c.kind ?? "blood",
+        sexDependent: c.sexDependent ?? false,
       };
     });
 
@@ -1176,6 +1243,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         inCatalog: false,
         origin: null,
         kind: "blood",
+        sexDependent: false,
       });
     }
 

@@ -6,6 +6,7 @@ import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
+import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
 import { refreshCertCache } from "./lib/cert-source";
 
 const rawPort = process.env["PORT"];
@@ -47,5 +48,7 @@ app.listen(port, (err) => {
     .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
   seedCatalogoAnalitos()
     .then((r) => logger.info({ seed: "catalogo-analitos", ...r }, "Catálogo/unidades/faixas semeados"))
+    .then(() => seedFaixasSexo())
+    .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
     .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
 });

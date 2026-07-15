@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   Save,
@@ -35,6 +35,7 @@ import {
   parseNum,
   fmt,
   type Direction,
+  type ZoneLabel,
 } from "@/components/exames-faixas-shared";
 
 // ===========================================================================
@@ -155,6 +156,9 @@ interface FaixasResp {
   refHigh: number | null;
   hasOverride: boolean;
   zones: ZonaDetalhe[] | null;
+  sexDependent?: boolean;
+  zonesMale?: ZonaDetalhe[] | null;
+  zonesFemale?: ZonaDetalhe[] | null;
 }
 
 // Faixa editável na tela: rótulo (nome livre por exame) + cortes De/Até.
@@ -309,6 +313,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   // Detalhe (faixas)
   const [direcao, setDirecao] = useState<Direction>("target");
   const [slots, setSlots] = useState<Slot[]>(slotsFromZones(null, "target"));
+  // Faixa por sexo: quando ligado, edita dois conjuntos (masculino/feminino).
+  const [sexDependent, setSexDependent] = useState(false);
+  const [slotsMale, setSlotsMale] = useState<Slot[]>(slotsFromZones(null, "target"));
+  const [slotsFemale, setSlotsFemale] = useState<Slot[]>(slotsFromZones(null, "target"));
   const [refLow, setRefLow] = useState<number | null>(null);
   const [refHigh, setRefHigh] = useState<number | null>(null);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
@@ -816,12 +824,20 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("faixas"))))
       .then((resp: FaixasResp) => {
         if (!vigente()) return;
-        const novos = slotsFromZones(resp.zones ?? row.zones, resp.direction ?? row.direction);
-        setDirecao(resp.direction ?? row.direction);
+        const dir = resp.direction ?? row.direction;
+        const novos = slotsFromZones(resp.zones ?? row.zones, dir);
+        // Cada sexo cai no conjunto geral ('any') quando ainda não foi curado.
+        const male = slotsFromZones(resp.zonesMale ?? resp.zones ?? row.zones, dir);
+        const female = slotsFromZones(resp.zonesFemale ?? resp.zones ?? row.zones, dir);
+        const sd = resp.sexDependent ?? false;
+        setDirecao(dir);
         setSlots(novos);
+        setSlotsMale(male);
+        setSlotsFemale(female);
+        setSexDependent(sd);
         setRefLow(resp.refLow);
         setRefHigh(resp.refHigh);
-        setSnapshot(JSON.stringify({ direction: resp.direction ?? row.direction, slots: novos }));
+        setSnapshot(JSON.stringify({ direction: dir, slots: novos, sexDependent: sd, male, female }));
       })
       .catch(() => {
         if (!vigente()) return;
@@ -829,9 +845,12 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         const novos = slotsFromZones(row.zones, row.direction);
         setDirecao(row.direction);
         setSlots(novos);
+        setSlotsMale(novos);
+        setSlotsFemale(novos);
+        setSexDependent(false);
         setRefLow(null);
         setRefHigh(null);
-        setSnapshot(JSON.stringify({ direction: row.direction, slots: novos }));
+        setSnapshot(JSON.stringify({ direction: row.direction, slots: novos, sexDependent: false, male: novos, female: novos }));
       })
       .finally(() => {
         if (vigente()) setCarregandoDetalhe(false);
@@ -845,9 +864,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   };
 
   // === FAIXAS (SIGNIFICADO) ===
-  const editarCorte = (i: number, campo: "low" | "high", valor: string) => {
+  // Editores genéricos: recebem o setter do conjunto (geral, masculino ou feminino).
+  const editarCorteEm = (setter: Dispatch<SetStateAction<Slot[]>>, i: number, campo: "low" | "high", valor: string) => {
     const n = parseNum(valor);
-    setSlots((prev) => {
+    setter((prev) => {
       const next = prev.map((s) => ({ ...s }));
       next[i][campo] = n;
       if (campo === "high" && i < 4) next[i + 1].low = n;
@@ -855,43 +875,72 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       return next;
     });
   };
-
   // Rótulo livre por faixa, independente por exame (backend aceita até 40 chars).
-  const editarRotulo = (i: number, valor: string) => {
-    setSlots((prev) => prev.map((s, j) => (j === i ? { ...s, faixaName: valor } : s)));
+  const editarRotuloEm = (setter: Dispatch<SetStateAction<Slot[]>>, i: number, valor: string) => {
+    setter((prev) => prev.map((s, j) => (j === i ? { ...s, faixaName: valor } : s)));
   };
 
-  const salvarFaixas = () => {
-    if (!atual) return;
-    setSalvandoFaixas(true);
-    setMsg(null);
-    const labels = FAIXAS_POR_DIRECAO[direcao];
-    const zones = slots.map((s, i) => ({
+  // Monta as 5 zonas de um conjunto de slots, com rótulo e cor por posição/direção.
+  const zonesDeSlots = (src: Slot[], labels: readonly ZoneLabel[]) =>
+    src.map((s, i) => ({
       faixaName: (s.faixaName.trim() || ZONE_ROTULO[labels[i]]).slice(0, 40),
       low: s.low,
       high: s.high,
       color: ZONE_COLOR[labels[i]],
       ordem: i + 1,
     }));
-    fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(atual.code)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direction: direcao, displayName: atual.displayName, zones }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("save"))))
-      .then(() => {
-        setRows((prev) =>
-          prev.map((r) =>
-            r.code === atual.code
-              ? { ...r, direction: direcao, hasManualEdit: true, quantitativo: true, zones: zones.map((z) => ({ ...z })) }
-              : r,
-          ),
-        );
-        setSnapshot(JSON.stringify({ direction: direcao, slots }));
-        setMsg({ kind: "faixas", ok: true, texto: "Faixas salvas. O motor já usa os novos cortes (Cockpit)." });
-      })
-      .catch(() => setMsg({ kind: "faixas", ok: false, texto: "Falha ao salvar as faixas." }))
-      .finally(() => setSalvandoFaixas(false));
+
+  const salvarFaixas = async () => {
+    if (!atual) return;
+    setSalvandoFaixas(true);
+    setMsg(null);
+    const labels = FAIXAS_POR_DIRECAO[direcao];
+    const put = (body: Record<string, unknown>) =>
+      fetch(`${BASE}/api/exames-lab/faixas?code=${encodeURIComponent(atual.code)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("save"))));
+    try {
+      if (sexDependent) {
+        // Dois conjuntos: masculino e feminino. A flag sexDependent viaja no 1º PUT.
+        await put({
+          direction: direcao,
+          displayName: atual.displayName,
+          sex: "male",
+          sexDependent: true,
+          zones: zonesDeSlots(slotsMale, labels),
+        });
+        await put({
+          direction: direcao,
+          displayName: atual.displayName,
+          sex: "female",
+          zones: zonesDeSlots(slotsFemale, labels),
+        });
+      } else {
+        await put({
+          direction: direcao,
+          displayName: atual.displayName,
+          sex: "any",
+          sexDependent: false,
+          zones: zonesDeSlots(slots, labels),
+        });
+      }
+      const zonesGeral = zonesDeSlots(slots, labels);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.code === atual.code
+            ? { ...r, direction: direcao, hasManualEdit: true, quantitativo: true, zones: zonesGeral.map((z) => ({ ...z })) }
+            : r,
+        ),
+      );
+      setSnapshot(JSON.stringify({ direction: direcao, slots, sexDependent, male: slotsMale, female: slotsFemale }));
+      setMsg({ kind: "faixas", ok: true, texto: "Faixas salvas. O motor já usa os novos cortes (Cockpit)." });
+    } catch {
+      setMsg({ kind: "faixas", ok: false, texto: "Falha ao salvar as faixas." });
+    } finally {
+      setSalvandoFaixas(false);
+    }
   };
 
   const restaurar = () => {
@@ -1076,7 +1125,58 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     Number.isFinite(refLow) && Number.isFinite(refHigh) ? ((refLow as number) + (refHigh as number)) / 2 : null;
   const valorLeitura = valorTeste ?? refMid;
   const fonteLeitura: "teste" | "ref" | "nenhum" = valorTeste !== null ? "teste" : refMid !== null ? "ref" : "nenhum";
-  const faixasMudou = snapshot !== JSON.stringify({ direction: direcao, slots });
+  const faixasMudou =
+    snapshot !== JSON.stringify({ direction: direcao, slots, sexDependent, male: slotsMale, female: slotsFemale });
+
+  // Renderiza um conjunto editável de 5 faixas + a prévia. Reusado pela coluna
+  // única (geral) e pelas duas colunas (masculino/feminino) quando varia por sexo.
+  const colunaFaixas = (colSlots: Slot[], setter: Dispatch<SetStateAction<Slot[]>>, kp: string) => (
+    <>
+      <div className="mb-3 space-y-1.5">
+        {colSlots.map((s, i) => {
+          const label = FAIXAS_POR_DIRECAO[direcao][i];
+          const cor = ZONE_COLOR[label];
+          return (
+            <div key={`${kp}-${i}`} className="flex items-center gap-2">
+              <span className="h-6 w-1.5 shrink-0 rounded-[2px]" style={{ background: cor }} />
+              <input
+                value={s.faixaName}
+                onChange={(e) => editarRotuloEm(setter, i, e.target.value)}
+                maxLength={40}
+                aria-label={`${atual?.displayName ?? ""} ${kp} faixa ${i + 1} rótulo`}
+                placeholder={ZONE_ROTULO[label]}
+                className="min-w-0 flex-1 rounded-[4px] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white outline-none placeholder:text-white/70"
+                style={{ background: cor, border: "none" }}
+              />
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>De</span>
+                <input
+                  value={fmt(s.low)}
+                  onChange={(e) => editarCorteEm(setter, i, "low", e.target.value)}
+                  placeholder={i === 0 ? "—" : ""}
+                  inputMode="decimal"
+                  aria-label={`${atual?.displayName ?? ""} ${kp} faixa ${i + 1} de`}
+                  className="w-16 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
+                  style={{ borderColor: "#d5dbe6", color: NAVY }}
+                />
+                <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>Até</span>
+                <input
+                  value={fmt(s.high)}
+                  onChange={(e) => editarCorteEm(setter, i, "high", e.target.value)}
+                  placeholder={i === 4 ? "—" : ""}
+                  inputMode="decimal"
+                  aria-label={`${atual?.displayName ?? ""} ${kp} faixa ${i + 1} até`}
+                  className="w-16 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
+                  style={{ borderColor: "#d5dbe6", color: NAVY }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <BarraFaixas slots={colSlots} direction={direcao} valor={valorLeitura} fonte={fonteLeitura} />
+    </>
+  );
 
   const totalRevisado = rows.filter((r) => r.quantitativo && r.hasManualEdit).length;
   const totalQuant = rows.filter((r) => r.quantitativo).length;
@@ -1642,69 +1742,77 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                       })}
                     </div>
 
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>
-                      As 5 faixas (rótulo, De e Até editáveis por exame)
-                    </div>
-                    <div className="mb-3 space-y-1.5">
-                      {slots.map((s, i) => {
-                        const label = FAIXAS_POR_DIRECAO[direcao][i];
-                        const cor = ZONE_COLOR[label];
-                        return (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="h-6 w-1.5 shrink-0 rounded-[2px]" style={{ background: cor }} />
-                            <input
-                              value={s.faixaName}
-                              onChange={(e) => editarRotulo(i, e.target.value)}
-                              maxLength={40}
-                              aria-label={`${atual.displayName} faixa ${i + 1} rótulo`}
-                              placeholder={ZONE_ROTULO[label]}
-                              className="min-w-0 flex-1 rounded-[4px] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white outline-none placeholder:text-white/70"
-                              style={{ background: cor, border: "none" }}
-                            />
-                            <div className="flex shrink-0 items-center gap-1">
-                              <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>De</span>
-                              <input
-                                value={fmt(s.low)}
-                                onChange={(e) => editarCorte(i, "low", e.target.value)}
-                                placeholder={i === 0 ? "—" : ""}
-                                inputMode="decimal"
-                                aria-label={`${atual.displayName} faixa ${i + 1} de`}
-                                className="w-16 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
-                                style={{ borderColor: "#d5dbe6", color: NAVY }}
-                              />
-                              <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>Até</span>
-                              <input
-                                value={fmt(s.high)}
-                                onChange={(e) => editarCorte(i, "high", e.target.value)}
-                                placeholder={i === 4 ? "—" : ""}
-                                inputMode="decimal"
-                                aria-label={`${atual.displayName} faixa ${i + 1} até`}
-                                className="w-16 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
-                                style={{ borderColor: "#d5dbe6", color: NAVY }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mb-3">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>Prévia</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>valor de teste</span>
-                          <input
-                            value={valorTesteRaw}
-                            onChange={(e) => setValorTesteRaw(e.target.value)}
-                            placeholder="ex.: 32"
-                            inputMode="decimal"
-                            className="w-20 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
-                            style={{ borderColor: "#d5dbe6", color: NAVY }}
-                          />
+                    {/* Toggle: varia por sexo? Liga as duas colunas (masc/fem). */}
+                    <div className="mb-3 flex items-center justify-between rounded-[6px] px-2 py-2" style={{ background: "#f3f6fb" }}>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-wide" style={{ color: NAVY }}>
+                          Varia por sexo?
+                        </div>
+                        <div className="text-[9px] font-semibold" style={{ color: MUTED }}>
+                          Ligue para curar faixas distintas para masculino e feminino (ex.: hormônios).
                         </div>
                       </div>
-                      <BarraFaixas slots={slots} direction={direcao} valor={valorLeitura} fonte={fonteLeitura} />
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={sexDependent}
+                        aria-label="Varia por sexo"
+                        onClick={() =>
+                          setSexDependent((on) => {
+                            const novo = !on;
+                            // Ao ligar, semeia os dois lados a partir do conjunto geral atual.
+                            if (novo) {
+                              setSlotsMale((m) => (m.length ? m : slots.map((s) => ({ ...s }))));
+                              setSlotsFemale((f) => (f.length ? f : slots.map((s) => ({ ...s }))));
+                            }
+                            return novo;
+                          })
+                        }
+                        className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                        style={{ background: sexDependent ? GOLD : "#c2cdde" }}
+                      >
+                        <span
+                          className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
+                          style={{ left: sexDependent ? "1.375rem" : "0.125rem" }}
+                        />
+                      </button>
                     </div>
+
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>
+                        As 5 faixas (rótulo, De e Até editáveis por exame)
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-bold uppercase" style={{ color: MUTED }}>valor de teste</span>
+                        <input
+                          value={valorTesteRaw}
+                          onChange={(e) => setValorTesteRaw(e.target.value)}
+                          placeholder="ex.: 32"
+                          inputMode="decimal"
+                          className="w-20 rounded-[4px] border px-2 py-1 text-right text-[11px] font-semibold outline-none"
+                          style={{ borderColor: "#d5dbe6", color: NAVY }}
+                        />
+                      </div>
+                    </div>
+
+                    {sexDependent ? (
+                      <div className="mb-3 grid gap-3 lg:grid-cols-2">
+                        <div className="panel-3d-sub rounded-[6px] p-2">
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.1em]" style={{ color: NAVY }}>
+                            Masculino
+                          </div>
+                          {colunaFaixas(slotsMale, setSlotsMale, "masc")}
+                        </div>
+                        <div className="panel-3d-sub rounded-[6px] p-2">
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.1em]" style={{ color: NAVY }}>
+                            Feminino
+                          </div>
+                          {colunaFaixas(slotsFemale, setSlotsFemale, "fem")}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-3">{colunaFaixas(slots, setSlots, "geral")}</div>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-2">
                       <button
