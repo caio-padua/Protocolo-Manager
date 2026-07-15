@@ -827,7 +827,6 @@ export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PRE
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages, qrBuf);
       desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M, "esquerda");
-      desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M, "direita");
       aplicBase += LINHAS_POR_PAGINA;
     });
 
