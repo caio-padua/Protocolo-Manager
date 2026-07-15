@@ -1033,8 +1033,15 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
       return Number.isFinite(n) ? n : null;
     };
 
+    // Balde a exibir: por padrao so analitos de SANGUE ativos. ?kind=imaging|
+    // body_composition|fragment mostra o balde pedido (independe do active).
+    const kindFilter = String(req.query.kind || "").trim();
+    const catWhere = kindFilter
+      ? eq(examAnalyteCatalogTable.kind, kindFilter)
+      : and(eq(examAnalyteCatalogTable.active, true), eq(examAnalyteCatalogTable.kind, "blood"));
+
     const [cats, unitRows, rangeRows, dirRows, reais] = await Promise.all([
-      db.select().from(examAnalyteCatalogTable).where(eq(examAnalyteCatalogTable.active, true)),
+      db.select().from(examAnalyteCatalogTable).where(catWhere),
       db.select().from(examAnalyteUnitsTable),
       db.select().from(examAnalyteRangesTable),
       db
@@ -1081,8 +1088,17 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
 
     // Chaves conhecidas do catálogo (code + displayName + sinônimos) para não
     // duplicar linha quando o nome cru do laudo é sinônimo de um exame curado.
+    // Usa TODO o catálogo (inclusive inativos: imagem/composição/fragmento) para
+    // que nomes crus desses registros não ressurjam como "descobertos".
+    const allCatNames = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+        synonyms: examAnalyteCatalogTable.synonyms,
+      })
+      .from(examAnalyteCatalogTable);
     const known = new Set<string>();
-    for (const c of cats) {
+    for (const c of allCatNames) {
       known.add(chaveFaixa(c.code));
       known.add(chaveFaixa(c.displayName));
       for (const s of c.synonyms ?? []) known.add(chaveFaixa(s));
@@ -1100,6 +1116,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
       hasManualEdit: boolean;
       inCatalog: boolean;
       origin: "catalogo" | "descoberto" | null;
+      kind: string;
     };
 
     const rows: Row[] = cats.map((c) => {
@@ -1125,6 +1142,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         hasManualEdit: hasManual(chaveFaixa(c.code)),
         inCatalog: true,
         origin: (c.origin as "catalogo" | "descoberto" | null) ?? "catalogo",
+        kind: c.kind ?? "blood",
       };
     });
 
@@ -1157,6 +1175,7 @@ router.get("/exames-lab/catalogo-faixas", async (req: Request, res: Response) =>
         hasManualEdit: hasManual(chaveFaixa(code)),
         inCatalog: false,
         origin: null,
+        kind: "blood",
       });
     }
 

@@ -117,6 +117,11 @@ export const examAnalyteCatalogTable = pgTable("exam_analyte_catalog", {
   molarMass: numeric("molar_mass"),
   // higher_better | lower_better | target
   direction: text("direction"),
+  // natureza do registro: blood (analito de sangue/soro/urina — padrao),
+  // imaging (medida de laudo de imagem), body_composition (bioimpedancia/
+  // antropometria) ou fragment (pedaco de laudo que virou "exame" por engano).
+  // So kind='blood' entra na lista de analitos por padrao.
+  kind: text("kind").notNull().default("blood"),
   active: boolean("active").notNull().default(true),
   // Proveniencia do cadastro (selo de ORIGEM na tela):
   //   "catalogo"   -> exame da nossa base oficial (os 57 semeados)
