@@ -127,6 +127,11 @@ export const examAnalyteCatalogTable = pgTable("exam_analyte_catalog", {
   // So kind='blood' entra na lista de analitos por padrao.
   kind: text("kind").notNull().default("blood"),
   active: boolean("active").notNull().default(true),
+  // Lixeira reversivel do Console: preenchido SO quando o usuario clicou
+  // "Ignorar (nao e exame)". Distingue da desativacao do Englobar (que tambem
+  // usa active=false) e dos fragments legados. Restaurar limpa este campo e
+  // reativa SEM mexer no kind (fidelidade total ao estado anterior).
+  ignoredAt: timestamp("ignored_at", { withTimezone: true }),
   // Proveniencia do cadastro (selo de ORIGEM na tela):
   //   "catalogo"   -> exame da nossa base oficial (os 57 semeados)
   //   "descoberto" -> garimpado de um laudo e criado automaticamente pela Triagem

@@ -131,6 +131,14 @@ interface TriagemTotais {
   ambiguos: number;
   naoExames: number;
   descobertos: number;
+  ignoradosCatalogo: number;
+}
+
+interface IgnoradoItem {
+  code: string;
+  displayName: string;
+  origin: "catalogo" | "descoberto" | null;
+  synonyms: string[];
 }
 
 interface DirecaoItem {
@@ -344,7 +352,12 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   // ---- Sala de Triagem (faxina em massa + fila de conferência humana) ----
   const [triPend, setTriPend] = useState<TriagemItem[]>([]);
   const [triDesc, setTriDesc] = useState<{ code: string; displayName: string }[]>([]);
-  const [triTot, setTriTot] = useState<TriagemTotais>({ ambiguos: 0, naoExames: 0, descobertos: 0 });
+  const [triTot, setTriTot] = useState<TriagemTotais>({ ambiguos: 0, naoExames: 0, descobertos: 0, ignoradosCatalogo: 0 });
+  // Lixeira reversível: cadastros marcados como "não é exame" (active=false no banco).
+  const [igns, setIgns] = useState<IgnoradoItem[]>([]);
+  const [ignBusy, setIgnBusy] = useState<string | null>(null);
+  const [ignConfirm, setIgnConfirm] = useState(false);
+  const [ignMsg, setIgnMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [triFaxinando, setTriFaxinando] = useState(false);
   const [triResumo, setTriResumo] = useState<string | null>(null);
   const [triResolvendo, setTriResolvendo] = useState<number | null>(null);
@@ -606,10 +619,19 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((d: { pendentes: TriagemItem[]; descobertos?: { code: string; displayName: string }[]; totais: TriagemTotais }) => {
         setTriPend(d.pendentes ?? []);
         setTriDesc(d.descobertos ?? []);
-        setTriTot(d.totais ?? { ambiguos: 0, naoExames: 0, descobertos: 0 });
+        setTriTot(d.totais ?? { ambiguos: 0, naoExames: 0, descobertos: 0, ignoradosCatalogo: 0 });
       })
       .catch(() => {
         /* silencioso: a triagem é auxiliar, não derruba a tela */
+      });
+  }, []);
+
+  const carregarIgnorados = useCallback(() => {
+    fetch(`${BASE}/api/exames-lab/exames/ignorados`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("ignorados"))))
+      .then((d: IgnoradoItem[]) => setIgns(d ?? []))
+      .catch(() => {
+        /* silencioso */
       });
   }, []);
 
@@ -666,6 +688,49 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   }, [carregarTriagem]);
 
   useEffect(() => {
+    carregarIgnorados();
+  }, [carregarIgnorados]);
+
+  // Ignorar (não é exame) / restaurar — lixeira reversível do catálogo.
+  const ignorarExame = useCallback(
+    (code: string) => {
+      setIgnBusy(code);
+      setIgnMsg(null);
+      fetch(`${BASE}/api/exames-lab/exames/${encodeURIComponent(code)}/ignorar`, { method: "POST" })
+        .then(async (r) => {
+          if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Falha ao ignorar");
+          setSelecionado(null);
+          setIgnConfirm(false);
+          setIgnMsg({ ok: true, texto: "Exame movido para IGNORADOS. Nada foi apagado — dá para reverter lá." });
+          carregar();
+          carregarTriagem();
+          carregarIgnorados();
+        })
+        .catch((e: unknown) => setIgnMsg({ ok: false, texto: e instanceof Error ? e.message : "Falha ao ignorar" }))
+        .finally(() => setIgnBusy(null));
+    },
+    [carregar, carregarTriagem, carregarIgnorados],
+  );
+
+  const restaurarExame = useCallback(
+    (code: string) => {
+      setIgnBusy(code);
+      setIgnMsg(null);
+      fetch(`${BASE}/api/exames-lab/exames/${encodeURIComponent(code)}/restaurar`, { method: "POST" })
+        .then(async (r) => {
+          if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Falha ao restaurar");
+          setIgnMsg({ ok: true, texto: "Exame restaurado — voltou para a lista e para o motor." });
+          carregar();
+          carregarTriagem();
+          carregarIgnorados();
+        })
+        .catch((e: unknown) => setIgnMsg({ ok: false, texto: e instanceof Error ? e.message : "Falha ao restaurar" }))
+        .finally(() => setIgnBusy(null));
+    },
+    [carregar, carregarTriagem, carregarIgnorados],
+  );
+
+  useEffect(() => {
     carregarLotes();
   }, [carregarLotes]);
 
@@ -684,6 +749,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     // Invalida qualquer busca de laudos em voo do exame anterior (guard de corrida).
     traProcReqRef.current++;
     setCurMsg(null);
+    // O "arme" do botão Ignorar nunca vaza de um exame para o próximo.
+    setIgnConfirm(false);
     if (!selecionado) {
       setImpacto(null);
       return;
@@ -1224,19 +1291,41 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
           <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
         </div>
 
+        {/* PLACAR DA TRIAGEM (pedido do CEO): as quantidades saem de DENTRO dos
+            botões e viram um placar próprio — 3 mostradores afundados, número
+            grande em cima e rótulo pequeno embaixo, na cor semântica de cada balde. */}
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {(
+            [
+              { rotulo: "Não cadastrados", n: triTot.descobertos, cor: GOLD },
+              { rotulo: "A conferir", n: triTot.ambiguos, cor: "#b4413c" },
+              { rotulo: "Ignorados", n: triTot.ignoradosCatalogo + triTot.naoExames, cor: MUTED },
+            ] as const
+          ).map((p) => (
+            <div key={p.rotulo} className="concave-3d flex min-w-[110px] flex-col items-center rounded-[6px] px-3 py-1.5">
+              <span className="text-[16px] font-black leading-tight tabular-nums" style={{ color: p.cor }}>
+                {p.n}
+              </span>
+              <span className="text-[8px] font-black uppercase tracking-[0.12em]" style={{ color: MUTED }}>
+                {p.rotulo}
+              </span>
+            </div>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-start gap-4">
           {/* Coluna de botões-filtro à ESQUERDA: largura FIXA, empilhados — as bordas
               formam as linhas verticais imaginárias (Padrão 12 / grade imaginária).
-              Cada linha: ícone | rótulo | contagem em slot fixo à direita.
+              Botão limpo: só ícone | rótulo (as contagens vivem no PLACAR acima).
               Não selecionado = Saliente (up bevel); SELECIONADO = AFUNDADO (concave-3d,
               impressão de pressionado) + neon RESPIRANDO (paxter-neon-breathe). */}
           <div className="flex w-[220px] shrink-0 flex-col gap-1.5">
             {(
               [
-                { id: "todos", rotulo: "Todos os exames", Icone: ListChecks, cor: NAVY, glow: "hsl(187 72% 48% / 0.55)", n: null as number | null },
-                { id: "nao_cadastrados", rotulo: "Não cadastrados", Icone: Sparkles, cor: GOLD, glow: "hsl(42 65% 52% / 0.6)", n: triTot.descobertos },
-                { id: "a_conferir", rotulo: "A conferir", Icone: AlertTriangle, cor: "#b4413c", glow: "hsl(0 70% 55% / 0.55)", n: triTot.ambiguos },
-                { id: "ignorados", rotulo: "Ignorados", Icone: Ban, cor: MUTED, glow: "hsl(200 10% 55% / 0.5)", n: triTot.naoExames },
+                { id: "todos", rotulo: "Todos os exames", Icone: ListChecks, cor: NAVY, glow: "hsl(187 72% 48% / 0.55)" },
+                { id: "nao_cadastrados", rotulo: "Não cadastrados", Icone: Sparkles, cor: GOLD, glow: "hsl(42 65% 52% / 0.6)" },
+                { id: "a_conferir", rotulo: "A conferir", Icone: AlertTriangle, cor: "#b4413c", glow: "hsl(0 70% 55% / 0.55)" },
+                { id: "ignorados", rotulo: "Ignorados", Icone: Ban, cor: MUTED, glow: "hsl(200 10% 55% / 0.5)" },
               ] as const
             ).map((f) => {
               const ativo = filtroTriagem === f.id;
@@ -1246,13 +1335,12 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   type="button"
                   onClick={() => setFiltroTriagem(f.id)}
                   aria-pressed={ativo}
-                  className={`${ativo ? "concave-3d paxter-neon-breathe" : "btn-3d-soft"} grid grid-cols-[16px_minmax(0,1fr)_2.5rem] items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-left text-[9px] font-black uppercase tracking-wide`}
+                  className={`${ativo ? "concave-3d paxter-neon-breathe" : "btn-3d-soft"} grid grid-cols-[16px_minmax(0,1fr)] items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-left text-[9px] font-black uppercase tracking-wide`}
                   style={{ color: f.cor, ...(ativo ? ({ "--neon-glow": f.glow } as React.CSSProperties) : null) }}
                   title={`Mostrar na lista: ${f.rotulo}`}
                 >
                   <f.Icone className="h-3 w-3 shrink-0" />
                   <span className="truncate">{f.rotulo}</span>
-                  <span className="text-right tabular-nums">{f.n === null ? "—" : f.n}</span>
                 </button>
               );
             })}
@@ -1551,6 +1639,52 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
           {!carregando && !erro && (filtroTriagem === "a_conferir" || filtroTriagem === "ignorados") && (
             <div className="max-h-[560px] space-y-1 overflow-y-auto pr-1">
+              {filtroTriagem === "ignorados" && (
+                <>
+                  {ignMsg && (
+                    <div className="concave-3d rounded-[6px] px-3 py-2 text-[10px] font-semibold" style={{ color: ignMsg.ok ? "#3f7a3f" : "#b4413c" }}>
+                      {ignMsg.texto}
+                    </div>
+                  )}
+                  <div className="px-1 pt-1 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: MUTED }}>
+                    Cadastros ignorados (reversíveis) — {igns.length}
+                  </div>
+                  {igns.length === 0 && (
+                    <div className="px-2 py-2 text-[11px]" style={{ color: MUTED }}>
+                      Nenhum cadastro ignorado. Para ignorar um "exame" que na verdade é artefato/sigla, abra ele na
+                      lista e use o botão "Ignorar (não é exame)".
+                    </div>
+                  )}
+                  {(() => {
+                    const q = norm(busca.trim());
+                    return igns
+                      .filter((g) => !q || norm(g.displayName).includes(q) || (g.synonyms ?? []).some((s) => norm(s).includes(q)))
+                      .map((g, idx) => (
+                        <div key={g.code} className="concave-3d flex items-center gap-2 rounded-[6px] px-3 py-2">
+                          <span className="w-9 shrink-0 text-right text-[10px] font-black tabular-nums" style={{ color: MUTED }}>
+                            {idx + 1}.
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: MUTED, textDecoration: "line-through" }}>
+                            {g.displayName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => restaurarExame(g.code)}
+                            disabled={ignBusy === g.code}
+                            className="btn-3d-soft inline-flex shrink-0 items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
+                            style={{ color: "#3f7a3f" }}
+                            title="Reverter: devolver este exame à lista e ao motor"
+                          >
+                            {ignBusy === g.code ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Restaurar
+                          </button>
+                        </div>
+                      ));
+                  })()}
+                  <div className="px-1 pt-2 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: MUTED }}>
+                    Grafias ignoradas na fila da varredura
+                  </div>
+                </>
+              )}
               {(() => {
                 const kindAlvo = filtroTriagem === "a_conferir" ? "ambiguo" : "nao_exame";
                 const q = norm(busca.trim());
@@ -1674,6 +1808,48 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   )}
                   {!atual.quantitativo && <> · não quantitativo</>}
                 </div>
+
+                {/* Pedidos 3 e 4 do CEO: ignorar "exame" que na verdade é artefato/sigla
+                    de máquina ou método (a extração achou que fosse exame). Dois cliques
+                    (armar + confirmar), nada é apagado, reversível no filtro IGNORADOS. */}
+                {atual.inCatalog && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {!ignConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => setIgnConfirm(true)}
+                        className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
+                        style={{ color: "#b4413c" }}
+                        title="Isto NÃO é um exame (artefato, sigla de máquina/método, pedaço de laudo). Tira da lista e do motor; reversível no filtro IGNORADOS."
+                      >
+                        <Ban className="h-3 w-3" /> Ignorar (não é exame)
+                      </button>
+                    ) : (
+                      <>
+                        <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: "#b4413c" }}>
+                          Confirma? Sai da lista e do motor (reversível em IGNORADOS)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => ignorarExame(atual.code)}
+                          disabled={ignBusy === atual.code}
+                          className="btn-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white disabled:opacity-60"
+                          style={{ background: "#b4413c" }}
+                        >
+                          {ignBusy === atual.code ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} Sim, ignorar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIgnConfirm(false)}
+                          className="btn-3d-soft inline-flex items-center rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide"
+                          style={{ color: NAVY }}
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* ---------- IDENTIDADE (apelidos) ---------- */}

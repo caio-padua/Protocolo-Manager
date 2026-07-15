@@ -12,7 +12,7 @@ import {
   clientsTable,
   professionalsTable,
 } from "@workspace/db";
-import { eq, ne, desc, and, or, inArray, isNull, sql } from "drizzle-orm";
+import { eq, ne, desc, and, or, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   resolveDirection,
@@ -1683,9 +1683,34 @@ router.get("/exames-lab/triagem", async (req: Request, res: Response) => {
         displayName: examAnalyteCatalogTable.displayName,
       })
       .from(examAnalyteCatalogTable)
-      .where(eq(examAnalyteCatalogTable.origin, "descoberto"))
+      .where(
+        and(
+          eq(examAnalyteCatalogTable.origin, "descoberto"),
+          eq(examAnalyteCatalogTable.active, true),
+          eq(examAnalyteCatalogTable.kind, "blood"),
+        ),
+      )
       .orderBy(desc(examAnalyteCatalogTable.id))
       .limit(50);
+
+    // Contagens REAIS (a lista de achados acima e so uma amostra limitada a 50;
+    // o contador do painel precisa do total verdadeiro).
+    const [descRow] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(examAnalyteCatalogTable)
+      .where(
+        and(
+          eq(examAnalyteCatalogTable.origin, "descoberto"),
+          eq(examAnalyteCatalogTable.active, true),
+          eq(examAnalyteCatalogTable.kind, "blood"),
+        ),
+      );
+    // Ignorados da LIXEIRA = ignored_at preenchido (selo proprio da ferramenta).
+    // active=false sozinho NAO serve: Englobar e fragments legados tambem usam.
+    const [ignRow] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(examAnalyteCatalogTable)
+      .where(isNotNull(examAnalyteCatalogTable.ignoredAt));
 
     // Nome de exibição do exame sugerido (para o rótulo do botão na fila).
     const sugCodes = Array.from(
@@ -1717,12 +1742,95 @@ router.get("/exames-lab/triagem", async (req: Request, res: Response) => {
       totais: {
         ambiguos: fila.filter((r) => r.kind === "ambiguo").length,
         naoExames: fila.filter((r) => r.kind === "nao_exame").length,
-        descobertos: achados.length,
+        descobertos: descRow?.n ?? 0,
+        ignoradosCatalogo: ignRow?.n ?? 0,
       },
     });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/triagem falhou");
     return res.status(500).json({ error: "Falha ao listar a triagem" });
+  }
+});
+
+// ===========================================================================
+// LIXEIRA DE EXAMES — ignorar cadastros que NAO sao exames (artefatos, siglas
+// de maquina/metodo, pedacos de laudo que a extracao achou que eram exame).
+// Nada e apagado: active=false tira da lista e do motor; restaurar reverte.
+// ===========================================================================
+
+// GET /exames-lab/exames/ignorados — lista os cadastros ignorados (reversiveis)
+router.get("/exames-lab/exames/ignorados", async (req: Request, res: Response) => {
+  try {
+    const linhas = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        displayName: examAnalyteCatalogTable.displayName,
+        origin: examAnalyteCatalogTable.origin,
+        synonyms: examAnalyteCatalogTable.synonyms,
+        updatedAt: examAnalyteCatalogTable.updatedAt,
+      })
+      .from(examAnalyteCatalogTable)
+      .where(isNotNull(examAnalyteCatalogTable.ignoredAt))
+      .orderBy(desc(examAnalyteCatalogTable.updatedAt));
+    return res.json(linhas);
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/exames/ignorados falhou");
+    return res.status(500).json({ error: "Falha ao listar os ignorados" });
+  }
+});
+
+// POST /exames-lab/exames/:code/ignorar — marca o cadastro como NAO-exame.
+router.post("/exames-lab/exames/:code/ignorar", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code);
+    const [linha] = await db
+      .select({ code: examAnalyteCatalogTable.code, active: examAnalyteCatalogTable.active })
+      .from(examAnalyteCatalogTable)
+      .where(eq(examAnalyteCatalogTable.code, code));
+    if (!linha) return res.status(404).json({ error: "Exame não encontrado" });
+    if (!linha.active) return res.json({ ok: true, code, jaIgnorado: true });
+    // Selo proprio da lixeira: ignored_at + inativo. NAO mexe no kind, para a
+    // restauracao devolver o estado exatamente como era.
+    await db
+      .update(examAnalyteCatalogTable)
+      .set({ active: false, ignoredAt: new Date() })
+      .where(eq(examAnalyteCatalogTable.code, code));
+    return res.json({ ok: true, code });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/exames/:code/ignorar falhou");
+    return res.status(500).json({ error: "Falha ao ignorar o exame" });
+  }
+});
+
+// POST /exames-lab/exames/:code/restaurar — reverte um ignorar feito por engano.
+router.post("/exames-lab/exames/:code/restaurar", async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code);
+    const [linha] = await db
+      .select({
+        code: examAnalyteCatalogTable.code,
+        active: examAnalyteCatalogTable.active,
+        ignoredAt: examAnalyteCatalogTable.ignoredAt,
+      })
+      .from(examAnalyteCatalogTable)
+      .where(eq(examAnalyteCatalogTable.code, code));
+    if (!linha) return res.status(404).json({ error: "Exame não encontrado" });
+    if (linha.active) return res.json({ ok: true, code, jaAtivo: true });
+    // So restaura quem foi ignorado pela lixeira. Inativos por OUTRO motivo
+    // (ex.: absorvidos pelo Englobar) nao podem ressuscitar por aqui.
+    if (!linha.ignoredAt) {
+      return res.status(409).json({ error: "Este cadastro não está na lixeira de ignorados" });
+    }
+    // Reverte a lixeira: reativa e limpa o selo, SEM tocar no kind (o exame
+    // volta exatamente como era antes de ser ignorado).
+    await db
+      .update(examAnalyteCatalogTable)
+      .set({ active: true, ignoredAt: null })
+      .where(eq(examAnalyteCatalogTable.code, code));
+    return res.json({ ok: true, code });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/exames/:code/restaurar falhou");
+    return res.status(500).json({ error: "Falha ao restaurar o exame" });
   }
 });
 

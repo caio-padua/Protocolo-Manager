@@ -114,4 +114,5 @@
 - [Curadoria de faixas por classe](curadoria-faixas-classe.md) — backfill cria analito kind='blood' default (re-auditar classe antes de medir lacuna); hormônio sexo-dependente não aceita faixa única; qualitativo sai do balde numérico.
 - [Fila de triagem != resultados crus](triagem-fila-vs-crus.md) — zerar Sala de Triagem nao zera exam_results sem code; nao varrer crus fora da fila cego (urina bare/eGFR ambiguos); adimensional (razao/indice) sem unidade nao e pendencia.
 - [Nome interno do exame: comparar x gerar identidade](exame-code-identidade-slug.md) — chaveFaixa compara/casa; slugInterno gera code fatiado só de exames NOVOS; nunca reescrever code existente; casar por nome vem antes de createDiscoveredExam.
+- [active=false polissemico (catálogo exames)](exam-catalog-active-polissemico.md) — estado reversível exige selo próprio (ignored_at), nunca sobrecarregar booleano já usado por Englobar/legado.
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
