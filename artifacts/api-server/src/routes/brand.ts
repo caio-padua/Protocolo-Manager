@@ -6,7 +6,7 @@
 import { Router, type IRouter } from "express";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { renderPaxterBannerPng } from "../lib/messaging/banner.js";
+import { renderPaxterBannerPng, renderPaxterBannerGif, renderPaxterBannerMp4 } from "../lib/messaging/banner.js";
 import { renderPaxterEmail } from "../lib/messaging/render-email.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import { docAmostraBoasVindas } from "../lib/messaging/sample-doc.js";
@@ -49,6 +49,39 @@ router.get("/brand/paxter-banner.png", async (_req, res): Promise<void> => {
   } catch {
     // Falta de asset oficial não pode virar rejeição assíncrona silenciosa.
     res.status(500).type("text/plain").end("banner indisponível");
+  }
+});
+
+// Banner ANIMADO (faísca) em GIF — cabeçalho do e-mail e Telegram (sendAnimation).
+// Se o ffmpeg falhar, degrada para o PNG estático (o e-mail nunca chega com
+// imagem quebrada no cabeçalho — só perde a animação).
+router.get("/brand/paxter-banner.gif", async (_req, res): Promise<void> => {
+  try {
+    const gif = await renderPaxterBannerGif();
+    res.setHeader("Content-Type", "image/gif");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.end(gif);
+  } catch {
+    try {
+      const png = await renderPaxterBannerPng();
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.end(png);
+    } catch {
+      res.status(500).type("text/plain").end("banner indisponível");
+    }
+  }
+});
+
+// Banner ANIMADO (faísca) em MP4 — WhatsApp via Twilio (que não aceita GIF).
+router.get("/brand/paxter-banner.mp4", async (_req, res): Promise<void> => {
+  try {
+    const mp4 = await renderPaxterBannerMp4();
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.end(mp4);
+  } catch {
+    res.status(500).type("text/plain").end("banner animado indisponível");
   }
 });
 

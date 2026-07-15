@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startCronJobs } from "./lib/cron";
+import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
@@ -31,6 +32,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startCronJobs();
+  aquecerBannersAnimados();
   refreshCertCache().catch((e) =>
     logger.error({ err: e }, "Falha ao carregar cache do certificado"),
   );

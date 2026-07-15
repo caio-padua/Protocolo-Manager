@@ -102,3 +102,44 @@ export async function sendTelegramPhoto(
     return { sent: false, mock: false, error: (e as Error).message };
   }
 }
+
+/**
+ * Envia uma ANIMAÇÃO (banner de marca com a faísca, GIF) com legenda HTML.
+ * sendAnimation preserva o movimento (sendPhoto congelaria o GIF).
+ * Degrade gracioso em cascata: animação -> foto estática -> texto puro.
+ * MOCK quando sem token (nunca falha por isso).
+ */
+export async function sendTelegramAnimation(
+  chatId: string,
+  animationUrl: string,
+  fallbackPhotoUrl: string,
+  caption: string,
+): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.info({ chatId, len: caption.length }, "[telegram] MOCK envio de animação (sem token no cofre)");
+    return { sent: true, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendAnimation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        animation: animationUrl,
+        caption,
+        parse_mode: "HTML",
+      }),
+    });
+    if (resp.ok) return { sent: true, mock: false };
+    const corpo = await resp.text().catch(() => "");
+    logger.warn(
+      { status: resp.status, corpo: corpo.slice(0, 140) },
+      "[telegram] sendAnimation falhou; degradando para foto estática",
+    );
+    return await sendTelegramPhoto(chatId, fallbackPhotoUrl, caption);
+  } catch (e) {
+    return { sent: false, mock: false, error: (e as Error).message };
+  }
+}

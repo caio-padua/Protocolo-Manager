@@ -6,7 +6,7 @@
 // ============================================================================
 import { sendGmailMessage } from "../google-gmail";
 import { sendWhatsapp } from "../whatsapp";
-import { sendTelegramPhoto } from "../telegram";
+import { sendTelegramAnimation } from "../telegram";
 import { renderPaxterEmail, assuntoPadrao } from "./render-email";
 import { renderWhatsappCaption, renderTelegramCaption } from "./render-text";
 import { baseUrlFromEnv } from "./base-url";
@@ -22,6 +22,16 @@ import type {
 /** URL pública do banner de marca (servido pela rota /api/brand). */
 export function paxterBannerUrl(baseUrl: string): string {
   return `${baseUrl}/api/brand/paxter-banner.png`;
+}
+
+/** Banner ANIMADO (faísca) em GIF — Telegram (sendAnimation). */
+export function paxterBannerGifUrl(baseUrl: string): string {
+  return `${baseUrl}/api/brand/paxter-banner.gif`;
+}
+
+/** Banner ANIMADO (faísca) em MP4 — WhatsApp via Twilio (não aceita GIF). */
+export function paxterBannerMp4Url(baseUrl: string): string {
+  return `${baseUrl}/api/brand/paxter-banner.mp4`;
 }
 
 export async function enviarMensagemPaxter(
@@ -59,7 +69,10 @@ export async function enviarMensagemPaxter(
         continue;
       }
       try {
-        const r = await sendWhatsapp(phone, renderWhatsappCaption(doc), { mediaUrl: bannerUrl });
+        // Faísca no WhatsApp: vídeo MP4 curto (Twilio não repassa GIF).
+        const r = await sendWhatsapp(phone, renderWhatsappCaption(doc), {
+          mediaUrl: paxterBannerMp4Url(baseUrl),
+        });
         resultados.push({ canal, sent: r.sent, via: r.via, link: r.link, error: r.error });
       } catch (e: unknown) {
         resultados.push({ canal, sent: false, via: "twilio", error: (e as Error)?.message ?? String(e) });
@@ -71,7 +84,8 @@ export async function enviarMensagemPaxter(
         continue;
       }
       try {
-        const r = await sendTelegramPhoto(chatId, bannerUrl, renderTelegramCaption(doc));
+        // Faísca no Telegram: sendAnimation com o GIF (sendPhoto congelaria).
+        const r = await sendTelegramAnimation(chatId, paxterBannerGifUrl(baseUrl), bannerUrl, renderTelegramCaption(doc));
         resultados.push({ canal, sent: r.sent, via: "telegram", mock: r.mock, error: r.error });
       } catch (e: unknown) {
         resultados.push({ canal, sent: false, via: "telegram", error: (e as Error)?.message ?? String(e) });

@@ -21,8 +21,10 @@ function escapeHtml(s: string): string {
  * Usado pelo renderPaxterEmail e por e-mails ricos que queiram só o casco.
  */
 export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
-  const symbolSrc = `${baseUrl}/api/brand/paxter-symbol.png`;
-  const wordmarkSrc = `${baseUrl}/api/brand/paxter-wordmark.png`;
+  // Cabeçalho ANIMADO (faísca): banner oficial em GIF — símbolo no medalhão de
+  // vidro + wordmark ouro 3D + subtítulo, com a faixa de luz varrendo a marca.
+  // Fluido: width:100% com teto em 540px — perfeito no celular e no computador.
+  const bannerGifSrc = `${baseUrl}/api/brand/paxter-banner.gif`;
   // FUNDO "TERNO" azul-marinho (estilo tecido elegante) — mesma linguagem da tela
   // de abertura: navy com profundidade (gradiente) + brilho dourado discreto no topo
   // + tramado sutil a cada 22px. Cor sólida de fallback (#0a1430, BEM mais clara que
@@ -43,10 +45,8 @@ export function paxterEmailShell(innerHtml: string, baseUrl: string): string {
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:540px; background:#0e1a34; border:1px solid rgba(201,162,79,.34); border-radius:18px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(201,162,79,.06);">
 
-        <tr><td style="background:linear-gradient(170deg,#16315a 0%,#102043 60%,#0e1a34 100%); padding:40px 32px 30px; text-align:center;">
-          <img src="${symbolSrc}" width="84" alt="" style="display:block; margin:0 auto 18px; width:84px; height:auto; border:1px solid rgba(201,162,79,.45); border-radius:18px; box-shadow:0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset;">
-          <img src="${wordmarkSrc}" width="196" alt="PAXTER" style="display:block; margin:0 auto; width:196px; max-width:74%; height:auto;">
-          <div style="color:#c9a24f; font-family:${SERIF}; font-size:11px; letter-spacing:5px; text-transform:uppercase; margin-top:12px;">Clinical Intelligence System</div>
+        <tr><td style="background:linear-gradient(170deg,#16315a 0%,#102043 60%,#0e1a34 100%); padding:0; text-align:center; line-height:0;">
+          <img src="${bannerGifSrc}" width="540" alt="PAXTER — Clinical Intelligence System" style="display:block; margin:0 auto; width:100%; max-width:540px; height:auto;">
         </td></tr>
 
         <tr><td style="padding:0 32px;"><div style="height:1px; background:linear-gradient(90deg,rgba(201,162,79,0) 0%,rgba(201,162,79,.6) 50%,rgba(201,162,79,0) 100%);"></div></td></tr>
