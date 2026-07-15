@@ -712,28 +712,35 @@ function desenharAssinaturas(doc: Doc, pal: Paleta, y: number, h: number): void 
   molduraBloco(doc, pal, ML, y, CW, h);
 }
 
-// Faixa lateral esquerda (pedido do CEO): spine vertical que mostra
-// "RAS FAP — NOME DO PACIENTE", ANCORADO no topo (alinhamento a esquerda) para
-// que o nome seja lido com a folha em pe. So RENDER: ocupa o espaco reservado
-// por BAND_W (a esquerda de ML); nao toca a grade nem o motor.
-function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, bottom: number): void {
-  const bandW = BAND_W - 8; // largura visivel da faixa (deixa folga ate o conteudo)
-  const x0 = M; // comeca na margem base, a esquerda do conteudo (ML)
+// Faixa lateral: spine vertical que mostra "RAS FAP — NOME DO PACIENTE".
+// lado = "esquerda": ocupa o espaco reservado por BAND_W a esquerda de ML.
+// lado = "direita":  espelhada na margem direita (M px de folga, cabe sem tocar grade).
+// Rotacao -90 graus (anti-horario): texto corre de BAIXO para CIMA — giro de
+// 180 graus em relacao ao +90 anterior, conforme pedido do CEO 15/07/2026.
+function desenharFaixaLateral(
+  doc: Doc,
+  pal: Paleta,
+  nome: string,
+  top: number,
+  bottom: number,
+  lado: "esquerda" | "direita" = "esquerda",
+): void {
+  const bandW = BAND_W - 8; // largura visivel (folga ate o conteudo)
+  const x0 = lado === "esquerda" ? M : PAGE_W - M - bandW;
   const h = bottom - top;
 
-  // Fundo pastel + moldura fina (mesma linguagem visual dos blocos).
+  // Fundo pastel + moldura fina.
   doc.save();
   doc.rect(x0, top, bandW, h).fill(pal.gridFill);
   doc.lineWidth(0.6).rect(x0, top, bandW, h).stroke(pal.accent);
   doc.restore();
 
-  const cx = x0 + bandW / 2; // centro da ESPESSURA da faixa
+  const cx = x0 + bandW / 2; // centro da espessura
   const size = 9;
   const cspc = 1;
   doc.font("Helvetica-Bold").fontSize(size);
 
-  // Nome muito comprido nao pode correr alem do rodape: trunca com reticencias
-  // medindo a largura real disponivel ao longo da faixa (h - folgas).
+  // Trunca se nome for longo demais.
   const avail = h - 14;
   let label = `RAS FAP   —   ${(nome || "").toUpperCase()}`;
   if (doc.widthOfString(label, { characterSpacing: cspc }) > avail) {
@@ -743,14 +750,13 @@ function desenharFaixaLateral(doc: Doc, pal: Paleta, nome: string, top: number, 
     label = label.replace(/\s+$/, "") + "\u2026";
   }
 
-  // Gira +90 graus (sentido horario, estilo lombada de livro): o texto corre de
-  // CIMA para BAIXO, com o TITULO "RAS FAP" no TOPO e ALINHADO AO ALTO (nao mais
-  // centralizado no comprimento) — pedido do CEO: faixa alinhada a esquerda/topo.
-  const padTopo = 10;
+  // Gira -90 graus (anti-horario): texto de BAIXO para CIMA.
+  // Ancora no FUNDO da faixa (padBase) para o inicio do texto ficar na base.
+  const padBase = 10;
   const textW = doc.widthOfString(label, { characterSpacing: cspc });
-  const cyA = top + padTopo + textW / 2; // ancora que joga o bloco para o topo
+  const cyA = bottom - padBase - textW / 2;
   doc.save();
-  doc.rotate(90, { origin: [cx, cyA] });
+  doc.rotate(-90, { origin: [cx, cyA] });
   doc.fillColor(pal.brand);
   doc.text(label, cx - textW / 2, cyA - size / 2, { lineBreak: false, characterSpacing: cspc });
   doc.restore();
@@ -820,7 +826,8 @@ export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PRE
       desenharGrade(doc, pal, p.grupo, p.linhas, y, yRodape, aplicBase);
       desenharAssinaturas(doc, pal, yAssin, assinH);
       desenharRodape(doc, pal, idx + 1, totalPages, qrBuf);
-      desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M);
+      desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M, "esquerda");
+      desenharFaixaLateral(doc, pal, dados.nome, M, PAGE_H - M, "direita");
       aplicBase += LINHAS_POR_PAGINA;
     });
 
