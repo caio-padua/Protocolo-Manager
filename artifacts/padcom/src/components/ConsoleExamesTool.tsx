@@ -318,9 +318,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [erro, setErro] = useState(false);
   const [busca, setBusca] = useState("");
   // Filtro da Sala de Triagem: qual visão a lista de exames mostra.
-  // "todos" = catálogo inteiro; "nao_cadastrados" = origin='descoberto';
+  // "todos" = catálogo inteiro; "nao_cadastrados" = origin='descoberto' (novos de laudo);
+  // "a_completar" = qualquer origem, mas faltando unidade ou faixas;
   // "a_conferir" e "ignorados" = itens da fila de triagem (por kind).
-  const [filtroTriagem, setFiltroTriagem] = useState<"todos" | "nao_cadastrados" | "a_conferir" | "ignorados">("todos");
+  const [filtroTriagem, setFiltroTriagem] = useState<"todos" | "nao_cadastrados" | "a_completar" | "a_conferir" | "ignorados">("todos");
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
   // Detalhe (faixas)
@@ -775,7 +776,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("backfill"))))
       .then((d: { apelidos: number; novos: number; ambiguos: number; naoExames: number; linhasCarimbadas: number }) => {
         setTriResumo(
-          `Varredura concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) novo(s) criado(s) marcado(s) NÃO CADASTRADO, ` +
+          `Varredura concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) novo(s) criado(s) como NOVO DE LAUDO, ` +
             `${d.ambiguos} a conferir, ${d.naoExames} ignorado(s) · ${d.linhasCarimbadas} resultado(s) carimbado(s).`,
         );
         carregarTriagem();
@@ -819,11 +820,39 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
   const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+  // Completude: 3 dimensões por exame (unidade, faixas, direção).
+  // Usado tanto nos mini-selos do card quanto no filtro "A Completar".
+  const completude = useCallback(
+    (r: FusedRow) => ({
+      temUnidade: !!(r.canonicalUnit && r.canonicalUnit.trim()),
+      temFaixas: Array.isArray(r.zones) && r.zones.length > 0,
+      temDirecao: !!(r.direction && r.direction !== "target"),
+    }),
+    [],
+  );
+
+  const totalACompletar = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (!r.inCatalog) return false;
+        if (!r.quantitativo) return false; // qualitativo não precisa de unidade/faixas
+        const c = completude(r);
+        return !c.temUnidade || !c.temFaixas;
+      }).length,
+    [rows, completude],
+  );
+
   const filtrados = useMemo(() => {
     // R13 da spec: o bloco de CADASTRO mostra só cadastros reais (inCatalog=true).
     // Grafias cruas/fallback ficam fora daqui — vivem na Sala de Triagem.
     let base = rows.filter((r) => r.inCatalog);
     if (filtroTriagem === "nao_cadastrados") base = base.filter((r) => r.origin === "descoberto");
+    if (filtroTriagem === "a_completar")
+      base = base.filter((r) => {
+        if (!r.quantitativo) return false;
+        const c = completude(r);
+        return !c.temUnidade || !c.temFaixas;
+      });
     const q = norm(busca.trim());
     if (!q) return base;
     return base.filter(
@@ -1291,15 +1320,18 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
           <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
         </div>
 
-        {/* PLACAR DA TRIAGEM (pedido do CEO): as quantidades saem de DENTRO dos
-            botões e viram um placar próprio — 3 mostradores afundados, número
-            grande em cima e rótulo pequeno embaixo, na cor semântica de cada balde. */}
+        {/* PLACAR — 4 mostradores semânticos:
+            • NOVOS DE LAUDO  = origin='descoberto' — vieram da varredura, não foram inseridos manualmente
+            • A COMPLETAR     = quantitativos sem unidade ou sem faixas de referência (qualquer origem)
+            • A CONFERIR      = grafias ambíguas na fila humana
+            • IGNORADOS       = itens que não são exame */}
         <div className="mb-3 flex flex-wrap gap-1.5">
           {(
             [
-              { rotulo: "Não cadastrados", n: triTot.descobertos, cor: GOLD },
-              { rotulo: "A conferir", n: triTot.ambiguos, cor: "#b4413c" },
-              { rotulo: "Ignorados", n: triTot.ignoradosCatalogo + triTot.naoExames, cor: MUTED },
+              { rotulo: "Novos de Laudo", sub: "origem automática", n: triTot.descobertos, cor: GOLD },
+              { rotulo: "A Completar", sub: "sem unidade ou faixas", n: totalACompletar, cor: "#7a5fa0" },
+              { rotulo: "A Conferir", sub: "grafias ambíguas", n: triTot.ambiguos, cor: "#b4413c" },
+              { rotulo: "Ignorados", sub: "não são exame", n: triTot.ignoradosCatalogo + triTot.naoExames, cor: MUTED },
             ] as const
           ).map((p) => (
             <div key={p.rotulo} className="concave-3d flex min-w-[110px] flex-col items-center rounded-[6px] px-3 py-1.5">
@@ -1308,6 +1340,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               </span>
               <span className="text-[8px] font-black uppercase tracking-[0.12em]" style={{ color: MUTED }}>
                 {p.rotulo}
+              </span>
+              <span className="text-[7px] font-semibold" style={{ color: MUTED }}>
+                {p.sub}
               </span>
             </div>
           ))}
@@ -1323,8 +1358,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             {(
               [
                 { id: "todos", rotulo: "Todos os exames", Icone: ListChecks, cor: NAVY, glow: "hsl(187 72% 48% / 0.55)" },
-                { id: "nao_cadastrados", rotulo: "Não cadastrados", Icone: Sparkles, cor: GOLD, glow: "hsl(42 65% 52% / 0.6)" },
-                { id: "a_conferir", rotulo: "A conferir", Icone: AlertTriangle, cor: "#b4413c", glow: "hsl(0 70% 55% / 0.55)" },
+                { id: "nao_cadastrados", rotulo: "Novos de Laudo", Icone: Sparkles, cor: GOLD, glow: "hsl(42 65% 52% / 0.6)" },
+                { id: "a_completar", rotulo: "A Completar", Icone: Ruler, cor: "#7a5fa0", glow: "hsl(270 30% 55% / 0.55)" },
+                { id: "a_conferir", rotulo: "A Conferir", Icone: AlertTriangle, cor: "#b4413c", glow: "hsl(0 70% 55% / 0.55)" },
                 { id: "ignorados", rotulo: "Ignorados", Icone: Ban, cor: MUTED, glow: "hsl(200 10% 55% / 0.5)" },
               ] as const
             ).map((f) => {
@@ -1356,10 +1392,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             {(
               [
                 { n: 1, texto: "O laudo chega e a VARREDURA lê cada grafia de exame.", cor: NAVY },
-                { n: 2, texto: "Grafia conhecida → vira apelido sozinha. Nada a fazer.", cor: "#3f7a3f" },
-                { n: 3, texto: "Exame novo → entra ativo como NÃO CADASTRADO (confira quando puder).", cor: GOLD },
-                { n: 4, texto: "Dúvida → fica em quarentena em A CONFERIR (você decide aqui).", cor: "#b4413c" },
-                { n: 5, texto: "Não é exame → vai para IGNORADOS. Nada se perde.", cor: MUTED },
+                { n: 2, texto: "Grafia conhecida → vira apelido sozinho. Nada a fazer.", cor: "#3f7a3f" },
+                { n: 3, texto: "Exame novo → entra como NOVO DE LAUDO (origem automática — não significa que falta dado).", cor: GOLD },
+                { n: 4, texto: "Sem unidade ou faixas ainda? Aparece em A COMPLETAR (você preenche a ficha técnica).", cor: "#7a5fa0" },
+                { n: 5, texto: "Dúvida → fica em A CONFERIR. Não é exame → vai para IGNORADOS.", cor: "#b4413c" },
               ] as const
             ).map((p) => (
               <div key={p.n} className="grid grid-cols-[20px_minmax(0,1fr)] items-start gap-1.5">
@@ -1456,7 +1492,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     disabled={triResolvendo === t.id}
                     className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
                     style={{ color: GOLD }}
-                    title="Criar como exame novo (entra marcado NÃO CADASTRADO)"
+                    title="Criar como exame novo (entra com origem NOVO DE LAUDO — curadoria feita aqui)"
                   >
                     <Sparkles className="h-3 w-3" /> Criar novo
                   </button>
@@ -1539,7 +1575,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                             <span className="truncate">{r.displayName}</span>
                             {r.origin === "descoberto" && (
                               <span className="shrink-0 text-[8px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
-                                não cadastrado
+                                laudo
                               </span>
                             )}
                           </button>
@@ -1566,7 +1602,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   onClick={() => setSelecionado(d.code)}
                   className="concave-3d inline-flex items-center rounded-[6px] px-2 py-1 text-[10px] font-semibold"
                   style={{ color: NAVY }}
-                  title="Abrir exame NÃO CADASTRADO"
+                  title="Abrir exame Novo de Laudo para curadoria"
                 >
                   {d.displayName}
                 </button>
@@ -1586,11 +1622,13 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               color:
                 filtroTriagem === "nao_cadastrados"
                   ? GOLD
-                  : filtroTriagem === "a_conferir"
-                    ? "#b4413c"
-                    : filtroTriagem === "ignorados"
-                      ? MUTED
-                      : NAVY,
+                  : filtroTriagem === "a_completar"
+                    ? "#7a5fa0"
+                    : filtroTriagem === "a_conferir"
+                      ? "#b4413c"
+                      : filtroTriagem === "ignorados"
+                        ? MUTED
+                        : NAVY,
             }}
           >
             {filtroTriagem === "todos" && (
@@ -1600,7 +1638,12 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             )}
             {filtroTriagem === "nao_cadastrados" && (
               <>
-                <Sparkles className="h-3.5 w-3.5" /> Exames não cadastrados
+                <Sparkles className="h-3.5 w-3.5" /> Novos de Laudo (origem automática)
+              </>
+            )}
+            {filtroTriagem === "a_completar" && (
+              <>
+                <Ruler className="h-3.5 w-3.5" style={{ color: "#7a5fa0" }} /> A Completar (sem unidade ou faixas)
               </>
             )}
             {filtroTriagem === "a_conferir" && (
@@ -1723,7 +1766,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             </div>
           )}
 
-          {!carregando && !erro && filtroTriagem !== "a_conferir" && filtroTriagem !== "ignorados" && (
+          {!carregando && !erro && (filtroTriagem === "todos" || filtroTriagem === "nao_cadastrados" || filtroTriagem === "a_completar") && (
             <div className="max-h-[560px] space-y-1 overflow-y-auto pr-1">
               {filtrados.length === 0 && (
                 <div className="px-2 py-4 text-[12px]" style={{ color: MUTED }}>
@@ -1732,13 +1775,21 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               )}
               {filtrados.map((it, idx) => {
                 const ativo = it.code === selecionado;
+                const isLaudo = it.origin === "descoberto";
+                const cmp = completude(it);
+                // Borda lateral: âmbar se veio de laudo, ciano se catálogo original
+                const borderLeft = ativo
+                  ? "none"
+                  : isLaudo
+                    ? "3px solid #d4a017"
+                    : "3px solid transparent";
                 return (
                   <button
                     key={it.code}
                     type="button"
                     onClick={() => escolher(it)}
                     className={`flex w-full items-center gap-2 rounded-[6px] px-3 py-2 text-left ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                    style={ativo ? { background: NAVY } : undefined}
+                    style={ativo ? { background: NAVY } : { borderLeft }}
                   >
                     <span className="w-9 shrink-0 text-right text-[10px] font-black tabular-nums" style={{ color: ativo ? "rgba(255,255,255,0.7)" : MUTED }}>
                       {idx + 1}.
@@ -1746,6 +1797,48 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     <span className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: ativo ? "#fff" : NAVY }}>
                       {it.displayName}
                     </span>
+
+                    {/* Badge LAUDO: visível quando origin='descoberto' e NÃO está no filtro nao_cadastrados
+                        (no filtro nao_cadastrados todos já são laudo — badge seria redundante) */}
+                    {isLaudo && filtroTriagem === "todos" && (
+                      <span
+                        className="shrink-0 rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-wide"
+                        style={{ background: ativo ? "rgba(255,255,255,0.15)" : "#fef3dc", color: ativo ? "#ffe082" : "#a07000" }}
+                        title="Exame descoberto automaticamente pela varredura de laudos — origem automática, não manual"
+                      >
+                        laudo
+                      </span>
+                    )}
+
+                    {/* 3 mini-selos de COMPLETUDE: U=unidade, F=faixas, D=direção
+                        Preenchido = tem; vazio = falta. Só para exames quantitativos. */}
+                    {it.quantitativo && (
+                      <span className="flex shrink-0 items-center gap-0.5" title={`Completude — U:unidade ${cmp.temUnidade?"✓":"✗"}  F:faixas ${cmp.temFaixas?"✓":"✗"}  D:direção ${cmp.temDirecao?"✓":"✗"}`}>
+                        {(
+                          [
+                            { label: "U", ok: cmp.temUnidade, hint: "Unidade" },
+                            { label: "F", ok: cmp.temFaixas, hint: "Faixas" },
+                            { label: "D", ok: cmp.temDirecao, hint: "Direção" },
+                          ] as const
+                        ).map(({ label, ok }) => (
+                          <span
+                            key={label}
+                            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[7px] font-black"
+                            style={{
+                              background: ok
+                                ? ativo ? "rgba(255,255,255,0.25)" : "#3f7a3f"
+                                : ativo ? "rgba(255,255,255,0.08)" : "#e8ecf2",
+                              color: ok
+                                ? ativo ? "#fff" : "#fff"
+                                : ativo ? "rgba(255,255,255,0.4)" : MUTED,
+                            }}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+
                     {it.hasManualEdit && (
                       <span
                         className="inline-flex shrink-0 items-center gap-0.5 rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase"
@@ -1761,6 +1854,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                         background:
                           it.direction === "higher_better" ? "#3f7a3f" : it.direction === "lower_better" ? "#b4413c" : GOLD,
                       }}
+                      title={it.direction === "higher_better" ? "Direção clínica: quanto MAIOR, melhor" : it.direction === "lower_better" ? "Direção clínica: quanto MENOR, melhor" : "Direção clínica: valor alvo no meio (faixas)"}
                     >
                       {it.direction === "higher_better" ? "↑ maior" : it.direction === "lower_better" ? "↓ menor" : "◎ alvo"}
                     </span>
@@ -1796,7 +1890,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                       }
                     >
                       {atual.origin === "descoberto" ? <Sparkles className="h-2.5 w-2.5" /> : <Check className="h-2.5 w-2.5" />}
-                      {atual.origin === "descoberto" ? "Não cadastrado" : "Catálogo"}
+                      {atual.origin === "descoberto" ? "Novo de Laudo (origem automática)" : "Catálogo (inserido manualmente)"}
                     </span>
                   </div>
                 )}
