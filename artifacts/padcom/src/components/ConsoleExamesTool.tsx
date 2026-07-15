@@ -369,6 +369,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [engBusca, setEngBusca] = useState("");
   const [engConfirmOficial, setEngConfirmOficial] = useState(false);
   const [engBusy, setEngBusy] = useState(false);
+  // Opção B do CEO (15/07/2026): antes de englobar, escolher QUAL nome vence como
+  // PADRÃO — o exame aberto ("atual") ou o escolhido na lista ("destino").
+  const [engVencedor, setEngVencedor] = useState<"" | "destino" | "atual">("");
   // Transferir (mover resultados deste exame para outro).
   const [traTarget, setTraTarget] = useState<string>("");
   const [traBusca, setTraBusca] = useState("");
@@ -498,9 +501,11 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   };
 
   const executarEnglobar = () => {
-    const src = selecionado;
-    const tgt = engTarget;
-    if (!src || !tgt) return;
+    if (!selecionado || !engTarget || !engVencedor) return;
+    // O VENCEDOR (escolhido na pergunta "qual nome fica como padrão?") é sempre o
+    // destino da fusão; o outro é absorvido e vira apelido.
+    const src = engVencedor === "destino" ? selecionado : engTarget;
+    const tgt = engVencedor === "destino" ? engTarget : selecionado;
     setEngBusy(true);
     setCurMsg(null);
     fetch(`${BASE}/api/exames-lab/exames/englobar`, {
@@ -522,7 +527,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         setEngTarget("");
         setEngBusca("");
         setEngConfirmOficial(false);
-        setSelecionado(tgt); // vai para o exame de destino
+        setEngVencedor("");
+        setSelecionado(tgt); // vai para o exame VENCEDOR (o que ficou como padrão)
         carregar();
         carregarLotes();
       })
@@ -669,6 +675,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     setEngTarget("");
     setEngBusca("");
     setEngConfirmOficial(false);
+    setEngVencedor("");
     setTraTarget("");
     setTraBusca("");
     setTraTodas(true);
@@ -2000,8 +2007,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               <div className="panel-3d-sub rounded-[6px] p-3">
                 <BlockTitle icon={Combine}>Englobar neste padrão</BlockTitle>
                 <div className="mb-2 text-[10px]" style={{ color: MUTED }}>
-                  Funde <b style={{ color: NAVY }}>{atual.displayName}</b> dentro de um exame do catálogo: move os
-                  resultados, absorve as grafias como apelidos e <b>desativa</b> este exame. Reversível pelo botão Desfazer.
+                  Funde <b style={{ color: NAVY }}>{atual.displayName}</b> com outro exame do catálogo: você escolhe
+                  qual nome fica como PADRÃO; o outro é absorvido (resultados movidos, grafias viram apelidos) e
+                  <b> desativado</b>. Reversível pelo botão Desfazer.
                 </div>
                 <div className="concave-3d mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: NAVY }}>
                   <span>Impacto:</span>
@@ -2011,33 +2019,78 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   <span style={{ color: MUTED }}>·</span>
                   <span>{impacto?.documentos ?? "—"} laudo(s)</span>
                 </div>
-                {renderExamPicker(engTarget, setEngTarget, engBusca, setEngBusca)}
-                {atual.origin === "catalogo" && (
-                  <label className="mt-2 flex items-start gap-1.5 text-[10px] font-semibold" style={{ color: "#b4413c" }}>
-                    <input
-                      type="checkbox"
-                      checked={engConfirmOficial}
-                      onChange={(e) => setEngConfirmOficial(e.target.checked)}
-                      className="mt-0.5"
-                    />
-                    Este é um exame OFICIAL do catálogo. Confirmo que quero englobá-lo mesmo assim.
-                  </label>
+                {renderExamPicker(
+                  engTarget,
+                  (code) => {
+                    setEngTarget(code);
+                    setEngVencedor("");
+                    setEngConfirmOficial(false);
+                  },
+                  engBusca,
+                  setEngBusca,
                 )}
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={executarEnglobar}
-                    disabled={engBusy || !engTarget || (atual.origin === "catalogo" && !engConfirmOficial)}
-                    className="btn-3d inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
-                    style={{ background: NAVY }}
-                  >
-                    {engBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Combine className="h-3.5 w-3.5" />}
-                    Englobar
-                  </button>
-                  {curMsg?.kind === "eng" && (
-                    <span className={`text-[10px] font-semibold ${curMsg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>{curMsg.texto}</span>
-                  )}
-                </div>
+                {(() => {
+                  const destinoRow = rows.find((r) => r.code === engTarget) ?? null;
+                  const absorvido = engVencedor === "destino" ? atual : engVencedor === "atual" ? destinoRow : null;
+                  const precisaConfirm = absorvido?.origin === "catalogo";
+                  return (
+                    <>
+                      {engTarget && destinoRow && (
+                        <div className="concave-3d mt-2 rounded-[6px] px-3 py-2">
+                          <div className="mb-1.5 text-[10px] font-black uppercase tracking-wide" style={{ color: NAVY }}>
+                            Qual nome fica como PADRÃO?
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEngVencedor("atual")}
+                              className={`${engVencedor === "atual" ? "concave-3d" : "bevel-3d"} rounded-[6px] px-3 py-1.5 text-left text-[10px] font-bold`}
+                              style={{ color: NAVY }}
+                            >
+                              {atual.displayName} <span className="font-black uppercase">vira o padrão</span>
+                              <span style={{ color: MUTED }}> · {destinoRow.displayName} vira apelido</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEngVencedor("destino")}
+                              className={`${engVencedor === "destino" ? "concave-3d" : "bevel-3d"} rounded-[6px] px-3 py-1.5 text-left text-[10px] font-bold`}
+                              style={{ color: NAVY }}
+                            >
+                              {destinoRow.displayName} <span className="font-black uppercase">vira o padrão</span>
+                              <span style={{ color: MUTED }}> · {atual.displayName} vira apelido</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {precisaConfirm && absorvido && (
+                        <label className="mt-2 flex items-start gap-1.5 text-[10px] font-semibold" style={{ color: "#b4413c" }}>
+                          <input
+                            type="checkbox"
+                            checked={engConfirmOficial}
+                            onChange={(e) => setEngConfirmOficial(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          {absorvido.displayName} é um exame OFICIAL do catálogo. Confirmo que quero englobá-lo mesmo assim.
+                        </label>
+                      )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={executarEnglobar}
+                          disabled={engBusy || !engTarget || !engVencedor || (precisaConfirm && !engConfirmOficial)}
+                          className="btn-3d inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
+                          style={{ background: NAVY }}
+                        >
+                          {engBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Combine className="h-3.5 w-3.5" />}
+                          Englobar
+                        </button>
+                        {curMsg?.kind === "eng" && (
+                          <span className={`text-[10px] font-semibold ${curMsg.ok ? "text-[#3f7a3f]" : "text-[#b4413c]"}`}>{curMsg.texto}</span>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* ---------- TRANSFERIR RESULTADO(S) ---------- */}
