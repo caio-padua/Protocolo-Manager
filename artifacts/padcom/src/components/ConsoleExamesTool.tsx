@@ -22,6 +22,7 @@ import {
   ArrowLeftRight,
   Undo2,
   History,
+  ListChecks,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
 import {
@@ -308,8 +309,10 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [busca, setBusca] = useState("");
-  // Filtro "só não cadastrados" (origin='descoberto'): liga clicando no chip contador da Sala de Triagem.
-  const [soNaoCadastrados, setSoNaoCadastrados] = useState(false);
+  // Filtro da Sala de Triagem: qual visão a lista de exames mostra.
+  // "todos" = catálogo inteiro; "nao_cadastrados" = origin='descoberto';
+  // "a_conferir" e "ignorados" = itens da fila de triagem (por kind).
+  const [filtroTriagem, setFiltroTriagem] = useState<"todos" | "nao_cadastrados" | "a_conferir" | "ignorados">("todos");
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
   // Detalhe (faixas)
@@ -746,7 +749,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
     // R13 da spec: o bloco de CADASTRO mostra só cadastros reais (inCatalog=true).
     // Grafias cruas/fallback ficam fora daqui — vivem na Sala de Triagem.
     let base = rows.filter((r) => r.inCatalog);
-    if (soNaoCadastrados) base = base.filter((r) => r.origin === "descoberto");
+    if (filtroTriagem === "nao_cadastrados") base = base.filter((r) => r.origin === "descoberto");
     const q = norm(busca.trim());
     if (!q) return base;
     return base.filter(
@@ -755,7 +758,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         norm(r.grupo ?? "").includes(q) ||
         (r.synonyms ?? []).some((s) => norm(s).includes(q)),
     );
-  }, [rows, busca, soNaoCadastrados]);
+  }, [rows, busca, filtroTriagem]);
 
   const atual = rows.find((r) => r.code === selecionado) ?? null;
 
@@ -1209,30 +1212,40 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
       {/* ===================== SALA DE TRIAGEM ===================== */}
       <div className="panel-3d-sub mb-4 rounded-[6px] p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: NAVY }}>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: NAVY }}>
             <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSoNaoCadastrados((v) => !v)}
-              className={`${soNaoCadastrados ? "btn-3d" : "concave-3d"} inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide`}
-              style={soNaoCadastrados ? { background: NAVY, color: "#fff" } : { color: GOLD }}
-              title={
-                soNaoCadastrados
-                  ? "Filtro ligado: a lista abaixo mostra só os exames NÃO CADASTRADOS (criados sozinhos pela faxina). Clique para ver todos."
-                  : "Clique para filtrar a lista abaixo e ver só os exames NÃO CADASTRADOS (criados sozinhos pela faxina)"
-              }
-            >
-              <Sparkles className="h-3 w-3" /> {triTot.descobertos} não cadastrados
-            </button>
-            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: "#b4413c" }}>
-              <AlertTriangle className="h-3 w-3" /> {triTot.ambiguos} a conferir
-            </span>
-            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: MUTED }}>
-              <Ban className="h-3 w-3" /> {triTot.naoExames} ignorados
-            </span>
+          {/* Coluna de botões-filtro: largura FIXA, empilhados — as bordas formam
+              as linhas verticais imaginárias (Padrão 12 / grade imaginária).
+              Cada linha: ícone | rótulo | contagem em slot fixo à direita.
+              O selecionado ganha neon RESPIRANDO (paxter-neon-breathe). */}
+          <div className="flex w-[220px] shrink-0 flex-col gap-1.5">
+            {(
+              [
+                { id: "todos", rotulo: "Todos os exames", Icone: ListChecks, cor: NAVY, glow: "hsl(187 72% 48% / 0.55)", n: null as number | null },
+                { id: "nao_cadastrados", rotulo: "Não cadastrados", Icone: Sparkles, cor: GOLD, glow: "hsl(42 65% 52% / 0.6)", n: triTot.descobertos },
+                { id: "a_conferir", rotulo: "A conferir", Icone: AlertTriangle, cor: "#b4413c", glow: "hsl(0 70% 55% / 0.55)", n: triTot.ambiguos },
+                { id: "ignorados", rotulo: "Ignorados", Icone: Ban, cor: MUTED, glow: "hsl(200 10% 55% / 0.5)", n: triTot.naoExames },
+              ] as const
+            ).map((f) => {
+              const ativo = filtroTriagem === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFiltroTriagem(f.id)}
+                  aria-pressed={ativo}
+                  className={`${ativo ? "btn-3d paxter-neon-breathe" : "concave-3d"} grid grid-cols-[16px_minmax(0,1fr)_2.5rem] items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-left text-[9px] font-black uppercase tracking-wide`}
+                  style={ativo ? ({ background: NAVY, color: "#fff", "--neon-glow": f.glow } as React.CSSProperties) : { color: f.cor }}
+                  title={`Mostrar na lista: ${f.rotulo}`}
+                >
+                  <f.Icone className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{f.rotulo}</span>
+                  <span className="text-right tabular-nums">{f.n === null ? "—" : f.n}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -1443,6 +1456,41 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         {/* ===================== MESTRE (lista) ===================== */}
         <div>
+          {/* Título da lista em placa Saliente (Padrão 3): muda conforme o botão-filtro selecionado. */}
+          <div
+            className="bevel-3d mb-2 inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em]"
+            style={{
+              color:
+                filtroTriagem === "nao_cadastrados"
+                  ? GOLD
+                  : filtroTriagem === "a_conferir"
+                    ? "#b4413c"
+                    : filtroTriagem === "ignorados"
+                      ? MUTED
+                      : NAVY,
+            }}
+          >
+            {filtroTriagem === "todos" && (
+              <>
+                <ListChecks className="h-3.5 w-3.5" /> Todos os exames
+              </>
+            )}
+            {filtroTriagem === "nao_cadastrados" && (
+              <>
+                <Sparkles className="h-3.5 w-3.5" /> Exames não cadastrados
+              </>
+            )}
+            {filtroTriagem === "a_conferir" && (
+              <>
+                <AlertTriangle className="h-3.5 w-3.5" /> Fila a conferir
+              </>
+            )}
+            {filtroTriagem === "ignorados" && (
+              <>
+                <Ban className="h-3.5 w-3.5" /> Ignorados (não são exame)
+              </>
+            )}
+          </div>
           <div className="concave-3d mb-2 flex items-center gap-2 rounded-[6px] px-3 py-2">
             <Search className="h-4 w-4" style={{ color: MUTED }} />
             <input
@@ -1466,7 +1514,44 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             <div className="px-2 py-6 text-[12px] font-semibold text-[#b4413c]">Não consegui carregar os exames.</div>
           )}
 
-          {!carregando && !erro && (
+          {!carregando && !erro && (filtroTriagem === "a_conferir" || filtroTriagem === "ignorados") && (
+            <div className="max-h-[560px] space-y-1 overflow-y-auto pr-1">
+              {(() => {
+                const kindAlvo = filtroTriagem === "a_conferir" ? "ambiguo" : "nao_exame";
+                const q = norm(busca.trim());
+                const itens = triPend
+                  .filter((t) => t.kind === kindAlvo)
+                  .filter((t) => !q || norm(t.sampleName).includes(q));
+                if (itens.length === 0) {
+                  return (
+                    <div className="px-2 py-4 text-[12px]" style={{ color: MUTED }}>
+                      {filtroTriagem === "a_conferir"
+                        ? "Nenhuma grafia aguardando conferência."
+                        : "Nenhuma grafia ignorada."}
+                    </div>
+                  );
+                }
+                return itens.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTriAberta(true)}
+                    className="btn-3d-soft grid w-full grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-2 rounded-[6px] px-3 py-2 text-left"
+                    title="Abrir a fila da Sala de Triagem para decidir esta grafia"
+                  >
+                    <span className="min-w-0 truncate text-[12px] font-bold" style={{ color: NAVY }}>
+                      {t.sampleName}
+                    </span>
+                    <span className="text-right text-[9px] font-black uppercase tabular-nums" style={{ color: MUTED }}>
+                      {t.occurrences}×
+                    </span>
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+
+          {!carregando && !erro && filtroTriagem !== "a_conferir" && filtroTriagem !== "ignorados" && (
             <div className="max-h-[560px] space-y-1 overflow-y-auto pr-1">
               {filtrados.length === 0 && (
                 <div className="px-2 py-4 text-[12px]" style={{ color: MUTED }}>

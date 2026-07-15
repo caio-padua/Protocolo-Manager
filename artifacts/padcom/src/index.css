@@ -510,6 +510,30 @@
 .paxter-led-breathe {
   animation: paxterBreathe 3.6s ease-in-out infinite;
 }
+/* Neon RESPIRANDO em botao/painel selecionado — halo na cor de --neon-glow que
+   cresce e recua na cadencia da vela (3.6s), SEM apagar o relevo 3D. Padrao
+   oficial para botao-filtro SELECIONADO (ex.: filtros da Sala de Triagem). */
+@keyframes paxterNeonBreathe {
+  0%, 100% {
+    box-shadow: 0 0 4px 1px var(--neon-glow, hsl(187 72% 48% / 0.4));
+  }
+  50% {
+    box-shadow: 0 0 12px 3px var(--neon-glow, hsl(187 72% 48% / 0.65));
+  }
+}
+/* O halo mora num pseudo-elemento ::after para NAO substituir o box-shadow
+   multi-camada do relevo 3D (btn-3d) — box-shadow nao e aditivo. */
+.paxter-neon-breathe {
+  position: relative;
+}
+.paxter-neon-breathe::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: paxterNeonBreathe 3.6s ease-in-out infinite;
+}
 .paxter-led-off {
   background: #cfdada;
   border-color: #b9c8c8;
@@ -1300,6 +1324,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .paxter-led, .paxter-led-alert, .paxter-led-breathe { animation: none; opacity: 1; }
+  .paxter-neon-breathe::after { animation: none; box-shadow: 0 0 8px 2px var(--neon-glow, hsl(187 72% 48% / 0.5)); }
   .symbol-glint-band { animation: none; opacity: 0; }
 }
 
