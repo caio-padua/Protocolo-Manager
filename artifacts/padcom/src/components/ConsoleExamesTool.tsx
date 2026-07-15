@@ -1208,13 +1208,14 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         <Compass className="h-4 w-4" style={{ color: GOLD }} /> {titulo ?? "Console de Exames"}
       </div>
       <p className="mb-3 text-[11px]" style={{ color: MUTED }}>
-        Tudo de um exame numa tela só: <b>apelidos</b> (como o laudo escreve), <b>unidades</b> (com a padrão e o
-        fator de conversão), a <b>direção</b> (o que é "excelente") e os <b>cortes De/Até</b> das 5 faixas. O
-        rótulo de cada faixa é editável por exame; a cor é fixa por severidade.{" "}
+        Central de curadoria do catálogo de exames — a ficha completa de cada exame numa tela só:{" "}
+        <b>apelidos</b> (as grafias dos laudos), <b>unidades</b> (padrão e fator de conversão),{" "}
+        <b>direção clínica</b> (o que é "excelente") e os <b>cortes De/Até</b> das 5 faixas. Rótulos editáveis
+        por exame; cores fixas por severidade.{" "}
         <span className="mx-0.5 inline-flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 align-middle text-[8px] font-black uppercase text-white" style={{ background: GOLD }}>
           <Check className="h-2.5 w-2.5" /> rev
         </span>
-        marca exames já conferidos por um profissional.
+        = exame já conferido por um profissional.
       </p>
 
       {/* ===================== SALA DE TRIAGEM ===================== */}
