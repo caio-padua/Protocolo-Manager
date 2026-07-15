@@ -44,7 +44,7 @@ const INTERRUPTORES: Interruptor[] = [
     chave: "autoCriarDescoberto",
     titulo: "Criar exame novo automaticamente",
     ligado:
-      "Exame nunca visto antes é cadastrado sozinho (marcado como DESCOBERTO) e já entra na Evolução.",
+      "Exame nunca visto antes é criado sozinho (marcado como NÃO CADASTRADO, aguardando conferência) e já entra na Evolução.",
     desligado:
       "Exame novo NÃO é cadastrado sozinho: vira um item A CONFERIR na fila, aguardando decisão humana.",
   },

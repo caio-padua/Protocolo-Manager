@@ -308,6 +308,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [busca, setBusca] = useState("");
+  // Filtro "só não cadastrados" (origin='descoberto'): liga clicando no chip contador da Sala de Triagem.
+  const [soNaoCadastrados, setSoNaoCadastrados] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
   // Detalhe (faixas)
@@ -696,7 +698,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("backfill"))))
       .then((d: { apelidos: number; novos: number; ambiguos: number; naoExames: number; linhasCarimbadas: number }) => {
         setTriResumo(
-          `Faxina concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) DESCOBERTO criado(s), ` +
+          `Faxina concluída: ${d.apelidos} apelido(s) absorvido(s), ${d.novos} exame(s) novo(s) criado(s) marcado(s) NÃO CADASTRADO, ` +
             `${d.ambiguos} a conferir, ${d.naoExames} ignorado(s) · ${d.linhasCarimbadas} resultado(s) carimbado(s).`,
         );
         carregarTriagem();
@@ -743,7 +745,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
   const filtrados = useMemo(() => {
     // R13 da spec: o bloco de CADASTRO mostra só cadastros reais (inCatalog=true).
     // Grafias cruas/fallback ficam fora daqui — vivem na Sala de Triagem.
-    const base = rows.filter((r) => r.inCatalog);
+    let base = rows.filter((r) => r.inCatalog);
+    if (soNaoCadastrados) base = base.filter((r) => r.origin === "descoberto");
     const q = norm(busca.trim());
     if (!q) return base;
     return base.filter(
@@ -752,7 +755,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         norm(r.grupo ?? "").includes(q) ||
         (r.synonyms ?? []).some((s) => norm(s).includes(q)),
     );
-  }, [rows, busca]);
+  }, [rows, busca, soNaoCadastrados]);
 
   const atual = rows.find((r) => r.code === selecionado) ?? null;
 
@@ -1211,9 +1214,19 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
             <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
-              <Sparkles className="h-3 w-3" /> {triTot.descobertos} descobertos
-            </span>
+            <button
+              type="button"
+              onClick={() => setSoNaoCadastrados((v) => !v)}
+              className={`${soNaoCadastrados ? "btn-3d" : "concave-3d"} inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide`}
+              style={soNaoCadastrados ? { background: NAVY, color: "#fff" } : { color: GOLD }}
+              title={
+                soNaoCadastrados
+                  ? "Filtro ligado: a lista abaixo mostra só os exames NÃO CADASTRADOS (criados sozinhos pela faxina). Clique para ver todos."
+                  : "Clique para filtrar a lista abaixo e ver só os exames NÃO CADASTRADOS (criados sozinhos pela faxina)"
+              }
+            >
+              <Sparkles className="h-3 w-3" /> {triTot.descobertos} não cadastrados
+            </button>
             <span className="concave-3d inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide" style={{ color: "#b4413c" }}>
               <AlertTriangle className="h-3 w-3" /> {triTot.ambiguos} a conferir
             </span>
@@ -1226,8 +1239,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-[10px]" style={{ color: MUTED }}>
             A <b>faxina</b> varre toda grafia de laudo: apelido de alta confiança é absorvido sozinho, exame novo
-            vira cadastro <b>DESCOBERTO</b> ativo, e o que ficou <b>ambíguo</b> espera sua decisão aqui — em
-            quarentena, fora do motor. Nada é perdido.
+            entra ativo marcado <b>NÃO CADASTRADO</b> (criado sozinho, aguarda conferência), e o que ficou{" "}
+            <b>ambíguo</b> espera sua decisão aqui — em quarentena, fora do motor. Nada é perdido.
           </p>
           <button
             type="button"
@@ -1307,7 +1320,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     disabled={triResolvendo === t.id}
                     className="btn-3d-soft inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60"
                     style={{ color: GOLD }}
-                    title="Criar como exame novo (DESCOBERTO)"
+                    title="Criar como exame novo (entra marcado NÃO CADASTRADO)"
                   >
                     <Sparkles className="h-3 w-3" /> Criar novo
                   </button>
@@ -1390,7 +1403,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                             <span className="truncate">{r.displayName}</span>
                             {r.origin === "descoberto" && (
                               <span className="shrink-0 text-[8px] font-black uppercase tracking-wide" style={{ color: GOLD }}>
-                                descoberto
+                                não cadastrado
                               </span>
                             )}
                           </button>
@@ -1417,7 +1430,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   onClick={() => setSelecionado(d.code)}
                   className="concave-3d inline-flex items-center rounded-[6px] px-2 py-1 text-[10px] font-semibold"
                   style={{ color: NAVY }}
-                  title="Abrir cadastro DESCOBERTO"
+                  title="Abrir exame NÃO CADASTRADO"
                 >
                   {d.displayName}
                 </button>
@@ -1523,7 +1536,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                       }
                     >
                       {atual.origin === "descoberto" ? <Sparkles className="h-2.5 w-2.5" /> : <Check className="h-2.5 w-2.5" />}
-                      {atual.origin === "descoberto" ? "Descoberto" : "Catálogo"}
+                      {atual.origin === "descoberto" ? "Não cadastrado" : "Catálogo"}
                     </span>
                   </div>
                 )}
