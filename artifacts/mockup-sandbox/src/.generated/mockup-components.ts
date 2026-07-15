@@ -73,7 +73,7 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-luz/CintilarDiamante.tsx": () => import("../components/mockups/paxter-luz/CintilarDiamante.tsx"),
   "./components/mockups/paxter-luz/ReflexoCursor.tsx": () => import("../components/mockups/paxter-luz/ReflexoCursor.tsx"),
   "./components/mockups/paxter-luz/RespiroEspecular.tsx": () => import("../components/mockups/paxter-luz/RespiroEspecular.tsx"),
+  "./components/mockups/vitrine-demo/VitrineDemo.tsx": () => import("../components/mockups/vitrine-demo/VitrineDemo.tsx"),
   "./components/mockups/validacao/FilaValidacao.tsx": () => import("../components/mockups/validacao/FilaValidacao.tsx"),
-  "./components/mockups/validacao/MesaValidacao.tsx": () => import("../components/mockups/validacao/MesaValidacao.tsx"),
-  "./components/mockups/vitrine-demo/VitrineDemo.tsx": () => import("../components/mockups/vitrine-demo/VitrineDemo.tsx")
+  "./components/mockups/validacao/MesaValidacao.tsx": () => import("../components/mockups/validacao/MesaValidacao.tsx")
 };
