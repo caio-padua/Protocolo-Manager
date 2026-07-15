@@ -411,8 +411,8 @@ export async function renderPaxterStickerWebp(): Promise<Buffer> {
       const quadros = await gerarQuadros();
       const LADO = 512;
       const cardW = LADO;
-      const cardH = Math.round((cardW * ANIM_H) / ANIM_W); // ~269
-      const y = Math.round((LADO - cardH) / 2);
+      const cardH = LADO; // preenche o quadrado inteiro → figurinha maior na tela
+      const y = 0;
       const raio = 28;
       const pngs: Buffer[] = quadros.map((q) => {
         const c = createCanvas(LADO, LADO);
