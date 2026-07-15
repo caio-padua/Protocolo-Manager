@@ -1212,14 +1212,16 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
 
       {/* ===================== SALA DE TRIAGEM ===================== */}
       <div className="panel-3d-sub mb-4 rounded-[6px] p-3">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: NAVY }}>
-            <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
-          </div>
-          {/* Coluna de botões-filtro: largura FIXA, empilhados — as bordas formam
-              as linhas verticais imaginárias (Padrão 12 / grade imaginária).
+        <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: NAVY }}>
+          <Wand2 className="h-4 w-4" style={{ color: GOLD }} /> Sala de Triagem
+        </div>
+
+        <div className="flex flex-wrap items-start gap-4">
+          {/* Coluna de botões-filtro à ESQUERDA: largura FIXA, empilhados — as bordas
+              formam as linhas verticais imaginárias (Padrão 12 / grade imaginária).
               Cada linha: ícone | rótulo | contagem em slot fixo à direita.
-              O selecionado ganha neon RESPIRANDO (paxter-neon-breathe). */}
+              Não selecionado = Saliente (up bevel); SELECIONADO = AFUNDADO (concave-3d,
+              impressão de pressionado) + neon RESPIRANDO (paxter-neon-breathe). */}
           <div className="flex w-[220px] shrink-0 flex-col gap-1.5">
             {(
               [
@@ -1236,8 +1238,8 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   type="button"
                   onClick={() => setFiltroTriagem(f.id)}
                   aria-pressed={ativo}
-                  className={`${ativo ? "btn-3d paxter-neon-breathe" : "concave-3d"} grid grid-cols-[16px_minmax(0,1fr)_2.5rem] items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-left text-[9px] font-black uppercase tracking-wide`}
-                  style={ativo ? ({ background: NAVY, color: "#fff", "--neon-glow": f.glow } as React.CSSProperties) : { color: f.cor }}
+                  className={`${ativo ? "concave-3d paxter-neon-breathe" : "btn-3d-soft"} grid grid-cols-[16px_minmax(0,1fr)_2.5rem] items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-left text-[9px] font-black uppercase tracking-wide`}
+                  style={{ color: f.cor, ...(ativo ? ({ "--neon-glow": f.glow } as React.CSSProperties) : null) }}
                   title={`Mostrar na lista: ${f.rotulo}`}
                 >
                   <f.Icone className="h-3 w-3 shrink-0" />
@@ -1247,14 +1249,39 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
               );
             })}
           </div>
+
+          {/* COMO FUNCIONA — passo a passo em degraus numerados (TDAH/TOC-friendly):
+              cada passo é UMA linha curta com número em medalha e resultado em cor
+              semântica; substitui o parágrafo linear cansativo. */}
+          <div className="min-w-[240px] flex-1 space-y-1.5">
+            <div className="text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: MUTED }}>
+              Como funciona
+            </div>
+            {(
+              [
+                { n: 1, texto: "O laudo chega e a FAXINA lê cada grafia de exame.", cor: NAVY },
+                { n: 2, texto: "Grafia conhecida → vira apelido sozinha. Nada a fazer.", cor: "#3f7a3f" },
+                { n: 3, texto: "Exame novo → entra ativo como NÃO CADASTRADO (confira quando puder).", cor: GOLD },
+                { n: 4, texto: "Dúvida → fica em quarentena em A CONFERIR (você decide aqui).", cor: "#b4413c" },
+                { n: 5, texto: "Não é exame → vai para IGNORADOS. Nada se perde.", cor: MUTED },
+              ] as const
+            ).map((p) => (
+              <div key={p.n} className="grid grid-cols-[20px_minmax(0,1fr)] items-start gap-1.5">
+                <span
+                  className="concave-3d inline-flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black tabular-nums"
+                  style={{ color: p.cor }}
+                >
+                  {p.n}
+                </span>
+                <span className="pt-0.5 text-[10px] font-semibold leading-snug" style={{ color: NAVY }}>
+                  {p.texto}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 text-[10px]" style={{ color: MUTED }}>
-            A <b>faxina</b> varre toda grafia de laudo: apelido de alta confiança é absorvido sozinho, exame novo
-            entra ativo marcado <b>NÃO CADASTRADO</b> (criado sozinho, aguarda conferência), e o que ficou{" "}
-            <b>ambíguo</b> espera sua decisão aqui — em quarentena, fora do motor. Nada é perdido.
-          </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={rodarFaxina}
@@ -1531,14 +1558,17 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     </div>
                   );
                 }
-                return itens.map((t) => (
+                return itens.map((t, idx) => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => setTriAberta(true)}
-                    className="btn-3d-soft grid w-full grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-2 rounded-[6px] px-3 py-2 text-left"
+                    className="btn-3d-soft grid w-full grid-cols-[2.25rem_minmax(0,1fr)_3.5rem] items-center gap-2 rounded-[6px] px-3 py-2 text-left"
                     title="Abrir a fila da Sala de Triagem para decidir esta grafia"
                   >
+                    <span className="text-right text-[10px] font-black tabular-nums" style={{ color: MUTED }}>
+                      {idx + 1}.
+                    </span>
                     <span className="min-w-0 truncate text-[12px] font-bold" style={{ color: NAVY }}>
                       {t.sampleName}
                     </span>
@@ -1558,7 +1588,7 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                   Nenhum exame encontrado para "{busca}".
                 </div>
               )}
-              {filtrados.map((it) => {
+              {filtrados.map((it, idx) => {
                 const ativo = it.code === selecionado;
                 return (
                   <button
@@ -1568,6 +1598,9 @@ export function ConsoleExamesTool({ titulo }: { titulo?: string }) {
                     className={`flex w-full items-center gap-2 rounded-[6px] px-3 py-2 text-left ${ativo ? "btn-3d" : "btn-3d-soft"}`}
                     style={ativo ? { background: NAVY } : undefined}
                   >
+                    <span className="w-9 shrink-0 text-right text-[10px] font-black tabular-nums" style={{ color: ativo ? "rgba(255,255,255,0.7)" : MUTED }}>
+                      {idx + 1}.
+                    </span>
                     <span className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: ativo ? "#fff" : NAVY }}>
                       {it.displayName}
                     </span>

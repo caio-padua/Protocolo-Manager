@@ -420,16 +420,28 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   para que as bordas esquerda/direita formem as linhas verticais imaginarias (Padrao 12 e Grade
   Imaginaria). Regras: (1) cada botao e um grid de colunas fixas `[16px | rotulo 1fr | contagem 2.5rem]`
   — icone, rotulo MAIUSCULO truncate, contagem `tabular-nums` alinhada a direita (slot SEMPRE presente;
-  sem contagem = travessao "—"); (2) botao NAO selecionado = `concave-3d` com texto na cor semantica do
-  status; (3) botao SELECIONADO = `btn-3d` fundo navy + classe `paxter-neon-breathe`: halo neon que
-  RESPIRA em cadencia de vela (3,6s, mesma do Padrao 17) num pseudo-elemento `::after` (box-shadow
-  nao e aditivo: animar direto no botao APAGARIA o relevo 3D), cor do halo via variavel CSS `--neon-glow`
-  na cor semantica do filtro (ciano=todos, ouro=nao cadastrados, vermelho=a conferir, cinza=ignorados);
-  (4) `prefers-reduced-motion` congela a respiracao num halo estatico; (5) o TITULO da lista comandada
-  pelos filtros e uma placa Saliente (Padrao 3, `bevel-3d`, MAIUSCULO) que MUDA de texto, icone e cor
-  conforme o botao selecionado — a lista nunca troca de conteudo sem o titulo anunciar. CSS fonte
-  unica: `.paxter-neon-breathe` + keyframe `paxterNeonBreathe` em `artifacts/padcom/src/index.css`.
+  sem contagem = travessao "—"); a coluna fica ALINHADA A ESQUERDA do painel (decisao do CEO em
+  15/07/2026); (2) botao NAO selecionado = Saliente `btn-3d-soft` (up bevel) com texto na cor semantica
+  do status; (3) botao SELECIONADO = AFUNDADO `concave-3d` (impressao de PRESSIONADO — decisao do CEO
+  em 15/07/2026, substitui a versao inicial que era `btn-3d` navy) + classe `paxter-neon-breathe`:
+  halo neon que RESPIRA em cadencia de vela (3,6s, mesma do Padrao 17) num pseudo-elemento `::after`
+  (box-shadow nao e aditivo: animar direto no botao APAGARIA o relevo 3D), cor do halo via variavel
+  CSS `--neon-glow` na cor semantica do filtro (ciano=todos, ouro=nao cadastrados, vermelho=a conferir,
+  cinza=ignorados); (4) `prefers-reduced-motion` congela a respiracao num halo estatico; (5) o TITULO
+  da lista comandada pelos filtros e uma placa Saliente (Padrao 3, `bevel-3d`, MAIUSCULO) que MUDA de
+  texto, icone e cor conforme o botao selecionado — a lista nunca troca de conteudo sem o titulo
+  anunciar; (6) listas longas comandadas pelos filtros sao ENUMERADAS: numero sequencial "N." em slot
+  fixo a esquerda de cada linha, `tabular-nums`, cor muted (branco translucido na linha ativa). CSS
+  fonte unica: `.paxter-neon-breathe` + keyframe `paxterNeonBreathe` em `artifacts/padcom/src/index.css`.
   Referencia viva: Sala de Triagem (`ConsoleExamesTool.tsx`).
+
+- **Padrao 22 — "COMO FUNCIONA" EM DEGRAUS NUMERADOS (lei promulgada pelo CEO em 15/07/2026, Sala de
+  Triagem)**: explicacao de funcionamento de uma ferramenta NUNCA e paragrafo linear (cansativo para
+  TDAH/TOC). Vai como passo a passo empilhado sob o rotulo MAIUSCULO "COMO FUNCIONA": cada passo e UMA
+  linha curta num grid `[20px | texto 1fr]` — medalha redonda Concava (`concave-3d`, h-5 w-5) com o
+  numero na cor semantica do RESULTADO do passo (navy=neutro, verde=automatico ok, ouro=nao cadastrado,
+  vermelho=exige decisao, cinza=ignorado) + frase de UMA linha com seta "→" separando causa e efeito.
+  Maximo ~5 passos; texto `text-[10px]` navy. Referencia viva: Sala de Triagem (`ConsoleExamesTool.tsx`).
 
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
