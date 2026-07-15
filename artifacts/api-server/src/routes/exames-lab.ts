@@ -50,6 +50,7 @@ import {
   setResultCodeForNormKey,
   readTriagemOptions,
 } from "../lib/exam-extraction/triagem";
+import { runCuradoriaTriagem } from "../lib/exam-extraction/seed-triagem-curadoria";
 import { examAnalyteTriagemTable } from "@workspace/db";
 import {
   englobarExame,
@@ -1789,6 +1790,18 @@ router.post("/exames-lab/triagem/:id/resolver", async (req: Request, res: Respon
   } catch (e) {
     req.log?.error({ err: e }, "POST /exames-lab/triagem/:id/resolver falhou");
     return res.status(500).json({ error: "Falha ao resolver o item da triagem" });
+  }
+});
+
+// POST /exames-lab/triagem/curadoria — faxina determinística em massa da fila
+// (Caminho A) + unidade canônica e direção favorável (Caminho B). Idempotente.
+router.post("/exames-lab/triagem/curadoria", async (req: Request, res: Response) => {
+  try {
+    const resumo = await runCuradoriaTriagem();
+    return res.json({ ok: true, resumo });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/triagem/curadoria falhou");
+    return res.status(500).json({ error: "Falha ao rodar a curadoria da triagem" });
   }
 });
 
