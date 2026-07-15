@@ -69,9 +69,11 @@ export async function enviarMensagemPaxter(
         continue;
       }
       try {
-        // Faísca no WhatsApp: vídeo MP4 curto (Twilio não repassa GIF).
+        // WhatsApp: banner ESTÁTICO (PNG). Decisão do CEO em 15/07/2026 (opção A):
+        // vídeo no WhatsApp aparece com botão de play (não toca sozinho), então o
+        // canal usa a imagem nítida; a animação vive no Telegram e no e-mail.
         const r = await sendWhatsapp(phone, renderWhatsappCaption(doc), {
-          mediaUrl: paxterBannerMp4Url(baseUrl),
+          mediaUrl: bannerUrl,
         });
         resultados.push({ canal, sent: r.sent, via: r.via, link: r.link, error: r.error });
       } catch (e: unknown) {
