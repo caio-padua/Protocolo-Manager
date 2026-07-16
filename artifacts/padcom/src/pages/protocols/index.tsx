@@ -11,15 +11,11 @@ import { Plus, ChevronRight, Activity, Home, Building2, Calendar, UserRound, Cir
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-/** Frequência legível derivada do intervalDays do item. */
-function freqLabel(intervalDays: number, frequency?: string | null): string {
-  if (frequency && frequency.trim()) return frequency.trim();
-  if (intervalDays <= 1) return "Diária";
-  if (intervalDays <= 3) return `${intervalDays}d`;
-  if (intervalDays === 7) return "1x/sem";
-  if (intervalDays === 14) return "Quinzenal";
-  if (intervalDays <= 21) return "3x/mês";
-  return "Mensal";
+/** Frequência no formato prescritivo: totalSessions/intervalDays dias.
+ *  Ex.: 8 sessões a cada 7 dias → "8/7 dias" */
+function freqLabel(totalSessions: number, intervalDays: number): string {
+  const suffix = intervalDays === 1 ? "dia" : "dias";
+  return `${totalSessions}/${intervalDays} ${suffix}`;
 }
 
 /** Faixa lateral (4px) colorida por status — âncora visual do card. */
@@ -277,7 +273,7 @@ function ProtocolCard({ protocol, onClick }: ProtocolCardProps) {
                   <div
                     key={item.id}
                     className="bevel-3d grid items-center gap-x-2 px-2.5 py-1.5"
-                    style={{ gridTemplateColumns: "10px 1fr 1px 40px 52px" }}
+                    style={{ gridTemplateColumns: "10px 1fr 1px 36px 76px" }}
                   >
                     {/* Dot de cor da substância */}
                     <span
@@ -294,9 +290,9 @@ function ProtocolCard({ protocol, onClick }: ProtocolCardProps) {
                     <span className="text-[10px] font-black tabular-nums text-right text-primary whitespace-nowrap">
                       {item.completedSessions}<span className="text-muted-foreground/60">/{item.totalSessions}</span>
                     </span>
-                    {/* Frequência — sempre na mesma coluna */}
-                    <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground/70 text-right truncate">
-                      {freqLabel(item.intervalDays, item.frequency)}
+                    {/* Frequência — formato prescritivo: totalSessions/intervalDays dias */}
+                    <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground/70 text-right whitespace-nowrap">
+                      {freqLabel(item.totalSessions, item.intervalDays)}
                     </span>
                   </div>
                 );
