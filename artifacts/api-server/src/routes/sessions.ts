@@ -24,6 +24,14 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
     professionalName = prof?.name ?? null;
   }
 
+  // Enfermeira: prioridade do campo da sessão; fallback no protocolo.
+  const resolvedNurseId = session.nurseId ?? (protocol as any)?.nurseId ?? null;
+  let nurseName: string | null = null;
+  if (resolvedNurseId) {
+    const [nurse] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, resolvedNurseId));
+    nurseName = nurse?.name ?? null;
+  }
+
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
 
   const substanceMap: Record<number, typeof substancesTable.$inferSelect> = {};
@@ -48,6 +56,9 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
     status: session.status,
     professionalId: session.professionalId ?? null,
     professionalName,
+    nurseId: resolvedNurseId,
+    nurseName,
+    serviceAddress: (session as any).serviceAddress ?? null,
     unit: session.unit ?? null,
     serviceType: session.serviceType,
     weekNumber: session.weekNumber,

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt, ExternalLink, Zap } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt, ExternalLink, Zap, Home } from "lucide-react";
+import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -279,10 +280,14 @@ export default function ClientDetail() {
         {/* Main Content Tabs */}
         <div className="md:col-span-2">
           <Tabs defaultValue="protocols" className="w-full">
-            <TabsList className="w-full justify-start border-none rounded-none h-auto p-0 bg-transparent mb-8 flex gap-3">
+            <TabsList className="w-full justify-start border-none rounded-none h-auto p-0 bg-transparent mb-8 flex gap-3 flex-wrap">
               <TabsTrigger value="protocols" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Protocolos</TabsTrigger>
               <TabsTrigger value="sessions" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Sessões</TabsTrigger>
               <TabsTrigger value="financial" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Financeiro</TabsTrigger>
+              <TabsTrigger value="enderecos" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none flex items-center gap-1.5">
+                <Home className="h-3 w-3" />
+                Endereços
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="protocols" className="space-y-6 focus:outline-none">
@@ -625,6 +630,11 @@ export default function ClientDetail() {
                 </div>
               )}
             </TabsContent>
+
+            <TabsContent value="enderecos" className="focus:outline-none">
+              <ClientServiceAddresses clientId={client.id} />
+            </TabsContent>
+
           </Tabs>
         </div>
       </div>

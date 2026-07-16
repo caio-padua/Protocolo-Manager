@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClientCombobox } from "@/components/ClientCombobox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock, Stethoscope } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -102,6 +102,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const [title, setTitle] = useState("");
   const [comboLoading, setComboLoading] = useState(false);
   const [activeVia, setActiveVia] = useState<string>("all");
+  const [nurseId, setNurseId] = useState("");
+  const [clientAddresses, setClientAddresses] = useState<Array<{id: number; label: string; street?: string | null; city?: string | null; zipCode?: string | null; isDefault: boolean}>>([]);
+  const [serviceAddressId, setServiceAddressId] = useState("");
   const comboRef = useRef(false);
 
   useEffect(() => {
@@ -114,6 +117,24 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
       .then(setLocations)
       .catch(() => {});
   }, []);
+
+  // Busca endereços de visita do cliente quando o local for homecare.
+  useEffect(() => {
+    const loc = locations.find(l => String(l.id) === locationId);
+    if (!clientId || loc?.type !== "homecare") {
+      setClientAddresses([]);
+      setServiceAddressId("");
+      return;
+    }
+    fetch(`${import.meta.env.BASE_URL}api/client-service-addresses?clientId=${clientId}`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        setClientAddresses(data);
+        const def = data.find(a => a.isDefault);
+        if (def) setServiceAddressId(String(def.id));
+      })
+      .catch(() => {});
+  }, [clientId, locationId, locations]);
 
   const createMutation = useCreateProtocol({
     mutation: {
@@ -148,6 +169,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     return all.filter(s => viaOf(s.procedureType) === activeVia);
   }, [substances, activeVia]);
 
+  const nurses = useMemo(() => {
+    return (professionals ?? []).filter((p: any) => p.category === "enfermagem");
+  }, [professionals]);
+
   const addSlot = () => {
     if (slots.length >= 10) return;
     setSlots(prev => [...prev, emptySlot()]);
@@ -175,6 +200,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
+    const selectedNurse = nurses.find((n: any) => String(n.id) === nurseId);
+    const feePerVisit = (selectedNurse as any)?.homeServiceFeePerVisit ?? 0;
+    const maxSessions = filledSlots.length > 0 ? Math.max(...filledSlots.map(s => s.totalSessions)) : 0;
+    const nurseServiceFeeCalc = feePerVisit > 0 ? feePerVisit * maxSessions : null;
     return {
       clientId: parseInt(clientId),
       title: autoTitle,
@@ -196,6 +225,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           frequency: s.frequency,
         };
       }),
+      ...(nurseId ? { nurseId: parseInt(nurseId) } : {}),
+      ...(nurseServiceFeeCalc != null ? { nurseServiceFee: nurseServiceFeeCalc } : {}),
     };
   };
 
@@ -265,7 +296,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid gap-4 ${nurseId ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 md:grid-cols-3"}`}>
             <div className="p-4 panel-3d-sub">
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
                 <User className="h-3.5 w-3.5" /> Cliente
@@ -289,6 +320,28 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
                 {selectedLocation?.type === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
               </p>
             </div>
+            {nurseId && (() => {
+              const n = nurses.find((x: any) => String(x.id) === nurseId) as any;
+              const feePerVisit = n?.homeServiceFeePerVisit ?? 0;
+              const maxSessions = filledSlots.length > 0 ? Math.max(...filledSlots.map(s => s.totalSessions)) : 0;
+              const totalFee = feePerVisit * maxSessions;
+              return (
+                <div className="p-4 panel-3d-sub border-l-2 border-accent/40">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
+                    <Stethoscope className="h-3.5 w-3.5 text-accent" /> Enfermeira
+                  </div>
+                  <p className="font-bold uppercase tracking-tight text-lg leading-tight">{n?.name ?? "—"}</p>
+                  {totalFee > 0 && (
+                    <p className="text-xs text-accent font-bold mt-1 tabular-nums">
+                      Fee: R$ {totalFee.toFixed(2)} ({maxSessions}× R$ {feePerVisit})
+                    </p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground font-bold mt-0.5 uppercase tracking-widest">
+                    {n?.nurseType === "home" ? "Home Nurse" : "Clínica"}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           <div>
@@ -420,6 +473,93 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
               </Select>
             </div>
           </div>
+          {/* Enfermeira + Endereço de Visita */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
+                <Stethoscope className="h-3 w-3" /> Enfermeira Responsável
+              </Label>
+              <Select value={nurseId || "none"} onValueChange={v => setNurseId(v === "none" ? "" : v)}>
+                <SelectTrigger className="field-engraved">
+                  <SelectValue placeholder="Sem enfermeira (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sem enfermeira —</SelectItem>
+                  {nurses.map((n: any) => (
+                    <SelectItem key={n.id} value={String(n.id)}>
+                      <div className="flex items-center gap-2">
+                        <span>{n.name}</span>
+                        {n.homeServiceFeePerVisit && (
+                          <span className="text-muted-foreground text-xs">
+                            R$ {Number(n.homeServiceFeePerVisit).toFixed(2)}/visita
+                          </span>
+                        )}
+                        <span className="text-muted-foreground text-xs uppercase">
+                          {n.nurseType === "home" ? "· Home" : "· Clínica"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {nurseId && (
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                  {(() => {
+                    const n = nurses.find((x: any) => String(x.id) === nurseId) as any;
+                    if (!n || !n.homeServiceFeePerVisit) return null;
+                    const maxSessions = filledSlots.length > 0 ? Math.max(...filledSlots.map(s => s.totalSessions)) : 0;
+                    return `Fee estimado: R$ ${(n.homeServiceFeePerVisit * maxSessions).toFixed(2)} (${maxSessions} sessões × R$ ${n.homeServiceFeePerVisit})`;
+                  })()}
+                </p>
+              )}
+            </div>
+
+            {/* Endereço de visita — só para homecare */}
+            {selectedLocation?.type === "homecare" && (
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> Endereço de Visita
+                </Label>
+                {clientAddresses.length > 0 ? (
+                  <>
+                    <Select value={serviceAddressId || "none"} onValueChange={v => setServiceAddressId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="field-engraved">
+                        <SelectValue placeholder="Selecione o endereço" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Sem endereço específico —</SelectItem>
+                        {clientAddresses.map(a => (
+                          <SelectItem key={a.id} value={String(a.id)}>
+                            <div className="flex items-center gap-2">
+                              <span>{a.label}</span>
+                              {a.isDefault && <span className="text-muted-foreground text-xs">✦ padrão</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {serviceAddressId && clientAddresses.find(a => String(a.id) === serviceAddressId) && (
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        {(() => {
+                          const a = clientAddresses.find(ad => String(ad.id) === serviceAddressId)!;
+                          return [a.street, a.city, a.zipCode && `CEP ${a.zipCode}`].filter(Boolean).join(", ");
+                        })()}
+                      </p>
+                    )}
+                  </>
+                ) : clientId ? (
+                  <div className="field-engraved rounded-md px-3 py-2.5 text-[10px] text-muted-foreground font-medium">
+                    Nenhum endereço cadastrado. Adicione na aba <strong>Endereços</strong> do cliente.
+                  </div>
+                ) : (
+                  <div className="field-engraved rounded-md px-3 py-2.5 text-[10px] text-muted-foreground font-medium">
+                    Selecione o cliente para ver seus endereços.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Local de Atendimento *</Label>

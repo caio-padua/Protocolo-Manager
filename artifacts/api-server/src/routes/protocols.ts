@@ -34,6 +34,14 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     professionalName = prof?.name ?? null;
   }
 
+  let nurseId: number | null = (protocol as any).nurseId ?? null;
+  let nurseServiceFee: number | null = (protocol as any).nurseServiceFee ?? null;
+  let nurseName: string | null = null;
+  if (nurseId) {
+    const [nurse] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, nurseId));
+    nurseName = nurse?.name ?? null;
+  }
+
   const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
 
@@ -107,6 +115,9 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     endDate: protocol.endDate ?? null,
     professionalId: protocol.professionalId ?? null,
     professionalName,
+    nurseId,
+    nurseServiceFee,
+    nurseName,
     unit: protocol.unit ?? null,
     serviceType: protocol.serviceType,
     totalSessions: protocol.totalSessions,
@@ -172,6 +183,10 @@ router.post("/protocols", async (req, res): Promise<void> => {
 
   const { items, ...protocolData } = parsed.data;
 
+  // nurseId e nurseServiceFee chegam no body mas podem não estar no schema Zod; ler direto.
+  const rawNurseId = req.body.nurseId != null ? parseInt(String(req.body.nurseId)) : null;
+  const rawNurseServiceFee = req.body.nurseServiceFee != null ? parseFloat(String(req.body.nurseServiceFee)) : null;
+
   const totalSessions = Math.max(...items.map((i: { totalSessions: number }) => i.totalSessions), 0);
 
   // Busca o valor da ampola de cada substância para montar o orçamento.
@@ -193,6 +208,8 @@ router.post("/protocols", async (req, res): Promise<void> => {
     ...protocolData,
     totalValue: finalTotalValue,
     totalSessions,
+    ...(rawNurseId != null && !isNaN(rawNurseId) ? { nurseId: rawNurseId } : {}),
+    ...(rawNurseServiceFee != null && !isNaN(rawNurseServiceFee) ? { nurseServiceFee: rawNurseServiceFee } : {}),
   }).returning();
 
   await Promise.all(items.map((item: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; frequency: string }) =>

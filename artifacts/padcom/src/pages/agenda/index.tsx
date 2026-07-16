@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, Clock, Home, Building2, User,
+  ChevronLeft, ChevronRight, Clock, Home, Building2, User, MapPin, Stethoscope,
   CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
   LayoutGrid, List, Columns3,
@@ -259,6 +259,14 @@ function SessionCard({
               />
               <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
               <MetaField label="Profissional" value={session.professionalName} icon={User} />
+              {(session as any).nurseName && (
+                <MetaField label="Enfermeira" value={(session as any).nurseName} icon={Stethoscope} />
+              )}
+              {(session as any).serviceAddress && (
+                <div className="col-span-2">
+                  <MetaField label="Endereço de Visita" value={(session as any).serviceAddress} icon={MapPin} />
+                </div>
+              )}
             </div>
 
             {/* Substâncias */}
