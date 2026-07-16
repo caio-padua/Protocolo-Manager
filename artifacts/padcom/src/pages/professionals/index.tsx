@@ -297,15 +297,32 @@ function extractGeo(address: string | null): { state: string; city: string; neig
   return { state, city, neighborhood };
 }
 
-// Usa zona cadastrada (data-binder) ou infere pelo bairro como fallback
-function resolveZone(zona: string | null, bairro: string | null): string {
-  if (zona && zona.trim()) return zona.trim();
-  if (!bairro) return "Outras Regiões";
-  const n = bairro.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
-  for (const [zone, bairros] of Object.entries(SP_ZONES)) {
-    if (bairros.some((b) => n.includes(b.normalize("NFD").replace(/\p{Mn}/gu, "")))) return zone;
+// Pirâmide de resolução — nunca retorna "Outras Regiões":
+// 1. zona cadastrada (campo direto)
+// 2. bairro → lookup canônico SP_ZONES → ou o próprio bairro
+// 3. cidade (estruturada ou extraída do address legado)
+// 4. estado como último recurso
+// 5. "Sem Endereço" apenas se não há absolutamente nada
+function resolveZone(loc: LocRow): string {
+  if (loc.zona?.trim()) return loc.zona.trim();
+
+  // Tenta bairro estruturado
+  const bairro = loc.bairro?.trim() || extractGeo(loc.address).neighborhood;
+  if (bairro) {
+    const n = bairro.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
+    for (const [zone, bairros] of Object.entries(SP_ZONES)) {
+      if (bairros.some((b) => n.includes(b.normalize("NFD").replace(/\p{Mn}/gu, "")))) return zone;
+    }
+    return bairro; // bairro real como agrupador (ex.: "Guaxupé", "Vila Aurora")
   }
-  return "Outras Regiões";
+
+  // Cidade estruturada ou extraída do address legado
+  const cidade = loc.cidade?.trim() || extractGeo(loc.address).city;
+  if (cidade) return cidade;
+
+  // Estado como último recurso antes do placeholder
+  if (loc.estado?.trim()) return loc.estado.trim();
+  return "Sem Endereço";
 }
 
 // ── Linha individual de local ─────────────────────────────────────────────────
@@ -352,7 +369,7 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
     if (state === "SP") {
       const byZone = new Map<string, LocRow[]>();
       for (const loc of locs) {
-        const zone = resolveZone(loc.zona, loc.bairro);
+        const zone = resolveZone(loc);
         byZone.set(zone, [...(byZone.get(zone) ?? []), loc]);
       }
       // Ordenar: zonas com vínculos ativos primeiro
