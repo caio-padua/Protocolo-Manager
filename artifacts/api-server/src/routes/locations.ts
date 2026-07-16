@@ -31,6 +31,86 @@ async function lookupCep(rawCep: string): Promise<{
   }
 }
 
+// ── Motor de zona automático ──────────────────────────────────────────────────
+// Deriva zona a partir do bairro + cidade + CEP.
+// Nunca sobrescreve zona definida manualmente — só preenche quando zona está vazia.
+// Regra SP: usa mapa de bairros conhecidos; fallback pelo prefixo do CEP (03xxx=Leste etc.)
+// Regra outras cidades: usa o próprio bairro como zona quando não há mapa específico.
+
+const BAIRRO_ZONA_SP: Record<string, string> = {
+  // Zona Leste
+  "tatuapé": "Zona Leste", "mooca": "Zona Leste", "vila formosa": "Zona Leste",
+  "penha": "Zona Leste", "vila matilde": "Zona Leste", "ermelino matarazzo": "Zona Leste",
+  "itaquera": "Zona Leste", "são miguel paulista": "Zona Leste", "guaianases": "Zona Leste",
+  "cidade tiradentes": "Zona Leste", "jardim helena": "Zona Leste", "são lucas": "Zona Leste",
+  "sapopemba": "Zona Leste", "belém": "Zona Leste", "brás": "Zona Leste",
+  "pari": "Zona Leste", "água rasa": "Zona Leste", "vila prudente": "Zona Leste",
+  "anália franco": "Zona Leste", "jardim anália franco": "Zona Leste",
+  // Zona Oeste
+  "pinheiros": "Zona Oeste", "perdizes": "Zona Oeste", "lapa": "Zona Oeste",
+  "vila leopoldina": "Zona Oeste", "butantã": "Zona Oeste", "vila madalena": "Zona Oeste",
+  "alto de pinheiros": "Zona Oeste", "jardim paulistano": "Zona Oeste",
+  "itaim bibi": "Zona Oeste", "jardim europa": "Zona Oeste",
+  // Zona Sul
+  "moema": "Zona Sul", "vila mariana": "Zona Sul", "saúde": "Zona Sul",
+  "jabaquara": "Zona Sul", "campo belo": "Zona Sul", "brooklin": "Zona Sul",
+  "campo grande": "Zona Sul", "santo amaro": "Zona Sul", "capão redondo": "Zona Sul",
+  "grajaú": "Zona Sul", "cidade ademar": "Zona Sul", "ipiranga": "Zona Sul",
+  // Zona Norte
+  "santana": "Zona Norte", "tucuruvi": "Zona Norte", "tremembé": "Zona Norte",
+  "vila guilherme": "Zona Norte", "vila medeiros": "Zona Norte",
+  "jaçanã": "Zona Norte", "mandaqui": "Zona Norte", "brasilândia": "Zona Norte",
+  "casa verde": "Zona Norte", "limão": "Zona Norte",
+  // Centro / Centro-Oeste
+  "sé": "Centro", "república": "Centro", "liberdade": "Centro",
+  "bela vista": "Centro", "consolação": "Centro", "santa cecília": "Centro",
+  "bom retiro": "Centro", "cambuci": "Centro", "aclimação": "Centro",
+  "higienópolis": "Centro-Oeste", "campos elíseos": "Centro",
+};
+
+const CEP_PREFIX_ZONA_SP: Record<string, string> = {
+  "01": "Centro",     "02": "Zona Norte",  "03": "Zona Leste",
+  "04": "Zona Sul",   "05": "Zona Oeste",  "06": "Grande SP Oeste",
+  "07": "Grande SP Norte", "08": "Zona Leste",  "09": "Grande SP Sul",
+};
+
+const BAIRRO_ZONA_BSB: Record<string, string> = {
+  "asa sul": "Asa Sul", "asa norte": "Asa Norte",
+  "lago sul": "Lago Sul", "lago norte": "Lago Norte",
+  "águas claras": "Águas Claras", "taguatinga": "Taguatinga",
+  "ceilândia": "Ceilândia", "samambaia": "Samambaia",
+  "guará": "Guará", "sobradinho": "Sobradinho",
+  "planaltina": "Planaltina", "gama": "Gama",
+  "park way": "Park Way", "sudoeste": "Sudoeste",
+};
+
+function deriveZona(bairro: string | null, cidade: string | null, estado: string | null, cep: string | null): string | null {
+  const norm = (s: string | null) => s?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() ?? "";
+  const b = norm(bairro);
+  const c = norm(cidade);
+
+  // São Paulo
+  if (c === "sao paulo" || c === "são paulo") {
+    if (b && BAIRRO_ZONA_SP[b]) return BAIRRO_ZONA_SP[b];
+    // Fallback pelo CEP
+    if (cep) {
+      const prefix = cep.replace(/\D/g, "").slice(0, 2);
+      if (CEP_PREFIX_ZONA_SP[prefix]) return CEP_PREFIX_ZONA_SP[prefix];
+    }
+  }
+
+  // Brasília / DF
+  if (c === "brasilia" || c === "brasília" || estado === "DF" || estado === "df") {
+    if (b && BAIRRO_ZONA_BSB[b]) return BAIRRO_ZONA_BSB[b];
+    if (bairro) return bairro; // usa o próprio bairro como zona em BSB
+  }
+
+  // Outras cidades: usa o bairro como zona se existir
+  if (bairro) return bairro;
+
+  return null;
+}
+
 function normalizePhone(raw: unknown): string | null {
   if (raw === undefined || raw === null) return null;
   const s = String(raw).trim();
@@ -112,6 +192,9 @@ router.post("/locations", async (req, res): Promise<void> => {
     }
   }
 
+  // Auto-derivação de zona: só aplica quando não veio zona manual no body
+  const geoZona = zona ?? deriveZona(geoBairro, geoCidade, geoEstado, cep ?? null);
+
   const [loc] = await db.insert(locationsTable).values({
     name,
     address: address ?? null,
@@ -126,7 +209,7 @@ router.post("/locations", async (req, res): Promise<void> => {
     bairro: geoBairro,
     cidade: geoCidade,
     estado: geoEstado,
-    zona: zona ?? null,
+    zona: geoZona,
   }).returning();
 
   res.status(201).json(serializeLocation(loc));
@@ -160,11 +243,21 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   if (cep && (!bairro || !cidade || !estado)) {
     const geo = await lookupCep(cep);
     if (geo) {
-      if (!updates.bairro && geo.bairro)     updates.bairro  = geo.bairro;
-      if (!updates.cidade && geo.cidade)     updates.cidade  = geo.cidade;
-      if (!updates.estado && geo.estado)     updates.estado  = geo.estado;
+      if (!updates.bairro && geo.bairro)         updates.bairro  = geo.bairro;
+      if (!updates.cidade && geo.cidade)         updates.cidade  = geo.cidade;
+      if (!updates.estado && geo.estado)         updates.estado  = geo.estado;
       if (!updates.logradouro && geo.logradouro) updates.logradouro = geo.logradouro;
     }
+  }
+
+  // Auto-derivação de zona: só deriva se zona não foi enviada manualmente no body
+  if (zona === undefined && !updates.zona) {
+    const finalBairro = (updates.bairro as string | null) ?? null;
+    const finalCidade = (updates.cidade as string | null) ?? null;
+    const finalEstado = (updates.estado as string | null) ?? null;
+    const finalCep    = (updates.cep    as string | null) ?? null;
+    const derived = deriveZona(finalBairro, finalCidade, finalEstado, finalCep);
+    if (derived) updates.zona = derived;
   }
 
   if (Object.keys(updates).length === 0) {

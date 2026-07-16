@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,9 +8,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Building2, Users, Briefcase, Plus, Loader2, Save, Pencil, Trash2,
-  Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe,
+  Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,7 +25,7 @@ interface Empresa {
   tipo: string; tipoUnidade: string | null; status: string; ativa: boolean;
   donoNome: string | null; slug: string | null; timezone: string | null;
   endereco: string | null; cep: string | null; bairro: string | null;
-  cidade: string | null; estado: string | null;
+  cidade: string | null; estado: string | null; zona: string | null;
   telefone: string | null; emailGeral: string | null; emailAgenda: string | null;
   emailEnfermagem: string | null; emailFinanceiro: string | null;
   googleCalendarId: string | null; googleDriveFolderId: string | null;
@@ -48,7 +50,9 @@ interface Colaborador {
 
 // ── Schema do formulário ───────────────────────────────────────────────────────
 const formSchema = z.object({
+  // Identificação básica
   nome:            z.string().min(2, "Nome obrigatório"),
+  razaoSocial:     z.string().optional(),
   nick:            z.string().optional(),
   cnpj:            z.string().optional(),
   tipo:            z.string(),
@@ -58,29 +62,105 @@ const formSchema = z.object({
   donoNome:        z.string().optional(),
   slug:            z.string().optional(),
   timezone:        z.string().optional(),
+  // Dados fiscais / jurídicos
+  cnae:            z.string().optional(),
+  cnaeDescricao:   z.string().optional(),
+  naturezaJuridica:   z.string().optional(),
+  regimeTributario:   z.string().optional(),
+  inscricaoEstadual:  z.string().optional(),
+  inscricaoMunicipal: z.string().optional(),
+  dataAbertura:    z.string().optional(),
+  capitalSocial:   z.string().optional(),
+  optanteSimples:  z.boolean().optional(),
+  // Responsável + Contador
+  responsavelLegalNome: z.string().optional(),
+  responsavelLegalCpf:  z.string().optional(),
+  contadorNome:    z.string().optional(),
+  contadorCrc:     z.string().optional(),
+  contadorEmail:   z.string().optional(),
+  contadorTelefone: z.string().optional(),
+  // Endereço comercial
   endereco:        z.string().optional(),
   cep:             z.string().optional(),
+  zona:            z.string().optional(),
   bairro:          z.string().optional(),
   cidade:          z.string().optional(),
   estado:          z.string().optional(),
+  // Endereço fiscal
+  enderecoFiscal:  z.string().optional(),
+  cepFiscal:       z.string().optional(),
+  bairroFiscal:    z.string().optional(),
+  cidadeFiscal:    z.string().optional(),
+  estadoFiscal:    z.string().optional(),
+  codigoIbge:      z.string().optional(),
+  // Contatos
   telefone:        z.string().optional(),
   emailGeral:      z.string().optional(),
   emailAgenda:     z.string().optional(),
   emailEnfermagem: z.string().optional(),
   emailFinanceiro: z.string().optional(),
+  // NF-e
+  nfeAmbiente:     z.string().optional(),
+  nfeSerie:        z.string().optional(),
+  nfeProximoNumero: z.coerce.number().optional(),
+  nfeCodigoServico: z.string().optional(),
+  nfeAliquotaIss:  z.string().optional(),
+  nfeCodigoIss:    z.string().optional(),
+  nfeDiscriminacaoPadrao: z.string().optional(),
+  // Certificado digital
+  certTipo:        z.string().optional(),
+  certValidade:    z.string().optional(),
+  certStatus:      z.string().optional(),
+  // ZapSign
+  zapsignToken:    z.string().optional(),
+  zapsignEmail:    z.string().optional(),
+  // WhatsApp
+  waNumero:        z.string().optional(),
+  waPhoneNumberId: z.string().optional(),
+  waBusinessAccountId: z.string().optional(),
+  waToken:         z.string().optional(),
+  // Twilio por empresa
+  twilioAccountSid: z.string().optional(),
+  twilioAuthToken:  z.string().optional(),
+  twilioNumero:     z.string().optional(),
+  // Telegram
+  telegramBotToken:    z.string().optional(),
+  telegramChatId:      z.string().optional(),
+  telegramBotUsername: z.string().optional(),
+  // Zoho / e-mail
+  zohoEmail:       z.string().optional(),
+  zohoStatus:      z.string().optional(),
+  // Google
   googleCalendarId:    z.string().optional(),
   googleDriveFolderId: z.string().optional(),
+  // Contrato PAXTER
   tipoContrato:    z.string().optional(),
   fatMetaMensal:   z.coerce.number().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
 const EMPTY: FormValues = {
-  nome: "", nick: "", cnpj: "", tipo: "clinic", tipoUnidade: "CLINICA_PARCEIRA",
-  status: "ATIVO", ativa: true, donoNome: "", slug: "", timezone: "America/Sao_Paulo",
-  endereco: "", cep: "", bairro: "", cidade: "", estado: "",
+  nome: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
+  tipoUnidade: "CLINICA_PARCEIRA", status: "ATIVO", ativa: true,
+  donoNome: "", slug: "", timezone: "America/Sao_Paulo",
+  cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
+  regimeTributario: "simples_nacional", inscricaoEstadual: "",
+  inscricaoMunicipal: "", dataAbertura: "", capitalSocial: "", optanteSimples: true,
+  responsavelLegalNome: "", responsavelLegalCpf: "",
+  contadorNome: "", contadorCrc: "", contadorEmail: "", contadorTelefone: "",
+  endereco: "", cep: "", zona: "", bairro: "", cidade: "", estado: "",
+  enderecoFiscal: "", cepFiscal: "", bairroFiscal: "", cidadeFiscal: "", estadoFiscal: "", codigoIbge: "",
   telefone: "", emailGeral: "", emailAgenda: "", emailEnfermagem: "", emailFinanceiro: "",
-  googleCalendarId: "", googleDriveFolderId: "", tipoContrato: "por_demanda", fatMetaMensal: undefined,
+  nfeAmbiente: "homologacao", nfeSerie: "1", nfeProximoNumero: 1,
+  nfeCodigoServico: "", nfeAliquotaIss: "", nfeCodigoIss: "", nfeDiscriminacaoPadrao: "",
+  certTipo: "a1", certValidade: "", certStatus: "ausente",
+  zapsignToken: "", zapsignEmail: "",
+  waNumero: "", waPhoneNumberId: "", waBusinessAccountId: "", waToken: "",
+  twilioAccountSid: "", twilioAuthToken: "", twilioNumero: "",
+  telegramBotToken: "", telegramChatId: "", telegramBotUsername: "",
+  zohoEmail: "", zohoStatus: "sugerido",
+  googleCalendarId: "", googleDriveFolderId: "",
+  tipoContrato: "por_demanda", fatMetaMensal: undefined,
 };
 
 // ── Labels de referência ───────────────────────────────────────────────────────
@@ -426,23 +506,63 @@ export default function CadastroEmpresas() {
   const openEdit = (e: Empresa) => {
     setEditingId(e.id);
     form.reset({
-      nome: e.nome, nick: e.nick || "", cnpj: e.cnpj || "",
-      tipo: e.tipo, tipoUnidade: e.tipoUnidade || "",
-      status: e.status, ativa: e.ativa,
-      donoNome: e.donoNome || "", slug: e.slug || "",
-      timezone: e.timezone || "America/Sao_Paulo",
+      nome: e.nome, razaoSocial: e.razaoSocial || "", nick: e.nick || "", cnpj: e.cnpj || "",
+      tipo: e.tipo, tipoUnidade: e.tipoUnidade || "", status: e.status, ativa: e.ativa,
+      donoNome: e.donoNome || "", slug: e.slug || "", timezone: e.timezone || "America/Sao_Paulo",
+      cnae: e.cnae || "", cnaeDescricao: e.cnaeDescricao || "",
+      naturezaJuridica: e.naturezaJuridica || "Ltda",
+      regimeTributario: e.regimeTributario || "simples_nacional",
+      inscricaoEstadual: e.inscricaoEstadual || "", inscricaoMunicipal: e.inscricaoMunicipal || "",
+      dataAbertura: e.dataAbertura || "", capitalSocial: e.capitalSocial?.toString() || "",
+      optanteSimples: e.optanteSimples ?? true,
+      responsavelLegalNome: e.responsavelLegalNome || "", responsavelLegalCpf: e.responsavelLegalCpf || "",
+      contadorNome: e.contadorNome || "", contadorCrc: e.contadorCrc || "",
+      contadorEmail: e.contadorEmail || "", contadorTelefone: e.contadorTelefone || "",
       endereco: e.endereco || "", cep: e.cep || "",
-      bairro: e.bairro || "", cidade: e.cidade || "", estado: e.estado || "",
+      bairro: e.bairro || "", cidade: e.cidade || "", estado: e.estado || "", zona: e.zona || "",
+      enderecoFiscal: e.enderecoFiscal || "", cepFiscal: e.cepFiscal || "",
+      bairroFiscal: e.bairroFiscal || "", cidadeFiscal: e.cidadeFiscal || "",
+      estadoFiscal: e.estadoFiscal || "", codigoIbge: e.codigoIbge || "",
       telefone: e.telefone || "", emailGeral: e.emailGeral || "",
       emailAgenda: e.emailAgenda || "", emailEnfermagem: e.emailEnfermagem || "",
       emailFinanceiro: e.emailFinanceiro || "",
-      googleCalendarId: e.googleCalendarId || "",
-      googleDriveFolderId: e.googleDriveFolderId || "",
-      tipoContrato: e.tipoContrato || "por_demanda",
-      fatMetaMensal: e.fatMetaMensal ?? undefined,
+      nfeAmbiente: e.nfeAmbiente || "homologacao", nfeSerie: e.nfeSerie || "1",
+      nfeProximoNumero: e.nfeProximoNumero ?? 1,
+      nfeCodigoServico: e.nfeCodigoServico || "", nfeAliquotaIss: e.nfeAliquotaIss?.toString() || "",
+      nfeCodigoIss: e.nfeCodigoIss || "", nfeDiscriminacaoPadrao: e.nfeDiscriminacaoPadrao || "",
+      certTipo: e.certTipo || "a1", certValidade: e.certValidade || "",
+      certStatus: e.certStatus || "ausente",
+      zapsignToken: e.zapsignToken || "", zapsignEmail: e.zapsignEmail || "",
+      waNumero: e.waNumero || "", waPhoneNumberId: e.waPhoneNumberId || "",
+      waBusinessAccountId: e.waBusinessAccountId || "", waToken: e.waToken || "",
+      twilioAccountSid: e.twilioAccountSid || "", twilioAuthToken: e.twilioAuthToken || "",
+      twilioNumero: e.twilioNumero || "",
+      telegramBotToken: e.telegramBotToken || "", telegramChatId: e.telegramChatId || "",
+      telegramBotUsername: e.telegramBotUsername || "",
+      zohoEmail: e.zohoEmail || "", zohoStatus: e.zohoStatus || "sugerido",
+      googleCalendarId: e.googleCalendarId || "", googleDriveFolderId: e.googleDriveFolderId || "",
+      tipoContrato: e.tipoContrato || "por_demanda", fatMetaMensal: e.fatMetaMensal ?? undefined,
     });
     setFormOpen(true);
   };
+
+  // ── Agrupamento geográfico data-bound ──────────────────────────────────────
+  const grupos = useMemo(() => {
+    const ativas = empresas.filter((e) => e.ativa);
+    const map = new Map<string, Empresa[]>();
+    for (const e of ativas) {
+      const chave =
+        e.cidade && e.estado ? `${e.cidade} · ${e.estado}` :
+        e.cidade              ? e.cidade :
+        e.estado              ? `Estado: ${e.estado}` :
+                                "Sem Localização";
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(e);
+    }
+    return [...map.entries()].sort(([a, ac], [b, bc]) =>
+      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
+    );
+  }, [empresas]);
 
   const ativas   = empresas.filter((e) => e.ativa);
   const inativas = empresas.filter((e) => !e.ativa);
@@ -468,40 +588,77 @@ export default function CadastroEmpresas() {
           </Button>
         </div>
 
-        {/* Grade de cards */}
+        {/* Grade de cards — agrupamento geográfico data-bound */}
         {isLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : empresas.length === 0 ? (
+          <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
+            Nenhuma empresa cadastrada. Clique em NOVA EMPRESA.
+          </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {ativas.map((e) => (
-                <EmpresaCard key={e.id} empresa={e}
-                  onEdit={() => openEdit(e)}
-                  onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
-                  onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)}
-                />
-              ))}
-            </div>
+          <div className="space-y-8">
+            {grupos.map(([cidadeKey, lista]) => {
+              const zonaMap = new Map<string, Empresa[]>();
+              for (const e of lista) {
+                const z = e.zona || "—";
+                if (!zonaMap.has(z)) zonaMap.set(z, []);
+                zonaMap.get(z)!.push(e);
+              }
+              const temMultiplaZonas = zonaMap.size > 1;
+              return (
+                <div key={cidadeKey}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
+                      <MapPin className="w-3.5 h-3.5 text-primary" />
+                      <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
+                      <span className="text-[9px] text-muted-foreground/60 font-bold">
+                        {lista.length} empresa{lista.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="h-px bg-primary/15 flex-1" />
+                  </div>
+                  {temMultiplaZonas ? (
+                    <div className="space-y-5 pl-4 border-l-2 border-primary/10">
+                      {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
+                        <div key={zona}>
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
+                            <Tag className="w-3 h-3" /> {zona}
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {items.map((e) => (
+                              <EmpresaCard key={e.id} empresa={e}
+                                onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                                onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {lista.map((e) => (
+                        <EmpresaCard key={e.id} empresa={e}
+                          onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                          onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {inativas.length > 0 && (
-              <>
+              <div className="opacity-60">
                 <Divider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 opacity-60">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
                   {inativas.map((e) => (
                     <EmpresaCard key={e.id} empresa={e}
-                      onEdit={() => openEdit(e)}
-                      onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
-                      onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)}
-                    />
+                      onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                      onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                   ))}
                 </div>
-              </>
-            )}
-            {empresas.length === 0 && (
-              <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
-                Nenhuma empresa cadastrada. Clique em NOVA EMPRESA.
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, jsonb, integer, numeric, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,8 +8,11 @@ import { z } from "zod/v4";
 export const empresasTable = pgTable("empresas", {
   id: serial("id").primaryKey(),
   iheId: integer("ihe_id"),                      // referência ao ID original do IHE (não-chave, só rastreio)
-  nome: text("nome").notNull(),
-  nick: text("nick"),                            // apelido interno
+
+  // ── Identificação básica ────────────────────────────────────────────────────
+  nome: text("nome").notNull(),                  // nome fantasia / nome interno
+  razaoSocial: text("razao_social"),             // razão social completa (para NF-e / documentos legais)
+  nick: text("nick"),                            // apelido interno curto
   cnpj: text("cnpj"),
   tipo: text("tipo").notNull().default("clinic"),             // clinic | genesis_seed | telemedicina | enfermagem
   tipoUnidade: text("tipo_unidade"),             // CLINICA_OPERACIONAL | CLINICA_PARCEIRA | LABORATORIO_MESTRE
@@ -18,27 +21,108 @@ export const empresasTable = pgTable("empresas", {
   donoNome: text("dono_nome"),
   slug: text("slug"),
   timezone: text("timezone").default("America/Sao_Paulo"),
-  // Endereço
+
+  // ── Dados fiscais / jurídicos ───────────────────────────────────────────────
+  cnae: text("cnae"),                            // CNAE principal — 7 dígitos (ex: 8630-5/01)
+  cnaeDescricao: text("cnae_descricao"),         // descrição do CNAE principal
+  cnaesSecundarios: jsonb("cnaes_secundarios").$type<{codigo: string; descricao: string}[]>().default([]),
+  naturezaJuridica: text("natureza_juridica"),   // Ltda | SA | MEI | EIRELI | Associação | Fundação
+  regimeTributario: text("regime_tributario"),   // simples_nacional | lucro_presumido | lucro_real | mei | isento
+  inscricaoEstadual: text("inscricao_estadual"), // IE — Inscrição Estadual
+  inscricaoMunicipal: text("inscricao_municipal"), // IM / CCM — cadastro no município
+  dataAbertura: date("data_abertura"),           // data de abertura no Simples/Receita
+  capitalSocial: numeric("capital_social", { precision: 14, scale: 2 }), // R$
+
+  // ── Responsável legal + contador ────────────────────────────────────────────
+  responsavelLegalNome: text("responsavel_legal_nome"),
+  responsavelLegalCpf: text("responsavel_legal_cpf"),
+  contadorNome: text("contador_nome"),
+  contadorCrc: text("contador_crc"),             // ex: CRC SP-123456/O-1
+  contadorEmail: text("contador_email"),
+  contadorTelefone: text("contador_telefone"),
+
+  // ── Endereço comercial ──────────────────────────────────────────────────────
   endereco: text("endereco"),
   cep: text("cep"),
   bairro: text("bairro"),
   cidade: text("cidade"),
   estado: text("estado"),
-  // Contatos
+  zona: text("zona"),                            // ex: "Zona Leste", "Centro", "Asa Sul" — auto ou manual
+
+  // ── Endereço fiscal (pode diferir do comercial — obrigatório NF-e) ──────────
+  enderecoFiscal: text("endereco_fiscal"),       // logradouro completo
+  cepFiscal: text("cep_fiscal"),
+  bairroFiscal: text("bairro_fiscal"),
+  cidadeFiscal: text("cidade_fiscal"),
+  estadoFiscal: text("estado_fiscal"),
+  codigoIbge: text("codigo_ibge"),              // código IBGE do município — 7 dígitos — obrigatório NF-e
+
+  // ── Contatos ────────────────────────────────────────────────────────────────
   telefone: text("telefone"),
   emailGeral: text("email_geral"),
   emailAgenda: text("email_agenda"),
   emailEnfermagem: text("email_enfermagem"),
   emailFinanceiro: text("email_financeiro"),
-  // Integrações
+
+  // ── Nota Fiscal Eletrônica (NF-e / NFS-e) ──────────────────────────────────
+  nfeAmbiente: text("nfe_ambiente").default("homologacao"), // producao | homologacao
+  nfeSerie: text("nfe_serie").default("1"),
+  nfeProximoNumero: integer("nfe_proximo_numero").default(1),
+  nfeCodigoServico: text("nfe_codigo_servico"),  // código LC 116/2003 (ex: 8.01)
+  nfeAliquotaIss: numeric("nfe_aliquota_iss", { precision: 5, scale: 2 }), // % ISS (ex: 2.00)
+  nfeCodigoIss: text("nfe_codigo_iss"),          // código ISS municipal
+  nfeDiscriminacaoPadrao: text("nfe_discriminacao_padrao"), // texto padrão da nota
+  optanteSimples: boolean("optante_simples").default(false),
+
+  // ── Certificado digital ─────────────────────────────────────────────────────
+  certTipo: text("cert_tipo"),                  // a1 | a3
+  certDriveFolderId: text("cert_drive_folder_id"), // pasta "CERTIFICADOS" no Drive da empresa
+  certFileId: text("cert_file_id"),             // ID do arquivo .pfx no Drive (A1)
+  certFileName: text("cert_file_name"),         // nome do arquivo para exibição
+  certValidade: date("cert_validade"),          // data de vencimento — para alerta 30d antes
+  certStatus: text("cert_status"),             // valido | vencido | ausente | a3_externo
+
+  // ── ZapSign (assinatura digital por empresa) ────────────────────────────────
+  zapsignToken: text("zapsign_token"),          // API token (cofre — exibir só com ação explícita)
+  zapsignContaCriada: boolean("zapsign_conta_criada").default(false),
+  zapsignEmail: text("zapsign_email"),          // e-mail da conta ZapSign
+
+  // ── WhatsApp Business API ───────────────────────────────────────────────────
+  waNumero: text("wa_numero"),                  // +5511... número público
+  waPhoneNumberId: text("wa_phone_number_id"), // Meta Business — Phone Number ID
+  waBusinessAccountId: text("wa_business_account_id"), // WABA ID
+  waToken: text("wa_token"),                   // token de acesso (cofre)
+
+  // ── Twilio por empresa (override do global) ─────────────────────────────────
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthToken: text("twilio_auth_token"),  // cofre
+  twilioNumero: text("twilio_numero"),         // número sender Twilio
+
+  // ── Telegram por empresa ────────────────────────────────────────────────────
+  telegramBotToken: text("telegram_bot_token"), // cofre
+  telegramChatId: text("telegram_chat_id"),
+  telegramBotUsername: text("telegram_bot_username"),
+
+  // ── E-mail / Zoho ───────────────────────────────────────────────────────────
+  zohoEmail: text("zoho_email"),               // e-mail Zoho criado para a empresa
+  zohoStatus: text("zoho_status"),             // sugerido | criado | ativo
+
+  // ── Google ──────────────────────────────────────────────────────────────────
   googleCalendarId: text("google_calendar_id"),
-  googleDriveFolderId: text("google_drive_folder_id"),
-  // Módulos ativos por empresa (chave = código do módulo, valor = true/false)
+  googleDriveFolderId: text("google_drive_folder_id"), // pasta raiz da empresa no Drive
+
+  // ── Documentos no Drive ─────────────────────────────────────────────────────
+  driveFolderEmpresaId: text("drive_folder_empresa_id"),   // pasta "EMPRESAS/[NOME CNPJ]"
+  driveContratoSocialId: text("drive_contrato_social_id"), // arquivo do contrato social
+  driveAlvaraId: text("drive_alvara_id"),                  // alvará de funcionamento
+  driveCrmId: text("drive_crm_id"),                        // CRM/CRO/COREN da empresa
+
+  // ── Módulos e contrato PAXTER ───────────────────────────────────────────────
   modulosAtivos: jsonb("modulos_ativos").$type<Record<string, boolean>>().default({}),
-  // Contrato / monetização
   tipoContrato: text("tipo_contrato"),           // por_demanda | full | pacote
   fatMetaMensal: integer("fat_meta_mensal"),     // meta de faturamento mensal em centavos
-  // Metadados
+
+  // ── Metadados ───────────────────────────────────────────────────────────────
   criadoEm: timestamp("criado_em", { withTimezone: true }).defaultNow(),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).defaultNow(),
 });

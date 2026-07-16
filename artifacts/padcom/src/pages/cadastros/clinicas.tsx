@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -264,9 +264,30 @@ export default function CadastroClinicas() {
     setDialogOpen(true);
   };
 
-  // Separar ativas x inativas
-  const ativas   = clinicas.filter((c) => c.active);
-  const inativas = clinicas.filter((c) => !c.active);
+  // ── Agrupamento geográfico data-bound ────────────────────────────────────────
+  // Grupo = "Cidade · UF" derivado dos dados reais do banco.
+  // Nenhum valor de cidade ou estado é fixo no código.
+  // Dentro de cada cidade com 3+ locais: sub-agrupamento por zona.
+
+  const grupos = useMemo(() => {
+    const ativas = clinicas.filter((c) => c.active);
+    const map = new Map<string, Clinica[]>();
+    for (const c of ativas) {
+      const chave =
+        c.cidade && c.estado ? `${c.cidade} · ${c.estado}` :
+        c.cidade              ? c.cidade :
+        c.estado              ? `Estado: ${c.estado}` :
+                                "Sem Localização";
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(c);
+    }
+    // Ordena: maior grupo primeiro; empate → alfabético
+    return [...map.entries()].sort(([a, ac], [b, bc]) =>
+      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
+    );
+  }, [clinicas]);
+
+  const inativas = useMemo(() => clinicas.filter((c) => !c.active), [clinicas]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -287,7 +308,7 @@ export default function CadastroClinicas() {
         </Button>
       </div>
 
-      {/* Grade de cards */}
+      {/* Grade de cards — agrupamento geográfico data-bound */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : clinicas.length === 0 ? (
@@ -295,23 +316,78 @@ export default function CadastroClinicas() {
           Nenhuma clínica cadastrada. Clique em NOVA CLÍNICA.
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {ativas.map((c) => (
-              <ClinicaCard key={c.id} c={c} onEdit={() => openEdit(c)} onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-            ))}
-          </div>
+        <div className="space-y-8">
+          {/* Grupos geográficos — um painel por cidade */}
+          {grupos.map(([cidadeKey, lista]) => {
+            // Sub-agrupamento por zona dentro de cada cidade (só quando há zonas variadas)
+            const zonaMap = new Map<string, Clinica[]>();
+            for (const c of lista) {
+              const z = c.zona || "—";
+              if (!zonaMap.has(z)) zonaMap.set(z, []);
+              zonaMap.get(z)!.push(c);
+            }
+            const temMultiploZonas = zonaMap.size > 1;
+
+            return (
+              <div key={cidadeKey}>
+                {/* Cabeçalho da cidade */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
+                    <span className="text-[9px] text-muted-foreground/60 font-bold">
+                      {lista.length} local{lista.length !== 1 ? "is" : ""}
+                    </span>
+                  </div>
+                  <div className="h-px bg-primary/15 flex-1" />
+                </div>
+
+                {temMultiploZonas ? (
+                  /* Com sub-zonas: agrupa por área dentro da cidade */
+                  <div className="space-y-5 pl-4 border-l-2 border-primary/10">
+                    {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
+                      <div key={zona}>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
+                          <Tag className="w-3 h-3" /> {zona}
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {items.map((c) => (
+                            <ClinicaCard key={c.id} c={c}
+                              onEdit={() => openEdit(c)}
+                              onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Cidade única ou sem zonas: grade direta */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {lista.map((c) => (
+                      <ClinicaCard key={c.id} c={c}
+                        onEdit={() => openEdit(c)}
+                        onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Inativas — sempre ao final, separadas */}
           {inativas.length > 0 && (
-            <>
+            <div className="opacity-60">
               <SectionDivider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 opacity-60">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                 {inativas.map((c) => (
-                  <ClinicaCard key={c.id} c={c} onEdit={() => openEdit(c)} onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
+                  <ClinicaCard key={c.id} c={c}
+                    onEdit={() => openEdit(c)}
+                    onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
                 ))}
               </div>
-            </>
+            </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
@@ -467,31 +543,18 @@ export default function CadastroClinicas() {
                 <FormField control={form.control} name="zona" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">
-                      Zona
+                      Zona / Área
                     </FormLabel>
-                    <div className="concave-3d p-1">
-                      <Select onValueChange={field.onChange} value={field.value || ""}>
-                        <FormControl>
-                          <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]">
-                            <SelectValue placeholder="Automático" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="">Automático (pelo bairro)</SelectItem>
-                          <SelectItem value="Centro / Higienópolis">Centro / Higienópolis</SelectItem>
-                          <SelectItem value="Zona Leste">Zona Leste</SelectItem>
-                          <SelectItem value="Zona Oeste / Pinheiros">Zona Oeste / Pinheiros</SelectItem>
-                          <SelectItem value="Zona Sul / Moema">Zona Sul / Moema</SelectItem>
-                          <SelectItem value="Zona Norte">Zona Norte</SelectItem>
-                          <SelectItem value="Grande ABC / ABCD">Grande ABC / ABCD</SelectItem>
-                          <SelectItem value="Domiciliar">Domiciliar</SelectItem>
-                          <SelectItem value="Plano Piloto (DF)">Plano Piloto (DF)</SelectItem>
-                          <SelectItem value="Setor Hospitalar Sul (DF)">Setor Hospitalar Sul (DF)</SelectItem>
-                          <SelectItem value="Zona Sul (RJ)">Zona Sul (RJ)</SelectItem>
-                          <SelectItem value="Centro (BH)">Centro (BH)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <FormControl>
+                      <Input
+                        placeholder="Automático pelo bairro (ex: Zona Leste)"
+                        {...field}
+                        className="field-engraved"
+                      />
+                    </FormControl>
+                    <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                      Deixe vazio = servidor detecta pelo bairro/CEP automaticamente
+                    </p>
                   </FormItem>
                 )} />
               </div>
