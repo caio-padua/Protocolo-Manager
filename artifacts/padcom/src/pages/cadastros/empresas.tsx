@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Building2, Users, Briefcase, Plus, Loader2, Save, Pencil, Trash2,
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
-  FileText, Upload, ExternalLink, X,
+  FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -618,6 +618,242 @@ function ContratosList({ empresaId }: { empresaId: number }) {
   );
 }
 
+// ── Modal: Importar Contratos do Google Drive ──────────────────────────────────
+interface DriveArquivo {
+  driveFileId: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  parentFolder: string | null;
+  driveUrl: string;
+  suggestedEmpresaId: number | null;
+}
+interface EmpresaSimples { id: number; nome: string; }
+
+function DriveImportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [folderUrl, setFolderUrl] = useState("https://drive.google.com/drive/folders/17yRHZ4wa6PhjfvYrgsXygNK_th1S72Wf");
+  const [scanning, setScanning] = useState(false);
+  const [arquivos, setArquivos] = useState<DriveArquivo[]>([]);
+  const [empresasOpts, setEmpresasOpts] = useState<EmpresaSimples[]>([]);
+  const [empresaMap, setEmpresaMap] = useState<Record<string, number | "">>({});
+  const [tipoMap, setTipoMap] = useState<Record<string, string>>({});
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  function extractFolderId(url: string): string {
+    const m = url.match(/folders\/([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : url.trim();
+  }
+
+  async function handleScan() {
+    setErro(null);
+    setScanning(true);
+    setArquivos([]);
+    setSelecionados(new Set());
+    try {
+      const folderId = extractFolderId(folderUrl);
+      const r = await fetch(`${apiBase}/empresas/drive-scan?folderId=${encodeURIComponent(folderId)}`);
+      if (!r.ok) { const e = await r.json(); throw new Error(e.error ?? "Erro ao escanear"); }
+      const data = await r.json();
+      setArquivos(data.arquivos);
+      setEmpresasOpts(data.empresas);
+      // pré-preenche os mapas com a sugestão automática
+      const em: Record<string, number | ""> = {};
+      const tm: Record<string, string> = {};
+      const sel = new Set<string>();
+      for (const a of data.arquivos as DriveArquivo[]) {
+        em[a.driveFileId] = a.suggestedEmpresaId ?? "";
+        tm[a.driveFileId] = "contrato_social";
+        if (a.suggestedEmpresaId) sel.add(a.driveFileId);
+      }
+      setEmpresaMap(em);
+      setTipoMap(tm);
+      setSelecionados(sel);
+    } catch (e: any) {
+      setErro(e.message);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function handleImport() {
+    setImporting(true);
+    try {
+      const itens = arquivos
+        .filter(a => selecionados.has(a.driveFileId) && empresaMap[a.driveFileId])
+        .map(a => ({
+          driveFileId: a.driveFileId,
+          empresaId: Number(empresaMap[a.driveFileId]),
+          tipo: tipoMap[a.driveFileId] ?? "contrato_social",
+          nome: a.name,
+          mimeType: a.mimeType,
+          size: a.size,
+          driveUrl: a.driveUrl,
+        }));
+      if (!itens.length) { toast.error("Selecione ao menos um arquivo com empresa definida."); return; }
+      const r = await fetch(`${apiBase}/empresas/drive-import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itens }),
+      });
+      if (!r.ok) throw new Error("Erro ao importar");
+      const data = await r.json();
+      toast.success(`${data.inseridos} documento(s) vinculado(s) com sucesso!`);
+      queryClient.invalidateQueries({ queryKey: ["empresa-contratos"] });
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function toggleSel(id: string) {
+    setSelecionados(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+
+  function fmtSize(b: number | null) {
+    if (!b) return "";
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  const prontos = arquivos.filter(a => selecionados.has(a.driveFileId) && empresaMap[a.driveFileId]).length;
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0">
+        <DialogHeader className="px-6 py-4 border-b border-border/40 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-[13px] font-black uppercase tracking-wider">
+            <FolderSearch className="w-4 h-4 text-primary" />
+            Importar Contratos do Google Drive
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Input da URL */}
+          <div className="panel-3d p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-wider text-primary">Pasta no Drive</p>
+            <div className="flex gap-2">
+              <Input value={folderUrl} onChange={e => setFolderUrl(e.target.value)}
+                placeholder="URL ou ID da pasta do Google Drive"
+                className="field-engraved text-[11px] font-mono flex-1" />
+              <button type="button" onClick={handleScan} disabled={scanning || !folderUrl}
+                className="bevel-3d px-4 py-2 text-[11px] font-black uppercase tracking-wider disabled:opacity-50 flex items-center gap-2 shrink-0">
+                {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderSearch className="w-3.5 h-3.5" />}
+                {scanning ? "Escaneando..." : "Escanear"}
+              </button>
+            </div>
+            <p className="text-[9px] text-muted-foreground/60">
+              O sistema lista os arquivos da pasta (e subpastas de 1 nível), tenta casar cada arquivo com uma empresa pelo nome e pré-seleciona os que reconheceu.
+            </p>
+          </div>
+
+          {/* Erro */}
+          {erro && (
+            <div className="concave-3d p-3 flex items-center gap-2 text-[11px] text-destructive">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {erro}
+            </div>
+          )}
+
+          {/* Tabela de resultados */}
+          {arquivos.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-wider text-primary">
+                  {arquivos.length} arquivo(s) encontrado(s) — {prontos} prontos para importar
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setSelecionados(new Set(arquivos.map(a => a.driveFileId)))}
+                    className="bevel-3d px-2 py-1 text-[9px] font-black uppercase tracking-wider">Selecionar Todos</button>
+                  <button type="button" onClick={() => setSelecionados(new Set())}
+                    className="bevel-3d px-2 py-1 text-[9px] font-black uppercase tracking-wider">Limpar</button>
+                </div>
+              </div>
+
+              <div className="concave-3d overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="border-b border-border/30">
+                      <th className="py-2 px-2 text-left w-6"></th>
+                      <th className="py-2 px-2 text-left font-black uppercase tracking-wider text-primary">Arquivo</th>
+                      <th className="py-2 px-2 text-left font-black uppercase tracking-wider text-primary">Empresa</th>
+                      <th className="py-2 px-2 text-left font-black uppercase tracking-wider text-primary">Tipo de Doc</th>
+                      <th className="py-2 px-2 text-left font-black uppercase tracking-wider text-primary">Tamanho</th>
+                      <th className="py-2 px-2 w-6"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {arquivos.map(a => (
+                      <tr key={a.driveFileId} className={`border-b border-border/20 ${selecionados.has(a.driveFileId) ? "bg-primary/5" : ""}`}>
+                        <td className="py-1.5 px-2">
+                          <button type="button" onClick={() => toggleSel(a.driveFileId)}
+                            className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 ${selecionados.has(a.driveFileId) ? "bg-primary border-primary" : "border-border/60"}`}>
+                            {selecionados.has(a.driveFileId) && <Check className="w-2.5 h-2.5 text-white" />}
+                          </button>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <div className="max-w-[200px]">
+                            <p className="font-bold truncate" title={a.name}>{a.name}</p>
+                            {a.parentFolder && <p className="text-muted-foreground/60 truncate">📁 {a.parentFolder}</p>}
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 min-w-[160px]">
+                          <div className="concave-3d p-0.5">
+                            <select value={empresaMap[a.driveFileId] ?? ""}
+                              onChange={e => setEmpresaMap(prev => ({ ...prev, [a.driveFileId]: e.target.value ? Number(e.target.value) : "" }))}
+                              className="bg-transparent text-[10px] w-full px-1 py-0.5 outline-none">
+                              <option value="">— não importar —</option>
+                              {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 min-w-[140px]">
+                          <div className="concave-3d p-0.5">
+                            <select value={tipoMap[a.driveFileId] ?? "contrato_social"}
+                              onChange={e => setTipoMap(prev => ({ ...prev, [a.driveFileId]: e.target.value }))}
+                              className="bg-transparent text-[10px] w-full px-1 py-0.5 outline-none">
+                              {Object.entries(DOC_TIPO_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 text-muted-foreground/70">{fmtSize(a.size)}</td>
+                        <td className="py-1.5 px-2">
+                          <a href={a.driveUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/70" title="Abrir no Drive">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="px-6 py-3 border-t border-border/40 shrink-0 flex justify-end gap-2">
+          <Button type="button" className="btn-3d-soft" onClick={onClose}>Cancelar</Button>
+          {prontos > 0 && (
+            <Button type="button" className="btn-3d px-6" onClick={handleImport} disabled={importing}>
+              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Importar {prontos} documento{prontos !== 1 ? "s" : ""}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Página principal ───────────────────────────────────────────────────────────
 export default function CadastroEmpresas() {
   const queryClient = useQueryClient();
@@ -626,6 +862,7 @@ export default function CadastroEmpresas() {
   const [deleteTarget, setDeleteTarget] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
+  const [driveImportOpen, setDriveImportOpen] = useState(false);
 
   const { data: empresas = [], isLoading } = useQuery<Empresa[]>({
     queryKey: ["empresas"],
@@ -754,9 +991,14 @@ export default function CadastroEmpresas() {
               </p>
             </div>
           </div>
-          <Button onClick={openNew} className="btn-3d px-5 shrink-0">
-            <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft px-4">
+              <FolderSearch className="w-4 h-4 mr-2" /> IMPORTAR DO DRIVE
+            </Button>
+            <Button onClick={openNew} className="btn-3d px-5">
+              <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
+            </Button>
+          </div>
         </div>
 
         {/* Grade de cards — agrupamento geográfico data-bound */}
@@ -839,6 +1081,9 @@ export default function CadastroEmpresas() {
           <PainelEquipe empresa={painelEmpresa} onClose={() => setPainelEmpresa(null)} />
         </div>
       )}
+
+      {/* Modal: Importar do Drive */}
+      <DriveImportModal open={driveImportOpen} onClose={() => setDriveImportOpen(false)} />
 
       {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

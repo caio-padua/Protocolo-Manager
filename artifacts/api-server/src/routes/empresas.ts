@@ -3,7 +3,7 @@ import multer from "multer";
 import { db } from "@workspace/db";
 import { empresasTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
-import { isDriveConnected, uploadFileToDrive } from "../lib/google-drive";
+import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics } from "../lib/google-drive";
 import { google } from "googleapis";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -136,6 +136,98 @@ async function driveFindOrCreate(drive: any, name: string, parentId?: string): P
 }
 
 // ── EMPRESAS ──────────────────────────────────────────────────────────────────
+
+// Normaliza string para comparação: minúsculo, sem acento, sem pontuação
+function norm(s: string | null | undefined): string {
+  return removeDiacritics(s ?? "").toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+}
+
+// ── GET /empresas/drive-scan — escaneia pasta Drive e casa arquivos com empresas ──
+router.get("/empresas/drive-scan", async (req, res): Promise<void> => {
+  const folderId = String(req.query.folderId ?? "").trim();
+  if (!folderId) { res.status(400).json({ error: "folderId obrigatório" }); return; }
+
+  const driveOk = await isDriveConnected().catch(() => false);
+  if (!driveOk) { res.status(503).json({ error: "Google Drive não conectado" }); return; }
+
+  // Carrega empresas para o casamento
+  const empresas = await db.select({
+    id: empresasTable.id,
+    nome: empresasTable.nome,
+    razaoSocial: empresasTable.razaoSocial,
+    ativa: empresasTable.ativa,
+    isPlatformOwner: empresasTable.isPlatformOwner,
+  }).from(empresasTable);
+
+  const ativos = empresas.filter(e => e.ativa && !e.isPlatformOwner);
+
+  // Coleta arquivos: nível raiz + um nível dentro de subpastas
+  const raiz = await driveListChildren(folderId);
+  const arquivos: Array<{ id: string; name: string; mimeType: string; size: number | null; parentFolder: string | null }> = [];
+
+  for (const item of raiz) {
+    if (item.isFolder) {
+      const filhos = await driveListChildren(item.id);
+      for (const f of filhos) {
+        if (!f.isFolder) arquivos.push({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size, parentFolder: item.name });
+      }
+    } else {
+      arquivos.push({ id: item.id, name: item.name, mimeType: item.mimeType, size: item.size, parentFolder: null });
+    }
+  }
+
+  // Casa cada arquivo com a melhor empresa
+  const resultado = arquivos.map(arq => {
+    const nomeNorm = norm(arq.name) + " " + norm(arq.parentFolder);
+    let melhorId: number | null = null;
+    let melhorScore = 0;
+
+    for (const emp of ativos) {
+      const termos = [emp.nome, emp.razaoSocial].flatMap(t =>
+        norm(t).split(/\s+/).filter(w => w.length >= 4)
+      );
+      const score = termos.filter(t => nomeNorm.includes(t)).length;
+      if (score > melhorScore) { melhorScore = score; melhorId = emp.id; }
+    }
+
+    return {
+      driveFileId: arq.id,
+      name: arq.name,
+      mimeType: arq.mimeType,
+      size: arq.size,
+      parentFolder: arq.parentFolder,
+      driveUrl: `https://drive.google.com/file/d/${arq.id}/view`,
+      suggestedEmpresaId: melhorScore >= 1 ? melhorId : null,
+    };
+  });
+
+  res.json({ total: resultado.length, arquivos: resultado, empresas: ativos.map(e => ({ id: e.id, nome: e.nome })) });
+});
+
+// ── POST /empresas/drive-import — vincula arquivos Drive à empresa_contratos (sem baixar) ──
+router.post("/empresas/drive-import", async (req, res): Promise<void> => {
+  const itens: Array<{ driveFileId: string; empresaId: number; tipo: string; nome: string; mimeType?: string; size?: number; driveUrl?: string }> = req.body.itens ?? [];
+  if (!itens.length) { res.status(400).json({ error: "itens vazio" }); return; }
+
+  const inseridos: number[] = [];
+  for (const item of itens) {
+    if (!item.driveFileId || !item.empresaId || !item.tipo || !item.nome) continue;
+    const [doc] = await db.insert(empresaContratosTable).values({
+      empresaId: item.empresaId,
+      nome: item.nome,
+      tipo: item.tipo,
+      tamanhoBytes: item.size ?? null,
+      mimeType: item.mimeType ?? null,
+      driveFileId: item.driveFileId,
+      driveUrl: item.driveUrl ?? `https://drive.google.com/file/d/${item.driveFileId}/view`,
+      driveFolderId: null,
+      observacao: "Importado do Drive",
+    }).returning({ id: empresaContratosTable.id });
+    if (doc) inseridos.push(doc.id);
+  }
+
+  res.json({ inseridos: inseridos.length, ids: inseridos });
+});
 
 // ── GET /empresas/hierarquia — árvore da pirâmide (antes do /:id para não colidir) ──
 router.get("/empresas/hierarquia", async (req, res): Promise<void> => {
