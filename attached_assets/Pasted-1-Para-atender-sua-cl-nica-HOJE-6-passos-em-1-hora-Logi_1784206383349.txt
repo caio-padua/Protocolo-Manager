@@ -1,0 +1,105 @@
+1. Para atender sua clínica HOJE — 6 passos em 1 hora
+Login IHE → Abrir Instituto Pádua → Selecionar paciente real
+  ↓
+Criar sessão (consulta agendada)
+  ↓
+Rodar anamnese V2 → Motor gera sugestões
+  ↓
+Médico confirma substâncias → Gera RAS
+  ↓
+Assinar PDF ICP-Brasil (assinatura digital com validade jurídica)
+  ↓
+Upload automático Drive + e-mail ao paciente ← FIM DO FLUXO
+Passo	O que verificar	Tempo
+1	Login funciona com suas credenciais reais	2 min
+2	Google Calendar mostra Reconectar ou Conectado	5 min
+3	Twilio: enviar WhatsApp de teste para seu celular	5 min
+4	Abrir paciente real → criar sessão → anamnese	20 min
+5	Gerar + assinar RAS → verificar PDF correto	10 min
+6	Confirmar que o PDF chegou no Drive e no e-mail	5 min
+Total: 47 minutos. Se qualquer passo falhar, me manda print — eu corrijo aqui.
+
+2. Erros que o CEO não pode ver — e como prevenir
+Erro crítico	Impacto real	Prevenção arquitetural
+Login cai durante consulta	Médico para no meio do atendimento	JWT com refresh automático silencioso
+RAS gerado com CRM errado	Documento inválido juridicamente	Validar CRM no momento do create, não do PDF
+Drive não faz upload	Prontuário perdido	Fila de retry com 3 tentativas + alerta CEO
+WhatsApp não enviado	Paciente falta → prejuízo	Fila BullMQ + fallback para SMS + log de falha
+Dado de clínica A aparece para clínica B	LGPD violada — multa R$ 50 milhões	empresa_id em todos os WHEREs ← já feito
+Asaas fora do ar	Cobrança não gerada	Status page monitorado + alerta imediato
+PDF com nome de médico errado	Constrangimento + risco legal	Tela de confirmação antes de assinar
+3. O que motiva os médicos licenciados — a proposta real
+O que o médico vê hoje (sem Pawards)	O que ele vê com Pawards
+2 recepcionistas a R$ 2.000 cada = R$ 4.000/mês	Sistema responde WhatsApp 24h — R$ 300/mês
+Paciente falta 30% das consultas	Lembrete automático 48h + 2h antes = falta cai para 10%
+Receita escrita à mão, perdida em gaveta	RAS assinado digitalmente, no Drive, enviado ao paciente
+"Doutora, posso tomar minha fórmula com café?" todo dia	Motor responde no WhatsApp com protocolo real
+Planilha de Excel para financeiro	Dashboard com PIX, boleto, inadimplência em tempo real
+Anamnese em papel	Motor clínico gera sugestões baseadas em IA + histórico
+O que o médico licenciado NUNCA deve ver:
+
+Dado de outro paciente (de outra clínica) aparecendo
+Sistema fora do ar na hora da consulta
+Cobrança surpresa sem detalhamento
+Avatar falando nome errado do paciente
+PDF com layout diferente do esperado
+4. O que construir AGORA vs depois — priorização honesta
+SEMANA 1 (esta semana) — OPERAÇÃO REAL DO PÁDUA
+  → Verificar e corrigir o fluxo clínico completo com 1 paciente real
+  → Fase C no Manager: INSERT herda empresa_id
+  → Tela CEO swipe entre clínicas (SSE tempo real)
+SEMANA 2 — IA CLÍNICA (maior diferencial competitivo)
+  → Claude claude-opus-4: gerar atestado + sugerir exames
+  → Motor responde perguntas do paciente pelo portal
+  → ElevenLabs: áudio do médico no WhatsApp por tomada
+SEMANA 3-4 — BILLING E MOTIVAÇÃO DO LICENCIADO
+  → Stripe Metered: tela de uso em tempo real (como Replit)
+  → Trigger.dev: fila de tarefas com interface visual
+  → Dashboard de ROI (Retorno sobre Investimento) do licenciado:
+     "Você enviou 847 mensagens. Economia estimada: R$ 4.200/mês."
+MÊS 2 — WOW FACTOR (o que fecha o contrato)
+  → HeyGen: vídeo do médico falando com o paciente pelo WhatsApp
+  → Resend: e-mails bonitos com React Email
+  → Biometria WebAuthn: digital valida presença na consulta
+MÊS 3 — IOT + AR (diferencial único no mercado)
+  → Web Bluetooth: bioimpedância, pressão, oxímetro conectados
+  → PWA para óculos Meta Quest e Ray-Ban
+5. Os 10 pontos de melhoria de arquiteto sênior
+#	Problema atual	Solução arquitetural	Prioridade
+1	Sem endpoint /health — impossível saber se API está viva	Implementar /api/health com status de cada integração	🔴 HOJE
+2	Falha no Drive/e-mail = dado perdido silenciosamente	Fila de retry com 3 tentativas + tabela falhas_operacao	🔴 HOJE
+3	JWT expirado = médico perde trabalho no meio da consulta	Refresh token automático silencioso no frontend	🔴 ESTA SEMANA
+4	Sem alerta quando integração cai (Google, Twilio, Asaas)	Betterstack: monitoramento com alerta WhatsApp para o CEO	🟡 SEMANA 1
+5	INSERT sem empresa_id = dado novo nasce sem dono	Fase C: middleware injeta empresa_id em todo POST	🟡 SEMANA 1
+6	Sem dashboard de saúde das integrações para o licenciado	Tela Status do Sistema com semáforo por integração	🟡 SEMANA 2
+7	Onboarding de nova clínica é manual — risco de erro humano	SAGA (sequência garantida): Drive → Calendar → Asaas → WhatsApp	🟡 SEMANA 2
+8	Licenciado não sabe quanto está gastando no mês	Tela de billing ao vivo com contador por tipo de uso	🟢 SEMANA 3
+9	Sem log de auditoria por ação clínica	Tabela auditoria_clinica com usuário + ação + timestamp	🟢 MÊS 2
+10	Sem fallback quando WhatsApp falha	Se Twilio falha → tentar Telegram → se falha → e-mail	🟢 MÊS 2
+6. Carta para o Manager — próximos passos concretos
+Cole no Manager:
+
+Manager — visão de arquiteto sênior. Próximas ordens:
+HOJE — item obrigatório antes de tudo:
+Criar endpoint GET /api/health que retorna:
+{
+  "status": "ok",
+  "integrações": {
+    "google_drive": "conectado" | "erro" | "não_configurado",
+    "google_calendar": "conectado" | "erro",
+    "twilio": "conectado" | "erro",
+    "asaas": "conectado" | "erro",
+    "zapsign": "conectado" | "erro"
+  },
+  "banco": "conectado",
+  "versao": "1.0.0",
+  "timestamp": "2026-07-16T03:00:00Z"
+}
+Por quê: sem isso, quando algo quebra em produção, 
+ninguém sabe onde está a falha.
+DEPOIS DO HEALTH CHECK:
+1. Fase C: INSERT herda empresa_id
+2. Fila de retry para Drive/email (tabela falhas_operacao)
+3. Tela CEO swipe com SSE
+Commite o /health primeiro. É o alicerce de tudo.
+Ordem do CEO.
