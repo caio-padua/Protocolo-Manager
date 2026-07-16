@@ -143,7 +143,7 @@ export default function Injetaveis({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {lista.map((protocol) => {
             const allApps = protocol.sessions.flatMap((s) =>
               s.substanceApplications.map((a) => ({ ...a, sessionDate: s.scheduledDate })),
@@ -156,136 +156,197 @@ export default function Injetaveis({
             );
             const progressPct =
               protocol.totalSessions > 0
-                ? (protocol.completedSessions / protocol.totalSessions) * 100
+                ? Math.round((protocol.completedSessions / protocol.totalSessions) * 100)
                 : 0;
 
+            // Deduplica pills por substanceName (mantém só 1 por nome)
+            const uniqueApplied = appliedApps.filter(
+              (a, i, arr) => arr.findIndex((x) => x.substanceName === a.substanceName) === i,
+            );
+            const uniquePending = pendingApps.filter(
+              (a, i, arr) => arr.findIndex((x) => x.substanceName === a.substanceName) === i,
+            );
+
             return (
-              <div key={protocol.id} className="panel-3d-sub rounded-md p-4">
-                {/* Cabecalho: titulo + status */}
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+              <div
+                key={protocol.id}
+                className="panel-3d overflow-hidden rounded-lg"
+                style={{ borderLeft: `4px solid ${GOLD}` }}
+              >
+                {/* ── ZONA TOPO: bevel-strip (título + status + progresso) ── */}
+                <div
+                  className="bevel-3d flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5"
+                  style={{ borderBottom: "1px solid rgba(194,160,90,0.25)" }}
+                >
+                  {/* Coluna esquerda: ícone + título */}
+                  <div className="flex min-w-0 items-center gap-2">
                     <Syringe className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
-                    <h3 className="truncate text-sm font-bold uppercase tracking-tight" style={{ color: GOLD_FORTE }}>
+                    <h3
+                      className="truncate text-[13px] font-extrabold uppercase tracking-wide"
+                      style={{ color: GOLD_FORTE }}
+                    >
                       {protocol.title}
                     </h3>
                   </div>
-                  <span className="concave-3d rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-200">
-                    {formatStatus(protocol.status)}
-                  </span>
-                </div>
-
-                {/* Metadados */}
-                <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-                  <span className="inline-flex items-center gap-1">
-                    <Calendar className="h-3 w-3" /> Início {fmtData(protocol.startDate)}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    {protocol.serviceType === "homecare" ? (
-                      <Home className="h-3 w-3" />
-                    ) : (
-                      <Building2 className="h-3 w-3" />
-                    )}
-                    {protocol.serviceType === "homecare" ? "Nurse Care" : "Clínica"}
-                  </span>
-                  {protocol.professionalName && <span>Prof: {protocol.professionalName}</span>}
-                </div>
-
-                {/* Progresso de sessoes */}
-                <div className="mb-3">
-                  <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    <span>Sessões concluídas</span>
-                    <span className="tabular-nums" style={{ color: GOLD_FORTE }}>
+                  {/* Coluna direita: status badge + contador sessões */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="concave-3d rounded-[4px] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-300">
+                      {formatStatus(protocol.status)}
+                    </span>
+                    <span
+                      className="rounded-[4px] px-2.5 py-0.5 text-[11px] font-black tabular-nums"
+                      style={{
+                        color: GOLD_FORTE,
+                        background: "rgba(194,160,90,0.15)",
+                        border: "1px solid rgba(194,160,90,0.35)",
+                      }}
+                    >
                       {protocol.completedSessions}/{protocol.totalSessions}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-[2px] bg-white/10 shadow-inner">
+                </div>
+
+                <div className="p-4">
+                  {/* ── METADADOS (linha única alinhada) ── */}
+                  <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold text-slate-400">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                      Início {fmtData(protocol.startDate)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      {protocol.serviceType === "homecare" ? (
+                        <Home className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                      ) : (
+                        <Building2 className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                      )}
+                      {protocol.serviceType === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
+                    </span>
+                    {protocol.professionalName && (
+                      <span className="inline-flex items-center gap-1.5 text-slate-300">
+                        Prof.: {protocol.professionalName}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ── BARRA DE PROGRESSO ── */}
+                  <div className="mb-4">
+                    <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      <span>Progresso do protocolo</span>
+                      <span style={{ color: progressPct === 100 ? "#4ade80" : GOLD_FORTE }}>
+                        {progressPct}%
+                      </span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-[3px] bg-white/10 shadow-inner">
+                      <div
+                        className="h-full rounded-[3px] transition-all duration-500"
+                        style={{
+                          width: `${progressPct}%`,
+                          background:
+                            progressPct === 100
+                              ? "linear-gradient(90deg,#22c55e,#4ade80)"
+                              : `linear-gradient(90deg,${GOLD} 0%,${GOLD_FORTE} 100%)`,
+                          boxShadow: `0 0 8px ${GOLD}55`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ── GRID APLICADAS × A APLICAR ── */}
+                  <div className="mb-4 grid grid-cols-2 gap-3">
+                    {/* APLICADAS */}
                     <div
-                      className="h-full rounded-[2px]"
-                      style={{
-                        width: `${progressPct}%`,
-                        background: "linear-gradient(90deg, hsl(214 54% 19%) 0%, hsl(39 41% 51%) 100%)",
-                      }}
-                    />
-                  </div>
-                </div>
+                      className="panel-3d-sub rounded-[6px] p-3"
+                      style={{ borderTop: "2px solid rgba(74,222,128,0.5)" }}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Aplicadas
+                        </span>
+                        <span
+                          className="rounded-[3px] px-2 py-0.5 text-[11px] font-black tabular-nums text-emerald-200"
+                          style={{ background: "rgba(74,222,128,0.15)" }}
+                        >
+                          {uniqueApplied.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uniqueApplied.length === 0 ? (
+                          <span className="text-[11px] text-slate-500">Nenhuma ainda.</span>
+                        ) : (
+                          uniqueApplied.slice(0, 10).map((a) => (
+                            <span
+                              key={a.id}
+                              className="inline-flex items-center rounded-[4px] px-2.5 py-1 text-[11px] font-bold leading-none text-white shadow-sm"
+                              style={{ backgroundColor: a.substanceColor || FALLBACK_COLOR }}
+                              title={a.substanceName}
+                            >
+                              {a.substanceName}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
 
-                {/* Resumo Aplicadas x A Aplicar */}
-                <div className="mb-3 grid grid-cols-2 gap-2">
-                  <div className="screen-3d rounded-md p-2">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-300">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Aplicadas
-                      </span>
-                      <span className="concave-3d rounded px-1.5 py-0.5 text-[10px] font-black tabular-nums text-slate-200">
-                        {appliedApps.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {appliedApps.length === 0 ? (
-                        <span className="text-[10px] text-slate-500">Nenhuma ainda.</span>
-                      ) : (
-                        appliedApps.slice(0, 8).map((a) => (
-                          <span
-                            key={a.id}
-                            className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
-                            style={{ backgroundColor: a.substanceColor || FALLBACK_COLOR }}
-                            title={`${a.substanceName} — ${fmtData(a.sessionDate)}`}
-                          >
-                            {a.substanceName}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  <div className="screen-3d rounded-md p-2">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        <Hourglass className="h-3.5 w-3.5" /> A Aplicar
-                      </span>
-                      <span className="concave-3d rounded px-1.5 py-0.5 text-[10px] font-black tabular-nums text-slate-200">
-                        {pendingApps.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {pendingApps.length === 0 ? (
-                        <span className="text-[10px] text-slate-500">Tudo concluído.</span>
-                      ) : (
-                        pendingApps.slice(0, 8).map((a) => (
-                          <span
-                            key={a.id}
-                            className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white opacity-75"
-                            style={{ backgroundColor: a.substanceColor || FALLBACK_COLOR }}
-                            title={`${a.substanceName} — ${fmtData(a.sessionDate)}`}
-                          >
-                            {a.substanceName}
-                          </span>
-                        ))
-                      )}
+                    {/* A APLICAR */}
+                    <div
+                      className="panel-3d-sub rounded-[6px] p-3"
+                      style={{ borderTop: "2px solid rgba(148,163,184,0.4)" }}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-300">
+                          <Hourglass className="h-3.5 w-3.5" /> A Aplicar
+                        </span>
+                        <span
+                          className="rounded-[3px] px-2 py-0.5 text-[11px] font-black tabular-nums text-slate-300"
+                          style={{ background: "rgba(148,163,184,0.15)" }}
+                        >
+                          {uniquePending.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uniquePending.length === 0 ? (
+                          <span className="text-[11px] text-slate-500">Tudo concluído.</span>
+                        ) : (
+                          uniquePending.slice(0, 10).map((a) => (
+                            <span
+                              key={a.id}
+                              className="inline-flex items-center rounded-[4px] px-2.5 py-1 text-[11px] font-bold leading-none text-white/80 shadow-sm"
+                              style={{ backgroundColor: a.substanceColor || FALLBACK_COLOR }}
+                              title={a.substanceName}
+                            >
+                              {a.substanceName}
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Substancias do protocolo (chips) + acao */}
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-1">
-                    {protocol.items.map((item) => (
-                      <span
-                        key={item.id}
-                        className="concave-3d inline-flex items-center rounded-[3px] px-2 py-0.5 text-[10px] font-extrabold text-white"
-                        style={{ backgroundColor: item.substanceColor || FALLBACK_COLOR }}
-                      >
-                        {item.substanceName}
-                      </span>
-                    ))}
+                  {/* ── RODAPÉ: substâncias do protocolo + botão ── */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {protocol.items.map((item) => (
+                        <span
+                          key={item.id}
+                          className="inline-flex items-center rounded-[4px] px-2.5 py-1 text-[11px] font-extrabold leading-none text-white"
+                          style={{
+                            backgroundColor: item.substanceColor || FALLBACK_COLOR,
+                            boxShadow: `0 1px 4px ${item.substanceColor || FALLBACK_COLOR}55`,
+                          }}
+                        >
+                          {item.substanceName}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLocation(`/protocols/${protocol.id}`)}
+                      className="btn-3d-soft inline-flex shrink-0 items-center gap-1.5 rounded-[5px] px-4 py-2 text-[11px] font-bold uppercase tracking-widest"
+                      style={{ color: GOLD_FORTE }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Abrir Protocolo Completo
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setLocation(`/protocols/${protocol.id}`)}
-                    className="btn-3d-soft inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: GOLD_FORTE }}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Abrir protocolo completo
-                  </button>
                 </div>
               </div>
             );
