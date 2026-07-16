@@ -262,18 +262,18 @@ const SP_ZONES: Record<string, string[]> = {
   "Grande ABC / ABCD":  ["santo andré", "são bernardo", "são caetano", "diadema", "mauá", "ribeirão pires"],
 };
 
-const STATE_META: Record<string, { icon: string; label: string; accent: string }> = {
-  SP: { icon: "🌆", label: "São Paulo",   accent: "border-cyan-400/60" },
-  RJ: { icon: "🏖️", label: "Rio de Janeiro", accent: "border-sky-400/60" },
-  DF: { icon: "🏛️", label: "Brasília (DF)", accent: "border-amber-400/60" },
-  MG: { icon: "⛏️", label: "Minas Gerais", accent: "border-orange-400/60" },
-  PB: { icon: "🌴", label: "Paraíba",     accent: "border-emerald-400/60" },
-  RS: { icon: "🧉", label: "Rio Grande do Sul", accent: "border-teal-400/60" },
-  PR: { icon: "🌲", label: "Paraná",      accent: "border-green-400/60" },
-  SC: { icon: "🏔️", label: "Santa Catarina", accent: "border-blue-400/60" },
-  BA: { icon: "☀️", label: "Bahia",       accent: "border-yellow-400/60" },
-  PE: { icon: "🎭", label: "Pernambuco",  accent: "border-rose-400/60" },
-  GO: { icon: "🌿", label: "Goiás",       accent: "border-lime-400/60" },
+const STATE_META: Record<string, { label: string; accent: string }> = {
+  SP: { label: "São Paulo",          accent: "border-cyan-400/60" },
+  RJ: { label: "Rio de Janeiro",     accent: "border-sky-400/60" },
+  DF: { label: "Brasília (DF)",      accent: "border-amber-400/60" },
+  MG: { label: "Minas Gerais",       accent: "border-orange-400/60" },
+  PB: { label: "Paraíba",            accent: "border-emerald-400/60" },
+  RS: { label: "Rio Grande do Sul",  accent: "border-teal-400/60" },
+  PR: { label: "Paraná",             accent: "border-green-400/60" },
+  SC: { label: "Santa Catarina",     accent: "border-blue-400/60" },
+  BA: { label: "Bahia",              accent: "border-yellow-400/60" },
+  PE: { label: "Pernambuco",         accent: "border-rose-400/60" },
+  GO: { label: "Goiás",              accent: "border-lime-400/60" },
 };
 
 function extractGeo(address: string | null): { state: string; city: string; neighborhood: string } {
@@ -360,7 +360,7 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
   busyFn: (id: number) => boolean;
   onToggle: (id: number) => void;
 }) {
-  const meta = STATE_META[state] ?? { icon: "📍", label: state === "—" ? "Sem endereço" : state, accent: "border-muted/40" };
+  const meta = STATE_META[state] ?? { label: state === "—" ? "Sem endereço" : state, accent: "border-muted/40" };
   const linkedCount = locs.filter((l) => linkedFn(l.id)).length;
   const [open, setOpen] = useState(true);
 
@@ -434,7 +434,6 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-primary/5 transition-colors"
       >
-        <span className="text-base leading-none">{meta.icon}</span>
         <div className="flex-1 text-left">
           <span className="text-[11px] font-black uppercase tracking-widest text-foreground">{meta.label}</span>
           <span className="ml-2 text-[9px] text-muted-foreground">{locs.length} local{locs.length !== 1 ? "is" : ""}</span>

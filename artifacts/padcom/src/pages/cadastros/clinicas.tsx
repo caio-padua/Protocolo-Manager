@@ -351,19 +351,17 @@ export default function CadastroClinicas() {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="">— Sem zona definida —</SelectItem>
-                          <SelectItem value="Centro / Higienópolis">🏙 Centro / Higienópolis</SelectItem>
-                          <SelectItem value="Zona Leste">🌅 Zona Leste</SelectItem>
-                          <SelectItem value="Zona Oeste / Pinheiros">🌳 Zona Oeste / Pinheiros</SelectItem>
-                          <SelectItem value="Zona Sul / Moema">🏡 Zona Sul / Moema</SelectItem>
-                          <SelectItem value="Zona Norte">🌄 Zona Norte</SelectItem>
-                          <SelectItem value="Grande ABC / ABCD">🏭 Grande ABC / ABCD</SelectItem>
-                          <SelectItem value="Domiciliar">🏠 Domiciliar</SelectItem>
-                          <SelectItem value="Centro (DF)">🏛 Centro (DF)</SelectItem>
-                          <SelectItem value="Plano Piloto">🏛 Plano Piloto</SelectItem>
-                          <SelectItem value="Sul (DF)">🌿 Sul (DF)</SelectItem>
-                          <SelectItem value="Centro (RJ)">🏖 Centro (RJ)</SelectItem>
-                          <SelectItem value="Zona Sul (RJ)">🌊 Zona Sul (RJ)</SelectItem>
-                          <SelectItem value="Belo Horizonte Centro">⛏ BH Centro</SelectItem>
+                          <SelectItem value="Centro / Higienópolis">Centro / Higienópolis</SelectItem>
+                          <SelectItem value="Zona Leste">Zona Leste</SelectItem>
+                          <SelectItem value="Zona Oeste / Pinheiros">Zona Oeste / Pinheiros</SelectItem>
+                          <SelectItem value="Zona Sul / Moema">Zona Sul / Moema</SelectItem>
+                          <SelectItem value="Zona Norte">Zona Norte</SelectItem>
+                          <SelectItem value="Grande ABC / ABCD">Grande ABC / ABCD</SelectItem>
+                          <SelectItem value="Domiciliar">Domiciliar</SelectItem>
+                          <SelectItem value="Plano Piloto (DF)">Plano Piloto (DF)</SelectItem>
+                          <SelectItem value="Setor Hospitalar Sul (DF)">Setor Hospitalar Sul (DF)</SelectItem>
+                          <SelectItem value="Zona Sul (RJ)">Zona Sul (RJ)</SelectItem>
+                          <SelectItem value="Centro (BH)">Centro (BH)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
