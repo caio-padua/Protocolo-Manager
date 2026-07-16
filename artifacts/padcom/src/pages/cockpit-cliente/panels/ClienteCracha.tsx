@@ -241,17 +241,60 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
   return (
     <div
       className="panel-3d mb-6 overflow-hidden p-0"
-      style={{ borderTop: `3px solid ${GOLD}` }}
+      style={{
+        borderTop: `3px solid ${GOLD}`,
+        boxShadow: "0 8px 32px rgba(22,41,74,0.13), 0 2px 8px rgba(0,0,0,0.08)",
+      }}
     >
+      {/* Faixa-título do crachá */}
+      <div
+        className="flex items-center gap-2 px-4 py-2"
+        style={{
+          background: `linear-gradient(90deg,${NAVY} 0%,#1e3668 100%)`,
+          borderBottom: `1px solid ${GOLD}55`,
+        }}
+      >
+        <Stethoscope className="h-3.5 w-3.5 shrink-0" style={{ color: GOLD }} />
+        <span
+          className="text-[13px] font-semibold uppercase tracking-[0.20em]"
+          style={{ fontFamily: "var(--app-font-display)", color: "#e7cd8f" }}
+        >
+          Prontuário do Cliente
+        </span>
+        {clinico.redFlag && (
+          <span
+            className="ml-auto flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+            style={{ color: "#fff", background: RED, boxShadow: `0 0 8px ${RED}66` }}
+          >
+            <ShieldAlert className="h-3 w-3" /> Sinal de Alarme
+          </span>
+        )}
+        {!clinico.redFlag && (
+          <span
+            className="ml-auto flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+            style={{ color: GREEN, background: "rgba(63,122,63,0.14)", border: `1px solid ${GREEN}55` }}
+          >
+            Sem alarme
+          </span>
+        )}
+      </div>
+
       <div className="flex flex-col gap-0 lg:flex-row">
         {/* ZONA 1 — IDENTIDADE (foto + nome) */}
         <div
-          className="flex items-center gap-3 p-4 lg:w-[290px] lg:shrink-0"
-          style={{ borderRight: `1px solid ${BORDER}` }}
+          className="flex items-center gap-4 p-5 lg:w-[300px] lg:shrink-0"
+          style={{
+            borderRight: `1px solid ${BORDER}`,
+            background: "linear-gradient(135deg,#ffffff 0%,#f9f6ef 100%)",
+          }}
         >
           <div
-            className="flex h-[60px] w-[60px] shrink-0 items-center justify-center overflow-hidden rounded-[8px]"
-            style={{ background: "#eef1f5", border: `2px solid ${GOLD}` }}
+            className="flex h-[68px] w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-[10px]"
+            style={{
+              background: "#eef1f5",
+              border: `2px solid ${GOLD}`,
+              boxShadow: `0 4px 14px ${GOLD}33`,
+            }}
           >
             {client?.photoUrl && !fotoQuebrada ? (
               <img
@@ -261,21 +304,25 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
                 onError={() => setFotoQuebrada(true)}
               />
             ) : (
-              <UserRound className="h-7 w-7" style={{ color: "#9aa7b6" }} />
+              <UserRound className="h-8 w-8" style={{ color: "#9aa7b6" }} />
             )}
           </div>
           <div className="min-w-0">
             <div
-              className="truncate text-[17px] font-bold leading-tight"
-              style={{ color: NAVY }}
+              className="truncate text-[18px] font-bold leading-snug"
+              style={{
+                color: NAVY,
+                fontFamily: "var(--app-font-display)",
+                letterSpacing: "0.02em",
+              }}
               title={client?.name}
             >
               {client?.name ?? "—"}
             </div>
-            <div className="mt-0.5 text-[12px] font-medium" style={{ color: "#647c97" }}>
+            <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.10em]" style={{ color: "#647c97" }}>
               {linha2 || "—"}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]" style={{ color: "#647c97" }}>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]" style={{ color: "#647c97" }}>
               {client?.phone && (
                 <span className="flex items-center gap-1">
                   <Phone className="h-3 w-3" /> {client.phone}
@@ -292,9 +339,18 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
 
         {/* ZONA 2 — CADASTRO */}
         <div
-          className="grid grid-cols-2 content-start gap-x-4 gap-y-2.5 p-4 lg:w-[260px] lg:shrink-0"
-          style={{ borderRight: `1px solid ${BORDER}`, background: "rgba(154,123,50,0.04)" }}
+          className="grid grid-cols-2 content-start gap-x-4 gap-y-3 p-5 lg:w-[270px] lg:shrink-0"
+          style={{
+            borderRight: `1px solid ${BORDER}`,
+            background: "linear-gradient(135deg,#fdfbf5 0%,#f8f4ea 100%)",
+          }}
         >
+          <div
+            className="col-span-2 mb-1 text-[9px] font-bold uppercase tracking-[0.20em]"
+            style={{ color: GOLD }}
+          >
+            Dados Cadastrais
+          </div>
           <Campo icon={<CalendarDays className="h-3 w-3" />} rotulo="Nascimento" valor={dataBr(client?.birthDate)} />
           <Campo icon={<Droplet className="h-3 w-3" />} rotulo="Tipo Sanguíneo" valor={clinico.tipoSanguineo || "—"} />
           <div className="col-span-2">
@@ -306,26 +362,12 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
         </div>
 
         {/* ZONA 3 — CLÍNICO (a mais destacada) */}
-        <div className="flex-1 p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: NAVY }}>
-              <Stethoscope className="h-3.5 w-3.5" style={{ color: GOLD }} /> Quadro Clínico
-            </div>
-            {clinico.redFlag ? (
-              <span
-                className="flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                style={{ color: "#fff", background: RED }}
-              >
-                <ShieldAlert className="h-3 w-3" /> Sinal de Alarme
-              </span>
-            ) : (
-              <span
-                className="flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                style={{ color: GREEN, background: "rgba(63,122,63,0.12)", border: `1px solid ${GREEN}44` }}
-              >
-                Sem alarme
-              </span>
-            )}
+        <div className="flex-1 p-5" style={{ background: "#ffffff" }}>
+          <div
+            className="mb-3 text-[9px] font-bold uppercase tracking-[0.20em]"
+            style={{ color: GOLD }}
+          >
+            Quadro Clínico
           </div>
           <div className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
             <BlocoChips

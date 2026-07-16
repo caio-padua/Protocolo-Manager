@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useCreateProtocol, useValidateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -106,6 +106,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const [clientAddresses, setClientAddresses] = useState<Array<{id: number; label: string; street?: string | null; city?: string | null; zipCode?: string | null; isDefault: boolean}>>([]);
   const [serviceAddressId, setServiceAddressId] = useState("");
   const comboRef = useRef(false);
+  const slotsTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (clientIdProp != null) setClientId(String(clientIdProp));
@@ -173,10 +174,14 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     return (professionals ?? []).filter((p: any) => p.category === "enfermagem");
   }, [professionals]);
 
-  const addSlot = () => {
+  const addSlot = useCallback(() => {
     if (slots.length >= 10) return;
-    setSlots(prev => [...prev, emptySlot()]);
-  };
+    setSlots(prev => [emptySlot(), ...prev]);
+    // Rola para o topo da lista de substâncias (novo slot aparece acima)
+    setTimeout(() => {
+      slotsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  }, [slots.length]);
 
   const removeSlot = (id: string) => {
     setSlots(prev => prev.filter(s => s.id !== id));
@@ -622,6 +627,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* âncora de scroll: ao adicionar, o novo slot aparece no topo */}
+          <div ref={slotsTopRef} />
           <div className="space-y-2">
             <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Categoria de Via</Label>
             <div className="flex flex-wrap gap-2">

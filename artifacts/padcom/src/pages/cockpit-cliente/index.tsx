@@ -35,6 +35,7 @@ import AcompanhamentoDiarioPanel from "./panels/AcompanhamentoDiarioPanel";
 // ===========================================================================
 
 const NAVY = "#16294a";
+const GOLD = "#9a7b32";
 const CREAM = "hsl(40 33% 96%)";
 
 type AbaId =
@@ -133,26 +134,47 @@ export default function CockpitCliente() {
     <div className="min-h-screen w-full font-sans" style={{ background: CREAM }}>
       {/* Faixa de topo navy — sem wordmark PAXTER (o sidebar ja carrega a marca) */}
       <header
-        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
         style={{
-          background: "linear-gradient(180deg,#1b3260 0%,#16294a 60%,#101f3a 100%)",
-          borderBottom: "1px solid rgba(231,205,143,0.35)",
+          background: "linear-gradient(180deg,#1e3668 0%,#16294a 55%,#0f1e3a 100%)",
+          borderBottom: "2px solid rgba(231,205,143,0.45)",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
         }}
       >
-        <span className="text-[12px] font-semibold uppercase tracking-[0.22em] text-slate-200">
-          Cockpit da Consulta
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-[0.30em] text-slate-400"
+          >
+            Padcon Conect
+          </span>
+          <span
+            className="text-[22px] font-bold leading-tight tracking-[0.08em] uppercase"
+            style={{
+              fontFamily: "var(--app-font-display)",
+              color: "#e7cd8f",
+              textShadow: "0 1px 8px rgba(0,0,0,0.55)",
+            }}
+          >
+            Cockpit da Consulta
+          </span>
+        </div>
         <ClientPicker
           clientes={opcoes}
           value={clienteId}
           onChange={(id) => selecionarCliente(id)}
           placeholder="Selecionar cliente…"
-          triggerClassName="min-w-[260px] bg-white/95 text-[#16294a]"
+          triggerClassName="min-w-[280px] bg-white/95 text-[#16294a] font-semibold shadow-lg"
         />
       </header>
 
       {/* Régua de abas */}
-      <nav className="flex flex-wrap items-end gap-1 px-4 pt-3" style={{ background: "#13233f" }}>
+      <nav
+        className="flex flex-wrap items-end gap-1 px-5 pt-2"
+        style={{
+          background: "linear-gradient(180deg,#0f1e3a 0%,#13233f 100%)",
+          borderBottom: "1px solid rgba(231,205,143,0.18)",
+        }}
+      >
         {ABAS.map(({ id, rotulo, Icon }) => {
           const ativo = aba === id;
           return (
@@ -160,20 +182,20 @@ export default function CockpitCliente() {
               key={id}
               type="button"
               onClick={() => selecionarAba(id)}
-              className={`flex items-center gap-1.5 rounded-t-[6px] px-4 py-2 text-[12px] font-semibold uppercase tracking-wide transition-transform ${
-                ativo ? "-translate-y-px text-[#16294a]" : "text-slate-300 hover:text-white"
+              className={`flex items-center gap-1.5 rounded-t-[7px] px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide transition-all duration-150 ${
+                ativo ? "-translate-y-0.5 text-[#16294a]" : "text-slate-400 hover:text-slate-200"
               }`}
               style={
                 ativo
                   ? {
-                      background: "linear-gradient(180deg,#fbf6ea 0%,#f1e7cf 100%)",
-                      borderTop: "2px solid #e7cd8f",
+                      background: "linear-gradient(180deg,#fffbf0 0%,#f1e7cf 100%)",
+                      borderTop: `2px solid ${GOLD}`,
                       boxShadow:
-                        "0 -6px 12px -4px rgba(231,205,143,0.55), inset 0 2px 0 rgba(255,255,255,0.9), inset 0 -3px 6px rgba(22,41,74,0.10)",
+                        "0 -4px 14px -2px rgba(231,205,143,0.45), 0 4px 0 #f1e7cf, inset 0 2px 0 rgba(255,255,255,0.95)",
                     }
                   : {
-                      background: "rgba(255,255,255,0.05)",
-                      boxShadow: "inset 0 2px 5px rgba(0,0,0,0.28)",
+                      background: "rgba(255,255,255,0.04)",
+                      boxShadow: "inset 0 2px 6px rgba(0,0,0,0.32), inset 0 -1px 0 rgba(255,255,255,0.04)",
                     }
               }
             >
