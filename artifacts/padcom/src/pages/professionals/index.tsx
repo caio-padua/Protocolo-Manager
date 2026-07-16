@@ -930,132 +930,127 @@ export default function Professionals() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {grouped.map(({ category, items }) => (
-            <div key={category}>
-              {/* Cabeçalho de categoria — padrão Paxter */}
-              <div className="flex items-center gap-3 mb-4">
+            /* ── Cada categoria num painel bevel-3d elevado ── */
+            <div key={category} className="bevel-3d p-5 space-y-4">
+
+              {/* Cabeçalho dentro do painel */}
+              <div className="flex items-center gap-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-foreground">
                   {catLabel(category)}
                 </p>
                 <span className="concave-3d px-2 py-0.5 text-[9px] font-black text-muted-foreground tabular-nums">
                   {items.length}
                 </span>
-                <div className="flex-1 h-px bg-border/40" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {items.map((pro) => {
                   const p = pro as typeof pro & {
                     nurseType?: string | null;
                     photoUrl?: string | null;
                   };
-                  const isMedico = (pro.professionalType ?? "medico") === "medico";
                   const specialtyLabel = pro.specialtyName ?? pro.specialty ?? "";
                   const registro = [pro.registrationCouncil, pro.registrationNumber].filter(Boolean).join(" ") || pro.crm || "";
                   const isActive = pro.active ?? true;
                   const ini = initials(pro.name ?? "?");
                   const hasPhoto = !!p.photoUrl;
-                  // Faixa lateral: primary=médico, accent=não-médico
-                  const faixaCor = isMedico ? "bg-primary" : "bg-accent";
+                  const hasContact = !!(pro.unit || pro.phone || pro.email);
 
                   return (
                     <Card key={pro.id} className="panel-3d-sub overflow-hidden neon-hover transition-all">
-                      <div className="flex h-full">
+                      <CardContent className="p-3 space-y-2.5">
 
-                        {/* Faixa lateral de status (4px) — padrão grade imaginária */}
-                        <div className={`w-1 shrink-0 ${faixaCor}`} />
+                        {/* ── TOP BAR: foto + nome + LED + editar ── */}
+                        <div className="flex items-center gap-2.5">
 
-                        <CardContent className="p-0 flex-1 min-w-0">
-
-                          {/* ── ZONA 1: TOP BAR — foto + nome + editar ── */}
-                          <div className="flex items-center gap-3 px-3 pt-3 pb-2">
-                            {/* Foto quadrada — mesmo padrão ClientPhotoCard */}
-                            <div className="concave-3d rounded-[6px] p-1 shrink-0">
-                              <div className="w-10 h-10 rounded-[4px] overflow-hidden bg-muted flex items-center justify-center">
-                                {hasPhoto ? (
-                                  <img
-                                    src={`${BASE}${p.photoUrl}`}
-                                    alt={pro.name ?? ""}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-[12px] font-black uppercase text-muted-foreground">
-                                    {ini}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Nome + especialidade — mesmo estilo da tela de Clientes */}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-bold leading-none text-primary tracking-tight line-clamp-1">
-                                {tituloProprio(pro.name ?? "")}
-                              </h3>
-                              {specialtyLabel && (
-                                <p className="text-[11px] font-semibold text-muted-foreground truncate mt-0.5">
-                                  {specialtyLabel}
-                                </p>
+                          {/* Foto quadrada — padrão ClientPhotoCard */}
+                          <div className="concave-3d rounded-[6px] p-1 shrink-0">
+                            <div className="w-10 h-10 rounded-[4px] overflow-hidden bg-muted flex items-center justify-center">
+                              {hasPhoto ? (
+                                <img
+                                  src={`${BASE}${p.photoUrl}`}
+                                  alt={pro.name ?? ""}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-[12px] font-black uppercase text-muted-foreground">
+                                  {ini}
+                                </span>
                               )}
                             </div>
-
-                            {/* Botão editar */}
-                            <button
-                              type="button"
-                              onClick={() => openEdit(pro)}
-                              className="concave-3d flex-shrink-0 p-1.5 text-muted-foreground hover:text-primary transition-colors"
-                              aria-label={`Editar ${pro.name}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
                           </div>
 
-                          {/* ── ZONA 2: IDENTIDADE — registro + badges ── */}
-                          <div className="px-3 pb-2 flex flex-wrap items-center gap-1.5">
-                            {registro && (
-                              <div className="concave-3d px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold text-foreground">
-                                <BadgeCheck className="h-3 w-3 text-primary" />
-                                {registro}
-                              </div>
+                          {/* Nome + especialidade */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold leading-tight text-primary tracking-tight line-clamp-1">
+                              {tituloProprio(pro.name ?? "")}
+                            </h3>
+                            {specialtyLabel && (
+                              <p className="text-[10px] font-semibold text-muted-foreground truncate">
+                                {specialtyLabel}
+                              </p>
                             )}
-                            <div className={`concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${isActive ? "text-emerald-600" : "text-rose-500"}`}>
-                              <span className={`w-1.5 h-1.5 rounded-sm inline-block ${isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
-                              {isActive ? "ATIVO" : "INATIVO"}
+                          </div>
+
+                          {/* LED respiratório de status — quadrado 9×9px */}
+                          <div
+                            className={`paxter-led paxter-led-breathe shrink-0 ${isActive ? "paxter-led-green" : "paxter-led-amber"}`}
+                            title={isActive ? "Ativo" : "Inativo"}
+                          />
+
+                          {/* Botão editar */}
+                          <button
+                            type="button"
+                            onClick={() => openEdit(pro)}
+                            className="concave-3d shrink-0 p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                            aria-label={`Editar ${pro.name}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* ── IDENTIDADE: registro + HOME NURSE ── */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {registro && (
+                            <div className="concave-3d px-2 py-0.5 flex items-center gap-1 text-[10px] font-bold text-foreground">
+                              <BadgeCheck className="h-3 w-3 text-primary shrink-0" />
+                              {registro}
                             </div>
-                            {p.nurseType === "home" && (
-                              <div className="bevel-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-accent">
-                                HOME NURSE
-                              </div>
-                            )}
-                          </div>
+                          )}
+                          {p.nurseType === "home" && (
+                            <div className="bevel-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-accent">
+                              HOME NURSE
+                            </div>
+                          )}
+                        </div>
 
-                          {/* ── ZONA 3: META GRID — contato ── */}
-                          <div className="px-3 pb-3 space-y-1.5">
+                        {/* ── CAMPOS DE CONTATO em concave-3d (inset) ── */}
+                        {hasContact && (
+                          <div className="concave-3d px-3 py-2 space-y-1.5">
                             {pro.unit && (
                               <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Building2 className="h-3 w-3 text-primary flex-shrink-0" />
+                                <Building2 className="h-3 w-3 text-primary shrink-0" />
                                 <span className="truncate">{pro.unit}</span>
                               </div>
                             )}
                             {pro.phone && (
                               <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Phone className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <Phone className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{pro.phone}</span>
                               </div>
                             )}
                             {pro.email && (
                               <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <Mail className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{pro.email}</span>
                               </div>
                             )}
-                            {!pro.unit && !pro.phone && !pro.email && !registro && (
-                              <p className="text-[10px] font-semibold text-muted-foreground/40 italic">Dados não preenchidos</p>
-                            )}
                           </div>
+                        )}
 
-                        </CardContent>
-                      </div>
+                      </CardContent>
                     </Card>
                   );
                 })}
