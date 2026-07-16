@@ -1000,11 +1000,11 @@ export default function Professionals() {
                             title={isActive ? "Ativo" : "Inativo"}
                           />
 
-                          {/* Botão editar */}
+                          {/* Botão editar — bevel-3d (saliente, como botão físico) */}
                           <button
                             type="button"
                             onClick={() => openEdit(pro)}
-                            className="concave-3d shrink-0 p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                            className="bevel-3d shrink-0 p-1.5 text-muted-foreground hover:text-primary transition-colors active:scale-95"
                             aria-label={`Editar ${pro.name}`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -1026,29 +1026,21 @@ export default function Professionals() {
                           )}
                         </div>
 
-                        {/* ── CAMPOS DE CONTATO em concave-3d (inset) ── */}
-                        {hasContact && (
-                          <div className="concave-3d px-3 py-2 space-y-1.5">
-                            {pro.unit && (
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Building2 className="h-3 w-3 text-primary shrink-0" />
-                                <span className="truncate">{pro.unit}</span>
-                              </div>
-                            )}
-                            {pro.phone && (
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Phone className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{pro.phone}</span>
-                              </div>
-                            )}
-                            {pro.email && (
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
-                                <Mail className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{pro.email}</span>
-                              </div>
-                            )}
+                        {/* ── CAMPOS DE CONTATO em concave-3d — sempre visível (slot vazio = "—") ── */}
+                        <div className="concave-3d px-3 py-2 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+                            <Building2 className="h-3 w-3 text-primary shrink-0" />
+                            <span className="truncate">{pro.unit || "—"}</span>
                           </div>
-                        )}
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{pro.phone || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{pro.email || "—"}</span>
+                          </div>
+                        </div>
 
                       </CardContent>
                     </Card>
