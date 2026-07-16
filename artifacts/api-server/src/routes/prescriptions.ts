@@ -9,7 +9,8 @@ import {
   catalogoItensTable,
   catalogoFormulasTable,
 } from "@workspace/db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
@@ -43,8 +44,11 @@ router.post("/prescriptions/preview", async (req, res): Promise<void> => {
   res.json(plans);
 });
 
-router.get("/prescriptions", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(prescriptionsTable).orderBy(desc(prescriptionsTable.createdAt)).limit(200);
+router.get("/prescriptions", async (req, res): Promise<void> => {
+  const empresaId = resolveEmpresaId(req);
+  const rows = await db.select().from(prescriptionsTable)
+    .where(eq(prescriptionsTable.empresaId, empresaId))
+    .orderBy(desc(prescriptionsTable.createdAt)).limit(200);
   res.json(
     rows.map((p) => ({
       id: p.id,

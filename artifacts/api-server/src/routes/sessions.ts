@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import {
@@ -120,7 +121,8 @@ router.get("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  let sessions = await db.select().from(sessionsTable);
+  const empresaId = resolveEmpresaId(req);
+  let sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, empresaId));
 
   if (query.data.clientId) sessions = sessions.filter(s => s.clientId === query.data.clientId);
   if (query.data.protocolId) sessions = sessions.filter(s => s.protocolId === query.data.protocolId);

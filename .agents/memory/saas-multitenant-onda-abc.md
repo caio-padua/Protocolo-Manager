@@ -57,12 +57,31 @@ R$500 (Barakat) + R$500 (Paluzze) + R$90 (30% royalty de Paluzze sobre Barros R$
 - Rota `/hierarquia` e `/cadastros/empresas-licenciadas` registradas em App.tsx
 - Página de licenciadas atrás de CollaboratorGate (correto — só CEO vê)
 
-## O que NÃO foi feito (ONDA B/C pendente)
+## ONDA B — concluída em 16/07/2026
+
+### Schemas Drizzle (empresaId adicionado)
+clients, sessions, ras, prescriptions, payments, stock, protocols, exam-results (examDocumentsTable)
+
+### Rotas isoladas (resolveEmpresaId + WHERE empresa_id = empresaId)
+- GET /clients (3 branches: status / search / all — cada um com and(tenantFilter, ...))
+- GET /sessions (WHERE no DB, não JS)
+- GET /ras (WHERE no DB)
+- GET /prescriptions (WHERE + orderBy + limit)
+- GET /payments (WHERE no DB)
+- GET /stock (WHERE simples)
+- GET /protocols (4 branches com and(tenantFilter, ...))
+- GET /exames-lab/documentos (and(tenantFilter, clientId?, notIgnored))
+
+### Verificação pós-deploy (curl confirmado)
+Todas as 8 tabelas: linhas_fora_do_tenant = 0.
+GET /clients → 5271, /sessions → 245, /payments → 12, /protocols → 24.
+
+## O que NÃO foi feito (ONDA C pendente)
 
 - onboarding_steps SAGA table (não criada ainda)
 - LGPD GET /empresas/:id/exportar-dados (obrigação legal)
-- tenantContext ainda NÃO é usado nos WHERE das consultas (próxima onda)
 - Auth multi-tenant completa (JWT/session com empresa_id do payload)
+- POST/PUT/INSERT das rotas (inserção herda empresa_id automaticamente — próxima onda)
 
 **Why:** Fase A = fundação (schema + middleware + UI). Fase B = ativar filtragem em rotas.
 

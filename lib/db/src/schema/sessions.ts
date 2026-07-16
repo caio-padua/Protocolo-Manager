@@ -26,6 +26,7 @@ export const sessionsTable = pgTable("sessions", {
   // Endereço onde a sessão acontece — preenchido para Home Nurse.
   // Texto livre (label + endereço formatado) para simplicidade de consulta nos PDFs.
   serviceAddress: text("service_address"),
+  empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

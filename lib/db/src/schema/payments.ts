@@ -25,6 +25,7 @@ export const paymentsTable = pgTable(
     billingType: text("billing_type"),
     stripeChargeId: text("stripe_charge_id"),
     stripeCheckoutUrl: text("stripe_checkout_url"),
+    empresaId: integer("empresa_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

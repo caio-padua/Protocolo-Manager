@@ -22,6 +22,7 @@ export const protocolsTable = pgTable("protocols", {
   // Custo total da enfermagem = nurseId.homeServiceFeePerVisit × totalSessions.
   // Separado do totalValue (resposta A do CEO: somado automaticamente).
   nurseServiceFee: real("nurse_service_fee"),
+  empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

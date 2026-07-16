@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable } from "@workspace/db";
 import { generateProtocolDocumentPdf } from "../lib/pdf-signer";
 import {
@@ -155,19 +156,23 @@ router.get("/protocols", async (req, res): Promise<void> => {
     return;
   }
 
+  const empresaId = resolveEmpresaId(req);
+  const tenantFilter = eq(protocolsTable.empresaId, empresaId);
+
   let protocols;
   if (query.data.clientId && query.data.status) {
     protocols = await db.select().from(protocolsTable)
-      .where(eq(protocolsTable.clientId, query.data.clientId));
+      .where(and(tenantFilter, eq(protocolsTable.clientId, query.data.clientId)));
     protocols = protocols.filter(p => p.status === query.data.status);
   } else if (query.data.clientId) {
     protocols = await db.select().from(protocolsTable)
-      .where(eq(protocolsTable.clientId, query.data.clientId));
+      .where(and(tenantFilter, eq(protocolsTable.clientId, query.data.clientId)));
   } else if (query.data.status) {
     protocols = await db.select().from(protocolsTable)
-      .where(eq(protocolsTable.status, query.data.status));
+      .where(and(tenantFilter, eq(protocolsTable.status, query.data.status)));
   } else {
-    protocols = await db.select().from(protocolsTable);
+    protocols = await db.select().from(protocolsTable)
+      .where(tenantFilter);
   }
 
   const results = await Promise.all(protocols.map(buildProtocolResponse));

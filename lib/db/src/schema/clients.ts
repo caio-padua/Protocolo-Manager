@@ -15,6 +15,7 @@ export const clientsTable = pgTable("clients", {
   comoConheceu: text("como_conheceu"),
   status: text("status").notNull().default("active"),
   locationId: integer("location_id"),
+  empresaId: integer("empresa_id"),
   photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),

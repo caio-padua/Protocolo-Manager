@@ -13,6 +13,7 @@ import {
   professionalsTable,
 } from "@workspace/db";
 import { eq, ne, desc, and, or, inArray, isNull, isNotNull, sql } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { z } from "zod/v4";
 import {
   resolveDirection,
@@ -304,6 +305,7 @@ router.post(
 router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
   try {
     const clientId = req.query.clientId ? Number(req.query.clientId) : null;
+    const empresaId = resolveEmpresaId(req);
     const base = db
       .select({
         id: examDocumentsTable.id,
@@ -327,11 +329,12 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
     // Documentos "ignorado" (nao-exame filtrado pelo porteiro da importacao em
     // massa) nao aparecem na tela de exames — servem so de dedup de custo.
     const notIgnored = ne(examDocumentsTable.status, "ignorado");
+    const tenantFilter = eq(examDocumentsTable.empresaId, empresaId);
     const docs = clientId
       ? await base
-          .where(and(eq(examDocumentsTable.clientId, clientId), notIgnored))
+          .where(and(tenantFilter, eq(examDocumentsTable.clientId, clientId), notIgnored))
           .orderBy(desc(examDocumentsTable.id))
-      : await base.where(notIgnored).orderBy(desc(examDocumentsTable.id));
+      : await base.where(and(tenantFilter, notIgnored)).orderBy(desc(examDocumentsTable.id));
 
     // nome do cliente para exibicao
     const clientIds = [...new Set(docs.map((d) => d.clientId))];

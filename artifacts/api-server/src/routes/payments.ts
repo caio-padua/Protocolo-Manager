@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, paymentsTable, clientsTable } from "@workspace/db";
 import {
   ListPaymentsQueryParams,
@@ -36,7 +37,8 @@ router.get("/payments", async (req, res): Promise<void> => {
     return;
   }
 
-  let payments = await db.select().from(paymentsTable);
+  const empresaId = resolveEmpresaId(req);
+  let payments = await db.select().from(paymentsTable).where(eq(paymentsTable.empresaId, empresaId));
   if (query.data.clientId) payments = payments.filter(p => p.clientId === query.data.clientId);
   if (query.data.status) payments = payments.filter(p => p.status === query.data.status);
 

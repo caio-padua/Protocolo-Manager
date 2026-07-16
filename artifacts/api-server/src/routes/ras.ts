@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable } from "@workspace/db";
 import {
   ListRASQueryParams,
@@ -40,7 +41,8 @@ router.get("/ras", async (req, res): Promise<void> => {
     return;
   }
 
-  let rasRecords = await db.select().from(rasTable);
+  const empresaId = resolveEmpresaId(req);
+  let rasRecords = await db.select().from(rasTable).where(eq(rasTable.empresaId, empresaId));
   if (query.data.clientId) rasRecords = rasRecords.filter(r => r.clientId === query.data.clientId);
   if (query.data.protocolId) rasRecords = rasRecords.filter(r => r.protocolId === query.data.protocolId);
 

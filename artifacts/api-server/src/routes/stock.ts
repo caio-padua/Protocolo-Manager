@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, stockItemsTable, substancesTable } from "@workspace/db";
 import {
   CreateStockItemBody,
@@ -52,8 +53,9 @@ async function formatStockItem(item: typeof stockItemsTable.$inferSelect) {
   };
 }
 
-router.get("/stock", async (_req, res): Promise<void> => {
-  const items = await db.select().from(stockItemsTable);
+router.get("/stock", async (req, res): Promise<void> => {
+  const empresaId = resolveEmpresaId(req);
+  const items = await db.select().from(stockItemsTable).where(eq(stockItemsTable.empresaId, empresaId));
   const results = await Promise.all(items.map(formatStockItem));
   res.json(results);
 });

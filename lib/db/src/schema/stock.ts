@@ -13,6 +13,7 @@ export const stockItemsTable = pgTable("stock_items", {
   expirationDate: text("expiration_date"),
   supplier: text("supplier"),
   unitCost: real("unit_cost"),
+  empresaId: integer("empresa_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

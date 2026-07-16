@@ -60,6 +60,7 @@ export const examDocumentsTable = pgTable(
   conf2Name: text("conf2_name"),
   conf2Cargo: text("conf2_cargo"),
   conf2At: timestamp("conf2_at", { withTimezone: true }),
+  empresaId: integer("empresa_id"),
   },
   (t) => ({
     uxDocClientHash: uniqueIndex("ux_exam_doc_client_hash").on(t.clientId, t.hash),

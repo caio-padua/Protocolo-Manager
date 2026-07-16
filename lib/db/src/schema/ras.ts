@@ -18,6 +18,7 @@ export const rasTable = pgTable("ras", {
   observations: text("observations"),
   patientSignature: boolean("patient_signature").notNull().default(false),
   professionalSignature: boolean("professional_signature").notNull().default(false),
+  empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

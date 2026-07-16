@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, inArray } from "drizzle-orm";
+import { eq, ilike, or, inArray, and } from "drizzle-orm";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
 import {
   ListClientsQueryParams,
@@ -78,6 +79,9 @@ router.get("/clients", async (req, res): Promise<void> => {
     return;
   }
 
+  const empresaId = resolveEmpresaId(req);
+  const tenantFilter = eq(clientsTable.empresaId, empresaId);
+
   const conditions: ReturnType<typeof ilike>[] = [];
   if (query.data.search) {
     conditions.push(ilike(clientsTable.name, `%${query.data.search}%`));
@@ -86,11 +90,11 @@ router.get("/clients", async (req, res): Promise<void> => {
 
   let clients: ClientRow[];
   if (query.data.status) {
-    clients = await db.select().from(clientsTable).where(eq(clientsTable.status, query.data.status));
+    clients = await db.select().from(clientsTable).where(and(tenantFilter, eq(clientsTable.status, query.data.status)));
   } else if (conditions.length > 0) {
-    clients = await db.select().from(clientsTable).where(or(...conditions));
+    clients = await db.select().from(clientsTable).where(and(tenantFilter, or(...conditions)));
   } else {
-    clients = await db.select().from(clientsTable);
+    clients = await db.select().from(clientsTable).where(tenantFilter);
   }
 
   const ids = clients.map((c) => c.id);
