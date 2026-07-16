@@ -48,6 +48,7 @@ import {
   Circle,
   Loader2,
 } from "lucide-react";
+import { tituloProprio } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -255,7 +256,7 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
   const fetchLinks = useCallback(async () => {
     const [locRes, lnkRes] = await Promise.all([
       fetch(`${BASE}/api/locations`),
-      fetch(`${BASE}/api/professionals/${professionalId}/links`),
+      fetch(`${BASE}/api/professionals/${professionalId}/locations`),
     ]);
     const [locs, lnks] = await Promise.all([locRes.json(), lnkRes.json()]);
     setLocations(locs ?? []);
@@ -275,14 +276,14 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (t) headers.Authorization = `Bearer ${t}`;
       if (linked) {
-        await fetch(`${BASE}/api/professionals/${professionalId}/links/${locationId}`, {
+        await fetch(`${BASE}/api/professionals/${professionalId}/locations/${locationId}`, {
           method: "DELETE", headers,
         });
         setLinks((prev) => prev.filter((l) => l.locationId !== locationId));
         toast({ title: "Vínculo removido" });
       } else {
-        const r = await fetch(`${BASE}/api/professionals/${professionalId}/links/${locationId}`, {
-          method: "POST", headers, body: JSON.stringify({ role: "executor" }),
+        const r = await fetch(`${BASE}/api/professionals/${professionalId}/locations`, {
+          method: "POST", headers, body: JSON.stringify({ locationId, role: "executor" }),
         });
         if (!r.ok) throw new Error("link");
         const row = await r.json() as LinkRow;
@@ -985,11 +986,11 @@ export default function Professionals() {
                               </div>
                             </div>
 
-                            {/* Nome + especialidade */}
+                            {/* Nome + especialidade — mesmo estilo da tela de Clientes */}
                             <div className="flex-1 min-w-0">
-                              <p className="text-base font-black uppercase tracking-tight text-foreground truncate leading-tight">
-                                {pro.name}
-                              </p>
+                              <h3 className="text-lg font-bold leading-none text-primary tracking-tight line-clamp-1">
+                                {tituloProprio(pro.name ?? "")}
+                              </h3>
                               {specialtyLabel && (
                                 <p className="text-[11px] font-semibold text-muted-foreground truncate mt-0.5">
                                   {specialtyLabel}
