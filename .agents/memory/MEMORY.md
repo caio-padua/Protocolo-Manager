@@ -118,3 +118,4 @@
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
 - [Telegram bot compartilhado — takeover](telegram-bot-compartilhado-takeover.md) — quem faz polling consome updates (escuta 0 com token válido); setWebhook assume com exclusividade (quebra o primo, exige consentimento); setMyName renomeia via API.
 - [Pipeline ffmpeg via stdin](ffmpeg-stdin-pipeline.md) — stdin.on(error) obrigatório (EPIPE derruba o Node); race(drain,fim); GIF via palettegen+sierra2_4a (sem stat_mode); dedup em voo + tmp único.
+- [Card de profissional — padrão correto](card-profissional-padrao.md) — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase (NUNCA serifa); upload foto=cópia fiel do ClientPhotoCard.
