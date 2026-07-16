@@ -48,9 +48,11 @@ export const empresasTable = pgTable("empresas", {
   cidade: text("cidade"),
   estado: text("estado"),
   zona: text("zona"),                            // ex: "Zona Leste", "Centro", "Asa Sul" — auto ou manual
+  complemento: text("complemento"),              // sala, andar, apto (endereço comercial)
 
   // ── Endereço fiscal (pode diferir do comercial — obrigatório NF-e) ──────────
   enderecoFiscal: text("endereco_fiscal"),       // logradouro completo
+  complementoFiscal: text("complemento_fiscal"), // sala, andar, apto
   cepFiscal: text("cep_fiscal"),
   bairroFiscal: text("bairro_fiscal"),
   cidadeFiscal: text("cidade_fiscal"),

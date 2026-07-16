@@ -10,6 +10,7 @@ export const clientsTable = pgTable("clients", {
   phone: text("phone"),
   birthDate: text("birth_date"),
   address: text("address"),
+  complemento: text("complemento"),
   pais: text("pais").default("BRASIL"),
   instagram: text("instagram"),
   comoConheceu: text("como_conheceu"),

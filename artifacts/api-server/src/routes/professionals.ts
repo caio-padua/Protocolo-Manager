@@ -141,7 +141,7 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
   }
 
   const {
-    name, crm, specialty, email, phone, unit, serviceTypes, category, role, active,
+    name, crm, specialty, email, phone, unit, complemento, serviceTypes, category, role, active,
     professionalType, areaId, specialtyId, registrationCouncil, registrationNumber,
     nurseType, cpf, cnpj, homeServiceFeePerVisit, contractType,
   } = req.body as {
@@ -151,6 +151,7 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
     email?: string | null;
     phone?: string | null;
     unit?: string | null;
+    complemento?: string | null;
     serviceTypes?: string[];
     category?: string;
     role?: string;
@@ -214,6 +215,7 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
       ...(email !== undefined ? { email } : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(unit !== undefined ? { unit } : {}),
+      ...(complemento !== undefined ? { complemento } : {}),
       ...(serviceTypes !== undefined ? { serviceTypes } : {}),
       ...(category !== undefined ? { category: normalizeCategory(category) } : {}),
       ...(role !== undefined ? { role } : {}),

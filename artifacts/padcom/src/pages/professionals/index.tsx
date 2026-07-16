@@ -574,6 +574,7 @@ const EMPTY_FORM = {
   phone: "",
   email: "",
   unit: "",
+  complemento: "",
   serviceTypes: ["presencial"] as string[],
   active: true,
   nurseType: "" as string,
@@ -691,6 +692,7 @@ export default function Professionals() {
       phone: pro.phone ?? "",
       email: pro.email ?? "",
       unit: pro.unit ?? "",
+      complemento: (pro as any).complemento ?? "",
       serviceTypes: pro.serviceTypes?.length ? pro.serviceTypes : ["presencial"],
       active: pro.active ?? true,
       nurseType: p.nurseType ?? "",
@@ -740,6 +742,7 @@ export default function Professionals() {
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       unit: form.unit.trim() || null,
+      complemento: form.complemento.trim() || null,
       serviceTypes: form.serviceTypes,
       active: form.active,
       ...(isNurse ? {
@@ -973,14 +976,25 @@ export default function Professionals() {
                   — Localização &amp; Atendimento
                 </p>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unidade principal</Label>
-                  <Input
-                    value={form.unit}
-                    onChange={(e) => set("unit", e.target.value)}
-                    placeholder="Clínica Principal"
-                    className="field-engraved"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unidade principal</Label>
+                    <Input
+                      value={form.unit}
+                      onChange={(e) => set("unit", e.target.value)}
+                      placeholder="Clínica Tatuapé"
+                      className="field-engraved"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Complemento</Label>
+                    <Input
+                      value={form.complemento}
+                      onChange={(e) => set("complemento", e.target.value)}
+                      placeholder="Sala 01, Andar 2…"
+                      className="field-engraved"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

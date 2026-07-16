@@ -88,7 +88,9 @@ const formSchema = z.object({
   cidade:          z.string().optional(),
   estado:          z.string().optional(),
   // Endereço fiscal
+  complemento:     z.string().optional(),
   enderecoFiscal:  z.string().optional(),
+  complementoFiscal: z.string().optional(),
   cepFiscal:       z.string().optional(),
   bairroFiscal:    z.string().optional(),
   cidadeFiscal:    z.string().optional(),
@@ -149,8 +151,8 @@ const EMPTY: FormValues = {
   inscricaoMunicipal: "", dataAbertura: "", capitalSocial: "", optanteSimples: true,
   responsavelLegalNome: "", responsavelLegalCpf: "",
   contadorNome: "", contadorCrc: "", contadorEmail: "", contadorTelefone: "",
-  endereco: "", cep: "", zona: "", bairro: "", cidade: "", estado: "",
-  enderecoFiscal: "", cepFiscal: "", bairroFiscal: "", cidadeFiscal: "", estadoFiscal: "", codigoIbge: "",
+  endereco: "", complemento: "", cep: "", zona: "", bairro: "", cidade: "", estado: "",
+  enderecoFiscal: "", complementoFiscal: "", cepFiscal: "", bairroFiscal: "", cidadeFiscal: "", estadoFiscal: "", codigoIbge: "",
   telefone: "", emailGeral: "", emailAgenda: "", emailEnfermagem: "", emailFinanceiro: "",
   nfeAmbiente: "homologacao", nfeSerie: "1", nfeProximoNumero: 1,
   nfeCodigoServico: "", nfeAliquotaIss: "", nfeCodigoIss: "", nfeDiscriminacaoPadrao: "",
@@ -926,9 +928,9 @@ export default function CadastroEmpresas() {
       responsavelLegalNome: e.responsavelLegalNome || "", responsavelLegalCpf: e.responsavelLegalCpf || "",
       contadorNome: e.contadorNome || "", contadorCrc: e.contadorCrc || "",
       contadorEmail: e.contadorEmail || "", contadorTelefone: e.contadorTelefone || "",
-      endereco: e.endereco || "", cep: e.cep || "",
+      endereco: e.endereco || "", complemento: (e as any).complemento || "", cep: e.cep || "",
       bairro: e.bairro || "", cidade: e.cidade || "", estado: e.estado || "", zona: e.zona || "",
-      enderecoFiscal: e.enderecoFiscal || "", cepFiscal: e.cepFiscal || "",
+      enderecoFiscal: e.enderecoFiscal || "", complementoFiscal: (e as any).complementoFiscal || "", cepFiscal: e.cepFiscal || "",
       bairroFiscal: e.bairroFiscal || "", cidadeFiscal: e.cidadeFiscal || "",
       estadoFiscal: e.estadoFiscal || "", codigoIbge: e.codigoIbge || "",
       telefone: e.telefone || "", emailGeral: e.emailGeral || "",
@@ -1389,9 +1391,15 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="endereco" render={({ field }) => (
-                      <FormItem className="col-span-3">
-                        <FormLabel className="lbl">Logradouro</FormLabel>
-                        <FormControl><Input placeholder="Rua, Av., número, complemento" {...field} className="field-engraved" /></FormControl>
+                      <FormItem className="col-span-2">
+                        <FormLabel className="lbl">Logradouro e Número</FormLabel>
+                        <FormControl><Input placeholder="Rua, Av., número" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="complemento" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Complemento</FormLabel>
+                        <FormControl><Input placeholder="Sala 01, Andar 2…" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="bairro" render={({ field }) => (
@@ -1430,9 +1438,15 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="enderecoFiscal" render={({ field }) => (
-                      <FormItem className="col-span-3">
+                      <FormItem className="col-span-2">
                         <FormLabel className="lbl">Logradouro Fiscal</FormLabel>
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="complementoFiscal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Complemento Fiscal</FormLabel>
+                        <FormControl><Input placeholder="Sala 03, Andar 1…" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="bairroFiscal" render={({ field }) => (

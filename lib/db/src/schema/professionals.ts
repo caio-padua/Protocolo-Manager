@@ -54,6 +54,7 @@ export const professionalsTable = pgTable(
     homeServiceFeePerVisit: real("home_service_fee_per_visit"),
     // Tipo de contrato: 'clt' | 'pj' | 'mei'. Governa qual template de contrato usar.
     contractType: text("contract_type"),
+    complemento: text("complemento"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

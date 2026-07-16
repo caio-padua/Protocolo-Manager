@@ -60,9 +60,9 @@ const CAMPOS_EMPRESA = [
   "responsavelLegalNome","responsavelLegalCpf",
   "contadorNome","contadorCrc","contadorEmail","contadorTelefone",
   // Endereço comercial
-  "endereco","cep","bairro","cidade","estado","zona",
+  "endereco","complemento","cep","bairro","cidade","estado","zona",
   // Endereço fiscal
-  "enderecoFiscal","cepFiscal","bairroFiscal","cidadeFiscal","estadoFiscal","codigoIbge",
+  "enderecoFiscal","complementoFiscal","cepFiscal","bairroFiscal","cidadeFiscal","estadoFiscal","codigoIbge",
   // Contatos
   "telefone","emailGeral","emailAgenda","emailEnfermagem","emailFinanceiro",
   // NF-e / NFS-e
@@ -602,11 +602,25 @@ async function downloadPdfText(fileId: string): Promise<string> {
   } catch {
     return "";
   }
+  // 1ª tentativa: pdf-parse (rápido, para PDFs com texto embutido)
   try {
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     const result = await parser.getText();
-    return (typeof result === "string" ? result : result?.text || "").trim();
+    const text = (typeof result === "string" ? result : result?.text || "").trim();
+    if (text.length > 150) return text;
+  } catch { /* cai para visão */ }
+  // 2ª tentativa: Gemini visão (PDFs escaneados / imagens incorporadas)
+  try {
+    const resp = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [
+        { text: "Extraia TODO o texto deste documento exatamente como está escrito. Sem resumos, sem análises — apenas o texto bruto completo." },
+        { inlineData: { mimeType: "application/pdf", data: buffer.toString("base64") } }
+      ]}],
+      config: { maxOutputTokens: 8192 },
+    });
+    return resp.text?.trim() || "";
   } catch {
     return "";
   }
@@ -698,9 +712,10 @@ router.post("/empresas/:id/auto-fill", async (req, res): Promise<void> => {
   set("responsavelLegalCpf", extracted.responsavelLegalCpf);
   set("cnaeDescricao", extracted.cnaeDescricao);
 
-  // Endereço: compor em enderecoFiscal
-  const endParts = [extracted.logradouro, extracted.numero, extracted.complemento].filter(Boolean);
+  // Endereço: logradouro+numero → enderecoFiscal; complemento → complementoFiscal separado
+  const endParts = [extracted.logradouro, extracted.numero].filter(Boolean);
   if (endParts.length) set("enderecoFiscal", endParts.join(", "));
+  if (extracted.complemento) set("complementoFiscal", extracted.complemento);
 
   // capitalSocial: tirar R$ e espaços, manter só número
   if (extracted.capitalSocial) {
