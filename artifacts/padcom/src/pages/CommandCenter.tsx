@@ -1,25 +1,49 @@
 /**
  * CEO Command Center — Tela Swipe entre Clínicas (Carta 07)
  *
- * Design: sistema PAXTER (panel-3d / bevel-3d / screen-3d / concave-3d).
- * Fundo: padrão do app (branco/creme). Chrome: navy + ouro.
- * SSE mantém dados em tempo real (push a cada 30s do servidor).
+ * Design: skill-layout-paxter — grade imaginária, bevel-3d (título), concave-3d (dados),
+ * faixa lateral 4px + LED vela que respira (verde=própria, azul=licenciada, âmbar=sub, vermelho=inativa).
+ * SEM faixa escura bg-primary no cabeçalho — segue padrão das telas internas.
  */
 
 import { useEffect, useRef, useState } from "react";
 import {
   Building2, Users, Calendar, TrendingUp, AlertTriangle,
   Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight,
-  ShieldCheck, Package, CreditCard, Crown,
+  ShieldCheck, Package, CreditCard, MapPin, Phone, Hash,
+  BadgeCheck, Crown, Lock,
 } from "lucide-react";
 
+// ── Interface ampliada com todos os campos do CEO ────────────────────────────
 interface EmpresaResumo {
   id: number;
   nome: string;
   nick: string | null;
+  razaoSocial: string | null;
+  cnpj: string | null;
+
+  endereco: string | null;
+  cep: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  zona: string | null;
+
+  telefone: string | null;
+  emailGeral: string | null;
+
   status: string;
+  ativa: boolean;
+  isAtiva: boolean;
+  isPropria: boolean;
+  isLicenciada: boolean;
+  isSublicenciada: boolean;
+  tipoLicenciamento: string;
   tipoRelacionamento: string;
   podeSublicenciar: boolean;
+  royaltyPercent: string | null;
+  valorMensalContrato: string | null;
+
   consultasHoje: number;
   clientesAtivos: number;
   caixaHoje: string;
@@ -29,28 +53,154 @@ interface EmpresaResumo {
   atualizadoEm: string;
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function formatBRL(value: string | number): string {
   const n = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(n)) return "R$ 0,00";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function tipoLabel(tipo: string): { label: string; classe: string } {
-  const map: Record<string, { label: string; classe: string }> = {
-    propria:              { label: "Própria",        classe: "text-[#45B8CC]"    },
-    sub_unidade:          { label: "Sub-unidade",    classe: "text-emerald-600"  },
-    licenciada_direta:    { label: "Licenciada",     classe: "text-amber-700"    },
-    licenciada_por_clinica: { label: "Sub-licenciada", classe: "text-purple-600" },
-  };
-  return map[tipo] ?? { label: tipo, classe: "text-muted-foreground" };
+function formatCNPJ(cnpj: string | null): string {
+  if (!cnpj) return "—";
+  const d = cnpj.replace(/\D/g, "");
+  if (d.length !== 14) return cnpj;
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
 }
 
-// ── KPI com relevo saliente (screen-3d) ───────────────────────────────────────
+function formatCEP(cep: string | null): string {
+  if (!cep) return "";
+  const d = cep.replace(/\D/g, "");
+  if (d.length !== 8) return cep;
+  return `${d.slice(0,5)}-${d.slice(5)}`;
+}
+
+// Endereço resumido para o MetaField
+function enderecoResumido(e: EmpresaResumo): string {
+  const partes: string[] = [];
+  if (e.endereco) partes.push(e.endereco);
+  if (e.bairro) partes.push(e.bairro);
+  if (e.cidade && e.estado) partes.push(`${e.cidade} - ${e.estado}`);
+  else if (e.cidade) partes.push(e.cidade);
+  if (e.cep) partes.push(formatCEP(e.cep));
+  return partes.join(", ") || "—";
+}
+
+// ── LED Vela — configuração por tipo + status ─────────────────────────────────
+//
+// Verde  → isPropria (clínica do CEO)
+// Azul   → isLicenciada + ativa
+// Âmbar  → isSublicenciada
+// Vermelho → inativa
+//
+interface LedConfig {
+  faixaCor: string;          // classe bg-* para a faixa lateral (4px)
+  ledClasses: string;        // classes paxter-led-* para o ponto que respira
+  tipoLabel: string;         // texto exibido no badge
+  tipoClasses: string;       // cor do texto do badge
+}
+
+function ledConfig(emp: EmpresaResumo): LedConfig {
+  if (!emp.isAtiva) {
+    return {
+      faixaCor: "bg-red-500",
+      ledClasses: "paxter-led paxter-led-red paxter-led-on",
+      tipoLabel: "INATIVA",
+      tipoClasses: "text-red-600",
+    };
+  }
+  if (emp.isPropria) {
+    return {
+      faixaCor: "bg-emerald-500",
+      ledClasses: "paxter-led paxter-led-green paxter-led-on",
+      tipoLabel: "PRÓPRIA",
+      tipoClasses: "text-emerald-700",
+    };
+  }
+  if (emp.isSublicenciada) {
+    return {
+      faixaCor: "bg-amber-500",
+      ledClasses: "paxter-led paxter-led-amber paxter-led-on",
+      tipoLabel: "SUB-LICENCIADA",
+      tipoClasses: "text-amber-700",
+    };
+  }
+  // licenciada_direta (padrão)
+  return {
+    faixaCor: "bg-cyan-500",
+    ledClasses: "paxter-led paxter-led-on",
+    tipoLabel: "LICENCIADA",
+    tipoClasses: "text-cyan-700",
+  };
+}
+
+// ── MetaField — slot fixo com rótulo MAIÚSCULO + concave-3d ──────────────────
+function MetaField({
+  label,
+  value,
+  icon: Icon,
+  mono = false,
+}: {
+  label: string;
+  value: string | null | undefined;
+  icon?: typeof MapPin;
+  mono?: boolean;
+}) {
+  const empty = value == null || value === "" || value === "—";
+  return (
+    <div className="concave-3d px-2.5 py-2 min-w-0">
+      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-1.5">
+        {label}
+      </div>
+      <div className="flex items-center gap-1.5 min-w-0">
+        {Icon && !empty && <Icon className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+        <span
+          className={`text-[11px] font-bold uppercase tracking-tight leading-tight truncate ${
+            empty ? "text-muted-foreground/35" : "text-foreground"
+          } ${mono ? "tabular-nums font-mono" : ""}`}
+        >
+          {empty ? "—" : value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── BoolField — campo booleano com LED e rótulo explícito ─────────────────────
+function BoolField({
+  label,
+  valor,
+  corTrue = "text-emerald-700",
+  corFalse = "text-muted-foreground/50",
+}: {
+  label: string;
+  valor: boolean;
+  corTrue?: string;
+  corFalse?: string;
+}) {
+  return (
+    <div className="concave-3d px-2.5 py-2 flex items-center gap-2 min-w-0">
+      <span
+        className={`h-2 w-2 rounded-full shrink-0 ${valor ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
+      />
+      <div className="min-w-0">
+        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-0.5">
+          {label}
+        </div>
+        <span className={`text-[11px] font-black uppercase tracking-tight ${valor ? corTrue : corFalse}`}>
+          {valor ? "SIM" : "NÃO"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── KPI com concave-3d e número grande ───────────────────────────────────────
 function KPIBox({
   icon: Icon,
   label,
   value,
-  alerta,
+  alerta = false,
 }: {
   icon: typeof Users;
   label: string;
@@ -58,122 +208,201 @@ function KPIBox({
   alerta?: boolean;
 }) {
   return (
-    <div className={alerta ? "paxter-alert paxter-alert-red p-3 flex flex-col gap-1.5" : "concave-3d p-3 flex flex-col gap-1.5"}>
+    <div className={`${alerta ? "paxter-alert paxter-alert-red" : "concave-3d"} p-3 flex flex-col gap-1.5`}>
       <div className="flex items-center gap-1.5">
-        <Icon
-          size={13}
-          className={alerta ? "text-red-600 shrink-0" : "text-primary shrink-0"}
-        />
-        <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">
+        <Icon size={12} className={alerta ? "text-red-600 shrink-0" : "text-muted-foreground/60 shrink-0"} />
+        <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
           {label}
         </span>
       </div>
-      <span className={`text-2xl font-bold tabular-nums leading-none ${alerta ? "text-red-700" : "text-primary"}`}>
+      <span className={`text-2xl font-black tabular-nums leading-none ${alerta ? "text-red-700" : "text-primary"}`}>
         {value}
       </span>
     </div>
   );
 }
 
-// ── Card de cada clínica ──────────────────────────────────────────────────────
+// ── Card de cada clínica — grade imaginária ───────────────────────────────────
+//
+// Zonas:
+//  [FAIXA 4px + LED] | [ZONA 1: TÍTULO bevel-3d]
+//                    | [ZONA 2: IDENTIDADE concave-3d × 2]
+//                    | [ZONA 3: META GRID grid-cols-2]
+//                    | [ZONA 4: FLAGS BOOLEANAS grid-cols-3]
+//                    | [ZONA 5: KPI GRID grid-cols-2]
+//                    | [ZONA 6: ALERTAS se houver]
+//                    | [ZONA 7: RODAPÉ]
+//
 function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolean }) {
-  const tipo = tipoLabel(empresa.tipoRelacionamento);
+  const led = ledConfig(empresa);
+  const nomeExibido = empresa.nick?.trim() || empresa.nome;
   const temAlerta = empresa.alertas.length > 0;
-  const nome = empresa.nick?.trim() || empresa.nome;
 
   return (
     <div
-      className={`snap-center shrink-0 w-[min(360px,90vw)] flex flex-col gap-4 transition-all duration-300 ${
-        ativo ? "panel-3d-active" : "panel-3d opacity-75"
-      } p-0 overflow-hidden`}
+      className={`snap-center shrink-0 w-[min(380px,92vw)] flex overflow-hidden transition-all duration-300 ${
+        ativo ? "panel-3d-active" : "panel-3d opacity-80"
+      }`}
+      style={{ minHeight: "620px" }}
     >
-      {/* Faixa-cabeçalho navy */}
-      <div className="bg-primary px-4 py-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Building2 size={14} className="text-white/70 shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className="text-white font-bold text-sm leading-tight uppercase tracking-wide truncate">
-              {nome}
-            </span>
-            <span className={`text-[10px] font-semibold ${tipo.classe}`}>
-              {tipo.label}
-              {empresa.podeSublicenciar && (
-                <Crown size={9} className="inline ml-1 text-amber-400" />
+      {/* ── FAIXA LATERAL (4px) + LED VELA ──────────────────────────────── */}
+      <div className="flex flex-col items-center pt-4 pb-3 gap-3 shrink-0" style={{ width: "20px" }}>
+        {/* LED que respira */}
+        <span className={`${led.ledClasses} shrink-0`} style={{ width: "10px", height: "10px" }} />
+        {/* Faixa colorida */}
+        <div className={`flex-1 w-1 rounded-full ${led.faixaCor} opacity-80`} />
+      </div>
+
+      {/* ── CONTEÚDO PRINCIPAL ───────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0 py-3 pr-3">
+
+        {/* ── ZONA 1: TÍTULO (bevel-3d — saliente) ─────────────────────── */}
+        <div className="bevel-3d px-3 py-2.5 mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Building2 size={13} className="text-primary shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[13px] font-black uppercase tracking-wide text-primary leading-tight truncate">
+                {nomeExibido}
+              </div>
+              {empresa.razaoSocial && empresa.razaoSocial !== empresa.nome && (
+                <div className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest truncate mt-0.5">
+                  {empresa.razaoSocial}
+                </div>
               )}
-            </span>
+            </div>
           </div>
+          {/* Badge de tipo — ao lado do identificador, nunca flutuante */}
+          <span className={`shrink-0 text-[9px] font-black uppercase tracking-widest ${led.tipoClasses} concave-3d px-2 py-1`}>
+            {led.tipoLabel}
+          </span>
         </div>
-        <span
-          className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-[4px] uppercase tracking-widest border ${
-            empresa.status === "ATIVO"
-              ? "bg-green-100 border-green-400 text-green-700"
-              : "bg-red-100 border-red-400 text-red-700"
-          }`}
-        >
-          {empresa.status}
-        </span>
-      </div>
 
-      {/* KPI Grid */}
-      <div className="px-4 grid grid-cols-2 gap-2">
-        <KPIBox icon={Calendar} label="Consultas hoje" value={empresa.consultasHoje} />
-        <KPIBox icon={Users}    label="Clientes ativos" value={empresa.clientesAtivos} />
-        <KPIBox
-          icon={TrendingUp}
-          label="Caixa hoje"
-          value={formatBRL(empresa.caixaHoje)}
-        />
-        <KPIBox
-          icon={CreditCard}
-          label="Pend. pag."
-          value={empresa.pagamentosPendentes}
-          alerta={empresa.pagamentosPendentes > 5}
-        />
-      </div>
-
-      {/* Estoque crítico */}
-      {empresa.estoqueCritico > 0 && (
-        <div className="px-4">
-          <KPIBox
-            icon={Package}
-            label="Estoque crítico"
-            value={`${empresa.estoqueCritico} item(s)`}
-            alerta
-          />
-        </div>
-      )}
-
-      {/* Alertas */}
-      {temAlerta && (
-        <div className="mx-4 mb-1">
-          <div className="bevel-3d px-3 py-2 flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <AlertTriangle size={11} className="text-amber-600 shrink-0" />
-              <span className="text-[9px] uppercase tracking-widest text-amber-700 font-bold">
-                Alertas
+        {/* ── ZONA 2: IDENTIDADE — CNPJ + STATUS (concave-3d × 2) ────────── */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <MetaField label="CNPJ" value={formatCNPJ(empresa.cnpj)} icon={Hash} mono />
+          <div className="concave-3d px-2.5 py-2 flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full shrink-0 ${
+                empresa.isAtiva ? "bg-emerald-500" : "bg-red-500"
+              }`}
+            />
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-0.5">
+                STATUS
+              </div>
+              <span className={`text-[11px] font-black uppercase tracking-tight ${
+                empresa.isAtiva ? "text-emerald-700" : "text-red-600"
+              }`}>
+                {empresa.status}
               </span>
             </div>
-            {empresa.alertas.map((a, i) => (
-              <span key={i} className="text-[11px] text-amber-800 leading-snug font-medium">
-                • {a}
-              </span>
-            ))}
           </div>
         </div>
-      )}
 
-      {/* Rodapé */}
-      <div className="px-4 pb-3 flex items-center justify-between">
-        <span className="text-[9px] text-muted-foreground uppercase tracking-widest">
-          ID {empresa.id}
-        </span>
-        <span className="text-[9px] text-muted-foreground">
-          Atualizado{" "}
-          {new Date(empresa.atualizadoEm).toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
+        {/* ── ZONA 3: META GRID — endereço e contato ──────────────────────── */}
+        <div className="grid grid-cols-1 gap-2 mb-2">
+          <MetaField label="ENDEREÇO" value={enderecoResumido(empresa)} icon={MapPin} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <MetaField label="TELEFONE" value={empresa.telefone} icon={Phone} />
+          <MetaField label="E-MAIL" value={empresa.emailGeral} />
+        </div>
+
+        {/* ── ZONA 4: FLAGS BOOLEANAS EXPLÍCITAS (CEO pediu variáveis claras) */}
+        <div className="mb-2">
+          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1.5 pl-0.5">
+            CLASSIFICAÇÃO
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <BoolField
+              label="PRÓPRIA (CEO)"
+              valor={empresa.isPropria}
+              corTrue="text-emerald-700"
+            />
+            <BoolField
+              label="LICENCIADA"
+              valor={empresa.isLicenciada}
+              corTrue="text-cyan-700"
+            />
+            <BoolField
+              label="SUB-LICENCIADA"
+              valor={empresa.isSublicenciada}
+              corTrue="text-amber-700"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <BoolField
+              label="PODE SUB-LICENCIAR"
+              valor={empresa.podeSublicenciar}
+              corTrue="text-primary"
+            />
+            <MetaField
+              label="ROYALTY %"
+              value={empresa.royaltyPercent ? `${empresa.royaltyPercent}%` : null}
+            />
+          </div>
+        </div>
+
+        {/* ── ZONA 5: KPI GRID ─────────────────────────────────────────── */}
+        <div className="mb-2">
+          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1.5 pl-0.5">
+            OPERAÇÃO — HOJE
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <KPIBox icon={Calendar}    label="CONSULTAS HOJE"  value={empresa.consultasHoje} />
+            <KPIBox icon={Users}       label="CLIENTES ATIVOS" value={empresa.clientesAtivos} />
+            <KPIBox icon={TrendingUp}  label="CAIXA HOJE"      value={formatBRL(empresa.caixaHoje)} />
+            <KPIBox
+              icon={CreditCard}
+              label="PEND. PAG."
+              value={empresa.pagamentosPendentes}
+              alerta={empresa.pagamentosPendentes > 5}
+            />
+          </div>
+          {empresa.estoqueCritico > 0 && (
+            <div className="mt-2">
+              <KPIBox
+                icon={Package}
+                label="ESTOQUE CRÍTICO"
+                value={`${empresa.estoqueCritico} item(s)`}
+                alerta
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── ZONA 6: ALERTAS ──────────────────────────────────────────── */}
+        {temAlerta && (
+          <div className="mb-2">
+            <div className="bevel-3d px-3 py-2 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle size={10} className="text-amber-600 shrink-0" />
+                <span className="text-[9px] uppercase tracking-widest text-amber-700 font-black">
+                  ALERTAS
+                </span>
+              </div>
+              {empresa.alertas.map((a, i) => (
+                <span key={i} className="text-[11px] text-amber-800 leading-snug font-medium">
+                  • {a}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── ZONA 7: RODAPÉ ───────────────────────────────────────────── */}
+        <div className="mt-auto pt-2 flex items-center justify-between">
+          <span className="concave-3d px-2 py-0.5 text-[9px] text-muted-foreground/70 font-bold tabular-nums uppercase tracking-widest">
+            ID {empresa.id}
+          </span>
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">
+            {new Date(empresa.atualizadoEm).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+
       </div>
     </div>
   );
@@ -232,7 +461,7 @@ export default function CommandCenter() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {/* Cabeçalho — mesmo padrão das outras páginas */}
+      {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
@@ -255,17 +484,31 @@ export default function CommandCenter() {
         </div>
       </div>
 
-      {/* Linha separadora com contador */}
+      {/* Legenda das cores do LED */}
       {resumos.length > 0 && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="bevel-3d px-3 py-1.5 inline-flex items-center gap-2">
-            <ShieldCheck size={13} className="text-primary" />
+            <ShieldCheck size={12} className="text-primary" />
             <span className="text-[11px] uppercase tracking-widest font-bold text-primary">
-              {resumos.length} clínica(s) ativa(s)
+              {resumos.length} clínica(s)
             </span>
           </div>
+          {/* legenda LED */}
+          {[
+            { cor: "bg-emerald-500", txt: "Própria" },
+            { cor: "bg-cyan-500",    txt: "Licenciada" },
+            { cor: "bg-amber-500",   txt: "Sub-licenciada" },
+            { cor: "bg-red-500",     txt: "Inativa" },
+          ].map((l) => (
+            <div key={l.txt} className="flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${l.cor}`} />
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">
+                {l.txt}
+              </span>
+            </div>
+          ))}
           {/* Paginação pontinhos */}
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             {resumos.map((_, i) => (
               <button
                 key={i}

@@ -30,13 +30,39 @@ function hojesFim(): Date {
   return d;
 }
 
-interface EmpresaResumo {
+export interface EmpresaResumo {
   id: number;
   nome: string;
   nick: string | null;
-  status: string;
+  razaoSocial: string | null;
+  cnpj: string | null;
+
+  // Endereço completo
+  endereco: string | null;
+  cep: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  zona: string | null;
+
+  // Contato
+  telefone: string | null;
+  emailGeral: string | null;
+
+  // Status e classificação (variáveis explícitas por pedido do CEO)
+  status: string;          // ATIVO | SUSPENSO | CANCELADO
+  ativa: boolean;
+  isAtiva: boolean;        // ativa === true
+  isPropria: boolean;      // tipoLicenciamento === 'propria' — clínica do CEO
+  isLicenciada: boolean;   // tipoLicenciamento === 'licenciada_direta'
+  isSublicenciada: boolean; // tipoLicenciamento === 'licenciada_por_clinica' | 'sub_unidade'
+  tipoLicenciamento: string;
   tipoRelacionamento: string;
   podeSublicenciar: boolean;
+  royaltyPercent: string | null;
+  valorMensalContrato: string | null;
+
+  // KPIs operacionais
   consultasHoje: number;
   clientesAtivos: number;
   caixaHoje: string;
@@ -120,13 +146,37 @@ async function buildResumo(empresaId: number, empresa: typeof empresasTable.$inf
   if (pagPendentes > 5) alertas.push(`${pagPendentes} pagamentos pendentes`);
   if (empresa.status !== "ATIVO") alertas.push(`Clínica ${empresa.status}`);
 
+  const tipoLic = empresa.tipoLicenciamento ?? empresa.tipoRelacionamento ?? "licenciada_direta";
+
   return {
     id: empresa.id,
     nome: empresa.nome,
     nick: empresa.nick ?? null,
+    razaoSocial: empresa.razaoSocial ?? null,
+    cnpj: empresa.cnpj ?? null,
+
+    endereco: empresa.endereco ?? null,
+    cep: empresa.cep ?? null,
+    bairro: empresa.bairro ?? null,
+    cidade: empresa.cidade ?? null,
+    estado: empresa.estado ?? null,
+    zona: empresa.zona ?? null,
+
+    telefone: empresa.telefone ?? null,
+    emailGeral: empresa.emailGeral ?? null,
+
     status: empresa.status,
+    ativa: empresa.ativa ?? true,
+    isAtiva: empresa.ativa === true,
+    isPropria: tipoLic === "propria",
+    isLicenciada: tipoLic === "licenciada_direta",
+    isSublicenciada: tipoLic === "licenciada_por_clinica" || tipoLic === "sub_unidade",
+    tipoLicenciamento: tipoLic,
     tipoRelacionamento: empresa.tipoRelacionamento ?? "licenciada_direta",
     podeSublicenciar: empresa.podeSublicenciar ?? false,
+    royaltyPercent: empresa.royaltyPercent ?? null,
+    valorMensalContrato: empresa.valorMensalContrato ?? null,
+
     consultasHoje,
     clientesAtivos,
     caixaHoje: String(caixaHoje),
@@ -141,7 +191,6 @@ async function buildResumo(empresaId: number, empresa: typeof empresasTable.$inf
 
 router.get("/ceo/resumo", requirePlatformOwner, async (_req: Request, res: Response): Promise<void> => {
   try {
-    // isPlatformOwner=true = a própria PAXTER (sistema) — nunca aparece como clínica
     const empresas = await db
       .select()
       .from(empresasTable)
@@ -152,7 +201,6 @@ router.get("/ceo/resumo", requirePlatformOwner, async (_req: Request, res: Respo
         ),
       )
       .orderBy(
-        // Instituto Pádua (id=5) fixo em primeiro — clínica-âncora do CEO
         sql`CASE WHEN ${empresasTable.id} = 5 THEN 0 ELSE 1 END`,
         asc(empresasTable.nome),
       );
