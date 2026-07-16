@@ -1,7 +1,8 @@
 /**
  * CEO Command Center — Tela Swipe entre Clínicas (Carta 07)
  *
- * Cards horizontais com scroll-snap, um por clínica.
+ * Design: sistema PAXTER (panel-3d / bevel-3d / screen-3d / concave-3d).
+ * Fundo: padrão do app (branco/creme). Chrome: navy + ouro.
  * SSE mantém dados em tempo real (push a cada 30s do servidor).
  */
 
@@ -34,89 +35,79 @@ function formatBRL(value: string | number): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function tipoLabel(tipo: string): { label: string; cor: string } {
-  const map: Record<string, { label: string; cor: string }> = {
-    propria: { label: "Própria", cor: "text-[#45B8CC]" },
-    sub_unidade: { label: "Sub-unidade", cor: "text-emerald-400" },
-    licenciada_direta: { label: "Licenciada", cor: "text-amber-400" },
-    licenciada_por_clinica: { label: "Sub-licenciada", cor: "text-purple-400" },
+function tipoLabel(tipo: string): { label: string; classe: string } {
+  const map: Record<string, { label: string; classe: string }> = {
+    propria:              { label: "Própria",        classe: "text-[#45B8CC]"    },
+    sub_unidade:          { label: "Sub-unidade",    classe: "text-emerald-600"  },
+    licenciada_direta:    { label: "Licenciada",     classe: "text-amber-700"    },
+    licenciada_por_clinica: { label: "Sub-licenciada", classe: "text-purple-600" },
   };
-  return map[tipo] ?? { label: tipo, cor: "text-slate-400" };
+  return map[tipo] ?? { label: tipo, classe: "text-muted-foreground" };
 }
 
+// ── KPI com relevo saliente (screen-3d) ───────────────────────────────────────
 function KPIBox({
   icon: Icon,
   label,
   value,
-  sub,
   alerta,
 }: {
   icon: typeof Users;
   label: string;
   value: string | number;
-  sub?: string;
   alerta?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-[6px] border p-3 flex flex-col gap-1 ${
-        alerta
-          ? "border-red-500/40 bg-red-950/30"
-          : "border-white/10 bg-white/5"
-      }`}
-    >
+    <div className={alerta ? "paxter-alert paxter-alert-red p-3 flex flex-col gap-1.5" : "concave-3d p-3 flex flex-col gap-1.5"}>
       <div className="flex items-center gap-1.5">
         <Icon
-          size={14}
-          className={alerta ? "text-red-400" : "text-[#45B8CC]"}
+          size={13}
+          className={alerta ? "text-red-600 shrink-0" : "text-primary shrink-0"}
         />
-        <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">
+        <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">
           {label}
         </span>
       </div>
-      <span
-        className={`text-xl font-bold tabular-nums ${
-          alerta ? "text-red-300" : "text-white"
-        }`}
-      >
+      <span className={`text-2xl font-bold tabular-nums leading-none ${alerta ? "text-red-700" : "text-primary"}`}>
         {value}
       </span>
-      {sub && <span className="text-[10px] text-slate-500">{sub}</span>}
     </div>
   );
 }
 
+// ── Card de cada clínica ──────────────────────────────────────────────────────
 function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolean }) {
   const tipo = tipoLabel(empresa.tipoRelacionamento);
   const temAlerta = empresa.alertas.length > 0;
+  const nome = empresa.nick?.trim() || empresa.nome;
 
   return (
     <div
-      className={`snap-center shrink-0 w-[min(380px,92vw)] rounded-[6px] border transition-all duration-300 flex flex-col gap-4 p-5 ${
-        ativo
-          ? "border-[#45B8CC]/60 bg-[#0d2a2a] shadow-[0_0_24px_#45B8CC22]"
-          : "border-white/10 bg-[#0f1f1f] opacity-70"
-      }`}
+      className={`snap-center shrink-0 w-[min(360px,90vw)] flex flex-col gap-4 transition-all duration-300 ${
+        ativo ? "panel-3d-active" : "panel-3d opacity-75"
+      } p-0 overflow-hidden`}
     >
-      {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <Building2 size={16} className="text-[#45B8CC] shrink-0" />
-            <span className="text-white font-bold text-base leading-tight uppercase tracking-wide">
-              {empresa.nick?.trim() || empresa.nome}
+      {/* Faixa-cabeçalho navy */}
+      <div className="bg-primary px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Building2 size={14} className="text-white/70 shrink-0" />
+          <div className="flex flex-col min-w-0">
+            <span className="text-white font-bold text-sm leading-tight uppercase tracking-wide truncate">
+              {nome}
             </span>
-            {empresa.podeSublicenciar && (
-              <Crown size={12} className="text-amber-400 shrink-0" title="Pode sub-licenciar" />
-            )}
+            <span className={`text-[10px] font-semibold ${tipo.classe}`}>
+              {tipo.label}
+              {empresa.podeSublicenciar && (
+                <Crown size={9} className="inline ml-1 text-amber-400" />
+              )}
+            </span>
           </div>
-          <span className={`text-[11px] font-medium ${tipo.cor}`}>{tipo.label}</span>
         </div>
         <span
-          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded border uppercase tracking-wider ${
+          className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-[4px] uppercase tracking-widest border ${
             empresa.status === "ATIVO"
-              ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-400"
-              : "border-red-500/40 bg-red-950/40 text-red-400"
+              ? "bg-green-100 border-green-400 text-green-700"
+              : "bg-red-100 border-red-400 text-red-700"
           }`}
         >
           {empresa.status}
@@ -124,17 +115,9 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 gap-2">
-        <KPIBox
-          icon={Calendar}
-          label="Consultas hoje"
-          value={empresa.consultasHoje}
-        />
-        <KPIBox
-          icon={Users}
-          label="Clientes ativos"
-          value={empresa.clientesAtivos}
-        />
+      <div className="px-4 grid grid-cols-2 gap-2">
+        <KPIBox icon={Calendar} label="Consultas hoje" value={empresa.consultasHoje} />
+        <KPIBox icon={Users}    label="Clientes ativos" value={empresa.clientesAtivos} />
         <KPIBox
           icon={TrendingUp}
           label="Caixa hoje"
@@ -148,39 +131,43 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
         />
       </div>
 
-      {/* Estoque */}
+      {/* Estoque crítico */}
       {empresa.estoqueCritico > 0 && (
-        <KPIBox
-          icon={Package}
-          label="Estoque crítico"
-          value={`${empresa.estoqueCritico} item(s)`}
-          alerta
-        />
+        <div className="px-4">
+          <KPIBox
+            icon={Package}
+            label="Estoque crítico"
+            value={`${empresa.estoqueCritico} item(s)`}
+            alerta
+          />
+        </div>
       )}
 
       {/* Alertas */}
       {temAlerta && (
-        <div className="rounded-[6px] border border-amber-500/30 bg-amber-950/20 p-3 flex flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle size={12} className="text-amber-400" />
-            <span className="text-[10px] uppercase tracking-widest text-amber-400 font-semibold">
-              Alertas
-            </span>
+        <div className="mx-4 mb-1">
+          <div className="bevel-3d px-3 py-2 flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle size={11} className="text-amber-600 shrink-0" />
+              <span className="text-[9px] uppercase tracking-widest text-amber-700 font-bold">
+                Alertas
+              </span>
+            </div>
+            {empresa.alertas.map((a, i) => (
+              <span key={i} className="text-[11px] text-amber-800 leading-snug font-medium">
+                • {a}
+              </span>
+            ))}
           </div>
-          {empresa.alertas.map((a, i) => (
-            <span key={i} className="text-[11px] text-amber-300 leading-snug">
-              • {a}
-            </span>
-          ))}
         </div>
       )}
 
       {/* Rodapé */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-600">
+      <div className="px-4 pb-3 flex items-center justify-between">
+        <span className="text-[9px] text-muted-foreground uppercase tracking-widest">
           ID {empresa.id}
         </span>
-        <span className="text-[10px] text-slate-600">
+        <span className="text-[9px] text-muted-foreground">
           Atualizado{" "}
           {new Date(empresa.atualizadoEm).toLocaleTimeString("pt-BR", {
             hour: "2-digit",
@@ -192,6 +179,7 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
   );
 }
 
+// ── Página principal ──────────────────────────────────────────────────────────
 export default function CommandCenter() {
   const [resumos, setResumos] = useState<EmpresaResumo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,19 +187,13 @@ export default function CommandCenter() {
   const [conectado, setConectado] = useState(false);
   const [cardAtivo, setCardAtivo] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
     const url = `${base}/api/ceo/stream`;
-
     const es = new EventSource(url);
-    eventSourceRef.current = es;
 
-    es.onopen = () => {
-      setConectado(true);
-      setErro(null);
-    };
+    es.onopen = () => { setConectado(true); setErro(null); };
 
     es.onmessage = (e) => {
       try {
@@ -232,9 +214,7 @@ export default function CommandCenter() {
       setErro("Conexão perdida. Reconectando…");
     };
 
-    return () => {
-      es.close();
-    };
+    return () => es.close();
   }, []);
 
   const scrollTo = (idx: number) => {
@@ -250,25 +230,24 @@ export default function CommandCenter() {
   const next = () => scrollTo(Math.min(resumos.length - 1, cardAtivo + 1));
 
   return (
-    <div className="min-h-screen bg-[#0a1a1a] text-white flex flex-col">
-      {/* Topo */}
-      <div className="border-b border-white/10 bg-[#0d2a2a] px-6 py-4 flex items-center justify-between">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] uppercase tracking-widest text-[#45B8CC] font-semibold">
-            PAXTER — Command Center
-          </span>
-          <h1 className="text-lg font-bold text-white leading-tight">
-            Visão Geral das Clínicas
-          </h1>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Cabeçalho — mesmo padrão das outras páginas */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] mt-1">
+            Visão Geral das Clínicas — Tempo real
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {conectado ? (
-            <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-medium">
+            <div className="bevel-3d px-3 py-1.5 flex items-center gap-1.5 text-emerald-700 text-[11px] font-semibold">
               <Wifi size={12} />
-              <span>Tempo real</span>
+              <span className="uppercase tracking-wider">Tempo real</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+            <div className="concave-3d px-3 py-1.5 flex items-center gap-1.5 text-muted-foreground text-[11px]">
               <WifiOff size={12} />
               <span>Reconectando…</span>
             </div>
@@ -276,94 +255,88 @@ export default function CommandCenter() {
         </div>
       </div>
 
-      {/* Estado de carregamento */}
-      {loading && !erro && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <RefreshCw size={24} className="animate-spin text-[#45B8CC]" />
-          <span className="text-sm text-slate-400">Carregando clínicas…</span>
-        </div>
-      )}
-
-      {erro && (
-        <div className="mx-6 mt-6 rounded-[6px] border border-red-500/40 bg-red-950/20 p-4 flex items-center gap-2">
-          <AlertTriangle size={16} className="text-red-400 shrink-0" />
-          <span className="text-sm text-red-300">{erro}</span>
-        </div>
-      )}
-
-      {/* Cards Swipe */}
-      {!loading && resumos.length > 0 && (
-        <div className="flex-1 flex flex-col justify-center gap-6 py-8">
-          {/* Contador */}
-          <div className="px-6 flex items-center justify-between">
-            <span className="text-sm text-slate-400">
-              <span className="text-white font-semibold">{resumos.length}</span> clínica(s) ativa(s)
+      {/* Linha separadora com contador */}
+      {resumos.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="bevel-3d px-3 py-1.5 inline-flex items-center gap-2">
+            <ShieldCheck size={13} className="text-primary" />
+            <span className="text-[11px] uppercase tracking-widest font-bold text-primary">
+              {resumos.length} clínica(s) ativa(s)
             </span>
-            <div className="flex items-center gap-1">
-              {resumos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => scrollTo(i)}
-                  className={`h-1.5 rounded-full transition-all duration-200 ${
-                    i === cardAtivo ? "w-6 bg-[#45B8CC]" : "w-1.5 bg-white/20"
-                  }`}
-                />
-              ))}
-            </div>
           </div>
-
-          {/* Carrossel */}
-          <div
-            ref={scrollRef}
-            className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-6 pb-2 scrollbar-hide"
-            style={{ scrollbarWidth: "none" }}
-            onScroll={(e) => {
-              const container = e.currentTarget;
-              const scrollLeft = container.scrollLeft;
-              const cardWidth = container.scrollWidth / resumos.length;
-              setCardAtivo(Math.round(scrollLeft / cardWidth));
-            }}
-          >
-            {resumos.map((emp, i) => (
-              <EmpresaCard key={emp.id} empresa={emp} ativo={i === cardAtivo} />
+          {/* Paginação pontinhos */}
+          <div className="flex items-center gap-1">
+            {resumos.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => scrollTo(i)}
+                className={`h-1.5 rounded-full transition-all duration-200 ${
+                  i === cardAtivo ? "w-6 bg-primary" : "w-1.5 bg-primary/20"
+                }`}
+              />
             ))}
           </div>
-
-          {/* Controles */}
-          <div className="px-6 flex items-center justify-center gap-4">
-            <button
-              onClick={prev}
-              disabled={cardAtivo === 0}
-              className="p-2 rounded-[6px] border border-white/10 bg-white/5 text-white disabled:opacity-30 hover:bg-white/10 transition-colors"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm text-slate-400 tabular-nums">
-              {cardAtivo + 1} / {resumos.length}
-            </span>
-            <button
-              onClick={next}
-              disabled={cardAtivo === resumos.length - 1}
-              className="p-2 rounded-[6px] border border-white/10 bg-white/5 text-white disabled:opacity-30 hover:bg-white/10 transition-colors"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Rodapé */}
-      <div className="border-t border-white/10 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck size={12} className="text-[#45B8CC]" />
-          <span className="text-[10px] text-slate-500">
-            Acesso restrito — Platform Owner
-          </span>
+      {/* Carregando */}
+      {loading && !erro && (
+        <div className="panel-3d p-12 flex flex-col items-center gap-3">
+          <RefreshCw size={24} className="animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Carregando clínicas…</span>
         </div>
-        <span className="text-[10px] text-slate-600">
-          {new Date().toLocaleDateString("pt-BR")}
-        </span>
-      </div>
+      )}
+
+      {/* Erro */}
+      {erro && (
+        <div className="paxter-alert paxter-alert-red px-4 py-3 flex items-center gap-2">
+          <AlertTriangle size={16} className="text-red-600 shrink-0" />
+          <span className="text-sm text-red-700 font-medium">{erro}</span>
+        </div>
+      )}
+
+      {/* Carrossel de cards */}
+      {!loading && resumos.length > 0 && (
+        <div
+          ref={scrollRef}
+          className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2"
+          style={{ scrollbarWidth: "none" }}
+          onScroll={(e) => {
+            const container = e.currentTarget;
+            const scrollLeft = container.scrollLeft;
+            const cardWidth = container.scrollWidth / resumos.length;
+            setCardAtivo(Math.round(scrollLeft / cardWidth));
+          }}
+        >
+          {resumos.map((emp, i) => (
+            <EmpresaCard key={emp.id} empresa={emp} ativo={i === cardAtivo} />
+          ))}
+        </div>
+      )}
+
+      {/* Controles de navegação */}
+      {resumos.length > 1 && (
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={prev}
+            disabled={cardAtivo === 0}
+            className="btn-3d-soft p-2 disabled:opacity-30"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="screen-3d px-4 py-1.5 text-sm font-bold text-primary tabular-nums">
+            {cardAtivo + 1} / {resumos.length}
+          </span>
+          <button
+            onClick={next}
+            disabled={cardAtivo === resumos.length - 1}
+            className="btn-3d-soft p-2 disabled:opacity-30"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
