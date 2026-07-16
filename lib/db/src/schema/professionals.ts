@@ -39,6 +39,9 @@ export const professionalsTable = pgTable(
     // Serve a dois caminhos (decisao 28/06/2026): upload direto agora e, no
     // futuro, captura remota por link — mesmo destino.
     signatureUrl: text("signature_url"),
+    // Foto de perfil do profissional (PNG/JPEG). Mesma infra do Object Storage
+    // privado da assinatura. Exibida no card externo da tela Corpo Clínico.
+    photoUrl: text("photo_url"),
     // ── Campos de Enfermagem (Home Nurse / Itinerante) ──────────────────────
     // nurseType: 'fisica' = fixa numa clínica | 'home' = itinerante (MEI/PJ)
     // Vínculo com clínicas via location_professionals (N clínicas para home).

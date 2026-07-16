@@ -461,4 +461,57 @@ router.post(
   },
 );
 
+// ---- Foto de perfil do profissional ----
+// Upload PNG/JPEG (<=4MB) para Object Storage. Caminho em professionals.photo_url.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = file.mimetype === "image/png" || file.mimetype === "image/jpeg";
+    cb(ok ? null : new MulterError("LIMIT_UNEXPECTED_FILE", "file"), ok);
+  },
+});
+
+function photoUploadMw(req: Request, res: Response, next: NextFunction): void {
+  photoUpload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof MulterError) {
+      const msg = err.code === "LIMIT_FILE_SIZE"
+        ? "Imagem maior que 4 MB."
+        : "Envie uma imagem PNG ou JPEG.";
+      res.status(400).json({ error: msg });
+      return;
+    }
+    if (err) { res.status(400).json({ error: "Falha no envio." }); return; }
+    next();
+  });
+}
+
+router.post(
+  "/professionals/:id/photo",
+  requireCollaborator,
+  photoUploadMw,
+  async (req: Request, res: Response): Promise<void> => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { res.status(400).json({ error: "Id inválido" }); return; }
+    const file = req.file;
+    if (!file) { res.status(400).json({ error: "Envie a imagem no campo 'file'." }); return; }
+    const [row] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, id));
+    if (!row) { res.status(404).json({ error: "Profissional não encontrado" }); return; }
+
+    const ext = file.mimetype === "image/png" ? "png" : "jpg";
+    const relativePath = `uploads/photos/${id}-${randomUUID()}.${ext}`;
+    const objectStorageService = new ObjectStorageService();
+    await objectStorageService.saveUploadObject(relativePath, file.buffer, file.mimetype);
+    const photoUrl = `/api/storage/objects/${relativePath}`;
+
+    const [updated] = await db
+      .update(professionalsTable)
+      .set({ photoUrl })
+      .where(eq(professionalsTable.id, id))
+      .returning();
+    const names = await loadTaxonomyNames();
+    res.json(formatProfessional(updated, names.areas, names.specialties));
+  },
+);
+
 export default router;
