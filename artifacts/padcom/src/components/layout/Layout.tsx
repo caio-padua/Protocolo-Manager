@@ -160,7 +160,7 @@ const navigation: NavEntry[] = [
     icon: Settings,
     children: [
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
-      { name: "Equipe (Profissionais)", href: "/cadastros/equipe", icon: Stethoscope },
+      { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
