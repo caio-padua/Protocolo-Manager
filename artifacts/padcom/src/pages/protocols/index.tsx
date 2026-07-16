@@ -30,7 +30,14 @@ function statusFaixa(status: string): string {
   }
 }
 
-// ─── Barra de Progresso — gradient navy → ciano, borda luminosa na ponta ─────
+// ─── Barra de Progresso — Hermès ─────────────────────────────────────────────
+// Reutiliza o trilho gravado + fill de ouro com verniz glossy da anamnese
+// (paxter-bar-track / paxter-bar-fill). Adiciona marcadores romanos I II III
+// e uma joia dourada na ponta — como o ponteiro de um relógio de luxo.
+
+const GOLD_RICH  = "#c2a05a";   // ouro médio (igual ao fill da anamnese)
+const GOLD_LIGHT = "#f4e2a8";   // reflexo do topo
+const GOLD_DEEP  = "#8a6d2f";   // profundidade da base
 
 interface ProgressBarProps {
   completed: number;
@@ -39,67 +46,125 @@ interface ProgressBarProps {
 
 function ProgressBar({ completed, total }: ProgressBarProps) {
   if (total <= 0) return null;
-  const pct = Math.round((completed / total) * 100);
-  const done = pct === 100;
+  const pct   = Math.round((completed / total) * 100);
+  const done  = pct === 100;
+
+  const chapters = [
+    { at: 25,  numeral: "I"   },
+    { at: 50,  numeral: "II"  },
+    { at: 75,  numeral: "III" },
+  ];
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="space-y-1">
 
-      {/* Trilho gravado (concave) */}
-      <div className="flex-1 concave-3d px-1 py-1">
-        <div className="relative h-[7px] rounded-[3px] bg-transparent overflow-visible">
-
-          {/* Fill — gradiente da marca: navy → ciano */}
-          {pct > 0 && (
+      {/* ── Marcadores romanos gravados acima da régua ── */}
+      <div className="relative h-5 select-none pointer-events-none mx-0.5">
+        {chapters.map(({ at, numeral }) => {
+          const reached = pct >= at;
+          return (
             <div
-              className="absolute inset-y-0 left-0 rounded-[3px] transition-all duration-700"
-              style={{
-                width: `${pct}%`,
-                background: done
-                  ? "linear-gradient(90deg, hsl(39 41% 42%) 0%, hsl(39 70% 62%) 100%)"
-                  : "linear-gradient(90deg, hsl(214 54% 22%) 0%, hsl(187 72% 44%) 100%)",
-              }}
-            />
-          )}
+              key={numeral}
+              className="absolute flex flex-col items-center"
+              style={{ left: `${at}%`, transform: "translateX(-50%)" }}
+            >
+              {/* Algarismo romano */}
+              <span
+                className="block leading-none font-black tracking-[0.18em] uppercase"
+                style={{
+                  fontSize: "7px",
+                  fontFamily: "'Georgia', 'Times New Roman', serif",
+                  color: reached ? GOLD_RICH : "hsl(var(--muted-foreground) / 0.22)",
+                  textShadow: reached
+                    ? `0 1px 0 ${GOLD_LIGHT}44`
+                    : "none",
+                  transition: "color 0.5s ease",
+                }}
+              >
+                {numeral}
+              </span>
+              {/* Traço de ligação com a barra */}
+              <div
+                className="w-px"
+                style={{
+                  height: "7px",
+                  background: reached
+                    ? `linear-gradient(180deg, ${GOLD_RICH} 0%, transparent 100%)`
+                    : "hsl(var(--muted-foreground) / 0.12)",
+                  transition: "background 0.5s ease",
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
 
-          {/* Borda luminosa pulsante na ponta do fill (só em progresso parcial) */}
-          {pct > 2 && !done && (
-            <div
-              className="absolute top-1/2 -translate-y-1/2 w-[3px] h-[10px] rounded-full"
-              style={{
-                left: `calc(${pct}% - 2px)`,
-                background: "hsl(187 72% 62%)",
-                boxShadow: "0 0 6px 2px hsl(187 72% 55% / 0.8)",
-                animation: "paxterPulse 1.4s ease-in-out infinite",
-              }}
-            />
-          )}
+      {/* ── Régua + joia ── */}
+      <div className="flex items-center gap-3">
 
-          {/* Fundo do trilho vazio */}
+        {/* Trilho gravado — mesma classe da anamnese */}
+        <div className="paxter-bar-track flex-1 h-3 relative" style={{ overflow: "visible" }}>
+
+          {/* Fill dourado com verniz (paxter-bar-fill = ouro + glossy) */}
           <div
-            className="absolute inset-y-0 right-0 rounded-r-[3px] bg-muted/20"
-            style={{ left: `${pct}%` }}
+            className="paxter-bar-fill"
+            style={{
+              width: `${pct}%`,
+              borderRadius: done ? "3px" : "3px 0 0 3px",
+              transition: "width 0.7s cubic-bezier(0.34,1.56,0.64,1)",
+            }}
+          />
+
+          {/* Joia na ponta — esfera dourada como coroa de relógio Hermès */}
+          {pct > 1 && (
+            <div
+              className="absolute top-1/2 -translate-y-1/2 z-10"
+              style={{
+                left: `calc(${pct}% - 6px)`,
+                width: "12px",
+                height: "12px",
+                borderRadius: "50%",
+                background: done
+                  ? `radial-gradient(circle at 38% 32%, ${GOLD_LIGHT} 0%, ${GOLD_RICH} 55%, ${GOLD_DEEP} 100%)`
+                  : `radial-gradient(circle at 38% 32%, ${GOLD_LIGHT} 0%, ${GOLD_RICH} 58%, ${GOLD_DEEP} 100%)`,
+                boxShadow: done
+                  ? `0 0 8px 3px rgba(194,160,90,0.55), inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 3px rgba(0,0,0,0.35)`
+                  : `0 0 5px 2px rgba(194,160,90,0.40), inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 3px rgba(0,0,0,0.28)`,
+                border: `1px solid rgba(194,160,90,0.70)`,
+                animation: done ? "none" : "paxterPulse 2.8s ease-in-out infinite",
+                transition: "left 0.7s cubic-bezier(0.34,1.56,0.64,1)",
+              }}
+            />
+          )}
+
+          {/* Trilho vazio (precisa de overflow:hidden localizado no fill, mas visible no pai) */}
+          <div
+            className="absolute inset-y-0 rounded-r-[3px]"
+            style={{
+              left: `${pct}%`,
+              right: 0,
+              background: "rgba(15,28,53,0.07)",
+              borderLeft: pct > 0 ? `1px solid rgba(15,28,53,0.06)` : "none",
+            }}
           />
         </div>
-      </div>
 
-      {/* Percentual + contagem — fixos à direita */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span
-          className="text-[11px] font-black tabular-nums"
-          style={{
-            color: done ? "hsl(39 70% 55%)" : pct < 34 ? "hsl(214 54% 40%)" : "hsl(187 60% 38%)",
-          }}
-        >
-          {pct}%
-        </span>
-        <div className="concave-3d px-2 py-0.5">
-          <span className="text-[11px] font-black tabular-nums text-foreground/80">
-            {completed}<span className="text-muted-foreground/50">/{total}</span>
-          </span>
+        {/* Percentual + contagem — alinhados em coluna */}
+        <div className="shrink-0 text-right leading-none space-y-0.5">
+          <div
+            className="text-[12px] font-black tabular-nums"
+            style={{ color: GOLD_RICH }}
+          >
+            {pct}%
+          </div>
+          <div className="concave-3d px-1.5 py-0.5 inline-block">
+            <span className="text-[10px] font-black tabular-nums text-foreground/70">
+              {completed}<span className="text-muted-foreground/40">/{total}</span>
+            </span>
+          </div>
         </div>
-      </div>
 
+      </div>
     </div>
   );
 }
