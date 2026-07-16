@@ -30,85 +30,76 @@ function statusFaixa(status: string): string {
   }
 }
 
-/** Cor dos segmentos por fase de progresso — muda à medida que avança. */
-function segColor(idx: number, total: number, completed: number): string {
-  if (idx >= completed) return "bg-muted/25"; // futuro: vazio suave
-  const pct = completed / total;
-  if (pct < 0.34) return "bg-amber-500/80";   // início: âmbar
-  if (pct < 0.67) return "bg-blue-500/80";     // meio: azul
-  if (pct < 1)    return "bg-emerald-500/80";  // final: verde
-  return "bg-gradient-to-r from-yellow-600 to-amber-400"; // 100%: ouro
-}
+// ─── Barra de Progresso — gradient navy → ciano, borda luminosa na ponta ─────
 
-/** Cor do % de progresso exibido. */
-function pctColor(pct: number): string {
-  if (pct === 0)   return "text-muted-foreground/50";
-  if (pct < 34)    return "text-amber-500";
-  if (pct < 67)    return "text-blue-500";
-  if (pct < 100)   return "text-emerald-500";
-  return "text-yellow-500";
-}
-
-// ─── ProgressBar segmentada ──────────────────────────────────────────────────
-
-interface SegBarProps {
+interface ProgressBarProps {
   completed: number;
   total: number;
 }
 
-function SegBar({ completed, total }: SegBarProps) {
+function ProgressBar({ completed, total }: ProgressBarProps) {
   if (total <= 0) return null;
   const pct = Math.round((completed / total) * 100);
-  // Máximo 16 segmentos visíveis; acima disso proporção contínua
-  const MAX_SEGS = 16;
-  const useSegs = total <= MAX_SEGS;
-  const milestones = [Math.round(total * 0.25), Math.round(total * 0.5), Math.round(total * 0.75)];
+  const done = pct === 100;
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Barra */}
-      <div className="flex-1 relative">
-        {useSegs ? (
-          /* Modo segmentado: 1 retângulo por sessão */
-          <div className="flex gap-[2px] items-end h-4">
-            {Array.from({ length: total }).map((_, i) => (
-              <div
-                key={i}
-                className={`relative flex-1 rounded-[1px] transition-all duration-500 ${segColor(i, total, completed)}`}
-                style={{ height: milestones.includes(i + 1) ? "100%" : "70%" }}
-              >
-                {/* Marcador de milestone (segmento mais alto nas posições 25%/50%/75%) */}
-                {milestones.includes(i + 1) && i + 1 <= completed && (
-                  <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-white/70" />
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Modo contínuo: barra única com marcas de milestone */
-          <div className="h-2 rounded-[2px] bg-muted/25 overflow-hidden relative shadow-inner">
+    <div className="flex items-center gap-3">
+
+      {/* Trilho gravado (concave) */}
+      <div className="flex-1 concave-3d px-1 py-1">
+        <div className="relative h-[7px] rounded-[3px] bg-transparent overflow-visible">
+
+          {/* Fill — gradiente da marca: navy → ciano */}
+          {pct > 0 && (
             <div
-              className={`h-full rounded-[2px] transition-all duration-700 ${pct < 34 ? "bg-amber-500/80" : pct < 67 ? "bg-blue-500/80" : pct < 100 ? "bg-emerald-500/80" : "bg-gradient-to-r from-yellow-600 to-amber-400"}`}
-              style={{ width: `${pct}%` }}
+              className="absolute inset-y-0 left-0 rounded-[3px] transition-all duration-700"
+              style={{
+                width: `${pct}%`,
+                background: done
+                  ? "linear-gradient(90deg, hsl(39 41% 42%) 0%, hsl(39 70% 62%) 100%)"
+                  : "linear-gradient(90deg, hsl(214 54% 22%) 0%, hsl(187 72% 44%) 100%)",
+              }}
             />
-            {[25, 50, 75].map(m => (
-              <div key={m} className="absolute top-0 bottom-0 w-px bg-white/20" style={{ left: `${m}%` }} />
-            ))}
-          </div>
-        )}
+          )}
+
+          {/* Borda luminosa pulsante na ponta do fill (só em progresso parcial) */}
+          {pct > 2 && !done && (
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-[3px] h-[10px] rounded-full"
+              style={{
+                left: `calc(${pct}% - 2px)`,
+                background: "hsl(187 72% 62%)",
+                boxShadow: "0 0 6px 2px hsl(187 72% 55% / 0.8)",
+                animation: "paxterPulse 1.4s ease-in-out infinite",
+              }}
+            />
+          )}
+
+          {/* Fundo do trilho vazio */}
+          <div
+            className="absolute inset-y-0 right-0 rounded-r-[3px] bg-muted/20"
+            style={{ left: `${pct}%` }}
+          />
+        </div>
       </div>
 
-      {/* % e contagem — concave-3d alinhados à direita */}
+      {/* Percentual + contagem — fixos à direita */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className={`text-[11px] font-black tabular-nums ${pctColor(pct)}`}>
+        <span
+          className="text-[11px] font-black tabular-nums"
+          style={{
+            color: done ? "hsl(39 70% 55%)" : pct < 34 ? "hsl(214 54% 40%)" : "hsl(187 60% 38%)",
+          }}
+        >
           {pct}%
         </span>
         <div className="concave-3d px-2 py-0.5">
           <span className="text-[11px] font-black tabular-nums text-foreground/80">
-            {completed}<span className="text-muted-foreground/60">/{total}</span>
+            {completed}<span className="text-muted-foreground/50">/{total}</span>
           </span>
         </div>
       </div>
+
     </div>
   );
 }
@@ -306,7 +297,7 @@ function ProtocolCard({ protocol, onClick }: ProtocolCardProps) {
               <div className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/50 mb-1">
                 Evolução
               </div>
-              <SegBar completed={protocol.completedSessions} total={protocol.totalSessions} />
+              <ProgressBar completed={protocol.completedSessions} total={protocol.totalSessions} />
             </div>
           )}
 
