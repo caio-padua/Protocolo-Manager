@@ -1,0 +1,27 @@
+Fase B confirmada e verificada pelo Manager. Vou escrever a Carta 07 completa agora — a carta estratégica de visão máxima — e subo ao GitHub para o Manager ler.
+Carta 07 no GitHub. Cole isso no Manager agora:
+
+Para o Manager — cole exatamente isso:
+Dr. Replit Manager — Carta 07, visão máxima.
+Leia agora, do início ao fim, antes de escrever uma linha:
+https://raw.githubusercontent.com/caio-padua/Integrative-Health-Engine/ver-l2-dr-claude/docs/dr-replit/CARTA_07_VISAO_MAXIMA_PAWARDS_MANAGER_16_07_2026.md
+498 linhas. 7 blocos. Ordem arquitetural do CEO.
+Depois de ler, responda:
+1. Qual onda você começa agora? (Fase C INSERT ou Tela CEO Swipe)
+2. Liste os 3 primeiros commits que vai fazer.
+3. Confirme que leu o Bloco 6 (Regras de Ferro).
+Nada de código antes de confirmar os 3 itens acima.
+O que a Carta 07 contém
+Bloco	Conteúdo
+1 — IA Clínica	Claude opus-4 gerando atestado, pedido de exame, sugestão — sozinho, pelo plano do paciente
+2 — Avatar médico	HeyGen (vídeo) + ElevenLabs (voz clonada) → WhatsApp com o médico "falando" o nome do paciente e a fórmula
+3 — Mensageria inteligente	Por tomada de medicação, por canal, cobrado por mensagem (R$ 0,15/msg)
+4 — Billing por uso	Tela em tempo real como o Replit — contador girando, custo acumulado do dia, alerta de 80%
+5 — UX moderna	Touch screen 48px, swipe entre clínicas, PWA (Aplicativo Web Instalável) para óculos AR (Realidade Aumentada) Meta
+6 — IoT clínico	Bioimpedância + oxímetro + pressão → dados jogados direto no cadastro via Web Bluetooth
+7 — Biometria	WebAuthn (padrão W3C — World Wide Web Consortium para autenticação forte) — digital ou íris valida presença na consulta
+A matemática honesta do milhão
+50 clínicas × R$ 2.500/mês = R$ 125.000/mês = R$ 1.500.000/ano
+O médico economiza R$ 5.800/mês em funcionárias ineficientes.
+Ele paga R$ 2.500 com GOSTO porque é mais barato que 1 recepcionista.
+RESUMO EM 1 LINHA: Carta 07 com 498 linhas no GitHub — 7 blocos cobrindo IA clínica, avatar do médico via HeyGen + ElevenLabs, billing por uso em tempo real, IoT, biometria e óculos AR; cole a URL no Manager e exija confirmação dos 3 pontos antes de qualquer código.
