@@ -4,6 +4,33 @@ import { db, locationsTable, locationProfessionalsTable, professionalsTable, ses
 
 const router: IRouter = Router();
 
+// ── Motor ViaCEP: dado um CEP, retorna { logradouro, bairro, cidade, estado }
+// Chamado automaticamente no POST/PUT de clínicas quando CEP é fornecido.
+// Se o CEP for inválido ou o serviço estiver fora do ar, retorna null sem errar.
+async function lookupCep(rawCep: string): Promise<{
+  logradouro: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+} | null> {
+  try {
+    const cep = rawCep.replace(/\D/g, "");
+    if (cep.length !== 8) return null;
+    const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) return null;
+    const data = await resp.json() as Record<string, unknown>;
+    if (data.erro) return null; // CEP não encontrado
+    return {
+      logradouro: (data.logradouro as string) || null,
+      bairro:     (data.bairro     as string) || null,
+      cidade:     (data.localidade as string) || null,
+      estado:     (data.uf         as string) || null,
+    };
+  } catch {
+    return null; // timeout ou erro de rede — não bloqueia o save
+  }
+}
+
 function normalizePhone(raw: unknown): string | null {
   if (raw === undefined || raw === null) return null;
   const s = String(raw).trim();
@@ -69,6 +96,22 @@ router.post("/locations", async (req, res): Promise<void> => {
     res.status(400).json({ error: "name is required" });
     return;
   }
+
+  // Auto-preenchimento via ViaCEP: preenche bairro/cidade/estado quando omitidos no body
+  let geoBairro  = bairro  ?? null;
+  let geoCidade  = cidade  ?? null;
+  let geoEstado  = estado  ?? null;
+  let geoLogradouro = logradouro ?? null;
+  if (cep && (!geoBairro || !geoCidade || !geoEstado)) {
+    const geo = await lookupCep(cep);
+    if (geo) {
+      geoBairro     = geoBairro     || geo.bairro;
+      geoCidade     = geoCidade     || geo.cidade;
+      geoEstado     = geoEstado     || geo.estado;
+      geoLogradouro = geoLogradouro || geo.logradouro;
+    }
+  }
+
   const [loc] = await db.insert(locationsTable).values({
     name,
     address: address ?? null,
@@ -77,12 +120,12 @@ router.post("/locations", async (req, res): Promise<void> => {
     googleCalendarId: googleCalendarId ?? null,
     phone: normalizePhone(phone),
     cep: cep ?? null,
-    logradouro: logradouro ?? null,
+    logradouro: geoLogradouro,
     numero: numero ?? null,
     complemento: complemento ?? null,
-    bairro: bairro ?? null,
-    cidade: cidade ?? null,
-    estado: estado ?? null,
+    bairro: geoBairro,
+    cidade: geoCidade,
+    estado: geoEstado,
     zona: zona ?? null,
   }).returning();
 
@@ -112,6 +155,17 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   if (cidade !== undefined) updates.cidade = cidade ?? null;
   if (estado !== undefined) updates.estado = estado ?? null;
   if (zona !== undefined) updates.zona = zona ?? null;
+
+  // Auto-preenchimento via ViaCEP: se CEP foi enviado e campos geo estão ausentes/nulos no body
+  if (cep && (!bairro || !cidade || !estado)) {
+    const geo = await lookupCep(cep);
+    if (geo) {
+      if (!updates.bairro && geo.bairro)     updates.bairro  = geo.bairro;
+      if (!updates.cidade && geo.cidade)     updates.cidade  = geo.cidade;
+      if (!updates.estado && geo.estado)     updates.estado  = geo.estado;
+      if (!updates.logradouro && geo.logradouro) updates.logradouro = geo.logradouro;
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No fields to update" });

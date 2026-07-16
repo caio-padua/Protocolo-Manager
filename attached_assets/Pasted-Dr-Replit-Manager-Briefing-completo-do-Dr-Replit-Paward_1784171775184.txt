@@ -1,0 +1,116 @@
+Dr. Replit Manager — Briefing completo do Dr. Replit Pawards (IHE)
+
+Estou enviando o pacote de documentação do sistema IHE (Integrative Health Engine = Motor de Saúde Integrativo) para você clonar a arquitetura no Manager. Todos os arquivos estão no repositório (pasta de código) caio-padua/Integrative-Health-Engine, branch (ramo de versão) ver-l2-dr-claude, pasta docs/dr-replit/PARA_MANAGER/.
+
+1. ARQUIVOS DISPONÍVEIS PARA VOCÊ LER
+
+Leia nesta ordem:
+Ordem	Arquivo	O que contém
+1º	DADOS_EMPRESAS_E_COLABORADORES_IHE_26.07.10.json	Dados brutos: 18 unidades, 150 cargos, 150 membros de equipe, 143 usuários — sem senhas
+2º	CARTA_IHE_EMPRESAS_E_COLABORADORES_PARA_CLONAGEM_26.07.16.md	9 diferenças conceituais entre IHE e Manager + 13 telas a clonar
+3º	CARTA_IHE_UNIDADE_PROFISSIONAL_AGENDA_ISOLAMENTO_26.07.16.md	Carta principal — leia com atenção máxima — arquitetura de unidade, profissional, agenda e módulos auditada diretamente no banco
+
+2. VOCABULÁRIO TRAVADO — NÃO NEGOCIÁVEL
+
+Antes de qualquer coisa, grave estas regras:
+
+    A pessoa atendida na clínica se chama "cliente" — NUNCA "paciente"
+    O campo de permissão do usuário se chama perfil — NUNCA role
+    Unidade = empresa clínica com CNPJ (Cadastro Nacional de Pessoa Jurídica = identidade fiscal) próprio — não é sala, não é filial, não é profissional
+    Nunca abrevie nomes — auditoria_cascata correto, aud_cascata proibido
+
+3. CONCEITO CENTRAL — UNIDADE = EMPRESA COM CNPJ
+
+Cada unidade no IHE é uma empresa independente. Tem CNPJ próprio, contrato de licença próprio, dados completamente isolados. As empresas fictícias de demonstração são:
+ID	Nome	CNPJ
+14	INSTITUTO GENESIS	— (template — nunca atende cliente)
+15	INSTITUTO PADUA	— (empresa real do CEO)
+8	INSTITUTO INTEGRATIVO	63.865.940/0001-63
+9	INSTITUTO LEMOS	32.247.755/0002-62
+10	INSTITUTO BARROS	44.555.666/0001-77
+16–20	PALUZZE, PADUZZI, PAZIALLE, BARAKAT, ANDRADE	—
+
+4. ISOLAMENTO ABSOLUTO DE AGENDA — A REGRA MAIS IMPORTANTE
+
+Uma empresa JAMAIS mistura agenda com outra empresa. Mesmo que o médico físico seja o mesmo trabalhando em dois institutos, para o sistema são dois profissionais em dois contextos distintos.
+
+Todas as tabelas de agenda carregam unidade_id obrigatório:
+agendas_profissionais, sub_agendas, availability_rules, agenda_slots, appointments, team_members, team_positions.
+
+Exemplo real verificado no banco: Dr Kleber (usuário ID 6) tem 120 slots na unidade 9 (Lemos) e 120 slots na unidade 10 (Barros) — isolados completamente. A tela de agendamento filtra sempre por unidade_id. O cliente do Lemos não enxerga o calendário do Barros.
+
+5. PROFISSIONAL = USUÁRIO DO SISTEMA
+
+Não existe tabela separada de "profissionais". O médico ou enfermeiro que atende é um usuário na tabela usuarios, referenciado pelo id. As tabelas agenda_slots e appointments têm coluna profissional_id que aponta para usuarios.id via FK (chave estrangeira = ligação entre tabelas).
+
+Perfis clínicos que atuam como profissionais: medico_tecnico, enfermeira, validador_mestre.
+
+6. PADRÃO DE 7 AGENDAS POR EMPRESA
+
+Cada empresa nasce com 7 agendas definidas (tabela agendas_profissionais):
+
+EMPRESA
+├── MÉDICO TITULAR — LOCAL (presencial) + REMOTO (online) + PESSOAL (privado)
+├── ASSISTENTE 01  — LOCAL + REMOTO
+└── ENFERMAGEM     — LOCAL + REMOTO
+
+O campo modo define: LOCAL = presencial na clínica / REMOTO = telemedicina online / PESSOAL = agenda privada do médico, invisível ao cliente.
+
+7. DUAS CAMADAS DE AGENDA — DISTINÇÃO CRÍTICA
+
+Camada A — DEFINIÇÃO (agendas_profissionais): configuração visual das agendas. Campo profissional é texto livre — não aponta para usuarios. Todas as empresas têm a Camada A.
+
+Camada B — OPERACIONAL (o que realmente agenda consultas):
+
+sub_agendas → availability_rules → agenda_slots → appointments
+
+Aqui o profissional_id aponta para usuarios.id. Só o Instituto Padua (ID 15) tem Camada B funcional. As empresas fictícias (8–20) têm Camada A definida mas Camada B precisa ser configurada por empresa.
+
+Clonar o Genesis gera a Camada A automaticamente. A Camada B exige: criar sub_agendas + availability_rules + vincular ao usuário profissional.
+
+8. CATÁLOGO TERAPÊUTICO — GLOBAL, NÃO POR EMPRESA
+
+Ponto crítico: o catálogo NÃO pertence a nenhuma empresa. As tabelas formulas e injetaveis não têm coluna unidade_id. A tabela itens_terapeuticos tem 457 itens todos com unidade_id = NULL. Todas as empresas acessam o mesmo catálogo global. Ao clonar o Genesis, não é necessário copiar catálogo — já é compartilhado.
+
+9. MÓDULOS — NOMES E PREÇOS REAIS (verificados no banco)
+
+Os módulos reais estão na tabela modulos_sistema:
+Código	Nome	Preço mensal
+MSG_WHATSAPP	Mensagens WhatsApp	R$350,00
+CONSULTOR_REMOTO	Consultor Remoto	R$1.800,00
+FOLLOWUP_ATIVO	Follow-up Ativo	R$500,00
+VALIDACAO_MOTOR	Motor de Validação Clínica	R$800,00
+TREINAMENTO_EQUIPE	Treinamento de Equipe	R$400,00
+GESTAO_ESTOQUE	Gestão de Estoque	R$250,00
+RELATORIOS_BI	Relatórios e BI	R$600,00
+AGENDA_INTELIGENTE	Agenda Inteligente	R$200,00
+
+Ativação: tabela unidade_modulos_ativos (campo ativo = true/false). Cobrança: tabela cobrancas_mensais_modulos. Contratos: tabela contrato_clinica — 3 modelos: por_demanda, full, pacote.
+
+10. GENESIS — COMO CLONAR NOVA EMPRESA
+
+O Genesis (ID 14, tipo genesis_seed) é o template imutável. Ao licenciar nova empresa:
+
+    Herda: 7 agendas (Camada A) + 15 membros de equipe + cargos com permissões
+    Acessa: catálogo global (não copia)
+    Não herda: Camada B, clientes, dados financeiros
+    Módulos: configurar individualmente conforme contrato pago
+
+Após clonar, configurar por empresa: usuarios (profissional) → sub_agendas → availability_rules → agenda_slots.
+
+11. MODELOS DE CONTRATO
+
+Três modelos reais verificados no banco:
+
+    por_demanda — cobra por uso (Instituto Lemos)
+    full — mensalidade fixa R$3.500 (Instituto Barros)
+    pacote — pacote fechado de módulos (Instituto Integrativo)
+
+12. WALKING DEAD (conceitos que parecem existir mas são fantasmas)
+
+    Não existe tabela "profissionais" — são usuários
+    Não existe catálogo por empresa — é global
+    As empresas 16–20 (Paluzze, Paduzzi, Pazialle, Barakat, Andrade) têm definição mas zero operação real — nenhum slot, nenhuma consulta
+    O módulo AGENDA_INTELIGENTE existe em modulos_sistema mas ainda não foi atribuído a nenhuma empresa
+
+RESUMO EM 1 LINHA: Leia os 3 arquivos no GitHub nesta ordem — JSON → carta clonagem → carta isolamento — e implemente sempre com unidade_id em tudo, profissional como usuário, catálogo global e módulos pelos códigos reais da tabela modulos_sistema.
