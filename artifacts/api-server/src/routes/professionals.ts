@@ -40,6 +40,12 @@ function formatProfessional(
     isPrimaryDoctor: p.isPrimaryDoctor,
     areaName: p.areaId != null ? (areaNames?.get(p.areaId) ?? null) : null,
     specialtyName: p.specialtyId != null ? (specialtyNames?.get(p.specialtyId) ?? null) : null,
+    // Campos de enfermagem
+    nurseType: p.nurseType ?? null,
+    cpf: p.cpf ?? null,
+    cnpj: p.cnpj ?? null,
+    homeServiceFeePerVisit: p.homeServiceFeePerVisit ?? null,
+    contractType: p.contractType ?? null,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -137,6 +143,7 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
   const {
     name, crm, specialty, email, phone, unit, serviceTypes, category, role, active,
     professionalType, areaId, specialtyId, registrationCouncil, registrationNumber,
+    nurseType, cpf, cnpj, homeServiceFeePerVisit, contractType,
   } = req.body as {
     name?: string;
     crm?: string | null;
@@ -153,6 +160,11 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
     specialtyId?: number | null;
     registrationCouncil?: string | null;
     registrationNumber?: string | null;
+    nurseType?: string | null;
+    cpf?: string | null;
+    cnpj?: string | null;
+    homeServiceFeePerVisit?: number | null;
+    contractType?: string | null;
   };
 
   if (name !== undefined && !String(name).trim()) {
@@ -213,6 +225,11 @@ router.put("/professionals/:id", async (req, res): Promise<void> => {
       ...(specialtyId !== undefined ? { specialtyId: specialtyId === null ? null : Number(specialtyId) } : {}),
       ...(registrationCouncil !== undefined ? { registrationCouncil } : {}),
       ...(registrationNumber !== undefined ? { registrationNumber } : {}),
+      ...(nurseType !== undefined ? { nurseType } : {}),
+      ...(cpf !== undefined ? { cpf } : {}),
+      ...(cnpj !== undefined ? { cnpj } : {}),
+      ...(homeServiceFeePerVisit !== undefined ? { homeServiceFeePerVisit } : {}),
+      ...(contractType !== undefined ? { contractType } : {}),
     })
     .where(eq(professionalsTable.id, id))
     .returning();

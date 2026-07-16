@@ -6,6 +6,7 @@ import {
   agendaResourcesTable,
   agendaWindowsTable,
   locationsTable,
+  locationProfessionalsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
@@ -164,6 +165,76 @@ async function ensureResource(
   }
   await ensureWindows(resourceId);
   return resourceId;
+}
+
+// Cria (idempotente, por nome) uma enfermeira com campos Home Nurse e vínculo
+// com clínicas via location_professionals.
+async function ensureNurse(opts: {
+  name: string;
+  areaId: number;
+  specialtyId: number;
+  registrationNumber: string;
+  nurseType: "fisica" | "home";
+  cpf: string;
+  cnpj?: string;
+  homeServiceFeePerVisit?: number;
+  contractType: "clt" | "pj" | "mei";
+  locationIds: number[];       // clínicas vinculadas
+}): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(professionalsTable)
+    .where(eq(professionalsTable.name, opts.name))
+    .limit(1);
+
+  const fields = {
+    category: "enfermagem" as const,
+    professionalType: "nao_medico",
+    areaId: opts.areaId,
+    specialtyId: opts.specialtyId,
+    registrationCouncil: "COREN",
+    registrationNumber: opts.registrationNumber,
+    crm: `COREN ${opts.registrationNumber}`,
+    specialty: "Enfermagem",
+    isPrimaryDoctor: false,
+    active: true,
+    serviceTypes: opts.nurseType === "home" ? ["home", "presencial"] : ["presencial"],
+    nurseType: opts.nurseType,
+    cpf: opts.cpf,
+    cnpj: opts.cnpj ?? null,
+    homeServiceFeePerVisit: opts.homeServiceFeePerVisit ?? null,
+    contractType: opts.contractType,
+  };
+
+  let professionalId: number;
+  if (existing) {
+    await db.update(professionalsTable).set(fields).where(eq(professionalsTable.id, existing.id));
+    professionalId = existing.id;
+  } else {
+    const [created] = await db.insert(professionalsTable).values({ name: opts.name, ...fields }).returning();
+    professionalId = created.id;
+  }
+
+  // Vínculos com clínicas (idempotente via onConflictDoNothing com índice único).
+  for (const locationId of opts.locationIds) {
+    const [lp] = await db
+      .select()
+      .from(locationProfessionalsTable)
+      .where(
+        and(
+          eq(locationProfessionalsTable.professionalId, professionalId),
+          eq(locationProfessionalsTable.locationId, locationId),
+        ),
+      )
+      .limit(1);
+    if (!lp) {
+      await db.insert(locationProfessionalsTable).values({
+        professionalId,
+        locationId,
+        role: "enfermagem",
+      });
+    }
+  }
 }
 
 // Cria (idempotente, por nome) um profissional nao-medico completo, com agenda
@@ -400,6 +471,70 @@ export async function runSeedTeam(log: SeedLog = noopLog): Promise<void> {
     locationAddress: "Alameda dos Anapurus, 1200, Moema, São Paulo - SP, CEP 04087-005",
   });
   log("Não-médicos criados: Enf. Mariana Prado, Psic. Rafael Toledo, Nutr. Camila Esteves (presencial + online).");
+
+  // 4-B. ENFERMEIRAS Home Nurse (seed ficcional — CEO substitui depois).
+  // Busca ids das 3 clínicas-base para vincular as itinerantes.
+  const [tatuape] = await db.select({ id: locationsTable.id }).from(locationsTable).where(eq(locationsTable.name, "Clínica Tatuapé")).limit(1);
+  const [mooca]   = await db.select({ id: locationsTable.id }).from(locationsTable).where(eq(locationsTable.name, "Clínica Mooca")).limit(1);
+  const [nurseCare] = await db.select({ id: locationsTable.id }).from(locationsTable).where(eq(locationsTable.name, "Nurse Care Domiciliar")).limit(1);
+
+  const tatuapeId   = tatuape?.id   ?? 1;
+  const moocaId     = mooca?.id     ?? 2;
+  const nurseCareId = nurseCare?.id ?? 3;
+
+  // Fernanda Lima — Física, fixa na Tatuapé, CLT
+  await ensureNurse({
+    name: "Enf. Fernanda Lima",
+    areaId: enfermagemId,
+    specialtyId: enf.estetica,
+    registrationNumber: "SP 111001",
+    nurseType: "fisica",
+    cpf: "111.222.333-01",
+    contractType: "clt",
+    locationIds: [tatuapeId],
+  });
+
+  // Carla Menezes — Física, fixa na Mooca, CLT
+  await ensureNurse({
+    name: "Enf. Carla Menezes",
+    areaId: enfermagemId,
+    specialtyId: enf.integrativa,
+    registrationNumber: "SP 111002",
+    nurseType: "fisica",
+    cpf: "222.333.444-02",
+    contractType: "clt",
+    locationIds: [moocaId],
+  });
+
+  // Juliana Torres — Home/Itinerante, MEI, taxa R$ 250/visita, vinculada a 3 clínicas
+  await ensureNurse({
+    name: "Enf. Juliana Torres",
+    areaId: enfermagemId,
+    specialtyId: enf.domiciliar,
+    registrationNumber: "SP 111003",
+    nurseType: "home",
+    cpf: "333.444.555-03",
+    cnpj: "33.444.555/0001-03",
+    homeServiceFeePerVisit: 250,
+    contractType: "mei",
+    locationIds: [tatuapeId, moocaId, nurseCareId],
+  });
+
+  // Ana Beatriz — Home/Itinerante, PJ, taxa R$ 300/visita, vinculada a todas
+  await ensureNurse({
+    name: "Enf. Ana Beatriz",
+    areaId: enfermagemId,
+    specialtyId: enf.domiciliar,
+    registrationNumber: "SP 111004",
+    nurseType: "home",
+    cpf: "444.555.666-04",
+    cnpj: "44.555.666/0001-04",
+    homeServiceFeePerVisit: 300,
+    contractType: "pj",
+    locationIds: [tatuapeId, moocaId, nurseCareId],
+  });
+
+  log("Enfermeiras criadas: Fernanda Lima (física/Tatuapé), Carla Menezes (física/Mooca), Juliana Torres (home/MEI), Ana Beatriz (home/PJ).");
 
   // 5. ADMINISTRATIVO (recepcao/administrativo/financeiro): sem agenda, sem
   // conselho. Cargos ficticios prontos — o CEO so troca os nomes.

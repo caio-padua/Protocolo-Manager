@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -39,6 +39,18 @@ export const professionalsTable = pgTable(
     // Serve a dois caminhos (decisao 28/06/2026): upload direto agora e, no
     // futuro, captura remota por link — mesmo destino.
     signatureUrl: text("signature_url"),
+    // ── Campos de Enfermagem (Home Nurse / Itinerante) ──────────────────────
+    // nurseType: 'fisica' = fixa numa clínica | 'home' = itinerante (MEI/PJ)
+    // Vínculo com clínicas via location_professionals (N clínicas para home).
+    nurseType: text("nurse_type"),
+    // CPF do profissional: obrigatório para contratos, NF, jurídico.
+    cpf: text("cpf"),
+    // CNPJ MEI (opcional): só para home nurses que operam como empresa.
+    cnpj: text("cnpj"),
+    // Taxa por visita domiciliar. Multiplicada por sessões → nurseServiceFee no protocolo.
+    homeServiceFeePerVisit: real("home_service_fee_per_visit"),
+    // Tipo de contrato: 'clt' | 'pj' | 'mei'. Governa qual template de contrato usar.
+    contractType: text("contract_type"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

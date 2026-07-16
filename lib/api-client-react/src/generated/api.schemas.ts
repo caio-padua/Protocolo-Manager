@@ -1233,6 +1233,13 @@ export interface CreateProfessionalBody {
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
   active?: boolean | null;
+  /** 'fisica' = fixa numa clinica | 'home' = itinerante MEI/PJ */
+  nurseType?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  homeServiceFeePerVisit?: number | null;
+  /** 'clt' | 'pj' | 'mei' */
+  contractType?: string | null;
 }
 
 export interface UpdateProfessionalBody {
@@ -1251,6 +1258,38 @@ export interface UpdateProfessionalBody {
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
   active?: boolean | null;
+  nurseType?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  homeServiceFeePerVisit?: number | null;
+  contractType?: string | null;
+}
+
+export interface ClientServiceAddress {
+  id: number;
+  clientId: number;
+  label: string;
+  cep?: string | null;
+  logradouro: string;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade: string;
+  estado: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface CreateClientServiceAddressBody {
+  label: string;
+  cep?: string | null;
+  logradouro: string;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade: string;
+  estado?: string;
+  isDefault?: boolean;
 }
 
 export interface ProfessionalArea {

@@ -22,4 +22,11 @@ export interface CreateProfessionalBody {
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
   active?: boolean | null;
+  /** 'fisica' = fixa numa clinica | 'home' = itinerante MEI/PJ */
+  nurseType?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  homeServiceFeePerVisit?: number | null;
+  /** 'clt' | 'pj' | 'mei' */
+  contractType?: string | null;
 }

@@ -16,6 +16,12 @@ export const protocolsTable = pgTable("protocols", {
   completedSessions: integer("completed_sessions").notNull().default(0),
   totalValue: real("total_value").notNull().default(0),
   notes: text("notes"),
+  // Enfermeira designada para o protocolo (FK lógica → professionals).
+  // Nulo = protocolo executado só na clínica pelo médico/staff fixo.
+  nurseId: integer("nurse_id"),
+  // Custo total da enfermagem = nurseId.homeServiceFeePerVisit × totalSessions.
+  // Separado do totalValue (resposta A do CEO: somado automaticamente).
+  nurseServiceFee: real("nurse_service_fee"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,4 +1,5 @@
 export * from "./clients";
+export * from "./client-service-addresses";
 export * from "./substances";
 export * from "./professionals";
 export * from "./professional-taxonomy";

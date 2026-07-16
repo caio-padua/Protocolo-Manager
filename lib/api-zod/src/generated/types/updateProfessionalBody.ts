@@ -22,4 +22,9 @@ export interface UpdateProfessionalBody {
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
   active?: boolean | null;
+  nurseType?: string | null;
+  cpf?: string | null;
+  cnpj?: string | null;
+  homeServiceFeePerVisit?: number | null;
+  contractType?: string | null;
 }

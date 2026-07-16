@@ -144,6 +144,12 @@ const EMPTY_FORM = {
   unit: "",
   serviceTypes: ["presencial"] as string[],
   active: true,
+  // Dados de enfermagem (visíveis só quando category === 'enfermagem')
+  nurseType: "" as string,        // 'fisica' | 'home'
+  cpf: "",
+  cnpj: "",
+  homeServiceFeePerVisit: "" as string,
+  contractType: "" as string,     // 'clt' | 'pj' | 'mei'
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -218,6 +224,13 @@ export default function Professionals() {
   const openEdit = (pro: Professional) => {
     setEditingId(pro.id);
     setEditingSignatureUrl((pro as Professional & { signatureUrl?: string | null }).signatureUrl ?? null);
+    const p = pro as Professional & {
+      nurseType?: string | null;
+      cpf?: string | null;
+      cnpj?: string | null;
+      homeServiceFeePerVisit?: number | null;
+      contractType?: string | null;
+    };
     setForm({
       name: pro.name ?? "",
       professionalType: (pro.professionalType as ProfType) || "medico",
@@ -232,6 +245,11 @@ export default function Professionals() {
       unit: pro.unit ?? "",
       serviceTypes: pro.serviceTypes?.length ? pro.serviceTypes : ["presencial"],
       active: pro.active ?? true,
+      nurseType: p.nurseType ?? "",
+      cpf: p.cpf ?? "",
+      cnpj: p.cnpj ?? "",
+      homeServiceFeePerVisit: p.homeServiceFeePerVisit != null ? String(p.homeServiceFeePerVisit) : "",
+      contractType: p.contractType ?? "",
     });
     setOpen(true);
   };
@@ -258,6 +276,7 @@ export default function Professionals() {
       return;
     }
 
+    const isNurse = form.category === "enfermagem";
     const body = {
       name: form.name.trim(),
       professionalType: form.professionalType,
@@ -272,6 +291,20 @@ export default function Professionals() {
       unit: form.unit.trim() || null,
       serviceTypes: form.serviceTypes,
       active: form.active,
+      // Campos de enfermagem — incluídos apenas quando categoria = enfermagem
+      ...(isNurse ? {
+        nurseType: form.nurseType || null,
+        cpf: form.cpf.trim() || null,
+        cnpj: form.cnpj.trim() || null,
+        homeServiceFeePerVisit: form.homeServiceFeePerVisit ? Number(form.homeServiceFeePerVisit) : null,
+        contractType: form.contractType || null,
+      } : {
+        nurseType: null,
+        cpf: null,
+        cnpj: null,
+        homeServiceFeePerVisit: null,
+        contractType: null,
+      }),
     };
 
     if (editingId) {
@@ -417,6 +450,126 @@ export default function Professionals() {
                 <Input value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="Clínica Principal" className="field-engraved" />
               </div>
 
+              {/* ── Bloco de Dados de Enfermagem ─────────────────────────── */}
+              {form.category === "enfermagem" && (
+                <div className="space-y-3 bevel-3d p-3" style={{ borderLeft: "3px solid hsl(187 72% 44%)" }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                    <HeartPulse className="h-3 w-3 text-accent" /> Dados de Enfermagem
+                  </p>
+
+                  {/* Tipo: Física ou Home/Itinerante */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Regime de atuação</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { value: "fisica", label: "Física (fixa na clínica)" },
+                        { value: "home",   label: "Home / Itinerante" },
+                      ] as const).map((opt) => {
+                        const active = form.nurseType === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => set("nurseType", opt.value)}
+                            className={`${active ? "bevel-3d text-primary" : "concave-3d text-muted-foreground"} px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all text-left`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* CPF — obrigatório para contratos e NF */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CPF (para contratos / NF)</Label>
+                    <Input
+                      value={form.cpf}
+                      onChange={(e) => set("cpf", e.target.value)}
+                      placeholder="000.000.000-00"
+                      className="field-engraved"
+                    />
+                  </div>
+
+                  {/* Campos exclusivos da Home Nurse */}
+                  {form.nurseType === "home" && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CNPJ MEI (opcional)</Label>
+                          <Input
+                            value={form.cnpj}
+                            onChange={(e) => set("cnpj", e.target.value)}
+                            placeholder="00.000.000/0001-00"
+                            className="field-engraved"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Taxa por visita (R$)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={form.homeServiceFeePerVisit}
+                            onChange={(e) => set("homeServiceFeePerVisit", e.target.value)}
+                            placeholder="250,00"
+                            className="field-engraved"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo de contrato</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            { value: "clt", label: "CLT" },
+                            { value: "pj",  label: "PJ" },
+                            { value: "mei", label: "MEI" },
+                          ] as const).map((opt) => {
+                            const active = form.contractType === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => set("contractType", opt.value)}
+                                className={`${active ? "bevel-3d text-primary" : "concave-3d text-muted-foreground"} px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {form.nurseType === "fisica" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo de contrato</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: "clt", label: "CLT" },
+                          { value: "pj",  label: "PJ" },
+                          { value: "mei", label: "MEI" },
+                        ] as const).map((opt) => {
+                          const active = form.contractType === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => set("contractType", opt.value)}
+                              className={`${active ? "bevel-3d text-primary" : "concave-3d text-muted-foreground"} px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {editingId ? (
                 <SignatureUpload
                   professionalId={editingId}
@@ -495,6 +648,17 @@ export default function Professionals() {
                         <span className="concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
                           {areaLabel}
                         </span>
+                        {/* Badge Home Nurse / Física */}
+                        {(pro as typeof pro & { nurseType?: string | null }).nurseType === "home" && (
+                          <span className="bevel-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-accent">
+                            Home Nurse
+                          </span>
+                        )}
+                        {(pro as typeof pro & { nurseType?: string | null }).nurseType === "fisica" && (
+                          <span className="concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Física
+                          </span>
+                        )}
                         <span className={`concave-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 ${isActive ? "text-emerald-600" : "text-rose-500"}`}>
                           <span className={`inline-block w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
                           {isActive ? "Ativo" : "Inativo"}

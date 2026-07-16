@@ -20,6 +20,12 @@ export const sessionsTable = pgTable("sessions", {
   rescheduleCount: integer("reschedule_count").notNull().default(0),
   rescheduledAt: text("rescheduled_at"),
   rescheduledBy: text("rescheduled_by"),
+  // Enfermeira que executou/executará esta sessão (FK lógica → professionals).
+  // Permite rastrear quem aplicou por sessão (para RAS/FAP e contratos).
+  nurseId: integer("nurse_id"),
+  // Endereço onde a sessão acontece — preenchido para Home Nurse.
+  // Texto livre (label + endereço formatado) para simplicidade de consulta nos PDFs.
+  serviceAddress: text("service_address"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

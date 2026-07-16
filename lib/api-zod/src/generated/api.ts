@@ -1288,6 +1288,14 @@ export const CreateProfessionalBody = zod.object({
   registrationCouncil: zod.string().nullish(),
   registrationNumber: zod.string().nullish(),
   active: zod.boolean().nullish(),
+  nurseType: zod
+    .string()
+    .nullish()
+    .describe("'fisica' = fixa numa clinica | 'home' = itinerante MEI\/PJ"),
+  cpf: zod.string().nullish(),
+  cnpj: zod.string().nullish(),
+  homeServiceFeePerVisit: zod.number().nullish(),
+  contractType: zod.string().nullish().describe("'clt' | 'pj' | 'mei'"),
 });
 
 /**
@@ -1313,6 +1321,11 @@ export const UpdateProfessionalBody = zod.object({
   registrationCouncil: zod.string().nullish(),
   registrationNumber: zod.string().nullish(),
   active: zod.boolean().nullish(),
+  nurseType: zod.string().nullish(),
+  cpf: zod.string().nullish(),
+  cnpj: zod.string().nullish(),
+  homeServiceFeePerVisit: zod.number().nullish(),
+  contractType: zod.string().nullish(),
 });
 
 export const UpdateProfessionalResponse = zod.object({
