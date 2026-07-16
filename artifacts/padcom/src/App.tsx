@@ -87,6 +87,7 @@ import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import Hierarquia from "@/pages/hierarquia";
 import Governanca from "@/pages/governanca";
+import EmpresasLicenciadas from "@/pages/cadastros/empresas-licenciadas";
 import ImportarDrive from "@/pages/importar-drive";
 import Atestados from "@/pages/arsenal/atestados";
 import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
@@ -191,6 +192,7 @@ function Router() {
                   <Route path="/cadastros/listas" component={CadastroListas} />
                   <Route path="/cadastros/clinicas" component={CadastroClinicas} />
                   <Route path="/cadastros/empresas" component={CadastroEmpresas} />
+                  <Route path="/cadastros/empresas-licenciadas" component={EmpresasLicenciadas} />
                   <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
                   <Route path="/cadastros/equipe" component={CadastroEquipe} />
                   <Route path="/cadastros/textos" component={CadastroTextos} />

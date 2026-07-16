@@ -122,6 +122,31 @@ export const empresasTable = pgTable("empresas", {
   tipoContrato: text("tipo_contrato"),           // por_demanda | full | pacote
   fatMetaMensal: integer("fat_meta_mensal"),     // meta de faturamento mensal em centavos
 
+  // ── Pirâmide de licenciamento PAXTER ────────────────────────────────────────
+  // Spec: specs/saas-onda-a-schema-piramide.md (16/07/2026)
+  //
+  // tipoLicenciamento:
+  //   propria               → clínica do próprio CEO (Instituto Pádua) — não paga
+  //   sub_unidade           → filial de uma empresa mãe — paga à mãe
+  //   licenciada_direta     → paga ao PAXTER diretamente (ex.: Barakat, Paluzze)
+  //   licenciada_por_clinica → paga à clínica mãe, que repassa royalty ao PAXTER
+  tipoLicenciamento: text("tipo_licenciamento").notNull().default("propria"),
+
+  // empresa_mae_id → FK self-referencing. NULL = raiz da hierarquia.
+  empresaMaeId: integer("empresa_mae_id"),       // FK lógica → empresas.id (sem constraint para evitar bootstrap circular)
+
+  // royalty_percent → % que esta empresa repassa ao PAXTER quando sub-licencia.
+  // Padrão 30% conforme carta IHE 16/07/2026.
+  royaltyPercent: numeric("royalty_percent", { precision: 5, scale: 2 }).default("30.00"),
+
+  // valor_mensal_contrato → mensalidade que esta empresa PAGA (ao PAXTER ou à mãe).
+  // NULL = não paga (platform_owner ou propria sem contrato).
+  valorMensalContrato: numeric("valor_mensal_contrato", { precision: 10, scale: 2 }),
+
+  // is_platform_owner → somente 1 empresa verdadeira: a HQ PAXTER (Dr. Caio).
+  // Esta empresa enxerga TUDO e controla quem pode sub-licenciar.
+  isPlatformOwner: boolean("is_platform_owner").notNull().default(false),
+
   // ── Metadados ───────────────────────────────────────────────────────────────
   criadoEm: timestamp("criado_em", { withTimezone: true }).defaultNow(),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).defaultNow(),

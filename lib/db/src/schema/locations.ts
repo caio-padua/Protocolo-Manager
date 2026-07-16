@@ -21,6 +21,10 @@ export const locationsTable = pgTable("locations", {
   // Zona de agrupamento (data-binder para VínculosPanel e telas futuras)
   // Ex.: "Zona Leste", "Zona Oeste / Pinheiros", "Centro / Higienópolis", "Moema / Zona Sul"
   zona: text("zona"),
+  // empresa_id → semente dormente de isolamento multi-tenant (Spec A 16/07/2026).
+  // NULL = pertence ao tenant padrão (Instituto Pádua). FK lógica → empresas.id.
+  // Ativação completa do isolamento em onda futura (não quebra comportamento atual).
+  empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

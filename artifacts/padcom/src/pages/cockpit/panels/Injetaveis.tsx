@@ -13,6 +13,8 @@ import {
   Home,
   Building2,
   Calendar,
+  Hourglass,
+  FlaskConical,
 } from "lucide-react";
 
 // ===========================================================================
