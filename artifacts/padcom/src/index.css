@@ -212,6 +212,9 @@
 }
 
 @layer utilities {
+  .lbl {
+    @apply uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground;
+  }
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
   }

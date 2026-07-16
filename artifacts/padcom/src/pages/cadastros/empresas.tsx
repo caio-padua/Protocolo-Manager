@@ -669,195 +669,644 @@ export default function CadastroEmpresas() {
         </div>
       )}
 
-      {/* Dialog — Formulário criar/editar */}
+      {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[94vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
               {editingId ? "EDITAR EMPRESA" : "NOVA EMPRESA"}
             </DialogTitle>
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4 pt-1">
+            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
+              <Tabs defaultValue="ident" className="flex flex-col flex-1 min-h-0">
 
-              <Divider label="Identificação" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="nome" render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Nome *</FormLabel>
-                    <FormControl><Input placeholder="Ex: Instituto Padua" {...field} className="field-engraved" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="nick" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Apelido Interno</FormLabel>
-                    <FormControl><Input placeholder="Como a equipe chama" {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="cnpj" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CNPJ</FormLabel>
-                    <FormControl><Input placeholder="00.000.000/0001-00" {...field} className="field-engraved font-mono" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="tipo" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Tipo</FormLabel>
-                    <div className="concave-3d p-1">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="clinic">Clínica</SelectItem>
-                          <SelectItem value="genesis_seed">Genesis (Template-Mestre)</SelectItem>
-                          <SelectItem value="telemedicina">Telemedicina</SelectItem>
-                          <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="tipoUnidade" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Categoria da Unidade</FormLabel>
-                    <div className="concave-3d p-1">
-                      <Select onValueChange={field.onChange} value={field.value || ""}>
-                        <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="CLINICA_OPERACIONAL">Operacional (clínica do CEO)</SelectItem>
-                          <SelectItem value="CLINICA_PARCEIRA">Parceira (licenciada)</SelectItem>
-                          <SelectItem value="LABORATORIO_MESTRE">Laboratório-Mestre (template)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="status" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Status</FormLabel>
-                    <div className="concave-3d p-1">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="ATIVO">Ativo</SelectItem>
-                          <SelectItem value="SUSPENSO">Suspenso</SelectItem>
-                          <SelectItem value="CANCELADO">Cancelado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="donoNome" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Responsável (Nome)</FormLabel>
-                    <FormControl><Input placeholder="Dr. Nome Completo" {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="slug" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Slug (URL)</FormLabel>
-                    <FormControl><Input placeholder="instituto-padua" {...field} className="field-engraved font-mono" /></FormControl>
-                  </FormItem>
-                )} />
-              </div>
+                {/* Barra de abas */}
+                <TabsList className="mx-6 mt-3 mb-0 justify-start gap-1 h-auto bg-transparent p-0 border-b border-border/30 rounded-none">
+                  {[
+                    { value: "ident",   label: "Identificação" },
+                    { value: "fiscal",  label: "Jurídico & Fiscal" },
+                    { value: "end",     label: "Endereços" },
+                    { value: "nfe",     label: "NF-e & Cert." },
+                    { value: "integ",   label: "Integrações" },
+                  ].map(({ value, label }) => (
+                    <TabsTrigger key={value} value={value}
+                      className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">
+                      {label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
-              <Divider label="Endereço" />
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <FormField control={form.control} name="cep" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CEP</FormLabel>
-                    <FormControl><Input placeholder="00000-000" {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="endereco" render={({ field }) => (
-                  <FormItem className="col-span-3">
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Logradouro</FormLabel>
-                    <FormControl><Input placeholder="Rua, Av..." {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="bairro" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Bairro</FormLabel>
-                    <FormControl><Input {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="cidade" render={({ field }) => (
-                  <FormItem className="col-span-2">
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Cidade</FormLabel>
-                    <FormControl><Input {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="estado" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">UF</FormLabel>
-                    <FormControl><Input maxLength={2} {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} className="field-engraved text-center font-bold" /></FormControl>
-                  </FormItem>
-                )} />
-              </div>
+                {/* ── ABA 1: IDENTIFICAÇÃO ───────────────────────────────────────── */}
+                <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="nome" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Nome Fantasia *</FormLabel>
+                        <FormControl><Input placeholder="Ex: Instituto Padua" {...field} className="field-engraved" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="razaoSocial" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Razão Social</FormLabel>
+                        <FormControl><Input placeholder="Nome jurídico completo (para NF-e e contratos)" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nick" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Apelido Interno</FormLabel>
+                        <FormControl><Input placeholder="Como a equipe chama" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="cnpj" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CNPJ</FormLabel>
+                        <FormControl><Input placeholder="00.000.000/0001-00" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="tipo" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Tipo</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="clinic">Clínica</SelectItem>
+                              <SelectItem value="genesis_seed">Genesis (Template-Mestre)</SelectItem>
+                              <SelectItem value="telemedicina">Telemedicina</SelectItem>
+                              <SelectItem value="enfermagem">Enfermagem</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="tipoUnidade" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Categoria</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="CLINICA_OPERACIONAL">Operacional (clínica do CEO)</SelectItem>
+                              <SelectItem value="CLINICA_PARCEIRA">Parceira (licenciada)</SelectItem>
+                              <SelectItem value="LABORATORIO_MESTRE">Laboratório-Mestre</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="status" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Status</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="ATIVO">Ativo</SelectItem>
+                              <SelectItem value="SUSPENSO">Suspenso</SelectItem>
+                              <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="donoNome" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Responsável Principal</FormLabel>
+                        <FormControl><Input placeholder="Dr. Nome Completo" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="slug" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Slug (URL interna)</FormLabel>
+                        <FormControl><Input placeholder="instituto-padua" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <Divider label="Contatos" />
+                    <FormField control={form.control} name="telefone" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Telefone / WhatsApp</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="emailGeral" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail Geral</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="emailAgenda" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail Agenda</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="emailEnfermagem" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail Enfermagem</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="emailFinanceiro" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail Financeiro</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <Divider label="Contrato PAXTER" />
+                    <FormField control={form.control} name="tipoContrato" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Modelo de Contrato</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="por_demanda">Por Demanda (pay-per-use)</SelectItem>
+                              <SelectItem value="full">Full (mensalidade fixa)</SelectItem>
+                              <SelectItem value="pacote">Pacote (módulos fechados)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="fatMetaMensal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Meta Faturamento Mensal (R$)</FormLabel>
+                        <FormControl><Input type="number" placeholder="0" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+                </TabsContent>
 
-              <Divider label="Contatos" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {([
-                  ["telefone", "Telefone / WhatsApp", ""],
-                  ["emailGeral", "E-mail Geral", ""],
-                  ["emailAgenda", "E-mail Agenda", ""],
-                  ["emailEnfermagem", "E-mail Enfermagem", ""],
-                  ["emailFinanceiro", "E-mail Financeiro", ""],
-                ] as const).map(([name, label]) => (
-                  <FormField key={name} control={form.control} name={name} render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">{label}</FormLabel>
-                      <FormControl><Input {...field} className="field-engraved" /></FormControl>
-                    </FormItem>
-                  )} />
-                ))}
-              </div>
+                {/* ── ABA 2: JURÍDICO & FISCAL ───────────────────────────────────── */}
+                <TabsContent value="fiscal" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+                  <Divider label="Dados Jurídicos" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="naturezaJuridica" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Natureza Jurídica</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="Ltda">Ltda</SelectItem>
+                              <SelectItem value="SA">S/A</SelectItem>
+                              <SelectItem value="MEI">MEI</SelectItem>
+                              <SelectItem value="EIRELI">EIRELI</SelectItem>
+                              <SelectItem value="Associação">Associação</SelectItem>
+                              <SelectItem value="Fundação">Fundação</SelectItem>
+                              <SelectItem value="SLU">SLU (Soc. Limitada Unipessoal)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="regimeTributario" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Regime Tributário</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
+                              <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                              <SelectItem value="lucro_real">Lucro Real</SelectItem>
+                              <SelectItem value="mei">MEI</SelectItem>
+                              <SelectItem value="isento">Isento</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="cnae" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CNAE Principal</FormLabel>
+                        <FormControl><Input placeholder="8630-5/01" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="cnaeDescricao" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Descrição do CNAE</FormLabel>
+                        <FormControl><Input placeholder="Atividades de atenção ambulatorial..." {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Inscrição Estadual (IE)</FormLabel>
+                        <FormControl><Input placeholder="isento ou número" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="inscricaoMunicipal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Inscrição Municipal (IM / CCM)</FormLabel>
+                        <FormControl><Input placeholder="número" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="dataAbertura" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Data de Abertura</FormLabel>
+                        <FormControl><Input type="date" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="capitalSocial" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Capital Social (R$)</FormLabel>
+                        <FormControl><Input placeholder="1.000,00" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+                  <Divider label="Responsável Legal" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="responsavelLegalNome" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Nome do Sócio / Representante Legal</FormLabel>
+                        <FormControl><Input placeholder="Nome Completo" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="responsavelLegalCpf" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CPF do Responsável Legal</FormLabel>
+                        <FormControl><Input placeholder="000.000.000-00" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+                  <Divider label="Contador" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="contadorNome" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Nome do Contador</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="contadorCrc" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CRC do Contador</FormLabel>
+                        <FormControl><Input placeholder="CRC SP-123456/O-1" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="contadorEmail" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail do Contador</FormLabel>
+                        <FormControl><Input type="email" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="contadorTelefone" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Telefone do Contador</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+                </TabsContent>
 
-              <Divider label="Integrações & Contrato" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">ID Agenda Google</FormLabel>
-                    <FormControl><Input placeholder="...@group.calendar.google.com" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="googleDriveFolderId" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">ID Pasta Google Drive</FormLabel>
-                    <FormControl><Input placeholder="ID da pasta raiz" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="tipoContrato" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Modelo de Contrato</FormLabel>
-                    <div className="concave-3d p-1">
-                      <Select onValueChange={field.onChange} value={field.value || ""}>
-                        <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="por_demanda">Por Demanda (pay-per-use)</SelectItem>
-                          <SelectItem value="full">Full (mensalidade fixa)</SelectItem>
-                          <SelectItem value="pacote">Pacote (módulos fechados)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="fatMetaMensal" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Meta Faturamento Mensal (R$)</FormLabel>
-                    <FormControl><Input type="number" placeholder="0" {...field} className="field-engraved" /></FormControl>
-                  </FormItem>
-                )} />
-              </div>
+                {/* ── ABA 3: ENDEREÇOS ───────────────────────────────────────────── */}
+                <TabsContent value="end" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+                  <Divider label="Endereço Comercial" />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="cep" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CEP</FormLabel>
+                        <FormControl><Input placeholder="00000-000" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="endereco" render={({ field }) => (
+                      <FormItem className="col-span-3">
+                        <FormLabel className="lbl">Logradouro</FormLabel>
+                        <FormControl><Input placeholder="Rua, Av., número, complemento" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="bairro" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Bairro</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="cidade" render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel className="lbl">Cidade</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="estado" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">UF</FormLabel>
+                        <FormControl><Input maxLength={2} {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} className="field-engraved text-center font-bold" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="zona" render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel className="lbl">Zona / Área</FormLabel>
+                        <FormControl><Input placeholder="Automático pelo bairro (ex: Zona Leste)" {...field} className="field-engraved" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground/50">Vazio = servidor deriva pelo bairro/CEP</p>
+                      </FormItem>
+                    )} />
+                  </div>
 
-              <DialogFooter className="pt-2">
+                  <Divider label="Endereço Fiscal (para NF-e — pode ser igual ao comercial)" />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="cepFiscal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">CEP Fiscal</FormLabel>
+                        <FormControl><Input placeholder="00000-000" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="enderecoFiscal" render={({ field }) => (
+                      <FormItem className="col-span-3">
+                        <FormLabel className="lbl">Logradouro Fiscal</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="bairroFiscal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Bairro Fiscal</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="cidadeFiscal" render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel className="lbl">Cidade Fiscal</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="estadoFiscal" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">UF Fiscal</FormLabel>
+                        <FormControl><Input maxLength={2} {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} className="field-engraved text-center font-bold" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="codigoIbge" render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel className="lbl">Código IBGE do Município <span className="text-destructive">*NF-e</span></FormLabel>
+                        <FormControl><Input placeholder="3550308 (São Paulo)" {...field} className="field-engraved font-mono" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground/50">7 dígitos — obrigatório para emitir NF-e</p>
+                      </FormItem>
+                    )} />
+                  </div>
+                </TabsContent>
+
+                {/* ── ABA 4: NF-e & CERTIFICADO ─────────────────────────────────── */}
+                <TabsContent value="nfe" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+                  <Divider label="Nota Fiscal Eletrônica (NFS-e / NF-e)" />
+                  <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
+                    Estes dados são puxados automaticamente pelo emissor de NF-e e pelo ZapSign na geração de contratos. Mantenha corretos.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="nfeAmbiente" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Ambiente NF-e</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || "homologacao"}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="homologacao">Homologação (teste)</SelectItem>
+                              <SelectItem value="producao">Produção (real)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="optanteSimples" render={({ field }) => (
+                      <FormItem className="flex items-center gap-3 pt-5">
+                        <FormControl>
+                          <input type="checkbox" checked={!!field.value} onChange={(e) => field.onChange(e.target.checked)} className="w-4 h-4 accent-primary" />
+                        </FormControl>
+                        <FormLabel className="lbl !mt-0">Optante pelo Simples Nacional</FormLabel>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeSerie" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Série NF</FormLabel>
+                        <FormControl><Input placeholder="1" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeProximoNumero" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Próximo Número NF</FormLabel>
+                        <FormControl><Input type="number" placeholder="1" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeCodigoServico" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Código do Serviço (LC 116/2003)</FormLabel>
+                        <FormControl><Input placeholder="8.01" {...field} className="field-engraved font-mono" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground/50">Ex: 8.01 = Medicina / Saúde</p>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeAliquotaIss" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Alíquota ISS (%)</FormLabel>
+                        <FormControl><Input placeholder="2,00" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeCodigoIss" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Código ISS Municipal</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nfeDiscriminacaoPadrao" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Discriminação Padrão da Nota</FormLabel>
+                        <FormControl><Textarea placeholder="Prestação de serviços médicos especializados em medicina integrativa e protocolos injetáveis..." {...field} className="field-engraved min-h-[60px] resize-none" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="Certificado Digital A1 / A3" />
+                  <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
+                    O arquivo .pfx do certificado A1 é enviado via botão "Upload" e salvo na pasta CERTIFICADOS do Google Drive da empresa. Nunca fica no servidor.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="certTipo" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Tipo de Certificado</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || "a1"}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="a1">A1 (arquivo .pfx — upload aqui)</SelectItem>
+                              <SelectItem value="a3">A3 (token físico / HSM externo)</SelectItem>
+                              <SelectItem value="a3_externo">A3 via provedor externo</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="certStatus" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Status do Certificado</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || "ausente"}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="ausente">Ausente (não configurado)</SelectItem>
+                              <SelectItem value="valido">Válido</SelectItem>
+                              <SelectItem value="vencido">Vencido</SelectItem>
+                              <SelectItem value="a3_externo">A3 externo (sem upload)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="certValidade" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Validade do Certificado</FormLabel>
+                        <FormControl><Input type="date" {...field} className="field-engraved" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground/50">Alerta automático 30 dias antes do vencimento</p>
+                      </FormItem>
+                    )} />
+                  </div>
+                </TabsContent>
+
+                {/* ── ABA 5: INTEGRAÇÕES ─────────────────────────────────────────── */}
+                <TabsContent value="integ" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+
+                  <Divider label="ZapSign — Assinatura Digital" />
+                  <div className="concave-3d p-3 text-[10px] text-muted-foreground">
+                    Cada empresa precisa de sua própria conta ZapSign. O sistema usa o token desta empresa para assinar contratos e documentos independentemente.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="zapsignEmail" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail da Conta ZapSign</FormLabel>
+                        <FormControl><Input type="email" placeholder="clinica@zapsign.com.br" {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="zapsignToken" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">API Token ZapSign</FormLabel>
+                        <FormControl><Input type="password" placeholder="••••••••••••••••" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="WhatsApp Business API (Meta)" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="waNumero" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Número WhatsApp (+55...)</FormLabel>
+                        <FormControl><Input placeholder="+5511999999999" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="waPhoneNumberId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Phone Number ID (Meta)</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="waBusinessAccountId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">WABA ID (WhatsApp Business Account)</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="waToken" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Token de Acesso WA</FormLabel>
+                        <FormControl><Input type="password" placeholder="••••••••••••••••" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="Twilio (SMS / WhatsApp Sandbox)" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="twilioAccountSid" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Twilio Account SID</FormLabel>
+                        <FormControl><Input placeholder="ACxxxxxxxx" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="twilioNumero" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Número Sender Twilio</FormLabel>
+                        <FormControl><Input placeholder="+14155238886" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="twilioAuthToken" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Twilio Auth Token</FormLabel>
+                        <FormControl><Input type="password" placeholder="••••••••••••••••" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="Telegram" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="telegramBotUsername" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Username do Bot (@)</FormLabel>
+                        <FormControl><Input placeholder="@PaxterClinicaBot" {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="telegramChatId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Chat ID</FormLabel>
+                        <FormControl><Input {...field} className="field-engraved font-mono" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="telegramBotToken" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Bot Token</FormLabel>
+                        <FormControl><Input type="password" placeholder="••••••••••••••••" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="Zoho / E-mail da Empresa" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="zohoEmail" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">E-mail Zoho Criado</FormLabel>
+                        <FormControl><Input type="email" placeholder="clinica@padcon.com.br" {...field} className="field-engraved" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground/50">Sugerido automaticamente ao criar a empresa</p>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="zohoStatus" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Status Zoho</FormLabel>
+                        <div className="concave-3d p-1">
+                          <Select onValueChange={field.onChange} value={field.value || "sugerido"}>
+                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="sugerido">Sugerido (aguardando compra da licença)</SelectItem>
+                              <SelectItem value="criado">Criado (licença comprada)</SelectItem>
+                              <SelectItem value="ativo">Ativo (configurado e funcionando)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Divider label="Google" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">ID Agenda Google Calendar</FormLabel>
+                        <FormControl><Input placeholder="...@group.calendar.google.com" {...field} className="field-engraved font-mono text-[10px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="googleDriveFolderId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">ID Pasta Raiz Google Drive</FormLabel>
+                        <FormControl><Input placeholder="ID da pasta desta empresa no Drive" {...field} className="field-engraved font-mono text-[10px]" /></FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+                </TabsContent>
+
+              </Tabs>
+
+              {/* Rodapé fixo com botões */}
+              <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0">
                 <Button type="button" className="btn-3d-soft" onClick={() => setFormOpen(false)}>CANCELAR</Button>
                 <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   SALVAR EMPRESA
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         </DialogContent>
