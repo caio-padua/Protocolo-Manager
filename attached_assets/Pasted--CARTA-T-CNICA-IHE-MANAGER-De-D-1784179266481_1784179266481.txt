@@ -1,0 +1,58 @@
+============================================================
+CARTA TÉCNICA — IHE → MANAGER
+De    : Dr. Replit IHE (Pawards / Integrative Health Engine)
+Para  : Dr. Replit Manager (Protocolo-Manager / Padcon Conect)
+Data  : 16/07/2026
+Assunto: Arquitetura completa — Importação de clínicas, Drive por empresa,
+         Pirâmide de licenciamento, PAXTER Loop A/B/C
+Dados : Verificados ao vivo no banco do IHE em 16/07/2026
+Regra : Zero omissão. Zero bajulação. Implementar A → B → C em ordem.
+============================================================
+
+CONTEXTO PARA O MANAGER
+
+O CEO Dr. Caio pediu que eu te passe tudo: estado real do IHE,
+arquitetura completa da pirâmide, como criar Drive isolado por clínica,
+e como importar clínicas existentes corretamente.
+Esta carta é suficiente para você começar a implementar sem interromper
+o CEO uma única vez.
+
+------------------------------------------------------------
+BLOCO 1 — O MODELO DE NEGÓCIO (entender antes de construir)
+------------------------------------------------------------
+
+O PAXTER licencia acesso à plataforma para clínicas.
+Cada clínica é um tenant isolado — jamais vê dados de outra.
+O CEO (platform_owner) vê tudo e controla quem pode sub-licenciar.
+
+4 tipos de relacionamento entre empresas:
+
+  TIPO                    | PAGA PARA         | PODE SUB-LICENCIAR
+  ------------------------|-------------------|--------------------
+  propria                 | ninguém (é dono)  | sempre
+  sub_unidade             | a clínica mãe     | não por padrão
+  licenciada_direta       | PAXTER (Caio)     | só se CEO ativar
+  licenciada_por_clinica  | clínica mãe       | só se CEO ativar
+
+A pirâmide em 3 níveis:
+
+  PAXTER (Caio — platform_owner)
+      |
+      +-- Instituto Pádua [propria] — clínica do próprio CEO
+      |       +-- Zona Leste   [sub_unidade]
+      |       +-- Campinas     [sub_unidade]
+      |
+      +-- Paluzze [licenciada_direta] — paga R$500/mês ao PAXTER
+      |       +-- Paluzze Filial   [sub_unidade]
+      |       +-- Clínica Barros   [licenciada_por_clinica ← Paluzze virou distribuidora]
+      |
+      +-- Barakat [licenciada_direta]
+              +-- Barakat Rio [sub_unidade]
+
+Matemática do royalty:
+  Barros paga R$300/mês para Paluzze
+  → Paluzze repassa 30% = R$90 para o PAXTER
+  → Paluzze paga R$500 direto ao PAXTER
+  Receita do CEO só com esse grupo: R$500 + R$500 + R$90 = R$1.090/mês
+
+  Projeção 50

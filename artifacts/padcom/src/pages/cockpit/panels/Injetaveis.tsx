@@ -13,9 +13,6 @@ import {
   Home,
   Building2,
   Calendar,
-  FlaskConical,
-  Repeat,
-  Hash,
 } from "lucide-react";
 
 // ===========================================================================
@@ -43,15 +40,23 @@ function statusBadgeStyle(status: string): { bg: string; color: string; label: s
   }
 }
 
-// Frequência abreviada para caber na coluna
+// Frequência no formato "X/X dias" (padrão médico BR)
 function fmtFreq(freq: string | null | undefined): string {
   if (!freq) return "—";
-  const f = freq.toLowerCase();
-  if (f.includes("semanalmente") || f.includes("semanal") || f.includes("7")) return "Semanal";
-  if (f.includes("quinzenal") || f.includes("15")) return "Quinzenal";
-  if (f.includes("mensal") || f.includes("30")) return "Mensal";
-  if (f.includes("diária") || f.includes("diario") || f.includes("1")) return "Diária";
-  return freq.length > 14 ? freq.slice(0, 13) + "…" : freq;
+  const f = freq.toLowerCase().trim();
+  // inglês legado
+  if (f === "daily")              return "1/1 dia";
+  if (f === "weekly")             return "7/7 dias";
+  if (f === "biweekly")           return "14/14 dias";
+  if (f === "triweekly")          return "21/21 dias";
+  if (f === "monthly")            return "30/30 dias";
+  // português
+  if (f.includes("diári") || f.includes("diario")) return "1/1 dia";
+  if (f.includes("semanalmente") || f.includes("semanal") || (f.includes("7") && f.includes("dia"))) return "7/7 dias";
+  if (f.includes("quinzenal") || (f.includes("14") && f.includes("dia"))) return "14/14 dias";
+  if (f.includes("mensal") || (f.includes("30") && f.includes("dia"))) return "30/30 dias";
+  // fallback: retorna como está, sem ícone
+  return freq.length > 16 ? freq.slice(0, 15) + "…" : freq;
 }
 
 function fmtData(iso: string): string {
@@ -293,93 +298,91 @@ export default function Injetaveis({
                       </span>
                     </div>
 
-                    {/* Linha de cabeçalho das colunas */}
+                    {/* Linha de cabeçalho das colunas — texto escuro, sem ícone */}
                     <div
-                      className="mb-1 grid items-center gap-x-3 border-b pb-1 text-[9px] font-black uppercase tracking-widest text-slate-500"
+                      className="mb-1 grid items-center gap-x-4 border-b pb-1.5 text-[9px] font-black uppercase tracking-widest"
                       style={{
-                        gridTemplateColumns: "14px 1fr auto auto auto auto",
-                        borderColor: "rgba(255,255,255,0.08)",
+                        gridTemplateColumns: "12px 1fr 72px 80px 80px 72px",
+                        borderColor: "rgba(0,0,0,0.12)",
+                        color: "#64748b",
                       }}
                     >
                       <span />
                       <span>Substância</span>
-                      <span className="text-center">Dose</span>
-                      <span className="text-center">Freq.</span>
-                      <span className="text-center">Sess.</span>
+                      <span className="text-right">Dose</span>
+                      <span className="text-right">Frequência</span>
+                      <span className="text-right">Sessões</span>
                       <span className="text-right">Estado</span>
                     </div>
 
-                    {/* Linhas de substâncias — 1 por item, colunas fixas */}
-                    <div className="space-y-0.5">
-                      {protocol.items.map((item, idx) => {
+                    {/* Linhas de substâncias — grid fixo, sem ícone nas células */}
+                    <div className="divide-y" style={{ divideColor: "rgba(0,0,0,0.06)" }}>
+                      {protocol.items.map((item) => {
                         const appliedCount = appliedCountById.get(item.substanceId) ?? 0;
-                        const isApplied = appliedCount > 0;
                         const isComplete = appliedCount >= (item.totalSessions ?? 1);
+                        const isApplied = appliedCount > 0;
+                        const totalSess = (item as { totalSessions?: number | null }).totalSessions ?? 0;
+                        const dose = (item as { dose?: string | null }).dose ?? "—";
+                        const freq = fmtFreq((item as { frequency?: string | null }).frequency);
 
                         return (
                           <div
                             key={item.id}
-                            className="grid items-center gap-x-3 rounded-[4px] px-1.5 py-1.5 transition-colors hover:bg-white/5"
-                            style={{
-                              gridTemplateColumns: "14px 1fr auto auto auto auto",
-                              background:
-                                idx % 2 === 0
-                                  ? "rgba(255,255,255,0.03)"
-                                  : "transparent",
-                            }}
+                            className="grid items-center gap-x-4 py-2"
+                            style={{ gridTemplateColumns: "12px 1fr 72px 80px 80px 72px" }}
                           >
-                            {/* Col 1: bolinha colorida da substância */}
+                            {/* Col 1: ponto colorido */}
                             <span
-                              className="h-3 w-3 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor: item.substanceColor || FALLBACK_COLOR,
-                                boxShadow: `0 0 5px ${item.substanceColor || FALLBACK_COLOR}88`,
-                              }}
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: item.substanceColor || FALLBACK_COLOR }}
                             />
 
-                            {/* Col 2: nome da substância (truncate — 1fr) */}
+                            {/* Col 2: nome — DARK para legibilidade no fundo claro */}
                             <span
-                              className="truncate text-[11px] font-bold text-slate-200"
+                              className="truncate text-[11px] font-bold"
+                              style={{ color: "#1e293b" }}
                               title={item.substanceName}
                             >
                               {item.substanceName}
                             </span>
 
-                            {/* Col 3: dose */}
-                            <span className="flex items-center gap-0.5 text-[10px] tabular-nums text-slate-400">
-                              <FlaskConical className="h-2.5 w-2.5 shrink-0 text-slate-500" />
-                              {(item as { dose?: string | null }).dose ?? "—"}
+                            {/* Col 3: dose — só o valor, sem ícone */}
+                            <span
+                              className="text-right text-[11px] font-semibold tabular-nums"
+                              style={{ color: "#334155" }}
+                            >
+                              {dose}
                             </span>
 
-                            {/* Col 4: frequência */}
-                            <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
-                              <Repeat className="h-2.5 w-2.5 shrink-0 text-slate-500" />
-                              {fmtFreq((item as { frequency?: string | null }).frequency)}
+                            {/* Col 4: frequência "7/7 dias" — sem ícone */}
+                            <span
+                              className="text-right text-[11px] font-semibold"
+                              style={{ color: "#334155" }}
+                            >
+                              {freq}
                             </span>
 
-                            {/* Col 5: sessões aplicadas / total */}
-                            <span className="flex items-center gap-0.5 text-[10px] tabular-nums text-slate-400">
-                              <Hash className="h-2.5 w-2.5 shrink-0 text-slate-500" />
-                              <span style={{ color: isApplied ? "#86efac" : undefined }}>
-                                {appliedCount}
-                              </span>
-                              /{item.totalSessions ?? "?"}
+                            {/* Col 5: "N Sessões" — só o total prescrito */}
+                            <span
+                              className="text-right text-[11px] font-semibold tabular-nums"
+                              style={{ color: "#334155" }}
+                            >
+                              {totalSess} {totalSess === 1 ? "Sessão" : "Sessões"}
                             </span>
 
-                            {/* Col 6: badge aplicado/pendente */}
-                            {isComplete ? (
-                              <span className="inline-flex shrink-0 items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wide text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" /> Concluída
-                              </span>
-                            ) : isApplied ? (
-                              <span className="inline-flex shrink-0 items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wide text-amber-400">
-                                <CheckCircle2 className="h-3 w-3" /> Em curso
-                              </span>
-                            ) : (
-                              <span className="inline-flex shrink-0 items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wide text-slate-500">
-                                <Circle className="h-3 w-3" /> Pendente
-                              </span>
-                            )}
+                            {/* Col 6: estado — sem ícone, texto puro */}
+                            <span
+                              className="text-right text-[10px] font-black uppercase tracking-wide"
+                              style={{
+                                color: isComplete
+                                  ? "#15803d"
+                                  : isApplied
+                                  ? "#b45309"
+                                  : "#94a3b8",
+                              }}
+                            >
+                              {isComplete ? "Concluída" : isApplied ? "Em Curso" : "Pendente"}
+                            </span>
                           </div>
                         );
                       })}
