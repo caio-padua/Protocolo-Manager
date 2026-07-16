@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Building2, Users, Briefcase, Plus, Loader2, Save, Pencil, Trash2,
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
+  FileText, Upload, ExternalLink, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -447,6 +448,176 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
   );
 }
 
+// ── Tipos de documento (contratos da empresa) ─────────────────────────────────
+const DOC_TIPO_LABELS: Record<string, string> = {
+  contrato_social:  "Contrato Social",
+  termo_licenca:    "Termo de Licença PAXTER",
+  acordo:           "Acordo Operacional",
+  ata:              "Ata de Reunião",
+  procuracao:       "Procuração",
+  outro:            "Outro",
+};
+
+interface EmpresaContrato {
+  id: number;
+  empresaId: number;
+  nome: string;
+  tipo: string;
+  tamanhoBytes: number | null;
+  mimeType: string | null;
+  driveFileId: string | null;
+  driveUrl: string | null;
+  observacao: string | null;
+  criadoEm: string;
+}
+
+// ── Sub-componente: lista e upload de contratos ────────────────────────────────
+function ContratosList({ empresaId }: { empresaId: number }) {
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const [tipo, setTipo] = useState("contrato_social");
+  const [obs, setObs] = useState("");
+
+  const { data: contratos = [], isLoading } = useQuery<EmpresaContrato[]>({
+    queryKey: ["empresa-contratos", empresaId],
+    queryFn: async () => {
+      if (!empresaId) return [];
+      const r = await fetch(`${apiBase}/empresas/${empresaId}/contratos`);
+      if (!r.ok) throw new Error("Erro ao carregar contratos");
+      return r.json();
+    },
+    enabled: !!empresaId,
+  });
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !empresaId) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("tipo", tipo);
+      if (obs) fd.append("observacao", obs);
+      const r = await fetch(`${apiBase}/empresas/${empresaId}/contratos`, { method: "POST", body: fd });
+      if (!r.ok) throw new Error("Erro no upload");
+      toast.success("Documento enviado com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["empresa-contratos", empresaId] });
+      setObs("");
+      e.target.value = "";
+    } catch {
+      toast.error("Falha ao enviar documento.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(docId: number, nome: string) {
+    if (!confirm(`Remover "${nome}" do sistema?`)) return;
+    await fetch(`${apiBase}/empresas/${empresaId}/contratos/${docId}`, { method: "DELETE" });
+    queryClient.invalidateQueries({ queryKey: ["empresa-contratos", empresaId] });
+    toast.success("Documento removido.");
+  }
+
+  function fmtSize(bytes: number | null) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Painel de upload */}
+      <div className="panel-3d p-4 space-y-3">
+        <p className="text-[10px] font-black uppercase tracking-wider text-primary mb-2">Adicionar Documento</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="lbl block mb-1">Tipo de Documento</label>
+            <div className="concave-3d p-1">
+              <Select value={tipo} onValueChange={setTipo}>
+                <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(DOC_TIPO_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <label className="lbl block mb-1">Observação (opcional)</label>
+            <Input value={obs} onChange={(e) => setObs(e.target.value)}
+              placeholder="Ex: Última alteração 2024, 3ª via..." className="field-engraved text-[11px]" />
+          </div>
+        </div>
+        <label className={`bevel-3d flex items-center gap-2 px-4 py-2 cursor-pointer w-fit text-[11px] font-black uppercase tracking-wider ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+          {uploading
+            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando...</>
+            : <><Upload className="w-3.5 h-3.5" /> Selecionar Arquivo</>}
+          <input type="file" className="hidden" onChange={handleUpload} disabled={uploading}
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.xml" />
+        </label>
+        <p className="text-[9px] text-muted-foreground/60">
+          PDF, DOC, DOCX, imagem ou ZIP — até 100 MB. Se a empresa tiver pasta no Google Drive, o arquivo é enviado automaticamente.
+        </p>
+      </div>
+
+      {/* Lista de documentos */}
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : contratos.length === 0 ? (
+        <div className="concave-3d p-6 text-center text-[11px] text-muted-foreground">
+          Nenhum documento cadastrado. Clique em "Selecionar Arquivo" para adicionar o primeiro.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {contratos.map((c) => (
+            <div key={c.id} className="panel-3d p-3 flex items-center gap-3">
+              <div className="concave-3d p-2 shrink-0">
+                <FileText className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black text-foreground truncate">{c.nome}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="bevel-3d text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 text-primary">
+                    {DOC_TIPO_LABELS[c.tipo] ?? c.tipo}
+                  </span>
+                  {c.tamanhoBytes && (
+                    <span className="text-[9px] text-muted-foreground">{fmtSize(c.tamanhoBytes)}</span>
+                  )}
+                  <span className="text-[9px] text-muted-foreground">
+                    {new Date(c.criadoEm).toLocaleDateString("pt-BR")}
+                  </span>
+                  {c.driveUrl && (
+                    <span className="text-[9px] text-emerald-600 font-bold">Drive ✓</span>
+                  )}
+                </div>
+                {c.observacao && (
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">{c.observacao}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {c.driveUrl && (
+                  <a href={c.driveUrl} target="_blank" rel="noopener noreferrer"
+                    className="bevel-3d p-1.5 text-primary hover:text-primary/80" title="Abrir no Drive">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button type="button" onClick={() => handleDelete(c.id, c.nome)}
+                  className="bevel-3d p-1.5 text-destructive hover:text-destructive/80" title="Remover">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ───────────────────────────────────────────────────────────
 export default function CadastroEmpresas() {
   const queryClient = useQueryClient();
@@ -685,11 +856,12 @@ export default function CadastroEmpresas() {
                 {/* Barra de abas */}
                 <TabsList className="mx-6 mt-3 mb-0 justify-start gap-1 h-auto bg-transparent p-0 border-b border-border/30 rounded-none">
                   {[
-                    { value: "ident",   label: "Identificação" },
-                    { value: "fiscal",  label: "Jurídico & Fiscal" },
-                    { value: "end",     label: "Endereços" },
-                    { value: "nfe",     label: "NF-e & Cert." },
-                    { value: "integ",   label: "Integrações" },
+                    { value: "ident",      label: "Identificação" },
+                    { value: "fiscal",     label: "Jurídico & Fiscal" },
+                    { value: "end",        label: "Endereços" },
+                    { value: "nfe",        label: "NF-e & Cert." },
+                    { value: "integ",      label: "Integrações" },
+                    { value: "contratos",  label: "Contratos" },
                   ].map(({ value, label }) => (
                     <TabsTrigger key={value} value={value}
                       className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">
@@ -1295,6 +1467,11 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
+                </TabsContent>
+
+                {/* ── ABA 6: CONTRATOS ──────────────────────────────────────────── */}
+                <TabsContent value="contratos" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                  <ContratosList empresaId={selectedEmpresa?.id ?? 0} />
                 </TabsContent>
 
               </Tabs>

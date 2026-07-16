@@ -1,9 +1,12 @@
 import { Router } from "express";
+import multer from "multer";
 import { db } from "@workspace/db";
-import { empresasTable, cargosTable, colaboradoresTable, locationsTable } from "@workspace/db/schema";
+import { empresasTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
-import { isDriveConnected } from "../lib/google-drive";
+import { isDriveConnected, uploadFileToDrive } from "../lib/google-drive";
 import { google } from "googleapis";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -430,6 +433,71 @@ router.delete("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<
   const colabId = parseInt(req.params.colabId);
   if (isNaN(colabId)) { res.status(400).json({ error: "ID inválido" }); return; }
   await db.delete(colaboradoresTable).where(eq(colaboradoresTable.id, colabId));
+  res.json({ ok: true });
+});
+
+// ── GET /empresas/:id/contratos — lista documentos da empresa ────────────────
+router.get("/empresas/:id/contratos", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+  const docs = await db.select().from(empresaContratosTable)
+    .where(eq(empresaContratosTable.empresaId, id))
+    .orderBy(empresaContratosTable.criadoEm);
+  res.json(docs);
+});
+
+// ── POST /empresas/:id/contratos — upload de documento ──────────────────────
+router.post("/empresas/:id/contratos", upload.single("file"), async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+  if (!req.file) { res.status(400).json({ error: "Arquivo não enviado" }); return; }
+
+  const [empresa] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
+  if (!empresa) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+
+  const tipo = (req.body.tipo as string) || "outro";
+  const observacao = (req.body.observacao as string) || null;
+  const nomeOriginal = req.file.originalname;
+
+  let driveFileId: string | null = null;
+  let driveUrl: string | null = null;
+  let driveFolderId: string | null = null;
+
+  // Upload ao Drive: subfolder CONTRATOS dentro da pasta da empresa (se existir)
+  const driveOk = await isDriveConnected().catch(() => false);
+  if (driveOk && empresa.driveFolderEmpresaId) {
+    try {
+      const drive = await getDriveClient();
+      const contratosFolderId = await driveFindOrCreate(drive, "CONTRATOS", empresa.driveFolderEmpresaId);
+      const up = await uploadFileToDrive(contratosFolderId, nomeOriginal, req.file.mimetype, req.file.buffer, true);
+      driveFileId = up.fileId;
+      driveUrl = up.webViewLink;
+      driveFolderId = contratosFolderId;
+    } catch (driveErr: any) {
+      req.log?.warn({ err: driveErr }, "Falha ao fazer upload ao Drive — metadado salvo sem arquivo Drive");
+    }
+  }
+
+  const [doc] = await db.insert(empresaContratosTable).values({
+    empresaId: id,
+    nome: nomeOriginal,
+    tipo,
+    tamanhoBytes: req.file.size,
+    mimeType: req.file.mimetype,
+    driveFileId,
+    driveUrl,
+    driveFolderId,
+    observacao,
+  }).returning();
+
+  res.status(201).json(doc);
+});
+
+// ── DELETE /empresas/:id/contratos/:docId — remove documento ─────────────────
+router.delete("/empresas/:id/contratos/:docId", async (req, res): Promise<void> => {
+  const docId = parseInt(req.params.docId);
+  if (isNaN(docId)) { res.status(400).json({ error: "ID inválido" }); return; }
+  await db.delete(empresaContratosTable).where(eq(empresaContratosTable.id, docId));
   res.json({ ok: true });
 });
 

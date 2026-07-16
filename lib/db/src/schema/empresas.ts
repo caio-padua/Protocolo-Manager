@@ -179,3 +179,23 @@ export const arvoreLicenciamentoTable = pgTable("arvore_licenciamento", {
 });
 
 export type ArvoreLicenciamento = typeof arvoreLicenciamentoTable.$inferSelect;
+
+// ── Contratos da Empresa ─────────────────────────────────────────────────────
+// Documentos jurídicos vinculados a cada empresa: contrato social, termos de
+// licenciamento PAXTER, acordos operacionais, atas de reunião, etc.
+export const empresaContratosTable = pgTable("empresa_contratos", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").notNull().references(() => empresasTable.id),
+  nome: text("nome").notNull(),
+  tipo: text("tipo").notNull().default("outro"),
+  // contrato_social | termo_licenca | acordo | ata | procuracao | outro
+  tamanhoBytes: integer("tamanho_bytes"),
+  mimeType: text("mime_type"),
+  driveFileId: text("drive_file_id"),
+  driveUrl: text("drive_url"),
+  driveFolderId: text("drive_folder_id"),
+  observacao: text("observacao"),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).defaultNow(),
+});
+
+export type EmpresaContrato = typeof empresaContratosTable.$inferSelect;
