@@ -99,6 +99,7 @@ router.post("/ras", async (req, res): Promise<void> => {
     status: app.status,
   }));
 
+  const empresaId = resolveEmpresaId(req);
   const [ras] = await db.insert(rasTable).values({
     sessionId: parsed.data.sessionId,
     protocolId: session.protocolId,
@@ -114,6 +115,7 @@ router.post("/ras", async (req, res): Promise<void> => {
     observations: parsed.data.observations ?? null,
     patientSignature: false,
     professionalSignature: false,
+    empresaId,
   }).returning();
 
   res.status(201).json(formatRAS(ras));

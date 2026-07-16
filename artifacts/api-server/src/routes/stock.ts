@@ -67,7 +67,8 @@ router.post("/stock", async (req, res): Promise<void> => {
     return;
   }
 
-  const [item] = await db.insert(stockItemsTable).values(parsed.data).returning();
+  const empresaId = resolveEmpresaId(req);
+  const [item] = await db.insert(stockItemsTable).values({ ...parsed.data, empresaId }).returning();
   res.status(201).json(await formatStockItem(item));
 });
 

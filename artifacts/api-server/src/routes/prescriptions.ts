@@ -110,6 +110,7 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
   const uf = (body.professionalUf || "SP").toUpperCase();
 
   // 1) Persiste prescrição + itens.
+  const empresaId = resolveEmpresaId(req);
   const [prescription] = await db
     .insert(prescriptionsTable)
     .values({
@@ -127,6 +128,7 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
       message: body.message ?? null,
       status: "emitted",
       emittedAt: new Date(),
+      empresaId,
     })
     .returning();
 

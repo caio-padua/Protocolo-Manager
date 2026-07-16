@@ -193,7 +193,8 @@ router.post("/sessions", async (req, res): Promise<void> => {
     return;
   }
 
-  const [session] = await db.insert(sessionsTable).values(parsed.data).returning();
+  const empresaId = resolveEmpresaId(req);
+  const [session] = await db.insert(sessionsTable).values({ ...parsed.data, empresaId }).returning();
   const result = await buildSessionResponse(session);
   res.status(201).json(result);
 });

@@ -76,12 +76,31 @@ clients, sessions, ras, prescriptions, payments, stock, protocols, exam-results 
 Todas as 8 tabelas: linhas_fora_do_tenant = 0.
 GET /clients → 5271, /sessions → 245, /payments → 12, /protocols → 24.
 
-## O que NÃO foi feito (ONDA C pendente)
+## ONDA C — concluída em 16/07/2026
+
+### INSERT/POST herdam empresaId automaticamente
+- POST /clients → `{ ...clientData, empresaId }`
+- POST /sessions → `{ ...parsed.data, empresaId }`
+- POST /protocols → `{ ...protocolData, empresaId, ... }`
+- POST /payments → `{ ..., empresaId }`
+- POST /stock → `{ ...parsed.data, empresaId }`
+- POST /ras → `{ ..., empresaId }`
+- POST /prescriptions/emit → `{ ..., empresaId }`
+- POST /exames-lab/ingest → `startExamIngestion` recebe `empresaId?: number | null`
+
+### Verificação
+- POST /clients → id=5274, empresaId=5 ✅ (cliente de teste removido após)
+- SELECT empresa_id FROM clients → 5 ✅
+
+## O que NÃO foi feito (futuro)
 
 - onboarding_steps SAGA table (não criada ainda)
 - LGPD GET /empresas/:id/exportar-dados (obrigação legal)
 - Auth multi-tenant completa (JWT/session com empresa_id do payload)
-- POST/PUT/INSERT das rotas (inserção herda empresa_id automaticamente — próxima onda)
+- Tela CEO Swipe entre clínicas (SSE tempo real)
+- IA Clínica: Claude opus-4, atestado, sugestão de exames
+- ElevenLabs TTS no WhatsApp por tomada de medicação
+- Billing por uso (Stripe Metered ou Lago)
 
 **Why:** Fase A = fundação (schema + middleware + UI). Fase B = ativar filtragem em rotas.
 

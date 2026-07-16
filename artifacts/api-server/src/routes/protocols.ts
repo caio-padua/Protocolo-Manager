@@ -209,10 +209,12 @@ router.post("/protocols", async (req, res): Promise<void> => {
   const finalTotalValue =
     protocolData.totalValue && protocolData.totalValue > 0 ? protocolData.totalValue : computedBudget;
 
+  const empresaId = resolveEmpresaId(req);
   const [protocol] = await db.insert(protocolsTable).values({
     ...protocolData,
     totalValue: finalTotalValue,
     totalSessions,
+    empresaId,
     ...(rawNurseId != null && !isNaN(rawNurseId) ? { nurseId: rawNurseId } : {}),
     ...(rawNurseServiceFee != null && !isNaN(rawNurseServiceFee) ? { nurseServiceFee: rawNurseServiceFee } : {}),
   }).returning();

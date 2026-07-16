@@ -125,7 +125,8 @@ router.post("/clients", async (req, res): Promise<void> => {
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  const [client] = await db.insert(clientsTable).values(clientData).returning();
+  const empresaId = resolveEmpresaId(req);
+  const [client] = await db.insert(clientsTable).values({ ...clientData, empresaId }).returning();
   await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
 });

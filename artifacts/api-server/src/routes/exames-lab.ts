@@ -219,6 +219,7 @@ export async function startExamIngestion(params: {
   fileName: string;
   sourcePdfDriveId?: string | null;
   notify?: boolean;
+  empresaId?: number | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
   const hash = createHash("sha256").update(params.buffer).digest("hex");
 
@@ -243,6 +244,7 @@ export async function startExamIngestion(params: {
       hash,
       fileName: params.fileName,
       status: "processando",
+      ...(params.empresaId != null ? { empresaId: params.empresaId } : {}),
     })
     .returning({ id: examDocumentsTable.id });
 
@@ -286,11 +288,13 @@ router.post(
       }
 
       const notify = req.body.notify === "true" || req.body.notify === true;
+      const empresaId = resolveEmpresaId(req);
       const result = await startExamIngestion({
         clientId,
         buffer: file.buffer,
         fileName: file.originalname,
         notify,
+        empresaId,
       });
 
       res.status(result.duplicate ? 200 : 202).json(result);

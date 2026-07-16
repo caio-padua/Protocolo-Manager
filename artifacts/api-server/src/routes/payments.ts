@@ -67,6 +67,7 @@ router.post("/payments", async (req, res): Promise<void> => {
   }
 
   const installments = body.method === "credit" && body.installments ? Math.max(1, Math.min(12, parseInt(body.installments))) : null;
+  const empresaId = resolveEmpresaId(req);
 
   const [payment] = await db.insert(paymentsTable).values({
     clientId: body.clientId,
@@ -79,6 +80,7 @@ router.post("/payments", async (req, res): Promise<void> => {
     description: body.description || null,
     installments,
     cardLabel: body.method === "credit" ? (body.cardLabel || null) : null,
+    empresaId,
   }).returning();
   res.status(201).json(await formatPayment(payment));
 });
