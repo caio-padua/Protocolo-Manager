@@ -1,0 +1,151 @@
+Vejo na imagem: Manager está executando Fase B agora — 16 arquivos com as rotas sendo isoladas. Isso é exatamente o que mandei. Deixa eu pesquisar as ferramentas mais modernas e montar a visão completa.
+Manager Fase B alerta: middleware registrado mas as queries ainda NÃO filtram por empresa_id — o WHERE real está faltando. Vou responder tudo e já preparo a carta de correção.
+
+Honestidade total — o caminho real para o milhão
+Cenário	Matemática real
+20 clínicas licenciadas × R$ 3.000/mês	R$ 60.000/mês = R$ 720.000/ano
+50 clínicas × R$ 3.000/mês	R$ 150.000/mês = R$ 1.800.000/ano
+100 clínicas × R$ 2.500/mês	R$ 250.000/mês = R$ 3.000.000/ano
+A fundação que estamos construindo agora É o produto que vale isso. Multi-tenant real, Drive por empresa, pirâmide de licenciamento — nenhum concorrente brasileiro de clínica integrativa tem isso. O risco real não é tecnologia — é chegar nas 20 clínicas antes do dinheiro acabar.
+
+Ferramentas mais modernas — Julho 2026
+Categoria	Ferramenta	Por que usar no Pawards
+Billing por uso	Lago (open-source)	Cobrar por módulo ativo, por consulta, por clínica — sem Stripe custom
+Filas de trabalho	BullMQ + Redis	Onboarding SAGA, disparo WhatsApp, geração PDF assíncrona
+Tempo real	Server-Sent Events (SSE) nativo	Dashboard CEO ao vivo — zero custo, sem WebSocket server
+IA clínica	Claude claude-3-5-sonnet via API	Sugestões motor clínico com contexto do paciente real
+Busca rápida	Meilisearch	Buscar paciente/fórmula/protocolo em milissegundos
+Feature flags	PostHog (self-hosted)	Ligar/desligar módulo por clínica sem deploy
+Auditoria	OpenTelemetry + Grafana	Rastrear cada ação clínica com carimbo de tempo
+Bilhetagem	Lago + webhook Asaas	Fatura automática quando clínica ultrapassa cota do plano
+Erros	Sentry	Alerta CEO quando algo quebra em produção
+CEO Tela Única — visão do que construir
+Fluxo de navegação entre clínicas:
+
+[Clínica Barros] ←→ desliza ←→ [Pádua] ←→ desliza ←→ [Paluzze]
+     ↓                                ↓                      ↓
+  KPIs do dia                    KPIs do dia              KPIs do dia
+  Fila operacional               Fila operacional         Fila operacional
+  Licença: ATIVA                 Licença: PRÓPRIA         Licença: ATIVA
+  Royalty: R$ 900/mês            ——                       Royalty: R$ 600/mês
+Cada cartão de clínica mostra em tempo real (SSE = Server-Sent Events, tecnologia de transmissão contínua do servidor para o navegador):
+
+Bloco	Dado
+Consultas hoje	Agendadas / Realizadas / Faltou
+Caixa do dia	Pago / Pendente / Inadimplente
+Fila clínica	Anamnese pendente / RAS aberto / Assinatura pendente
+Saúde da licença	Ativa / Vencida / Dias restantes
+Royalty acumulado	Valor do mês atual
+Carta ao Manager — correção da Fase B
+Cole isso no Manager agora:
+
+Manager — auditoria em tempo real detectou problema na Fase B.
+O middleware tenantContext foi registrado mas as queries ainda
+NÃO usam empresa_id no WHERE real.
+Prova: GET /clients retorna WHERE status = ? sem AND empresa_id = ?
+Isso significa: dados ainda vazam entre clínicas.
+Corrija AGORA na rota clients.ts:
+ERRADO (atual):
+  db.select().from(clientsTable).where(eq(clientsTable.status, status))
+CERTO:
+  db.select().from(clientsTable).where(
+    and(
+      eq(clientsTable.empresaId, req.empresaId),
+      eq(clientsTable.status, status)
+    )
+  )
+Aplicar este padrão em TODAS as 8 rotas:
+clients, sessions, ras, prescriptions, payments, protocols,
+exam_results, stock_items
+Commitar com: "fix(tenant): aplicar WHERE empresa_id em [tabela]"
+DEPOIS: rodar este teste em cada rota:
+  curl -H "empresa-id: 999" GET /clients
+  Deve retornar [] — zero registros da empresa 999
+  Se retornar dados = VAZAMENTO ATIVO
+Ordem do CEO.
+Próximas 3 ondas para o Pawards virar negócio real
+AGORA → Fase B correta (WHERE empresa_id em todas as queries)
+  ↓
+SEMANA 1 → Tela CEO com swipe entre clínicas + SSE tempo real
+  ↓
+SEMANA 2 → Lago integrado: fatura automática por módulo ativo
+  ↓
+SEMANA 3 → Onboarding SAGA: nova clínica em 6 passos sem erro
+  ↓
+MÊS 2 → Primeira clínica licenciada pagando R$ 3.000/mês
+RESUMO EM 1 LINHA: Manager tem o middleware mas as queries ainda vazam — mande a carta acima agora; a tela CEO com swipe + SSE + Lago de billing é o que transforma isso em negócio de R$ 3 milhões/ano.
+API Server reiniciado. Agora a resposta completa — com o que já existe e o que construir.
+
+1. O que o IHE já tem (auditoria pelo código real)
+Tela existente	O que faz
+dashboard-global.tsx	KPIs de TODAS as clínicas — atualiza a cada 60s
+painel-comando.tsx	Fila operacional + alertas sonoros (Web Audio API — bip diferente por tipo de evento)
+dashboard-local.tsx	Mergulho em 1 clínica específica
+assinaturas-alertas-ceo.tsx	Feed de alertas de documentos rejeitados/travados
+ceo-janelas-descanso.tsx	Janela de descanso do CEO — bloqueia notificações por horário
+RankingClinicas.tsx	Ranking das clínicas em tempo real
+Já é sofisticado. O problema é que está no IHE — não no Manager multi-tenant que vai licenciar outras clínicas.
+
+2. O que falta para virar negócio de R$ 3 milhões/ano
+IHE (Motor clínico — 1 clínica própria)
+  ↓  TRANSMUTAÇÃO (copiar arquitetura certa)
+Manager (SaaS multi-tenant — N clínicas licenciadas)
+  ↓  ADICIONAR
+Tela CEO com swipe entre clínicas + SSE tempo real + billing Lago
+  ↓  RESULTADO
+Painel onde você vê TODAS as clínicas licenciadas operando ao vivo
+3. Swipe entre clínicas — como funciona
+[← Pádua | Barros | Paluzze | Nova Clínica →]
+    ↑ scroll horizontal com snap — desliza como carrossel
+    
+Cada cartão mostra:
+  • Consultas hoje: 12 feitas / 3 faltou
+  • Caixa: R$ 4.200 pago / R$ 800 pendente
+  • Fila clínica: 2 RAS abertos / 1 assinatura pendente
+  • Licença: ATIVA — vence em 23 dias
+  • Royalty acumulado: R$ 900 este mês
+Tecnologia: CSS scroll-snap + SSE (Server-Sent Events — fluxo contínuo do servidor para o browser, sem custo extra de infraestrutura).
+
+4. Ferramentas modernas Julho 2026 — o que vale colocar
+Ferramenta	Custo	O que resolve no Pawards
+Lago (open-source)	Grátis self-hosted	Billing automático por módulo ativo por clínica
+BullMQ + Redis	~R$ 50/mês	Fila de tarefas: PDF, WhatsApp, onboarding SAGA
+PostHog self-hosted	Grátis	Quais telas as clínicas usam — onde travam
+Meilisearch	~R$ 30/mês	Busca de paciente/fórmula em < 50ms
+Sentry	Grátis até 5k erros/mês	Alerta CEO quando algo quebra em produção
+SSE nativo	Grátis	Dashboard CEO em tempo real sem WebSocket server
+Claude API (Anthropic)	Por token	Motor clínico com sugestões por IA real
+5. Carta ao Manager — corrigir WHERE e iniciar tela CEO swipe
+Cole isso no Manager agora:
+
+Manager — duas ordens simultâneas:
+ORDEM 1 — Fase B: as queries AINDA não filtram empresa_id.
+Auditoria no GitHub provou: clients.ts usa WHERE status = ?
+sem AND empresa_id = req.empresaId.
+Corrija o padrão em TODAS as 8 rotas:
+  ERRADO: .where(eq(clientsTable.status, status))
+  CERTO:  .where(and(
+            eq(clientsTable.empresaId, req.empresaId),
+            eq(clientsTable.status, status)
+          ))
+Teste obrigatório após cada rota:
+  curl -H "empresa-id: 9999" GET /clients → deve retornar []
+ORDEM 2 — Iniciar tela CEO com swipe entre clínicas:
+Criar nova tela /ceo/command-center com:
+  - Carrossel horizontal com scroll-snap
+  - Um cartão por empresa licenciada
+  - Cada cartão: consultas hoje, caixa, fila, licença, royalty
+  - SSE endpoint GET /ceo/stream para atualizar em tempo real
+  - Paleta PENUMBRA ESCURO (Navy Ciano)
+Fase B primeiro — tela CEO depois.
+Ordem do CEO.
+6. O caminho honesto para o milhão
+Marco	Prazo real	Receita
+Manager multi-tenant funcional (Fase B+C)	2 a 3 semanas	R$ 0 (preparação)
+Primeira clínica licenciada pagando	Mês 2	R$ 3.000/mês
+10 clínicas licenciadas	Mês 6	R$ 30.000/mês
+30 clínicas licenciadas	Mês 12	R$ 90.000/mês
+50 clínicas licenciadas	Mês 18	R$ 150.000/mês = R$ 1,8 mi/ano
+O produto que estamos construindo agora — multi-tenant real, motor clínico com IA, Drive por empresa, pirâmide de licenciamento — não existe assim no Brasil para clínicas integrativas. O mercado está esperando. O risco é tempo, não tecnologia.
+
+RESUMO EM 1 LINHA: IHE já tem dashboard sofisticado; Manager precisa corrigir o WHERE (dados ainda vazam) e depois construir a tela CEO com swipe entre clínicas — isso é o produto que vale R$ 150k/mês com 50 licenças
