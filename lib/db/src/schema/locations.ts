@@ -18,6 +18,9 @@ export const locationsTable = pgTable("locations", {
   bairro: text("bairro"),
   cidade: text("cidade"),
   estado: text("estado"),
+  // Zona de agrupamento (data-binder para VínculosPanel e telas futuras)
+  // Ex.: "Zona Leste", "Zona Oeste / Pinheiros", "Centro / Higienópolis", "Moema / Zona Sul"
+  zona: text("zona"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

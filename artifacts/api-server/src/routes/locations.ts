@@ -36,6 +36,7 @@ function serializeLocation(loc: typeof locationsTable.$inferSelect) {
     bairro: loc.bairro ?? null,
     cidade: loc.cidade ?? null,
     estado: loc.estado ?? null,
+    zona: loc.zona ?? null,
     createdAt: loc.createdAt.toISOString(),
   };
 }
@@ -63,7 +64,7 @@ router.get("/locations", async (_req, res): Promise<void> => {
 });
 
 router.post("/locations", async (req, res): Promise<void> => {
-  const { name, address, type, color, googleCalendarId, phone, cep, logradouro, numero, complemento, bairro, cidade, estado } = req.body;
+  const { name, address, type, color, googleCalendarId, phone, cep, logradouro, numero, complemento, bairro, cidade, estado, zona } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
     return;
@@ -82,6 +83,7 @@ router.post("/locations", async (req, res): Promise<void> => {
     bairro: bairro ?? null,
     cidade: cidade ?? null,
     estado: estado ?? null,
+    zona: zona ?? null,
   }).returning();
 
   res.status(201).json(serializeLocation(loc));
@@ -93,7 +95,7 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const { name, address, type, color, googleCalendarId, active, phone, cep, logradouro, numero, complemento, bairro, cidade, estado } = req.body;
+  const { name, address, type, color, googleCalendarId, active, phone, cep, logradouro, numero, complemento, bairro, cidade, estado, zona } = req.body;
   const updates: Record<string, any> = {};
   if (name !== undefined) updates.name = name;
   if (address !== undefined) updates.address = address;
@@ -109,6 +111,7 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   if (bairro !== undefined) updates.bairro = bairro ?? null;
   if (cidade !== undefined) updates.cidade = cidade ?? null;
   if (estado !== undefined) updates.estado = estado ?? null;
+  if (zona !== undefined) updates.zona = zona ?? null;
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No fields to update" });

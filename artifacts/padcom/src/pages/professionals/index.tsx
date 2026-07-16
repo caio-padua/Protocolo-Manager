@@ -246,7 +246,11 @@ function SignatureUpload({
 
 // ─── Painel de Vínculos (clínicas) — agrupamento geográfico ──────────────────
 type LinkRow = { id: number; locationId: number; role: string; agendaCalendarId: number | null };
-type LocRow  = { id: number; name: string; type: string; address: string | null };
+type LocRow  = {
+  id: number; name: string; type: string; address: string | null;
+  // Campos estruturados — data-binders para agrupamento geográfico automático
+  zona: string | null; bairro: string | null; cidade: string | null; estado: string | null;
+};
 
 // ── Mapeamento de bairros SP → zonas ──────────────────────────────────────────
 const SP_ZONES: Record<string, string[]> = {
@@ -293,8 +297,11 @@ function extractGeo(address: string | null): { state: string; city: string; neig
   return { state, city, neighborhood };
 }
 
-function spZoneFor(neighborhood: string): string {
-  const n = neighborhood.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
+// Usa zona cadastrada (data-binder) ou infere pelo bairro como fallback
+function resolveZone(zona: string | null, bairro: string | null): string {
+  if (zona && zona.trim()) return zona.trim();
+  if (!bairro) return "Outras Regiões";
+  const n = bairro.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
   for (const [zone, bairros] of Object.entries(SP_ZONES)) {
     if (bairros.some((b) => n.includes(b.normalize("NFD").replace(/\p{Mn}/gu, "")))) return zone;
   }
@@ -345,8 +352,7 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
     if (state === "SP") {
       const byZone = new Map<string, LocRow[]>();
       for (const loc of locs) {
-        const geo = extractGeo(loc.address);
-        const zone = spZoneFor(geo.neighborhood || geo.city);
+        const zone = resolveZone(loc.zona, loc.bairro);
         byZone.set(zone, [...(byZone.get(zone) ?? []), loc]);
       }
       // Ordenar: zonas com vínculos ativos primeiro
@@ -489,10 +495,10 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
     );
   }
 
-  // ── Agrupar por estado ────────────────────────────────────────────────────
+  // ── Agrupar por estado — usa campo direto `loc.estado` (data-binder) ─────
   const byState = new Map<string, LocRow[]>();
   for (const loc of locations) {
-    const { state } = extractGeo(loc.address);
+    const state = loc.estado?.toUpperCase().trim() || (extractGeo(loc.address).state);
     byState.set(state, [...(byState.get(state) ?? []), loc]);
   }
 

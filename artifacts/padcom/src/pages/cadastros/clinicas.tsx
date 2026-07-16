@@ -30,6 +30,7 @@ interface Clinica {
   bairro: string | null;
   cidade: string | null;
   estado: string | null;
+  zona: string | null;
 }
 
 const formSchema = z.object({
@@ -43,6 +44,7 @@ const formSchema = z.object({
   bairro: z.string().optional(),
   cidade: z.string().optional(),
   estado: z.string().optional(),
+  zona: z.string().optional(),
   color: z.string().optional(),
   googleCalendarId: z.string().optional(),
   active: z.boolean(),
@@ -64,7 +66,7 @@ function formatPhone(value: string): string {
 
 const EMPTY: FormValues = {
   name: "", type: "clinic", phone: "", cep: "", logradouro: "", numero: "",
-  complemento: "", bairro: "", cidade: "", estado: "", color: "#16284a",
+  complemento: "", bairro: "", cidade: "", estado: "", zona: "", color: "#16284a",
   googleCalendarId: "", active: true,
 };
 
@@ -169,6 +171,7 @@ export default function CadastroClinicas() {
       name: c.name, type: c.type, phone: c.phone || "", cep: c.cep || "",
       logradouro: c.logradouro || "", numero: c.numero || "", complemento: c.complemento || "",
       bairro: c.bairro || "", cidade: c.cidade || "", estado: c.estado || "",
+      zona: c.zona || "",
       color: c.color || "#16284a", googleCalendarId: c.googleCalendarId || "", active: c.active,
     });
     setDialogOpen(true);
@@ -330,8 +333,44 @@ export default function CadastroClinicas() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField control={form.control} name="estado" render={({ field }) => (
-                  <FormItem><FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Estado</FormLabel>
-                    <FormControl><Input placeholder="SP" {...field} className="field-engraved" /></FormControl></FormItem>
+                  <FormItem><FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Estado (UF)</FormLabel>
+                    <FormControl><Input placeholder="SP" maxLength={2} {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} className="field-engraved" /></FormControl></FormItem>
+                )} />
+                <FormField control={form.control} name="zona" render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">
+                      Zona / Região
+                      <span className="ml-2 normal-case font-normal text-muted-foreground/60">— agrupa o painel de vínculos</span>
+                    </FormLabel>
+                    <div className="concave-3d p-1">
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                            <SelectValue placeholder="Selecione ou deixe vazio" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">— Sem zona definida —</SelectItem>
+                          <SelectItem value="Centro / Higienópolis">🏙 Centro / Higienópolis</SelectItem>
+                          <SelectItem value="Zona Leste">🌅 Zona Leste</SelectItem>
+                          <SelectItem value="Zona Oeste / Pinheiros">🌳 Zona Oeste / Pinheiros</SelectItem>
+                          <SelectItem value="Zona Sul / Moema">🏡 Zona Sul / Moema</SelectItem>
+                          <SelectItem value="Zona Norte">🌄 Zona Norte</SelectItem>
+                          <SelectItem value="Grande ABC / ABCD">🏭 Grande ABC / ABCD</SelectItem>
+                          <SelectItem value="Domiciliar">🏠 Domiciliar</SelectItem>
+                          <SelectItem value="Centro (DF)">🏛 Centro (DF)</SelectItem>
+                          <SelectItem value="Plano Piloto">🏛 Plano Piloto</SelectItem>
+                          <SelectItem value="Sul (DF)">🌿 Sul (DF)</SelectItem>
+                          <SelectItem value="Centro (RJ)">🏖 Centro (RJ)</SelectItem>
+                          <SelectItem value="Zona Sul (RJ)">🌊 Zona Sul (RJ)</SelectItem>
+                          <SelectItem value="Belo Horizonte Centro">⛏ BH Centro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground/60 mt-0.5">
+                      Este campo organiza automaticamente a lista de vínculos do Corpo Clínico por região geográfica.
+                    </p>
+                  </FormItem>
                 )} />
                 <FormField control={form.control} name="color" render={({ field }) => (
                   <FormItem><FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Cor</FormLabel>
