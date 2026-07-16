@@ -987,11 +987,11 @@ export default function Professionals() {
 
                             {/* Nome + especialidade */}
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-black uppercase tracking-tight text-foreground truncate leading-tight">
+                              <p className="text-base font-black uppercase tracking-tight text-foreground truncate leading-tight">
                                 {pro.name}
                               </p>
                               {specialtyLabel && (
-                                <p className="text-[10px] font-semibold text-muted-foreground truncate mt-0.5">
+                                <p className="text-[11px] font-semibold text-muted-foreground truncate mt-0.5">
                                   {specialtyLabel}
                                 </p>
                               )}
