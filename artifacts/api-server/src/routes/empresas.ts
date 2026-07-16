@@ -3,8 +3,9 @@ import multer from "multer";
 import { db } from "@workspace/db";
 import { empresasTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
 import { eq, isNull, or } from "drizzle-orm";
-import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics } from "../lib/google-drive";
+import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics, driveDownloadFile } from "../lib/google-drive";
 import { google } from "googleapis";
+import { ai } from "@workspace/integrations-gemini-ai";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -591,6 +592,135 @@ router.delete("/empresas/:id/contratos/:docId", async (req, res): Promise<void> 
   if (isNaN(docId)) { res.status(400).json({ error: "ID inválido" }); return; }
   await db.delete(empresaContratosTable).where(eq(empresaContratosTable.id, docId));
   res.json({ ok: true });
+});
+
+// ── POST /empresas/:id/auto-fill — extrai dados dos PDFs do Drive e preenche o cadastro ──
+async function downloadPdfText(fileId: string): Promise<string> {
+  let buffer: Buffer;
+  try {
+    buffer = await driveDownloadFile(fileId);
+  } catch {
+    return "";
+  }
+  try {
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    return (typeof result === "string" ? result : result?.text || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+const EMPRESA_PROMPT = `Você é um extrator de dados cadastrais de empresas brasileiras.
+Receberá texto bruto de documentos (CNPJ, contrato social, certidão) de uma empresa.
+Extraia em JSON estrito os seguintes campos (use null quando não encontrar):
+
+{
+  "cnpj": "XX.XXX.XXX/XXXX-XX",
+  "razaoSocial": "Razão social completa",
+  "nomeFantasia": "Nome fantasia se houver",
+  "cep": "XXXXX-XXX",
+  "logradouro": "Rua/Av",
+  "numero": "123",
+  "complemento": "Sala/Apto",
+  "bairro": "Bairro",
+  "cidade": "Cidade",
+  "estado": "UF (2 letras)",
+  "telefone": "telefone principal",
+  "email": "e-mail se houver",
+  "responsavelLegalNome": "Nome do responsável legal / sócio administrador",
+  "responsavelLegalCpf": "CPF do responsável legal",
+  "cnaeDescricao": "Atividade principal (descrição do CNAE)",
+  "capitalSocial": "Valor do capital social como string (ex: R$ 100.000,00)",
+  "dataAbertura": "DD/MM/AAAA de abertura da empresa"
+}
+
+Responda SOMENTE com o JSON, sem markdown, sem comentários.`;
+
+router.post("/empresas/:id/auto-fill", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const [empresa] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
+  if (!empresa) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+
+  const contratos = await db.select().from(empresaContratosTable).where(eq(empresaContratosTable.empresaId, id));
+  if (!contratos.length) { res.status(400).json({ error: "Nenhum documento vinculado" }); return; }
+
+  const MIME_PDF = "application/pdf";
+  const PDFs = contratos
+    .filter(c => c.mimeType === MIME_PDF && c.driveFileId)
+    .slice(0, 3);
+
+  if (!PDFs.length) {
+    res.status(400).json({ error: "Nenhum PDF disponível para extração" });
+    return;
+  }
+
+  const textos: string[] = [];
+  for (const doc of PDFs) {
+    const t = await downloadPdfText(doc.driveFileId!);
+    if (t.length > 50) textos.push(`=== ${doc.nome} ===\n${t.slice(0, 6000)}`);
+  }
+
+  if (!textos.length) {
+    res.status(422).json({ error: "Não foi possível extrair texto dos PDFs" });
+    return;
+  }
+
+  const combinedText = textos.join("\n\n").slice(0, 20000);
+  let extracted: Record<string, string | null> = {};
+  try {
+    const resp = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: EMPRESA_PROMPT + "\n\nTEXTO:\n" + combinedText }] }],
+    });
+    const raw = resp.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const clean = raw.trim().replace(/^```(?:json)?|```$/gm, "").trim();
+    extracted = JSON.parse(clean);
+  } catch (err) {
+    res.status(502).json({ error: "Falha na extração AI: " + (err as Error).message });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  const set = (dest: string, val: unknown) => { if (val != null && val !== "") updates[dest] = val; };
+
+  set("cnpj", extracted.cnpj);
+  set("razaoSocial", extracted.razaoSocial);
+  set("cep", extracted.cep);
+  set("bairro", extracted.bairro);
+  set("cidade", extracted.cidade);
+  set("estado", extracted.estado);
+  set("telefone", extracted.telefone);
+  set("responsavelLegalNome", extracted.responsavelLegalNome);
+  set("responsavelLegalCpf", extracted.responsavelLegalCpf);
+  set("cnaeDescricao", extracted.cnaeDescricao);
+
+  // Endereço: compor em enderecoFiscal
+  const endParts = [extracted.logradouro, extracted.numero, extracted.complemento].filter(Boolean);
+  if (endParts.length) set("enderecoFiscal", endParts.join(", "));
+
+  // capitalSocial: tirar R$ e espaços, manter só número
+  if (extracted.capitalSocial) {
+    const num = String(extracted.capitalSocial).replace(/[R$\s.]/g, "").replace(",", ".");
+    const parsed = parseFloat(num);
+    if (!isNaN(parsed)) set("capitalSocial", parsed.toFixed(2));
+  }
+
+  // dataAbertura: converter DD/MM/AAAA → AAAA-MM-DD para coluna date
+  if (extracted.dataAbertura) {
+    const parts = String(extracted.dataAbertura).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (parts) set("dataAbertura", `${parts[3]}-${parts[2]}-${parts[1]}`);
+  }
+
+  const [updated] = await db.update(empresasTable)
+    .set(updates as never)
+    .where(eq(empresasTable.id, id))
+    .returning();
+
+  res.json({ ok: true, empresa: updated, extraido: extracted, camposAtualizados: Object.keys(updates) });
 });
 
 export default router;
