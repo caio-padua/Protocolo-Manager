@@ -147,6 +147,11 @@ export const empresasTable = pgTable("empresas", {
   // Esta empresa enxerga TUDO e controla quem pode sub-licenciar.
   isPlatformOwner: boolean("is_platform_owner").notNull().default(false),
 
+  // ── Pirâmide de Licenciamento (Carta 05) ────────────────────────────────────
+  tipoRelacionamento: text("tipo_relacionamento").notNull().default("licenciada_direta"),
+  parentEmpresaId: integer("parent_empresa_id"),
+  podeSublicenciar: boolean("pode_sublicenciar").notNull().default(false),
+
   // ── Metadados ───────────────────────────────────────────────────────────────
   criadoEm: timestamp("criado_em", { withTimezone: true }).defaultNow(),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).defaultNow(),
@@ -155,3 +160,22 @@ export const empresasTable = pgTable("empresas", {
 export const insertEmpresaSchema = createInsertSchema(empresasTable).omit({ id: true, criadoEm: true, atualizadoEm: true });
 export type InsertEmpresa = z.infer<typeof insertEmpresaSchema>;
 export type Empresa = typeof empresasTable.$inferSelect;
+
+// ── Árvore de Licenciamento (Carta 05) ──────────────────────────────────────
+export const arvoreLicenciamentoTable = pgTable("arvore_licenciamento", {
+  id: serial("id").primaryKey(),
+  parentId: integer("parent_id").notNull().references(() => empresasTable.id),
+  childId: integer("child_id").notNull().references(() => empresasTable.id),
+  tipo: text("tipo").notNull(),                             // 'sub_unidade' | 'licenciada'
+  percentualRoyalty: numeric("percentual_royalty", { precision: 5, scale: 2 }).notNull().default("30.00"),
+  valorMensal: numeric("valor_mensal", { precision: 12, scale: 2 }),
+  modeloCobranca: text("modelo_cobranca").default("mensalidade"),
+  ativo: boolean("ativo").notNull().default(true),
+  autorizadoPorId: integer("autorizado_por_id").notNull(),
+  dataInicio: date("data_inicio").notNull().defaultNow(),
+  dataFim: date("data_fim"),
+  motivoEncerramento: text("motivo_encerramento"),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).defaultNow(),
+});
+
+export type ArvoreLicenciamento = typeof arvoreLicenciamentoTable.$inferSelect;

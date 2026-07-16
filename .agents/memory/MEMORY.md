@@ -1,5 +1,6 @@
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
 - [SaaS Multi-tenant ONDA A/B/C](saas-multitenant-onda-abc.md) — schema piramide (empresas), migration SQL manual nas 35 tabelas clinicas (nunca db push), backfill empresa_id=5, tenantContextMiddleware registrado em app.ts.
+- [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
 - [api-zod barrel TS2308](api-zod-barrel-ts2308.md) — index.ts exporta SÓ generated/api; reexportar generated/types colide const zod x type homônimo; export type * não resolve.
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; UNDEFINED min R$5; chave prod só vale em prod.

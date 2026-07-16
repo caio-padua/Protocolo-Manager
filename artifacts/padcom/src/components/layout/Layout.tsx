@@ -53,6 +53,7 @@ import {
   Send,
   Files,
   Compass,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -179,6 +180,7 @@ const navigation: NavEntry[] = [
     name: "Estrutura & Governança",
     icon: Network,
     children: [
+      { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
       { name: "Hierarquia", href: "/hierarquia", icon: Network },
       { name: "Governança", href: "/cadastros/governanca", icon: Landmark },
     ],
