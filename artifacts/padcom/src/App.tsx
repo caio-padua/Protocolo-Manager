@@ -39,6 +39,7 @@ import CadastroConfigExames from "@/pages/cadastros/config-exames";
 import CadastroConsoleExames from "@/pages/cadastros/console-exames";
 import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
+import CadastroEmpresas from "@/pages/cadastros/empresas";
 import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
@@ -189,6 +190,7 @@ function Router() {
                   <Route path="/cadastros/planilha-faixas" component={CadastroConsoleExames} />
                   <Route path="/cadastros/listas" component={CadastroListas} />
                   <Route path="/cadastros/clinicas" component={CadastroClinicas} />
+                  <Route path="/cadastros/empresas" component={CadastroEmpresas} />
                   <Route path="/cadastros/agendas-google" component={CadastroAgendasGoogle} />
                   <Route path="/cadastros/equipe" component={CadastroEquipe} />
                   <Route path="/cadastros/textos" component={CadastroTextos} />

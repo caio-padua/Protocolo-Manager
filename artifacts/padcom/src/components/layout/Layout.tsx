@@ -159,6 +159,7 @@ const navigation: NavEntry[] = [
     name: "Configurações & Administração",
     icon: Settings,
     children: [
+      { name: "Empresas Licenciadas", href: "/cadastros/empresas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },

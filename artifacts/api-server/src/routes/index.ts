@@ -65,6 +65,7 @@ import cid10Router from "./cid10";
 import encaminhamentosRouter from "./encaminhamentos";
 import documentTemplatesRouter from "./document-templates";
 import clientServiceAddressesRouter from "./client-service-addresses";
+import empresasRouter from "./empresas";
 
 const router: IRouter = Router();
 
@@ -156,5 +157,6 @@ router.use(cid10Router);
 router.use(encaminhamentosRouter);
 router.use(documentTemplatesRouter);
 router.use(clientServiceAddressesRouter);
+router.use(empresasRouter);
 
 export default router;
