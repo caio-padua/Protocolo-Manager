@@ -603,7 +603,8 @@ export default function Professionals() {
             </DialogHeader>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3">
-              <TabsList className="w-full border-none h-auto p-0 bg-transparent flex gap-2 mb-5">
+              {/* Painel superior saliente — barra de abas como botões físicos */}
+              <TabsList className="panel-3d-sub w-full border-none h-auto p-2 flex gap-2 mb-5">
                 {[
                   { value: "dados", label: "DADOS", icon: User },
                   { value: "vinculos", label: "VÍNCULOS", icon: Link2, disabled: !editingId },
@@ -614,7 +615,7 @@ export default function Professionals() {
                     type="button"
                     disabled={disabled}
                     onClick={() => !disabled && setActiveTab(value)}
-                    className={`${activeTab === value ? "bevel-3d text-primary" : "concave-3d text-muted-foreground"} flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
+                    className={`${activeTab === value ? "bevel-3d text-primary" : "concave-3d text-muted-foreground/60"} flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed`}
                   >
                     <Icon className="h-3 w-3" /> {label}
                   </button>
