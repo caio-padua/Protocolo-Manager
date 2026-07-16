@@ -11,7 +11,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { db } from "@workspace/db";
 import { empresasTable, clientsTable, sessionsTable, paymentsTable, stockItemsTable } from "@workspace/db/schema";
-import { eq, and, gte, lt, count, sum, sql } from "drizzle-orm";
+import { eq, and, gte, lt, count, sum, sql, asc } from "drizzle-orm";
 import { requirePlatformOwner } from "../middleware/tenantContext";
 
 const router = Router();
@@ -145,7 +145,10 @@ router.get("/ceo/resumo", requirePlatformOwner, async (_req: Request, res: Respo
       .select()
       .from(empresasTable)
       .where(eq(empresasTable.ativa, true))
-      .orderBy(empresasTable.nome);
+      .orderBy(
+        sql`CASE WHEN ${empresasTable.tipoRelacionamento} = 'propria' THEN 0 ELSE 1 END`,
+        asc(empresasTable.nome),
+      );
 
     const resumos = await Promise.all(
       empresas.map((e) => buildResumo(e.id, e)),
@@ -172,7 +175,10 @@ router.get("/ceo/stream", requirePlatformOwner, async (_req: Request, res: Respo
         .select()
         .from(empresasTable)
         .where(eq(empresasTable.ativa, true))
-        .orderBy(empresasTable.nome);
+        .orderBy(
+          sql`CASE WHEN ${empresasTable.tipoRelacionamento} = 'propria' THEN 0 ELSE 1 END`,
+          asc(empresasTable.nome),
+        );
 
       const resumos = await Promise.all(
         empresas.map((e) => buildResumo(e.id, e)),

@@ -104,7 +104,7 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
           <div className="flex items-center gap-2">
             <Building2 size={16} className="text-[#45B8CC] shrink-0" />
             <span className="text-white font-bold text-base leading-tight uppercase tracking-wide">
-              {empresa.nick ?? empresa.nome}
+              {empresa.nick?.trim() || empresa.nome}
             </span>
             {empresa.podeSublicenciar && (
               <Crown size={12} className="text-amber-400 shrink-0" title="Pode sub-licenciar" />
