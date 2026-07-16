@@ -11,7 +11,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { db } from "@workspace/db";
 import { empresasTable, clientsTable, sessionsTable, paymentsTable, stockItemsTable } from "@workspace/db/schema";
-import { eq, and, gte, lt, count, sum, sql, asc } from "drizzle-orm";
+import { eq, and, gte, lt, count, sum, sql, asc, ne } from "drizzle-orm";
 import { requirePlatformOwner } from "../middleware/tenantContext";
 
 const router = Router();
@@ -141,12 +141,19 @@ async function buildResumo(empresaId: number, empresa: typeof empresasTable.$inf
 
 router.get("/ceo/resumo", requirePlatformOwner, async (_req: Request, res: Response): Promise<void> => {
   try {
+    // isPlatformOwner=true = a própria PAXTER (sistema) — nunca aparece como clínica
     const empresas = await db
       .select()
       .from(empresasTable)
-      .where(eq(empresasTable.ativa, true))
+      .where(
+        and(
+          eq(empresasTable.ativa, true),
+          ne(empresasTable.isPlatformOwner, true),
+        ),
+      )
       .orderBy(
-        sql`CASE WHEN ${empresasTable.tipoRelacionamento} = 'propria' THEN 0 ELSE 1 END`,
+        // Instituto Pádua (id=5) fixo em primeiro — clínica-âncora do CEO
+        sql`CASE WHEN ${empresasTable.id} = 5 THEN 0 ELSE 1 END`,
         asc(empresasTable.nome),
       );
 
@@ -174,9 +181,14 @@ router.get("/ceo/stream", requirePlatformOwner, async (_req: Request, res: Respo
       const empresas = await db
         .select()
         .from(empresasTable)
-        .where(eq(empresasTable.ativa, true))
+        .where(
+          and(
+            eq(empresasTable.ativa, true),
+            ne(empresasTable.isPlatformOwner, true),
+          ),
+        )
         .orderBy(
-          sql`CASE WHEN ${empresasTable.tipoRelacionamento} = 'propria' THEN 0 ELSE 1 END`,
+          sql`CASE WHEN ${empresasTable.id} = 5 THEN 0 ELSE 1 END`,
           asc(empresasTable.nome),
         );
 
