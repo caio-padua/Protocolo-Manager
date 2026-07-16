@@ -47,6 +47,7 @@ import {
   CheckCircle2,
   Circle,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { tituloProprio } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -243,12 +244,194 @@ function SignatureUpload({
   );
 }
 
-// ─── Painel de Vínculos (clínicas) ────────────────────────────────────────────
+// ─── Painel de Vínculos (clínicas) — agrupamento geográfico ──────────────────
 type LinkRow = { id: number; locationId: number; role: string; agendaCalendarId: number | null };
+type LocRow  = { id: number; name: string; type: string; address: string | null };
+
+// ── Mapeamento de bairros SP → zonas ──────────────────────────────────────────
+const SP_ZONES: Record<string, string[]> = {
+  "Zona Leste":         ["tatuapé", "mooca", "belém", "penha", "itaquera", "são mateus", "vila formosa", "sapopemba", "aricanduva"],
+  "Zona Sul / Moema":   ["moema", "saúde", "vila mariana", "ipiranga", "campo belo", "jabaquara", "santo amaro"],
+  "Centro / Higienópolis": ["higienópolis", "bela vista", "república", "sé", "consolação", "cerqueira césar", "liberdade", "santa cecília"],
+  "Zona Oeste / Pinheiros": ["pinheiros", "perdizes", "lapa", "alto de pinheiros", "vila madalena", "butantã", "vila sônia"],
+  "Zona Norte":         ["santana", "tucuruvi", "pirituba", "casa verde", "cachoeirinha", "mandaqui"],
+  "Grande ABC / ABCD":  ["santo andré", "são bernardo", "são caetano", "diadema", "mauá", "ribeirão pires"],
+};
+
+const STATE_META: Record<string, { icon: string; label: string; accent: string }> = {
+  SP: { icon: "🌆", label: "São Paulo",   accent: "border-cyan-400/60" },
+  RJ: { icon: "🏖️", label: "Rio de Janeiro", accent: "border-sky-400/60" },
+  DF: { icon: "🏛️", label: "Brasília (DF)", accent: "border-amber-400/60" },
+  MG: { icon: "⛏️", label: "Minas Gerais", accent: "border-orange-400/60" },
+  PB: { icon: "🌴", label: "Paraíba",     accent: "border-emerald-400/60" },
+  RS: { icon: "🧉", label: "Rio Grande do Sul", accent: "border-teal-400/60" },
+  PR: { icon: "🌲", label: "Paraná",      accent: "border-green-400/60" },
+  SC: { icon: "🏔️", label: "Santa Catarina", accent: "border-blue-400/60" },
+  BA: { icon: "☀️", label: "Bahia",       accent: "border-yellow-400/60" },
+  PE: { icon: "🎭", label: "Pernambuco",  accent: "border-rose-400/60" },
+  GO: { icon: "🌿", label: "Goiás",       accent: "border-lime-400/60" },
+};
+
+function extractGeo(address: string | null): { state: string; city: string; neighborhood: string } {
+  if (!address) return { state: "—", city: "—", neighborhood: "" };
+  // ex.: "Rua X, 100 - Tatuapé - São Paulo - SP, CEP ..." ou "Av X, Bairro, Cidade - UF"
+  const stateMatch = address.match(/\b([A-Z]{2})\b(?:\s*[\-,]\s*[\d\s-]*)?$/);
+  const state = stateMatch ? stateMatch[1] : "—";
+
+  const cleanedForCity = address.replace(/\s*[\-,]?\s*[A-Z]{2}\b.*$/, "").trim();
+  const parts = cleanedForCity.split(/[\-,]/).map((s) => s.trim()).filter(Boolean);
+
+  // Cidade = penúltima ou última parte substancial (≥3 letras)
+  const city = [...parts].reverse().find((p) => p.length >= 3 && /\p{L}/u.test(p) && !/^\d/.test(p)) ?? "—";
+
+  // Bairro = antepenúltima parte substancial diferente da cidade
+  const cityLow = city.toLowerCase();
+  const neighborhood = [...parts]
+    .reverse()
+    .find((p) => p.length >= 3 && p.toLowerCase() !== cityLow && !/^\d/.test(p) && p !== city) ?? "";
+
+  return { state, city, neighborhood };
+}
+
+function spZoneFor(neighborhood: string): string {
+  const n = neighborhood.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
+  for (const [zone, bairros] of Object.entries(SP_ZONES)) {
+    if (bairros.some((b) => n.includes(b.normalize("NFD").replace(/\p{Mn}/gu, "")))) return zone;
+  }
+  return "Outras Regiões";
+}
+
+// ── Linha individual de local ─────────────────────────────────────────────────
+function LocRow({ loc, linked, busy, onToggle }: {
+  loc: LocRow; linked: boolean; busy: boolean; onToggle: () => void;
+}) {
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 transition-all rounded-none ${linked ? "bevel-3d" : "concave-3d"}`}>
+      <div className="flex-shrink-0">
+        {linked
+          ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          : <Circle className="h-4 w-4 text-muted-foreground/30" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-black uppercase tracking-wide leading-tight text-foreground truncate">
+          {loc.name}
+        </p>
+        {loc.address && loc.address !== loc.type && (
+          <p className="text-[9px] font-semibold text-muted-foreground/70 flex items-center gap-1 mt-0.5 truncate">
+            <MapPin className="h-2 w-2 shrink-0" />
+            {loc.address}
+          </p>
+        )}
+      </div>
+      <Switch checked={linked} disabled={busy} onCheckedChange={onToggle} />
+    </div>
+  );
+}
+
+// ── Painel de um estado ───────────────────────────────────────────────────────
+function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
+  state: string;
+  locs: LocRow[];
+  linkedFn: (id: number) => boolean;
+  busyFn: (id: number) => boolean;
+  onToggle: (id: number) => void;
+}) {
+  const meta = STATE_META[state] ?? { icon: "📍", label: state === "—" ? "Sem endereço" : state, accent: "border-muted/40" };
+  const linkedCount = locs.filter((l) => linkedFn(l.id)).length;
+  const [open, setOpen] = useState(true);
+
+  // Para SP: agrupar por zona de bairros
+  const renderContent = () => {
+    if (state === "SP") {
+      const byZone = new Map<string, LocRow[]>();
+      for (const loc of locs) {
+        const geo = extractGeo(loc.address);
+        const zone = spZoneFor(geo.neighborhood || geo.city);
+        byZone.set(zone, [...(byZone.get(zone) ?? []), loc]);
+      }
+      // Ordenar: zonas com vínculos ativos primeiro
+      const sorted = [...byZone.entries()].sort(([, a], [, b]) => {
+        const aLinked = a.some((l) => linkedFn(l.id));
+        const bLinked = b.some((l) => linkedFn(l.id));
+        return bLinked ? 1 : aLinked ? -1 : 0;
+      });
+      return (
+        <div className="space-y-2 pt-1">
+          {sorted.map(([zone, zoneLocs]) => {
+            const zoneLinked = zoneLocs.filter((l) => linkedFn(l.id)).length;
+            return (
+              <div key={zone} className="panel-3d-sub px-2 py-2">
+                <div className="flex items-center gap-2 mb-1.5 px-1">
+                  <MapPin className="h-3 w-3 text-primary shrink-0" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-primary">{zone}</span>
+                  {zoneLinked > 0 && (
+                    <span className="ml-auto text-[9px] font-bold bg-emerald-500/15 text-emerald-600 px-1.5 py-0.5 rounded-sm">
+                      {zoneLinked} ativo{zoneLinked > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {zoneLocs.map((loc) => (
+                    <LocRow
+                      key={loc.id}
+                      loc={loc}
+                      linked={linkedFn(loc.id)}
+                      busy={busyFn(loc.id)}
+                      onToggle={() => onToggle(loc.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    // Outros estados: lista plana
+    return (
+      <div className="space-y-1.5 pt-1">
+        {locs.map((loc) => (
+          <LocRow
+            key={loc.id}
+            loc={loc}
+            linked={linkedFn(loc.id)}
+            busy={busyFn(loc.id)}
+            onToggle={() => onToggle(loc.id)}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className={`bevel-3d border-l-2 ${meta.accent} overflow-hidden`}>
+      {/* Cabeçalho do estado — clicável para recolher */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-primary/5 transition-colors"
+      >
+        <span className="text-base leading-none">{meta.icon}</span>
+        <div className="flex-1 text-left">
+          <span className="text-[11px] font-black uppercase tracking-widest text-foreground">{meta.label}</span>
+          <span className="ml-2 text-[9px] text-muted-foreground">{locs.length} local{locs.length !== 1 ? "is" : ""}</span>
+        </div>
+        {linkedCount > 0 && (
+          <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-700 px-2 py-0.5 rounded-sm shrink-0">
+            {linkedCount} vinculado{linkedCount > 1 ? "s" : ""}
+          </span>
+        )}
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && <div className="px-2 pb-2">{renderContent()}</div>}
+    </div>
+  );
+}
 
 function VinculosPanel({ professionalId }: { professionalId: number }) {
   const { toast } = useToast();
-  const [locations, setLocations] = useState<Array<{ id: number; name: string; type: string; address: string | null }>>([]);
+  const [locations, setLocations] = useState<LocRow[]>([]);
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<number | null>(null);
@@ -266,7 +449,8 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
 
-  const isLinked = (locationId: number) => links.some((l) => l.locationId === locationId);
+  const isLinked  = useCallback((id: number) => links.some((l) => l.locationId === id), [links]);
+  const isBusy    = useCallback((id: number) => toggling === id, [toggling]);
 
   async function toggle(locationId: number) {
     setToggling(locationId);
@@ -305,37 +489,36 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
     );
   }
 
+  // ── Agrupar por estado ────────────────────────────────────────────────────
+  const byState = new Map<string, LocRow[]>();
+  for (const loc of locations) {
+    const { state } = extractGeo(loc.address);
+    byState.set(state, [...(byState.get(state) ?? []), loc]);
+  }
+
+  // Ordem: estados com vínculos ativos primeiro, depois alfabético
+  const statesSorted = [...byState.entries()].sort(([sa, la], [sb, lb]) => {
+    const aActive = la.some((l) => isLinked(l.id));
+    const bActive = lb.some((l) => isLinked(l.id));
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    return sa.localeCompare(sb, "pt-BR");
+  });
+
   return (
     <div className="space-y-3 py-2">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         O vínculo é salvo imediatamente ao acionar o switch.
       </p>
-      {locations.map((loc) => {
-        const linked = isLinked(loc.id);
-        const busy = toggling === loc.id;
-        return (
-          <div
-            key={loc.id}
-            className={`flex items-center gap-4 px-4 py-3 transition-all ${linked ? "bevel-3d" : "concave-3d"}`}
-          >
-            <div className="flex-shrink-0">
-              {linked
-                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                : <Circle className="h-4 w-4 text-muted-foreground/40" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wide leading-tight text-foreground truncate">
-                {loc.name}
-              </p>
-              <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 mt-0.5">
-                <MapPin className="h-2.5 w-2.5" />
-                {loc.address ?? loc.type}
-              </p>
-            </div>
-            <Switch checked={linked} disabled={busy} onCheckedChange={() => toggle(loc.id)} />
-          </div>
-        );
-      })}
+      {statesSorted.map(([state, locs]) => (
+        <StateBucket
+          key={state}
+          state={state}
+          locs={locs}
+          linkedFn={isLinked}
+          busyFn={isBusy}
+          onToggle={toggle}
+        />
+      ))}
     </div>
   );
 }
