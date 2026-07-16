@@ -5,7 +5,46 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-// Todos os campos editáveis da tabela empresas
+// ── CAMPOS SENSÍVEIS — nunca retornam no GET público ──────────────────────────
+// Falha 1 (IHE audit): tokens de integração vazavam via GET sem auth.
+// Falha 5 (IHE audit): CPF do responsável legal e colaboradores expostos em texto.
+const CAMPOS_CREDENCIAL = new Set([
+  "zapsignToken",
+  "waToken",
+  "twilioAuthToken",
+  "telegramBotToken",
+  "certFileId",           // localização do certificado A1 no Drive
+  "certDriveFolderId",
+]);
+
+// CPF: exibe só os 4 últimos dígitos visíveis — "***.***.***-06"
+function mascaraCpf(cpf: string | null | undefined): string | null {
+  if (!cpf) return null;
+  const limpo = cpf.replace(/\D/g, "");
+  if (limpo.length !== 11) return "***.***.***-**";
+  return `***.***.*${limpo[7]}${limpo[8]}-${limpo[9]}${limpo[10]}`;
+}
+
+type EmpresaRow = typeof empresasTable.$inferSelect;
+
+// Remove credenciais e mascara CPF antes de enviar ao cliente
+function sanitizarEmpresa(row: EmpresaRow) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (CAMPOS_CREDENCIAL.has(k)) {
+      // Retorna indicador booleano: o campo está configurado (true) ou vazio (false)
+      // O front pode mostrar "✓ Configurado" sem expor o valor
+      out[k + "Configurado"] = !!v;
+    } else if (k === "responsavelLegalCpf") {
+      out[k] = mascaraCpf(v as string);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+// Todos os campos editáveis da tabela empresas (exceto credenciais — essas têm rota própria)
 const CAMPOS_EMPRESA = [
   "nome","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","timezone",
   // Fiscal/Jurídico
@@ -23,31 +62,34 @@ const CAMPOS_EMPRESA = [
   // NF-e / NFS-e
   "nfeAmbiente","nfeSerie","nfeProximoNumero","nfeCodigoServico","nfeAliquotaIss",
   "nfeCodigoIss","nfeDiscriminacaoPadrao","optanteSimples",
-  // Certificado digital
-  "certTipo","certDriveFolderId","certFileId","certFileName","certValidade","certStatus",
-  // ZapSign
-  "zapsignToken","zapsignContaCriada","zapsignEmail",
-  // WhatsApp
-  "waNumero","waPhoneNumberId","waBusinessAccountId","waToken",
-  // Twilio por empresa
-  "twilioAccountSid","twilioAuthToken","twilioNumero",
-  // Telegram
-  "telegramBotToken","telegramChatId","telegramBotUsername",
-  // Zoho
-  "zohoEmail","zohoStatus",
-  // Google
-  "googleCalendarId","googleDriveFolderId",
+  // Certificado digital (campos públicos — sem certFileId/certDriveFolderId)
+  "certTipo","certFileName","certValidade","certStatus",
+  // ZapSign (campos públicos — sem zapsignToken)
+  "zapsignContaCriada","zapsignEmail",
+  // WhatsApp (campos públicos — sem waToken)
+  "waNumero","waPhoneNumberId","waBusinessAccountId",
+  // Twilio (campos públicos — sem twilioAuthToken)
+  "twilioAccountSid","twilioNumero",
+  // Telegram (campos públicos — sem telegramBotToken)
+  "telegramChatId","telegramBotUsername",
+  // Zoho / Google
+  "zohoEmail","zohoStatus","googleCalendarId","googleDriveFolderId",
   // Drive/Documentos
   "driveFolderEmpresaId","driveContratoSocialId","driveAlvaraId","driveCrmId",
   // Módulos e contrato
   "modulosAtivos","tipoContrato","fatMetaMensal",
 ];
 
+// Campos que aceitam credencial no PUT (gravação — protegida pelo collaboratorGuard global)
+const CAMPOS_CREDENCIAL_ESCRITA = [
+  "zapsignToken","waToken","twilioAuthToken","telegramBotToken","certFileId","certDriveFolderId",
+];
+
 // ── EMPRESAS ──────────────────────────────────────────────────────────────────
 
 router.get("/empresas", async (req, res): Promise<void> => {
   const rows = await db.select().from(empresasTable).orderBy(empresasTable.id);
-  res.json(rows);
+  res.json(rows.map(sanitizarEmpresa));
 });
 
 router.get("/empresas/:id", async (req, res): Promise<void> => {
@@ -57,15 +99,37 @@ router.get("/empresas/:id", async (req, res): Promise<void> => {
   if (!row) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
 
   const cargos = await db.select().from(cargosTable).where(eq(cargosTable.empresaId, id));
-  const colaboradores = await db.select().from(colaboradoresTable).where(eq(colaboradoresTable.empresaId, id));
-  res.json({ ...row, cargos, colaboradores });
+  const colaboradores = await db
+    .select().from(colaboradoresTable).where(eq(colaboradoresTable.empresaId, id))
+    .then(rows => rows.map(c => ({ ...c, cpf: mascaraCpf(c.cpf) })));
+
+  res.json({ ...sanitizarEmpresa(row), cargos, colaboradores });
+});
+
+// ── Rota de credenciais — exclusiva para o CEO (protegida) ───────────────────
+// TODO Fase 1: adicionar guard de role "ceo" quando o sistema de roles existir.
+// Por ora: rota separada documentada — não retorna no GET padrão.
+router.get("/empresas/:id/integracoes", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+  const [row] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
+  if (!row) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+
+  // Retorna SOMENTE os campos de credencial — nada mais
+  res.json({
+    zapsignToken: row.zapsignToken ? "••••" + row.zapsignToken.slice(-4) : null,
+    waToken: row.waToken ? "••••" + row.waToken.slice(-4) : null,
+    twilioAuthToken: row.twilioAuthToken ? "••••" + row.twilioAuthToken.slice(-4) : null,
+    telegramBotToken: row.telegramBotToken ? "••••" + row.telegramBotToken.slice(-4) : null,
+    certFileId: row.certFileId,
+    certDriveFolderId: row.certDriveFolderId,
+  });
 });
 
 router.post("/empresas", async (req, res): Promise<void> => {
   const body = req.body;
   if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
 
-  // Sugestão automática de e-mail Zoho ao criar
   const nick = (body.nick || body.nome).toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "").slice(0, 20);
   const zohoSugerido = body.zohoEmail || `${nick}@padcon.com.br`;
 
@@ -79,14 +143,15 @@ router.post("/empresas", async (req, res): Promise<void> => {
     zohoStatus: body.zohoStatus || "sugerido",
   };
 
-  for (const campo of CAMPOS_EMPRESA) {
+  const todosCampos = [...CAMPOS_EMPRESA, ...CAMPOS_CREDENCIAL_ESCRITA];
+  for (const campo of todosCampos) {
     if (campo in body && payload[campo] === undefined) {
       payload[campo] = body[campo];
     }
   }
 
   const [inserted] = await db.insert(empresasTable).values(payload as never).returning();
-  res.status(201).json(inserted);
+  res.status(201).json(sanitizarEmpresa(inserted));
 });
 
 router.put("/empresas/:id", async (req, res): Promise<void> => {
@@ -94,13 +159,14 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
 
   const updates: Record<string, unknown> = { atualizadoEm: new Date() };
-  for (const f of CAMPOS_EMPRESA) {
+  const todosCampos = [...CAMPOS_EMPRESA, ...CAMPOS_CREDENCIAL_ESCRITA];
+  for (const f of todosCampos) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
   }
 
   const [updated] = await db.update(empresasTable).set(updates).where(eq(empresasTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
-  res.json(updated);
+  res.json(sanitizarEmpresa(updated));
 });
 
 router.delete("/empresas/:id", async (req, res): Promise<void> => {
@@ -166,7 +232,8 @@ router.get("/empresas/:id/colaboradores", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   const rows = await db.select().from(colaboradoresTable).where(eq(colaboradoresTable.empresaId, id));
-  res.json(rows);
+  // CPF mascarado — LGPD (Falha 5 auditoria IHE)
+  res.json(rows.map(c => ({ ...c, cpf: mascaraCpf(c.cpf) })));
 });
 
 router.post("/empresas/:id/colaboradores", async (req, res): Promise<void> => {
@@ -177,7 +244,8 @@ router.post("/empresas/:id/colaboradores", async (req, res): Promise<void> => {
     empresaId, nomeCompleto, cpf, emailFuncional, telefone,
     statusAtivo: statusAtivo ?? true, dataAdmissao, dataDemissao, cargoId,
   }).returning();
-  res.status(201).json(inserted);
+  // Retorna com CPF mascarado
+  res.status(201).json({ ...inserted, cpf: mascaraCpf(inserted.cpf) });
 });
 
 router.put("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<void> => {
@@ -188,7 +256,7 @@ router.put("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<voi
   for (const f of fields) { if (req.body[f] !== undefined) updates[f] = req.body[f]; }
   const [updated] = await db.update(colaboradoresTable).set(updates).where(eq(colaboradoresTable.id, colabId)).returning();
   if (!updated) { res.status(404).json({ error: "Colaborador não encontrado" }); return; }
-  res.json(updated);
+  res.json({ ...updated, cpf: mascaraCpf(updated.cpf) });
 });
 
 router.delete("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<void> => {
