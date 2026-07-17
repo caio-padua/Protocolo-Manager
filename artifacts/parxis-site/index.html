@@ -1,24 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR" style="background:#050505;margin:0;padding:0">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Parxis — Motor Clínico</title>
-    <meta name="description" content="Parxis — Motor Clínico — built on Replit. Update this description to reflect the app." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+
+    <!-- ── PWA / Theme ─────────────────────────────────────── -->
+    <meta name="theme-color" content="#050505" />
+    <meta name="background-color" content="#050505" />
+
+    <!-- ── Apple PWA ───────────────────────────────────────── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="PARXIS" />
+    <link rel="apple-touch-icon" href="/parxis/brand/parxis-symbol.png" />
+
+    <!-- ── Manifest ────────────────────────────────────────── -->
+    <link rel="manifest" href="/parxis/manifest.json" />
+
+    <!-- ── SEO / OG ────────────────────────────────────────── -->
+    <title>PARXIS — Motor Clínico</title>
+    <meta name="description" content="O sistema de gestão clínica definitivo para protocolos injetáveis de alta complexidade. Do protocolo ao arquivo — totalmente integrado, juridicamente seguro, clinicamente preciso." />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Parxis — Motor Clínico" />
-    <meta property="og:description" content="Parxis — Motor Clínico — built on Replit. Update this description to reflect the app." />
+    <meta property="og:title" content="PARXIS — Motor Clínico" />
+    <meta property="og:description" content="Do protocolo ao arquivo — totalmente integrado, juridicamente seguro, clinicamente preciso." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Parxis — Motor Clínico" />
-    <meta name="twitter:description" content="Parxis — Motor Clínico — built on Replit. Update this description to reflect the app." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="twitter:title" content="PARXIS — Motor Clínico" />
+
+    <!-- ── Favicon ─────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/parxis/brand/parxis-symbol.png" />
+
+    <!-- ── Inline: fundo preto IMEDIATO antes do JS ────────── -->
+    <style>
+      html, body {
+        background: #050505 !important;
+        margin: 0;
+        padding: 0;
+        min-height: 100dvh;
+      }
+      #root {
+        background: #050505;
+        min-height: 100dvh;
+      }
+      /* Splash de carregamento — some quando o React monta */
+      #splash {
+        position: fixed;
+        inset: 0;
+        background: #050505;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+      }
+      #splash.hidden { opacity: 0; pointer-events: none; }
+      #splash svg { animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.5; transform: scale(0.97); }
+        50%       { opacity: 1;   transform: scale(1.03); }
+      }
+    </style>
+
+    <!-- ── Fontes ───────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Michroma&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   </head>
-  <body>
+  <body style="background:#050505;margin:0">
+
+    <!-- Splash visível até o React montar -->
+    <div id="splash">
+      <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Símbolo PARXIS simplificado em SVG inline -->
+        <rect x="8" y="8" width="56" height="56" rx="10" fill="none" stroke="#F2B817" stroke-width="1.5" opacity="0.3"/>
+        <text x="36" y="46" text-anchor="middle" font-family="Michroma,monospace" font-size="26" fill="#F2B817" letter-spacing="2">RX</text>
+      </svg>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Remove splash quando React terminar de montar -->
+    <script>
+      (function() {
+        var splash = document.getElementById('splash');
+        if (!splash) return;
+        // Esconde após o primeiro paint do React (máx 4s)
+        var observer = new MutationObserver(function() {
+          if (document.getElementById('root').children.length > 0) {
+            setTimeout(function() {
+              splash.classList.add('hidden');
+              setTimeout(function() { splash.remove(); }, 450);
+            }, 80);
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+        setTimeout(function() { splash.classList.add('hidden'); setTimeout(function() { splash.remove(); }, 450); }, 4000);
+      })();
+    </script>
+
+    <!-- Service Worker: cache para carregamento instantâneo -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/parxis/sw.js').catch(function(){});
+        });
+      }
+    </script>
   </body>
 </html>

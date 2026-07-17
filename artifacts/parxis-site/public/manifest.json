@@ -1,0 +1,26 @@
+{
+  "name": "PARXIS — Motor Clínico",
+  "short_name": "PARXIS",
+  "description": "Sistema de gestão clínica para protocolos injetáveis de alta complexidade.",
+  "start_url": "/parxis/",
+  "scope": "/parxis/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/parxis/brand/parxis-symbol.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/parxis/brand/parxis-symbol.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
