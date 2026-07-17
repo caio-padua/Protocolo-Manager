@@ -261,14 +261,17 @@
 .animate-fade-up-delay-2 { animation-delay: 0.30s; opacity: 0; }
 .animate-fade-up-delay-3 { animation-delay: 0.45s; opacity: 0; }
 
-/* ── Respiro do símbolo (Manual §26) ─────────────────────── */
+/* ── Respiro do símbolo (legado) ─────────────────────────── */
 @keyframes symbol-breath {
   0%, 100% { transform: scale(1.000); }
   50%       { transform: scale(1.012); }
 }
+.symbol-breath { animation: symbol-breath 6s ease-in-out infinite; }
 
-.symbol-breath {
-  animation: symbol-breath 6s ease-in-out infinite;
+/* ── Aura dourada de fundo (usada pelo ParxisLogo) ──────── */
+@keyframes auraBreath {
+  0%, 100% { opacity: 0.55; transform: translate(-50%,-50%) scale(1.00); }
+  50%       { opacity: 1.00; transform: translate(-50%,-50%) scale(1.18); }
 }
 
 /* ── Glow do símbolo no hover ────────────────────────────── */
