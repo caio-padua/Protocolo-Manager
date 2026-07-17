@@ -13,7 +13,7 @@ export default function Home() {
       <nav className="fixed top-0 w-full z-50 glass-panel border-b border-white/5">
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center">
-            <ParxisWordmark width={110} />
+            <ParxisWordmark fontSize={22} />
           </div>
           <a 
             href={WHATSAPP_URL}

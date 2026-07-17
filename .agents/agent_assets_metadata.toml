@@ -48,6 +48,24 @@ uri = "file://attached_assets/generated_images/the_single_word_parxis_6b1e.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "t2Up7iWmCqktsf5lCBdAm"
+uri = "file://attached_assets/generated_images/the_word_parxis_as_bf6e.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "WDVYuxsrCgx5888O9Q4XN"
+uri = "file://attached_assets/generated_images/wide_horizontal_wordmark_the_221e.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Y8iBk9wRxOUtPLKBR0E7l"
+uri = "file://attached_assets/generated_images/wide_horizontal_wordmark_parxis_3698.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "J6wH7DLw0tYOwzoNt5av7"
 uri = "file://PADCOM_TECHNICAL_BRIEFING.md"
