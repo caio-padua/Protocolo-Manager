@@ -556,7 +556,7 @@ export default function Home() {
             {/* ── ESQUERDA: texto ── */}
             <div className="flex-1 lg:pr-16 text-center lg:text-left">
               {/* Eyebrow */}
-              <p className="animate-fade-up mb-6" style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 11, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase" }}>
+              <p className="animate-fade-up mb-6" style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase" }}>
                 {t.hero.descriptor}
               </p>
 
