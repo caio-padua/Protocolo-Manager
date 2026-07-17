@@ -275,3 +275,9 @@ id = "2mr4x6Q0b4XeHAWelWHv0"
 uri = "file://artifacts/padcom/public/ras_fap_amostra.pdf"
 type = "pdf"
 title = "RAS FAP — Versão atual"
+
+[[outputs]]
+id = "k8NPBUxvMcXX6VWPHj7x1"
+uri = "file://exports/TEXTO PARA DESENVOLVIMENTO SITE PARXIS.txt"
+type = "text"
+title = "TEXTO PARA DESENVOLVIMENTO SITE PARXIS"

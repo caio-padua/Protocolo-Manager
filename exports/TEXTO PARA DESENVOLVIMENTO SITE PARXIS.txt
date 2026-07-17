@@ -1,0 +1,367 @@
+================================================================
+TEXTO PARA DESENVOLVIMENTO SITE PARXIS
+Briefing Completo para o Lovable — Versao Publica e Protegida
+Empresa: PAWARDS | Produto: PARXIS + PAWARDS MED CORE
+================================================================
+
+
+============================
+CONTEXTO DA MARCA
+============================
+
+Empresa............: PAWARDS — tecnologia clinica de alto padrao
+Sistema operacional.: PARXIS — Motor Clinico para Protocolos Injetaveis
+Sistema de inteligencia: PAWARDS MED CORE — Motor de Inteligencia Clinica
+Publico-alvo.......: Medico empreendedor em medicina integrativa, longevidade, estetica avancada
+Pais...............: Brasil
+Promessa central...: "Da primeira consulta ao arquivo definitivo — sem papel, sem retrabalho, sem risco juridico."
+Paleta oficial.....: Quase-preto #050505 + ouro quente #F2B817
+Fonte de marca.....: Michroma (wordmark)
+Idiomas do site....: Portugues (Brasil) + Ingles (toggle)
+
+
+============================
+FRASES PRONTAS PARA COPY
+============================
+
+HEADLINE PRINCIPAL (PT):
+"O sistema clinico que trabalha enquanto voce cuida."
+
+SUBTITULO (PT):
+"Protocolos injetaveis, exames, prescricoes, financeiro e comunicacao com o cliente — integrados em uma plataforma que pensa junto com o medico."
+
+HEADLINE PRINCIPAL (EN):
+"The clinical system that works while you care."
+
+SUBTITULO (EN):
+"Injectable protocols, exams, prescriptions, financials and client communication — integrated in one platform that thinks alongside the physician."
+
+PROMESSA (PT):
+"Da primeira consulta ao arquivo definitivo — sem papel, sem retrabalho, sem risco juridico."
+
+CTA PRIMARIO (PT/EN):
+"Agendar Demonstracao" / "Schedule a Demo"
+
+CTA SECUNDARIO (PT/EN):
+"Ver Funcionalidades" / "View Features"
+
+
+============================
+DOR DO CLIENTE (6 pain points)
+============================
+
+PT:
+1. Controle em Papel — Protocolos em cadernos e planilhas desconexas, sem rastreabilidade de substancias ou lotes.
+2. Risco Juridico Sem RAS — Administracao de injetaveis sem Registro de Assistencia Sistemica com validade legal e carimbo de tempo.
+3. Prontuario Fragmentado — Historico do cliente espalhado entre WhatsApp, pastas fisicas e sistemas clinicos genericos.
+4. Comunicacao Quebrada — Clientes esquecem sessoes, nao recebem codigo de validacao, nem orientacoes pre e pos-aplicacao.
+5. Exames Perdidos — Laudos enterrados no WhatsApp, sem comparacao de evolucao clinica nem organizacao por data.
+6. Agenda Sem Orquestracao — Boxes de aplicacao ociosos por falta de gestao do ciclo completo do protocolo e da equipe.
+
+EN:
+1. Paper-Based Control — Protocols in notebooks and disconnected spreadsheets, with no substance or batch traceability.
+2. Legal Risk Without RAS — Injectable administration without a legally valid Systemic Assistance Record with a certified timestamp.
+3. Fragmented Records — Client history scattered across WhatsApp, physical folders, and generic clinical systems.
+4. Broken Communication — Clients miss sessions, don't receive validation codes, or pre/post-infusion instructions.
+5. Lost Lab Reports — Results buried in WhatsApp with no clinical evolution comparison or date-based organization.
+6. Unorchestrated Schedule — Idle infusion chairs due to lack of full protocol cycle and nursing team management.
+
+
+============================
+SISTEMA 1 — PARXIS
+30 Modulos (linguagem de beneficio — sem expor tecnologia)
+============================
+
+01. Protocolo Digital — Lancador Guiado
+PT: Monte protocolos completos em uma unica tela. Substancias, datas de inicio, frequencia, dose por item e precificacao individual. O cronograma de sessoes e gerado automaticamente.
+EN: Build complete protocols in a single screen. Substances, start dates, frequency, individual doses and pricing. Session schedule generated automatically.
+Tags: Lancador guiado / Cronograma automatico / Precificacao por item
+
+02. Agenda Semanal Visual
+PT: Visao semanal com cartoes codificados por cor: verde para concluido, amber para parcial, azul para hoje, vermelho para perdido, cinza para cancelado. Gestao de boxes com tempo estimado automatico por tipo de procedimento.
+EN: Weekly view with color-coded cards: green for done, amber for partial, blue for today, red for missed, gray for cancelled. Chair management with automatic estimated time per procedure type.
+Tags: Codigo de cores / Gestao de boxes / Tempo estimado
+
+03. RAS com Validade Juridica
+PT: Registro de Assistencia Sistemica gerado automaticamente com assinatura digital qualificada — padrao juridico nacional. Cada administracao documentada, carimbada e juridicamente blindada conforme CFM e Anvisa.
+EN: Systemic Assistance Record automatically generated with qualified digital signature — national legal standard. Every administration documented, timestamped, and legally shielded per CFM and Anvisa.
+Tags: Assinatura qualificada / CFM e Anvisa / Carimbo de tempo
+
+04. FAP — Formulario de Auditoria em Papel
+PT: Planilha em PDF paisagem para controle manual da enfermagem. Grade consolidada por semana, colunas fixas por substancia, celulas de confirmacao individual. Linha de assinatura com carimbo CRM/COREN.
+EN: Landscape PDF for nursing manual control. Consolidated weekly grid, fixed substance columns, individual confirmation cells. Signature line with CRM/COREN stamp.
+Tags: PDF paisagem / Grade semanal / Auditoria em papel
+
+05. Protocolo Completo PDF
+PT: Documento de 8 a 10 paginas com capa de marca, matriz de beneficios por substancia com classificacao por estrelas, fichas tecnicas, termos de consentimento por via de aplicacao, clausula legal e resumo financeiro.
+EN: 8 to 10 page document with branded cover, substance benefits matrix with star ratings, technical sheets, informed consent by administration route, legal clause and financial summary.
+Tags: 8 a 10 paginas / Termo de consentimento / Resumo financeiro
+
+06. Arquivo Digital Automatico na Nuvem
+PT: O sistema cria e organiza automaticamente a pasta digital do cliente com 15 subpastas tematicas. Todos os PDFs gerados sao enviados para a subpasta correta com nomenclatura padronizada — sem trabalho manual.
+EN: The system automatically creates and organizes the client's digital folder with 15 themed subfolders. All generated PDFs are sent to the correct subfolder with standardized naming — no manual effort.
+Tags: 15 subpastas / Nomenclatura padrao / Upload automatico
+
+07. Comunicacao Automatizada com o Cliente
+PT: O cliente recebe mensagem antes de cada sessao com codigo de verificacao, lista de substancias e orientacoes. Apos a sessao, recebe o registro assinado em anexo. Tudo automatico, com identidade visual da clinica.
+EN: The client receives a message before each session with verification code, substance list and instructions. After the session, receives the signed record as an attachment. All automatic, with the clinic's branding.
+Tags: Pre e pos-sessao / Codigo de verificacao / PDF em anexo
+
+08. Portal Exclusivo do Cliente
+PT: Portal privado para o cliente acompanhar o protocolo, visualizar sessoes agendadas e consultar seu historico. Upload de laudos classificado automaticamente por tipo e roteado para a pasta correta.
+EN: Private portal for the client to follow the protocol, view scheduled sessions and consult history. Lab report upload automatically classified by type and routed to the correct folder.
+Tags: Acesso privado / Upload classificado / Historico completo
+
+09. Estoque com Alertas Inteligentes
+PT: Controle de substancias, solucoes e insumos com alertas automaticos de nivel critico e nivel baixo. Rastreamento de lote, validade e consumo por protocolo.
+EN: Substance, solution and supply control with automatic critical and low-level alerts. Batch tracking, expiration dates and per-protocol consumption tracking.
+Tags: Alerta critico / Rastreio de lote / Validade
+
+10. Financeiro e Controle de Pagamentos
+PT: Registro de recebimentos por modalidade: PIX, cartao, boleto e dinheiro. Parcelamento com identificacao por cartao. Saldo corrente automatico com total pago e pendente por protocolo.
+EN: Payment recording by modality: PIX, card, boleto and cash. Installments with per-card identification. Automatic running balance with total paid and pending per protocol.
+Tags: Multiplas modalidades / Parcelamento / Saldo corrente
+
+11. Catalogo Clinico de Substancias
+PT: Biblioteca expandivel com ficha tecnica completa por substancia: funcao principal, efeitos percebidos, impacto por sistema organico, beneficios em longevidade, sono, energia, libido e performance. Classificacao de eficacia.
+EN: Expandable library with full technical profile per substance: main function, perceived effects, body system impact, longevity, sleep, energy, libido and performance benefits. Efficacy rating.
+Tags: Ficha tecnica / Por sistema organico / Longevidade
+
+12. Anamnese Digital Progressiva
+PT: Questionario clinico estruturado por sistema do corpo com logica dinamica — so mostra o que e relevante para aquele cliente. Alarmes clinicos detectados automaticamente em multiplas camadas de protecao.
+EN: Structured clinical questionnaire by body system with dynamic logic — only shows what is relevant for that client. Clinical alerts detected automatically in multiple protection layers.
+Tags: Logica dinamica / Alarme automatico / Por sistemas
+
+13. Gestao do Corpo Clinico
+PT: Cadastro de medicos, enfermeiras e administrativos com perfis por especializacao e vinculo por localizacao. Cada cargo acessa menus e permissoes proprios — medico ve tudo, enfermeira ve o que e seu.
+EN: Registration of physicians, nurses and staff with profiles by specialization and location binding. Each role has its own menus and permissions — the physician sees everything, the nurse sees what is theirs.
+Tags: Por cargo / Multi-localizacao / Permissoes individuais
+
+14. Sincronizacao com Google Agenda
+PT: Sessoes sincronizadas com ate tres agendas simultaneas: geral, medico e enfermagem. Duracao definida automaticamente pelo tipo de procedimento. Endereco do local de aplicacao incluido no evento.
+EN: Sessions synced to up to three simultaneous calendars: general, physician, and nursing. Duration set automatically by procedure type. Clinic address included in the event.
+Tags: 3 agendas / Duracao automatica / Endereco no evento
+
+15. Prescricao de Formulas Manipuladas
+PT: Receituario completo para farmacias de manipulacao. Ativos, doses, vias e orientacoes organizados em documento clinico impresso no formato exigido pela regulamentacao sanitaria. Assinado digitalmente.
+EN: Full prescription for compounding pharmacies. Active ingredients, doses, routes and usage instructions organized in a clinical document printed in the format required by health regulations. Digitally signed.
+Tags: Formulas manipuladas / Regulamentacao sanitaria / Assinado
+
+16. Numeracao Legal Automatica de Receitas
+PT: Receitas de medicamentos controlados recebem numeracao oficial obrigatoria por lei, na cor e no formato corretos exigidos pela Anvisa e pelo Conselho Federal de Medicina. Zero risco de autuacao.
+EN: Prescriptions for controlled substances receive the mandatory official numbering required by law, in the correct color and format required by Anvisa and the Federal Medical Council. Zero compliance risk.
+Tags: Numeracao oficial / Controlados / Anvisa e CFM
+
+17. Pedido de Exames Ja Formatado
+PT: O medico seleciona o exame e o sistema ja tem o texto do pedido pronto — com preparo do cliente, finalidade clinica e corpo formatado. O medico nao escreve; o sistema gera e imprime.
+EN: The physician selects the exam and the system already has the order text ready — with patient preparation instructions, clinical purpose and formatted body. The physician does not write; the system generates and prints.
+Tags: Texto gerado / Preparo do cliente / PDF oficial
+
+18. Leitura de Laudos por Inteligencia Artificial
+PT: O medico envia o PDF do laudo e a IA extrai cada resultado automaticamente: analito, valor, data e laboratorio. Funciona com laudos digitais e com laudos escaneados em papel. Sem digitacao.
+EN: The physician uploads the report PDF and AI extracts each result automatically: analyte, value, date and laboratory. Works with digital reports and scanned paper reports. No manual entry.
+Tags: IA extrai / Digital mais escaneado / Sem digitacao manual
+
+19. Faixas de Referencia Integrativas
+PT: Os resultados sao interpretados pelas faixas da medicina integrativa — nao so pelo "normal" do laboratorio convencional. O sistema mostra o que e otimo para longevidade, performance e bem-estar.
+EN: Results are interpreted using integrative medicine reference ranges — not just the "normal" from a conventional lab. The system shows what is optimal for longevity, performance and well-being.
+Tags: Referencia integrativa / Longevidade / Alem do convencional
+
+20. Evolucao Visual de Exames no Tempo
+PT: Graficos longitudinais por marcador. O medico mostra ao cliente como a vitamina D, testosterona, cortisol e outros indicadores evoluiram desde o inicio do acompanhamento. Argumento clinico em imagem.
+EN: Longitudinal charts by marker. The physician shows the client how vitamin D, testosterone, cortisol and other indicators have evolved since the beginning of follow-up. Clinical argument in image form.
+Tags: Graficos longitudinais / Evolucao real / Argumento clinico
+
+21. Console de Orcamento Clinico
+PT: Vitrine visual de substancias com precificacao flexivel. Gera automaticamente tres cenarios de pagamento — a vista, entrada com parcelas ou parcelamento total — com descontos e encargos ja calculados.
+EN: Visual substance showcase with flexible pricing. Automatically generates three payment scenarios — cash, partial down payment with installments, or full installments — with discounts and fees already calculated.
+Tags: 3 cenarios / Desconto automatico / Fechamento na consulta
+
+22. Agendamento Inteligente pelo Cliente
+PT: O cliente marca a propria consulta pelo sistema — sem telefonema. Dois caminhos disponiveis: fila padrao ou acesso prioritario com pagamento integrado. A clinica confirma com um clique.
+EN: The client books their own appointment through the system — no phone call needed. Two paths: standard queue or priority access with integrated payment. The clinic confirms with one click.
+Tags: Autoagendamento / Acesso prioritario / Pagamento integrado
+
+23. App do Cliente Instalavel no Celular
+PT: O cliente instala o app direto do navegador — sem App Store nem Play Store. Acessa documentos, agenda, protocolo e envia exames. Icone na tela inicial, funciona como app nativo.
+EN: The client installs the app directly from the browser — no App Store or Play Store needed. Access documents, schedule, protocol and send exams. Icon on the home screen, works like a native app.
+Tags: Sem loja de apps / Icone na tela / Multiplataforma
+
+24. Lembretes de Tratamento no Periodo Certo
+PT: O sistema agenda lembretes automaticos para o cliente tomar cada medicamento prescrito no periodo do dia correto — manha, tarde, noite — conforme a prescricao. Aderencia sem esforco da equipe.
+EN: The system automatically schedules reminders for the client to take each prescribed medication at the correct time of day — morning, afternoon or evening — as per the prescription. Adherence without team effort.
+Tags: Periodo do dia / Automatico / Aderencia ao tratamento
+
+25. Atestados Medicos Digitais
+PT: Emite atestado medico real com dados do cliente, codigo de doenca quando aplicavel, dias, finalidade, assinatura e numero de registro do profissional. PDF com marca da clinica, arquivado na nuvem.
+EN: Issues real medical certificates with client data, diagnosis code when applicable, days, purpose, signature and professional registration number. Branded PDF archived in the client's cloud folder.
+Tags: PDF de marca / CID automatico / Arquivo permanente
+
+26. Encaminhamentos a Especialistas
+PT: Gera encaminhamento com especialidade de destino, grau de urgencia, motivo e resumo clinico em PDF oficial com identidade visual da clinica. Arquivado automaticamente na pasta do cliente.
+EN: Generates referral with destination specialty, urgency level, reason and clinical summary in an official branded PDF. Automatically archived in the client's folder.
+Tags: Urgencia destacada / Resumo clinico / Arquivo automatico
+
+27. Modelos de Documento com Variaveis
+PT: O medico cria modelos de texto uma vez. Na emissao, o sistema preenche automaticamente nome do cliente, data, codigo de doenca e registro do profissional. Sem digitacao repetitiva.
+EN: The physician creates text templates once. When issuing, the system automatically fills in the client's name, date, diagnosis code and professional registration. No repetitive typing.
+Tags: Modelo reutilizavel / Preenchimento automatico / Zero repeticao
+
+28. Nota Fiscal de Servico Eletronica
+PT: NFS-e emitida diretamente no sistema, sem abrir outra plataforma. Historico de notas por cliente integrado ao painel financeiro da clinica.
+EN: Electronic service invoice issued directly in the system, without opening another platform. Invoice history per client integrated into the clinic's financial panel.
+Tags: NFS-e integrada / Sem outro software / Historico fiscal
+
+29. Acompanhamento Evolutivo por Sessao
+PT: A cada sessao aplicada o sistema gera relatorio de progresso: numero da sessao, percentual do protocolo concluido, historico das ultimas sessoes, nivel de aderencia e tolerancia. Enviado ao cliente.
+EN: After each session, the system generates a progress report: session number, protocol completion percentage, last-session history, adherence and tolerance levels. Sent to the client.
+Tags: Progresso por sessao / Aderencia / Relatorio automatico
+
+30. Cockpit Unificado da Consulta
+PT: Uma tela, um cliente, tudo acessivel. O medico abre a ficha e encontra em abas: prescricao de formulas, injetaveis, implantes, pedidos de exames, evolucao e documentos — sem navegar para fora.
+EN: One screen, one client, everything accessible. The physician opens the record and finds in tabs: formula prescriptions, injectables, implants, exam orders, evolution and documents — without navigating away.
+Tags: Tudo em uma tela / Por abas / Zero navegacao
+
+
+============================
+SISTEMA 2 — PAWARDS MED CORE
+Motor de Inteligencia Clinica (8 modulos)
+============================
+
+O que e (copy para o site):
+PT: O motor de inteligencia clinica que opera por baixo do PARXIS. Recebe os dados da anamnese e dos exames, cruza com o maior catalogo clinico integrativo do mercado, e sugere o caminho clinico — para o medico decidir com mais velocidade, mais embasamento e menos risco.
+EN: The clinical intelligence engine that powers PARXIS from below. It receives anamnesis and exam data, cross-references it against the largest integrative clinical catalog available, and suggests the clinical path — so the physician decides faster, better informed, with less risk.
+
+I. Motor de Anamnese por Sistemas
+PT: Questionario clinico estruturado por sistema do corpo. So abre as perguntas relevantes. Alarmes clinicos detectados automaticamente — nunca suprimidos, mesmo que o cliente queira pular.
+EN: Structured clinical questionnaire by body system. Only opens relevant questions. Clinical alerts detected automatically — never suppressed, even if the client tries to skip.
+
+II. Motor de Regras Clinicas
+PT: Biblioteca de raciocinio: o sistema cruza sintomas, historico e exames e aponta sugestoes. O medico nao precisa lembrar de tudo — o motor sugere, o medico valida e decide.
+EN: Reasoning library: the system cross-references symptoms, history and exams and surfaces suggestions. The physician doesn't need to remember everything — the engine suggests, the physician validates.
+
+III. Caminhos Clinicos por Queixa
+PT: O medico informa a queixa principal ou o diagnostico e o sistema monta o caminho completo sugerido: quais exames pedir e quais tratamentos considerar.
+EN: The physician enters the chief complaint or diagnosis and the system builds the complete suggested pathway: which exams to order and which treatments to consider.
+
+IV. Catalogo de Formulas Manipuladas
+PT: Biblioteca completa de formulas com composicao, ativos, via, posologia por periodo do dia e efeitos. O medico consulta e prescreve sem sair do sistema.
+EN: Complete library of compounded formulas with composition, active ingredients, route, dosage by time of day and effects. Consult and prescribe without leaving the system.
+
+V. Catalogo de Injetaveis
+PT: Acervo extenso de substancias injetaveis com dados clinicos completos, vinculado ao motor de sugestao. A maior base clinica integrativa disponivel em sistema.
+EN: Extensive catalog of injectable substances with complete clinical data, linked to the suggestion engine. The largest integrative clinical database available in a single system.
+
+VI. Catalogo de Exames com Texto Pronto
+PT: Cada exame tem o texto do pedido formatado, o preparo do cliente e a finalidade clinica registrada. O medico seleciona — o sistema gera o documento.
+EN: Each exam has the formatted order text, patient preparation instructions and clinical purpose recorded. The physician selects — the system generates the document.
+
+VII. Blocos Tematicos de Exames
+PT: Grupos de exames organizados por tema clinico: hormonal, metabolico, cardiovascular, longevidade. Um clique pede o painel completo.
+EN: Exam groups organized by clinical theme: hormonal, metabolic, cardiovascular, longevity. One click orders the complete panel.
+
+VIII. Posologia pelo Periodo do Dia
+PT: O sistema conhece o momento ideal de cada medicamento e gera automaticamente o esquema de uso por periodo do dia para o cliente seguir com precisao.
+EN: The system knows the optimal moment for each medication and automatically generates the time-of-day dosing schedule for the client to follow with precision.
+
+
+============================
+POR QUE COMPRAR — TABELA COMPARATIVA
+============================
+
+Dor que o medico sente hoje | Como o PARXIS resolve
+-------------------------------------------------------------------
+"Minha enfermeira anota tudo no papel e a folha some."
+-> Registro digital oficial, assinado, na nuvem, permanente.
+
+"Nao sei o que o cliente esta tomando de outra clinica."
+-> Anamnese registrada + historico de exames centralizado.
+
+"Perco muito tempo montando o pedido de exames."
+-> O sistema ja tem o texto dos pedidos; sao blocos prontos.
+
+"Nao consigo provar para o plano de saude que atendi."
+-> Registro com assinatura de validade juridica e carimbo de tempo.
+
+"Meu cliente nao adere ao tratamento, esquece de tomar."
+-> Lembretes automaticos no celular no horario certo.
+
+"Minha secretaria nao sabe montar o orcamento certo."
+-> Console de Orcamento com 3 cenarios automaticos.
+
+"Tenho medo de errar a numeracao da receita controlada."
+-> Numeracao legal automatica: o numero certo, na cor certa, sempre.
+
+"Minha clinica parece desorganizada para o cliente novo."
+-> Area do Cliente (app), portal de exames, e-mail de marca.
+
+"Nao consigo crescer sem contratar mais administrativo."
+-> Mensageria, arquivos, agendas e confirmacoes sao automaticos.
+
+
+============================
+PARA QUEM E O PARXIS
+============================
+
+IDEAL PARA:
+- Clinicas de Medicina Estetica Avancada
+- Centros de Longevidade e Anti-aging
+- Clinicas de Medicina do Esporte e Performance
+- Medicos com reposicao hormonal e terapias injetaveis
+- Clinicas com volume alto de terapias intravenosas
+- Operacoes multi-clinica com equipe de enfermagem propria
+
+NAO RECOMENDADO PARA:
+- Consultorios sem procedimentos injetaveis in-house
+- Clinicas gerais sem foco em protocolos seriados
+- Operacoes 100% analogicas resistentes ao digital
+
+
+============================
+FLUXO OPERACIONAL (para animacao/infografico)
+============================
+
+01 ONBOARDING -> Clinica configurada em 24h com substancias, equipe, locais e integracoes ativas.
+02 PRESCRICAO -> Medico lanca protocolo com substancias, precificacao e cronograma automatico de sessoes.
+03 AGENDAMENTO -> Sessoes criadas automaticamente. Cliente recebe codigo por mensagem e e-mail de marca.
+04 APLICACAO -> Enfermagem confirma substancia a substancia. Registro gerado e assinado digitalmente.
+05 ARQUIVO -> Pasta digital organizada automaticamente. Historico completo com assinatura de validade juridica.
+
+
+============================
+CONTAGENS PARA O SITE
+============================
+
+Total de modulos PARXIS: 30
+Total de modulos PAWARDS MED CORE: 8
+Total geral da plataforma: 38 modulos
+
+
+============================
+OBSERVACOES PARA O LOVABLE
+============================
+
+1. NUNCA mencionar nomes de tecnologias terceiras no texto publico (ex.: nomes de provedores de pagamento, mensageria, armazenamento). Usar apenas "integrado", "automatico", "na nuvem".
+
+2. NUNCA revelar numeros internos do catalogo (ex.: quantidade exata de substancias ou formulas no banco de dados).
+
+3. NUNCA mencionar arquitetura tecnica (banco de dados, linguagem de programacao, certificados especificos por nome tecnico).
+
+4. TODO o texto deve focar em RESULTADO para o medico e para o cliente — nao em como o sistema foi construido.
+
+5. Paleta de cores oficial: fundo #050505 (quase-preto), dourado principal #F2B817, dourado claro #F5CC56, dourado escuro #D99000.
+
+6. Fonte de marca para logotipo e titulos: Michroma (caps-only — sempre uppercase).
+
+7. Fonte de corpo de texto: Inter ou similar sem-serifa neutra.
+
+8. Fonte de subtitulos elegantes: Cormorant Garamond ou similar serifa fina.
+
+9. O site deve ser PREMIUM — referencia estetica: Dior, Hermes, Chanel. Nunca colorido, nunca infantil.
+
+10. PARXIS e o produto principal. PAWARDS MED CORE e o "cerebro por baixo" — apresentar como diferenciais de inteligencia, nao como sistema separado que o usuario acessa diretamente.
+
+================================================================
+FIM DO DOCUMENTO
+Versao: Julho de 2026
+================================================================
