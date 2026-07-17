@@ -510,37 +510,77 @@ export default function Home() {
       </nav>
 
       {/* ── HERO ────────────────────────────────────────────────────────── */}
-      <section className="relative pt-[72px] min-h-screen flex items-center" style={{ background: "radial-gradient(ellipse at 50% 0%, #2C0D10 0%, #120505 35%, #050505 70%)" }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 40% at 50% 45%, rgba(242,184,23,0.05) 0%, transparent 65%)" }} />
-        <div className="container mx-auto px-6 py-20 relative z-10">
-          <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-            <div className="animate-fade-up mb-8">
-              <ParxisLogo width={320} animate />
+      <section
+        className="relative pt-[72px] min-h-screen flex items-center overflow-hidden"
+        style={{ background: "radial-gradient(ellipse at 65% 40%, #1C0A0C 0%, #0D0404 40%, #050505 75%)" }}
+      >
+        {/* Glow dourado centrado no símbolo */}
+        <div className="absolute pointer-events-none" style={{ right: "8%", top: "50%", transform: "translate(20%, -50%)", width: "55vw", height: "55vw", maxWidth: 700, maxHeight: 700, background: "radial-gradient(ellipse, rgba(242,184,23,0.07) 0%, transparent 65%)", borderRadius: "50%" }} />
+
+        <div className="container mx-auto px-6 py-24 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0">
+
+            {/* ── ESQUERDA: texto ── */}
+            <div className="flex-1 lg:pr-16 text-center lg:text-left">
+              {/* Eyebrow */}
+              <p className="animate-fade-up mb-6" style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 11, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase" }}>
+                {t.hero.descriptor}
+              </p>
+
+              {/* Headline principal — grande como no Lovable */}
+              <h1 className="animate-fade-up animate-fade-up-delay-1" style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(36px, 5.5vw, 72px)", fontWeight: 700, lineHeight: 1.10, letterSpacing: "-0.01em", marginBottom: 28, color: "#FFFFFF" }}>
+                {lang === "pt" ? (
+                  <>
+                    O motor clínico das{" "}
+                    <em style={{ fontStyle: "italic", color: "var(--parxis-gold-main)" }}>clínicas integrativas</em>{" "}
+                    de alto padrão.
+                  </>
+                ) : (
+                  <>
+                    The clinical engine for{" "}
+                    <em style={{ fontStyle: "italic", color: "var(--parxis-gold-main)" }}>premium integrative</em>{" "}
+                    clinics.
+                  </>
+                )}
+              </h1>
+
+              {/* Linha dourada */}
+              <div className="divider-gold w-20 mb-8 mx-auto lg:mx-0 animate-fade-up animate-fade-up-delay-1" />
+
+              {/* Sub */}
+              <p className="animate-fade-up animate-fade-up-delay-2 mb-10 leading-relaxed" style={{ color: "var(--parxis-text-secondary)", fontSize: "clamp(15px, 1.5vw, 17px)", maxWidth: 520 }}>
+                {t.hero.sub}
+              </p>
+
+              {/* CTAs */}
+              <div className="animate-fade-up animate-fade-up-delay-3 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <a
+                  href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+                  className="btn-gold inline-flex items-center justify-center gap-2 px-8 py-4"
+                  style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em" }}
+                >
+                  {t.hero.cta1} <span style={{ fontSize: 18 }}>›</span>
+                </a>
+                <a
+                  href="#features"
+                  className="btn-gold-outline inline-flex items-center justify-center gap-2 px-8 py-4"
+                  style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em" }}
+                >
+                  {t.hero.cta2}
+                </a>
+              </div>
             </div>
-            <p className="animate-fade-up animate-fade-up-delay-1 gold-gradient-text-soft mb-2" style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 12, letterSpacing: "0.28em" }}>
-              {t.hero.descriptor.toUpperCase()}
-            </p>
-            <div className="divider-gold w-48 my-5 animate-fade-up animate-fade-up-delay-1" />
-            <p className="animate-fade-up animate-fade-up-delay-2 mb-2" style={{ fontFamily: "var(--app-font-serif)", fontSize: 15, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--parxis-gold-light)" }}>
-              {t.hero.signature}
-            </p>
-            <p className="animate-fade-up animate-fade-up-delay-2 mb-10" style={{ fontFamily: "var(--app-font-serif)", fontStyle: "italic", fontSize: 14, color: "var(--parxis-text-secondary)", letterSpacing: "0.04em" }}>
-              {t.hero.tagline}
-            </p>
-            <p className="animate-fade-up animate-fade-up-delay-3 text-lg max-w-2xl leading-relaxed mb-12" style={{ color: "var(--parxis-text-secondary)" }}>
-              {t.hero.sub}
-            </p>
-            <div className="animate-fade-up animate-fade-up-delay-3 flex flex-col sm:flex-row gap-4">
-              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center justify-center gap-2 px-8 py-4 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}>
-                {t.hero.cta1} <span style={{ fontSize: 16 }}>›</span>
-              </a>
-              <a href="#features" className="btn-gold-outline inline-flex items-center justify-center gap-2 px-8 py-4 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}>
-                {t.hero.cta2}
-              </a>
+
+            {/* ── DIREITA: símbolo levitando + wordmark ── */}
+            <div className="flex-shrink-0 flex items-center justify-center animate-fade-up animate-fade-up-delay-2" style={{ width: "clamp(280px, 42vw, 520px)" }}>
+              <ParxisLogo width={Math.round(480)} mode="breath" />
             </div>
+
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.15), transparent)" }} />
+
+        {/* Linha dourada inferior */}
+        <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.18), transparent)" }} />
       </section>
 
       {/* ── PAIN POINTS ─────────────────────────────────────────────────── */}

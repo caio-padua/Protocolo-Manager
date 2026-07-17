@@ -1,8 +1,8 @@
 import { useId } from "react";
 
 /* Arquivos na pasta public/ — servidos como URL estática pelo Vite */
-const symbolSrc   = "/parxis/brand/parxis-symbol-new.png";
-const wordmarkSrc = "/parxis/brand/parxis-wordmark-new.png";
+const symbolSrc   = "/parxis/brand/parxis-rx.png";
+const wordmarkSrc = "/parxis/brand/parxis-wm.png";
 
 /**
  * ParxisLogo
