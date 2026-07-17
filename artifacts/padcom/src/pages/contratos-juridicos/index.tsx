@@ -217,7 +217,8 @@ export default function ContratosJuridicos() {
   };
 
   const totalSemeados = cadernos.filter((c) => c.semeado).length;
-  const todosSemeados = totalSemeados === 8;
+  const totalCadernos = cadernos.length;
+  const todosSemeados = totalSemeados >= totalCadernos && totalCadernos > 0;
 
   return (
     <div className="space-y-6">
@@ -229,7 +230,7 @@ export default function ContratosJuridicos() {
             Cadernos Jurídicos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            8 cadernos padrão — edite os textos e emita para assinatura digital
+            {totalCadernos > 0 ? totalCadernos : 20} cadernos padrão — edite os textos e emita para assinatura digital
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -240,7 +241,7 @@ export default function ContratosJuridicos() {
           {!todosSemeados && (
             <Button size="sm" onClick={semear} disabled={semeando}>
               <Sparkles className="w-4 h-4 mr-1.5" />
-              {semeando ? "Semeando…" : `Semear ${8 - totalSemeados} cadernos`}
+              {semeando ? "Semeando…" : `Semear ${totalCadernos - totalSemeados} cadernos`}
             </Button>
           )}
         </div>
@@ -249,9 +250,9 @@ export default function ContratosJuridicos() {
       {/* Status geral */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Total", valor: 8, cor: "text-foreground" },
+          { label: "Total", valor: totalCadernos, cor: "text-foreground" },
           { label: "Semeados", valor: totalSemeados, cor: "text-emerald-600" },
-          { label: "Pendentes", valor: 8 - totalSemeados, cor: "text-amber-600" },
+          { label: "Pendentes", valor: Math.max(0, totalCadernos - totalSemeados), cor: "text-amber-600" },
           { label: "Ativos", valor: cadernos.filter((c) => c.semeado && c.ativo).length, cor: "text-blue-600" },
         ].map((s) => (
           <div key={s.label} className="rounded-md border bg-card p-3 text-center">
@@ -267,7 +268,7 @@ export default function ContratosJuridicos() {
         {/* Lista de cadernos */}
         <div className="space-y-2">
           {carregando
-            ? Array.from({ length: 8 }).map((_, i) => (
+            ? Array.from({ length: 20 }).map((_, i) => (
                 <div key={i} className="h-16 rounded-md border bg-muted animate-pulse" />
               ))
             : cadernos.map((c) => {
