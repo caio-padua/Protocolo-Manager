@@ -1,0 +1,46 @@
+Cadernos jurídicos — contagem real (17/07/2026)
+1. IHE (banco Pawards) — tabela termos_juridicos: 17 cadernos ativos
+ID	Código	Titulo	Bloco
+1	—	LGPD — Consentimento para Tratamento de Dados (Lei 13.709/2018)	JURI.BASE
+2	—	Política de Privacidade e Sigilo Médico — CFM + LGPD	JURI.BASE
+3	—	Não-Garantia de Resultados — Obrigação de Meio vs Resultado	JURI.BASE
+4	—	TCLE Global do Protocolo Terapêutico Integrado	JURI.CONS
+5	CFOR	Fórmulas Manipuladas (via oral)	JURI.CONS
+6	CIMU	Injetáveis Intramusculares (IM)	JURI.CONS
+7	CEND	Substâncias Endovenosas (EV)	JURI.CONS
+8	CIMP	Implantes Subcutâneos e Pellets	JURI.CONS
+9	CEIN	Procedimentos Estéticos Invasivos	JURI.CONS
+10	CETE	Procedimentos Estéticos por Tecnologia	JURI.CONS
+11	—	Autorização de Uso de Imagem, Voz e Material Clínico	JURI.IMAG
+12	—	Aceite Digital e Assinatura Eletrônica — Validade ICP-Brasil	JURI.DIGI
+13	—	Ciência Financeira e Aceitação Comercial	FINA.CIEN
+14	CSUB	Peptídeos, GLP-1 (Glucagon-Like Peptide-1) e GH (Hormônio do Crescimento)	JURI.CONS
+15	CINC	Análogos de Incretinas e Agonistas de GLP-1	JURI.CONS
+16	CPEP	Peptídeos, Secretagogos de GH e Moléculas Metabólicas	JURI.CONS
+17	CLIP	Agentes Lipolíticos Injetáveis Subcutâneos	JURI.CONS
+2. IHE — tabela assinatura_templates (ZapSign): 6 templates
+Código	Nome	Tipo
+TCLE_PADRAO_V1	TCLE Padrão Instituto Pádua	TCLE
+CONSENTIMENTO_PROCEDIMENTO_V1	Autorização de Procedimento Específico	AUTORIZAÇÃO
+CONTRATO_TRATAMENTO_V1	Contrato de Tratamento Integrativo	CONTRATO
+ORCAMENTO_FORMAL_V1	Orçamento Formal de Tratamento	ORÇAMENTO
+ADITIVO_CONTRATUAL_V1	Aditivo Contratual	ADITIVO
+parq_acordo	Termo PARQ — Parceria de Qualidade Técnica	PARQ
+3. Manager (Protocolo-Manager): 0 cadernos jurídicos específicos
+Tabela	Conteúdo real
+assinatura_templates	Zero cadernos com código CGLO / CFOR / CIMU / CSUB / TCLE / CEND / CIMP
+document_templates	Apenas 2 seeds em código: Atestado de Comparecimento + Encaminhamento (não semeados no banco ainda)
+4. Blueprint — o que existe vs o que o Manager precisa receber
+
+IHE tem 17 + 6 = 23 documentos jurídicos
+        ↓
+Manager tem 0 documentos jurídicos específicos
+        ↓
+O que precisa migrar: os 17 termos_juridicos (texto completo já escrito)
++ os 6 assinatura_templates (estrutura ZapSign)
+        ↓
+A infraestrutura do Cartório no Manager ESTÁ PRONTA (tabelas, rotas, ZapSign)
+        ↓
+Falta apenas: semear os textos no banco do Manager via UPSERT idempotente
+
+RESUMO EM 1 LINHA: O IHE tem 23 documentos jurídicos (17 termos + 6 templates ZapSign) com texto completo redigido e validado no banco — o Manager tem zero, mas a infraestrutura para recebê-los está pronta; basta o Manager rodar o seed com os textos enviados na carta de 17/06/2026.
