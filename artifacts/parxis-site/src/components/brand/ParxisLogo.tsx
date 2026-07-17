@@ -1,214 +1,216 @@
-import { useId, useRef, useState, useEffect } from "react";
+import { useId } from "react";
+
+/* Arquivos na pasta public/ — servidos como URL estática pelo Vite */
+const symbolSrc   = "/parxis/brand/parxis-symbol-new.png";
+const wordmarkSrc = "/parxis/brand/parxis-wordmark-new.png";
 
 /**
- * ParxisLogo — monograma RX isolado sobre fundo transparente.
+ * ParxisLogo
+ * ──────────
+ * Símbolo RX levitando (animação de respiração suave) + wordmark PARXIS abaixo.
+ * Usa os dois PNGs com fundo transparente removido por IA.
  *
- * Usa parxis-symbol.png (background removido por IA) em vez do
- * parxis-logo.png original com fundo de couro. O clip box ainda
- * é necessário para ocultar o wordmark "PARXIS" na metade inferior
- * do PNG original.
+ * Animação de respiração:
+ *   – translateY  0px → -14px → 0px  (sobe e desce como pulmão)
+ *   – scale       1.00 → 1.030 → 1.00
+ *   – drop-shadow cresce quando sobe (maior altitude = sombra mais difusa)
+ *   – glow dourado pulsa no topo da "inspiração"
+ *   – período: 3.8 s (ritmo respiratório natural)
  *
- * Animação: flutuação 3D 7,2 s | rotateX 3° | rotateY -5° |
- *           translateY -8 px | scale 1,018 | pausa no topo (57%) |
- *           reflexo ocasional a cada 16 s.
+ * Props:
+ *   width  – largura do símbolo em px (wordmark escala proporcionalmente)
+ *   className – classe extra no wrapper externo
+ *   mode  – "breath" (padrão) | "static" (sem animação, ex.: rodapé)
  */
 
 type Props = {
   width?: number;
   className?: string;
+  /** @deprecated aceito por compatibilidade mas ignorado — use mode="static" */
+  animate?: boolean;
   mode?: "breath" | "static";
 };
 
-/* Porcentagem do PNG que corresponde ao símbolo RX (topo). */
-const SYMBOL_RATIO = 0.60;
+export function ParxisLogo({ width = 220, className = "", mode = "breath" }: Props) {
+  const uid = useId().replace(/:/g, "x");
 
-export function ParxisLogo({ width = 260, className, mode = "breath" }: Props) {
-  const uid    = useId().replace(/:/g, "x");
-  const imgRef = useRef<HTMLImageElement>(null);
+  const breathK = `pxBreath${uid}`;
+  const glowK   = `pxGlow${uid}`;
+  const sweepK  = `pxSweep${uid}`;
 
-  /* Altura calculada dinamicamente após onLoad */
-  const [clipH, setClipH] = useState<number>(width * 0.58);
-
-  useEffect(() => {
-    const img = imgRef.current;
-    if (!img) return;
-    const measure = () => {
-      if (img.naturalWidth > 0) {
-        const dispH = width * (img.naturalHeight / img.naturalWidth);
-        setClipH(Math.round(dispH * SYMBOL_RATIO));
-      }
-    };
-    if (img.complete) measure();
-    else img.addEventListener("load", measure);
-    return () => img.removeEventListener("load", measure);
-  }, [width]);
-
-  const animK = `pxF${uid}`;
-  const swpK  = `pxS${uid}`;
-  const aurK  = `pxA${uid}`;
+  /* Wordmark tem proporção ~4.3:1 (largura:altura) */
+  const wordmarkW = Math.round(width * 1.05);
 
   const css = `
-    @keyframes ${animK} {
-      0%, 100% {
-        transform: perspective(1000px) rotateX(3deg) rotateY(-5deg) translateY(0px) scale(1.000);
-        filter: drop-shadow(0 22px 40px rgba(0,0,0,0.80)) drop-shadow(0 0 12px rgba(242,184,23,0.08));
+    /* ── Respiração: sobe e desce como pulmão ── */
+    @keyframes ${breathK} {
+      0% {
+        transform: translateY(0px) scale(1.000);
+        filter:
+          drop-shadow(0 18px 36px rgba(0,0,0,0.85))
+          drop-shadow(0  4px 10px rgba(242,184,23,0.05));
       }
-      28% {
-        transform: perspective(1000px) rotateX(2.4deg) rotateY(-4.4deg) translateY(-4px) scale(1.008);
-        filter: drop-shadow(0 26px 46px rgba(0,0,0,0.65)) drop-shadow(0 0 16px rgba(242,184,23,0.14));
+      40% {
+        transform: translateY(-10px) scale(1.018);
+        filter:
+          drop-shadow(0 26px 48px rgba(0,0,0,0.70))
+          drop-shadow(0  6px 18px rgba(242,184,23,0.15));
       }
       50% {
-        transform: perspective(1000px) rotateX(2deg) rotateY(-4deg) translateY(-8px) scale(1.018);
-        filter: drop-shadow(0 32px 54px rgba(0,0,0,0.52)) drop-shadow(0 0 30px rgba(242,184,23,0.22));
+        transform: translateY(-14px) scale(1.030);
+        filter:
+          drop-shadow(0 32px 56px rgba(0,0,0,0.55))
+          drop-shadow(0  8px 28px rgba(242,184,23,0.28))
+          drop-shadow(0  0px 40px rgba(242,184,23,0.12));
       }
-      57% {
-        transform: perspective(1000px) rotateX(2deg) rotateY(-4deg) translateY(-8px) scale(1.018);
-        filter: drop-shadow(0 32px 54px rgba(0,0,0,0.52)) drop-shadow(0 0 30px rgba(242,184,23,0.22));
+      60% {
+        transform: translateY(-10px) scale(1.018);
+        filter:
+          drop-shadow(0 26px 48px rgba(0,0,0,0.70))
+          drop-shadow(0  6px 18px rgba(242,184,23,0.15));
       }
-      82% {
-        transform: perspective(1000px) rotateX(2.8deg) rotateY(-4.8deg) translateY(-2px) scale(1.005);
-        filter: drop-shadow(0 24px 42px rgba(0,0,0,0.72)) drop-shadow(0 0 14px rgba(242,184,23,0.10));
+      100% {
+        transform: translateY(0px) scale(1.000);
+        filter:
+          drop-shadow(0 18px 36px rgba(0,0,0,0.85))
+          drop-shadow(0  4px 10px rgba(242,184,23,0.05));
       }
     }
 
-    /* Reflexo de luz ocasional (sweep) */
-    @keyframes ${swpK} {
-      0%,87%{ transform:translateX(-200%) skewX(-18deg); opacity:0; }
-      88%   { opacity:0; }
-      90%   { opacity:1; transform:translateX(-30%) skewX(-18deg); }
-      93%   { opacity:1; transform:translateX(200%) skewX(-18deg); }
-      94%   { opacity:0; }
-      100%  { opacity:0; }
+    /* ── Glow: pulsa em sincronia com a subida ── */
+    @keyframes ${glowK} {
+      0%,100% { opacity: 0.20; transform: translate(-50%,-50%) scale(1.00); }
+      50%     { opacity: 0.65; transform: translate(-50%,-50%) scale(1.35); }
     }
 
-    /* Aura dourada pulsante */
-    @keyframes ${aurK} {
-      0%,100%{ opacity:.45; transform:translate(-50%,-50%) scale(1.00); }
-      50%    { opacity:.90; transform:translate(-50%,-50%) scale(1.24); }
+    /* ── Reflexo de luz: varre o símbolo a cada 12 s ── */
+    @keyframes ${sweepK} {
+      0%,80%  { transform: translateX(-220%) skewX(-16deg); opacity: 0; }
+      82%     { opacity: 0; }
+      85%     { opacity: 1; transform: translateX(-40%) skewX(-16deg); }
+      89%     { opacity: 1; transform: translateX(220%) skewX(-16deg); }
+      90%,100%{ opacity: 0; }
     }
 
-    .pxFloat${uid} {
-      display:inline-flex;
-      animation: ${animK} 7.2s ease-in-out infinite;
-      transform-origin: center center;
-      will-change: transform, filter;
+    .pxSymbol${uid} {
       position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      animation: ${breathK} 3.8s ease-in-out infinite;
+      will-change: transform, filter;
     }
 
-    /* Reflexo: faixa diagonal que percorre o símbolo */
-    .pxFloat${uid}::after {
-      content:"";
-      position:absolute; top:-20%; bottom:-20%; left:0; width:28%;
-      background:linear-gradient(98deg,
+    /* Reflexo diagonal sobre o símbolo */
+    .pxSymbol${uid}::after {
+      content: "";
+      position: absolute;
+      inset: -10% -5%;
+      width: 30%;
+      background: linear-gradient(
+        100deg,
         transparent 0%,
-        rgba(255,220,130,0.14) 30%,
-        rgba(255,248,200,0.55) 50%,
-        rgba(255,220,130,0.14) 70%,
+        rgba(255,235,160,0.12) 30%,
+        rgba(255,252,210,0.60) 50%,
+        rgba(255,235,160,0.12) 70%,
         transparent 100%
       );
-      mix-blend-mode:screen;
-      pointer-events:none;
-      animation: ${swpK} 16s linear infinite;
+      mix-blend-mode: screen;
+      pointer-events: none;
+      animation: ${sweepK} 12s linear infinite;
     }
 
+    /* Aura dourada pulsante atrás do símbolo */
     .pxAura${uid} {
-      position:absolute;
-      border-radius:50%;
-      background:radial-gradient(circle,
-        rgba(242,184,23,0.12) 0%,
-        rgba(154,87,0,0.06) 45%,
-        transparent 70%
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle,
+        rgba(242,184,23,0.18) 0%,
+        rgba(180,100,0,0.08) 40%,
+        transparent 68%
       );
-      top:50%;left:50%;
-      transform:translate(-50%,-50%);
-      pointer-events:none;
-      z-index:0;
-      animation: ${aurK} 7.2s ease-in-out infinite;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 0;
+      animation: ${glowK} 3.8s ease-in-out infinite;
     }
 
-    @media(prefers-reduced-motion:reduce){
-      .pxFloat${uid},.pxFloat${uid}::after,.pxAura${uid}{ animation:none !important; }
+    @media (prefers-reduced-motion: reduce) {
+      .pxSymbol${uid},
+      .pxSymbol${uid}::after,
+      .pxAura${uid} { animation: none !important; }
     }
   `;
 
-  const imgSrc = "/parxis/brand/parxis-symbol.png";
-
-  /* ── Versão estática (rodapé, etc.) ── */
+  /* ── Modo estático (rodapé, etc.) ── */
   if (mode === "static") {
     return (
       <div
         className={className}
-        style={{
-          width,
-          height: clipH,
-          overflow: "hidden",
-          display: "inline-flex",
-          flexShrink: 0,
-        }}
+        style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10 }}
       >
         <img
-          ref={imgRef}
-          src={imgSrc}
+          src={symbolSrc}
           alt="PARXIS symbol"
-          style={{ width, height: "auto", display: "block", flexShrink: 0 }}
+          width={width}
+          style={{ display: "block" }}
+          draggable={false}
+        />
+        <img
+          src={wordmarkSrc}
+          alt="PARXIS"
+          width={wordmarkW}
+          style={{ display: "block", opacity: 0.92 }}
           draggable={false}
         />
       </div>
     );
   }
 
-  /* ── Versão animada (hero / CTA) ── */
+  /* ── Modo animado (hero, splash) ── */
   return (
     <div
       className={className}
       style={{
-        position: "relative",
         display: "inline-flex",
+        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
+        gap: Math.round(width * 0.10),
+        position: "relative",
       }}
     >
       <style>{css}</style>
 
-      {/* Aura dourada pulsante ao redor do símbolo */}
-      <div
-        className={`pxAura${uid}`}
-        style={{ width: width * 1.7, height: width * 1.7 }}
-        aria-hidden
-      />
-
-      {/* Símbolo 3D flutuante */}
-      <div className={`pxFloat${uid}`} style={{ zIndex: 1 }}>
-        {/*
-          Clip box: height = SYMBOL_RATIO × altura natural do PNG.
-          overflow:hidden esconde o wordmark "PARXIS" na parte inferior
-          do PNG, mesmo após a remoção de fundo.
-        */}
+      {/* Wrapper do símbolo com aura e respiração */}
+      <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        {/* Aura dourada pulsante */}
         <div
-          style={{
-            width,
-            height: clipH,
-            overflow: "hidden",
-            position: "relative",
-            flexShrink: 0,
-          }}
-        >
+          className={`pxAura${uid}`}
+          style={{ width: width * 1.8, height: width * 1.8 }}
+          aria-hidden
+        />
+
+        {/* Símbolo RX respirando */}
+        <div className={`pxSymbol${uid}`} style={{ zIndex: 1 }}>
           <img
-            ref={imgRef}
-            src={imgSrc}
+            src={symbolSrc}
             alt="PARXIS — Clinical Intelligence System"
-            style={{
-              width,
-              height: "auto",
-              display: "block",
-              position: "absolute",
-              top: 0,
-              left: 0,
-            }}
+            width={width}
+            style={{ display: "block" }}
             draggable={false}
           />
         </div>
       </div>
+
+      {/* Wordmark PARXIS abaixo */}
+      <img
+        src={wordmarkSrc}
+        alt="PARXIS"
+        width={wordmarkW}
+        style={{ display: "block", opacity: 0.95 }}
+        draggable={false}
+      />
     </div>
   );
 }
