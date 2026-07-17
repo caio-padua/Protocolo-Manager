@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Michroma&family=Cinzel:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;500&family=Inter:wght@300;400;500;600&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -113,8 +113,9 @@
   --ring: 42 88% 52%;
 
   --app-font-sans:    'Inter', sans-serif;
-  --app-font-serif:   'Cinzel', 'Cormorant Garamond', serif;
-  --app-font-display: 'Michroma', 'Rajdhani', monospace;
+  --app-font-serif:   'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --app-font-label:   'Cinzel', 'Cormorant Garamond', serif;
+  --app-font-display: 'Cinzel', serif;
   --app-font-mono:    ui-monospace, Menlo, Monaco, Consolas, monospace;
 
   --radius: 0.125rem;

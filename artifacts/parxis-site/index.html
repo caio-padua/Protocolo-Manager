@@ -64,7 +64,7 @@
     <!-- ── Fontes ───────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Michroma&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
   </head>
   <body style="background:#050505;margin:0">
 
@@ -100,11 +100,15 @@
       })();
     </script>
 
-    <!-- Service Worker: cache para carregamento instantâneo -->
+    <!-- Service Worker: ativado apenas em produção -->
     <script>
-      if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost' && !location.hostname.includes('replit')) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/parxis/sw.js').catch(function(){});
+        });
+      } else if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
         });
       }
     </script>

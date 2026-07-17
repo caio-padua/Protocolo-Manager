@@ -490,22 +490,55 @@ export default function Home() {
     <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--parxis-black-950)", color: "var(--parxis-text-main)" }}>
 
       {/* ── NAV ─────────────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 w-full z-50" style={{ background: "rgba(3,3,3,0.92)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
-        <div className="container mx-auto px-6 h-[72px] flex items-center justify-between">
-          <ParxisWordmark fontSize={22} />
-          <div className="flex items-center gap-4">
+      <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(4,2,2,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(242,184,23,0.10)", height: 68 }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: "100%", display: "flex", alignItems: "center", gap: 40 }}>
+
+          {/* Logo + separador */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <ParxisWordmark fontSize={20} />
+            <span style={{ width: 1, height: 16, background: "rgba(242,184,23,0.20)", display: "block" }} />
+            <span style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.22em", color: "var(--parxis-text-muted)", textTransform: "uppercase" as const }}>
+              Motor Clínico
+            </span>
+          </div>
+
+          {/* Menu central */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 36 }}>
+            {(lang === "pt"
+              ? ["Manifesto", "Recursos", "Tecnologia", "Para Clínicas"]
+              : ["Manifesto", "Resources", "Technology", "For Clinics"]
+            ).map((item) => (
+              <a
+                key={item}
+                href="#features"
+                style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.17em", color: "#C8BEAA", textTransform: "uppercase" as const, textDecoration: "none", transition: "color 220ms", whiteSpace: "nowrap" as const }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#FFD85A"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#C8BEAA"; }}
+              >
+                {item}
+              </a>
+            ))}
+          </div>
+
+          {/* Direita: idioma + CTA */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <button
               onClick={() => setLang(l => l === "pt" ? "en" : "pt")}
-              style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em", color: "var(--parxis-gold-medium)", border: "1px solid rgba(242,184,23,0.20)", padding: "4px 12px", background: "transparent", cursor: "pointer", transition: "all 200ms" }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.background = "rgba(242,184,23,0.08)"; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.background = "transparent"; }}
+              style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.16em", color: "#8E8576", border: "1px solid rgba(242,184,23,0.18)", padding: "5px 14px", background: "transparent", cursor: "pointer", transition: "all 200ms", textTransform: "uppercase" as const }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#FFD85A"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(242,184,23,0.40)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#8E8576"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(242,184,23,0.18)"; }}
             >
               {t.nav.lang}
             </button>
-            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="hidden md:inline-flex items-center gap-2 btn-gold px-5 py-2.5 text-sm" style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.10em" }}>
+            <a
+              href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+              className="btn-gold"
+              style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.14em", padding: "10px 20px", display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
               {t.nav.cta}
             </a>
           </div>
+
         </div>
       </nav>
 
@@ -584,18 +617,23 @@ export default function Home() {
       </section>
 
       {/* ── PAIN POINTS ─────────────────────────────────────────────────── */}
-      <section className="py-28" style={{ background: "var(--parxis-black-900)" }}>
+      <section className="py-28" style={{ background: "linear-gradient(180deg, #0A0203 0%, #130406 50%, #0A0203 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-2xl mx-auto">
-            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 700, marginBottom: 16 }}>{t.pain.title}</h2>
-            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>{t.pain.sub}</p>
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
+              {lang === "pt" ? "O Problema" : "The Problem"}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 700, marginBottom: 16, lineHeight: 1.2 }}>{t.pain.title}</h2>
+            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.8, fontSize: 15 }}>{t.pain.sub}</p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {t.pain.items.map((item, i) => (
-              <div key={i} className="p-7 rounded-sm" style={{ background: "linear-gradient(145deg, #0E0505, #080304)", border: "1px solid rgba(180,30,30,0.12)", borderLeft: "3px solid rgba(200,40,40,0.40)" }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(200,60,60,0.70)", marginBottom: 16 }} />
-                <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>{item.title}</h3>
-                <p style={{ color: "var(--parxis-text-muted)", lineHeight: 1.7, fontSize: 14 }}>{item.desc}</p>
+              <div key={i} className="p-7" style={{ background: "linear-gradient(145deg, #1A0507, #120304)", border: "1px solid rgba(180,30,30,0.18)", borderTop: "2px solid rgba(200,40,40,0.35)" }}>
+                <div style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.20em", color: "rgba(200,60,60,0.70)", marginBottom: 14, textTransform: "uppercase" }}>
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <h3 style={{ fontFamily: "var(--app-font-serif)", fontSize: 17, fontWeight: 600, marginBottom: 12, lineHeight: 1.3 }}>{item.title}</h3>
+                <p style={{ color: "var(--parxis-text-muted)", lineHeight: 1.75, fontSize: 14 }}>{item.desc}</p>
               </div>
             ))}
           </div>
@@ -603,31 +641,33 @@ export default function Home() {
       </section>
 
       {/* ── FEATURES — PARXIS 30 MÓDULOS ────────────────────────────────── */}
-      <section id="features" className="py-32">
+      <section id="features" className="py-32" style={{ background: "linear-gradient(180deg, #050505 0%, #0E0304 30%, #160507 60%, #0E0304 85%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-20 max-w-3xl mx-auto">
-            <p className="gold-gradient-text mb-4" style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase" }}>
-              {lang === "pt" ? "Módulos do Sistema" : "System Modules"}
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
+              {lang === "pt" ? "Recursos · Chapitre II" : "Resources · Chapter II"}
             </p>
-            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(32px, 4.5vw, 52px)", fontWeight: 700, marginBottom: 16 }}>{t.features.title}</h2>
-            <div className="divider-gold w-48 mx-auto my-6" />
-            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>{t.features.sub}</p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(32px, 4.5vw, 54px)", fontWeight: 700, marginBottom: 16, lineHeight: 1.15 }}>{t.features.title}</h2>
+            <div className="divider-gold w-40 mx-auto my-6" />
+            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.8, fontSize: 15, maxWidth: 600, margin: "0 auto" }}>{t.features.sub}</p>
           </div>
-          <div className="grid md:grid-cols-2 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {t.features.items.map((feat, i) => (
-              <div key={i} className="feature-card p-7 rounded-sm">
-                <div className="flex items-start gap-4">
-                  <span style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.14em", color: "var(--parxis-gold-deep)", minWidth: 24, paddingTop: 2 }}>{feat.num}</span>
-                  <div className="flex-1">
-                    <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.10em", color: "var(--parxis-gold-light)", textTransform: "uppercase", marginBottom: 10 }}>{feat.name}</h3>
-                    <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.75, fontSize: 14, marginBottom: 14 }}>{feat.desc}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {feat.tags.map((tag, j) => (
-                        <span key={j} style={{ fontFamily: "var(--app-font-display)", fontSize: 10, letterSpacing: "0.12em", color: "var(--parxis-gold-medium)", border: "1px solid rgba(217,144,0,0.20)", padding: "2px 8px", textTransform: "uppercase" }}>{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div
+                key={i}
+                className="p-7"
+                style={{ background: "linear-gradient(160deg, #1C0608 0%, #130404 100%)", border: "1px solid rgba(180,30,30,0.15)", borderTop: "none", borderLeft: "none", position: "relative", transition: "background 220ms" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg, #240810 0%, #1A0506 100%)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg, #1C0608 0%, #130404 100%)"; }}
+              >
+                {/* Número */}
+                <div style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.20em", color: "rgba(242,184,23,0.35)", marginBottom: 16 }}>{feat.num}</div>
+                {/* Título */}
+                <h3 style={{ fontFamily: "var(--app-font-serif)", fontSize: 17, fontWeight: 600, lineHeight: 1.3, color: "#F8F1DE", marginBottom: 12 }}>{feat.name}</h3>
+                {/* Linha */}
+                <div style={{ width: 28, height: 1, background: "rgba(242,184,23,0.30)", marginBottom: 14 }} />
+                {/* Desc */}
+                <p style={{ color: "var(--parxis-text-muted)", lineHeight: 1.75, fontSize: 13 }}>{feat.desc}</p>
               </div>
             ))}
           </div>
@@ -635,44 +675,29 @@ export default function Home() {
       </section>
 
       {/* ── PAWARDS MED CORE ────────────────────────────────────────────── */}
-      <section
-        className="py-32 relative overflow-hidden"
-        style={{ background: "linear-gradient(180deg, #050505 0%, #0A0807 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}
-      >
-        {/* Grade de pontos decorativa */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-          style={{ backgroundImage: "radial-gradient(circle, #F2B817 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-
+      <section className="py-32 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #050505 0%, #0C0808 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
+        <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: "radial-gradient(circle, #F2B817 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
         <div className="container mx-auto px-6 relative z-10">
-          {/* Header */}
           <div className="text-center mb-20 max-w-3xl mx-auto">
-            <p className="gold-gradient-text mb-4" style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase" }}>
-              {t.pawards.label}
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
+              {t.pawards.label} · Chapitre III
             </p>
-            <h2 style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, marginBottom: 20, letterSpacing: "0.08em" }}>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 700, marginBottom: 20, lineHeight: 1.15 }}>
               {t.pawards.title}
             </h2>
-            <div className="divider-gold w-48 mx-auto my-6" />
+            <div className="divider-gold w-40 mx-auto my-6" />
             <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.8, fontSize: 15, maxWidth: 640, margin: "0 auto" }}>
               {t.pawards.sub}
             </p>
           </div>
-
-          {/* Grid 2 colunas + item central */}
-          <div className="grid md:grid-cols-2 gap-5 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-4 max-w-5xl mx-auto">
             {t.pawards.items.map((item, i) => (
-              <div
-                key={i}
-                className="p-7 rounded-sm flex items-start gap-5"
-                style={{ background: "linear-gradient(145deg, #0E0C08, #080704)", border: "1px solid rgba(242,184,23,0.10)", borderLeft: "3px solid rgba(242,184,23,0.35)" }}
-              >
-                <span
-                  style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 13, color: "rgba(242,184,23,0.45)", minWidth: 28, paddingTop: 2, letterSpacing: "0.04em" }}
-                >
+              <div key={i} className="p-7 flex items-start gap-5" style={{ background: "linear-gradient(145deg, #110E08, #090705)", border: "1px solid rgba(242,184,23,0.08)", borderLeft: "3px solid rgba(242,184,23,0.28)" }}>
+                <span style={{ fontFamily: "var(--app-font-label)", fontSize: 14, color: "rgba(242,184,23,0.40)", minWidth: 28, paddingTop: 3, fontStyle: "italic" }}>
                   {item.num}
                 </span>
                 <div>
-                  <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.12em", color: "var(--parxis-gold-light)", textTransform: "uppercase", marginBottom: 10 }}>
+                  <h3 style={{ fontFamily: "var(--app-font-serif)", fontSize: 16, fontWeight: 600, color: "var(--parxis-gold-light)", marginBottom: 10, lineHeight: 1.3 }}>
                     {item.name}
                   </h3>
                   <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.75, fontSize: 14 }}>
@@ -689,17 +714,20 @@ export default function Home() {
       <section className="py-28" style={{ background: "var(--parxis-black-900)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(26px, 3.5vw, 40px)", fontWeight: 700, marginBottom: 10 }}>{t.flow.title}</h2>
-            <p style={{ color: "var(--parxis-text-muted)" }}>{t.flow.sub}</p>
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
+              {lang === "pt" ? "Tecnologia · Chapitre IV" : "Technology · Chapter IV"}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(26px, 3.5vw, 42px)", fontWeight: 700, marginBottom: 10, lineHeight: 1.2 }}>{t.flow.title}</h2>
+            <p style={{ color: "var(--parxis-text-muted)", fontSize: 15 }}>{t.flow.sub}</p>
           </div>
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 relative">
             <div className="hidden md:block absolute top-10 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.12), transparent)" }} />
             {t.flow.steps.map((s, i) => (
               <div key={i} className="flex flex-col items-center text-center flex-1 relative z-10 px-4">
-                <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid rgba(242,184,23,0.22)", background: "radial-gradient(circle at 50% 30%, #1A0D05, #0A0504)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.12em", color: "var(--parxis-gold-medium)" }}>
+                <div style={{ width: 60, height: 60, border: "1px solid rgba(242,184,23,0.22)", background: "radial-gradient(circle at 50% 30%, #1A0D05, #0A0504)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontFamily: "var(--app-font-label)", fontSize: 16, letterSpacing: "0.04em", color: "var(--parxis-gold-medium)", fontStyle: "italic" }}>
                   {s.n}
                 </div>
-                <h4 style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--parxis-gold-light)", marginBottom: 8 }}>{s.title}</h4>
+                <h4 style={{ fontFamily: "var(--app-font-serif)", fontSize: 15, fontWeight: 600, color: "var(--parxis-gold-light)", marginBottom: 8, lineHeight: 1.3 }}>{s.title}</h4>
                 <p style={{ fontSize: 13, color: "var(--parxis-text-muted)", lineHeight: 1.7 }}>{s.desc}</p>
               </div>
             ))}
@@ -708,26 +736,31 @@ export default function Home() {
       </section>
 
       {/* ── AUDIENCE ────────────────────────────────────────────────────── */}
-      <section className="py-28">
+      <section className="py-28" style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
-          <h2 className="text-center mb-16" style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 700 }}>{t.audience.title}</h2>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="p-9 rounded-sm" style={{ background: "linear-gradient(145deg, #0D0904, #080604)", border: "1px solid rgba(242,184,23,0.12)", borderTop: "3px solid var(--parxis-gold-medium)" }}>
-              <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-gold-main)", marginBottom: 20 }}>{t.audience.yes.label}</h3>
+          <div className="text-center mb-14">
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
+              {lang === "pt" ? "Para Clínicas · Chapitre V" : "For Clinics · Chapter V"}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 700, lineHeight: 1.15 }}>{t.audience.title}</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div className="p-9" style={{ background: "linear-gradient(145deg, #180608, #0E0304)", border: "1px solid rgba(242,184,23,0.10)", borderTop: "2px solid rgba(242,184,23,0.45)" }}>
+              <h3 style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-gold-main)", marginBottom: 20 }}>{t.audience.yes.label}</h3>
               <ul className="space-y-4">
                 {t.audience.yes.items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-secondary)", fontSize: 14, lineHeight: 1.6 }}>
-                    <span style={{ color: "var(--parxis-gold-medium)", marginTop: 2, flexShrink: 0 }}>◆</span>{item}
+                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-secondary)", fontSize: 14, lineHeight: 1.65, fontFamily: "var(--app-font-sans)" }}>
+                    <span style={{ color: "var(--parxis-gold-medium)", marginTop: 3, flexShrink: 0 }}>◆</span>{item}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="p-9 rounded-sm" style={{ background: "linear-gradient(145deg, #080808, #050505)", border: "1px solid rgba(255,255,255,0.06)", borderTop: "3px solid rgba(255,255,255,0.08)" }}>
-              <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-text-muted)", marginBottom: 20 }}>{t.audience.no.label}</h3>
+            <div className="p-9" style={{ background: "linear-gradient(145deg, #090909, #050505)", border: "1px solid rgba(255,255,255,0.05)", borderTop: "2px solid rgba(255,255,255,0.08)" }}>
+              <h3 style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-text-muted)", marginBottom: 20 }}>{t.audience.no.label}</h3>
               <ul className="space-y-4">
                 {t.audience.no.items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-muted)", fontSize: 14, lineHeight: 1.6 }}>
-                    <span style={{ color: "rgba(255,255,255,0.20)", marginTop: 2, flexShrink: 0 }}>—</span>{item}
+                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-muted)", fontSize: 14, lineHeight: 1.65, fontFamily: "var(--app-font-sans)" }}>
+                    <span style={{ color: "rgba(255,255,255,0.18)", marginTop: 3, flexShrink: 0 }}>—</span>{item}
                   </li>
                 ))}
               </ul>
@@ -744,7 +777,7 @@ export default function Home() {
           <div className="divider-gold w-40 mb-10" />
           <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 700, marginBottom: 20, maxWidth: 700 }}>{t.cta.title}</h2>
           <p style={{ color: "var(--parxis-text-secondary)", fontSize: 16, lineHeight: 1.7, maxWidth: 560, marginBottom: 40 }}>{t.cta.sub}</p>
-          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center gap-3 px-10 py-5 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.12em" }}>
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center gap-3 px-10 py-5" style={{ fontFamily: "var(--app-font-label)", fontSize: 12, letterSpacing: "0.14em" }}>
             {t.cta.btn} <span style={{ fontSize: 18 }}>›</span>
           </a>
         </div>
@@ -755,7 +788,7 @@ export default function Home() {
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <ParxisWordmark fontSize={16} />
           <p style={{ fontFamily: "var(--app-font-serif)", fontSize: 12, color: "var(--parxis-text-muted)", letterSpacing: "0.10em", fontStyle: "italic" }}>{t.footer.tagline}</p>
-          <p style={{ fontFamily: "var(--app-font-display)", fontSize: 10, color: "var(--parxis-text-muted)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{t.footer.by}</p>
+          <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, color: "var(--parxis-text-muted)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{t.footer.by}</p>
         </div>
       </footer>
 
