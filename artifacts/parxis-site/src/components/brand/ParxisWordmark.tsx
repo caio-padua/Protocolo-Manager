@@ -4,29 +4,29 @@ const CYCLE_MS = 12000;
 const BREATH_MS = 6200;
 
 type Props = {
-  /** largura-alvo (a altura sai por proporção da fonte) */
-  width?: number;
-  /** fontSize em px — controla o tamanho real das letras */
   fontSize?: number;
   cycleDelay?: number;
   className?: string;
+  style?: React.CSSProperties;
 };
 
+/**
+ * ParxisWordmark — CSS text com fonte geométrica Michroma + gradiente ouro 18K.
+ * Segue Manual Técnico §6 (gradiente), §9 (desenho das letras), §7 (reflexos).
+ */
 export function ParxisWordmark({
-  width,
-  fontSize = 52,
+  fontSize = 28,
   cycleDelay = 0,
   className,
+  style,
 }: Props) {
   const uid = useId().replace(/:/g, "");
-  const sweep = `px-sweep-${uid}`;
-  const spark = `px-spark-${uid}`;
-  const breath = `px-breath-${uid}`;
-  const wrap = `px-wrap-${uid}`;
+  const sweep  = `px-s-${uid}`;
+  const spark  = `px-k-${uid}`;
+  const breath = `px-b-${uid}`;
+  const wrap   = `px-w-${uid}`;
 
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@900&display=swap');
-
     .${wrap} {
       position: relative;
       display: inline-flex;
@@ -35,41 +35,34 @@ export function ParxisWordmark({
     }
 
     .${wrap} .px-face {
-      font-family: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
-      font-weight: 900;
+      font-family: 'Michroma', 'Rajdhani', 'Orbitron', monospace;
+      font-weight: 400;
       font-size: ${fontSize}px;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.10em;
       text-transform: uppercase;
       line-height: 1;
-      padding: 0.05em 0.04em;
 
-      /* Gradiente ouro 3D — cópia fiel do PAXTER */
-      background: linear-gradient(
-        180deg,
-        #fffbe8 0%,
-        #f5d98c 12%,
-        #d4a435 35%,
-        #b8882a 55%,
-        #8a6522 72%,
-        #c49a2e 85%,
-        #f0d080 100%
+      /* Gradiente ouro 18K — Manual §6.2 */
+      background: linear-gradient(115deg,
+        #5B2C00 0%, #9A5700 10%, #F2B817 25%,
+        #FFF3A6 38%, #FFD85A 48%, #D99000 62%,
+        #FFF0A0 74%, #B76C00 88%, #5B2C00 100%
       );
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
 
-      /* Bevel / profundidade via drop-shadow */
+      /* Reflexo suave externo — Manual §7.3 */
       filter:
         drop-shadow(0px 1px 0px rgba(0,0,0,0.95))
-        drop-shadow(0px 2px 2px rgba(0,0,0,0.85))
-        drop-shadow(0px 3px 5px rgba(0,0,0,0.6));
+        drop-shadow(0px 2px 4px rgba(0,0,0,0.85))
+        drop-shadow(0 0 8px rgba(242,184,23,0.12));
 
       position: relative;
       z-index: 1;
       user-select: none;
     }
 
-    /* CAMADA DE LUZ — faixa dourada que varre as letras */
     .${sweep}, .${spark}, .${breath} {
       position: absolute;
       inset: 0;
@@ -78,15 +71,15 @@ export function ParxisWordmark({
       z-index: 2;
     }
 
-    /* RESPIRO: brilho suave constante */
+    /* Respiro — Manual §26 */
     .${breath}::before {
       content: "";
       position: absolute;
       inset: 0;
       background: radial-gradient(
         80% 100% at 50% 30%,
-        rgba(255,240,180,0.55) 0%,
-        rgba(255,230,150,0.18) 45%,
+        rgba(255,216,90,0.40) 0%,
+        rgba(255,180,30,0.12) 45%,
         transparent 75%
       );
       mix-blend-mode: screen;
@@ -95,55 +88,55 @@ export function ParxisWordmark({
     }
     @keyframes ${breath} {
       0%, 100% { opacity: 0.05; }
-      50%       { opacity: 0.25; }
+      50%       { opacity: 0.22; }
     }
 
-    /* SOL: faixa larga e lenta */
+    /* Reflexo longitudinal / varredura — Manual §7.1 */
     .${sweep}::before {
       content: "";
       position: absolute;
-      top: -30%; bottom: -30%; left: 0; width: 55%;
+      top: -30%; bottom: -30%; left: 0; width: 50%;
       background: linear-gradient(100deg,
         transparent 0%,
-        rgba(255,231,150,0.28) 35%,
-        rgba(255,247,210,0.88) 50%,
-        rgba(255,231,150,0.28) 65%,
+        rgba(255,216,90,0.22) 35%,
+        rgba(255,247,180,0.80) 50%,
+        rgba(255,216,90,0.22) 65%,
         transparent 100%
       );
       mix-blend-mode: screen;
-      transform: translateX(-180%) skewX(-14deg); opacity: 0;
-      animation: ${sweep} ${CYCLE_MS}ms cubic-bezier(.45,0,.55,1) ${cycleDelay}ms infinite backwards;
+      transform: translateX(-200%) skewX(-14deg); opacity: 0;
+      animation: ${sweep} ${CYCLE_MS}ms cubic-bezier(.45,0,.55,1) ${cycleDelay}ms infinite;
     }
     @keyframes ${sweep} {
-      0%   { transform: translateX(-180%) skewX(-14deg); opacity: 0; }
-      26%  { transform: translateX(-180%) skewX(-14deg); opacity: 0; }
-      30%  { opacity: 1; }
-      45%  { transform: translateX(320%) skewX(-14deg);  opacity: 1; }
-      48%  { transform: translateX(320%) skewX(-14deg);  opacity: 0; }
-      100% { transform: translateX(320%) skewX(-14deg);  opacity: 0; }
+      0%   { transform: translateX(-200%) skewX(-14deg); opacity: 0; }
+      28%  { transform: translateX(-200%) skewX(-14deg); opacity: 0; }
+      32%  { opacity: 1; }
+      46%  { transform: translateX(350%) skewX(-14deg); opacity: 1; }
+      49%  { transform: translateX(350%) skewX(-14deg); opacity: 0; }
+      100% { transform: translateX(350%) skewX(-14deg); opacity: 0; }
     }
 
-    /* PÓLVORA: faísca fina e rápida, varre antes do sol */
+    /* Faísca pontual — Manual §7.2 */
     .${spark}::before {
       content: "";
       position: absolute;
-      top: -30%; bottom: -30%; left: 0; width: 12%;
+      top: -30%; bottom: -30%; left: 0; width: 10%;
       background: linear-gradient(100deg,
         transparent 0%,
-        rgba(255,253,230,0.95) 50%,
+        rgba(255,250,220,0.95) 50%,
         transparent 100%
       );
       mix-blend-mode: screen;
-      transform: translateX(-220%) skewX(-14deg); opacity: 0;
-      animation: ${spark} ${CYCLE_MS}ms linear ${cycleDelay}ms infinite backwards;
+      transform: translateX(-250%) skewX(-14deg); opacity: 0;
+      animation: ${spark} ${CYCLE_MS}ms linear ${cycleDelay}ms infinite;
     }
     @keyframes ${spark} {
-      0%   { transform: translateX(-220%) skewX(-14deg); opacity: 0; }
-      2%   { transform: translateX(-220%) skewX(-14deg); opacity: 0; }
-      5%   { opacity: 1; }
-      21%  { transform: translateX(360%) skewX(-14deg);  opacity: 1; }
-      24%  { transform: translateX(360%) skewX(-14deg);  opacity: 0; }
-      100% { transform: translateX(360%) skewX(-14deg);  opacity: 0; }
+      0%   { transform: translateX(-250%) skewX(-14deg); opacity: 0; }
+      3%   { transform: translateX(-250%) skewX(-14deg); opacity: 0; }
+      6%   { opacity: 1; }
+      22%  { transform: translateX(380%) skewX(-14deg); opacity: 1; }
+      25%  { transform: translateX(380%) skewX(-14deg); opacity: 0; }
+      100% { transform: translateX(380%) skewX(-14deg); opacity: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -154,10 +147,7 @@ export function ParxisWordmark({
   `;
 
   return (
-    <div
-      className={className}
-      style={width ? { width, display: "inline-flex" } : { display: "inline-flex" }}
-    >
+    <div className={className} style={{ display: "inline-flex", ...style }}>
       <style>{css}</style>
       <div className={wrap}>
         <span className="px-face" aria-label="PARXIS">PARXIS</span>

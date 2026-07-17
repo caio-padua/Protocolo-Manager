@@ -1,4 +1,5 @@
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
+- [PARXIS wordmark e logo (parxis-site)](parxis-wordmark-logo.md) — logo oficial = PNG em public/brand/parxis-logo.png (renderizado pelo ChatGPT); wordmark nav = CSS Michroma+ouro; Michroma e caps-only, usar .toUpperCase() no JSX ou text-transform: uppercase; mix de Cinzel/Michroma sem .toUpperCase() causa "ClinICal" misto.
 - [SaaS Multi-tenant ONDA A/B/C](saas-multitenant-onda-abc.md) — schema piramide (empresas), migration SQL manual nas 35 tabelas clinicas (nunca db push), backfill empresa_id=5, tenantContextMiddleware registrado em app.ts.
 - [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.

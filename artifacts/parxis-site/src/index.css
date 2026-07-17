@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Michroma&family=Cinzel:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -43,6 +43,7 @@
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
+  --font-display: var(--app-font-display);
   --font-mono: var(--app-font-mono);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -52,63 +53,71 @@
 }
 
 :root {
-  /* Dark mode as default */
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  /* PARXIS Brand Tokens — Manual Técnico §24 */
+  --parxis-black-950: #030303;
+  --parxis-black-900: #070707;
+  --parxis-black-850: #0C0C0C;
+  --parxis-black-800: #121212;
 
-  --opaque-button-border-intensity: 9;
+  --parxis-bordo-950: #150406;
+  --parxis-bordo-900: #25070A;
+  --parxis-bordo-800: #3A0B10;
+  --parxis-bordo-700: #571019;
 
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --parxis-gold-highlight: #FFF3A6;
+  --parxis-gold-light:     #FFD85A;
+  --parxis-gold-main:      #F2B817;
+  --parxis-gold-medium:    #D99000;
+  --parxis-gold-deep:      #9A5700;
+  --parxis-gold-shadow:    #5B2C00;
 
-  /* Deep Navy Foundations */
-  --background: 222 47% 5%;
-  --foreground: 210 40% 98%;
+  --parxis-text-main:      #F8F1DE;
+  --parxis-text-secondary: #C9BFA9;
+  --parxis-text-muted:     #8E8576;
 
-  --border: 222 40% 15%;
+  /* Tailwind token mapping */
+  --button-outline: rgba(242,184,23,0.12);
+  --badge-outline:  rgba(242,184,23,0.06);
 
-  --card: 222 47% 7%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 222 40% 15%;
+  --background: 0 0% 2%;
+  --foreground: 38 40% 95%;
 
-  --popover: 222 47% 7%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 222 40% 15%;
+  --border: 30 15% 14%;
 
-  /* Cyan Primary */
-  --primary: 190 90% 50%;
-  --primary-foreground: 222 47% 5%;
+  --card: 0 0% 4%;
+  --card-foreground: 38 40% 95%;
+  --card-border: 30 15% 14%;
 
-  /* Gold Secondary */
-  --secondary: 45 93% 60%;
-  --secondary-foreground: 222 47% 5%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 38 40% 95%;
+  --popover-border: 30 15% 14%;
 
-  --muted: 222 30% 15%;
-  --muted-foreground: 215 20% 70%;
+  /* Gold Primary */
+  --primary: 42 88% 52%;
+  --primary-foreground: 0 0% 5%;
 
-  --accent: 190 90% 15%;
-  --accent-foreground: 190 90% 50%;
+  /* Bordo Secondary */
+  --secondary: 355 70% 18%;
+  --secondary-foreground: 38 40% 90%;
+
+  --muted: 0 0% 8%;
+  --muted-foreground: 30 12% 58%;
+
+  --accent: 42 60% 15%;
+  --accent-foreground: 42 88% 65%;
 
   --destructive: 0 62% 30%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive-foreground: 38 40% 95%;
 
-  --input: 222 40% 15%;
-  --ring: 190 90% 50%;
+  --input: 30 15% 14%;
+  --ring: 42 88% 52%;
 
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: 'Cinzel', serif;
-  --app-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  
-  --radius: 0.25rem;
+  --app-font-sans:    'Inter', sans-serif;
+  --app-font-serif:   'Cinzel', 'Cormorant Garamond', serif;
+  --app-font-display: 'Michroma', 'Rajdhani', monospace;
+  --app-font-mono:    ui-monospace, Menlo, Monaco, Consolas, monospace;
 
-  --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
-  --shadow-xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
-  --shadow-sm: 0px 2px 0px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
-  --shadow: 0px 2px 0px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
-  --shadow-md: 0px 2px 0px 0px rgba(0,0,0,0.5), 0px 2px 4px -1px rgba(0,0,0,0.5);
-  --shadow-lg: 0px 2px 0px 0px rgba(0,0,0,0.5), 0px 4px 6px -1px rgba(0,0,0,0.5);
-  --shadow-xl: 0px 2px 0px 0px rgba(0,0,0,0.5), 0px 8px 10px -1px rgba(0,0,0,0.5);
-  --shadow-2xl: 0px 2px 0px 0px rgba(0,0,0,0.5);
+  --radius: 0.125rem;
 
   --primary-border: hsl(var(--primary));
   --secondary-border: hsl(var(--secondary));
@@ -118,37 +127,158 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
+
+  html { scroll-behavior: smooth; }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply antialiased;
+    font-family: var(--app-font-sans);
+    background: var(--parxis-black-950);
+    color: var(--parxis-text-main);
+    /* Textura de fundo — Manual §15, opacidade 3-7% */
+    background-image:
+      radial-gradient(circle at 50% 22%, rgba(42,28,6,0.18), transparent 42%),
+      linear-gradient(180deg, #0A0A0A 0%, #040404 100%);
   }
 }
 
-.text-gradient-cyan {
-  background: linear-gradient(135deg, hsl(190 90% 70%), hsl(190 90% 50%));
+/* ── Gradiente ouro 18K (Manual §6) ─────────────────────── */
+.gold-gradient-text {
+  background: linear-gradient(115deg,
+    #5B2C00 0%, #9A5700 10%, #F2B817 25%,
+    #FFF3A6 38%, #FFD85A 48%, #D99000 62%,
+    #FFF0A0 74%, #B76C00 88%, #5B2C00 100%
+  );
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.text-gradient-gold {
-  background: linear-gradient(135deg, hsl(45 93% 70%), hsl(45 93% 50%));
+.gold-gradient-text-soft {
+  background: linear-gradient(180deg,
+    #FFF7BF 0%, #FFD85A 20%, #F2B817 48%,
+    #C87900 72%, #7C3E00 100%
+  );
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.bg-gradient-mesh {
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(190, 90%, 50%, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(45, 93%, 60%, 0.05) 0px, transparent 50%);
+/* ── Linha divisória com losango central (Manual §12) ──── */
+.divider-gold {
+  position: relative;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent, #9A5700, #FFD85A, #9A5700, transparent
+  );
 }
 
+.divider-gold::after {
+  content: "◆";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #DFA514;
+  font-size: 14px;
+  background: var(--parxis-black-950);
+  padding: 0 6px;
+}
+
+/* ── Glass panel ─────────────────────────────────────────── */
 .glass-panel {
-  background: hsla(222, 47%, 7%, 0.7);
+  background: rgba(18, 10, 4, 0.70);
   backdrop-filter: blur(12px);
-  border: 1px solid hsla(210, 40%, 98%, 0.05);
+  border: 1px solid rgba(242, 184, 23, 0.07);
+}
+
+/* ── Card de feature ─────────────────────────────────────── */
+.feature-card {
+  background: linear-gradient(145deg, #0E0804, #080504);
+  border: 1px solid rgba(242, 184, 23, 0.10);
+  border-left: 3px solid var(--parxis-gold-medium);
+  transition: border-color 200ms, background 200ms;
+}
+
+.feature-card:hover {
+  border-color: rgba(242, 184, 23, 0.25);
+  border-left-color: var(--parxis-gold-main);
+  background: linear-gradient(145deg, #14090A, #0C0504);
+}
+
+/* ── Botão CTA principal ─────────────────────────────────── */
+.btn-gold {
+  background: linear-gradient(135deg, #D99000, #F2B817, #FFD85A, #D99000);
+  background-size: 200% auto;
+  color: #050505;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  transition: background-position 300ms, filter 220ms, transform 220ms;
+  filter: drop-shadow(0 0 12px rgba(242,184,23,0.20));
+}
+
+.btn-gold:hover {
+  background-position: right center;
+  filter: brightness(1.06) drop-shadow(0 0 18px rgba(242,184,23,0.30));
+  transform: scale(1.015);
+}
+
+.btn-gold:active { transform: scale(0.985); }
+
+/* ── Botão outline ouro ──────────────────────────────────── */
+.btn-gold-outline {
+  border: 1px solid var(--parxis-gold-medium);
+  color: var(--parxis-gold-light);
+  transition: background 220ms, filter 220ms, transform 220ms;
+}
+
+.btn-gold-outline:hover {
+  background: rgba(242,184,23,0.08);
+  filter: drop-shadow(0 0 10px rgba(242,184,23,0.15));
+  transform: scale(1.015);
+}
+
+/* ── Sombra símbolo (Manual §16) ─────────────────────────── */
+.symbol-shadow {
+  filter:
+    drop-shadow(0 18px 38px rgba(0,0,0,0.75))
+    drop-shadow(0 6px 10px rgba(0,0,0,0.65))
+    drop-shadow(0 0 20px rgba(242,184,23,0.16));
+}
+
+/* ── Animação de entrada ─────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(.22,.61,.36,1) forwards;
+}
+
+.animate-fade-up-delay-1 { animation-delay: 0.15s; opacity: 0; }
+.animate-fade-up-delay-2 { animation-delay: 0.30s; opacity: 0; }
+.animate-fade-up-delay-3 { animation-delay: 0.45s; opacity: 0; }
+
+/* ── Respiro do símbolo (Manual §26) ─────────────────────── */
+@keyframes symbol-breath {
+  0%, 100% { transform: scale(1.000); }
+  50%       { transform: scale(1.012); }
+}
+
+.symbol-breath {
+  animation: symbol-breath 6s ease-in-out infinite;
+}
+
+/* ── Glow do símbolo no hover ────────────────────────────── */
+.logo-hover {
+  transition: filter 220ms ease, transform 220ms ease;
+}
+
+.logo-hover:hover {
+  filter:
+    brightness(1.06)
+    drop-shadow(0 0 10px rgba(242,184,23,0.24));
+  transform: scale(1.015);
 }
