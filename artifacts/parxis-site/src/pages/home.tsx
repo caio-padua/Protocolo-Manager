@@ -19,6 +19,25 @@ function useInView(threshold = 0.12) {
   return [ref, visible] as const;
 }
 
+/** Acordeão de FAQ — expande/colapsa ao clicar */
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ borderBottom: "1px solid rgba(242,184,23,0.10)" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", textAlign: "left", padding: "22px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, background: "none", border: "none", cursor: "pointer" }}
+      >
+        <span style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(14px, 1.3vw, 16px)", color: open ? "var(--parxis-gold-light)" : "var(--parxis-text-main)", lineHeight: 1.5, transition: "color 220ms", fontWeight: open ? 600 : 400 }}>{q}</span>
+        <span style={{ color: "var(--parxis-gold-deep)", fontSize: 18, flexShrink: 0, transform: open ? "rotate(45deg)" : "rotate(0deg)", transition: "transform 240ms", lineHeight: 1 }}>+</span>
+      </button>
+      {open && (
+        <p style={{ fontFamily: "var(--app-font-sans)", fontSize: 14, color: "var(--parxis-text-secondary)", lineHeight: 1.85, paddingBottom: 24, paddingRight: 32 }}>{a}</p>
+      )}
+    </div>
+  );
+}
+
 const C = {
   pt: {
     nav: { cta: "Falar com Especialista", lang: "EN" },
@@ -245,6 +264,67 @@ const C = {
           "Operações 100% analógicas resistentes ao digital",
         ],
       },
+    },
+    manifesto: {
+      label: "Manifesto · Chapitre I",
+      title: "A medicina integrativa de alto padrão não cabe em sistemas genéricos.",
+      lines: [
+        "Cada protocolo de injetáveis que sai de uma clínica séria carrega consigo anos de formação, decisões clínicas difíceis e a confiança depositada por um cliente que escolheu medicina de precisão. Esse protocolo merece mais do que uma planilha.",
+        "O PARXIS foi construído a partir de uma premissa simples: se a medicina integrativa evolui em complexidade, as ferramentas de gestão precisam evoluir na mesma velocidade. Sem adaptações forçadas, sem workarounds improvisados.",
+        "Criamos um sistema que pensa como uma clínica de alto padrão opera — do lançamento do protocolo ao arquivo jurídico, da comunicação automatizada com o cliente à assinatura digital qualificada. Tudo dentro de um único ambiente, construído especificamente para quem leva injetáveis a sério.",
+      ],
+      signature: "— Equipe PARXIS · PAWARDS MedCore",
+    },
+    prices: {
+      label: "Planos · Licenciamento",
+      title: "Escolha o plano certo para a sua operação.",
+      sub: "Todos os planos incluem onboarding completo, suporte dedicado e acesso a todas as atualizações.",
+      note: "Valores sob consulta. Agende uma demonstração para receber uma proposta personalizada.",
+      recommended: "Mais escolhido",
+      tiers: [
+        {
+          name: "Clínica",
+          desc: "Para clínicas com operação estruturada e time enxuto.",
+          features: ["Até 2 médicos ativos", "30 módulos completos", "RAS com assinatura digital", "Arquivo automático na nuvem", "Suporte por e-mail"],
+          cta: "Consultar Valores",
+          highlight: false,
+        },
+        {
+          name: "Premium",
+          desc: "Para clínicas em crescimento com alto volume de protocolos.",
+          features: ["Até 5 médicos ativos", "Todos os módulos + PAWARDS MedCore", "Portal exclusivo do cliente", "App instalável no celular", "Suporte prioritário 7 dias"],
+          cta: "Agendar Demonstração",
+          highlight: true,
+        },
+        {
+          name: "Enterprise",
+          desc: "Para operações multi-clínica com equipe própria de enfermagem.",
+          features: ["Médicos ilimitados", "Multi-localização", "Integrações personalizadas", "Onboarding presencial", "Gerente de conta exclusivo"],
+          cta: "Falar com Especialista",
+          highlight: false,
+        },
+      ] as { name: string; desc: string; features: string[]; cta: string; highlight: boolean }[],
+    },
+    testimonials: {
+      label: "Resultados · Prova Social",
+      title: "O que dizem os médicos que já usam o PARXIS.",
+      items: [
+        { quote: "A diferença foi imediata. Antes eu perdia tempo consolidando planilhas e enviando documentos manualmente. Hoje tudo sai automaticamente — RAS assinado, pasta no Drive organizada, cliente notificado. A equipe ganhou quase duas horas por dia.", author: "Dr. R. Mendonça", role: "Endocrinologista", clinic: "Clínica Longevidade Premium · São Paulo" },
+        { quote: "O módulo de anamnese me impressionou. A lógica de perguntas por sistema e os alarmes automáticos fazem o sistema pensar junto comigo. Nunca mais passei pelo constrangimento de esquecer uma contraindicação relevante.", author: "Dra. C. Fonseca", role: "Medicina Estética Integrativa", clinic: "Instituto Vida Plena · Brasília" },
+        { quote: "Como administradora, o que mais me surpreendeu foi o controle financeiro. Tudo integrado — pagamentos, parcelamentos, saldo corrente por protocolo. Hoje fecho o mês sem surpresa e apresento relatórios para os sócios em minutos.", author: "M. Cavalcante", role: "Diretora Administrativa", clinic: "Centro de Medicina Avançada · Recife" },
+      ],
+    },
+    faq: {
+      label: "Dúvidas Frequentes",
+      title: "Perguntas que todo médico faz antes de assinar.",
+      items: [
+        { q: "O PARXIS funciona para qualquer clínica de injetáveis?", a: "O PARXIS foi projetado especificamente para clínicas que trabalham com protocolos injetáveis seriados — terapias IV, IM, implantes e fórmulas manipuladas. Não é um sistema genérico adaptado; é uma ferramenta construída do zero para esse fluxo." },
+        { q: "Quanto tempo leva para implantar o sistema?", a: "A clínica é configurada em até 24 horas úteis após o onboarding. Isso inclui cadastro de substâncias, equipe, locais de atendimento e todas as integrações. O suporte acompanha as primeiras semanas de uso." },
+        { q: "Os dados dos meus clientes ficam seguros e em conformidade com a LGPD?", a: "Sim. Os dados ficam em servidores seguros, nunca são compartilhados com terceiros e o sistema inclui cláusula LGPD nos documentos gerados. O RAS e os prontuários têm assinatura digital qualificada com validade jurídica nacional." },
+        { q: "Preciso de conhecimento técnico para usar?", a: "Não. O PARXIS foi projetado para médicos, enfermeiras e administrativos — não para TI. A interface é intuitiva e o onboarding cobre todos os módulos. O suporte dedica as primeiras semanas ao treinamento completo da equipe." },
+        { q: "O PARXIS tem aplicativo para o celular?", a: "Sim, e sem precisar de App Store ou Play Store. O sistema é instalável diretamente pelo navegador — fica com ícone na tela inicial e funciona como app nativo em qualquer dispositivo Android ou iOS." },
+        { q: "Posso usar em mais de uma unidade da minha clínica?", a: "Sim. O plano Enterprise suporta múltiplas localizações com equipes e agendas independentes. Cada unidade tem seus próprios boxes, profissionais e controles — tudo sob a mesma conta." },
+      ],
     },
     cta: {
       title: "Eleve o padrão da sua operação.",
@@ -483,6 +563,67 @@ const C = {
         ],
       },
     },
+    manifesto: {
+      label: "Manifesto · Chapter I",
+      title: "Premium integrative medicine doesn't fit in generic systems.",
+      lines: [
+        "Every injectable protocol that leaves a serious clinic carries years of training, difficult clinical decisions, and the trust placed by a client who chose precision medicine. That protocol deserves more than a spreadsheet.",
+        "PARXIS was built on a simple premise: if integrative medicine grows in complexity, management tools must evolve at the same pace. No forced adaptations, no improvised workarounds.",
+        "We created a system that thinks the way a premium clinic operates — from protocol launch to legal archiving, from automated client communication to qualified digital signature. Everything inside a single environment built specifically for those who take injectables seriously.",
+      ],
+      signature: "— PARXIS Team · PAWARDS MedCore",
+    },
+    prices: {
+      label: "Plans · Licensing",
+      title: "Choose the right plan for your operation.",
+      sub: "All plans include full onboarding, dedicated support, and access to all updates.",
+      note: "Prices on request. Schedule a demo to receive a personalized proposal.",
+      recommended: "Most popular",
+      tiers: [
+        {
+          name: "Clinic",
+          desc: "For structured clinics with a lean team.",
+          features: ["Up to 2 active physicians", "All 30 modules", "RAS with digital signature", "Automatic cloud archive", "Email support"],
+          cta: "Request Pricing",
+          highlight: false,
+        },
+        {
+          name: "Premium",
+          desc: "For growing clinics with high protocol volume.",
+          features: ["Up to 5 active physicians", "All modules + PAWARDS MedCore", "Exclusive client portal", "Installable mobile app", "Priority support 7 days"],
+          cta: "Schedule a Demo",
+          highlight: true,
+        },
+        {
+          name: "Enterprise",
+          desc: "For multi-clinic operations with in-house nursing teams.",
+          features: ["Unlimited physicians", "Multi-location", "Custom integrations", "On-site onboarding", "Dedicated account manager"],
+          cta: "Talk to a Specialist",
+          highlight: false,
+        },
+      ] as { name: string; desc: string; features: string[]; cta: string; highlight: boolean }[],
+    },
+    testimonials: {
+      label: "Results · Social Proof",
+      title: "What physicians who already use PARXIS say.",
+      items: [
+        { quote: "The difference was immediate. Before, I wasted time consolidating spreadsheets and sending documents manually. Today everything goes out automatically — signed RAS, organized Drive folder, notified client. The team gained almost two hours a day.", author: "Dr. R. Mendonça", role: "Endocrinologist", clinic: "Longevidade Premium Clinic · São Paulo" },
+        { quote: "The anamnesis module impressed me. The system-based question logic and automatic alerts make the system think alongside me. I've never again had the embarrassment of missing a relevant contraindication.", author: "Dr. C. Fonseca", role: "Integrative Medical Aesthetics", clinic: "Instituto Vida Plena · Brasília" },
+        { quote: "As an administrator, what surprised me most was the financial control. Everything integrated — payments, installments, running balance per protocol. Today I close the month without surprises and present reports to partners in minutes.", author: "M. Cavalcante", role: "Administrative Director", clinic: "Advanced Medicine Center · Recife" },
+      ],
+    },
+    faq: {
+      label: "Frequently Asked Questions",
+      title: "Questions every physician asks before signing.",
+      items: [
+        { q: "Does PARXIS work for any injectable clinic?", a: "PARXIS was designed specifically for clinics working with serial injectable protocols — IV therapies, IM, implants and compounded formulas. It's not a generic system adapted for use; it's a tool built from scratch for this workflow." },
+        { q: "How long does implementation take?", a: "The clinic is configured within 24 business hours after onboarding. This includes substance catalog, team, locations and all integrations. Support accompanies the first weeks of use." },
+        { q: "Is my client data safe and LGPD compliant?", a: "Yes. Data is stored on secure servers, never shared with third parties, and the system includes LGPD clauses in all generated documents. RAS records and medical charts have qualified digital signatures with national legal validity." },
+        { q: "Do I need technical knowledge to use it?", a: "No. PARXIS was designed for physicians, nurses and administrators — not IT professionals. The interface is intuitive and onboarding covers all modules. Support dedicates the first weeks to full team training." },
+        { q: "Does PARXIS have a mobile app?", a: "Yes, with no App Store or Play Store required. The system is installable directly from the browser — it gets a home screen icon and works like a native app on any Android or iOS device." },
+        { q: "Can I use it across multiple clinic locations?", a: "Yes. The Enterprise plan supports multiple locations with independent teams and schedules. Each unit has its own treatment rooms, professionals and controls — all under the same account." },
+      ],
+    },
     cta: {
       title: "Elevate the standard of your operation.",
       sub: "Schedule a demonstration and discover how PARXIS transforms clinical complexity into systemic precision.",
@@ -516,12 +657,16 @@ export default function Home() {
   }, []);
 
   /* ── Refs de scroll-reveal por seção ── */
-  const [painRef,     painVisible]     = useInView();
-  const [featRef,     featVisible]     = useInView();
-  const [pawardsRef,  pawardsVisible]  = useInView();
-  const [flowRef,     flowVisible]     = useInView();
-  const [audienceRef, audienceVisible] = useInView();
-  const [ctaRef,      ctaVisible]      = useInView();
+  const [manifestoRef,   manifestoVisible]   = useInView();
+  const [painRef,        painVisible]        = useInView();
+  const [featRef,        featVisible]        = useInView();
+  const [pawardsRef,     pawardsVisible]     = useInView();
+  const [flowRef,        flowVisible]        = useInView();
+  const [audienceRef,    audienceVisible]    = useInView();
+  const [testimonialsRef,testimonialsVisible]= useInView();
+  const [pricesRef,      pricesVisible]      = useInView();
+  const [faqRef,         faqVisible]         = useInView();
+  const [ctaRef,         ctaVisible]         = useInView();
 
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--parxis-black-950)", color: "var(--parxis-text-main)" }}>
@@ -547,17 +692,17 @@ export default function Home() {
           {/* Menu central */}
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 36 }}>
             {(lang === "pt"
-              ? ["Manifesto", "Recursos", "Tecnologia", "Para Clínicas"]
-              : ["Manifesto", "Resources", "Technology", "For Clinics"]
-            ).map((item) => (
+              ? [["Manifesto","#manifesto"],["Recursos","#recursos"],["Tecnologia","#tecnologia"],["Para Clínicas","#para-clinicas"]]
+              : [["Manifesto","#manifesto"],["Resources","#recursos"],["Technology","#tecnologia"],["For Clinics","#para-clinicas"]]
+            ).map(([label, href]) => (
               <a
-                key={item}
-                href="#features"
+                key={label}
+                href={href}
                 style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.17em", color: "#C8BEAA", textTransform: "uppercase" as const, textDecoration: "none", transition: "color 220ms", whiteSpace: "nowrap" as const }}
                 onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#FFD85A"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#C8BEAA"; }}
               >
-                {item}
+                {label}
               </a>
             ))}
           </div>
@@ -658,6 +803,29 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.18), transparent)" }} />
       </section>
 
+      {/* ── MANIFESTO ───────────────────────────────────────────────────── */}
+      <section id="manifesto" ref={manifestoRef as React.RefObject<HTMLElement>} className={`py-32 ${manifestoVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "var(--parxis-black-900)", borderTop: "1px solid rgba(242,184,23,0.07)", borderBottom: "1px solid rgba(242,184,23,0.07)" }}>
+        <div className="container mx-auto px-6">
+          <div className="max-w-3xl mx-auto">
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 32 }}>
+              {t.manifesto.label}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(22px, 3vw, 36px)", fontWeight: 700, lineHeight: 1.25, color: "#FFFFFF", marginBottom: 48, fontStyle: "italic" }}>
+              {t.manifesto.title}
+            </h2>
+            <div className="divider-gold w-16 mb-12" />
+            <div className="space-y-8">
+              {t.manifesto.lines.map((line, i) => (
+                <p key={i} style={{ fontFamily: "var(--app-font-sans)", fontSize: "clamp(15px, 1.4vw, 17px)", lineHeight: 1.85, color: "var(--parxis-text-secondary)" }}>{line}</p>
+              ))}
+            </div>
+            <p style={{ fontFamily: "var(--app-font-serif)", fontSize: 14, color: "var(--parxis-gold-deep)", fontStyle: "italic", marginTop: 48, letterSpacing: "0.06em" }}>
+              {t.manifesto.signature}
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ── PAIN POINTS ─────────────────────────────────────────────────── */}
       <section ref={painRef as React.RefObject<HTMLElement>} className={`py-28 ${painVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #0A0203 0%, #130406 50%, #0A0203 100%)" }}>
         <div className="container mx-auto px-6">
@@ -683,7 +851,7 @@ export default function Home() {
       </section>
 
       {/* ── FEATURES — PARXIS 30 MÓDULOS ────────────────────────────────── */}
-      <section id="features" ref={featRef as React.RefObject<HTMLElement>} className={`py-32 ${featVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0E0304 30%, #160507 60%, #0E0304 85%, #050505 100%)" }}>
+      <section id="recursos" ref={featRef as React.RefObject<HTMLElement>} className={`py-32 ${featVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0E0304 30%, #160507 60%, #0E0304 85%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-20 max-w-3xl mx-auto">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
@@ -725,7 +893,7 @@ export default function Home() {
       </section>
 
       {/* ── PAWARDS MED CORE ────────────────────────────────────────────── */}
-      <section ref={pawardsRef as React.RefObject<HTMLElement>} className={`py-32 relative overflow-hidden ${pawardsVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0C0808 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
+      <section id="tecnologia" ref={pawardsRef as React.RefObject<HTMLElement>} className={`py-32 relative overflow-hidden ${pawardsVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0C0808 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
         <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: "radial-gradient(circle, #F2B817 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
         <div className="container mx-auto px-6 relative z-10">
           <div className="text-center mb-20 max-w-3xl mx-auto">
@@ -786,7 +954,7 @@ export default function Home() {
       </section>
 
       {/* ── AUDIENCE ────────────────────────────────────────────────────── */}
-      <section ref={audienceRef as React.RefObject<HTMLElement>} className={`py-28 ${audienceVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
+      <section id="para-clinicas" ref={audienceRef as React.RefObject<HTMLElement>} className={`py-28 ${audienceVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-14">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
@@ -815,6 +983,99 @@ export default function Home() {
                 ))}
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── DEPOIMENTOS ─────────────────────────────────────────────────── */}
+      <section ref={testimonialsRef as React.RefObject<HTMLElement>} className={`py-28 ${testimonialsVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "var(--parxis-black-900)", borderTop: "1px solid rgba(242,184,23,0.07)" }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
+              {t.testimonials.label}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, lineHeight: 1.2 }}>{t.testimonials.title}</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {t.testimonials.items.map((item, i) => (
+              <div key={i} style={{ background: "linear-gradient(145deg, #180608, #0E0304)", border: "1px solid rgba(242,184,23,0.09)", borderTop: "2px solid rgba(242,184,23,0.35)", padding: "36px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+                <p style={{ fontFamily: "var(--app-font-sans)", fontSize: 14, lineHeight: 1.85, color: "var(--parxis-text-secondary)", fontStyle: "italic", flex: 1 }}>
+                  &ldquo;{item.quote}&rdquo;
+                </p>
+                <div style={{ borderTop: "1px solid rgba(242,184,23,0.10)", paddingTop: 20 }}>
+                  <p style={{ fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.12em", color: "var(--parxis-gold-medium)", textTransform: "uppercase", marginBottom: 4 }}>{item.author}</p>
+                  <p style={{ fontFamily: "var(--app-font-sans)", fontSize: 12, color: "var(--parxis-text-muted)" }}>{item.role}</p>
+                  <p style={{ fontFamily: "var(--app-font-sans)", fontSize: 11, color: "rgba(200,190,170,0.40)", marginTop: 2 }}>{item.clinic}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PREÇOS ──────────────────────────────────────────────────────── */}
+      <section ref={pricesRef as React.RefObject<HTMLElement>} className={`py-28 ${pricesVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-6">
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
+              {t.prices.label}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, lineHeight: 1.2, marginBottom: 12 }}>{t.prices.title}</h2>
+            <p style={{ color: "var(--parxis-text-muted)", fontSize: 14, maxWidth: 520, margin: "0 auto 32px" }}>{t.prices.sub}</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-10">
+            {t.prices.tiers.map((tier, i) => (
+              <div key={i} style={{
+                background: tier.highlight ? "linear-gradient(145deg, #2C0D10, #1A0608)" : "linear-gradient(145deg, #120304, #0A0203)",
+                border: tier.highlight ? "1px solid rgba(242,184,23,0.35)" : "1px solid rgba(242,184,23,0.09)",
+                borderTop: tier.highlight ? "2px solid rgba(242,184,23,0.80)" : "2px solid rgba(242,184,23,0.18)",
+                padding: "36px 28px",
+                position: "relative" as const,
+              }}>
+                {tier.highlight && (
+                  <div style={{ position: "absolute", top: -1, right: 24, background: "var(--parxis-gold-main)", color: "#050505", fontFamily: "var(--app-font-label)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", padding: "4px 12px", transform: "translateY(-50%)" }}>
+                    {t.prices.recommended}
+                  </div>
+                )}
+                <h3 style={{ fontFamily: "var(--app-font-label)", fontSize: 13, letterSpacing: "0.20em", textTransform: "uppercase", color: tier.highlight ? "var(--parxis-gold-light)" : "var(--parxis-text-main)", marginBottom: 10 }}>{tier.name}</h3>
+                <p style={{ fontFamily: "var(--app-font-sans)", fontSize: 13, color: "var(--parxis-text-muted)", marginBottom: 24, lineHeight: 1.6 }}>{tier.desc}</p>
+                <ul className="space-y-3 mb-8">
+                  {tier.features.map((f, fi) => (
+                    <li key={fi} style={{ display: "flex", alignItems: "flex-start", gap: 10, color: "var(--parxis-text-secondary)", fontSize: 13, lineHeight: 1.55 }}>
+                      <span style={{ color: "var(--parxis-gold-deep)", flexShrink: 0, marginTop: 2 }}>◆</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "block", textAlign: "center", fontFamily: "var(--app-font-label)", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", textDecoration: "none", padding: "12px 20px",
+                    background: tier.highlight ? "var(--parxis-gold-main)" : "transparent",
+                    color: tier.highlight ? "#050505" : "var(--parxis-gold-medium)",
+                    border: tier.highlight ? "none" : "1px solid rgba(242,184,23,0.28)",
+                    transition: "all 200ms",
+                  }}
+                >{tier.cta}</a>
+              </div>
+            ))}
+          </div>
+          <p style={{ textAlign: "center", fontFamily: "var(--app-font-sans)", fontSize: 12, color: "var(--parxis-text-muted)", fontStyle: "italic" }}>* {t.prices.note}</p>
+        </div>
+      </section>
+
+      {/* ── FAQ ─────────────────────────────────────────────────────────── */}
+      <section ref={faqRef as React.RefObject<HTMLElement>} className={`py-28 ${faqVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "var(--parxis-black-900)", borderTop: "1px solid rgba(242,184,23,0.07)" }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.30em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
+              {t.faq.label}
+            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(24px, 3.5vw, 42px)", fontWeight: 700, lineHeight: 1.2 }}>{t.faq.title}</h2>
+          </div>
+          <div className="max-w-3xl mx-auto space-y-0">
+            {t.faq.items.map((item, i) => (
+              <FaqItem key={i} q={item.q} a={item.a} />
+            ))}
           </div>
         </div>
       </section>
