@@ -2,13 +2,9 @@ import { useState } from "react";
 import { ParxisWordmark } from "@/components/brand/ParxisWordmark";
 import { ParxisLogo } from "@/components/brand/ParxisLogo";
 
-// ── Conteúdo bilíngue ────────────────────────────────────────────────────────
 const C = {
   pt: {
-    nav: {
-      cta: "Falar com Especialista",
-      lang: "EN",
-    },
+    nav: { cta: "Falar com Especialista", lang: "EN" },
     hero: {
       descriptor: "Clinical Intelligence System",
       signature:  "Precision in Integrative Care",
@@ -30,90 +26,185 @@ const C = {
       ],
     },
     features: {
-      title: "14 Módulos. Uma Plataforma.",
+      title: "30 Módulos. Uma Plataforma.",
       sub:   "Cada funcionalidade foi projetada para o fluxo real de uma clínica de protocolos injetáveis — sem adaptações forçadas de sistemas genéricos.",
       items: [
         {
-          num: "01", icon: "⬡", name: "Protocolo Digital (Lançador)",
-          desc: "Monte protocolos com até 10 substâncias em uma única tela guiada. Data de início, frequência, dose, via de administração e precificação por item. Templates de longevidade, performance e estética.",
-          tags: ["Lançador guiado", "Até 10 substâncias", "Templates"],
+          num: "01", name: "Protocolo Digital — Lançador Guiado",
+          desc: "Monte protocolos completos em uma única tela. Substâncias, datas de início, frequência, dose por item e precificação individual. O cronograma de sessões é gerado automaticamente.",
+          tags: ["Lançador guiado", "Cronograma automático", "Precificação por item"],
         },
         {
-          num: "02", icon: "⬡", name: "Agenda Semanal Inteligente",
-          desc: "Visão semanal com cards codificados por cor: verde=concluído, âmbar=parcial, azul=hoje, vermelho=perdido, cinza=cancelado. Gestão de boxes de infusão IV/IM/Implante com tempo estimado automático.",
-          tags: ["Google Calendar", "ICS download", "Gestão de boxes"],
+          num: "02", name: "Agenda Semanal Visual",
+          desc: "Visão semanal com cartões codificados por cor: verde para concluído, âmbar para parcial, azul para hoje, vermelho para perdido, cinza para cancelado. Gestão de boxes com tempo estimado automático por tipo de procedimento.",
+          tags: ["Código de cores", "Gestão de boxes", "Tempo estimado"],
         },
         {
-          num: "03", icon: "⬡", name: "RAS com Assinatura ICP-Brasil",
-          desc: "Registro de Assistência Sistêmica gerado automaticamente com assinatura digital qualificada A1 ICP-Brasil (PKCS#7). Cada administração documentada, carimbada e juridicamente blindada. Conformidade CFM e Anvisa.",
-          tags: ["Assinatura A1", "Carimbo de tempo", "CFM/Anvisa"],
+          num: "03", name: "RAS com Validade Jurídica",
+          desc: "Registro de Assistência Sistêmica gerado automaticamente com assinatura digital qualificada — padrão jurídico nacional. Cada administração documentada, carimbada e juridicamente blindada conforme CFM e Anvisa.",
+          tags: ["Assinatura qualificada", "CFM / Anvisa", "Carimbo de tempo"],
         },
         {
-          num: "04", icon: "⬡", name: "RAS FAP — Formulário de Auditoria",
-          desc: "Versão física em paisagem para controle da enfermagem. Grade consolidada por semana ISO, 5 colunas fixas de substância por folha, células de confirmação individual, assinatura com carimbo CRM/COREN.",
+          num: "04", name: "FAP — Formulário de Auditoria em Papel",
+          desc: "Planilha em PDF paisagem para controle manual da enfermagem. Grade consolidada por semana, colunas fixas por substância, células de confirmação individual. Linha de assinatura com carimbo CRM/COREN.",
           tags: ["PDF paisagem", "Grade semanal", "Auditoria em papel"],
         },
         {
-          num: "05", icon: "⬡", name: "Protocolo Completo PDF",
-          desc: "Documento de 8 a 10 páginas: capa com branding, matriz de benefícios com rating por estrelas, fichas técnicas de substância, TCLE por via (IV/IM/Implante), cláusula LGPD, cronograma de sessões, resumo financeiro.",
-          tags: ["8-10 páginas", "TCLE por via", "LGPD"],
+          num: "05", name: "Protocolo Completo PDF",
+          desc: "Documento de 8 a 10 páginas com capa de marca, matriz de benefícios por substância com classificação por estrelas, fichas técnicas, termos de consentimento por via de aplicação, cláusula legal e resumo financeiro.",
+          tags: ["8–10 páginas", "Termo de consentimento", "Resumo financeiro"],
         },
         {
-          num: "06", icon: "⬡", name: "Google Drive — Arquivo Automático",
-          desc: "O sistema cria e organiza automaticamente a pasta do cliente (15 subpastas: PROTOCOLOS, EXAMES, LAUDOS, FINANCEIRO, CONTRATOS, etc.). PDFs do RAS e protocolo são enviados automaticamente ao Drive correto com nomenclatura padronizada.",
-          tags: ["15 subpastas", "Nomenclatura auto", "Upload automático"],
+          num: "06", name: "Arquivo Digital Automático na Nuvem",
+          desc: "O sistema cria e organiza automaticamente a pasta digital do cliente com 15 subpastas temáticas. Todos os PDFs gerados são enviados para a subpasta correta com nomenclatura padronizada — sem trabalho manual.",
+          tags: ["15 subpastas", "Nomenclatura padrão", "Upload automático"],
         },
         {
-          num: "07", icon: "⬡", name: "WhatsApp + Email Automatizados",
-          desc: "Lembretes de sessão, código de validação, lista de substâncias, orientações pré/pós-infusão e RAS assinado em PDF como anexo. Templates de primeira sessão com benefícios detalhados de cada substância.",
-          tags: ["Twilio WhatsApp", "Gmail API", "Código de validação"],
+          num: "07", name: "Comunicação Automatizada com o Cliente",
+          desc: "O cliente recebe mensagem antes de cada sessão com código de verificação, lista de substâncias e orientações. Após a sessão, recebe o registro assinado em anexo. Tudo automático, com identidade visual da clínica.",
+          tags: ["Pré e pós-sessão", "Código de verificação", "PDF em anexo"],
         },
         {
-          num: "08", icon: "⬡", name: "Área do Cliente + Portal de Upload",
-          desc: "Portal exclusivo do cliente para acompanhar o protocolo, sessões agendadas e histórico. Upload de exames laboratoriais classificado automaticamente por tipo (EXAME/IMAGEM/LAUDO) e roteado para a subpasta correta no Drive.",
-          tags: ["Portal privado", "Upload classificado", "Rastreamento do protocolo"],
+          num: "08", name: "Portal Exclusivo do Cliente",
+          desc: "Portal privado para o cliente acompanhar o protocolo, visualizar sessões agendadas e consultar seu histórico. Upload de laudos classificado automaticamente por tipo e roteado para a pasta correta.",
+          tags: ["Acesso privado", "Upload classificado", "Histórico completo"],
         },
         {
-          num: "09", icon: "⬡", name: "Estoque com Alertas Críticos",
-          desc: "Gestão de substâncias, soluções e insumos com alertas automáticos de estoque crítico e baixo. Rastreamento de lote, validade e consumo por protocolo.",
+          num: "09", name: "Estoque com Alertas Inteligentes",
+          desc: "Controle de substâncias, soluções e insumos com alertas automáticos de nível crítico e nível baixo. Rastreamento de lote, validade e consumo por protocolo.",
           tags: ["Alerta crítico", "Rastreio de lote", "Validade"],
         },
         {
-          num: "10", icon: "⬡", name: "Financeiro — Pagamentos e Saldo",
-          desc: "Registro de pagamentos por PIX, cartão (crédito/débito), boleto e dinheiro. Parcelamento no crédito com identificação por cartão. Saldo corrente com total pago, pendente e histórico de movimentações.",
-          tags: ["PIX / Crédito / Boleto", "Parcelamento", "Saldo corrente"],
+          num: "10", name: "Financeiro e Controle de Pagamentos",
+          desc: "Registro de recebimentos por modalidade: PIX, cartão, boleto e dinheiro. Parcelamento com identificação por cartão. Saldo corrente automático com total pago e pendente por protocolo.",
+          tags: ["Múltiplas modalidades", "Parcelamento", "Saldo corrente"],
         },
         {
-          num: "11", icon: "⬡", name: "Catálogo de Substâncias Clínicas",
-          desc: "Biblioteca expandível com fichas clínicas detalhadas: função principal, efeitos percebidos, sistemas corporais impactados (barras de impacto), longevidade, sono, energia, libido, clareza mental. Rating de eficácia 1-5 estrelas.",
-          tags: ["Ficha técnica", "Rating 1-5 ★", "Efeitos por sistema"],
+          num: "11", name: "Catálogo Clínico de Substâncias",
+          desc: "Biblioteca expandível com ficha técnica completa por substância: função principal, efeitos percebidos, impacto por sistema orgânico, benefícios em longevidade, sono, energia, libido e performance. Classificação de eficácia.",
+          tags: ["Ficha técnica", "Por sistema orgânico", "Longevidade"],
         },
         {
-          num: "12", icon: "⬡", name: "Anamnese Digital",
-          desc: "Questionário clínico estruturado com skip-logic dinâmico por sistema (cardiovascular, hepático, neurológico, etc.). Alarme vermelho em 3 camadas de proteção. Integração com o motor de prescrição.",
-          tags: ["Skip-logic", "Alarme 3 camadas", "Motor de prescrição"],
+          num: "12", name: "Anamnese Digital Progressiva",
+          desc: "Questionário clínico estruturado por sistema do corpo com lógica dinâmica — só mostra o que é relevante para aquele cliente. Alarmes clínicos detectados automaticamente em múltiplas camadas de proteção.",
+          tags: ["Lógica dinâmica", "Alarme automático", "Por sistemas"],
         },
         {
-          num: "13", icon: "⬡", name: "Profissionais e Corpo Clínico",
-          desc: "Gestão de médicos, enfermeiras e equipe administrativa com perfis por especialização, vínculo por localização (clínica) e agenda individual. Papéis: médico 01/02, enfermeira 01/02, adm, financeiro.",
-          tags: ["Multi-localização", "Papéis por função", "Agenda individual"],
+          num: "13", name: "Gestão do Corpo Clínico",
+          desc: "Cadastro de médicos, enfermeiras e administrativos com perfis por especialização e vínculo por localização. Cada cargo acessa menus e permissões próprios — médico vê tudo, enfermeira vê o que é seu.",
+          tags: ["Por cargo", "Multi-localização", "Permissões individuais"],
         },
         {
-          num: "14", icon: "⬡", name: "Google Calendar — Sincronização",
-          desc: "Sincronização por sessão ou por semana nas agendas GERAL, MÉDICO e ENFERMAGEM. Duração automática por via (IV=30min, IM=15min, Implante=60min). Endereço da clínica incluído automaticamente.",
-          tags: ["3 calendários", "Duração automática", "Multi-clínica"],
+          num: "14", name: "Sincronização com Google Agenda",
+          desc: "Sessões sincronizadas com até três agendas simultâneas: geral, médico e enfermagem. Duração definida automaticamente pelo tipo de procedimento. Endereço do local de aplicação incluído no evento.",
+          tags: ["3 agendas", "Duração automática", "Endereço no evento"],
         },
+        {
+          num: "15", name: "Prescrição de Fórmulas Manipuladas",
+          desc: "Receituário completo para farmácias de manipulação. Ativos, doses, vias e orientações organizados em documento clínico impresso no formato exigido pela regulamentação sanitária. Assinado digitalmente.",
+          tags: ["Fórmulas manipuladas", "Regulamentação sanitária", "Assinado"],
+        },
+        {
+          num: "16", name: "Numeração Legal Automática de Receitas",
+          desc: "Receitas de medicamentos controlados recebem numeração oficial obrigatória por lei, na cor e no formato corretos exigidos pela Anvisa e pelo Conselho Federal de Medicina. Zero risco de autuação.",
+          tags: ["Numeração oficial", "Controlados", "Anvisa / CFM"],
+        },
+        {
+          num: "17", name: "Pedido de Exames Já Formatado",
+          desc: "O médico seleciona o exame e o sistema já tem o texto do pedido pronto — com preparo do cliente, finalidade clínica e corpo formatado. O médico não escreve; o sistema gera e imprime.",
+          tags: ["Texto gerado", "Preparo do cliente", "PDF oficial"],
+        },
+        {
+          num: "18", name: "Leitura de Laudos por Inteligência Artificial",
+          desc: "O médico envia o PDF do laudo e a IA extrai cada resultado automaticamente: analito, valor, data e laboratório. Funciona com laudos digitais e com laudos escaneados em papel. Sem digitação.",
+          tags: ["IA extrai", "Digital + escaneado", "Sem digitação manual"],
+        },
+        {
+          num: "19", name: "Faixas de Referência Integrativas",
+          desc: "Os resultados são interpretados pelas faixas da medicina integrativa — não só pelo 'normal' do laboratório convencional. O sistema mostra o que é ótimo para longevidade, performance e bem-estar.",
+          tags: ["Referência integrativa", "Longevidade", "Além do convencional"],
+        },
+        {
+          num: "20", name: "Evolução Visual de Exames no Tempo",
+          desc: "Gráficos longitudinais por marcador. O médico mostra ao cliente como a vitamina D, testosterona, cortisol e outros indicadores evoluíram desde o início do acompanhamento. Argumento clínico em imagem.",
+          tags: ["Gráficos longitudinais", "Evolução real", "Argumento clínico"],
+        },
+        {
+          num: "21", name: "Console de Orçamento Clínico",
+          desc: "Vitrine visual de substâncias com precificação flexível. Gera automaticamente três cenários de pagamento — à vista, entrada com parcelas ou parcelamento total — com descontos e encargos já calculados.",
+          tags: ["3 cenários", "Desconto automático", "Fechamento na consulta"],
+        },
+        {
+          num: "22", name: "Agendamento Inteligente pelo Cliente",
+          desc: "O cliente marca a própria consulta pelo sistema — sem telefonema. Dois caminhos disponíveis: fila padrão ou acesso prioritário com pagamento integrado. A clínica confirma com um clique.",
+          tags: ["Autoagendamento", "Acesso prioritário", "Pagamento integrado"],
+        },
+        {
+          num: "23", name: "App do Cliente Instalável no Celular",
+          desc: "O cliente instala o app direto do navegador — sem App Store nem Play Store. Acessa documentos, agenda, protocolo e envia exames. Ícone na tela inicial, funciona como app nativo.",
+          tags: ["Sem loja de apps", "Ícone na tela", "Multiplataforma"],
+        },
+        {
+          num: "24", name: "Lembretes de Tratamento no Período Certo",
+          desc: "O sistema agenda lembretes automáticos para o cliente tomar cada medicamento prescrito no período do dia correto — manhã, tarde, noite — conforme a prescrição. Aderência sem esforço da equipe.",
+          tags: ["Período do dia", "Automático", "Aderência ao tratamento"],
+        },
+        {
+          num: "25", name: "Atestados Médicos Digitais",
+          desc: "Emite atestado médico real com dados do cliente, código de doença quando aplicável, dias, finalidade, assinatura e número de registro do profissional. PDF com marca da clínica, arquivado na nuvem.",
+          tags: ["PDF de marca", "CID automático", "Arquivo permanente"],
+        },
+        {
+          num: "26", name: "Encaminhamentos a Especialistas",
+          desc: "Gera encaminhamento com especialidade de destino, grau de urgência, motivo e resumo clínico em PDF oficial com identidade visual da clínica. Arquivado automaticamente na pasta do cliente.",
+          tags: ["Urgência destacada", "Resumo clínico", "Arquivo automático"],
+        },
+        {
+          num: "27", name: "Modelos de Documento com Variáveis",
+          desc: "O médico cria modelos de texto uma vez. Na emissão, o sistema preenche automaticamente nome do cliente, data, código de doença e registro do profissional. Sem digitação repetitiva.",
+          tags: ["Modelo reutilizável", "Preenchimento automático", "Zero repetição"],
+        },
+        {
+          num: "28", name: "Nota Fiscal de Serviço Eletrônica",
+          desc: "NFS-e emitida diretamente no sistema, sem abrir outra plataforma. Histórico de notas por cliente integrado ao painel financeiro da clínica.",
+          tags: ["NFS-e integrada", "Sem outro software", "Histórico fiscal"],
+        },
+        {
+          num: "29", name: "Acompanhamento Evolutivo por Sessão",
+          desc: "A cada sessão aplicada o sistema gera relatório de progresso: número da sessão, percentual do protocolo concluído, histórico das últimas sessões, nível de aderência e tolerância. Enviado ao cliente.",
+          tags: ["Progresso por sessão", "Aderência", "Relatório automático"],
+        },
+        {
+          num: "30", name: "Cockpit Unificado da Consulta",
+          desc: "Uma tela, um cliente, tudo acessível. O médico abre a ficha e encontra em abas: prescrição de fórmulas, injetáveis, implantes, pedidos de exames, evolução e documentos — sem navegar para fora.",
+          tags: ["Tudo em uma tela", "Por abas", "Zero navegação"],
+        },
+      ],
+    },
+    pawards: {
+      label: "Inteligência Clínica",
+      title: "PAWARDS MED CORE",
+      sub: "O motor de inteligência clínica que opera por baixo do PARXIS. Recebe os dados da anamnese e dos exames, cruza com o maior catálogo clínico integrativo do mercado, e sugere o caminho clínico — para o médico decidir com mais velocidade, mais embasamento e menos risco.",
+      items: [
+        { num: "I",    name: "Motor de Anamnese por Sistemas",      desc: "Questionário clínico estruturado por sistema do corpo. Só abre as perguntas relevantes. Alarmes clínicos detectados automaticamente — nunca suprimidos, mesmo que o cliente queira pular." },
+        { num: "II",   name: "Motor de Regras Clínicas",            desc: "Biblioteca de raciocínio: o sistema cruza sintomas, histórico e exames e aponta sugestões. O médico não precisa lembrar de tudo — o motor sugere, o médico valida e decide." },
+        { num: "III",  name: "Caminhos Clínicos por Queixa",        desc: "O médico informa a queixa principal ou o diagnóstico e o sistema monta o caminho completo sugerido: quais exames pedir e quais tratamentos considerar." },
+        { num: "IV",   name: "Catálogo de Fórmulas Manipuladas",    desc: "Biblioteca completa de fórmulas com composição, ativos, via, posologia por período do dia e efeitos. O médico consulta e prescreve sem sair do sistema." },
+        { num: "V",    name: "Catálogo de Injetáveis",              desc: "Acervo extenso de substâncias injetáveis com dados clínicos completos, vinculado ao motor de sugestão. A maior base clínica integrativa disponível em sistema." },
+        { num: "VI",   name: "Catálogo de Exames com Texto Pronto", desc: "Cada exame tem o texto do pedido formatado, o preparo do cliente e a finalidade clínica registrada. O médico seleciona — o sistema gera o documento." },
+        { num: "VII",  name: "Blocos Temáticos de Exames",          desc: "Grupos de exames organizados por tema clínico: hormonal, metabólico, cardiovascular, longevidade. Um clique pede o painel completo." },
+        { num: "VIII", name: "Posologia pelo Período do Dia",       desc: "O sistema conhece o momento ideal de cada medicamento e gera automaticamente o esquema de uso por período do dia para o cliente seguir com precisão." },
       ],
     },
     flow: {
       title: "Mecânica Operacional",
       sub: "Um fluxo perfeitamente orquestrado, sem atritos.",
       steps: [
-        { n: "01", title: "Onboarding",    desc: "Clínica contratada. Sistema configurado em 24h com substâncias, equipe e localização." },
-        { n: "02", title: "Prescrição",    desc: "Médico lança protocolo com até 10 substâncias, precificação e cronograma automático." },
-        { n: "03", title: "Agendamento",   desc: "Sessões criadas automaticamente. Cliente recebe código por WhatsApp e email." },
-        { n: "04", title: "Aplicação",     desc: "Enfermagem confirma substância a substância. RAS gerado e assinado digitalmente." },
-        { n: "05", title: "Arquivo",       desc: "Drive organizado automaticamente. Histórico completo com assinatura ICP-Brasil." },
+        { n: "01", title: "Onboarding",    desc: "Clínica configurada em 24h com substâncias, equipe, locais e integrações ativas." },
+        { n: "02", title: "Prescrição",    desc: "Médico lança protocolo com substâncias, precificação e cronograma automático de sessões." },
+        { n: "03", title: "Agendamento",   desc: "Sessões criadas automaticamente. Cliente recebe código por mensagem e e-mail de marca." },
+        { n: "04", title: "Aplicação",     desc: "Enfermagem confirma substância a substância. Registro gerado e assinado digitalmente." },
+        { n: "05", title: "Arquivo",       desc: "Pasta digital organizada automaticamente. Histórico completo com assinatura de validade jurídica." },
       ],
     },
     audience: {
@@ -124,7 +215,7 @@ const C = {
           "Clínicas de Medicina Estética Avançada",
           "Centros de Longevidade e Anti-aging",
           "Clínicas de Medicina do Esporte e Performance",
-          "Médicos que prescrevem reposição hormonal IV/IM",
+          "Médicos com reposição hormonal e terapias IV/IM",
           "Clínicas com volume alto de terapias intravenosas",
           "Operações multi-clínica com equipe de enfermagem própria",
         ],
@@ -140,20 +231,17 @@ const C = {
     },
     cta: {
       title: "Eleve o padrão da sua operação.",
-      sub: "Agende uma demonstração executiva e descubra como o PARXIS transforma a complexidade clínica em precisão sistêmica.",
+      sub: "Agende uma demonstração e descubra como o PARXIS transforma a complexidade clínica em precisão sistêmica.",
       btn: "Agendar Demonstração",
     },
     footer: {
-      by: "PARXIS by PADCOM",
+      by: "PARXIS by PAWARDS",
       tagline: "Precision in Integrative Care",
     },
   },
 
   en: {
-    nav: {
-      cta: "Talk to a Specialist",
-      lang: "PT",
-    },
+    nav: { cta: "Talk to a Specialist", lang: "PT" },
     hero: {
       descriptor: "Clinical Intelligence System",
       signature:  "Precision in Integrative Care",
@@ -175,90 +263,185 @@ const C = {
       ],
     },
     features: {
-      title: "14 Modules. One Platform.",
+      title: "30 Modules. One Platform.",
       sub:   "Each feature was designed for the real workflow of an injectable protocol clinic — not a forced adaptation of a generic system.",
       items: [
         {
-          num: "01", icon: "⬡", name: "Digital Protocol (Launcher)",
-          desc: "Build protocols with up to 10 substances in a single guided screen. Start date, frequency, dose, route of administration, and per-item pricing. Longevity, performance, and aesthetic templates.",
-          tags: ["Guided launcher", "Up to 10 substances", "Templates"],
+          num: "01", name: "Digital Protocol — Guided Launcher",
+          desc: "Build complete protocols in a single screen. Substances, start dates, frequency, individual doses and pricing. Session schedule generated automatically.",
+          tags: ["Guided launcher", "Auto schedule", "Per-item pricing"],
         },
         {
-          num: "02", icon: "⬡", name: "Smart Weekly Schedule",
-          desc: "Weekly view with color-coded cards: green=done, amber=partial, blue=today, red=missed, gray=cancelled. Infusion chair management for IV/IM/Implant with automatic estimated time.",
-          tags: ["Google Calendar", "ICS download", "Chair management"],
+          num: "02", name: "Visual Weekly Schedule",
+          desc: "Weekly view with color-coded cards: green for done, amber for partial, blue for today, red for missed, gray for cancelled. Chair management with automatic estimated time per procedure type.",
+          tags: ["Color-coded", "Chair management", "Auto time estimate"],
         },
         {
-          num: "03", icon: "⬡", name: "RAS with ICP-Brasil Digital Signature",
-          desc: "Systemic Assistance Record automatically generated with A1 ICP-Brasil qualified digital signature (PKCS#7). Every administration documented, timestamped, and legally shielded. CFM and Anvisa compliant.",
-          tags: ["A1 signature", "Certified timestamp", "CFM/Anvisa"],
+          num: "03", name: "RAS with Legal Validity",
+          desc: "Systemic Assistance Record automatically generated with qualified digital signature — national legal standard. Every administration documented, timestamped, and legally shielded per CFM and Anvisa.",
+          tags: ["Qualified signature", "CFM / Anvisa", "Certified timestamp"],
         },
         {
-          num: "04", icon: "⬡", name: "FAP — Procedure Audit Form",
-          desc: "Physical landscape-format printout for nursing control. ISO-week consolidated grid, 5 fixed substance columns per sheet, individual confirmation cells, CRM/COREN stamp signature.",
+          num: "04", name: "FAP — Paper Audit Form",
+          desc: "Landscape PDF for nursing manual control. Consolidated weekly grid, fixed substance columns, individual confirmation cells. Signature line with CRM/COREN stamp.",
           tags: ["Landscape PDF", "Weekly grid", "Paper audit"],
         },
         {
-          num: "05", icon: "⬡", name: "Complete Protocol PDF",
-          desc: "8–10 page document: branded cover, benefits matrix with star ratings, substance fact sheets, informed consent by route (IV/IM/Implant), LGPD clause, session timeline, financial summary.",
-          tags: ["8-10 pages", "Consent by route", "LGPD"],
+          num: "05", name: "Complete Protocol PDF",
+          desc: "8–10 page document with branded cover, substance benefits matrix with star ratings, technical sheets, informed consent by administration route, legal clause and financial summary.",
+          tags: ["8–10 pages", "Consent by route", "Financial summary"],
         },
         {
-          num: "06", icon: "⬡", name: "Google Drive — Auto Archive",
-          desc: "The system automatically creates and organizes the client's folder (15 subfolders: PROTOCOLS, EXAMS, REPORTS, FINANCIAL, CONTRACTS, etc.). RAS and protocol PDFs are automatically sent to the correct Drive folder with standardized naming.",
-          tags: ["15 subfolders", "Auto naming", "Auto upload"],
+          num: "06", name: "Automatic Digital Archive",
+          desc: "The system automatically creates and organizes the client's digital folder with 15 themed subfolders. All generated PDFs are sent to the correct subfolder with standardized naming — no manual effort.",
+          tags: ["15 subfolders", "Standard naming", "Auto upload"],
         },
         {
-          num: "07", icon: "⬡", name: "WhatsApp + Email Automation",
-          desc: "Session reminders, validation code, substance list, pre/post-infusion instructions, and signed RAS PDF as attachment. First-session templates with detailed substance benefit breakdowns.",
-          tags: ["Twilio WhatsApp", "Gmail API", "Validation code"],
+          num: "07", name: "Automated Client Communication",
+          desc: "The client receives a message before each session with verification code, substance list and instructions. After the session, receives the signed record as an attachment. All automatic, with the clinic's branding.",
+          tags: ["Pre & post-session", "Verification code", "PDF attachment"],
         },
         {
-          num: "08", icon: "⬡", name: "Client Area + Upload Portal",
-          desc: "Exclusive client portal to track the protocol, scheduled sessions, and history. Lab report upload automatically classified by type (EXAM/IMAGING/REPORT) and routed to the correct Drive subfolder.",
-          tags: ["Private portal", "Auto-classified upload", "Protocol tracking"],
+          num: "08", name: "Exclusive Client Portal",
+          desc: "Private portal for the client to follow the protocol, view scheduled sessions and consult history. Lab report upload automatically classified by type and routed to the correct folder.",
+          tags: ["Private access", "Auto-classified", "Full history"],
         },
         {
-          num: "09", icon: "⬡", name: "Inventory with Critical Alerts",
-          desc: "Substance, solution, and supply management with automatic critical and low stock alerts. Batch tracking, expiration dates, and per-protocol consumption tracking.",
+          num: "09", name: "Inventory with Smart Alerts",
+          desc: "Substance, solution and supply control with automatic critical and low-level alerts. Batch tracking, expiration dates and per-protocol consumption tracking.",
           tags: ["Critical alerts", "Batch tracking", "Expiration"],
         },
         {
-          num: "10", icon: "⬡", name: "Financial — Payments & Balance",
-          desc: "Payment recording for PIX, card (credit/debit), boleto, and cash. Credit card installments with per-card identification. Running balance with total paid, pending, and transaction history.",
-          tags: ["PIX / Credit / Boleto", "Installments", "Running balance"],
+          num: "10", name: "Financial and Payment Control",
+          desc: "Payment recording by modality: PIX, card, boleto and cash. Installments with per-card identification. Automatic running balance with total paid and pending per protocol.",
+          tags: ["Multiple modalities", "Installments", "Running balance"],
         },
         {
-          num: "11", icon: "⬡", name: "Clinical Substance Catalog",
-          desc: "Expandable library with detailed clinical profiles: main function, perceived effects, body system impact bars (cardiovascular, hepatic, neurological, etc.), longevity, sleep, energy, libido, mental clarity. 1–5 star efficacy rating.",
-          tags: ["Clinical profile", "Rating 1-5 ★", "System impact"],
+          num: "11", name: "Clinical Substance Catalog",
+          desc: "Expandable library with full technical profile per substance: main function, perceived effects, body system impact, longevity, sleep, energy, libido and performance benefits. Efficacy rating.",
+          tags: ["Technical profile", "By body system", "Longevity"],
         },
         {
-          num: "12", icon: "⬡", name: "Digital Anamnesis",
-          desc: "Structured clinical questionnaire with dynamic skip-logic by system (cardiovascular, hepatic, neurological, etc.). Red alert with 3 protection layers. Integration with the prescription engine.",
-          tags: ["Skip-logic", "3-layer alert", "Prescription engine"],
+          num: "12", name: "Progressive Digital Anamnesis",
+          desc: "Structured clinical questionnaire by body system with dynamic logic — only shows what is relevant for that client. Clinical alerts detected automatically in multiple protection layers.",
+          tags: ["Dynamic logic", "Auto alert", "By system"],
         },
         {
-          num: "13", icon: "⬡", name: "Professionals & Clinical Staff",
-          desc: "Management of physicians, nurses, and administrative staff with profiles by specialization, location binding, and individual schedule. Roles: physician 01/02, nurse 01/02, admin, finance.",
-          tags: ["Multi-location", "Role-based", "Individual schedule"],
+          num: "13", name: "Clinical Staff Management",
+          desc: "Registration of physicians, nurses and staff with profiles by specialization and location binding. Each role has its own menus and permissions — the physician sees everything, the nurse sees what is theirs.",
+          tags: ["By role", "Multi-location", "Individual permissions"],
         },
         {
-          num: "14", icon: "⬡", name: "Google Calendar — Sync",
-          desc: "Per-session or per-week sync to GENERAL, PHYSICIAN, and NURSING calendars. Auto duration by route (IV=30min, IM=15min, Implant=60min). Clinic address included automatically.",
-          tags: ["3 calendars", "Auto duration", "Multi-clinic"],
+          num: "14", name: "Google Calendar Sync",
+          desc: "Sessions synced to up to three simultaneous calendars: general, physician, and nursing. Duration set automatically by procedure type. Clinic address included in the event.",
+          tags: ["3 calendars", "Auto duration", "Address in event"],
         },
+        {
+          num: "15", name: "Compounded Formula Prescriptions",
+          desc: "Full prescription for compounding pharmacies. Active ingredients, doses, routes and usage instructions organized in a clinical document printed in the format required by health regulations. Digitally signed.",
+          tags: ["Compounded formulas", "Health regulations", "Signed"],
+        },
+        {
+          num: "16", name: "Automatic Legal Prescription Numbering",
+          desc: "Prescriptions for controlled substances receive the mandatory official numbering required by law, in the correct color and format required by Anvisa and the Federal Medical Council. Zero risk of compliance violation.",
+          tags: ["Official numbering", "Controlled substances", "Anvisa / CFM"],
+        },
+        {
+          num: "17", name: "Pre-formatted Exam Orders",
+          desc: "The physician selects the exam and the system already has the order text ready — with patient preparation instructions, clinical purpose and formatted body. The physician does not write; the system generates and prints.",
+          tags: ["Text generated", "Patient preparation", "Official PDF"],
+        },
+        {
+          num: "18", name: "AI Lab Report Reading",
+          desc: "The physician uploads the report PDF and AI extracts each result automatically: analyte, value, date and laboratory. Works with digital reports and scanned paper reports. No manual entry.",
+          tags: ["AI extracts", "Digital + scanned", "No manual entry"],
+        },
+        {
+          num: "19", name: "Integrative Reference Ranges",
+          desc: "Results are interpreted using integrative medicine reference ranges — not just the 'normal' from a conventional lab. The system shows what is optimal for longevity, performance and well-being.",
+          tags: ["Integrative reference", "Longevity", "Beyond conventional"],
+        },
+        {
+          num: "20", name: "Visual Exam Evolution Over Time",
+          desc: "Longitudinal charts by marker. The physician shows the client how vitamin D, testosterone, cortisol and other indicators have evolved since the beginning of follow-up. Clinical argument in image form.",
+          tags: ["Longitudinal charts", "Real evolution", "Clinical argument"],
+        },
+        {
+          num: "21", name: "Clinical Budget Console",
+          desc: "Visual substance showcase with flexible pricing. Automatically generates three payment scenarios — cash, partial down payment with installments, or full installments — with discounts and fees already calculated.",
+          tags: ["3 scenarios", "Auto discount", "Close during consultation"],
+        },
+        {
+          num: "22", name: "Smart Client Self-Scheduling",
+          desc: "The client books their own appointment through the system — no phone call needed. Two paths: standard queue or priority access with integrated payment. The clinic confirms with one click.",
+          tags: ["Self-scheduling", "Priority access", "Integrated payment"],
+        },
+        {
+          num: "23", name: "Installable Client App",
+          desc: "The client installs the app directly from the browser — no App Store or Play Store needed. Access documents, schedule, protocol and send exams. Icon on the home screen, works like a native app.",
+          tags: ["No app store", "Home screen icon", "Cross-platform"],
+        },
+        {
+          num: "24", name: "Treatment Reminders at the Right Time",
+          desc: "The system automatically schedules reminders for the client to take each prescribed medication at the correct time of day — morning, afternoon or evening — as per the prescription. Adherence without team effort.",
+          tags: ["Time of day", "Automatic", "Treatment adherence"],
+        },
+        {
+          num: "25", name: "Digital Medical Certificates",
+          desc: "Issues real medical certificates with client data, diagnosis code when applicable, days, purpose, signature and professional registration number. Branded PDF archived in the client's cloud folder.",
+          tags: ["Branded PDF", "Auto diagnosis code", "Permanent archive"],
+        },
+        {
+          num: "26", name: "Specialist Referrals",
+          desc: "Generates referral with destination specialty, urgency level, reason and clinical summary in an official branded PDF. Automatically archived in the client's folder.",
+          tags: ["Urgency highlighted", "Clinical summary", "Auto archive"],
+        },
+        {
+          num: "27", name: "Document Templates with Variables",
+          desc: "The physician creates text templates once. When issuing, the system automatically fills in the client's name, date, diagnosis code and professional registration. No repetitive typing.",
+          tags: ["Reusable template", "Auto fill", "Zero repetition"],
+        },
+        {
+          num: "28", name: "Electronic Service Invoice",
+          desc: "Electronic service invoice issued directly in the system, without opening another platform. Invoice history per client integrated into the clinic's financial panel.",
+          tags: ["Integrated invoice", "No extra software", "Fiscal history"],
+        },
+        {
+          num: "29", name: "Session-by-Session Progress Tracking",
+          desc: "After each session, the system generates a progress report: session number, protocol completion percentage, last-session history, adherence and tolerance levels. Sent to the client.",
+          tags: ["Per-session progress", "Adherence", "Auto report"],
+        },
+        {
+          num: "30", name: "Unified Consultation Cockpit",
+          desc: "One screen, one client, everything accessible. The physician opens the record and finds in tabs: formula prescriptions, injectables, implants, exam orders, evolution and documents — without navigating away.",
+          tags: ["All in one screen", "Tabbed", "Zero navigation"],
+        },
+      ],
+    },
+    pawards: {
+      label: "Clinical Intelligence",
+      title: "PAWARDS MED CORE",
+      sub: "The clinical intelligence engine that powers PARXIS from below. It receives anamnesis and exam data, cross-references it against the largest integrative clinical catalog available, and suggests the clinical path — so the physician decides faster, better informed, with less risk.",
+      items: [
+        { num: "I",    name: "System-Based Anamnesis Engine",     desc: "Structured clinical questionnaire by body system. Only opens relevant questions. Clinical alerts detected automatically — never suppressed, even if the client tries to skip." },
+        { num: "II",   name: "Clinical Rules Engine",             desc: "Reasoning library: the system cross-references symptoms, history and exams and surfaces suggestions. The physician doesn't need to remember everything — the engine suggests, the physician validates." },
+        { num: "III",  name: "Clinical Pathways by Chief Complaint", desc: "The physician enters the chief complaint or diagnosis and the system builds the complete suggested pathway: which exams to order and which treatments to consider." },
+        { num: "IV",   name: "Compounded Formula Catalog",        desc: "Complete library of compounded formulas with composition, active ingredients, route, dosage by time of day and effects. Consult and prescribe without leaving the system." },
+        { num: "V",    name: "Injectable Substance Catalog",      desc: "Extensive catalog of injectable substances with complete clinical data, linked to the suggestion engine. The largest integrative clinical database available in a single system." },
+        { num: "VI",   name: "Exam Catalog with Pre-written Orders", desc: "Each exam has the formatted order text, patient preparation instructions and clinical purpose recorded. The physician selects — the system generates the document." },
+        { num: "VII",  name: "Thematic Exam Panels",              desc: "Exam groups organized by clinical theme: hormonal, metabolic, cardiovascular, longevity. One click orders the complete panel." },
+        { num: "VIII", name: "Time-of-Day Dosing",                desc: "The system knows the optimal moment for each medication and automatically generates the time-of-day dosing schedule for the client to follow with precision." },
       ],
     },
     flow: {
       title: "Operational Mechanics",
       sub: "A perfectly orchestrated workflow, frictionless.",
       steps: [
-        { n: "01", title: "Onboarding",     desc: "Clinic onboarded. System configured within 24h with substances, team, and location." },
-        { n: "02", title: "Prescription",   desc: "Physician launches protocol with up to 10 substances, pricing, and auto-generated schedule." },
-        { n: "03", title: "Scheduling",     desc: "Sessions created automatically. Client receives validation code via WhatsApp and email." },
-        { n: "04", title: "Application",    desc: "Nursing confirms substance by substance. RAS generated and digitally signed." },
-        { n: "05", title: "Archiving",      desc: "Drive organized automatically. Full history with ICP-Brasil digital signature." },
+        { n: "01", title: "Onboarding",     desc: "Clinic configured in 24h with substances, team, locations and active integrations." },
+        { n: "02", title: "Prescription",   desc: "Physician launches protocol with substances, pricing, and automatic session schedule." },
+        { n: "03", title: "Scheduling",     desc: "Sessions created automatically. Client receives verification code and branded email." },
+        { n: "04", title: "Application",    desc: "Nursing confirms substance by substance. Record generated and digitally signed." },
+        { n: "05", title: "Archiving",      desc: "Digital folder organized automatically. Full history with legally valid digital signature." },
       ],
     },
     audience: {
@@ -269,7 +452,7 @@ const C = {
           "Advanced Medical Aesthetics Clinics",
           "Longevity and Anti-aging Centers",
           "Sports Medicine and Performance Clinics",
-          "Physicians prescribing hormonal replacement IV/IM",
+          "Physicians prescribing hormonal therapy IV/IM",
           "High-volume intravenous therapy clinics",
           "Multi-clinic operations with in-house nursing teams",
         ],
@@ -285,11 +468,11 @@ const C = {
     },
     cta: {
       title: "Elevate the standard of your operation.",
-      sub: "Schedule an executive demonstration and discover how PARXIS transforms clinical complexity into systemic precision.",
+      sub: "Schedule a demonstration and discover how PARXIS transforms clinical complexity into systemic precision.",
       btn: "Schedule a Demo",
     },
     footer: {
-      by: "PARXIS by PADCOM",
+      by: "PARXIS by PAWARDS",
       tagline: "Precision in Integrative Care",
     },
   },
@@ -297,7 +480,6 @@ const C = {
 
 type Lang = keyof typeof C;
 
-// ── Componente principal ────────────────────────────────────────────────────
 export default function Home() {
   const [lang, setLang] = useState<Lang>("pt");
   const t = C[lang];
@@ -305,319 +487,103 @@ export default function Home() {
   const WHATSAPP_URL = "https://wa.me/5511999999999?text=Quero%20conhecer%20o%20PARXIS";
 
   return (
-    <div
-      className="min-h-screen overflow-x-hidden"
-      style={{ background: "var(--parxis-black-950)", color: "var(--parxis-text-main)" }}
-    >
-      {/* ── NAVIGATION ─────────────────────────────────────────────────── */}
-      <nav
-        className="fixed top-0 w-full z-50"
-        style={{
-          background: "rgba(3,3,3,0.92)",
-          backdropFilter: "blur(16px)",
-          borderBottom: "1px solid rgba(242,184,23,0.08)",
-        }}
-      >
+    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--parxis-black-950)", color: "var(--parxis-text-main)" }}>
+
+      {/* ── NAV ─────────────────────────────────────────────────────────── */}
+      <nav className="fixed top-0 w-full z-50" style={{ background: "rgba(3,3,3,0.92)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
         <div className="container mx-auto px-6 h-[72px] flex items-center justify-between">
           <ParxisWordmark fontSize={22} />
-
           <div className="flex items-center gap-4">
-            {/* Toggle PT/EN */}
             <button
               onClick={() => setLang(l => l === "pt" ? "en" : "pt")}
-              style={{
-                fontFamily: "var(--app-font-display)",
-                fontSize: 12,
-                letterSpacing: "0.14em",
-                color: "var(--parxis-gold-medium)",
-                border: "1px solid rgba(242,184,23,0.20)",
-                padding: "4px 12px",
-                background: "transparent",
-                cursor: "pointer",
-                transition: "all 200ms",
-              }}
+              style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em", color: "var(--parxis-gold-medium)", border: "1px solid rgba(242,184,23,0.20)", padding: "4px 12px", background: "transparent", cursor: "pointer", transition: "all 200ms" }}
               onMouseEnter={e => { (e.target as HTMLElement).style.background = "rgba(242,184,23,0.08)"; }}
               onMouseLeave={e => { (e.target as HTMLElement).style.background = "transparent"; }}
             >
               {t.nav.lang}
             </button>
-
-            <a
-              href={WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden md:inline-flex items-center gap-2 btn-gold px-5 py-2.5 text-sm"
-              style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.10em" }}
-            >
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="hidden md:inline-flex items-center gap-2 btn-gold px-5 py-2.5 text-sm" style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.10em" }}>
               {t.nav.cta}
             </a>
           </div>
         </div>
       </nav>
 
-      {/* ── HERO ───────────────────────────────────────────────────────── */}
-      <section
-        className="relative pt-[72px] min-h-screen flex items-center"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 0%, #2C0D10 0%, #120505 35%, #050505 70%)",
-        }}
-      >
-        {/* Aura dourada suave */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 40% at 50% 45%, rgba(242,184,23,0.05) 0%, transparent 65%)",
-          }}
-        />
-
+      {/* ── HERO ────────────────────────────────────────────────────────── */}
+      <section className="relative pt-[72px] min-h-screen flex items-center" style={{ background: "radial-gradient(ellipse at 50% 0%, #2C0D10 0%, #120505 35%, #050505 70%)" }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 40% at 50% 45%, rgba(242,184,23,0.05) 0%, transparent 65%)" }} />
         <div className="container mx-auto px-6 py-20 relative z-10">
           <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-
-            {/* Logo PNG oficial */}
             <div className="animate-fade-up mb-8">
               <ParxisLogo width={320} animate />
             </div>
-
-            {/* Descriptor */}
-            <p
-              className="animate-fade-up animate-fade-up-delay-1 gold-gradient-text-soft mb-2"
-              style={{
-                fontFamily: "'Michroma', 'Orbitron', monospace",
-                fontSize: 12,
-                letterSpacing: "0.28em",
-              }}
-            >
+            <p className="animate-fade-up animate-fade-up-delay-1 gold-gradient-text-soft mb-2" style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 12, letterSpacing: "0.28em" }}>
               {t.hero.descriptor.toUpperCase()}
             </p>
-
-            {/* Linha divisória */}
             <div className="divider-gold w-48 my-5 animate-fade-up animate-fade-up-delay-1" />
-
-            {/* Assinatura institucional */}
-            <p
-              className="animate-fade-up animate-fade-up-delay-2 mb-2"
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontSize: 15,
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                color: "var(--parxis-gold-light)",
-              }}
-            >
+            <p className="animate-fade-up animate-fade-up-delay-2 mb-2" style={{ fontFamily: "var(--app-font-serif)", fontSize: 15, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--parxis-gold-light)" }}>
               {t.hero.signature}
             </p>
-
-            {/* Texto complementar */}
-            <p
-              className="animate-fade-up animate-fade-up-delay-2 mb-10"
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontStyle: "italic",
-                fontSize: 14,
-                color: "var(--parxis-text-secondary)",
-                letterSpacing: "0.04em",
-              }}
-            >
+            <p className="animate-fade-up animate-fade-up-delay-2 mb-10" style={{ fontFamily: "var(--app-font-serif)", fontStyle: "italic", fontSize: 14, color: "var(--parxis-text-secondary)", letterSpacing: "0.04em" }}>
               {t.hero.tagline}
             </p>
-
-            {/* Sub headline */}
-            <p
-              className="animate-fade-up animate-fade-up-delay-3 text-lg max-w-2xl leading-relaxed mb-12"
-              style={{ color: "var(--parxis-text-secondary)" }}
-            >
+            <p className="animate-fade-up animate-fade-up-delay-3 text-lg max-w-2xl leading-relaxed mb-12" style={{ color: "var(--parxis-text-secondary)" }}>
               {t.hero.sub}
             </p>
-
-            {/* CTAs */}
             <div className="animate-fade-up animate-fade-up-delay-3 flex flex-col sm:flex-row gap-4">
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-gold inline-flex items-center justify-center gap-2 px-8 py-4 text-sm"
-                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}
-              >
-                {t.hero.cta1}
-                <span style={{ fontSize: 16 }}>›</span>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center justify-center gap-2 px-8 py-4 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}>
+                {t.hero.cta1} <span style={{ fontSize: 16 }}>›</span>
               </a>
-              <a
-                href="#features"
-                className="btn-gold-outline inline-flex items-center justify-center gap-2 px-8 py-4 text-sm"
-                style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}
-              >
+              <a href="#features" className="btn-gold-outline inline-flex items-center justify-center gap-2 px-8 py-4 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.10em" }}>
                 {t.hero.cta2}
               </a>
             </div>
           </div>
         </div>
-
-        {/* Borda inferior suave */}
-        <div
-          className="absolute bottom-0 left-0 w-full h-px"
-          style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.15), transparent)" }}
-        />
+        <div className="absolute bottom-0 left-0 w-full h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.15), transparent)" }} />
       </section>
 
-      {/* ── PAIN POINTS ────────────────────────────────────────────────── */}
-      <section
-        className="py-28"
-        style={{ background: "var(--parxis-black-900)" }}
-      >
+      {/* ── PAIN POINTS ─────────────────────────────────────────────────── */}
+      <section className="py-28" style={{ background: "var(--parxis-black-900)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-2xl mx-auto">
-            <h2
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontSize: "clamp(28px, 4vw, 42px)",
-                fontWeight: 700,
-                marginBottom: 16,
-                color: "var(--parxis-text-main)",
-              }}
-            >
-              {t.pain.title}
-            </h2>
-            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>
-              {t.pain.sub}
-            </p>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 700, marginBottom: 16 }}>{t.pain.title}</h2>
+            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>{t.pain.sub}</p>
           </div>
-
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {t.pain.items.map((item, i) => (
-              <div
-                key={i}
-                className="p-7 rounded-sm"
-                style={{
-                  background: "linear-gradient(145deg, #0E0505, #080304)",
-                  border: "1px solid rgba(180,30,30,0.12)",
-                  borderLeft: "3px solid rgba(200,40,40,0.40)",
-                }}
-              >
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "rgba(200,60,60,0.70)",
-                    marginBottom: 16,
-                  }}
-                />
-                <h3
-                  style={{
-                    fontFamily: "var(--app-font-display)",
-                    fontSize: 13,
-                    letterSpacing: "0.12em",
-                    color: "var(--parxis-text-main)",
-                    marginBottom: 10,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {item.title}
-                </h3>
-                <p style={{ color: "var(--parxis-text-muted)", lineHeight: 1.7, fontSize: 14 }}>
-                  {item.desc}
-                </p>
+              <div key={i} className="p-7 rounded-sm" style={{ background: "linear-gradient(145deg, #0E0505, #080304)", border: "1px solid rgba(180,30,30,0.12)", borderLeft: "3px solid rgba(200,40,40,0.40)" }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(200,60,60,0.70)", marginBottom: 16 }} />
+                <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>{item.title}</h3>
+                <p style={{ color: "var(--parxis-text-muted)", lineHeight: 1.7, fontSize: 14 }}>{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FEATURES ───────────────────────────────────────────────────── */}
+      {/* ── FEATURES — PARXIS 30 MÓDULOS ────────────────────────────────── */}
       <section id="features" className="py-32">
         <div className="container mx-auto px-6">
-
-          {/* Header */}
           <div className="text-center mb-20 max-w-3xl mx-auto">
-            <p
-              className="gold-gradient-text mb-4"
-              style={{
-                fontFamily: "var(--app-font-display)",
-                fontSize: 11,
-                letterSpacing: "0.24em",
-                textTransform: "uppercase",
-              }}
-            >
+            <p className="gold-gradient-text mb-4" style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase" }}>
               {lang === "pt" ? "Módulos do Sistema" : "System Modules"}
             </p>
-            <h2
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontSize: "clamp(32px, 4.5vw, 52px)",
-                fontWeight: 700,
-                marginBottom: 16,
-                color: "var(--parxis-text-main)",
-              }}
-            >
-              {t.features.title}
-            </h2>
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(32px, 4.5vw, 52px)", fontWeight: 700, marginBottom: 16 }}>{t.features.title}</h2>
             <div className="divider-gold w-48 mx-auto my-6" />
-            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>
-              {t.features.sub}
-            </p>
+            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.7 }}>{t.features.sub}</p>
           </div>
-
-          {/* Grid de features */}
           <div className="grid md:grid-cols-2 gap-5">
             {t.features.items.map((feat, i) => (
               <div key={i} className="feature-card p-7 rounded-sm">
                 <div className="flex items-start gap-4">
-                  {/* Número */}
-                  <span
-                    style={{
-                      fontFamily: "var(--app-font-display)",
-                      fontSize: 11,
-                      letterSpacing: "0.14em",
-                      color: "var(--parxis-gold-deep)",
-                      minWidth: 24,
-                      paddingTop: 2,
-                    }}
-                  >
-                    {feat.num}
-                  </span>
-
+                  <span style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.14em", color: "var(--parxis-gold-deep)", minWidth: 24, paddingTop: 2 }}>{feat.num}</span>
                   <div className="flex-1">
-                    <h3
-                      style={{
-                        fontFamily: "var(--app-font-display)",
-                        fontSize: 13,
-                        letterSpacing: "0.10em",
-                        color: "var(--parxis-gold-light)",
-                        textTransform: "uppercase",
-                        marginBottom: 10,
-                      }}
-                    >
-                      {feat.name}
-                    </h3>
-                    <p
-                      style={{
-                        color: "var(--parxis-text-secondary)",
-                        lineHeight: 1.75,
-                        fontSize: 14,
-                        marginBottom: 14,
-                      }}
-                    >
-                      {feat.desc}
-                    </p>
-                    {/* Tags */}
+                    <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.10em", color: "var(--parxis-gold-light)", textTransform: "uppercase", marginBottom: 10 }}>{feat.name}</h3>
+                    <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.75, fontSize: 14, marginBottom: 14 }}>{feat.desc}</p>
                     <div className="flex flex-wrap gap-2">
                       {feat.tags.map((tag, j) => (
-                        <span
-                          key={j}
-                          style={{
-                            fontFamily: "var(--app-font-display)",
-                            fontSize: 10,
-                            letterSpacing: "0.12em",
-                            color: "var(--parxis-gold-medium)",
-                            border: "1px solid rgba(217,144,0,0.20)",
-                            padding: "2px 8px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {tag}
-                        </span>
+                        <span key={j} style={{ fontFamily: "var(--app-font-display)", fontSize: 10, letterSpacing: "0.12em", color: "var(--parxis-gold-medium)", border: "1px solid rgba(217,144,0,0.20)", padding: "2px 8px", textTransform: "uppercase" }}>{tag}</span>
                       ))}
                     </div>
                   </div>
@@ -628,160 +594,100 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FLOW ───────────────────────────────────────────────────────── */}
+      {/* ── PAWARDS MED CORE ────────────────────────────────────────────── */}
       <section
-        className="py-28"
-        style={{ background: "var(--parxis-black-900)", borderTop: "1px solid rgba(242,184,23,0.06)", borderBottom: "1px solid rgba(242,184,23,0.06)" }}
+        className="py-32 relative overflow-hidden"
+        style={{ background: "linear-gradient(180deg, #050505 0%, #0A0807 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}
       >
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontSize: "clamp(26px, 3.5vw, 40px)",
-                fontWeight: 700,
-                marginBottom: 10,
-              }}
-            >
-              {t.flow.title}
+        {/* Grade de pontos decorativa */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+          style={{ backgroundImage: "radial-gradient(circle, #F2B817 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+
+        <div className="container mx-auto px-6 relative z-10">
+          {/* Header */}
+          <div className="text-center mb-20 max-w-3xl mx-auto">
+            <p className="gold-gradient-text mb-4" style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase" }}>
+              {t.pawards.label}
+            </p>
+            <h2 style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 700, marginBottom: 20, letterSpacing: "0.08em" }}>
+              {t.pawards.title}
             </h2>
-            <p style={{ color: "var(--parxis-text-muted)" }}>{t.flow.sub}</p>
+            <div className="divider-gold w-48 mx-auto my-6" />
+            <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.8, fontSize: 15, maxWidth: 640, margin: "0 auto" }}>
+              {t.pawards.sub}
+            </p>
           </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-start gap-8 relative">
-            {/* Linha conectora */}
-            <div
-              className="hidden md:block absolute top-10 left-0 right-0 h-px"
-              style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.12), transparent)" }}
-            />
-
-            {t.flow.steps.map((s, i) => (
+          {/* Grid 2 colunas + item central */}
+          <div className="grid md:grid-cols-2 gap-5 max-w-5xl mx-auto">
+            {t.pawards.items.map((item, i) => (
               <div
                 key={i}
-                className="flex flex-col items-center text-center flex-1 relative z-10 px-4"
+                className="p-7 rounded-sm flex items-start gap-5"
+                style={{ background: "linear-gradient(145deg, #0E0C08, #080704)", border: "1px solid rgba(242,184,23,0.10)", borderLeft: "3px solid rgba(242,184,23,0.35)" }}
               >
-                {/* Círculo */}
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: "50%",
-                    border: "1px solid rgba(242,184,23,0.22)",
-                    background: "radial-gradient(circle at 50% 30%, #1A0D05, #0A0504)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: 20,
-                    fontFamily: "var(--app-font-display)",
-                    fontSize: 13,
-                    letterSpacing: "0.12em",
-                    color: "var(--parxis-gold-medium)",
-                  }}
+                <span
+                  style={{ fontFamily: "'Michroma', 'Orbitron', monospace", fontSize: 13, color: "rgba(242,184,23,0.45)", minWidth: 28, paddingTop: 2, letterSpacing: "0.04em" }}
                 >
-                  {s.n}
+                  {item.num}
+                </span>
+                <div>
+                  <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.12em", color: "var(--parxis-gold-light)", textTransform: "uppercase", marginBottom: 10 }}>
+                    {item.name}
+                  </h3>
+                  <p style={{ color: "var(--parxis-text-secondary)", lineHeight: 1.75, fontSize: 14 }}>
+                    {item.desc}
+                  </p>
                 </div>
-                <h4
-                  style={{
-                    fontFamily: "var(--app-font-display)",
-                    fontSize: 12,
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    color: "var(--parxis-gold-light)",
-                    marginBottom: 8,
-                  }}
-                >
-                  {s.title}
-                </h4>
-                <p style={{ fontSize: 13, color: "var(--parxis-text-muted)", lineHeight: 1.7 }}>
-                  {s.desc}
-                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── AUDIENCE ───────────────────────────────────────────────────── */}
+      {/* ── FLOW ────────────────────────────────────────────────────────── */}
+      <section className="py-28" style={{ background: "var(--parxis-black-900)" }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(26px, 3.5vw, 40px)", fontWeight: 700, marginBottom: 10 }}>{t.flow.title}</h2>
+            <p style={{ color: "var(--parxis-text-muted)" }}>{t.flow.sub}</p>
+          </div>
+          <div className="flex flex-col md:flex-row justify-between items-start gap-8 relative">
+            <div className="hidden md:block absolute top-10 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(242,184,23,0.12), transparent)" }} />
+            {t.flow.steps.map((s, i) => (
+              <div key={i} className="flex flex-col items-center text-center flex-1 relative z-10 px-4">
+                <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid rgba(242,184,23,0.22)", background: "radial-gradient(circle at 50% 30%, #1A0D05, #0A0504)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontFamily: "var(--app-font-display)", fontSize: 13, letterSpacing: "0.12em", color: "var(--parxis-gold-medium)" }}>
+                  {s.n}
+                </div>
+                <h4 style={{ fontFamily: "var(--app-font-display)", fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--parxis-gold-light)", marginBottom: 8 }}>{s.title}</h4>
+                <p style={{ fontSize: 13, color: "var(--parxis-text-muted)", lineHeight: 1.7 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── AUDIENCE ────────────────────────────────────────────────────── */}
       <section className="py-28">
         <div className="container mx-auto px-6">
-          <h2
-            className="text-center mb-16"
-            style={{
-              fontFamily: "var(--app-font-serif)",
-              fontSize: "clamp(28px, 4vw, 44px)",
-              fontWeight: 700,
-            }}
-          >
-            {t.audience.title}
-          </h2>
-
+          <h2 className="text-center mb-16" style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 700 }}>{t.audience.title}</h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Ideal para */}
-            <div
-              className="p-9 rounded-sm"
-              style={{
-                background: "linear-gradient(145deg, #0D0904, #080604)",
-                borderTop: "3px solid var(--parxis-gold-medium)",
-                border: "1px solid rgba(242,184,23,0.12)",
-                borderTopWidth: 3,
-              }}
-            >
-              <h3
-                style={{
-                  fontFamily: "var(--app-font-display)",
-                  fontSize: 11,
-                  letterSpacing: "0.20em",
-                  textTransform: "uppercase",
-                  color: "var(--parxis-gold-main)",
-                  marginBottom: 20,
-                }}
-              >
-                {t.audience.yes.label}
-              </h3>
+            <div className="p-9 rounded-sm" style={{ background: "linear-gradient(145deg, #0D0904, #080604)", border: "1px solid rgba(242,184,23,0.12)", borderTop: "3px solid var(--parxis-gold-medium)" }}>
+              <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-gold-main)", marginBottom: 20 }}>{t.audience.yes.label}</h3>
               <ul className="space-y-4">
                 {t.audience.yes.items.map((item, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3"
-                    style={{ color: "var(--parxis-text-secondary)", fontSize: 14, lineHeight: 1.6 }}
-                  >
-                    <span style={{ color: "var(--parxis-gold-medium)", marginTop: 2, flexShrink: 0 }}>◆</span>
-                    {item}
+                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-secondary)", fontSize: 14, lineHeight: 1.6 }}>
+                    <span style={{ color: "var(--parxis-gold-medium)", marginTop: 2, flexShrink: 0 }}>◆</span>{item}
                   </li>
                 ))}
               </ul>
             </div>
-
-            {/* Não para */}
-            <div
-              className="p-9 rounded-sm"
-              style={{
-                background: "linear-gradient(145deg, #080808, #050505)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderTop: "3px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <h3
-                style={{
-                  fontFamily: "var(--app-font-display)",
-                  fontSize: 11,
-                  letterSpacing: "0.20em",
-                  textTransform: "uppercase",
-                  color: "var(--parxis-text-muted)",
-                  marginBottom: 20,
-                }}
-              >
-                {t.audience.no.label}
-              </h3>
+            <div className="p-9 rounded-sm" style={{ background: "linear-gradient(145deg, #080808, #050505)", border: "1px solid rgba(255,255,255,0.06)", borderTop: "3px solid rgba(255,255,255,0.08)" }}>
+              <h3 style={{ fontFamily: "var(--app-font-display)", fontSize: 11, letterSpacing: "0.20em", textTransform: "uppercase", color: "var(--parxis-text-muted)", marginBottom: 20 }}>{t.audience.no.label}</h3>
               <ul className="space-y-4">
                 {t.audience.no.items.map((item, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3"
-                    style={{ color: "var(--parxis-text-muted)", fontSize: 14, lineHeight: 1.6 }}
-                  >
-                    <span style={{ color: "rgba(255,255,255,0.20)", marginTop: 2, flexShrink: 0 }}>—</span>
-                    {item}
+                  <li key={i} className="flex items-start gap-3" style={{ color: "var(--parxis-text-muted)", fontSize: 14, lineHeight: 1.6 }}>
+                    <span style={{ color: "rgba(255,255,255,0.20)", marginTop: 2, flexShrink: 0 }}>—</span>{item}
                   </li>
                 ))}
               </ul>
@@ -790,101 +696,29 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── CTA FINAL ──────────────────────────────────────────────────── */}
-      <section
-        className="py-32 relative overflow-hidden"
-        style={{
-          background: "radial-gradient(ellipse at 50% 50%, #2C0D10 0%, #0A0505 45%, #050505 100%)",
-        }}
-      >
-        {/* Aura dourada central */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 50% 60% at 50% 50%, rgba(242,184,23,0.06) 0%, transparent 65%)",
-          }}
-        />
-
+      {/* ── CTA FINAL ───────────────────────────────────────────────────── */}
+      <section className="py-32 relative overflow-hidden" style={{ background: "radial-gradient(ellipse at 50% 50%, #2C0D10 0%, #0A0505 45%, #050505 100%)" }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 50% 60% at 50% 50%, rgba(242,184,23,0.06) 0%, transparent 65%)" }} />
         <div className="container mx-auto px-6 relative z-10 flex flex-col items-center text-center">
-          {/* Logo menor */}
           <ParxisLogo width={180} className="mb-12 opacity-90" />
-
           <div className="divider-gold w-40 mb-10" />
-
-          <h2
-            style={{
-              fontFamily: "var(--app-font-serif)",
-              fontSize: "clamp(28px, 4vw, 52px)",
-              fontWeight: 700,
-              marginBottom: 20,
-              color: "var(--parxis-text-main)",
-              maxWidth: 700,
-            }}
-          >
-            {t.cta.title}
-          </h2>
-          <p
-            style={{
-              color: "var(--parxis-text-secondary)",
-              fontSize: 16,
-              lineHeight: 1.7,
-              maxWidth: 560,
-              marginBottom: 40,
-            }}
-          >
-            {t.cta.sub}
-          </p>
-
-          <a
-            href={WHATSAPP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-gold inline-flex items-center gap-3 px-10 py-5 text-base"
-            style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.12em" }}
-          >
-            {t.cta.btn}
-            <span style={{ fontSize: 20 }}>›</span>
+          <h2 style={{ fontFamily: "var(--app-font-serif)", fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 700, marginBottom: 20, maxWidth: 700 }}>{t.cta.title}</h2>
+          <p style={{ color: "var(--parxis-text-secondary)", fontSize: 16, lineHeight: 1.7, maxWidth: 560, marginBottom: 40 }}>{t.cta.sub}</p>
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="btn-gold inline-flex items-center gap-3 px-10 py-5 text-sm" style={{ fontFamily: "var(--app-font-display)", letterSpacing: "0.12em" }}>
+            {t.cta.btn} <span style={{ fontSize: 18 }}>›</span>
           </a>
         </div>
       </section>
 
-      {/* ── FOOTER ─────────────────────────────────────────────────────── */}
-      <footer
-        className="py-12"
-        style={{ borderTop: "1px solid rgba(242,184,23,0.08)", background: "#030303" }}
-      >
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <ParxisWordmark fontSize={18} style={{ opacity: 0.70 }} />
-
-            <div
-              style={{
-                fontFamily: "var(--app-font-serif)",
-                fontStyle: "italic",
-                fontSize: 13,
-                color: "var(--parxis-text-muted)",
-                letterSpacing: "0.10em",
-                textAlign: "center",
-              }}
-            >
-              {t.footer.tagline}
-            </div>
-
-            <div
-              style={{
-                fontFamily: "var(--app-font-display)",
-                fontSize: 11,
-                letterSpacing: "0.16em",
-                color: "var(--parxis-text-muted)",
-                textTransform: "uppercase",
-              }}
-            >
-              {t.footer.by}
-            </div>
-          </div>
+      {/* ── FOOTER ──────────────────────────────────────────────────────── */}
+      <footer style={{ background: "#030303", borderTop: "1px solid rgba(242,184,23,0.06)", padding: "40px 0" }}>
+        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <ParxisWordmark fontSize={16} />
+          <p style={{ fontFamily: "var(--app-font-serif)", fontSize: 12, color: "var(--parxis-text-muted)", letterSpacing: "0.10em", fontStyle: "italic" }}>{t.footer.tagline}</p>
+          <p style={{ fontFamily: "var(--app-font-display)", fontSize: 10, color: "var(--parxis-text-muted)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{t.footer.by}</p>
         </div>
       </footer>
+
     </div>
   );
 }
