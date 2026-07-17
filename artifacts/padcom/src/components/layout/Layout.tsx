@@ -118,6 +118,7 @@ const navigation: NavEntry[] = [
       { name: "Atestados", href: "/arsenal/atestados", icon: FileSignature },
       { name: "Encaminhamentos", href: "/arsenal/encaminhamentos", icon: Send },
       { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
+      { name: "Cadernos Jurídicos", href: "/juridico/contratos", icon: Scale },
     ],
   },
   {

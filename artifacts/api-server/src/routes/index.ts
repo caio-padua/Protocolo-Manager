@@ -67,6 +67,7 @@ import documentTemplatesRouter from "./document-templates";
 import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
 import ceoRouter from "./ceo";
+import cadernosJuridicosRouter from "./cadernos-juridicos";
 
 const router: IRouter = Router();
 
@@ -160,5 +161,6 @@ router.use(documentTemplatesRouter);
 router.use(clientServiceAddressesRouter);
 router.use(empresasRouter);
 router.use(ceoRouter);
+router.use(cadernosJuridicosRouter);
 
 export default router;

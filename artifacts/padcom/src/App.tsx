@@ -93,6 +93,7 @@ import ImportarDrive from "@/pages/importar-drive";
 import Atestados from "@/pages/arsenal/atestados";
 import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
 import ModelosDocumento from "@/pages/arsenal/modelos";
+import ContratosJuridicos from "@/pages/contratos-juridicos";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -241,6 +242,7 @@ function Router() {
             <Route path="/arsenal/atestados" component={Atestados} />
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
             <Route path="/arsenal/modelos" component={ModelosDocumento} />
+            <Route path="/juridico/contratos" component={ContratosJuridicos} />
 
             <Route component={NotFound} />
           </Switch>
