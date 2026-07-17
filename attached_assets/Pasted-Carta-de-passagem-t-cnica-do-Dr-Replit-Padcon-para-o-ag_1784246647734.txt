@@ -1,0 +1,47 @@
+Carta de passagem técnica — do Dr. Replit Padcon para o agente do projeto Parxis
+
+Prezado colega,
+
+Você vai construir o site comercial do PARXIS (sistema antes chamado Paxter, agora renomeado para Parxis). Para isso, use como base técnica o site institucional da PADCON Platform, que eu construí e publiquei neste repositório público do GitHub:
+
+https://github.com/caio-padua/PADCONSITE
+
+PASSO 1 — CLONAR A BASE
+Importe esse repositório (via "Import from GitHub" ou clonando os arquivos relevantes). O site vive na pasta artifacts/padcon-platform. Leia primeiro o arquivo replit.md na raiz: ele documenta toda a arquitetura.
+
+PASSO 2 — TECNOLOGIA UTILIZADA (replique este stack)
+
+    React com Vite (interface e empacotador).
+    TypeScript em modo estrito (verifique com "typecheck", não com "build").
+    Tailwind CSS (estilização por classes utilitárias).
+    Monorepo pnpm (estrutura de pastas artifacts/lib/scripts).
+
+PASSO 3 — PADRÕES DE ARQUITETURA QUE VOCÊ DEVE COPIAR
+
+    Todo o texto visível ao usuário fica centralizado em um único arquivo de conteúdo (no meu caso, src/content/haute.ts), sempre bilíngue inglês/português, no formato { en: "...", pt: "..." }.
+    Um contexto de idioma (src/i18n/LanguageContext.tsx) com o hook useLang(); os componentes leem o texto com copy[lang]. Nunca escreva texto direto dentro dos componentes.
+    Cada seção da página é um componente separado em sua própria pasta, e um arquivo "composer" monta a página na ordem.
+    Elementos visuais compartilhados (botões, títulos de seção, divisores) vivem em um arquivo ui.tsx único, reutilizado por todas as seções.
+    Botão de alternância de idioma fixo no canto superior direito.
+
+PASSO 4 — O QUE MUDAR PARA O PARXIS
+
+    Este será um site COMERCIAL (venda do sistema Parxis), não institucional: estruture com proposta de valor, funcionalidades, planos/contato comercial e chamadas para ação de venda.
+    Substitua toda a identidade visual: crie a identidade própria do Parxis; NÃO copie o design "Haute Horlogerie" (couro e dourado), que é exclusivo da PADCON Platform.
+    Atenção ao nome: o produto agora se chama PARXIS. Não use mais "Paxter" em nenhum texto novo.
+
+REGRAS DE CONDUTA DO DR. CAIO (obrigatórias)
+
+    Nunca invente números, métricas ou depoimentos; use apenas dados reais fornecidos por ele, e marque claramente qualquer texto provisório como placeholder.
+    Comunique-se em português do Brasil, tudo por extenso, explicando cada sigla na primeira vez que aparecer.
+    Formato das respostas: tópicos numerados, uma frase por linha, tabelas emolduradas com cabeçalho em tom pastel, conclusão primeiro e fechamento com "RESUMO EM 1 LINHA".
+    Sinceridade total, zero bajulação; nunca anuncie como pronto o que não foi verificado.
+
+Bom trabalho, colega.
+
+— Dr. Replit Padcon, agente do repositório PADCON
+
+    OBSERVAÇÃO SINCERA
+    3.1. Eu não conheço o conteúdo comercial do Parxis (funcionalidades, público, preços); a carta orienta a técnica, mas o outro agente vai precisar que você forneça o material de venda real, pelo mesmo princípio de nunca inventar dados.
+
+RESUMO EM 1 LINHA: tudo confirmado no GitHub público PADCONSITE, e a carta acima está pronta para copiar e colar no chat do agente do Parxis, com o stack, os padrões de arquitetura e as suas regras de conduta.

@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, ChevronRight, Activity, Calendar, ShieldCheck, HardDrive, MessageSquare, UserCircle, XCircle } from "lucide-react";
+import { ParxisWordmark } from "@/components/brand/ParxisWordmark";
 
 export default function Home() {
   const WHATSAPP_URL = "https://wa.me/5511999999999?text=Quero%20conhecer%20o%20Parxis";
@@ -11,9 +12,8 @@ export default function Home() {
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 glass-panel border-b border-white/5">
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            <span className="font-serif text-2xl font-bold tracking-widest text-white">PARXIS</span>
+          <div className="flex items-center">
+            <ParxisWordmark width={110} />
           </div>
           <a 
             href={WHATSAPP_URL}
@@ -36,6 +36,7 @@ export default function Home() {
               transition={{ duration: 0.8 }}
               className="lg:w-1/2 flex flex-col items-start text-left"
             >
+              <ParxisWordmark width={340} className="mb-4" />
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/10 border border-secondary/20 mb-6">
                 <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
                 <span className="text-secondary text-xs font-semibold tracking-wider uppercase">Motor Clínico para Protocolos Injetáveis</span>
@@ -311,9 +312,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-12 border-t border-white/5 bg-background">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-primary/50" />
-            <span className="font-serif text-lg font-bold text-white/50 tracking-widest">PARXIS</span>
+          <div className="flex items-center opacity-50">
+            <ParxisWordmark width={80} />
           </div>
           
           <div className="text-muted-foreground/60 text-sm flex flex-col md:flex-row items-center gap-4 md:gap-8">
