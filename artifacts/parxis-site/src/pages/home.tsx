@@ -1,6 +1,23 @@
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ParxisWordmark } from "@/components/brand/ParxisWordmark";
 import { ParxisLogo } from "@/components/brand/ParxisLogo";
+
+/** Dispara 'visible' uma única vez quando o elemento entra no viewport */
+function useInView(threshold = 0.12) {
+  const ref = useRef<HTMLElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return [ref, visible] as const;
+}
 
 const C = {
   pt: {
@@ -486,8 +503,33 @@ export default function Home() {
 
   const WHATSAPP_URL = "https://wa.me/5511999999999?text=Quero%20conhecer%20o%20PARXIS";
 
+  /* ── Barra de progresso de scroll ── */
+  const [scrollPct, setScrollPct] = useState(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const total = doc.scrollHeight - doc.clientHeight;
+      setScrollPct(total > 0 ? (window.scrollY / total) * 100 : 0);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /* ── Refs de scroll-reveal por seção ── */
+  const [painRef,     painVisible]     = useInView();
+  const [featRef,     featVisible]     = useInView();
+  const [pawardsRef,  pawardsVisible]  = useInView();
+  const [flowRef,     flowVisible]     = useInView();
+  const [audienceRef, audienceVisible] = useInView();
+  const [ctaRef,      ctaVisible]      = useInView();
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--parxis-black-950)", color: "var(--parxis-text-main)" }}>
+
+      {/* ── BARRA DE PROGRESSO DOURADA ───────────────────────────────── */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 2, zIndex: 200, pointerEvents: "none" }}>
+        <div style={{ height: "100%", width: `${scrollPct}%`, background: "linear-gradient(90deg, #5B2C00, #F2B817, #FFD85A, #F2B817)", transition: "width 120ms linear" }} />
+      </div>
 
       {/* ── NAV ─────────────────────────────────────────────────────────── */}
       <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(4,2,2,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(242,184,23,0.10)", height: 68 }}>
@@ -617,7 +659,7 @@ export default function Home() {
       </section>
 
       {/* ── PAIN POINTS ─────────────────────────────────────────────────── */}
-      <section className="py-28" style={{ background: "linear-gradient(180deg, #0A0203 0%, #130406 50%, #0A0203 100%)" }}>
+      <section ref={painRef as React.RefObject<HTMLElement>} className={`py-28 ${painVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #0A0203 0%, #130406 50%, #0A0203 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-2xl mx-auto">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
@@ -641,7 +683,7 @@ export default function Home() {
       </section>
 
       {/* ── FEATURES — PARXIS 30 MÓDULOS ────────────────────────────────── */}
-      <section id="features" className="py-32" style={{ background: "linear-gradient(180deg, #050505 0%, #0E0304 30%, #160507 60%, #0E0304 85%, #050505 100%)" }}>
+      <section id="features" ref={featRef as React.RefObject<HTMLElement>} className={`py-32 ${featVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0E0304 30%, #160507 60%, #0E0304 85%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-20 max-w-3xl mx-auto">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 16 }}>
@@ -656,7 +698,15 @@ export default function Home() {
               <div
                 key={i}
                 className="p-7"
-                style={{ background: "linear-gradient(160deg, #1C0608 0%, #130404 100%)", border: "1px solid rgba(180,30,30,0.15)", borderTop: "none", borderLeft: "none", position: "relative", transition: "background 220ms" }}
+                style={{
+                  background: "linear-gradient(160deg, #1C0608 0%, #130404 100%)",
+                  border: "1px solid rgba(180,30,30,0.15)",
+                  borderTop: "none", borderLeft: "none",
+                  position: "relative",
+                  opacity: featVisible ? 1 : 0,
+                  transform: featVisible ? "translateY(0)" : "translateY(22px)",
+                  transition: `opacity 0.55s ease ${Math.min(i * 38, 800)}ms, transform 0.55s ease ${Math.min(i * 38, 800)}ms, background 220ms`,
+                }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg, #240810 0%, #1A0506 100%)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg, #1C0608 0%, #130404 100%)"; }}
               >
@@ -675,7 +725,7 @@ export default function Home() {
       </section>
 
       {/* ── PAWARDS MED CORE ────────────────────────────────────────────── */}
-      <section className="py-32 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #050505 0%, #0C0808 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
+      <section ref={pawardsRef as React.RefObject<HTMLElement>} className={`py-32 relative overflow-hidden ${pawardsVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0C0808 40%, #050505 100%)", borderTop: "1px solid rgba(242,184,23,0.08)", borderBottom: "1px solid rgba(242,184,23,0.08)" }}>
         <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: "radial-gradient(circle, #F2B817 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
         <div className="container mx-auto px-6 relative z-10">
           <div className="text-center mb-20 max-w-3xl mx-auto">
@@ -711,7 +761,7 @@ export default function Home() {
       </section>
 
       {/* ── FLOW ────────────────────────────────────────────────────────── */}
-      <section className="py-28" style={{ background: "var(--parxis-black-900)" }}>
+      <section ref={flowRef as React.RefObject<HTMLElement>} className={`py-28 ${flowVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "var(--parxis-black-900)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
@@ -736,7 +786,7 @@ export default function Home() {
       </section>
 
       {/* ── AUDIENCE ────────────────────────────────────────────────────── */}
-      <section className="py-28" style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
+      <section ref={audienceRef as React.RefObject<HTMLElement>} className={`py-28 ${audienceVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "linear-gradient(180deg, #050505 0%, #0A0203 40%, #050505 100%)" }}>
         <div className="container mx-auto px-6">
           <div className="text-center mb-14">
             <p style={{ fontFamily: "var(--app-font-label)", fontSize: 10, letterSpacing: "0.28em", color: "var(--parxis-gold-deep)", textTransform: "uppercase", marginBottom: 14 }}>
@@ -770,7 +820,7 @@ export default function Home() {
       </section>
 
       {/* ── CTA FINAL ───────────────────────────────────────────────────── */}
-      <section className="py-32 relative overflow-hidden" style={{ background: "radial-gradient(ellipse at 50% 50%, #2C0D10 0%, #0A0505 45%, #050505 100%)" }}>
+      <section ref={ctaRef as React.RefObject<HTMLElement>} className={`py-32 relative overflow-hidden ${ctaVisible ? "reveal-visible" : "reveal-hidden"}`} style={{ background: "radial-gradient(ellipse at 50% 50%, #2C0D10 0%, #0A0505 45%, #050505 100%)" }}>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 50% 60% at 50% 50%, rgba(242,184,23,0.06) 0%, transparent 65%)" }} />
         <div className="container mx-auto px-6 relative z-10 flex flex-col items-center text-center">
           <ParxisLogo width={180} className="mb-12 opacity-90" />

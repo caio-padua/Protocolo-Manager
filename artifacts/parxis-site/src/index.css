@@ -262,6 +262,18 @@
 .animate-fade-up-delay-2 { animation-delay: 0.30s; opacity: 0; }
 .animate-fade-up-delay-3 { animation-delay: 0.45s; opacity: 0; }
 
+/* ── Scroll-reveal de seção ─────────────────────────────── */
+.reveal-hidden {
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 0.75s cubic-bezier(0.22,0.61,0.36,1),
+              transform 0.75s cubic-bezier(0.22,0.61,0.36,1);
+}
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* ── Respiro do símbolo (legado) ─────────────────────────── */
 @keyframes symbol-breath {
   0%, 100% { transform: scale(1.000); }
