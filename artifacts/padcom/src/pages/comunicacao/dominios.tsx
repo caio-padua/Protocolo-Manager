@@ -23,7 +23,8 @@ type Dominio = {
   criado_em: string;
 };
 
-type RegistradorId = "registrobr" | "namecheap" | "godaddy" | "cloudflare" | "zoho";
+type RegistradorId = "registrobr" | "locaweb" | "namecheap" | "godaddy" | "cloudflare" | "zoho";
+type CategoriaRegistrador = "nacional" | "global" | "email";
 
 // ── helpers visuais ───────────────────────────────────────────────────────
 
@@ -337,107 +338,229 @@ function ModalDominio({
 // ── Bloco de credenciais de registrador ───────────────────────────────────
 
 // ── GRADE MESTRE — 5 campos idênticos em TODOS os blocos ─────────────────
-// Campos inativos (N/A) ficam visíveis + cinzas + cursor bloqueado + tooltip.
-// Isso garante alinhamento visual perfeito entre todos os 5 registradores.
+// Campos inativos (N/A): visíveis, cinzas, cursor bloqueado, tooltip explicativo.
+// Alinhamento visual perfeito entre todas as plataformas.
 
 type MasterField = {
   key: string;
-  label: string;           // label igual em todos os blocos
+  label: string;
   placeholderAtivo: string;
   sensivel: boolean;
 };
 
 const MASTER_FIELDS: MasterField[] = [
-  { key: "login",      label: "Usuário / Login",              placeholderAtivo: "seu login ou usuário",       sensivel: false },
-  { key: "api_key",    label: "Chave de API (API Key / Token)", placeholderAtivo: "cole a chave aqui",        sensivel: true  },
-  { key: "api_secret", label: "Secret / Senha da API",        placeholderAtivo: "cole o secret aqui",        sensivel: true  },
-  { key: "client_ip",  label: "IP Autorizado (Whitelist)",    placeholderAtivo: "ex.: 203.0.113.42",          sensivel: false },
-  { key: "account_id", label: "ID da Conta / Organização",    placeholderAtivo: "ex.: 123456789",             sensivel: false },
+  { key: "login",      label: "Usuário / Login",               placeholderAtivo: "seu login ou usuário",  sensivel: false },
+  { key: "api_key",    label: "Chave de API (API Key / Token)", placeholderAtivo: "cole a chave aqui",    sensivel: true  },
+  { key: "api_secret", label: "Secret / Senha da API",         placeholderAtivo: "cole o secret aqui",   sensivel: true  },
+  { key: "client_ip",  label: "IP Autorizado (Whitelist)",     placeholderAtivo: "ex.: 203.0.113.42",    sensivel: false },
+  { key: "account_id", label: "ID da Conta / Organização",     placeholderAtivo: "ex.: 123456789",       sensivel: false },
 ];
 
-// Por registrador: quais campos são ATIVOS (true) ou N/A (false)
-// e qual texto de ajuda aparece no tooltip do campo N/A
+type PrecoItem = { tld: string; valor: string; obs?: string };
+
 type RegistradorConfig = {
   id: RegistradorId;
+  categoria: CategoriaRegistrador;
   nome: string;
   descricao: string;
   icon: React.ComponentType<{ className?: string }>;
-  cor: string;
+  cor: string;             // border-l color class
+  corSeletor: string;      // ring/bg color quando selecionado
   tlds: string;
   aviso: string;
   linkExtra?: { label: string; href: string };
-  ativo: Record<string, boolean>;           // key → ativo?
-  tooltipNA: Record<string, string>;        // key → mensagem quando N/A
-  mapeamento: Record<string, string>;       // key master → key real da API
+  precos: PrecoItem[];     // preços médios anuais em R$
+  ativo: Record<string, boolean>;
+  tooltipNA: Record<string, string>;
+  mapeamento: Record<string, string>;
 };
 
 const REGISTRADORES: RegistradorConfig[] = [
+  // ── Nacionais ─────────────────────────────────────────────────────────
   {
     id: "registrobr",
+    categoria: "nacional",
     nome: "Registro.br / UOL Host",
-    descricao: "Domínios .com.br .net.br .org.br via UOL Host (registrador credenciado)",
+    descricao: "Autoridade oficial brasileira — .com.br .net.br .org.br",
     icon: Shield,
     cor: "border-l-blue-600",
+    corSeletor: "ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
     tlds: ".com.br   .net.br   .org.br   .ind.br   .art.br",
-    aviso: "Registro.br não tem API REST pública — usa EPP (protocolo de registradores). UOL Host atua como proxy para .com.br. Use o link abaixo para registro manual.",
+    aviso: "Registro.br não tem API REST pública — usa protocolo EPP. O UOL Host (registrador credenciado) atua como proxy. Use o link abaixo para registro manual ou configure UOL Host.",
     linkExtra: { label: "Registro manual → registro.br", href: "https://registro.br/registro/novo/" },
-    ativo:      { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: false },
-    tooltipNA:  { api_secret: "Registro.br/UOL não usa secret separado", client_ip: "UOL Host não exige whitelist de IP", account_id: "Sem Account ID — autenticação por login+key" },
-    mapeamento: { login: "login", api_key: "api_key" },
+    precos: [
+      { tld: ".com.br", valor: "R$ 40/ano", obs: "preço oficial" },
+      { tld: ".net.br", valor: "R$ 40/ano" },
+      { tld: ".org.br", valor: "R$ 40/ano" },
+    ],
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: false },
+    tooltipNA: { api_secret: "Registro.br/UOL não usa secret separado", client_ip: "UOL Host não exige whitelist de IP", account_id: "Autenticação por login + key — sem Account ID" },
+    mapeamento:{ login: "login", api_key: "api_key" },
   },
   {
+    id: "locaweb",
+    categoria: "nacional",
+    nome: "Locaweb",
+    descricao: "Registrador brasileiro — .com.br e domínios globais, suporte em PT-BR",
+    icon: Globe,
+    cor: "border-l-purple-600",
+    corSeletor: "ring-purple-500 bg-purple-50 dark:bg-purple-950/30",
+    tlds: ".com.br   .net.br   .org.br   .com   .net   .org   .io",
+    aviso: "API disponível via painel de revenda Locaweb. Obtenha o token em painel.locaweb.com.br → API → Gerar token. Suporte em português.",
+    linkExtra: { label: "Painel Locaweb ↗", href: "https://painel.locaweb.com.br" },
+    precos: [
+      { tld: ".com.br", valor: "R$ 69/ano" },
+      { tld: ".com",    valor: "R$ 79/ano" },
+      { tld: ".net",    valor: "R$ 69/ano" },
+    ],
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: true  },
+    tooltipNA: { api_secret: "Locaweb não usa secret separado — só token", client_ip: "Locaweb não exige whitelist de IP" },
+    mapeamento:{ login: "login", api_key: "api_token", account_id: "account_id" },
+  },
+  // ── Globais ───────────────────────────────────────────────────────────
+  {
     id: "namecheap",
+    categoria: "global",
     nome: "Namecheap",
-    descricao: "Domínios globais — melhor custo-benefício, API REST moderna",
+    descricao: "Melhor custo-benefício global — API REST moderna, sem markup",
     icon: CreditCard,
     cor: "border-l-orange-500",
+    corSeletor: "ring-orange-500 bg-orange-50 dark:bg-orange-950/30",
     tlds: ".com   .net   .org   .io   .co   .app   .dev   (sem .com.br)",
-    aviso: "Obtenha a API Key em namecheap.com → Profile → Tools → API Access. Depois adicione o IP deste servidor na lista de IPs autorizados.",
-    ativo:      { login: true,  api_key: true,  api_secret: false, client_ip: true,  account_id: false },
-    tooltipNA:  { api_secret: "Namecheap não usa secret — só API Key", account_id: "Namecheap identifica a conta pelo login+key" },
-    mapeamento: { login: "api_user", api_key: "api_key", client_ip: "client_ip" },
+    aviso: "Obtenha a API Key em namecheap.com → Profile → Tools → API Access. Depois adicione o IP deste servidor na lista de IPs autorizados antes de salvar.",
+    precos: [
+      { tld: ".com", valor: "≈ R$ 57/ano", obs: "~USD 10,98" },
+      { tld: ".io",  valor: "≈ R$ 290/ano" },
+      { tld: ".net", valor: "≈ R$ 47/ano" },
+    ],
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: true,  account_id: false },
+    tooltipNA: { api_secret: "Namecheap não usa secret — só API Key", account_id: "Identificação pelo login + API Key" },
+    mapeamento:{ login: "api_user", api_key: "api_key", client_ip: "client_ip" },
   },
   {
     id: "godaddy",
+    categoria: "global",
     nome: "GoDaddy",
-    descricao: "Domínios globais incluindo .com.br via revenda — maior variedade de TLDs",
+    descricao: "Maior variedade de TLDs — .com.br via revenda + 500 outros",
     icon: Building2,
     cor: "border-l-green-600",
-    tlds: ".com   .net   .org   .com.br   .io   .co   e mais de 500 outros",
-    aviso: "Obtenha as chaves em developer.godaddy.com → Keys. Use chaves de produção (não OTE/sandbox) para compras reais.",
-    ativo:      { login: false, api_key: true,  api_secret: true,  client_ip: false, account_id: false },
-    tooltipNA:  { login: "GoDaddy não usa login separado — autenticação por key+secret", client_ip: "GoDaddy não exige whitelist de IP", account_id: "GoDaddy não usa Account ID nesta API" },
-    mapeamento: { api_key: "api_key", api_secret: "api_secret" },
+    corSeletor: "ring-green-500 bg-green-50 dark:bg-green-950/30",
+    tlds: ".com   .net   .org   .com.br   .io   .co   e +500 outros",
+    aviso: "Obtenha as chaves em developer.godaddy.com → Keys. Use chaves de produção (não OTE/sandbox) para compras reais. 1º ano costuma ter preço promocional.",
+    precos: [
+      { tld: ".com",    valor: "≈ R$ 75/ano", obs: "1º ano R$ 10" },
+      { tld: ".com.br", valor: "≈ R$ 85/ano" },
+      { tld: ".io",     valor: "≈ R$ 320/ano" },
+    ],
+    ativo:     { login: false, api_key: true,  api_secret: true,  client_ip: false, account_id: false },
+    tooltipNA: { login: "GoDaddy autentica por key + secret — sem login separado", client_ip: "GoDaddy não exige whitelist de IP", account_id: "GoDaddy não usa Account ID nesta API" },
+    mapeamento:{ api_key: "api_key", api_secret: "api_secret" },
   },
   {
     id: "cloudflare",
+    categoria: "global",
     nome: "Cloudflare",
-    descricao: "Preço de custo (sem markup), melhor API de DNS — MX/SPF/DKIM automático",
+    descricao: "Preço de custo (at-cost, sem markup) + melhor DNS do mercado",
     icon: Server,
     cor: "border-l-amber-500",
+    corSeletor: "ring-amber-500 bg-amber-50 dark:bg-amber-950/30",
     tlds: ".com   .net   .org   .io   .co   e outros   (sem .com.br)",
-    aviso: "Crie o API Token em dash.cloudflare.com → My Profile → API Tokens com permissões: Registrar:Edit + Zone:DNS:Edit. O Account ID está na página principal do painel.",
-    ativo:      { login: false, api_key: true,  api_secret: false, client_ip: false, account_id: true  },
-    tooltipNA:  { login: "Cloudflare autentica por token, não por login", api_secret: "Cloudflare não usa secret separado — só token", client_ip: "Cloudflare não exige whitelist de IP" },
-    mapeamento: { api_key: "api_token", account_id: "account_id" },
+    aviso: "Crie o API Token em dash.cloudflare.com → My Profile → API Tokens. Permissões: Registrar:Edit + Zone:DNS:Edit. O Account ID fica na página inicial do painel.",
+    precos: [
+      { tld: ".com", valor: "≈ R$ 57/ano", obs: "at-cost, sem lucro" },
+      { tld: ".io",  valor: "≈ R$ 280/ano" },
+      { tld: ".net", valor: "≈ R$ 45/ano" },
+    ],
+    ativo:     { login: false, api_key: true,  api_secret: false, client_ip: false, account_id: true  },
+    tooltipNA: { login: "Cloudflare autentica por token — sem login separado", api_secret: "Token único — sem secret separado", client_ip: "Cloudflare não exige whitelist de IP" },
+    mapeamento:{ api_key: "api_token", account_id: "account_id" },
   },
+  // ── E-mail ────────────────────────────────────────────────────────────
   {
     id: "zoho",
+    categoria: "email",
     nome: "Zoho Mail Admin",
-    descricao: "Criar e-mails, aliases e gerenciar contas — não é registrador de domínios",
+    descricao: "Criar e-mails, aliases e gerenciar contas — não registra domínios",
     icon: Mail,
     cor: "border-l-red-500",
-    tlds: "Não registra domínios — gerencia e-mail nos domínios já cadastrados",
-    aviso: "Obtenha em console.zoho.com → Zoho API Console → Criar cliente OAuth. Escopo necessário: ZohoMail.organization.accounts.ALL",
-    ativo:      { login: false, api_key: true,  api_secret: false, client_ip: false, account_id: true  },
-    tooltipNA:  { login: "Zoho autentica por OAuth token, não por login", api_secret: "Zoho usa token OAuth único — sem secret separado", client_ip: "Zoho não exige whitelist de IP" },
-    mapeamento: { api_key: "zoho_admin_token", account_id: "zoho_org_id" },
+    corSeletor: "ring-red-500 bg-red-50 dark:bg-red-950/30",
+    tlds: "Não registra domínios — gerencia e-mail nos domínios já cadastrados acima",
+    aviso: "Obtenha em console.zoho.com → Zoho API Console → Criar cliente OAuth → gerar token. Escopo necessário: ZohoMail.organization.accounts.ALL",
+    precos: [
+      { tld: "Gratuito",  valor: "até 5 contas", obs: "plano Free" },
+      { tld: "Mail Lite", valor: "≈ R$ 8/usuário/mês" },
+      { tld: "Mail Plus", valor: "≈ R$ 20/usuário/mês" },
+    ],
+    ativo:     { login: false, api_key: true,  api_secret: false, client_ip: false, account_id: true  },
+    tooltipNA: { login: "Zoho autentica por OAuth token — sem login separado", api_secret: "Token OAuth único — sem secret separado", client_ip: "Zoho não exige whitelist de IP" },
+    mapeamento:{ api_key: "zoho_admin_token", account_id: "zoho_org_id" },
   },
 ];
 
-// ── Componente unificado — grade de 5 campos idênticos ───────────────────
+const CATEGORIAS: { id: CategoriaRegistrador; label: string; descricao: string }[] = [
+  { id: "nacional",  label: "Nacionais (Brasil)",    descricao: ".com.br e TLDs brasileiros" },
+  { id: "global",    label: "Internacionais",         descricao: ".com .io .co e outros" },
+  { id: "email",     label: "E-mail",                 descricao: "Gestão de caixas e aliases" },
+];
 
-function BlocoRegistrador({ config }: { config: RegistradorConfig }) {
+// ── Componente de campo master (reutilizável) ─────────────────────────────
+
+function CampoMaster({
+  field, ativo, tooltip, valor, onChangeValor, mostrarSenha, onToggleSenha,
+}: {
+  field: MasterField; ativo: boolean; tooltip: string;
+  valor: string; onChangeValor: (v: string) => void;
+  mostrarSenha: boolean; onToggleSenha: () => void;
+}) {
+  const inputType = field.sensivel && !mostrarSenha ? "password" : "text";
+  return (
+    <div className="relative" title={!ativo ? tooltip : undefined}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <label className={`block text-[11px] font-semibold uppercase tracking-wider ${ativo ? "text-muted-foreground" : "text-muted-foreground/35"}`}>
+          {field.label}
+        </label>
+        {!ativo && (
+          <span className="inline-flex items-center rounded px-1 py-0 text-[9px] font-bold uppercase tracking-wider bg-muted/60 text-muted-foreground/40 border border-border/40">
+            N/A
+          </span>
+        )}
+      </div>
+      <div className="relative">
+        <input
+          type={ativo ? inputType : "text"}
+          disabled={!ativo}
+          value={ativo ? valor : ""}
+          onChange={e => ativo && onChangeValor(e.target.value)}
+          placeholder={ativo ? field.placeholderAtivo : "—"}
+          className={`w-full rounded border px-3 py-2 text-sm transition-colors ${
+            ativo
+              ? "border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 pr-9"
+              : "border-border/25 bg-muted/15 text-muted-foreground/25 cursor-not-allowed select-none"
+          }`}
+        />
+        {ativo && field.sensivel && (
+          <button type="button" onClick={onToggleSenha}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        )}
+        {!ativo && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/20 text-xs select-none">✕</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Bloco único de registrador — grade uniforme ───────────────────────────
+
+function BlocoRegistrador({
+  config, ativo: isAtivo, onSelecionar,
+}: {
+  config: RegistradorConfig;
+  ativo: boolean;
+  onSelecionar: (id: RegistradorId) => void;
+}) {
   const [aberto, setAberto] = useState(false);
   const [valores, setValores] = useState<Record<string, string>>({});
   const [mostrarSenha, setMostrarSenha] = useState<Record<string, boolean>>({});
@@ -445,7 +568,6 @@ function BlocoRegistrador({ config }: { config: RegistradorConfig }) {
   const [msg, setMsg] = useState("");
 
   async function salvarCredenciais() {
-    // Converte chaves master para chaves reais da API do registrador
     const dadosMapeados: Record<string, string> = {};
     for (const [keyMaster, keyReal] of Object.entries(config.mapeamento)) {
       if (valores[keyMaster]) dadosMapeados[keyReal] = valores[keyMaster];
@@ -457,105 +579,110 @@ function BlocoRegistrador({ config }: { config: RegistradorConfig }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dados: dadosMapeados }),
       });
-      if (r.ok) { setMsg("Credenciais salvas com segurança."); setTimeout(() => setMsg(""), 3000); }
+      if (r.ok) { setMsg("Credenciais salvas."); setTimeout(() => setMsg(""), 3000); }
       else { const d = await r.json(); setMsg("Erro: " + (d.error ?? "falha ao salvar")); }
     } catch { setMsg("Falha de rede"); }
     finally { setSaving(false); }
   }
 
   return (
-    <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden`}>
-      {/* Header colapsável */}
-      <button onClick={() => setAberto(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors">
-        <div className="flex items-center gap-3">
-          <config.icon className="h-5 w-5 text-muted-foreground" />
-          <div className="text-left">
-            <p className="font-semibold text-foreground text-sm">{config.nome}</p>
-            <p className="text-xs text-muted-foreground">{config.descricao}</p>
+    <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden transition-all ${isAtivo ? `ring-2 ${config.corSeletor}` : ""}`}>
+      {/* Header */}
+      <div className="flex items-center">
+        <button onClick={() => setAberto(v => !v)}
+          className="flex-1 flex items-center gap-3 px-4 py-3.5 hover:bg-muted/20 transition-colors text-left">
+          <config.icon className={`h-4 w-4 flex-shrink-0 ${isAtivo ? "text-primary" : "text-muted-foreground"}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={`font-semibold text-sm ${isAtivo ? "text-primary" : "text-foreground"}`}>{config.nome}</p>
+              {isAtivo && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/30">
+                  ✓ Plataforma Ativa
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">{config.descricao}</p>
           </div>
-        </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
+          {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+        </button>
+        {/* Botão selecionar — fora do toggle */}
+        {!isAtivo && config.categoria !== "email" && (
+          <button onClick={() => onSelecionar(config.id)}
+            className="px-3 py-3.5 text-[11px] font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border flex-shrink-0"
+            title="Usar como plataforma ativa para novos registros">
+            Usar
+          </button>
+        )}
+      </div>
 
       {aberto && (
-        <div className="border-t border-border px-5 py-5 space-y-5">
+        <div className="border-t border-border px-4 py-4 space-y-4">
 
-          {/* TLDs */}
-          <div className="flex items-start gap-2">
-            <Globe className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground font-mono tracking-wide">{config.tlds}</p>
+          {/* TLDs + Preços lado a lado */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* TLDs */}
+            <div className="rounded border border-border/50 bg-muted/20 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">TLDs Suportados</p>
+              <p className="text-xs text-foreground font-mono leading-relaxed">{config.tlds}</p>
+            </div>
+            {/* Preços — insert bevel */}
+            <div className="rounded border border-border/50 bg-muted/20 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Preço Médio (ano)</p>
+              <div className="space-y-1">
+                {config.precos.map(p => (
+                  <div key={p.tld} className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-mono text-muted-foreground">{p.tld}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-foreground">{p.valor}</span>
+                      {p.obs && <span className="text-[10px] text-muted-foreground/70 italic">{p.obs}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Aviso */}
-          <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 flex items-start gap-2">
+          <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 flex items-start gap-2">
             <AlertCircle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700 dark:text-amber-400">{config.aviso}</p>
           </div>
 
-          {/* GRADE MESTRE — sempre 5 campos, sempre 2 colunas, sempre mesma ordem */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            {MASTER_FIELDS.map(field => {
-              const ativo = config.ativo[field.key] ?? false;
-              const tooltip = config.tooltipNA[field.key] ?? "Não utilizado por esta plataforma";
-              const inputType = field.sensivel && !mostrarSenha[field.key] ? "password" : "text";
-
-              return (
-                <div key={field.key} className="relative" title={!ativo ? tooltip : undefined}>
-                  {/* Label — idêntico em todos os blocos */}
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <label className={`block text-[11px] font-semibold uppercase tracking-wider ${ativo ? "text-muted-foreground" : "text-muted-foreground/40"}`}>
-                      {field.label}
-                    </label>
-                    {!ativo && (
-                      <span className="inline-flex items-center rounded px-1 py-0 text-[9px] font-bold uppercase tracking-wider bg-muted text-muted-foreground/50 border border-border/50">
-                        N/A
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Input — ativo ou desabilitado */}
-                  <div className="relative">
-                    <input
-                      type={ativo ? inputType : "text"}
-                      disabled={!ativo}
-                      value={ativo ? (valores[field.key] ?? "") : ""}
-                      onChange={e => ativo && setValores(p => ({ ...p, [field.key]: e.target.value }))}
-                      placeholder={ativo ? field.placeholderAtivo : "—"}
-                      className={`w-full rounded border px-3 py-2 text-sm transition-colors ${
-                        ativo
-                          ? "border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40 pr-9"
-                          : "border-border/30 bg-muted/20 text-muted-foreground/30 cursor-not-allowed select-none"
-                      }`}
-                    />
-                    {/* Olho — só em campos sensíveis ativos */}
-                    {ativo && field.sensivel && (
-                      <button type="button"
-                        onClick={() => setMostrarSenha(p => ({ ...p, [field.key]: !p[field.key] }))}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {mostrarSenha[field.key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    )}
-                    {/* Cadeado visual nos N/A */}
-                    {!ativo && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/25 text-xs select-none">✕</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          {/* GRADE MESTRE — 5 campos, 2 colunas, mesma ordem em todos os blocos */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Credenciais de Acesso</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {MASTER_FIELDS.map(field => (
+                <CampoMaster
+                  key={field.key}
+                  field={field}
+                  ativo={config.ativo[field.key] ?? false}
+                  tooltip={config.tooltipNA[field.key] ?? "Não utilizado por esta plataforma"}
+                  valor={valores[field.key] ?? ""}
+                  onChangeValor={v => setValores(p => ({ ...p, [field.key]: v }))}
+                  mostrarSenha={mostrarSenha[field.key] ?? false}
+                  onToggleSenha={() => setMostrarSenha(p => ({ ...p, [field.key]: !p[field.key] }))}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Rodapé — salvar + link extra */}
-          <div className="flex items-center gap-3 pt-1 border-t border-border">
+          {/* Rodapé */}
+          <div className="flex items-center gap-3 pt-1 border-t border-border flex-wrap">
             <button onClick={salvarCredenciais} disabled={saving}
               className="btn-3d inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold disabled:opacity-50">
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               Salvar credenciais
             </button>
+            {config.categoria !== "email" && !isAtivo && (
+              <button onClick={() => onSelecionar(config.id)}
+                className="bevel-3d inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors">
+                Definir como plataforma ativa
+              </button>
+            )}
             {config.linkExtra && (
               <a href={config.linkExtra.href} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2">
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2 ml-auto">
                 <Link className="h-3.5 w-3.5" /> {config.linkExtra.label}
               </a>
             )}
@@ -696,14 +823,100 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
 
 // ── BLOCO 2 — Registradores ───────────────────────────────────────────────
 
+// ── BLOCO B — Registradores com seletor + categorias ──────────────────────
+
+const LS_KEY = "pda_registrador_ativo";
+
 function BlocoRegistradores() {
+  const [ativo, setAtivo] = useState<RegistradorId>(() => {
+    const salvo = localStorage.getItem(LS_KEY) as RegistradorId | null;
+    return salvo ?? "registrobr";
+  });
+
+  function selecionar(id: RegistradorId) {
+    setAtivo(id);
+    localStorage.setItem(LS_KEY, id);
+    // Persiste também no backend para que o verificador use a plataforma certa
+    fetch(`${BASE}/api/registradores/ativo`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registradorId: id }),
+    }).catch(() => {/* silencioso — localStorage é suficiente */});
+  }
+
+  const configAtivo = REGISTRADORES.find(r => r.id === ativo)!;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Cabeçalho */}
       <div className="flex items-center gap-2 px-1">
         <Settings className="h-4 w-4 text-primary" />
-        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Bloco B — Credenciais dos Registradores</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Bloco B — Plataformas de Registro & Credenciais
+        </span>
       </div>
-      {REGISTRADORES.map(r => <BlocoRegistrador key={r.id} config={r} />)}
+
+      {/* SELETOR VISUAL — plataforma ativa para compras */}
+      <div className="panel-3d p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Plataforma Ativa para Novos Registros</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Clique numa plataforma para usá-la ao comprar domínios pelo Verificador</p>
+          </div>
+          <div className={`flex items-center gap-2 rounded border px-3 py-1.5 ${configAtivo.corSeletor} border-current/30`}>
+            <configAtivo.icon className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-bold text-primary">{configAtivo.nome}</span>
+          </div>
+        </div>
+
+        {/* Cards do seletor — agrupados por categoria */}
+        {CATEGORIAS.filter(c => c.id !== "email").map(cat => {
+          const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
+          return (
+            <div key={cat.id}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-1.5">{cat.label}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {regs.map(r => {
+                  const sel = ativo === r.id;
+                  return (
+                    <button key={r.id} onClick={() => selecionar(r.id)}
+                      className={`group flex items-center gap-2.5 rounded border px-3 py-2.5 text-left transition-all ${
+                        sel
+                          ? `ring-2 ${r.corSeletor} border-transparent`
+                          : "border-border hover:border-primary/40 hover:bg-muted/30"
+                      }`}>
+                      <r.icon className={`h-4 w-4 flex-shrink-0 ${sel ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
+                      <div className="min-w-0">
+                        <p className={`text-xs font-semibold truncate ${sel ? "text-primary" : "text-foreground"}`}>{r.nome}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{r.precos[0]?.tld} {r.precos[0]?.valor}</p>
+                      </div>
+                      {sel && <span className="ml-auto text-primary text-xs flex-shrink-0">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* BLOCOS POR CATEGORIA */}
+      {CATEGORIAS.map(cat => {
+        const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
+        return (
+          <div key={cat.id} className="space-y-2">
+            {/* Separador de categoria */}
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-2">{cat.label} — {cat.descricao}</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            {regs.map(r => (
+              <BlocoRegistrador key={r.id} config={r} ativo={ativo === r.id} onSelecionar={selecionar} />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

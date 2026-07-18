@@ -223,6 +223,36 @@ router.get("/registradores/credenciais/:registrador/reveal", async (req, res): P
   }
 });
 
+// ── PUT /api/registradores/ativo ── salva plataforma ativa para compras ────
+router.put("/registradores/ativo", async (req, res): Promise<void> => {
+  const { registradorId } = req.body ?? {};
+  const VALIDOS = ["registrobr", "locaweb", "namecheap", "godaddy", "cloudflare"];
+  if (!registradorId || !VALIDOS.includes(registradorId)) {
+    res.status(400).json({ error: "registradorId inválido" }); return;
+  }
+  try {
+    await db.execute(sql`
+      INSERT INTO app_settings (key, value) VALUES ('registrador_ativo', ${registradorId})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `);
+    res.json({ ok: true, registradorId });
+  } catch (e: unknown) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Erro" });
+  }
+});
+
+// ── GET /api/registradores/ativo ── lê plataforma ativa ───────────────────
+router.get("/registradores/ativo", async (_req, res): Promise<void> => {
+  try {
+    const row = await db.execute(sql`
+      SELECT value FROM app_settings WHERE key = 'registrador_ativo'
+    `);
+    res.json({ registradorId: row.rows[0] ? (row.rows[0] as { value: string }).value : "registrobr" });
+  } catch (e: unknown) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Erro" });
+  }
+});
+
 // ── POST /api/dominios/comprar ── scaffold de compra via registrador ───────
 router.post("/dominios/comprar", async (req, res): Promise<void> => {
   const { dominio, registrador } = req.body ?? {};
