@@ -89,10 +89,28 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
 export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
+  const [adminMode, setAdminMode] = useState(false);
+
+  // Modo de preview admin: ?preview_id=<n>&preview_name=<name>&preview_token=<tok>
+  // O dono da clínica usa a página /experiencia-cliente para gerar esta URL
+  // e abre numa aba nova, sem precisar digitar CPF/senha do cliente.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get("preview_id");
+    const pname = params.get("preview_name");
+    const ptoken = params.get("preview_token");
+    if (pid && pname && ptoken) {
+      setAdminMode(true);
+      setClient({ id: Number(pid), name: decodeURIComponent(pname), cpf: null, token: ptoken });
+      // Limpa a URL para não vazar o token no histórico
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const handleLogout = useCallback(() => {
     setClient(null);
     setTab("inicio");
+    setAdminMode(false);
   }, []);
 
   // Ao trocar de aba, volta ao topo para a acao principal ficar visivel (sem rolar)
@@ -104,6 +122,12 @@ export default function Area() {
 
   return (
     <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
+      {/* Faixa de aviso quando o admin está no modo preview */}
+      {adminMode && (
+        <div className="bg-amber-500 text-white text-center text-[11px] font-black uppercase tracking-widest py-1.5 px-4">
+          ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
+        </div>
+      )}
       {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
       <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-border/60">
         <div className="flex items-center gap-3 min-w-0">

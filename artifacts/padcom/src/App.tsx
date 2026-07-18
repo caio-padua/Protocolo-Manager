@@ -96,6 +96,7 @@ import ModelosDocumento from "@/pages/arsenal/modelos";
 import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
 import PortfolioClinico from "@/pages/portfolio-clinico";
+import ExperienciaCliente from "@/pages/experiencia-cliente";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -247,6 +248,7 @@ function Router() {
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
             <Route path="/arsenal/modelos" component={ModelosDocumento} />
             <Route path="/juridico/contratos" component={ContratosJuridicos} />
+            <Route path="/experiencia-cliente" component={ExperienciaCliente} />
 
             <Route component={NotFound} />
           </Switch>

@@ -94,7 +94,7 @@ const navigation: NavEntry[] = [
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
       { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
       { name: "Importação do Drive (ao vivo)", href: "/importar-drive", icon: DownloadCloud },
-      { name: "Portal do Paciente (visão)", href: "/portal", icon: ExternalLink, external: true },
+      { name: "Experiência do Cliente", href: "/experiencia-cliente", icon: Sparkles },
     ],
   },
   {
