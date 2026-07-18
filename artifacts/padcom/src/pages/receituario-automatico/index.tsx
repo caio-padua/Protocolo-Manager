@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Calendar, Plus, Edit3, Trash2, Send, RefreshCw,
   ChevronDown, ChevronRight, CheckCircle2, Clock,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
 
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
 function authHeader(): HeadersInit {
@@ -124,9 +125,9 @@ export default function ReceituarioAutomatico() {
   const [expandidas, setExpandidas] = useState<Set<number>>(new Set());
 
   // Seletor de cliente
-  const [buscaCliente, setBuscaCliente] = useState("");
   const [clientes, setClientes]         = useState<ClienteLite[]>([]);
-  const [clienteSel, setClienteSel]     = useState<ClienteLite | null>(null);
+  const [clienteSelId, setClienteSelId] = useState<number | null>(null);
+  const clienteSel = useMemo(() => clientes.find((c) => c.id === clienteSelId) ?? null, [clientes, clienteSelId]);
 
   // Modal nova agenda
   const [modalAgenda, setModalAgenda] = useState(false);
@@ -190,11 +191,11 @@ export default function ReceituarioAutomatico() {
   useEffect(() => { void carregar(); }, [clienteSel]);
 
   // ── Selecionar cliente ───────────────────────────────────────────────────
-  const selecionarCliente = async (c: ClienteLite) => {
-    setClienteSel(c);
-    setBuscaCliente(c.name);
+  const selecionarCliente = async (id: number | null) => {
+    setClienteSelId(id);
+    if (!id) { setProtocolos([]); return; }
     try {
-      const d = await apiFetch(`/api/protocols?clientId=${c.id}`);
+      const d = await apiFetch(`/api/protocols?clientId=${id}`);
       setProtocolos(Array.isArray(d) ? d : (d.protocols ?? []));
     } catch { setProtocolos([]); }
   };
@@ -388,10 +389,7 @@ export default function ReceituarioAutomatico() {
     .filter(Boolean)
     .sort()[0];
 
-  const clientesFiltrados = clientes.filter((c) =>
-    c.name.toLowerCase().includes(buscaCliente.toLowerCase()) ||
-    (c.cpf ?? "").includes(buscaCliente)
-  );
+  const clientesOpts: ClientPickerOption[] = clientes.map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
 
   const catalogoFiltrado = catalogo.filter((f) =>
     f.nome.toLowerCase().includes(buscaFormula.toLowerCase()) ||
@@ -436,60 +434,25 @@ export default function ReceituarioAutomatico() {
         <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest mb-2 inline-block">
           Selecionar Cliente
         </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              className="field-engraved w-full pl-9 text-sm"
-              placeholder="Nome ou CPF…"
-              value={buscaCliente}
-              onChange={(e) => {
-                setBuscaCliente(e.target.value);
-                if (clienteSel && e.target.value !== clienteSel.name) setClienteSel(null);
-              }}
+        <div className="flex gap-2 items-center">
+          <div className="flex-1">
+            <ClientPicker
+              clientes={clientesOpts}
+              value={clienteSelId}
+              onChange={selecionarCliente}
+              placeholder="Escolha um cliente…"
             />
           </div>
           {clienteSel && (
-            <Button className="btn-3d gap-2" onClick={abrirNovaAgenda}>
+            <Button className="btn-3d gap-2 shrink-0" onClick={abrirNovaAgenda}>
               <Plus className="w-4 h-4" /> Nova Agenda
             </Button>
           )}
-          <Button className="btn-3d-soft gap-1" onClick={processarWorker} disabled={processando}>
+          <Button className="btn-3d-soft gap-1 shrink-0" onClick={processarWorker} disabled={processando}>
             {processando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             Processar
           </Button>
         </div>
-
-        {/* Dropdown de clientes */}
-        {buscaCliente.length >= 2 && !clienteSel && (
-          <div className="mt-1.5 panel-3d-sub max-h-44 overflow-y-auto">
-            {clientesFiltrados.slice(0, 8).map((c) => (
-              <button
-                key={c.id}
-                className="w-full text-left px-3 py-2.5 hover:bg-primary/5 text-sm flex justify-between"
-                onClick={() => selecionarCliente(c)}
-              >
-                <span className="font-medium">{c.name}</span>
-                <span className="text-muted-foreground text-xs font-mono">{c.cpf ?? "—"}</span>
-              </button>
-            ))}
-            {clientesFiltrados.length === 0 && (
-              <p className="text-sm text-muted-foreground p-3 text-center">Nenhum cliente encontrado</p>
-            )}
-          </div>
-        )}
-
-        {clienteSel && (
-          <div className="mt-2 concave-3d px-3 py-2 text-sm flex items-center justify-between">
-            <span>
-              <strong>{clienteSel.name}</strong>
-              {clienteSel.cpf && <span className="text-muted-foreground ml-2 text-xs font-mono">{clienteSel.cpf}</span>}
-            </span>
-            <button className="text-xs text-muted-foreground hover:text-destructive" onClick={() => { setClienteSel(null); setBuscaCliente(""); setAgendas([]); }}>
-              trocar
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── LISTA DE AGENDAS ────────────────────────────────────────────── */}
