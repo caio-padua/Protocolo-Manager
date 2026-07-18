@@ -3,6 +3,7 @@ import cron from "node-cron";
 import { sendNightlyPharmacyBatch } from "./pharmacy-email";
 import { executarLembretesPeriodo } from "./lembrete-periodo";
 import { logger } from "./logger";
+import { processarReceituarioDiario } from "./receituario-worker";
 
 let started = false;
 
@@ -45,4 +46,18 @@ export function startCronJobs(): void {
   );
 
   logger.info("Cron de lembrete por período agendado (tick a cada minuto, BRT)");
+
+  // 06:00 todos os dias — libera receituários magistrais do dia (Onda 2)
+  cron.schedule(
+    "0 6 * * *",
+    () => {
+      logger.info("Cron receituário 06:00 BRT — iniciando processamento diário");
+      processarReceituarioDiario().catch((err) => {
+        logger.error({ err: err?.message }, "Falha no processamento diário do receituário");
+      });
+    },
+    { timezone: "America/Sao_Paulo" },
+  );
+
+  logger.info("Cron de receituário magistral agendado para 06:00 BRT");
 }

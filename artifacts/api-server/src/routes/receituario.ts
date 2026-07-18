@@ -22,7 +22,8 @@ import {
   clientsTable,
   protocolsTable,
 } from "@workspace/db";
-import { eq, and, lte, gte, or, isNull, desc, asc } from "drizzle-orm";
+import { eq, and, lte, gte, desc, asc } from "drizzle-orm";
+import { liberarSlot, processarReceituarioDiario } from "../lib/receituario-worker";
 
 const router = Router();
 
@@ -339,39 +340,11 @@ router.post("/receituario/slots/:id/liberar", async (req, res): Promise<void> =>
 
 // ── WORKER DIÁRIO ─────────────────────────────────────────────────────────────
 
-// POST /api/receituario/processar
+// POST /api/receituario/processar  (delega ao worker — mesmo motor do cron 06:00)
 router.post("/receituario/processar", async (_req, res): Promise<void> => {
   try {
-    const hojeStr = hoje();
-
-    // Busca todos os slots AGUARDANDO com data_liberacao <= hoje
-    const pendentes = await db
-      .select()
-      .from(receitasAgendadasSlotsTable)
-      .where(
-        and(
-          eq(receitasAgendadasSlotsTable.status, "AGUARDANDO"),
-          lte(receitasAgendadasSlotsTable.dataLiberacao, hojeStr),
-        ),
-      );
-
-    const resultados: Array<{ id: number; status: string; erro?: string }> = [];
-
-    for (const slot of pendentes) {
-      try {
-        await liberarSlot(slot.id);
-        resultados.push({ id: slot.id, status: "LIBERADA" });
-      } catch (e) {
-        resultados.push({ id: slot.id, status: "ERRO", erro: String(e) });
-      }
-    }
-
-    res.json({
-      processados: pendentes.length,
-      liberados: resultados.filter((r) => r.status === "LIBERADA").length,
-      erros: resultados.filter((r) => r.status === "ERRO").length,
-      resultados,
-    });
+    const resultado = await processarReceituarioDiario();
+    res.json({ ok: true, ...resultado });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -443,32 +416,5 @@ router.get("/receituario/alertas", async (req, res): Promise<void> => {
     res.status(500).json({ error: String(err) });
   }
 });
-
-// ── MOTOR DE LIBERAÇÃO ────────────────────────────────────────────────────────
-
-async function liberarSlot(slotId: number): Promise<void> {
-  const [slot] = await db
-    .select()
-    .from(receitasAgendadasSlotsTable)
-    .where(eq(receitasAgendadasSlotsTable.id, slotId))
-    .limit(1);
-
-  if (!slot) throw new Error("Slot não encontrado");
-  if (slot.status === "ENTREGUE") return; // idempotente
-
-  // Marcar como LIBERADA imediatamente (PDF e envio são fire-and-forget nesta versão)
-  // A geração de PDF e envio multicanal serão adicionados por onda de integração
-  await db
-    .update(receitasAgendadasSlotsTable)
-    .set({
-      status: "LIBERADA",
-      disponivelPortalEm: new Date(),
-      tentativas: (slot.tentativas ?? 0) + 1,
-      ultimaTentativaEm: new Date(),
-    } as never)
-    .where(eq(receitasAgendadasSlotsTable.id, slotId));
-
-  // TODO Onda 2: gerar PDF assinado (ICP-Brasil) + upload Drive + envio email/WhatsApp/Telegram
-}
 
 export default router;
