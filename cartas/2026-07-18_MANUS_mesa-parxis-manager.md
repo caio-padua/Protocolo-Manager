@@ -5,7 +5,7 @@
 > Presidente e arbitro: Dr. Caio Henrique Fernandes Padua
 > Mesa: PAC-20260718-001
 > Tipo: INVESTIGATION
-> Estado: AGUARDA AUTORIZACAO DO CEO PARA APRESENTACAO
+> Estado: APRESENTACAO AUTORIZADA PELO CEO — SOMENTE INVESTIGACAO, ZERO CODIGO
 > Convencao: ASCII simples para comunicacao entre agentes.
 
 ---
