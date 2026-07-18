@@ -1,15 +1,28 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+/**
+ * PRESCRIÇÃO AUTOMÁTICA — Linha do Tempo
+ * Ferramenta premium de prescrição magistral com timeline visual.
+ *
+ * BLOCOS:
+ *   1. Config bar  — cliente + N entregas + frequência + data início
+ *   2. Construtor  — slots horizontais clicáveis + editor completo
+ *   3. Linha do tempo — prévia visual com nós e setas
+ *   4. Agendas salvas — ferramenta original preservada
+ */
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  Calendar, Plus, Edit3, Trash2, Send, RefreshCw,
-  ChevronDown, ChevronRight, CheckCircle2, Clock,
-  AlertTriangle, X, Save, Loader2, Search, FlaskConical,
-  Mail, MessageCircle, HardDrive, Globe, Smartphone,
-  Settings, Play, ToggleLeft, ToggleRight, Info,
+  Calendar, Plus, Minus, ChevronLeft, ChevronRight,
+  CheckCircle2, Clock, AlertTriangle, X, Save, Loader2,
+  Search, FlaskConical, Trash2, Edit3, Play,
+  Mail, MessageCircle, HardDrive, ChevronDown, ChevronUp,
+  Send, RefreshCw, ToggleLeft, ToggleRight, Globe,
+  Smartphone, Settings, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
+import { cn } from "@/lib/utils";
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
 function authHeader(): HeadersInit {
   const t = localStorage.getItem("collab_token") || "";
@@ -21,147 +34,93 @@ async function apiFetch(path: string, opts?: RequestInit) {
   if (!r.ok) { const txt = await r.text(); throw new Error(`HTTP ${r.status}: ${txt.slice(0, 120)}`); }
   return r.json();
 }
-
-// ─── Tipos ────────────────────────────────────────────────────────────────
-type SlotFormula = {
-  nome: string;
-  catalogId?: string;
-  ativoPrincipal?: string;
-  posologia?: string;
-  dose?: string;
-  via?: string;
-  frequencia?: string;
-  observacao?: string;
-};
-type Slot = {
-  id: number;
-  agendaId: number;
-  clientId: number;
-  numeroSequencia: number;
-  nome: string;
-  dataLiberacao: string;
-  formulas: SlotFormula[];
-  canais: string[] | null;
-  status: "AGUARDANDO" | "LIBERADA" | "ENTREGUE" | "ERRO";
-  pdfUrl?: string;
-  driveWebViewLink?: string;
-  enviadoEmailEm?: string;
-  enviadoWhatsappEm?: string;
-  enviadoTelegramEm?: string;
-  diasAntecedenciaOverride?: number;
-  erro?: string;
-};
-type Agenda = {
-  id: number;
-  clientId: number;
-  protocolId?: number;
-  nome: string;
-  descricao?: string;
-  ativo: boolean;
-  frequenciaPadraoDias: number;
-  diasAntecedencia: number;
-  canaisPadrao: string[];
-  incluirLembretePosologia: boolean;
-  slots: Slot[];
-  resumo: { total: number; aguardando: number; liberados: number; erros: number };
-  proximaLiberacao?: string;
-  proximaNome?: string;
-};
-type ClienteLite = { id: number; name: string; cpf: string | null };
-type ProtocoloLite = { id: number; title: string; startDate: string; totalSessions: number };
-type FormulaCatalog = { id: string; nome: string; ativoPrincipal?: string; posologia?: string; via?: string };
-
-// ─── Canais ───────────────────────────────────────────────────────────────
-const CANAIS_DEF = [
-  { id: "email",    label: "E-mail",    icon: Mail },
-  { id: "whatsapp", label: "WhatsApp",  icon: MessageCircle },
-  { id: "telegram", label: "Telegram",  icon: Smartphone },
-  { id: "drive",    label: "Drive",     icon: HardDrive },
-  { id: "portal",   label: "Portal",    icon: Globe },
-];
-
-function canalIcon(c: string) {
-  const def = CANAIS_DEF.find((d) => d.id === c);
-  if (!def) return null;
-  const Icon = def.icon;
-  return <Icon key={c} className="w-3.5 h-3.5" title={def.label} />;
+function hoje() { return new Date().toISOString().slice(0, 10); }
+function addDias(base: string, dias: number): string {
+  const d = new Date(base + "T12:00:00");
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
 }
-
-// ─── Cores de status ──────────────────────────────────────────────────────
-const STATUS_CFG = {
-  AGUARDANDO: { faixa: "bg-slate-400",   label: "Aguardando", cls: "text-slate-600" },
-  LIBERADA:   { faixa: "bg-sky-400",     label: "Liberada",   cls: "text-sky-600" },
-  ENTREGUE:   { faixa: "bg-emerald-400", label: "Entregue",   cls: "text-emerald-600" },
-  ERRO:       { faixa: "bg-rose-400",    label: "Erro",       cls: "text-rose-600" },
-};
-
-function fmtData(ymd?: string | null) {
-  if (!ymd) return "—";
-  const [y, m, d] = ymd.split("-");
+function fmtData(iso: string) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
-function addDias(ymd: string, n: number): string {
-  const d = new Date(ymd + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
-}
-function toYMD(date: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-  return new Date(date).toISOString().split("T")[0];
-}
-function hoje(): string {
-  const now = new Date();
-  const brt = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  return brt.toISOString().split("T")[0];
-}
+function uid() { return Math.random().toString(36).slice(2, 9); }
 
-// ─── Componente principal ─────────────────────────────────────────────────
+// ─── tipos ────────────────────────────────────────────────────────────────────
+type FormulaCatalog = { id: string; nome: string; ativoPrincipal?: string; posologia?: string; via?: string; };
+type EntregaFormula = { id: string; catalogId?: string; nome: string; dose: string; posologia: string; via: string; observacao: string; };
+type EntregaExame   = { id: string; nome: string; };
+type Entrega = { id: string; numero: number; dataLiberacao: string; nomeReceita: string; formulas: EntregaFormula[]; exames: EntregaExame[]; };
+
+type SlotFormula = { nome: string; catalogId?: string; ativoPrincipal?: string; posologia?: string; dose?: string; via?: string; observacao?: string; };
+type Slot = {
+  id: number; agendaId: number; clientId: number; numeroSequencia: number;
+  nome: string; dataLiberacao: string; formulas: SlotFormula[];
+  canais: string[] | null; status: "AGUARDANDO" | "LIBERADA" | "ENTREGUE" | "ERRO";
+  pdfUrl?: string; driveWebViewLink?: string;
+  enviadoEmailEm?: string; enviadoWhatsappEm?: string; enviadoTelegramEm?: string;
+  proximaLiberacao?: string; diasAntecedenciaOverride?: number;
+};
+type Agenda = {
+  id: number; clientId: number; nome: string; descricao?: string;
+  frequenciaPadraoDias: number; diasAntecedencia: number;
+  canaisPadrao: string[]; ativo: boolean; criadoEm: string;
+  proximaLiberacao?: string; slots?: Slot[];
+};
+type ProtocoloLite = { id: number; title: string; };
+type ClienteLite   = { id: number; name: string; cpf?: string | null; };
+
+// ─── constantes ───────────────────────────────────────────────────────────────
+const VIAS = ["Oral", "Sublingual", "Tópica", "Transdérmica", "Retal", "Inalatória", "Nasal", "Outra"];
+const CANAIS_TODOS = ["email", "whatsapp", "telegram", "portal"];
+
+// ══════════════════════════════════════════════════════════════════════════════
 export default function ReceituarioAutomatico() {
   const { toast } = useToast();
 
-  // Estado global
-  const [agendas, setAgendas]       = useState<Agenda[]>([]);
-  const [carregando, setCarregando] = useState(false);
-  const [expandidas, setExpandidas] = useState<Set<number>>(new Set());
-
-  // Seletor de cliente
+  // ── Config ─────────────────────────────────────────────────────────────────
   const [clientes, setClientes]         = useState<ClienteLite[]>([]);
   const [clienteSelId, setClienteSelId] = useState<number | null>(null);
   const clienteSel = useMemo(() => clientes.find((c) => c.id === clienteSelId) ?? null, [clientes, clienteSelId]);
 
-  // Modal nova agenda
-  const [modalAgenda, setModalAgenda] = useState(false);
-  const [editandoAgenda, setEditandoAgenda] = useState<Agenda | null>(null);
-  const [formAgenda, setFormAgenda] = useState({
-    nome: "", descricao: "", frequenciaPadraoDias: 30,
-    diasAntecedencia: 5, canaisPadrao: ["email", "whatsapp", "portal"],
-    incluirLembretePosologia: true, protocolId: "",
-  });
-  const [protocolos, setProtocolos] = useState<ProtocoloLite[]>([]);
-  const [salvandoAgenda, setSalvandoAgenda] = useState(false);
+  const [nEntregas, setNEntregas]       = useState(3);
+  const [frequenciaDias, setFrequenciaDias] = useState(30);
+  const [dataInicio, setDataInicio]     = useState(hoje());
 
-  // Modal novo/edit slot
-  const [modalSlot, setModalSlot] = useState(false);
-  const [agendaSlotAtual, setAgendaSlotAtual] = useState<Agenda | null>(null);
-  const [editandoSlot, setEditandoSlot] = useState<Slot | null>(null);
-  const [formSlot, setFormSlot] = useState({
-    nome: "", dataLiberacao: hoje(),
-    proximaEmDias: 30,
-    formulas: [] as SlotFormula[],
-    canais: null as string[] | null,
-  });
-  const [salvandoSlot, setSalvandoSlot] = useState(false);
-  const [catalogo, setCatalogo] = useState<FormulaCatalog[]>([]);
+  // ── Construtor ─────────────────────────────────────────────────────────────
+  const [entregas, setEntregas]         = useState<Entrega[]>([]);
+  const [slotAtivo, setSlotAtivo]       = useState<string | null>(null);
+  const [catalogo, setCatalogo]         = useState<FormulaCatalog[]>([]);
   const [buscaFormula, setBuscaFormula] = useState("");
+  const [buscaExame, setBuscaExame]     = useState("");
+  const [catalogoExames, setCatalogoExames] = useState<string[]>([]);
 
-  // Processando worker
-  const [processando, setProcessando] = useState(false);
+  // ── Salvar ─────────────────────────────────────────────────────────────────
+  const [nomeAgenda, setNomeAgenda]     = useState("");
+  const [diasAntecedencia, setDiasAntecedencia] = useState(5);
+  const [canais, setCanais]             = useState<string[]>(["email", "whatsapp", "portal"]);
+  const [salvando, setSalvando]         = useState(false);
+  const [protocolos, setProtocolos]     = useState<ProtocoloLite[]>([]);
+  const [protocolId, setProtocolId]     = useState("");
 
-  // ── Carregar clientes ────────────────────────────────────────────────────
+  // ── Agendas salvas (ferramenta original) ───────────────────────────────────
+  const [agendas, setAgendas]           = useState<Agenda[]>([]);
+  const [carregando, setCarregando]     = useState(false);
+  const [agendasAbertas, setAgendasAbertas] = useState(false);
+  const [expandidas, setExpandidas]     = useState<Set<number>>(new Set());
+  const [processando, setProcessando]   = useState(false);
+
+  // ── Scroll timeline ────────────────────────────────────────────────────────
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const slotsRef    = useRef<HTMLDivElement>(null);
+
+  // ── Carga inicial ──────────────────────────────────────────────────────────
   useEffect(() => {
     apiFetch("/api/clients?limit=500")
       .then((d) => setClientes(Array.isArray(d) ? d : (d.clients ?? [])))
-      .catch(() => setClientes([]));
+      .catch(() => {});
+
     apiFetch("/api/prescription-formulas")
       .then((d) => {
         const arr = Array.isArray(d) ? d : (d.formulas ?? []);
@@ -173,710 +132,854 @@ export default function ReceituarioAutomatico() {
           via: f.via as string,
         })));
       })
-      .catch(() => setCatalogo([]));
+      .catch(() => {});
+
+    apiFetch("/api/catalogos/exames")
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : (d.exames ?? []);
+        setCatalogoExames(arr.map((e: Record<string, unknown>) => String(e.nome ?? e.name ?? e)));
+      })
+      .catch(() => {});
   }, []);
 
-  // ── Carregar agendas do cliente ──────────────────────────────────────────
-  const carregar = useCallback(async (cId?: number) => {
-    const id = cId ?? clienteSel?.id;
-    if (!id) { setAgendas([]); return; }
+  // ── Carga ao trocar cliente ────────────────────────────────────────────────
+  useEffect(() => {
+    setSlotAtivo(null);
+    if (!clienteSelId) { setAgendas([]); setProtocolos([]); return; }
     setCarregando(true);
-    try {
-      const d = await apiFetch(`/api/receituario/agendas?clientId=${id}`);
-      setAgendas(d.agendas ?? []);
-    } catch { toast({ title: "Erro ao carregar agendas", variant: "destructive" }); }
-    finally { setCarregando(false); }
-  }, [clienteSel, toast]);
+    Promise.all([
+      apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`).catch(() => ({ agendas: [] })),
+      apiFetch(`/api/protocols?clientId=${clienteSelId}`).catch(() => []),
+    ]).then(([ag, pr]) => {
+      setAgendas(ag.agendas ?? []);
+      const lista = Array.isArray(pr) ? pr : (pr.protocols ?? []);
+      setProtocolos(lista);
+    }).finally(() => setCarregando(false));
+  }, [clienteSelId]);
 
-  useEffect(() => { void carregar(); }, [clienteSel]);
-
-  // ── Selecionar cliente ───────────────────────────────────────────────────
-  const selecionarCliente = async (id: number | null) => {
-    setClienteSelId(id);
-    if (!id) { setProtocolos([]); return; }
-    try {
-      const d = await apiFetch(`/api/protocols?clientId=${id}`);
-      setProtocolos(Array.isArray(d) ? d : (d.protocols ?? []));
-    } catch { setProtocolos([]); }
-  };
-
-  // ── Modal nova agenda ────────────────────────────────────────────────────
-  const abrirNovaAgenda = () => {
-    setEditandoAgenda(null);
-    const proto = protocolos[0];
-    setFormAgenda({
-      nome: proto ? `Receituário — ${proto.title}` : "Receituário Magistral",
-      descricao: "", frequenciaPadraoDias: 30, diasAntecedencia: 5,
-      canaisPadrao: ["email", "whatsapp", "portal"],
-      incluirLembretePosologia: true,
-      protocolId: proto ? String(proto.id) : "",
-    });
-    setModalAgenda(true);
-  };
-  const abrirEditarAgenda = (a: Agenda) => {
-    setEditandoAgenda(a);
-    setFormAgenda({
-      nome: a.nome, descricao: a.descricao ?? "",
-      frequenciaPadraoDias: a.frequenciaPadraoDias,
-      diasAntecedencia: a.diasAntecedencia,
-      canaisPadrao: a.canaisPadrao ?? ["email", "whatsapp", "portal"],
-      incluirLembretePosologia: a.incluirLembretePosologia,
-      protocolId: a.protocolId ? String(a.protocolId) : "",
-    });
-    setModalAgenda(true);
-  };
-
-  const salvarAgenda = async () => {
-    if (!clienteSel) return;
-    setSalvandoAgenda(true);
-    try {
-      if (editandoAgenda) {
-        await apiFetch(`/api/receituario/agendas/${editandoAgenda.id}`, {
-          method: "PUT", body: JSON.stringify({
-            nome: formAgenda.nome, descricao: formAgenda.descricao,
-            frequenciaPadraoDias: formAgenda.frequenciaPadraoDias,
-            diasAntecedencia: formAgenda.diasAntecedencia,
-            canaisPadrao: formAgenda.canaisPadrao,
-            incluirLembretePosologia: formAgenda.incluirLembretePosologia,
-          }),
+  // ── Gerar entregas ao mudar config ────────────────────────────────────────
+  useEffect(() => {
+    setEntregas((prev) => {
+      const next: Entrega[] = [];
+      for (let i = 0; i < nEntregas; i++) {
+        const data = addDias(dataInicio, i * frequenciaDias);
+        const existing = prev[i];
+        next.push({
+          id:           existing?.id           ?? uid(),
+          numero:       i + 1,
+          dataLiberacao: data,
+          nomeReceita:  existing?.nomeReceita  ?? `Receita ${i + 1}`,
+          formulas:     existing?.formulas     ?? [],
+          exames:       existing?.exames       ?? [],
         });
-        toast({ title: "Agenda atualizada" });
-      } else {
-        await apiFetch("/api/receituario/agendas", {
-          method: "POST", body: JSON.stringify({
-            clientId: clienteSel.id,
-            protocolId: formAgenda.protocolId ? parseInt(formAgenda.protocolId) : null,
-            nome: formAgenda.nome, descricao: formAgenda.descricao,
-            frequenciaPadraoDias: formAgenda.frequenciaPadraoDias,
-            diasAntecedencia: formAgenda.diasAntecedencia,
-            canaisPadrao: formAgenda.canaisPadrao,
-            incluirLembretePosologia: formAgenda.incluirLembretePosologia,
-          }),
-        });
-        toast({ title: "Agenda criada" });
       }
-      setModalAgenda(false);
-      await carregar();
-    } catch (e) {
-      toast({ title: `Erro: ${e instanceof Error ? e.message : "desconhecido"}`, variant: "destructive" });
-    } finally { setSalvandoAgenda(false); }
-  };
+      return next;
+    });
+  }, [nEntregas, frequenciaDias, dataInicio]);
 
-  const toggleAtivoAgenda = async (a: Agenda) => {
+  // ── Entrega ativa ──────────────────────────────────────────────────────────
+  const entrega = useMemo(() => entregas.find((e) => e.id === slotAtivo) ?? null, [entregas, slotAtivo]);
+
+  function updateEntrega(id: string, patch: Partial<Entrega>) {
+    setEntregas((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
+  }
+
+  // ── Fórmulas da entrega ────────────────────────────────────────────────────
+  function addFormula(eId: string, cat?: FormulaCatalog) {
+    const nova: EntregaFormula = {
+      id: uid(),
+      catalogId:  cat?.id,
+      nome:       cat?.nome    ?? "",
+      dose:       "",
+      posologia:  cat?.posologia ?? "",
+      via:        cat?.via       ?? "Oral",
+      observacao: "",
+    };
+    setEntregas((prev) => prev.map((e) => e.id === eId ? { ...e, formulas: [...e.formulas, nova] } : e));
+    setBuscaFormula("");
+  }
+  function updateFormula(eId: string, fId: string, patch: Partial<EntregaFormula>) {
+    setEntregas((prev) => prev.map((e) => e.id === eId
+      ? { ...e, formulas: e.formulas.map((f) => f.id === fId ? { ...f, ...patch } : f) }
+      : e));
+  }
+  function removeFormula(eId: string, fId: string) {
+    setEntregas((prev) => prev.map((e) => e.id === eId
+      ? { ...e, formulas: e.formulas.filter((f) => f.id !== fId) }
+      : e));
+  }
+
+  // ── Exames da entrega ──────────────────────────────────────────────────────
+  function addExame(eId: string, nome: string) {
+    if (!nome.trim()) return;
+    setEntregas((prev) => prev.map((e) => e.id === eId
+      ? { ...e, exames: [...e.exames, { id: uid(), nome: nome.trim() }] }
+      : e));
+    setBuscaExame("");
+  }
+  function removeExame(eId: string, xId: string) {
+    setEntregas((prev) => prev.map((e) => e.id === eId
+      ? { ...e, exames: e.exames.filter((x) => x.id !== xId) }
+      : e));
+  }
+
+  // ── Salvar linha do tempo ──────────────────────────────────────────────────
+  const salvarLinha = async () => {
+    if (!clienteSelId) { toast({ title: "Selecione um cliente", variant: "destructive" }); return; }
+    if (!nomeAgenda.trim()) { toast({ title: "Dê um nome para esta linha do tempo", variant: "destructive" }); return; }
+    if (entregas.every((e) => e.formulas.length === 0)) {
+      toast({ title: "Adicione fórmulas em pelo menos uma entrega", variant: "destructive" }); return;
+    }
+    setSalvando(true);
     try {
-      await apiFetch(`/api/receituario/agendas/${a.id}`, {
-        method: "PUT", body: JSON.stringify({ ativo: !a.ativo }),
+      const ag = await apiFetch("/api/receituario/agendas", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: clienteSelId,
+          nome: nomeAgenda,
+          descricao: `Linha do tempo: ${nEntregas} entregas a cada ${frequenciaDias} dias`,
+          frequenciaPadraoDias: frequenciaDias,
+          diasAntecedencia,
+          canaisPadrao: canais,
+          incluirLembretePosologia: true,
+          protocolId: protocolId ? parseInt(protocolId) : undefined,
+        }),
       });
-      await carregar();
-    } catch { toast({ title: "Erro ao alterar status", variant: "destructive" }); }
-  };
-
-  // ── Modal novo/edit slot ─────────────────────────────────────────────────
-  const abrirNovoSlot = (agenda: Agenda) => {
-    setAgendaSlotAtual(agenda);
-    setEditandoSlot(null);
-    // Calcular próxima data: último slot + frequência padrão
-    const ultimo = [...agenda.slots].sort((a, b) =>
-      b.dataLiberacao.localeCompare(a.dataLiberacao)
-    )[0];
-    const baseData = ultimo
-      ? addDias(ultimo.dataLiberacao, agenda.frequenciaPadraoDias)
-      : hoje();
-    setFormSlot({
-      nome: `Receita ${agenda.slots.length + 1} de ?`,
-      dataLiberacao: baseData,
-      proximaEmDias: agenda.frequenciaPadraoDias,
-      formulas: [],
-      canais: null,
-    });
-    setBuscaFormula("");
-    setModalSlot(true);
-  };
-  const abrirEditarSlot = (agenda: Agenda, slot: Slot) => {
-    setAgendaSlotAtual(agenda);
-    setEditandoSlot(slot);
-    setFormSlot({
-      nome: slot.nome,
-      dataLiberacao: slot.dataLiberacao,
-      proximaEmDias: agenda.frequenciaPadraoDias,
-      formulas: slot.formulas ?? [],
-      canais: slot.canais ?? null,
-    });
-    setBuscaFormula("");
-    setModalSlot(true);
-  };
-
-  const salvarSlot = async () => {
-    if (!agendaSlotAtual) return;
-    setSalvandoSlot(true);
-    try {
-      const body = {
-        nome: formSlot.nome,
-        dataLiberacao: formSlot.dataLiberacao,
-        formulas: formSlot.formulas,
-        canais: formSlot.canais,
-      };
-      if (editandoSlot) {
-        await apiFetch(`/api/receituario/slots/${editandoSlot.id}`, {
-          method: "PUT", body: JSON.stringify(body),
+      const agendaId = ag.id ?? ag.agenda?.id;
+      for (const e of entregas) {
+        if (e.formulas.length === 0 && e.exames.length === 0) continue;
+        await apiFetch(`/api/receituario/agendas/${agendaId}/slots`, {
+          method: "POST",
+          body: JSON.stringify({
+            nome: e.nomeReceita,
+            dataLiberacao: e.dataLiberacao,
+            proximaEmDias: frequenciaDias,
+            formulas: e.formulas.map((f) => ({
+              nome: f.nome, catalogId: f.catalogId,
+              dose: f.dose, posologia: f.posologia, via: f.via, observacao: f.observacao,
+            })),
+            canais: null,
+          }),
         });
-        toast({ title: "Slot atualizado" });
-      } else {
-        await apiFetch(`/api/receituario/agendas/${agendaSlotAtual.id}/slots`, {
-          method: "POST", body: JSON.stringify(body),
-        });
-        toast({ title: "Slot adicionado" });
       }
-      setModalSlot(false);
-      await carregar();
-    } catch (e) {
-      toast({ title: `Erro: ${e instanceof Error ? e.message : ""}`, variant: "destructive" });
-    } finally { setSalvandoSlot(false); }
+      toast({ title: `Linha do tempo "${nomeAgenda}" salva!` });
+      setNomeAgenda("");
+      // recarregar agendas
+      const d = await apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`);
+      setAgendas(d.agendas ?? []);
+      setAgendasAbertas(true);
+    } catch (err) {
+      toast({ title: "Erro ao salvar", description: String(err), variant: "destructive" });
+    } finally { setSalvando(false); }
   };
 
-  const excluirSlot = async (slotId: number) => {
-    try {
-      await apiFetch(`/api/receituario/slots/${slotId}`, { method: "DELETE" });
-      toast({ title: "Slot removido" });
-      await carregar();
-    } catch { toast({ title: "Erro ao remover", variant: "destructive" }); }
-  };
-
-  const liberarSlot = async (slotId: number, nome: string) => {
-    try {
-      await apiFetch(`/api/receituario/slots/${slotId}/liberar`, { method: "POST" });
-      toast({ title: `"${nome}" liberada` });
-      await carregar();
-    } catch { toast({ title: "Erro na liberação", variant: "destructive" }); }
-  };
-
+  // ── Worker ────────────────────────────────────────────────────────────────
   const processarWorker = async () => {
     setProcessando(true);
     try {
-      const d = await apiFetch("/api/receituario/processar", { method: "POST" });
-      toast({ title: `Processado: ${d.liberados} liberados, ${d.erros} erros` });
-      await carregar();
-    } catch { toast({ title: "Erro ao processar", variant: "destructive" }); }
+      await apiFetch("/api/receituario/processar", { method: "POST" });
+      toast({ title: "Processamento concluído" });
+      if (clienteSelId) {
+        const d = await apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`);
+        setAgendas(d.agendas ?? []);
+      }
+    } catch { toast({ title: "Erro no worker", variant: "destructive" }); }
     finally { setProcessando(false); }
   };
 
-  // ── Fórmulas do slot ─────────────────────────────────────────────────────
-  const adicionarFormula = (f: FormulaCatalog) => {
-    if (formSlot.formulas.some((x) => x.catalogId === f.id || x.nome === f.nome)) return;
-    setFormSlot((p) => ({
-      ...p,
-      formulas: [...p.formulas, {
-        nome: f.nome, catalogId: f.id,
-        ativoPrincipal: f.ativoPrincipal,
-        posologia: f.posologia, via: f.via,
-      }],
-    }));
-  };
-  const removerFormula = (idx: number) =>
-    setFormSlot((p) => ({ ...p, formulas: p.formulas.filter((_, i) => i !== idx) }));
-  const atualizarFormula = (idx: number, campo: keyof SlotFormula, valor: string) =>
-    setFormSlot((p) => ({
-      ...p,
-      formulas: p.formulas.map((f, i) => i === idx ? { ...f, [campo]: valor } : f),
-    }));
-
-  // ── Derivados ─────────────────────────────────────────────────────────────
-  const totalAguardando = agendas.reduce((s, a) => s + a.resumo.aguardando, 0);
-  const totalLiberados  = agendas.reduce((s, a) => s + a.resumo.liberados, 0);
-  const totalErros      = agendas.reduce((s, a) => s + a.resumo.erros, 0);
-  const proximaGlobal   = agendas
-    .map((a) => a.proximaLiberacao)
-    .filter(Boolean)
-    .sort()[0];
-
-  const clientesOpts: ClientPickerOption[] = clientes.map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
-
+  // ── Computed ──────────────────────────────────────────────────────────────
   const catalogoFiltrado = catalogo.filter((f) =>
     f.nome.toLowerCase().includes(buscaFormula.toLowerCase()) ||
     (f.ativoPrincipal ?? "").toLowerCase().includes(buscaFormula.toLowerCase())
-  );
+  ).slice(0, 12);
 
-  const toggleExpand = (id: number) =>
-    setExpandidas((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const examesFiltrados = useMemo(() => {
+    if (!buscaExame.trim()) return [];
+    const q = buscaExame.toLowerCase();
+    return catalogoExames.filter((n) => n.toLowerCase().includes(q)).slice(0, 8);
+  }, [catalogoExames, buscaExame]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const clientesOpts: ClientPickerOption[] = clientes.map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
+
+  const statsGlobais = useMemo(() => {
+    let totalFormulas = 0, totalExames = 0, entregasPreenchidas = 0;
+    for (const e of entregas) {
+      totalFormulas += e.formulas.length;
+      totalExames += e.exames.length;
+      if (e.formulas.length > 0 || e.exames.length > 0) entregasPreenchidas++;
+    }
+    return { totalFormulas, totalExames, entregasPreenchidas };
+  }, [entregas]);
+
+  // ── Scroll helpers ────────────────────────────────────────────────────────
+  function scrollTimeline(dir: -1 | 1) {
+    if (timelineRef.current) timelineRef.current.scrollLeft += dir * 300;
+  }
+  function scrollSlots(dir: -1 | 1) {
+    if (slotsRef.current) slotsRef.current.scrollLeft += dir * 200;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5 pb-16">
+    <div className="space-y-4 pb-16">
 
-      {/* ── CABEÇALHO ──────────────────────────────────────────────────── */}
-      <div className="panel-3d p-5 flex flex-col sm:flex-row sm:items-start gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 mb-2 uppercase tracking-widest text-sm font-bold">
-            <Calendar className="w-4 h-4" />
-            Receituário Automático
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Pré-agende receitas de fórmulas magistrais — o sistema assina e entrega automaticamente na data certa, sem o paciente ligar.
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap shrink-0">
-          {[
-            { label: "AGUARDANDO", valor: totalAguardando, cor: "text-slate-600" },
-            { label: "LIBERADOS",  valor: totalLiberados,  cor: "text-sky-600" },
-            { label: "ERROS",      valor: totalErros,      cor: "text-rose-600" },
-            { label: "PRÓXIMA",    valor: fmtData(proximaGlobal), cor: "text-amber-600", small: true },
-          ].map((k) => (
-            <div key={k.label} className="screen-3d px-3 py-2 text-center min-w-[64px]">
-              <div className={`${k.small ? "text-sm" : "text-xl"} font-bold ${k.cor}`}>{k.valor}</div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">{k.label}</div>
+      {/* ════════════════════════════════════════════════════════════════
+          BLOCO 1 — CABEÇALHO + CONFIG
+      ════════════════════════════════════════════════════════════════ */}
+      <div className="panel-3d overflow-hidden">
+        {/* título */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
+          <div className="flex items-center gap-3">
+            <div className="bevel-3d p-2.5 rounded">
+              <Calendar className="w-5 h-5 text-primary" />
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── SELETOR DE CLIENTE ──────────────────────────────────────────── */}
-      <div className="panel-3d p-4">
-        <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest mb-2 inline-block">
-          Selecionar Cliente
-        </div>
-        <div className="flex gap-2 items-center">
-          <div className="flex-1">
-            <ClientPicker
-              clientes={clientesOpts}
-              value={clienteSelId}
-              onChange={selecionarCliente}
-              placeholder="Escolha um cliente…"
-            />
+            <div>
+              <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Prescrição Automática</div>
+              <h1 className="text-xl font-bold uppercase tracking-tight">Linha do Tempo de Fórmulas</h1>
+            </div>
           </div>
+          {/* KPIs rápidos */}
           {clienteSel && (
-            <Button className="btn-3d gap-2 shrink-0" onClick={abrirNovaAgenda}>
-              <Plus className="w-4 h-4" /> Nova Agenda
-            </Button>
-          )}
-          <Button className="btn-3d-soft gap-1 shrink-0" onClick={processarWorker} disabled={processando}>
-            {processando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            Processar
-          </Button>
-        </div>
-      </div>
-
-      {/* ── LISTA DE AGENDAS ────────────────────────────────────────────── */}
-      {carregando ? (
-        <div className="space-y-3">
-          {[1, 2].map((i) => <div key={i} className="h-32 panel-3d animate-pulse" />)}
-        </div>
-      ) : !clienteSel ? (
-        <div className="panel-3d p-8 text-center text-muted-foreground text-sm">
-          <Calendar className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          Selecione um cliente para ver as agendas de receituário
-        </div>
-      ) : agendas.length === 0 ? (
-        <div className="panel-3d p-8 text-center">
-          <FlaskConical className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-          <p className="text-muted-foreground text-sm mb-3">Nenhuma agenda criada para este cliente</p>
-          <Button className="btn-3d gap-2" onClick={abrirNovaAgenda}>
-            <Plus className="w-4 h-4" /> Criar Primeira Agenda
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {agendas.map((agenda) => {
-            const aberta = expandidas.has(agenda.id);
-            return (
-              <div key={agenda.id} className={`panel-3d overflow-hidden ${!agenda.ativo ? "opacity-60" : ""}`}>
-
-                {/* Cabeçalho da agenda */}
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
-                  <button onClick={() => toggleExpand(agenda.id)} className="flex-1 flex items-center gap-3 text-left min-w-0">
-                    {aberta ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm truncate">{agenda.nome}</span>
-                        <span className="bevel-3d text-[10px] px-2 py-0.5">
-                          a cada {agenda.frequenciaPadraoDias} dias
-                        </span>
-                        {agenda.resumo.erros > 0 && (
-                          <span className="text-[10px] text-rose-600 font-bold">{agenda.resumo.erros} erro{agenda.resumo.erros > 1 ? "s" : ""}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground">
-                          {agenda.resumo.total} slot{agenda.resumo.total !== 1 ? "s" : ""} · {agenda.resumo.aguardando} aguardando · {agenda.resumo.liberados} liberados
-                        </span>
-                        {agenda.proximaLiberacao && (
-                          <span className="text-[10px] text-amber-600">próxima: {fmtData(agenda.proximaLiberacao)}</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Ações da agenda */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      className="concave-3d w-7 h-7 flex items-center justify-center hover:text-primary"
-                      title={agenda.ativo ? "Desativar" : "Ativar"}
-                      onClick={() => toggleAtivoAgenda(agenda)}
-                    >
-                      {agenda.ativo
-                        ? <ToggleRight className="w-4 h-4 text-emerald-600" />
-                        : <ToggleLeft className="w-4 h-4 text-slate-400" />}
-                    </button>
-                    <button
-                      className="concave-3d w-7 h-7 flex items-center justify-center hover:text-primary"
-                      title="Editar agenda"
-                      onClick={() => abrirEditarAgenda(agenda)}
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                    <Button className="btn-3d-soft h-7 text-xs gap-1 px-2" onClick={() => abrirNovoSlot(agenda)}>
-                      <Plus className="w-3 h-3" /> Slot
-                    </Button>
-                  </div>
+            <div className="flex gap-3">
+              {[
+                { label: "Entregas",  valor: nEntregas,                       cor: "text-sky-600" },
+                { label: "Fórmulas", valor: statsGlobais.totalFormulas,       cor: "text-emerald-600" },
+                { label: "Exames",   valor: statsGlobais.totalExames,         cor: "text-amber-600" },
+                { label: "Preench.", valor: `${statsGlobais.entregasPreenchidas}/${nEntregas}`, cor: "text-primary" },
+              ].map((k) => (
+                <div key={k.label} className="screen-3d px-3 py-1.5 text-center min-w-[68px]">
+                  <div className={`text-xl font-bold ${k.cor}`}>{k.valor}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k.label}</div>
                 </div>
-
-                {/* Linha do tempo de slots */}
-                {aberta && (
-                  <div className="p-3 space-y-2">
-                    {agenda.slots.length === 0 ? (
-                      <div className="text-center py-4 text-sm text-muted-foreground">
-                        Nenhum slot. Clique em <strong>+ Slot</strong> para adicionar a primeira receita.
-                      </div>
-                    ) : (
-                      agenda.slots
-                        .sort((a, b) => a.numeroSequencia - b.numeroSequencia)
-                        .map((slot) => {
-                          const scfg = STATUS_CFG[slot.status] ?? STATUS_CFG.AGUARDANDO;
-                          return (
-                            <div key={slot.id} className="panel-3d-sub flex overflow-hidden">
-                              <div className={`w-1 shrink-0 ${scfg.faixa}`} />
-                              <div className="flex-1 flex items-start gap-3 p-3 min-w-0">
-                                {/* Sequência */}
-                                <div className="concave-3d w-7 h-7 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                                  {slot.numeroSequencia}
-                                </div>
-                                {/* Conteúdo */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                                    <span className="font-medium text-sm truncate">{slot.nome}</span>
-                                    <span className={`text-[10px] font-bold uppercase ${scfg.cls}`}>{scfg.label}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3" /> {fmtData(slot.dataLiberacao)}
-                                    </span>
-                                    {slot.formulas.length > 0 && (
-                                      <span className="flex items-center gap-1">
-                                        <FlaskConical className="w-3 h-3" /> {slot.formulas.length} fórmula{slot.formulas.length > 1 ? "s" : ""}
-                                      </span>
-                                    )}
-                                    <span className="flex items-center gap-1">
-                                      {(slot.canais ?? agenda.canaisPadrao).map(canalIcon)}
-                                    </span>
-                                  </div>
-                                  {slot.formulas.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-1.5">
-                                      {slot.formulas.map((f, i) => (
-                                        <span key={i} className="concave-3d text-[10px] px-2 py-0.5">{f.nome}</span>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {slot.erro && (
-                                    <p className="text-[11px] text-rose-600 mt-1">⚠ {slot.erro}</p>
-                                  )}
-                                </div>
-                                {/* Ações do slot */}
-                                <div className="flex gap-1 shrink-0">
-                                  {slot.status === "AGUARDANDO" && (
-                                    <button
-                                      className="concave-3d w-7 h-7 flex items-center justify-center hover:text-sky-600"
-                                      title="Liberar agora"
-                                      onClick={() => liberarSlot(slot.id, slot.nome)}
-                                    >
-                                      <Send className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  <button
-                                    className="concave-3d w-7 h-7 flex items-center justify-center hover:text-primary"
-                                    title="Editar slot"
-                                    onClick={() => abrirEditarSlot(agenda, slot)}
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    className="concave-3d w-7 h-7 flex items-center justify-center hover:text-destructive"
-                                    title="Remover slot"
-                                    onClick={() => excluirSlot(slot.id)}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                    )}
-                    {/* Botão final da linha do tempo */}
-                    <button
-                      className="w-full border-2 border-dashed border-border/50 rounded-[6px] py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors flex items-center justify-center gap-1"
-                      onClick={() => abrirNovoSlot(agenda)}
-                    >
-                      <Plus className="w-3 h-3" /> Adicionar próxima receita ({fmtData(
-                        (() => {
-                          const ultimo = [...agenda.slots].sort((a, b) => b.dataLiberacao.localeCompare(a.dataLiberacao))[0];
-                          return ultimo ? addDias(ultimo.dataLiberacao, agenda.frequenciaPadraoDias) : hoje();
-                        })()
-                      )})
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: NOVA / EDITAR AGENDA
-      ═══════════════════════════════════════════════════════════════════ */}
-      {modalAgenda && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalAgenda(false)} />
-          <div className="relative w-full max-w-lg panel-3d shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-sm uppercase tracking-widest font-bold">
-                <Calendar className="w-4 h-4" />
-                {editandoAgenda ? "Editar Agenda" : "Nova Agenda de Receitas"}
-              </div>
-              <button className="concave-3d w-8 h-8 flex items-center justify-center" onClick={() => setModalAgenda(false)}>
-                <X className="w-4 h-4" />
+        {/* Config bar */}
+        <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+          {/* Cliente */}
+          <div className="md:col-span-2 space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Cliente *</label>
+            <ClientPicker clientes={clientesOpts} value={clienteSelId} onChange={setClienteSelId} placeholder="Selecione o cliente…" />
+          </div>
+
+          {/* N entregas */}
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Número de Entregas</label>
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setNEntregas((n) => Math.max(1, n - 1))}>
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <input
+                type="number" min={1} max={24}
+                value={nEntregas}
+                onChange={(e) => setNEntregas(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                className="field-engraved text-center w-16 text-lg font-bold"
+              />
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setNEntregas((n) => Math.min(24, n + 1))}>
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
 
-            <div className="overflow-y-auto flex-1 p-5 space-y-4">
-              {/* Nome */}
-              <div>
-                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Nome da Agenda</label>
-                <input className="field-engraved w-full text-sm" value={formAgenda.nome} onChange={(e) => setFormAgenda((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Receituário Longevidade — Jan–Jun 2026" />
-              </div>
+          {/* Frequência */}
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Freq. entre Entregas (dias)</label>
+            <div className="flex items-center gap-1">
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequenciaDias((n) => Math.max(1, n - 5))}>
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <input
+                type="number" min={1} max={365}
+                value={frequenciaDias}
+                onChange={(e) => setFrequenciaDias(Math.max(1, parseInt(e.target.value) || 30))}
+                className="field-engraved text-center w-16 text-lg font-bold"
+              />
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequenciaDias((n) => n + 5)}>
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
 
-              {/* Protocolo */}
-              {!editandoAgenda && protocolos.length > 0 && (
-                <div>
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Associar ao Protocolo (opcional)</label>
-                  <select className="field-engraved w-full text-sm" value={formAgenda.protocolId} onChange={(e) => {
-                    const proto = protocolos.find((p) => String(p.id) === e.target.value);
-                    setFormAgenda((prev) => ({
-                      ...prev,
-                      protocolId: e.target.value,
-                      nome: proto ? `Receituário — ${proto.title}` : prev.nome,
-                    }));
-                  }}>
-                    <option value="">— sem protocolo —</option>
-                    {protocolos.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                  </select>
-                </div>
-              )}
+          {/* Data início */}
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Primeira Entrega</label>
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="field-engraved w-full text-sm"
+            />
+          </div>
+        </div>
+      </div>
 
-              {/* Frequência padrão */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Frequência Padrão (dias)</label>
-                  <input type="number" min={1} max={365} className="field-engraved w-full text-sm" value={formAgenda.frequenciaPadraoDias} onChange={(e) => setFormAgenda((p) => ({ ...p, frequenciaPadraoDias: parseInt(e.target.value) || 30 }))} />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Intervalo entre receitas</p>
-                </div>
-                <div>
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Liberar X dias antes</label>
-                  <input type="number" min={0} max={30} className="field-engraved w-full text-sm" value={formAgenda.diasAntecedencia} onChange={(e) => setFormAgenda((p) => ({ ...p, diasAntecedencia: parseInt(e.target.value) || 5 }))} />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">0 = no próprio dia</p>
-                </div>
-              </div>
+      {/* ════════════════════════════════════════════════════════════════
+          BLOCO 2 — CONSTRUTOR DE SLOTS
+      ════════════════════════════════════════════════════════════════ */}
+      <div className="panel-3d overflow-hidden">
+        {/* sub-cabeçalho */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-primary" />
+            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">
+              Construtor de Entregas
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollSlots(-1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollSlots(1)}>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-              {/* Canais */}
-              <div>
-                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Canais de Entrega Padrão</label>
-                <div className="flex flex-wrap gap-2">
-                  {CANAIS_DEF.map((c) => {
-                    const ativo = formAgenda.canaisPadrao.includes(c.id);
-                    const Icon = c.icon;
-                    return (
-                      <button
-                        key={c.id}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-medium border transition-all ${ativo ? "btn-3d" : "btn-3d-soft opacity-60"}`}
-                        onClick={() => setFormAgenda((p) => ({
-                          ...p,
-                          canaisPadrao: ativo
-                            ? p.canaisPadrao.filter((x) => x !== c.id)
-                            : [...p.canaisPadrao, c.id],
-                        }))}
-                      >
-                        <Icon className="w-3.5 h-3.5" /> {c.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+        {/* Faixa de slots */}
+        <div className="px-4 py-5">
+          <div ref={slotsRef} className="overflow-x-auto pb-3" style={{ scrollBehavior: "smooth" }}>
+            <div className="flex items-start gap-0 min-w-max">
+              {entregas.map((e, i) => {
+                const ativa = slotAtivo === e.id;
+                const temConteudo = e.formulas.length > 0 || e.exames.length > 0;
+                return (
+                  <div key={e.id} className="flex items-center gap-0">
+                    {/* Slot card */}
+                    <button
+                      type="button"
+                      onClick={() => setSlotAtivo(ativa ? null : e.id)}
+                      className={cn(
+                        "group relative flex flex-col items-center gap-2 rounded-lg px-4 py-4 transition-all duration-200 min-w-[130px]",
+                        ativa
+                          ? "panel-3d border-2 border-primary shadow-lg shadow-primary/20 scale-105"
+                          : temConteudo
+                            ? "panel-3d-sub border border-primary/40 hover:border-primary/70"
+                            : "concave-3d border border-dashed border-border/50 hover:border-primary/40",
+                      )}
+                    >
+                      {/* Número */}
+                      <div className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold",
+                        ativa ? "bg-primary text-primary-foreground" : temConteudo ? "bevel-3d text-primary" : "bg-muted text-muted-foreground",
+                      )}>
+                        {e.numero}
+                      </div>
 
-              {/* Lembrete de posologia */}
-              <div className="panel-3d-sub p-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Lembrete de Posologia</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Conecta ao motor de mensageria — envia lembretes de como e quando tomar as fórmulas</p>
-                </div>
+                      {/* Data */}
+                      <div className="text-center">
+                        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Entrega {e.numero}</div>
+                        <div className="text-sm font-bold">{fmtData(e.dataLiberacao)}</div>
+                      </div>
+
+                      {/* Badges de conteúdo */}
+                      <div className="flex gap-1.5 flex-wrap justify-center">
+                        {e.formulas.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {e.formulas.length} fórm.
+                          </span>
+                        )}
+                        {e.exames.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            {e.exames.length} exam.
+                          </span>
+                        )}
+                        {!temConteudo && (
+                          <span className="text-[10px] text-muted-foreground/50">vazio</span>
+                        )}
+                      </div>
+
+                      {/* Indicador ativo */}
+                      {ativa && (
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-primary" />
+                      )}
+                    </button>
+
+                    {/* Seta entre slots */}
+                    {i < entregas.length - 1 && (
+                      <div className="flex items-center px-1">
+                        <div className="w-8 h-px bg-border/60" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 -ml-1" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Botão adicionar mais */}
+              <div className="flex items-center pl-3">
                 <button
-                  className="concave-3d px-2 py-1 flex items-center gap-1 text-xs font-medium shrink-0"
-                  onClick={() => setFormAgenda((p) => ({ ...p, incluirLembretePosologia: !p.incluirLembretePosologia }))}
+                  type="button"
+                  onClick={() => setNEntregas((n) => Math.min(24, n + 1))}
+                  className="flex flex-col items-center gap-2 rounded-lg px-4 py-4 border border-dashed border-primary/30 hover:border-primary text-muted-foreground hover:text-primary transition-colors min-w-[80px]"
                 >
-                  {formAgenda.incluirLembretePosologia
-                    ? <><ToggleRight className="w-5 h-5 text-emerald-600" /> Ativo</>
-                    : <><ToggleLeft className="w-5 h-5 text-slate-400" /> Inativo</>}
+                  <Plus className="w-6 h-6" />
+                  <span className="text-[10px] uppercase tracking-widest">Adicionar</span>
                 </button>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
-              <Button className="btn-3d-soft" onClick={() => setModalAgenda(false)}>Cancelar</Button>
-              <Button className="btn-3d gap-2" onClick={salvarAgenda} disabled={salvandoAgenda || !formAgenda.nome}>
-                {salvandoAgenda ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando…</> : <><Save className="w-4 h-4" /> {editandoAgenda ? "Salvar" : "Criar Agenda"}</>}
+        {/* ── EDITOR DO SLOT ATIVO ──────────────────────────────────── */}
+        {entrega && (
+          <div className="border-t border-border/40 bg-muted/20 px-5 py-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Coluna esquerda — cabeçalho + fórmulas */}
+              <div className="space-y-4">
+                {/* Identificação da entrega */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Nome da Receita</label>
+                    <input
+                      className="field-engraved w-full text-sm"
+                      value={entrega.nomeReceita}
+                      onChange={(e) => updateEntrega(entrega.id, { nomeReceita: e.target.value })}
+                      placeholder={`Receita ${entrega.numero}`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Data de Liberação</label>
+                    <input
+                      type="date"
+                      className="field-engraved w-full text-sm"
+                      value={entrega.dataLiberacao}
+                      onChange={(e) => updateEntrega(entrega.id, { dataLiberacao: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Fórmulas magistrais */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1.5">
+                      <FlaskConical className="w-3.5 h-3.5" />
+                      Fórmulas Magistrais
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">{entrega.formulas.length} adicionada(s)</span>
+                  </div>
+
+                  {/* Cards de fórmulas */}
+                  {entrega.formulas.map((f) => (
+                    <div key={f.id} className="panel-3d-sub p-3 space-y-2 border-l-2 border-l-primary/40">
+                      <div className="flex items-start justify-between gap-2">
+                        <input
+                          className="field-engraved flex-1 text-sm font-semibold"
+                          value={f.nome}
+                          onChange={(e) => updateFormula(entrega.id, f.id, { nome: e.target.value })}
+                          placeholder="Nome da fórmula"
+                        />
+                        <button type="button" onClick={() => removeFormula(entrega.id, f.id)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Dose</label>
+                          <input className="field-engraved w-full text-sm" value={f.dose}
+                            onChange={(e) => updateFormula(entrega.id, f.id, { dose: e.target.value })}
+                            placeholder="Ex: 500mg" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Via</label>
+                          <select className="field-engraved w-full text-sm" value={f.via}
+                            onChange={(e) => updateFormula(entrega.id, f.id, { via: e.target.value })}>
+                            {VIAS.map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Posologia</label>
+                        <input className="field-engraved w-full text-sm" value={f.posologia}
+                          onChange={(e) => updateFormula(entrega.id, f.id, { posologia: e.target.value })}
+                          placeholder="Ex: 1 cápsula pela manhã em jejum" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Observação</label>
+                        <input className="field-engraved w-full text-sm" value={f.observacao}
+                          onChange={(e) => updateFormula(entrega.id, f.id, { observacao: e.target.value })}
+                          placeholder="Instruções adicionais…" />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Busca do catálogo */}
+                  <div className="concave-3d p-3 space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                      <input
+                        className="field-engraved w-full pl-8 text-sm"
+                        placeholder="Buscar fórmula no catálogo…"
+                        value={buscaFormula}
+                        onChange={(e) => setBuscaFormula(e.target.value)}
+                      />
+                    </div>
+                    {buscaFormula && catalogoFiltrado.length > 0 && (
+                      <div className="space-y-1">
+                        {catalogoFiltrado.map((cat) => (
+                          <button key={cat.id} type="button"
+                            onClick={() => addFormula(entrega.id, cat)}
+                            className="w-full text-left px-3 py-2 hover:bg-primary/10 rounded text-sm flex justify-between items-center group transition-colors">
+                            <span className="font-medium">{cat.nome}</span>
+                            <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button"
+                      onClick={() => addFormula(entrega.id)}
+                      className="btn-3d-soft w-full gap-2 text-sm">
+                      <Plus className="w-4 h-4" /> Fórmula em branco
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coluna direita — exames + salvar */}
+              <div className="space-y-4">
+                {/* Exames a solicitar */}
+                <div className="space-y-3">
+                  <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5" />
+                    Exames a Solicitar
+                  </div>
+
+                  {entrega.exames.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic text-center py-2">
+                      Nenhum exame nesta entrega
+                    </p>
+                  )}
+                  {entrega.exames.map((x) => (
+                    <div key={x.id} className="flex items-center gap-2 panel-3d-sub px-3 py-2">
+                      <span className="flex-1 text-sm font-medium">{x.nome}</span>
+                      <button type="button" onClick={() => removeExame(entrega.id, x.id)}
+                        className="p-1 text-muted-foreground hover:text-destructive">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Busca de exame */}
+                  <div className="concave-3d p-3 space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                      <input
+                        className="field-engraved w-full pl-8 text-sm"
+                        placeholder="Buscar ou digitar nome do exame…"
+                        value={buscaExame}
+                        onChange={(e) => setBuscaExame(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { addExame(entrega.id, buscaExame); } }}
+                      />
+                    </div>
+                    {examesFiltrados.length > 0 && (
+                      <div className="space-y-1">
+                        {examesFiltrados.map((n) => (
+                          <button key={n} type="button"
+                            onClick={() => addExame(entrega.id, n)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-primary/10 rounded text-sm flex justify-between items-center group transition-colors">
+                            <span>{n}</span>
+                            <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button"
+                      onClick={() => addExame(entrega.id, buscaExame)}
+                      disabled={!buscaExame.trim()}
+                      className="btn-3d-soft w-full gap-2 text-sm disabled:opacity-40">
+                      <Plus className="w-4 h-4" /> Adicionar exame
+                    </button>
+                  </div>
+                </div>
+
+                {/* Separador + info útil */}
+                <div className="panel-3d-sub p-3 space-y-2 text-sm">
+                  <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">Esta entrega em resumo</div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Data de liberação</span>
+                    <span className="font-bold">{fmtData(entrega.dataLiberacao)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Fórmulas magistrais</span>
+                    <span className="font-bold text-emerald-700">{entrega.formulas.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Exames a solicitar</span>
+                    <span className="font-bold text-amber-700">{entrega.exames.length}</span>
+                  </div>
+                  {entrega.numero < entregas.length && (
+                    <div className="flex justify-between border-t border-border/30 pt-2 mt-1">
+                      <span className="text-muted-foreground">Próxima entrega em</span>
+                      <span className="font-bold">{frequenciaDias} dias ({fmtData(entregas[entrega.numero]?.dataLiberacao ?? "")})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── FORMULÁRIO DE SALVAMENTO ──────────────────────────────── */}
+        <div className="border-t border-border/40 px-5 py-4 bg-muted/10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Nome desta Linha do Tempo *</label>
+              <input
+                className="field-engraved w-full"
+                placeholder="Ex: Protocolo Capilar · 2026"
+                value={nomeAgenda}
+                onChange={(e) => setNomeAgenda(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Antecedência de Envio (dias)</label>
+              <input type="number" min={1} max={30} value={diasAntecedencia}
+                onChange={(e) => setDiasAntecedencia(parseInt(e.target.value) || 5)}
+                className="field-engraved w-full" />
+            </div>
+            <div className="flex items-end gap-2">
+              <Button
+                className="btn-3d w-full gap-2"
+                onClick={salvarLinha}
+                disabled={salvando || !clienteSelId || !nomeAgenda.trim()}
+              >
+                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Salvar Linha do Tempo
               </Button>
+            </div>
+          </div>
+
+          {/* Canais */}
+          <div className="mt-3 flex gap-2 flex-wrap items-center">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Canais de entrega:</span>
+            {CANAIS_TODOS.map((c) => {
+              const on = canais.includes(c);
+              return (
+                <button key={c} type="button"
+                  onClick={() => setCanais(on ? canais.filter((x) => x !== c) : [...canais, c])}
+                  className={cn("px-2.5 py-1 rounded border text-[11px] uppercase tracking-wider font-semibold transition-colors",
+                    on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40")}>
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════
+          BLOCO 3 — LINHA DO TEMPO VISUAL
+      ════════════════════════════════════════════════════════════════ */}
+      <div className="panel-3d overflow-hidden">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary" />
+            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">Prévia — Linha do Tempo</span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollTimeline(-1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollTimeline(1)}>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={timelineRef}
+          className="overflow-x-auto px-8 py-8"
+          style={{ scrollBehavior: "smooth" }}
+        >
+          {/* Trilho + nós */}
+          <div className="relative" style={{ minWidth: Math.max(800, entregas.length * 200), height: 160 }}>
+            {/* Linha horizontal */}
+            <div className="absolute top-12 left-0 right-0 h-0.5 bg-primary/30" />
+
+            {/* Nós */}
+            {entregas.map((e, i) => {
+              const pct = entregas.length === 1 ? 0.5 : i / (entregas.length - 1);
+              const left = `${pct * 100}%`;
+              const temFormulas = e.formulas.length > 0;
+              const temExames = e.exames.length > 0;
+              const temConteudo = temFormulas || temExames;
+              const isAtivo = slotAtivo === e.id;
+              return (
+                <div key={e.id}
+                  className="absolute flex flex-col items-center"
+                  style={{ left, transform: "translateX(-50%)", top: 0, width: 160 }}
+                >
+                  {/* Número da entrega (acima) */}
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">
+                    E{e.numero}
+                  </div>
+
+                  {/* Círculo nó */}
+                  <button type="button"
+                    onClick={() => { setSlotAtivo(isAtivo ? null : e.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm transition-all",
+                      isAtivo
+                        ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/30"
+                        : temConteudo
+                          ? "bg-background border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                          : "bg-muted border-border text-muted-foreground hover:border-primary/60",
+                    )}>
+                    {e.numero}
+                  </button>
+
+                  {/* Data */}
+                  <div className="text-xs font-bold mt-1">{fmtData(e.dataLiberacao)}</div>
+
+                  {/* Mini-card de conteúdo */}
+                  {temConteudo && (
+                    <div className="mt-2 panel-3d-sub px-2 py-1.5 text-center w-full max-w-[140px] space-y-0.5">
+                      {temFormulas && (
+                        <div className="text-[11px] font-semibold text-emerald-700">
+                          {e.formulas.length} fórmula{e.formulas.length !== 1 ? "s" : ""}
+                        </div>
+                      )}
+                      {temExames && (
+                        <div className="text-[11px] font-semibold text-amber-700">
+                          {e.exames.length} exame{e.exames.length !== 1 ? "s" : ""}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-muted-foreground truncate max-w-full px-1">{e.nomeReceita}</div>
+                    </div>
+                  )}
+                  {!temConteudo && (
+                    <div className="mt-2 text-[10px] text-muted-foreground/50 italic text-center">vazio</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════
+          BLOCO 4 — AGENDAS SALVAS (ferramenta original)
+      ════════════════════════════════════════════════════════════════ */}
+      <div className="panel-3d overflow-hidden">
+        {/* Cabeçalho colapsável */}
+        <div className="flex items-center justify-between px-5 py-4">
+          <div
+            role="button" tabIndex={0}
+            onClick={() => setAgendasAbertas((v) => !v)}
+            onKeyDown={(e) => e.key === "Enter" && setAgendasAbertas((v) => !v)}
+            className="flex items-center gap-3 cursor-pointer flex-1 select-none"
+          >
+            <Calendar className="w-4 h-4 text-primary" />
+            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">
+              Agendas Salvas {clienteSel ? `— ${clienteSel.name}` : ""}
+            </span>
+            {agendas.length > 0 && (
+              <span className="bevel-3d text-xs px-2 py-0.5">{agendas.length}</span>
+            )}
+            <span className="ml-1 text-muted-foreground">
+              {agendasAbertas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </span>
+          </div>
+          <Button
+            className="btn-3d-soft gap-1 text-xs px-3 py-1.5 h-auto shrink-0"
+            onClick={() => void processarWorker()}
+            disabled={processando}
+          >
+            {processando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            Processar Hoje
+          </Button>
+        </div>
+
+        {agendasAbertas && (
+          <div className="border-t border-border/40 px-5 py-4 space-y-3">
+            {!clienteSel && (
+              <p className="text-sm text-muted-foreground italic text-center py-4">Selecione um cliente para ver as agendas salvas.</p>
+            )}
+            {clienteSel && carregando && (
+              <div className="flex items-center gap-2 justify-center py-6 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
+              </div>
+            )}
+            {clienteSel && !carregando && agendas.length === 0 && (
+              <p className="text-sm text-muted-foreground italic text-center py-4">
+                Nenhuma agenda salva para este cliente. Use o construtor acima.
+              </p>
+            )}
+            {agendas.map((ag) => (
+              <AgendaCard key={ag.id} agenda={ag}
+                expandida={expandidas.has(ag.id)}
+                onToggle={() => setExpandidas((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(ag.id)) next.delete(ag.id); else next.add(ag.id);
+                  return next;
+                })}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sub-componente: card de agenda salva (compacto)
+// ══════════════════════════════════════════════════════════════════════════════
+function AgendaCard({ agenda, expandida, onToggle }: {
+  agenda: Agenda;
+  expandida: boolean;
+  onToggle: () => void;
+}) {
+  const slots: Slot[] = agenda.slots ?? [];
+  const temSlots = slots.length > 0;
+
+  const statusBadge = (s: Slot["status"]) => {
+    const map: Record<string, string> = {
+      AGUARDANDO: "text-slate-500 border-slate-300",
+      LIBERADA:   "text-sky-700  border-sky-400",
+      ENTREGUE:   "text-emerald-700 border-emerald-400",
+      ERRO:       "text-rose-700 border-rose-400",
+    };
+    return map[s] ?? "text-muted-foreground";
+  };
+
+  return (
+    <div className="panel-3d-sub overflow-hidden">
+      <button type="button" onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className={cn("w-2 h-8 rounded-full", agenda.ativo ? "bg-emerald-500" : "bg-slate-300")} />
+          <div className="text-left">
+            <div className="font-semibold text-sm">{agenda.nome}</div>
+            <div className="text-[11px] text-muted-foreground">
+              A cada {agenda.frequenciaPadraoDias}d · {slots.length} slot(s)
+              {agenda.proximaLiberacao && ` · próxima ${agenda.proximaLiberacao}`}
             </div>
           </div>
         </div>
-      )}
+        {expandida ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                   : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+      </button>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL: NOVO / EDITAR SLOT
-      ═══════════════════════════════════════════════════════════════════ */}
-      {modalSlot && agendaSlotAtual && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalSlot(false)} />
-          <div className="relative w-full max-w-2xl panel-3d shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-sm uppercase tracking-widest font-bold">
-                <FlaskConical className="w-4 h-4" />
-                {editandoSlot ? "Editar Receita" : "Nova Receita na Linha do Tempo"}
-              </div>
-              <button className="concave-3d w-8 h-8 flex items-center justify-center" onClick={() => setModalSlot(false)}>
-                <X className="w-4 h-4" />
-              </button>
+      {expandida && (
+        <div className="border-t border-border/30 px-4 py-3 space-y-2">
+          {!temSlots && <p className="text-sm text-muted-foreground italic">Sem receitas nesta agenda.</p>}
+          {slots.map((s) => (
+            <div key={s.id} className={cn("flex items-center gap-3 px-3 py-2 rounded border text-sm", statusBadge(s.status))}>
+              <span className="shrink-0 font-mono text-xs border px-1.5 py-0.5 rounded">{s.status}</span>
+              <span className="font-medium flex-1">{s.nome}</span>
+              <span className="text-muted-foreground text-xs">{s.dataLiberacao}</span>
+              {s.pdfUrl && (
+                <a href={s.pdfUrl} target="_blank" rel="noreferrer"
+                  className="text-primary hover:underline text-xs">PDF</a>
+              )}
             </div>
-
-            <div className="overflow-y-auto flex-1 p-5 space-y-5">
-
-              {/* Nome e data */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Nome da Receita</label>
-                  <input className="field-engraved w-full text-sm" value={formSlot.nome} onChange={(e) => setFormSlot((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Receita 2 — Agosto/2026" />
-                </div>
-                <div>
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Data de Liberação</label>
-                  <input type="date" className="field-engraved w-full text-sm" value={formSlot.dataLiberacao} onChange={(e) => setFormSlot((p) => ({ ...p, dataLiberacao: e.target.value }))} />
-                </div>
-              </div>
-
-              {/* Atalho: próxima em X dias */}
-              <div className="panel-3d-sub p-3 flex items-center gap-3">
-                <Info className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 text-xs text-muted-foreground">
-                  Próxima receita (da seguinte na lista) em
-                </div>
-                <input type="number" min={1} max={365} className="field-engraved w-16 text-center text-sm" value={formSlot.proximaEmDias}
-                  onChange={(e) => setFormSlot((p) => ({ ...p, proximaEmDias: parseInt(e.target.value) || 30 }))} />
-                <span className="text-xs text-muted-foreground">dias</span>
-                <span className="text-xs text-muted-foreground">({fmtData(addDias(formSlot.dataLiberacao, formSlot.proximaEmDias))})</span>
-              </div>
-
-              {/* Seletor de fórmulas do catálogo */}
-              <div>
-                <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest mb-2 inline-block">
-                  Fórmulas Magistrais
-                </div>
-
-                {/* Fórmulas já selecionadas */}
-                {formSlot.formulas.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {formSlot.formulas.map((f, i) => (
-                      <div key={i} className="panel-3d-sub p-2.5 flex items-start gap-2">
-                        <div className="w-1 bg-violet-400 self-stretch rounded-full shrink-0" />
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          <div className="text-sm font-medium">{f.nome}</div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <input className="field-engraved text-xs" placeholder="Posologia" value={f.posologia ?? ""} onChange={(e) => atualizarFormula(i, "posologia", e.target.value)} />
-                            <input className="field-engraved text-xs" placeholder="Dose" value={f.dose ?? ""} onChange={(e) => atualizarFormula(i, "dose", e.target.value)} />
-                            <input className="field-engraved text-xs" placeholder="Via" value={f.via ?? ""} onChange={(e) => atualizarFormula(i, "via", e.target.value)} />
-                            <input className="field-engraved text-xs" placeholder="Observação" value={f.observacao ?? ""} onChange={(e) => atualizarFormula(i, "observacao", e.target.value)} />
-                          </div>
-                        </div>
-                        <button className="concave-3d w-6 h-6 flex items-center justify-center hover:text-destructive shrink-0" onClick={() => removerFormula(i)}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Buscar no catálogo */}
-                <div className="relative mb-1.5">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                  <input className="field-engraved w-full pl-8 text-xs" placeholder="Buscar fórmula no catálogo…" value={buscaFormula} onChange={(e) => setBuscaFormula(e.target.value)} />
-                </div>
-                <div className="panel-3d-sub max-h-40 overflow-y-auto">
-                  {catalogoFiltrado.slice(0, 20).map((f) => (
-                    <button
-                      key={f.id}
-                      className="w-full text-left px-3 py-2 hover:bg-primary/5 text-xs flex items-center gap-2 border-b border-border/30 last:border-0"
-                      onClick={() => adicionarFormula(f)}
-                    >
-                      <Plus className="w-3 h-3 text-muted-foreground shrink-0" />
-                      <span className="flex-1 font-medium truncate">{f.nome}</span>
-                      {f.via && <span className="text-muted-foreground shrink-0">{f.via}</span>}
-                    </button>
-                  ))}
-                  {catalogoFiltrado.length === 0 && (
-                    <p className="text-xs text-muted-foreground p-3 text-center">Nenhuma fórmula encontrada</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Canais override */}
-              <div>
-                <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest mb-2 inline-block">
-                  Canais (deixe em branco para usar o padrão da agenda)
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {CANAIS_DEF.map((c) => {
-                    const efetivo  = formSlot.canais ?? agendaSlotAtual.canaisPadrao;
-                    const ativo    = efetivo.includes(c.id);
-                    const ehPadrao = formSlot.canais === null;
-                    const Icon     = c.icon;
-                    return (
-                      <button
-                        key={c.id}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-medium border transition-all ${ativo ? "btn-3d" : "btn-3d-soft opacity-50"} ${ehPadrao ? "border-dashed" : ""}`}
-                        onClick={() => {
-                          const base = formSlot.canais ?? [...agendaSlotAtual.canaisPadrao];
-                          const next = base.includes(c.id) ? base.filter((x) => x !== c.id) : [...base, c.id];
-                          setFormSlot((p) => ({ ...p, canais: next }));
-                        }}
-                      >
-                        <Icon className="w-3.5 h-3.5" /> {c.label}
-                        {ehPadrao && <span className="text-[9px] opacity-60 ml-0.5">padrão</span>}
-                      </button>
-                    );
-                  })}
-                  {formSlot.canais !== null && (
-                    <button className="text-[10px] text-muted-foreground hover:text-primary" onClick={() => setFormSlot((p) => ({ ...p, canais: null }))}>
-                      restaurar padrão
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
-              <Button className="btn-3d-soft" onClick={() => setModalSlot(false)}>Cancelar</Button>
-              <Button className="btn-3d gap-2" onClick={salvarSlot} disabled={salvandoSlot || !formSlot.nome}>
-                {salvandoSlot
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando…</>
-                  : <><Save className="w-4 h-4" /> {editandoSlot ? "Salvar Receita" : "Adicionar à Linha do Tempo"}</>}
-              </Button>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
