@@ -42,6 +42,19 @@ router.get("/dominios", async (_req, res): Promise<void> => {
   }
 });
 
+// ── GET /api/dominios/check?base=X ── RDAP (DEVE vir ANTES de /:id) ────────
+router.get("/dominios/check", async (req, res): Promise<void> => {
+  const base = String(req.query.base ?? "").trim().toLowerCase();
+  if (!base || !/^[a-z0-9][a-z0-9-]*$/.test(base)) {
+    res.status(400).json({ error: "Parâmetro 'base' inválido" }); return;
+  }
+  const tlds = ["com.br", "com", "net.br", "net", "org.br", "org", "io"];
+  const checks = await Promise.all(
+    tlds.map(async (tld) => ({ dominio: `${base}.${tld}`, status: await checkRdap(`${base}.${tld}`) }))
+  );
+  res.json({ base, resultados: checks });
+});
+
 // ── GET /api/dominios/:id ─────────────────────────────────────────────────
 router.get("/dominios/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);

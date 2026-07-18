@@ -461,20 +461,27 @@ export default function PainelDominios() {
   }
 
   async function verificarDisponibilidade() {
-    const nome = busca.trim().replace(/^https?:\/\//, "").replace(/\//g, "").toLowerCase();
-    if (!nome) return;
-    const tlds = [".com.br", ".com", ".net.br", ".io", ".app"];
-    const nomes = tlds.map(t => nome + t);
+    // Extrai só o nome base: remove protocolo, barra, TLD conhecidos
+    const raw = busca.trim().replace(/^https?:\/\//, "").replace(/\//g, "").toLowerCase();
+    const base = raw
+      .replace(/\.(com\.br|net\.br|org\.br|com|net|org|io|app)$/, "")
+      .replace(/[^a-z0-9-]/g, "");
+    if (!base) return;
     setVerificando(true);
-    setResultados(nomes.map(d => ({ dominio: d, status: "verificando" })));
-    for (const d of nomes) {
-      try {
-        const r = await fetch(`${BASE}/api/dominios/check?domain=${encodeURIComponent(d)}`);
-        const j = await r.json();
-        setResultados(prev => prev.map(x => x.dominio === d ? { dominio: d, status: j.status ?? "erro" } : x));
-      } catch {
-        setResultados(prev => prev.map(x => x.dominio === d ? { dominio: d, status: "erro" } : x));
+    // Placeholder enquanto a API responde (API retorna 7 TLDs de uma vez)
+    setResultados([
+      "com.br", "com", "net.br", "io", "org.br", "net", "org",
+    ].map(t => ({ dominio: `${base}.${t}`, status: "verificando" })));
+    try {
+      const r = await fetch(`${BASE}/api/dominios/check?base=${encodeURIComponent(base)}`);
+      const j = await r.json();
+      if (r.ok && Array.isArray(j.resultados)) {
+        setResultados(j.resultados);
+      } else {
+        setResultados(prev => prev.map(x => ({ ...x, status: "erro" })));
       }
+    } catch {
+      setResultados(prev => prev.map(x => ({ ...x, status: "erro" })));
     }
     setVerificando(false);
   }
