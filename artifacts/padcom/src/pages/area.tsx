@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PAXTER_SITE_URL } from "@/lib/brand";
+import { useScreenTheme } from "@/components/theme/useScreenTheme";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -90,6 +92,7 @@ export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
   const [adminMode, setAdminMode] = useState(false);
+  const { theme, toggle } = useScreenTheme();
 
   // Modo de preview admin: ?preview_id=<n>&preview_name=<name>&preview_token=<tok>
   // O dono da clínica usa a página /experiencia-cliente para gerar esta URL
@@ -120,8 +123,10 @@ export default function Area() {
 
   if (!client) return <LoginScreen onSuccess={setClient} />;
 
+  const themeClass = theme === "dark" ? "dark" : "";
+
   return (
-    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
+    <div className={`${themeClass} area-elite min-h-screen bg-slate-50 flex flex-col`}>
       {/* Faixa de aviso quando o admin está no modo preview */}
       {adminMode && (
         <div className="bg-amber-500 text-white text-center text-[11px] font-black uppercase tracking-widest py-1.5 px-4">
@@ -151,12 +156,15 @@ export default function Area() {
             </div>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5 flex-shrink-0"
-        >
-          <LogOut className="w-3.5 h-3.5" /> SAIR
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <ThemeToggle theme={theme} onToggle={toggle} />
+          <button
+            onClick={handleLogout}
+            className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5" /> SAIR
+          </button>
+        </div>
       </header>
 
       {/* Conteúdo principal com padding-bottom para a barra inferior */}
