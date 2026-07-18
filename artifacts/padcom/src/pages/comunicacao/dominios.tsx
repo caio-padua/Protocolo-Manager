@@ -104,7 +104,7 @@ function Field({
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} disabled={disabled}
-        className="bevel-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed bg-background"
+        className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   );
@@ -121,7 +121,7 @@ function SelectField({
       <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">{label}</label>
       <select
         value={value} onChange={e => onChange(e.target.value)}
-        className="bevel-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-background"
+        className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -452,7 +452,7 @@ export default function PainelDominios() {
           Botões de compra aparecem apenas para TLDs disponíveis.
         </p>
         <div className="flex gap-3">
-          <div className="bevel-3d flex h-11 flex-1 items-center gap-2 px-3">
+          <div className="concave-3d flex h-11 flex-1 items-center gap-2 px-3">
             <Globe className="h-4 w-4 shrink-0 text-muted-foreground/60" />
             <input
               value={busca}
@@ -712,35 +712,106 @@ export default function PainelDominios() {
           <span className="paxter-led paxter-led-amber paxter-led-breathe" />
         </div>
 
-        {/* Grade de registradores — padrão idêntico ao Mensageria (panel-3d-sub) */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {REGISTRADORES_INFO.map(reg => {
-            const sel = regAtivo === reg.id;
-            return (
-              <button
-                key={reg.id}
-                onClick={() => setRegAtivo(reg.id)}
-                className={`panel-3d-sub flex items-center gap-3 p-4 text-left transition-all ${
-                  sel ? "ring-2 ring-primary/50 ring-offset-1" : ""
-                }`}
-              >
-                <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
-                  <reg.icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold uppercase tracking-[0.05em] truncate">{reg.nome}</p>
-                    {sel && (
-                      <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-primary bg-primary/10">
-                        Ativo
-                      </span>
-                    )}
+        {/* Grade por categoria — Nacional primeiro, Global depois */}
+        {(["Nacional", "Global"] as const).map(cat => {
+          const lista = REGISTRADORES_INFO.filter(r => r.categoria === cat);
+          return (
+            <div key={cat}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2 px-0.5">
+                {cat === "Nacional" ? "🇧🇷  Nacional" : "🌐  Global"}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {lista.map(reg => {
+                  const sel = regAtivo === reg.id;
+                  return (
+                    <button
+                      key={reg.id}
+                      onClick={() => setRegAtivo(reg.id)}
+                      className={`panel-3d-sub flex items-center gap-3 p-4 text-left transition-all ${
+                        sel ? "ring-2 ring-primary/50 ring-offset-1" : ""
+                      }`}
+                    >
+                      <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
+                        <reg.icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold uppercase tracking-[0.05em] truncate">{reg.nome}</p>
+                          {sel && (
+                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-primary bg-primary/10">
+                              Ativo
+                            </span>
+                          )}
+                        </div>
+                        <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
+                          {reg.precos}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* ─── Seção E — Empresas Licenciadas ───────────────────────────────────── */}
+      <section className="panel-3d p-5 space-y-4">
+        <BlockTitle icon={Building2}>Empresas Licenciadas</BlockTitle>
+        <ExplainRow>
+          Domínios PAXTER disponibilizados como módulo pago para clínicas parceiras.
+          Ative o módulo pago no modal de edição de cada domínio (aba E-mail Zoho).
+        </ExplainRow>
+
+        {dominios.filter(d => d.modulo_pago).length === 0 ? (
+          <div className="concave-3d flex flex-col items-center gap-3 py-10 text-center rounded">
+            <Building2 className="h-8 w-8 opacity-15" />
+            <p className="text-[13px] text-muted-foreground">Nenhum domínio marcado como módulo pago.</p>
+            <p className="text-[11px] text-muted-foreground/70">
+              Edite um domínio → aba "E-mail Zoho" → ative "Módulo pago para clínica?".
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {dominios.filter(d => d.modulo_pago).map(d => (
+              <div key={d.id} className="panel-3d p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="bevel-3d w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0">
+                      <Building2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-[14px] text-foreground font-mono">{d.dominio}</p>
+                        <StatusBadge status={d.status} />
+                      </div>
+                      <p className="text-[12px] text-muted-foreground mt-0.5">
+                        Titular: {d.titular_nome ?? "—"} · {d.titular_documento ?? "—"}
+                      </p>
+                      <p className="text-[12px] text-muted-foreground">
+                        {d.valor_mensal_centavos
+                          ? `Módulo: R$ ${(d.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/mês`
+                          : "Valor não configurado"}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">{reg.precos}</p>
+                  <Button variant="outline" size="sm" className="btn-3d-soft h-8 px-2.5"
+                    onClick={() => abrirModal({ dominio: d.dominio, titular_nome: d.titular_nome ?? "", titular_documento: d.titular_documento ?? "" })}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
-              </button>
-            );
-          })}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="concave-3d rounded px-4 py-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Fluxo de aprovação</p>
+          <p className="text-[12px] text-muted-foreground">
+            Clínica solicita → CEO aprova via WhatsApp → Asaas cobra → pagamento confirmado → Zoho cria e-mail corporativo.
+          </p>
+          <p className="text-[10px] text-muted-foreground/60 italic">Módulo de solicitação externa: próxima onda.</p>
         </div>
       </section>
     </ConsoleShell>
