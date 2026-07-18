@@ -585,56 +585,88 @@ function BlocoRegistrador({
     finally { setSaving(false); }
   }
 
+  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+
   return (
-    <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden transition-all ${isAtivo ? `ring-2 ${config.corSeletor}` : ""}`}>
-      {/* Header */}
+    <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden transition-all duration-200 ${isAtivo ? `ring-2 ring-offset-1 ${config.corSeletor}` : ""}`}>
+
+      {/* ── Header ── */}
       <div className="flex items-center">
         <button onClick={() => setAberto(v => !v)}
-          className="flex-1 flex items-center gap-3 px-4 py-3.5 hover:bg-muted/20 transition-colors text-left">
-          <config.icon className={`h-4 w-4 flex-shrink-0 ${isAtivo ? "text-primary" : "text-muted-foreground"}`} />
+          className="flex-1 flex items-center gap-3.5 px-5 py-4 hover:bg-muted/20 transition-colors text-left">
+
+          {/* LED de status + ícone */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isAtivo ? (
+              <span className="paxter-led paxter-led-amber paxter-led-breathe" title="Plataforma ativa" />
+            ) : (
+              <span className="paxter-led paxter-led-off" title="Inativa" />
+            )}
+            <config.icon className={`h-4 w-4 ${isAtivo ? "text-primary" : "text-muted-foreground/60"}`} />
+          </div>
+
+          {/* Nome + descrição */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className={`font-semibold text-sm ${isAtivo ? "text-primary" : "text-foreground"}`}>{config.nome}</p>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span style={HERMES} className={`text-[15px] font-normal tracking-wide ${isAtivo ? "text-primary" : "text-foreground"}`}>
+                {config.nome}
+              </span>
               {isAtivo && (
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/30">
-                  ✓ Plataforma Ativa
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-primary/10 text-primary border border-primary/25">
+                  Plataforma Ativa
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground truncate">{config.descricao}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{config.descricao}</p>
           </div>
-          {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+
+          {aberto
+            ? <ChevronUp className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
+            : <ChevronDown className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />}
         </button>
-        {/* Botão selecionar — fora do toggle */}
+
+        {/* Botão "Usar" fora do toggle */}
         {!isAtivo && config.categoria !== "email" && (
           <button onClick={() => onSelecionar(config.id)}
-            className="px-3 py-3.5 text-[11px] font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border flex-shrink-0"
-            title="Usar como plataforma ativa para novos registros">
+            className="px-4 py-4 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border flex-shrink-0">
             Usar
           </button>
         )}
       </div>
 
+      {/* ── Corpo expandido ── */}
       {aberto && (
-        <div className="border-t border-border px-4 py-4 space-y-4">
+        <div className="border-t border-border/60 px-5 py-5 space-y-5 bg-background/40">
 
-          {/* TLDs + Preços lado a lado */}
+          {/* ── Seção: TLDs + Preços ── */}
           <div className="grid grid-cols-2 gap-3">
-            {/* TLDs */}
-            <div className="rounded border border-border/50 bg-muted/20 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">TLDs Suportados</p>
-              <p className="text-xs text-foreground font-mono leading-relaxed">{config.tlds}</p>
+
+            {/* TLDs — painel concave (rebaixado) */}
+            <div className="space-y-1.5">
+              <div className="bevel-3d px-3 py-1.5 rounded-t-md rounded-b-none border-b-0">
+                <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+                  TLDs Suportados
+                </p>
+              </div>
+              <div className="concave-3d rounded-t-none rounded-b-md px-3 py-2.5">
+                <p className="text-[11px] text-foreground/80 font-mono leading-relaxed tracking-wide">{config.tlds}</p>
+              </div>
             </div>
-            {/* Preços — insert bevel */}
-            <div className="rounded border border-border/50 bg-muted/20 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Preço Médio (ano)</p>
-              <div className="space-y-1">
+
+            {/* Preços — painel concave (rebaixado) */}
+            <div className="space-y-1.5">
+              <div className="bevel-3d px-3 py-1.5 rounded-t-md rounded-b-none border-b-0">
+                <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+                  Preço Médio · Anual
+                </p>
+              </div>
+              <div className="concave-3d rounded-t-none rounded-b-md px-3 py-2.5 space-y-1.5">
                 {config.precos.map(p => (
                   <div key={p.tld} className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-mono text-muted-foreground">{p.tld}</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold text-foreground">{p.valor}</span>
-                      {p.obs && <span className="text-[10px] text-muted-foreground/70 italic">{p.obs}</span>}
+                      <span className="text-[11px] font-bold text-foreground tabular-nums">{p.valor}</span>
+                      {p.obs && <span className="text-[10px] text-muted-foreground/60 italic">{p.obs}</span>}
                     </div>
                   </div>
                 ))}
@@ -642,54 +674,59 @@ function BlocoRegistrador({
             </div>
           </div>
 
-          {/* Aviso */}
-          <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 flex items-start gap-2">
-            <AlertCircle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700 dark:text-amber-400">{config.aviso}</p>
+          {/* ── Aviso ── */}
+          <div className="rounded border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/20 px-3 py-2.5 flex items-start gap-2">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-700 dark:text-amber-400/90 leading-relaxed">{config.aviso}</p>
           </div>
 
-          {/* GRADE MESTRE — 5 campos, 2 colunas, mesma ordem em todos os blocos */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Credenciais de Acesso</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              {MASTER_FIELDS.map(field => (
-                <CampoMaster
-                  key={field.key}
-                  field={field}
-                  ativo={config.ativo[field.key] ?? false}
-                  tooltip={config.tooltipNA[field.key] ?? "Não utilizado por esta plataforma"}
-                  valor={valores[field.key] ?? ""}
-                  onChangeValor={v => setValores(p => ({ ...p, [field.key]: v }))}
-                  mostrarSenha={mostrarSenha[field.key] ?? false}
-                  onToggleSenha={() => setMostrarSenha(p => ({ ...p, [field.key]: !p[field.key] }))}
-                />
-              ))}
+          {/* ── Seção: Credenciais ── */}
+          <div className="space-y-2.5">
+            <div className="bevel-3d px-4 py-2 rounded-md">
+              <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+                Credenciais de Acesso · 5 campos uniformes
+              </p>
+            </div>
+            <div className="concave-3d rounded-md px-4 py-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                {MASTER_FIELDS.map(field => (
+                  <CampoMaster
+                    key={field.key}
+                    field={field}
+                    ativo={config.ativo[field.key] ?? false}
+                    tooltip={config.tooltipNA[field.key] ?? "Não utilizado por esta plataforma"}
+                    valor={valores[field.key] ?? ""}
+                    onChangeValor={v => setValores(p => ({ ...p, [field.key]: v }))}
+                    mostrarSenha={mostrarSenha[field.key] ?? false}
+                    onToggleSenha={() => setMostrarSenha(p => ({ ...p, [field.key]: !p[field.key] }))}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Rodapé */}
-          <div className="flex items-center gap-3 pt-1 border-t border-border flex-wrap">
+          {/* ── Rodapé ── */}
+          <div className="flex items-center gap-3 flex-wrap">
             <button onClick={salvarCredenciais} disabled={saving}
-              className="btn-3d inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold disabled:opacity-50">
+              className="btn-3d inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Salvar credenciais
+              Salvar Credenciais
             </button>
             {config.categoria !== "email" && !isAtivo && (
               <button onClick={() => onSelecionar(config.id)}
-                className="bevel-3d inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors">
-                Definir como plataforma ativa
+                className="bevel-3d inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors">
+                <span className="paxter-led paxter-led-amber w-2 h-2 inline-block" />
+                Definir como Ativa
               </button>
             )}
             {config.linkExtra && (
               <a href={config.linkExtra.href} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2 ml-auto">
-                <Link className="h-3.5 w-3.5" /> {config.linkExtra.label}
+                <Link className="h-3 w-3" /> {config.linkExtra.label}
               </a>
             )}
             {msg && (
-              <p className={`text-xs font-semibold ${msg.startsWith("Erro") ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {msg}
-              </p>
+              <p className={`text-xs font-semibold ml-auto ${msg.startsWith("Erro") ? "text-red-600" : "text-emerald-600"}`}>{msg}</p>
             )}
           </div>
         </div>
@@ -784,12 +821,19 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
     );
   }
 
+  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+
   return (
-    <div className="panel-3d space-y-4 p-5">
-      <div className="flex items-center gap-2 border-b border-border pb-3">
-        <Search className="h-4 w-4 text-primary" />
-        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Bloco A — Verificador de Disponibilidade</span>
+    <div className="panel-3d overflow-hidden">
+      {/* Cabeçalho bevel */}
+      <div className="bevel-3d px-5 py-3 flex items-center gap-3 border-b border-border/50">
+        <Search className="h-4 w-4 text-primary/70 flex-shrink-0" />
+        <div>
+          <p style={HERMES} className="text-[13px] text-foreground tracking-wide">Verificador de Disponibilidade</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">Bloco A — consulta RDAP público em tempo real</p>
+        </div>
       </div>
+      <div className="p-5 space-y-4">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -817,6 +861,7 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">Verificação via RDAP público — Registro.br + Verisign. Botões de compra aparecem apenas para TLDs disponíveis. Credenciais dos registradores devem estar configuradas abaixo.</p>
+      </div>{/* /p-5 */}
     </div>
   );
 }
@@ -846,70 +891,103 @@ function BlocoRegistradores() {
 
   const configAtivo = REGISTRADORES.find(r => r.id === ativo)!;
 
+  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+
   return (
-    <div className="space-y-4">
-      {/* Cabeçalho */}
-      <div className="flex items-center gap-2 px-1">
-        <Settings className="h-4 w-4 text-primary" />
-        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Bloco B — Plataformas de Registro & Credenciais
-        </span>
+    <div className="space-y-5">
+
+      {/* ── Cabeçalho da seção ── */}
+      <div className="bevel-3d px-5 py-3 flex items-center gap-3 rounded-md">
+        <Settings className="h-4 w-4 text-primary/70 flex-shrink-0" />
+        <div>
+          <p style={HERMES} className="text-[13px] text-foreground tracking-wide">
+            Plataformas de Registro & Credenciais
+          </p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
+            Bloco B — configure uma plataforma ativa para compras via Verificador
+          </p>
+        </div>
       </div>
 
-      {/* SELETOR VISUAL — plataforma ativa para compras */}
-      <div className="panel-3d p-4 space-y-3">
-        <div className="flex items-center justify-between">
+      {/* ── SELETOR VISUAL — plataforma ativa ── */}
+      <div className="panel-3d rounded-md overflow-hidden">
+
+        {/* Faixa-título do seletor */}
+        <div className="concave-3d px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Plataforma Ativa para Novos Registros</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Clique numa plataforma para usá-la ao comprar domínios pelo Verificador</p>
+            <p style={HERMES} className="text-[13px] text-foreground/90 tracking-wide">
+              Plataforma Ativa para Novos Registros
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Clique num card para definir qual registrador o Verificador usa ao comprar
+            </p>
           </div>
-          <div className={`flex items-center gap-2 rounded border px-3 py-1.5 ${configAtivo.corSeletor} border-current/30`}>
+          {/* Badge da plataforma atual */}
+          <div className="flex items-center gap-2 bevel-3d px-3 py-1.5 rounded flex-shrink-0">
+            <span className="paxter-led paxter-led-amber paxter-led-breathe" />
             <configAtivo.icon className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold text-primary">{configAtivo.nome}</span>
+            <span style={HERMES} className="text-[12px] text-primary whitespace-nowrap">{configAtivo.nome}</span>
           </div>
         </div>
 
         {/* Cards do seletor — agrupados por categoria */}
-        {CATEGORIAS.filter(c => c.id !== "email").map(cat => {
-          const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
-          return (
-            <div key={cat.id}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-1.5">{cat.label}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {regs.map(r => {
-                  const sel = ativo === r.id;
-                  return (
-                    <button key={r.id} onClick={() => selecionar(r.id)}
-                      className={`group flex items-center gap-2.5 rounded border px-3 py-2.5 text-left transition-all ${
-                        sel
-                          ? `ring-2 ${r.corSeletor} border-transparent`
-                          : "border-border hover:border-primary/40 hover:bg-muted/30"
-                      }`}>
-                      <r.icon className={`h-4 w-4 flex-shrink-0 ${sel ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
-                      <div className="min-w-0">
-                        <p className={`text-xs font-semibold truncate ${sel ? "text-primary" : "text-foreground"}`}>{r.nome}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{r.precos[0]?.tld} {r.precos[0]?.valor}</p>
-                      </div>
-                      {sel && <span className="ml-auto text-primary text-xs flex-shrink-0">✓</span>}
-                    </button>
-                  );
-                })}
+        <div className="p-4 space-y-4">
+          {CATEGORIAS.filter(c => c.id !== "email").map(cat => {
+            const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
+            return (
+              <div key={cat.id} className="space-y-2">
+                {/* Faixa-categoria concave (rebaixada) */}
+                <div className="concave-3d px-3 py-1.5 rounded-md">
+                  <p style={HERMES} className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+                    {cat.label} — {cat.descricao}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {regs.map(r => {
+                    const sel = ativo === r.id;
+                    return (
+                      <button key={r.id} onClick={() => selecionar(r.id)}
+                        className={`group relative flex items-center gap-2.5 rounded border px-3 py-2.5 text-left transition-all duration-150 ${
+                          sel
+                            ? `bevel-3d ring-2 ring-offset-1 ${r.corSeletor} border-transparent`
+                            : "border-border/60 hover:border-primary/30 hover:bg-muted/20 panel-3d-sub"
+                        }`}>
+                        <div className="flex-shrink-0">
+                          {sel
+                            ? <span className="paxter-led paxter-led-amber paxter-led-breathe" />
+                            : <span className="paxter-led paxter-led-off" />}
+                        </div>
+                        <r.icon className={`h-3.5 w-3.5 flex-shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground/80"}`} />
+                        <div className="min-w-0">
+                          <p style={sel ? HERMES : undefined} className={`text-[12px] truncate ${sel ? "text-primary" : "text-foreground/80 text-[11px] font-medium"}`}>
+                            {r.nome}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate tabular-nums">
+                            {r.precos[0]?.tld} {r.precos[0]?.valor}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* BLOCOS POR CATEGORIA */}
+      {/* ── BLOCOS DETALHADOS POR CATEGORIA ── */}
       {CATEGORIAS.map(cat => {
         const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
         return (
-          <div key={cat.id} className="space-y-2">
-            {/* Separador de categoria */}
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-2">{cat.label} — {cat.descricao}</span>
-              <div className="h-px flex-1 bg-border" />
+          <div key={cat.id} className="space-y-2.5">
+            {/* Separador de categoria — faixa concave luxuosa */}
+            <div className="concave-3d rounded-md px-5 py-2.5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-border/40" />
+              <p style={HERMES} className="text-[11px] text-muted-foreground uppercase tracking-[0.22em] whitespace-nowrap">
+                {cat.label} — {cat.descricao}
+              </p>
+              <div className="h-px flex-1 bg-border/40" />
             </div>
             {regs.map(r => (
               <BlocoRegistrador key={r.id} config={r} ativo={ativo === r.id} onSelecionar={selecionar} />
