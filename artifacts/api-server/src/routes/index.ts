@@ -67,6 +67,7 @@ import documentTemplatesRouter from "./document-templates";
 import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
 import ceoRouter from "./ceo";
+import dominiosRouter from "./dominios";
 import cadernosJuridicosRouter from "./cadernos-juridicos";
 import receituarioRouter from "./receituario";
 import adminPreviewRouter from "./admin-preview";
@@ -166,5 +167,6 @@ router.use(ceoRouter);
 router.use(cadernosJuridicosRouter);
 router.use(receituarioRouter);
 router.use(adminPreviewRouter);
+router.use(dominiosRouter);
 
 export default router;

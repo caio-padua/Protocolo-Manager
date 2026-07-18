@@ -54,6 +54,7 @@ import {
   Files,
   Compass,
   Crown,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -158,6 +159,7 @@ const navigation: NavEntry[] = [
       { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
       { name: "Status WhatsApp", href: "/comunicacao/whatsapp-status", icon: MessageSquareText },
       { name: "Central de Auditoria", href: "/comunicacao/central-auditoria", icon: ShieldCheck },
+      { name: "Painel de Domínios & Aliases", href: "/comunicacao/dominios", icon: Globe },
     ],
   },
   {
