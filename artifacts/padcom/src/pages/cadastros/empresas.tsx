@@ -875,6 +875,9 @@ export default function CadastroEmpresas() {
     },
   });
 
+  // Empresa sendo editada no formulário (deriva de editingId + lista carregada)
+  const selectedEmpresa = editingId ? (empresas.find((e) => e.id === editingId) ?? null) : null;
+
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
 
   const saveMutation = useMutation({
