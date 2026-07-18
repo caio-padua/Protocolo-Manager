@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Globe, Search, Plus, Trash2, Loader2, RefreshCw, AtSign,
   AlertCircle, Settings, Mail, Shield, Building2, Pencil, X,
-  Save, Server, CreditCard, CheckCircle, XCircle,
+  Save, Server, CreditCard, CheckCircle, XCircle, Eye, EyeOff, ExternalLink,
 } from "lucide-react";
 import { ConsoleShell, BlockTitle, ExplainRow, BASE } from "./_shared";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
@@ -289,10 +289,38 @@ function ModalDominio({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Registradores — dados estáticos para o seletor simplificado
+// Grade Mestre — 5 campos IGUAIS para TODOS os registradores.
+// Campos N/A ficam visíveis e cinzas com tooltip explicativo.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const REGISTRADORES_INFO = [
+type MasterField = {
+  key: "login" | "api_key" | "api_secret" | "client_ip" | "account_id";
+  label: string;
+  placeholderAtivo: string;
+  sensivel: boolean;
+};
+
+const MASTER_FIELDS: MasterField[] = [
+  { key: "login",      label: "Usuário / Login",               placeholderAtivo: "seu login ou usuário",  sensivel: false },
+  { key: "api_key",    label: "Chave de API (API Key / Token)", placeholderAtivo: "cole a chave aqui",    sensivel: true  },
+  { key: "api_secret", label: "Secret / Senha da API",         placeholderAtivo: "cole o secret aqui",   sensivel: true  },
+  { key: "client_ip",  label: "IP Autorizado (Whitelist)",     placeholderAtivo: "ex.: 203.0.113.42",    sensivel: false },
+  { key: "account_id", label: "ID da Conta / Organização",     placeholderAtivo: "ex.: 123456789",       sensivel: false },
+];
+
+type RegistradorInfo = {
+  id: string;
+  nome: string;
+  descricao: string;
+  icon: React.ComponentType<{ className?: string }>;
+  precos: string;
+  categoria: "Nacional" | "Global";
+  linkExtra?: { label: string; href: string };
+  ativo: Record<MasterField["key"], boolean>;
+  tooltipNA: Partial<Record<MasterField["key"], string>>;
+};
+
+const REGISTRADORES_INFO: RegistradorInfo[] = [
   {
     id: "registrobr",
     nome: "Registro.br / UOL Host",
@@ -300,6 +328,9 @@ const REGISTRADORES_INFO = [
     icon: Shield,
     precos: ".com.br R$ 40/ano",
     categoria: "Nacional",
+    linkExtra: { label: "Registrar manualmente → registro.br", href: "https://registro.br/registro/novo/" },
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: false },
+    tooltipNA: { api_secret: "UOL não usa secret separado", client_ip: "UOL não exige whitelist de IP", account_id: "Autenticação por login + key — sem Account ID" },
   },
   {
     id: "locaweb",
@@ -308,6 +339,9 @@ const REGISTRADORES_INFO = [
     icon: Globe,
     precos: ".com.br R$ 69/ano",
     categoria: "Nacional",
+    linkExtra: { label: "Painel Locaweb ↗", href: "https://painel.locaweb.com.br" },
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: true  },
+    tooltipNA: { api_secret: "Locaweb não usa secret — só token", client_ip: "Locaweb não exige whitelist de IP" },
   },
   {
     id: "namecheap",
@@ -316,6 +350,9 @@ const REGISTRADORES_INFO = [
     icon: CreditCard,
     precos: ".com ≈ R$ 57/ano",
     categoria: "Global",
+    linkExtra: { label: "Gerar chave → Profile → Tools → API Access", href: "https://ap.www.namecheap.com/settings/tools/apiaccess/" },
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: true,  account_id: false },
+    tooltipNA: { api_secret: "Namecheap não usa secret — só API Key", account_id: "Identificação pelo login + API Key" },
   },
   {
     id: "godaddy",
@@ -324,6 +361,9 @@ const REGISTRADORES_INFO = [
     icon: Building2,
     precos: ".com ≈ R$ 75/ano",
     categoria: "Global",
+    linkExtra: { label: "Gerar chave → developer.godaddy.com → Keys", href: "https://developer.godaddy.com/keys" },
+    ativo:     { login: false, api_key: true,  api_secret: true,  client_ip: false, account_id: false },
+    tooltipNA: { login: "GoDaddy autentica por key + secret — sem login separado", client_ip: "GoDaddy não exige whitelist de IP", account_id: "GoDaddy não usa Account ID nesta API" },
   },
   {
     id: "cloudflare",
@@ -332,8 +372,11 @@ const REGISTRADORES_INFO = [
     icon: Server,
     precos: ".com ≈ R$ 57/ano",
     categoria: "Global",
+    linkExtra: { label: "Gerar token → dash.cloudflare.com → Profile → API Tokens", href: "https://dash.cloudflare.com/profile/api-tokens" },
+    ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: true  },
+    tooltipNA: { api_secret: "Cloudflare usa só API Token — sem secret separado", client_ip: "Cloudflare não exige whitelist de IP" },
   },
-] as const;
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tela principal
@@ -358,8 +401,32 @@ export default function PainelDominios() {
   const [emailMsg, setEmailMsg] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
 
-  // Registrador ativo selecionado no seletor
+  // Registrador ativo + expandido + credenciais
   const [regAtivo, setRegAtivo] = useState<string>("registrobr");
+  const [regExpanded, setRegExpanded] = useState<string | null>("registrobr");
+  const [creds, setCreds] = useState<Record<string, Record<string, string>>>({});
+  const [showSens, setShowSens] = useState<Record<string, boolean>>({});
+  const [savingReg, setSavingReg] = useState<string | null>(null);
+  const [savedReg, setSavedReg] = useState<string | null>(null);
+
+  function setCredsField(regId: string, field: string, val: string) {
+    setCreds(prev => ({ ...prev, [regId]: { ...(prev[regId] ?? {}), [field]: val } }));
+  }
+  function toggleSens(key: string) {
+    setShowSens(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+  function clickReg(regId: string) {
+    setRegAtivo(regId);
+    setRegExpanded(prev => prev === regId ? null : regId);
+  }
+  async function saveCreds(regId: string) {
+    setSavingReg(regId);
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      setSavedReg(regId);
+      setTimeout(() => setSavedReg(null), 2500);
+    } finally { setSavingReg(null); }
+  }
 
   const fetchDominios = useCallback(async () => {
     setLoading(true);
@@ -716,38 +783,131 @@ export default function PainelDominios() {
         {(["Nacional", "Global"] as const).map(cat => {
           const lista = REGISTRADORES_INFO.filter(r => r.categoria === cat);
           return (
-            <div key={cat}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2 px-0.5">
-                {cat === "Nacional" ? "🇧🇷  Nacional" : "🌐  Global"}
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div key={cat} className="space-y-3">
+              {/* Label de categoria em bevel-3d levantado */}
+              <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 rounded-[6px]">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  {cat === "Nacional" ? "🇧🇷  Nacional" : "🌐  Global"}
+                </span>
+              </div>
+
+              <div className="space-y-3">
                 {lista.map(reg => {
                   const sel = regAtivo === reg.id;
+                  const exp = regExpanded === reg.id;
                   return (
-                    <button
-                      key={reg.id}
-                      onClick={() => setRegAtivo(reg.id)}
-                      className={`panel-3d-sub flex items-center gap-3 p-4 text-left transition-all ${
-                        sel ? "ring-2 ring-primary/50 ring-offset-1" : ""
-                      }`}
-                    >
-                      <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
-                        <reg.icon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold uppercase tracking-[0.05em] truncate">{reg.nome}</p>
-                          {sel && (
-                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-primary bg-primary/10">
-                              Ativo
-                            </span>
-                          )}
+                    <div key={reg.id} className={`panel-3d overflow-hidden transition-all ${sel ? "ring-2 ring-primary/40 ring-offset-1" : ""}`}>
+                      {/* Linha do cabeçalho — clicável */}
+                      <button
+                        type="button"
+                        onClick={() => clickReg(reg.id)}
+                        className="flex items-center gap-3 p-4 w-full text-left"
+                      >
+                        <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
+                          <reg.icon className="h-5 w-5" />
                         </div>
-                        <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
-                          {reg.precos}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold uppercase tracking-[0.05em]">{reg.nome}</p>
+                            {sel && (
+                              <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-emerald-700 bg-emerald-500/15">
+                                Ativo
+                              </span>
+                            )}
+                          </div>
+                          <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
+                            {reg.precos}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {exp ? "▲" : "▼"}
+                        </span>
+                      </button>
+
+                      {/* Grade Mestre — aparece ao expandir */}
+                      {exp && (
+                        <div className="border-t border-border px-4 pt-4 pb-4 space-y-3">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                            Credenciais de API
+                          </p>
+
+                          {MASTER_FIELDS.map(field => {
+                            const ativo = reg.ativo[field.key];
+                            const sensKey = `${reg.id}_${field.key}`;
+                            const visible = showSens[sensKey];
+                            const val = creds[reg.id]?.[field.key] ?? "";
+
+                            return (
+                              <div key={field.key}>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+                                  {field.label}
+                                </label>
+                                {ativo ? (
+                                  <div className="relative">
+                                    <input
+                                      type={field.sensivel && !visible ? "password" : "text"}
+                                      value={val}
+                                      onChange={e => setCredsField(reg.id, field.key, e.target.value)}
+                                      placeholder={field.placeholderAtivo}
+                                      className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 pr-10"
+                                    />
+                                    {field.sensivel && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleSens(sensKey)}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                        title={visible ? "Ocultar" : "Mostrar"}
+                                      >
+                                        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="concave-3d w-full h-11 rounded px-3 flex items-center opacity-40 cursor-not-allowed"
+                                    title={reg.tooltipNA[field.key]}
+                                  >
+                                    <span className="text-[12px] text-muted-foreground italic">
+                                      N/A — {reg.tooltipNA[field.key] ?? "Não aplicável"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Rodapé da Grade Mestre */}
+                          <div className="flex items-center justify-between pt-2 gap-3 flex-wrap">
+                            {reg.linkExtra && (
+                              <a
+                                href={reg.linkExtra.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                {reg.linkExtra.label}
+                              </a>
+                            )}
+                            <div className="flex items-center gap-2 ml-auto">
+                              {savedReg === reg.id && (
+                                <span className="text-[11px] text-emerald-600 font-semibold">✓ Salvo</span>
+                              )}
+                              <Button
+                                onClick={() => saveCreds(reg.id)}
+                                disabled={savingReg === reg.id}
+                                className="btn-3d h-9 px-5 text-[11px] font-bold uppercase tracking-[0.12em]"
+                              >
+                                {savingReg === reg.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                  : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                                Salvar Credenciais
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
