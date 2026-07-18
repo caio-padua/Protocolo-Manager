@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   Building2, Crown, Plus, RefreshCw, ChevronRight,
   HardDrive, Check, AlertCircle, Edit2, X, Save,
-  TrendingUp, Users, Landmark, Wifi
+  TrendingUp, Users, Landmark, Wifi, Sparkles, BadgeCheck
 } from "lucide-react";
 import { ConsoleShell } from "@/pages/comunicacao/_shared";
 
@@ -10,7 +10,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
-type TipoLicenciamento = "propria" | "sub_unidade" | "licenciada_direta" | "licenciada_por_clinica";
+type TipoLicenciamento = "propria" | "sub_unidade" | "licenciada_direta" | "licenciada_por_clinica" | "clinica_propria_vivencia";
 
 interface EmpresaNo {
   id: number;
@@ -44,17 +44,19 @@ interface EmpresaFlat {
 // ── Constantes visuais ─────────────────────────────────────────────────────────
 
 const TIPO_META: Record<TipoLicenciamento, { label: string; cor: string; bg: string; borda: string }> = {
-  propria:               { label: "Própria",             cor: "#3D7A7A", bg: "#e6f2f2", borda: "#3D7A7A" },
-  sub_unidade:           { label: "Sub-unidade",         cor: "#647c97", bg: "#eef2f7", borda: "#647c97" },
-  licenciada_direta:     { label: "Licenciada Direta",   cor: "#45B8CC", bg: "#e3f7fb", borda: "#45B8CC" },
-  licenciada_por_clinica:{ label: "Lic. por Clínica",   cor: "#c2a05a", bg: "#faf2e3", borda: "#c2a05a" },
+  propria:                  { label: "Própria",             cor: "#3D7A7A", bg: "#e6f2f2", borda: "#3D7A7A" },
+  sub_unidade:              { label: "Sub-unidade",         cor: "#647c97", bg: "#eef2f7", borda: "#647c97" },
+  licenciada_direta:        { label: "Licenciada Direta",   cor: "#45B8CC", bg: "#e3f7fb", borda: "#45B8CC" },
+  licenciada_por_clinica:   { label: "Lic. por Clínica",   cor: "#c2a05a", bg: "#faf2e3", borda: "#c2a05a" },
+  clinica_propria_vivencia: { label: "Vivência CEO",        cor: "#7c3aed", bg: "#f3eeff", borda: "#7c3aed" },
 };
 
 const TIPOS_OPTIONS: { value: TipoLicenciamento; label: string }[] = [
-  { value: "propria",               label: "Própria (clínica do CEO)" },
-  { value: "sub_unidade",           label: "Sub-unidade (filial)" },
-  { value: "licenciada_direta",     label: "Licenciada Direta (paga ao PAXTER)" },
-  { value: "licenciada_por_clinica",label: "Licenciada por Clínica (paga à mãe)" },
+  { value: "propria",                  label: "Própria (clínica do CEO)" },
+  { value: "sub_unidade",              label: "Sub-unidade (filial)" },
+  { value: "licenciada_direta",        label: "Licenciada Direta (paga ao PAXTER)" },
+  { value: "licenciada_por_clinica",   label: "Licenciada por Clínica (paga à mãe)" },
+  { value: "clinica_propria_vivencia", label: "Vivência CEO — Clínica própria, ISENTA de pagamento" },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -65,14 +67,20 @@ function fmtBRL(val: string | number | null | undefined): string {
   return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function isIsento(tipo: string): boolean {
+  return tipo === "propria" || tipo === "clinica_propria_vivencia";
+}
+
 function calcReceita(nos: EmpresaNo[]): { direto: number; royalties: number } {
   let direto = 0;
   let royalties = 0;
   for (const no of nos) {
-    const val = parseFloat(no.valorMensalContrato ?? "0") || 0;
-    const pct = parseFloat(no.royaltyPercent ?? "30") || 30;
-    if (no.tipoLicenciamento === "licenciada_direta") direto += val;
-    if (no.tipoLicenciamento === "licenciada_por_clinica") royalties += (val * pct) / 100;
+    if (!isIsento(no.tipoLicenciamento)) {
+      const val = parseFloat(no.valorMensalContrato ?? "0") || 0;
+      const pct = parseFloat(no.royaltyPercent ?? "30") || 30;
+      if (no.tipoLicenciamento === "licenciada_direta") direto += val;
+      if (no.tipoLicenciamento === "licenciada_por_clinica") royalties += (val * pct) / 100;
+    }
     const sub = calcReceita(no.filhos);
     direto += sub.direto;
     royalties += sub.royalties;
@@ -126,12 +134,21 @@ function EmpresaCard({ no, onDrive, onEdit }: {
     >
       {/* Topo */}
       <div className="bevel-3d flex items-center gap-2 px-3 py-2">
-        {no.isPlatformOwner && <Crown className="h-3.5 w-3.5 shrink-0 text-[#c2a05a]" />}
+        {no.tipoLicenciamento === "clinica_propria_vivencia"
+          ? <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#7c3aed]" />
+          : no.isPlatformOwner && <Crown className="h-3.5 w-3.5 shrink-0 text-[#c2a05a]" />
+        }
         <span className="truncate text-[12px] font-bold text-[#16294a]">{no.nome}</span>
       </div>
       {/* Corpo */}
       <div className="px-3 py-2 space-y-1">
         <TipoBadge tipo={no.tipoLicenciamento} />
+        {no.tipoLicenciamento === "clinica_propria_vivencia" && (
+          <div className="flex items-center gap-1 mt-1">
+            <BadgeCheck className="h-3 w-3 text-emerald-600" />
+            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-700">Isenta de pagamento</span>
+          </div>
+        )}
         {no.donoNome && (
           <div className="text-[10px] text-[#647c97]">
             <span className="font-semibold">Responsável:</span> {no.donoNome}
@@ -289,6 +306,20 @@ function Modal({ inicial, todasEmpresas, onSalvar, onFechar, salvando }: {
               {TIPOS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
+          {/* Aviso de isenção — aparece só para Vivência CEO */}
+          {form.tipoLicenciamento === "clinica_propria_vivencia" && (
+            <div className="concave-3d flex items-start gap-2 px-3 py-2.5 rounded"
+              style={{ borderLeft: "3px solid #7c3aed" }}>
+              <Sparkles className="h-4 w-4 text-[#7c3aed] mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#7c3aed]">Modo Vivência CEO</p>
+                <p className="text-[11px] text-[#647c97] mt-0.5">
+                  Esta clínica aparece na hierarquia como licenciada, mas <strong>não será cobrada</strong>.
+                  Objetivo: o CEO vivencia em primeira pessoa a experiência dos seus clientes.
+                </p>
+              </div>
+            </div>
+          )}
           {/* Empresa mãe (condicional) */}
           {precisaMae && (
             <div>

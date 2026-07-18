@@ -157,6 +157,7 @@ const navigation: NavEntry[] = [
       { name: "E-mails", href: "/comunicacao/emails", icon: Mail },
       { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
       { name: "Status WhatsApp", href: "/comunicacao/whatsapp-status", icon: MessageSquareText },
+      { name: "Central de Auditoria", href: "/comunicacao/central-auditoria", icon: ShieldCheck },
     ],
   },
   {
