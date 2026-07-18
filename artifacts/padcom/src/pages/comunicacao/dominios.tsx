@@ -913,7 +913,7 @@ function BlocoRegistradores() {
       <div className="panel-3d rounded-md overflow-hidden">
 
         {/* Faixa-título do seletor */}
-        <div className="concave-3d px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4">
+        <div className="bevel-3d px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4">
           <div>
             <p style={HERMES} className="text-[13px] text-foreground/90 tracking-wide">
               Plataforma Ativa para Novos Registros
@@ -936,8 +936,8 @@ function BlocoRegistradores() {
             const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
             return (
               <div key={cat.id} className="space-y-2">
-                {/* Faixa-categoria concave (rebaixada) */}
-                <div className="concave-3d px-3 py-1.5 rounded-md">
+                {/* Faixa-categoria bevel (saliente) */}
+                <div className="bevel-3d px-3 py-1.5 rounded-md">
                   <p style={HERMES} className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
                     {cat.label} — {cat.descricao}
                   </p>
@@ -981,8 +981,8 @@ function BlocoRegistradores() {
         const regs = REGISTRADORES.filter(r => r.categoria === cat.id);
         return (
           <div key={cat.id} className="space-y-2.5">
-            {/* Separador de categoria — faixa concave luxuosa */}
-            <div className="concave-3d rounded-md px-5 py-2.5 flex items-center gap-3">
+            {/* Separador de categoria — faixa bevel saliente */}
+            <div className="bevel-3d rounded-md px-5 py-2.5 flex items-center gap-3">
               <div className="h-px flex-1 bg-border/40" />
               <p style={HERMES} className="text-[11px] text-muted-foreground uppercase tracking-[0.22em] whitespace-nowrap">
                 {cat.label} — {cat.descricao}
@@ -1317,6 +1317,91 @@ function BlocoEmail({ dominiosSelecionados }: { dominiosSelecionados: Dominio[] 
   );
 }
 
+// ── BLOCO E — Empresas Licenciadas ────────────────────────────────────────
+
+function BlocoLicenciadas({
+  dominios, onEditar,
+}: { dominios: Dominio[]; onEditar: (d: Dominio) => void }) {
+  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
+  const pagos = dominios.filter(d => d.modulo_pago);
+
+  return (
+    <div className="panel-3d space-y-0 overflow-hidden">
+      {/* Cabeçalho */}
+      <div className="bevel-3d px-5 py-3 flex items-center gap-2">
+        <Building2 className="h-4 w-4 text-primary" />
+        <div>
+          <p style={HERMES} className="text-[13px] text-foreground/90 tracking-wide">
+            Bloco E — Empresas Licenciadas
+          </p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
+            Domínios PAXTER disponibilizados como módulo pago para clínicas parceiras
+          </p>
+        </div>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {pagos.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
+            <Building2 className="h-10 w-10 opacity-10" />
+            <p className="text-sm">Nenhum domínio marcado como módulo pago para clínicas.</p>
+            <p className="text-xs text-muted-foreground/70">
+              No Bloco C, abra um domínio → aba "Módulo Pago Clínica" e ative o toggle.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bevel-3d">
+                  <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Domínio</th>
+                  <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Titular</th>
+                  <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">CPF / CNPJ</th>
+                  <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Valor / mês</th>
+                  <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                  <th className="px-2 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pagos.map(d => (
+                  <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono font-semibold text-primary">{d.dominio}</span>
+                    </td>
+                    <td className="px-4 py-3 text-foreground/80">{d.titular_nome ?? <span className="text-muted-foreground/50 italic">—</span>}</td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">{d.titular_documento ?? "—"}</td>
+                    <td className="px-4 py-3 tabular-nums font-semibold">
+                      {d.valor_mensal_centavos
+                        ? `R$ ${(d.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : <span className="text-muted-foreground/50 italic">—</span>}
+                    </td>
+                    <td className="px-4 py-3"><BadgeDominio status={d.status} /></td>
+                    <td className="px-2 py-3">
+                      <button onClick={() => onEditar(d)}
+                        className="rounded border border-border/60 px-2 py-1 text-[10px] font-semibold hover:bg-muted transition-colors">
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Fluxo de aprovação */}
+        <div className="bevel-3d rounded-md px-4 py-3 space-y-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Fluxo de aprovação de clínica licenciada</p>
+          <p className="text-[11px] text-muted-foreground">
+            Clínica solicita → CEO aprova via WhatsApp → Asaas gera cobrança → pagamento confirmado → Zoho cria e-mail corporativo automaticamente.
+          </p>
+          <p className="text-[10px] text-muted-foreground/60 italic">Módulo de solicitação externa: próxima onda.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── TELA PRINCIPAL ────────────────────────────────────────────────────────
 
 export default function PainelDominios() {
@@ -1389,6 +1474,12 @@ export default function PainelDominios() {
       {selecionados.size > 0 && (
         <BlocoEmail dominiosSelecionados={dominiosSelecionados} />
       )}
+
+      {/* Bloco E — Empresas Licenciadas (sempre visível) */}
+      <BlocoLicenciadas
+        dominios={dominios}
+        onEditar={d => setSelecionados(new Set([d.id]))}
+      />
     </ConsoleShell>
   );
 }
