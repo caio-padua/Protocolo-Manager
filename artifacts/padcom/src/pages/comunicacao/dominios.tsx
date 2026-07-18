@@ -585,8 +585,6 @@ function BlocoRegistrador({
     finally { setSaving(false); }
   }
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
-
   return (
     <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden transition-all duration-200 ${isAtivo ? `ring-2 ring-offset-1 ${config.corSeletor}` : ""}`}>
 
@@ -608,7 +606,7 @@ function BlocoRegistrador({
           {/* Nome + descrição */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span style={HERMES} className={`text-[15px] font-normal tracking-wide ${isAtivo ? "text-primary" : "text-foreground"}`}>
+              <span className={`text-[15px] font-normal tracking-wide ${isAtivo ? "text-primary" : "text-foreground"}`}>
                 {config.nome}
               </span>
               {isAtivo && (
@@ -644,7 +642,7 @@ function BlocoRegistrador({
             {/* TLDs — painel concave (rebaixado) */}
             <div className="space-y-1.5">
               <div className="bevel-3d px-3 py-1.5 rounded-t-md rounded-b-none border-b-0">
-                <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+                <p className="text-[11px] text-muted-foreground tracking-widest uppercase">
                   TLDs Suportados
                 </p>
               </div>
@@ -656,7 +654,7 @@ function BlocoRegistrador({
             {/* Preços — painel concave (rebaixado) */}
             <div className="space-y-1.5">
               <div className="bevel-3d px-3 py-1.5 rounded-t-md rounded-b-none border-b-0">
-                <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+                <p className="text-[11px] text-muted-foreground tracking-widest uppercase">
                   Preço Médio · Anual
                 </p>
               </div>
@@ -683,7 +681,7 @@ function BlocoRegistrador({
           {/* ── Seção: Credenciais ── */}
           <div className="space-y-2.5">
             <div className="bevel-3d px-4 py-2 rounded-md">
-              <p style={HERMES} className="text-[11px] text-muted-foreground tracking-widest uppercase">
+              <p className="text-[11px] text-muted-foreground tracking-widest uppercase">
                 Credenciais de Acesso · 5 campos uniformes
               </p>
             </div>
@@ -821,7 +819,6 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
     );
   }
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 
   return (
     <div className="panel-3d overflow-hidden">
@@ -829,7 +826,7 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
       <div className="bevel-3d px-5 py-3 flex items-center gap-3 border-b border-border/50">
         <Search className="h-4 w-4 text-primary/70 flex-shrink-0" />
         <div>
-          <p style={HERMES} className="text-[13px] text-foreground tracking-wide">Verificador de Disponibilidade</p>
+          <p className="text-[13px] text-foreground tracking-wide">Verificador de Disponibilidade</p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">Bloco A — consulta RDAP público em tempo real</p>
         </div>
       </div>
@@ -891,7 +888,6 @@ function BlocoRegistradores() {
 
   const configAtivo = REGISTRADORES.find(r => r.id === ativo)!;
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 
   return (
     <div className="space-y-5">
@@ -900,7 +896,7 @@ function BlocoRegistradores() {
       <div className="bevel-3d px-5 py-3 flex items-center gap-3 rounded-md">
         <Settings className="h-4 w-4 text-primary/70 flex-shrink-0" />
         <div>
-          <p style={HERMES} className="text-[13px] text-foreground tracking-wide">
+          <p className="text-[13px] text-foreground tracking-wide">
             Plataformas de Registro & Credenciais
           </p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
@@ -915,7 +911,7 @@ function BlocoRegistradores() {
         {/* Faixa-título do seletor */}
         <div className="bevel-3d px-5 py-3 border-b border-border/50 flex items-center justify-between gap-4">
           <div>
-            <p style={HERMES} className="text-[13px] text-foreground/90 tracking-wide">
+            <p className="text-[13px] text-foreground/90 tracking-wide">
               Plataforma Ativa para Novos Registros
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -926,7 +922,7 @@ function BlocoRegistradores() {
           <div className="flex items-center gap-2 bevel-3d px-3 py-1.5 rounded flex-shrink-0">
             <span className="paxter-led paxter-led-amber paxter-led-breathe" />
             <configAtivo.icon className="h-3.5 w-3.5 text-primary" />
-            <span style={HERMES} className="text-[12px] text-primary whitespace-nowrap">{configAtivo.nome}</span>
+            <span className="text-[12px] text-primary whitespace-nowrap">{configAtivo.nome}</span>
           </div>
         </div>
 
@@ -938,7 +934,7 @@ function BlocoRegistradores() {
               <div key={cat.id} className="space-y-2">
                 {/* Faixa-categoria bevel (saliente) */}
                 <div className="bevel-3d px-3 py-1.5 rounded-md">
-                  <p style={HERMES} className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">
                     {cat.label} — {cat.descricao}
                   </p>
                 </div>
@@ -959,7 +955,7 @@ function BlocoRegistradores() {
                         </div>
                         <r.icon className={`h-3.5 w-3.5 flex-shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground/80"}`} />
                         <div className="min-w-0">
-                          <p style={sel ? HERMES : undefined} className={`text-[12px] truncate ${sel ? "text-primary" : "text-foreground/80 text-[11px] font-medium"}`}>
+                          <p className={`text-[12px] truncate font-semibold ${sel ? "text-primary" : "text-foreground/80 text-[11px] font-medium"}`}>
                             {r.nome}
                           </p>
                           <p className="text-[10px] text-muted-foreground truncate tabular-nums">
@@ -984,7 +980,7 @@ function BlocoRegistradores() {
             {/* Separador de categoria — faixa bevel saliente */}
             <div className="bevel-3d rounded-md px-5 py-2.5 flex items-center gap-3">
               <div className="h-px flex-1 bg-border/40" />
-              <p style={HERMES} className="text-[11px] text-muted-foreground uppercase tracking-[0.22em] whitespace-nowrap">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-[0.22em] whitespace-nowrap">
                 {cat.label} — {cat.descricao}
               </p>
               <div className="h-px flex-1 bg-border/40" />
@@ -1056,56 +1052,73 @@ function BlocoControle({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-3 py-2.5 w-10"></th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Domínio</th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Registrador</th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">DNS</th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Zoho</th>
-                  <th className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-muted-foreground">Expira</th>
-                  <th className="px-2 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {dominios.map(d => (
-                  <tr key={d.id} className={`transition-colors ${selecionados.has(d.id) ? "bg-primary/5" : "hover:bg-muted/20"}`}>
-                    <td className="px-3 py-3 text-center">
-                      <input type="checkbox" checked={selecionados.has(d.id)} onChange={() => onToggle(d.id)}
-                        className="h-4 w-4 rounded border-border accent-primary cursor-pointer" />
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="font-mono font-semibold">{d.dominio}</span>
-                      {d.modulo_pago && <Badge label="Pago" cor="azul" />}
-                    </td>
-                    <td className="px-3 py-3"><BadgeDominio status={d.status} /></td>
-                    <td className="px-3 py-3 capitalize text-muted-foreground">{d.registrador ?? "—"}</td>
-                    <td className="px-3 py-3 text-muted-foreground">{d.dns_provider ?? "—"}</td>
-                    <td className="px-3 py-3">
-                      {d.zoho_verificado
-                        ? <Badge label="Verificado" cor="verde" />
-                        : <Badge label="Pendente" cor="amarelo" />}
-                    </td>
-                    <td className="px-3 py-3 font-mono text-muted-foreground">
-                      {d.expira_em ? new Date(d.expira_em).toLocaleDateString("pt-BR") : "—"}
-                    </td>
-                    <td className="px-2 py-3 flex items-center gap-1">
+          <div className="space-y-2">
+            {dominios.map(d => {
+              const sel = selecionados.has(d.id);
+              const ativo = d.status === "ativo";
+              return (
+                <div key={d.id}
+                  className={`panel-3d border-l-4 overflow-hidden transition-all duration-200 ${
+                    sel ? "border-primary ring-2 ring-offset-1 ring-primary/30" : "border-border/40"
+                  }`}>
+                  <div className="flex items-center">
+                    {/* Área clicável principal — seleciona o domínio */}
+                    <button onClick={() => onToggle(d.id)}
+                      className="flex-1 flex items-center gap-3.5 px-5 py-4 hover:bg-muted/20 transition-colors text-left">
+
+                      {/* LED + ícone */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {ativo
+                          ? <span className="paxter-led paxter-led-amber paxter-led-breathe" title="Ativo" />
+                          : <span className="paxter-led paxter-led-off" title={d.status} />}
+                        <Globe className={`h-4 w-4 ${sel ? "text-primary" : "text-muted-foreground/60"}`} />
+                      </div>
+
+                      {/* Domínio + descrição */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className={`font-mono font-bold text-[14px] ${sel ? "text-primary" : "text-foreground"}`}>
+                            {d.dominio}
+                          </span>
+                          {sel && (
+                            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-primary/10 text-primary border border-primary/25">
+                              Selecionado
+                            </span>
+                          )}
+                          {d.modulo_pago && <Badge label="Pago" cor="azul" />}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">
+                          {d.registrador ?? "Manual"} · DNS {d.dns_provider ?? "—"}
+                          {d.expira_em ? ` · Expira ${new Date(d.expira_em).toLocaleDateString("pt-BR")}` : ""}
+                        </p>
+                      </div>
+
+                      {/* Badges de status */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <BadgeDominio status={d.status} />
+                        {d.zoho_verificado
+                          ? <Badge label="Zoho ✓" cor="verde" />
+                          : <Badge label="Zoho" cor="amarelo" />}
+                      </div>
+                    </button>
+
+                    {/* Ações rápidas */}
+                    <div className="flex items-center gap-1 pr-3 flex-shrink-0">
                       <button onClick={() => abrirModal({ dominio: d.dominio, registrador: d.registrador ?? "manual", notas: d.notas ?? "" })}
-                        className="rounded p-1 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                        className="rounded p-1.5 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                        title="Editar">
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => onDelete(d.id, d.dominio)}
-                        className="rounded p-1 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-muted-foreground hover:text-red-500">
+                        className="rounded p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-muted-foreground hover:text-red-500"
+                        title="Remover">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1322,7 +1335,6 @@ function BlocoEmail({ dominiosSelecionados }: { dominiosSelecionados: Dominio[] 
 function BlocoLicenciadas({
   dominios, onEditar,
 }: { dominios: Dominio[]; onEditar: (d: Dominio) => void }) {
-  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
   const pagos = dominios.filter(d => d.modulo_pago);
 
   return (
@@ -1331,7 +1343,7 @@ function BlocoLicenciadas({
       <div className="bevel-3d px-5 py-3 flex items-center gap-2">
         <Building2 className="h-4 w-4 text-primary" />
         <div>
-          <p style={HERMES} className="text-[13px] text-foreground/90 tracking-wide">
+          <p className="text-[13px] text-foreground/90 tracking-wide">
             Bloco E — Empresas Licenciadas
           </p>
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
