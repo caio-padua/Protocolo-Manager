@@ -53,3 +53,4 @@ export * from "./assinatura";
 export * from "./empresas";
 export * from "./cargos";
 export * from "./colaboradores";
+export * from "./email-log";

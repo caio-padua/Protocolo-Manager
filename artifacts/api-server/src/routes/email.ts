@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, desc } from "drizzle-orm";
 import {
   db,
   sessionsTable,
@@ -9,6 +9,7 @@ import {
   validationCodesTable,
   rasTable,
   locationsTable,
+  emailLogTable,
 } from "@workspace/db";
 import {
   sendPreSessionEmail,
@@ -17,8 +18,11 @@ import {
   type PreSessionEmailData,
   type PostSessionEmailData,
 } from "../lib/email-service";
+import { getGmailAddress } from "../lib/google-gmail";
 
 const router: IRouter = Router();
+
+// ── helpers ────────────────────────────────────────────────────────────────
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -38,11 +42,104 @@ function procedureTypeLabel(type: string): string {
   }
 }
 
+/** Mascara e-mail: primeiros 3 chars + ***@domínio. Ex.: abc@gmail.com → abc***@gmail.com */
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const prefix = local.substring(0, Math.min(3, local.length));
+  return `${prefix}***@${domain}`;
+}
+
+/** Grava linha no log de e-mail sem lançar erro (fire-and-forget seguro). */
+async function logEmail(opts: {
+  tipo: string;
+  clienteNome: string;
+  destinatario: string;
+  assunto: string;
+  status: "enviado" | "falhou";
+  erro?: string;
+  sessionId?: number;
+}): Promise<void> {
+  try {
+    await db.insert(emailLogTable).values({
+      tipo: opts.tipo,
+      clienteNome: opts.clienteNome,
+      destinatario: opts.destinatario,
+      assunto: opts.assunto,
+      status: opts.status,
+      erro: opts.erro ?? null,
+      sessionId: opts.sessionId ?? null,
+      provider: "gmail",
+    });
+  } catch (e) {
+    // log não pode derrubar o fluxo principal
+  }
+}
+
+// ── rotas ──────────────────────────────────────────────────────────────────
+
 router.get("/email/status", async (_req, res): Promise<void> => {
   const configured = await isEmailConfigured();
-  res.json({ configured });
+  let fromAddress: string | null = null;
+  if (configured) {
+    fromAddress = await getGmailAddress();
+  }
+  res.json({ configured, fromAddress, gmail: configured });
 });
 
+// ── GET /email/log — histórico de envios com filtros ──────────────────────
+router.get("/email/log", async (req, res): Promise<void> => {
+  const limit = Math.min(parseInt(String(req.query.limit ?? "100")), 500);
+  const tipo = String(req.query.tipo ?? "");
+  const status = String(req.query.status ?? "");
+  const periodo = String(req.query.periodo ?? ""); // hoje | 7d | 30d | tudo
+
+  let rows = await db.select().from(emailLogTable).orderBy(desc(emailLogTable.criadoEm)).limit(limit);
+
+  // filtro por tipo
+  if (tipo && tipo !== "todos") {
+    rows = rows.filter(r => r.tipo === tipo);
+  }
+  // filtro por status
+  if (status && status !== "todos") {
+    rows = rows.filter(r => r.status === status);
+  }
+  // filtro por período
+  if (periodo && periodo !== "tudo") {
+    const now = new Date();
+    let cutoff: Date;
+    if (periodo === "hoje") {
+      cutoff = new Date(now.toISOString().split("T")[0] + "T00:00:00.000Z");
+    } else if (periodo === "7d") {
+      cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else {
+      cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+    rows = rows.filter(r => new Date(r.criadoEm) >= cutoff);
+  }
+
+  // máscara do destinatário na resposta
+  const masked = rows.map(r => ({
+    ...r,
+    destinatario: maskEmail(r.destinatario),
+  }));
+
+  res.json({ total: masked.length, items: masked });
+});
+
+// ── GET /email/stats — KPIs resumidos ─────────────────────────────────────
+router.get("/email/stats", async (_req, res): Promise<void> => {
+  const all = await db.select().from(emailLogTable);
+  const hoje = new Date().toISOString().split("T")[0];
+  res.json({
+    total: all.length,
+    enviados: all.filter(r => r.status === "enviado").length,
+    falhas: all.filter(r => r.status === "falhou").length,
+    hoje: all.filter(r => r.criadoEm.toISOString().startsWith(hoje)).length,
+  });
+});
+
+// ── POST /email/send-pre-session/:sessionId ───────────────────────────────
 router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void> => {
   const sessionId = parseInt(req.params.sessionId);
   if (isNaN(sessionId)) {
@@ -69,7 +166,6 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
 
   const applications = await db.select().from(substanceApplicationsTable)
     .where(eq(substanceApplicationsTable.sessionId, sessionId));
-
   const dispApps = applications.filter(a => a.availability === "disp");
   if (dispApps.length === 0) {
     res.status(400).json({ error: "No substances scheduled for this session" });
@@ -100,34 +196,23 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
         procedureType: substance.procedureType ?? "iv",
         sessionNumber: app.sessionNumber,
         totalSessions: app.totalSessions,
-        description: substance.description ?? undefined,
-        mainFunction: substance.mainFunction ?? undefined,
-        perceivedEffects: substance.perceivedEffects ?? undefined,
-        timeToEffect: substance.timeToEffect ?? undefined,
-        longevityBenefit: substance.longevityBenefit ?? undefined,
-        sleepBenefit: substance.sleepBenefit ?? undefined,
-        energyBenefit: substance.energyBenefit ?? undefined,
-        physicalPerformance: substance.physicalPerformance ?? undefined,
-        skinHairNails: substance.skinHairNails ?? undefined,
-        categoryType: substance.categoryType ?? undefined,
-        starRating: substance.starRating ?? undefined,
-        bodySystemEffects: (substance.bodySystemEffects as Record<string, number>) ?? undefined,
       });
     }
   }
 
   let locationAddress: string | undefined;
   if (session.unit) {
-    const locations = await db.select().from(locationsTable);
-    const loc = locations.find(l => l.name.toLowerCase().includes(session.unit!.toLowerCase()) || session.unit!.toLowerCase().includes(l.name.toLowerCase()));
+    const locs = await db.select().from(locationsTable);
+    const loc = locs.find(l => l.name.toLowerCase().includes(session.unit!.toLowerCase()) || session.unit!.toLowerCase().includes(l.name.toLowerCase()));
     if (loc?.address) locationAddress = loc.address;
   }
 
   const primaryProcType = substances[0]?.procedureType ?? "iv";
+  const assunto = `PAXTER | ${procedureTypeLabel(primaryProcType)} | ${code}`;
 
   const result = await sendPreSessionEmail({
-    clientName: client.name,
     clientEmail: client.email,
+    clientName: client.name,
     validationCode: code,
     scheduledDate: session.scheduledDate,
     scheduledTime: session.scheduledTime,
@@ -141,6 +226,16 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
     sessionStatus: session.status,
   });
 
+  await logEmail({
+    tipo: "pre_sessao",
+    clienteNome: client.name,
+    destinatario: client.email,
+    assunto,
+    status: result.success ? "enviado" : "falhou",
+    erro: result.error,
+    sessionId,
+  });
+
   if (result.success) {
     res.json({ success: true, code, message: "Pre-session email sent" });
   } else {
@@ -148,10 +243,7 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
   }
 });
 
-// SUB-04 item 4: reenvio manual do convite .ics (e-mail pré-sessão).
-// NÃO duplica: reaproveita o código de validação válido mais recente da sessão;
-// só gera um novo se não houver nenhum vigente. O .ics tem UID estável + SEQUENCE,
-// então reimportar ATUALIZA o evento no celular do cliente (não cria duplicata).
+// ── POST /email/resend-ics/:sessionId ────────────────────────────────────
 router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
   const sessionId = parseInt(req.params.sessionId);
   if (isNaN(sessionId)) {
@@ -232,6 +324,8 @@ router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
   }
 
   const primaryProcType = substances[0]?.procedureType ?? "iv";
+  const assunto = `PAXTER | ICS Reenviado | ${procedureTypeLabel(primaryProcType)}`;
+
   const result = await sendPreSessionEmail({
     clientName: client.name,
     clientEmail: client.email,
@@ -248,6 +342,16 @@ router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
     sessionStatus: session.status,
   });
 
+  await logEmail({
+    tipo: "ics_reenviado",
+    clienteNome: client.name,
+    destinatario: client.email,
+    assunto,
+    status: result.success ? "enviado" : "falhou",
+    erro: result.error,
+    sessionId,
+  });
+
   if (result.success) {
     res.json({ success: true, code, reusedCode, message: "Convite .ics reenviado" });
   } else {
@@ -255,6 +359,7 @@ router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
   }
 });
 
+// ── POST /email/send-post-session/:sessionId ─────────────────────────────
 router.post("/email/send-post-session/:sessionId", async (req, res): Promise<void> => {
   const sessionId = parseInt(req.params.sessionId);
   if (isNaN(sessionId)) {
@@ -311,8 +416,10 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
       }
     }
   } catch (e) {
-    console.error("Could not attach RAS PDF:", e);
+    // RAS PDF opcional — não bloqueia o e-mail
   }
+
+  const assunto = `PAXTER | Sessão Concluída | ${session.scheduledDate}`;
 
   const result = await sendPostSessionEmail({
     clientName: client.name,
@@ -323,6 +430,16 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
     rasId,
   });
 
+  await logEmail({
+    tipo: "pos_sessao",
+    clienteNome: client.name,
+    destinatario: client.email,
+    assunto,
+    status: result.success ? "enviado" : "falhou",
+    erro: result.error,
+    sessionId,
+  });
+
   if (result.success) {
     res.json({ success: true, message: "Post-session email sent" });
   } else {
@@ -330,6 +447,7 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
   }
 });
 
+// ── POST /email/send-weekly-reminders ─────────────────────────────────────
 router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => {
   if (!(await isEmailConfigured())) {
     res.status(503).json({ error: "Gmail not connected" });
@@ -411,6 +529,8 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
     }
 
     const primaryProcType = substances[0]?.procedureType ?? "iv";
+    const assunto = `PAXTER | Lembrete Semanal | ${procedureTypeLabel(primaryProcType)} | ${code}`;
+
     const emailResult = await sendPreSessionEmail({
       clientName: client.name,
       clientEmail: client.email,
@@ -425,6 +545,16 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
       sessionId: session.id,
       weekNumber: session.weekNumber,
       sessionStatus: session.status,
+    });
+
+    await logEmail({
+      tipo: "lembrete_semanal",
+      clienteNome: client.name,
+      destinatario: client.email,
+      assunto,
+      status: emailResult.success ? "enviado" : "falhou",
+      erro: emailResult.error,
+      sessionId: session.id,
     });
 
     results.push({
