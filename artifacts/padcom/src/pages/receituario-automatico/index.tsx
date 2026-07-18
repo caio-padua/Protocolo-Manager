@@ -1,26 +1,31 @@
 /**
- * PRESCRIÇÃO AUTOMÁTICA — Linha do Tempo
- * Ferramenta premium de prescrição magistral com timeline visual.
+ * PROGRAMA CLÍNICO DE PRESCRIÇÃO
+ * ════════════════════════════════════════════════════════════════════
+ * Ferramenta-mãe que reúne, num único painel segmentado e numerado:
  *
- * BLOCOS:
- *   1. Config bar  — cliente + N entregas + frequência + data início
- *   2. Construtor  — slots horizontais clicáveis + editor completo
- *   3. Linha do tempo — prévia visual com nós e setas
- *   4. Agendas salvas — ferramenta original preservada
+ *  [0] CONFIGURAÇÃO DO PROGRAMA — cliente, frequência, mensalidade
+ *  [1] PRESCRIÇÃO DE FÓRMULAS MAGISTRAIS — ferramenta original completa
+ *  [2] SOLICITAÇÃO DE EXAMES           — ferramenta original completa
+ *  [3] LINHA DO TEMPO                  — painel fino com nós editáveis
+ *
+ * Design: TDAH-friendly, grade imaginária vertical+horizontal,
+ * separadores visuais fortes, alinhamento consistente em todos os blocos.
+ * ════════════════════════════════════════════════════════════════════
  */
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  Calendar, Plus, Minus, ChevronLeft, ChevronRight,
-  CheckCircle2, Clock, AlertTriangle, X, Save, Loader2,
-  Search, FlaskConical, Trash2, Edit3, Play,
-  Mail, MessageCircle, HardDrive, ChevronDown, ChevronUp,
-  Send, RefreshCw, ToggleLeft, ToggleRight, Globe,
-  Smartphone, Settings, Info,
+  FlaskConical, Microscope, Calendar, Save, Plus, Minus,
+  ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
+  CheckCircle2, Clock, Edit3, Loader2, Play, ChevronDown,
+  ChevronUp, ToggleLeft, ToggleRight, Banknote, Bell, Info,
+  Pill,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
 import { cn } from "@/lib/utils";
+import PrescricaoPage from "@/pages/prescricao";
+import ExamesPage from "@/pages/exames";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -43,343 +48,519 @@ function addDias(base: string, dias: number): string {
 function fmtData(iso: string) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
+  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  return `${d}/${meses[parseInt(m) - 1]}`;
 }
 function uid() { return Math.random().toString(36).slice(2, 9); }
+function fmtBRL(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 // ─── tipos ────────────────────────────────────────────────────────────────────
-type FormulaCatalog = { id: string; nome: string; ativoPrincipal?: string; posologia?: string; via?: string; };
-type EntregaFormula = { id: string; catalogId?: string; nome: string; dose: string; posologia: string; via: string; observacao: string; };
-type EntregaExame   = { id: string; nome: string; };
-type Entrega = { id: string; numero: number; dataLiberacao: string; nomeReceita: string; formulas: EntregaFormula[]; exames: EntregaExame[]; };
-
-type SlotFormula = { nome: string; catalogId?: string; ativoPrincipal?: string; posologia?: string; dose?: string; via?: string; observacao?: string; };
-type Slot = {
-  id: number; agendaId: number; clientId: number; numeroSequencia: number;
-  nome: string; dataLiberacao: string; formulas: SlotFormula[];
-  canais: string[] | null; status: "AGUARDANDO" | "LIBERADA" | "ENTREGUE" | "ERRO";
-  pdfUrl?: string; driveWebViewLink?: string;
-  enviadoEmailEm?: string; enviadoWhatsappEm?: string; enviadoTelegramEm?: string;
-  proximaLiberacao?: string; diasAntecedenciaOverride?: number;
+type ClienteLite = { id: number; name: string; cpf?: string | null; };
+type NoFormula = { id: string; nome: string; dose?: string; posologia?: string; via?: string; };
+type NoExame   = { id: string; nome: string; };
+type No = {
+  id: string;
+  numero: number;
+  dataLiberacao: string;
+  nomeReceita: string;
+  formulas: NoFormula[];
+  exames: NoExame[];
+  /** status de pagamento (se programa com mensalidade) */
+  pagamentoStatus: "livre" | "pago" | "pendente" | "inadimplente";
 };
+
 type Agenda = {
-  id: number; clientId: number; nome: string; descricao?: string;
-  frequenciaPadraoDias: number; diasAntecedencia: number;
-  canaisPadrao: string[]; ativo: boolean; criadoEm: string;
-  proximaLiberacao?: string; slots?: Slot[];
+  id: number; clientId: number; nome: string; frequenciaPadraoDias: number;
+  ativo: boolean; criadoEm: string; slots?: Slot[];
 };
-type ProtocoloLite = { id: number; title: string; };
-type ClienteLite   = { id: number; name: string; cpf?: string | null; };
+type Slot = {
+  id: number; nome: string; dataLiberacao: string; status: string;
+  formulas: NoFormula[]; canais: string[] | null;
+};
 
-// ─── constantes ───────────────────────────────────────────────────────────────
-const VIAS = ["Oral", "Sublingual", "Tópica", "Transdérmica", "Retal", "Inalatória", "Nasal", "Outra"];
-const CANAIS_TODOS = ["email", "whatsapp", "telegram", "portal"];
+// ─── constante de catálogo rápido no timeline ─────────────────────────────────
+const CATALOG_API = "/api/prescription-formulas";
+const EXAMES_API  = "/api/catalogos/exames";
+const VIAS_RAPIDAS = ["Oral", "Sublingual", "Tópica", "IV", "IM", "Outra"];
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Sub-componente: divisor de bloco numerado ─────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function DivisorBloco({
+  numero, titulo, subtitulo, cor, icon: Icon,
+}: {
+  numero: number;
+  titulo: string;
+  subtitulo?: string;
+  cor: "emerald" | "amber" | "sky" | "primary";
+  icon: React.ElementType;
+}) {
+  const cores: Record<string, string> = {
+    emerald: "bg-emerald-700 text-white",
+    amber:   "bg-amber-600 text-white",
+    sky:     "bg-sky-700 text-white",
+    primary: "bg-primary text-primary-foreground",
+  };
+  return (
+    <div className="relative flex items-center gap-0 my-2 select-none">
+      {/* linha esquerda */}
+      <div className="flex-1 h-px bg-border/70" />
+      {/* cápsula central */}
+      <div className="flex items-center gap-3 bevel-3d px-5 py-2.5 mx-4">
+        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-base font-black shrink-0", cores[cor])}>
+          {numero}
+        </div>
+        <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] font-black leading-none">{titulo}</div>
+          {subtitulo && <div className="text-[10px] text-muted-foreground mt-0.5 tracking-wide">{subtitulo}</div>}
+        </div>
+      </div>
+      {/* linha direita */}
+      <div className="flex-1 h-px bg-border/70" />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Sub-componente: nó de timeline + editor inline ───────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function NoTimeline({
+  no, ativo, onClick, catalogoFormulas, catalogoExames,
+  onUpdateFormula, onAddFormula, onRemoveFormula,
+  onUpdateExame, onAddExame, onRemoveExame,
+  onUpdateNo, temPagamento,
+}: {
+  no: No;
+  ativo: boolean;
+  onClick: () => void;
+  catalogoFormulas: Array<{ id: string; nome: string; posologia?: string; via?: string }>;
+  catalogoExames: string[];
+  onUpdateFormula: (nId: string, fId: string, patch: Partial<NoFormula>) => void;
+  onAddFormula: (nId: string, nome: string, catalogId?: string) => void;
+  onRemoveFormula: (nId: string, fId: string) => void;
+  onUpdateExame: (nId: string, xId: string, patch: Partial<NoExame>) => void;
+  onAddExame: (nId: string, nome: string) => void;
+  onRemoveExame: (nId: string, xId: string) => void;
+  onUpdateNo: (nId: string, patch: Partial<No>) => void;
+  temPagamento: boolean;
+}) {
+  const [bF, setBF] = useState("");
+  const [bX, setBX] = useState("");
+  const temF = no.formulas.length > 0;
+  const temX = no.exames.length > 0;
+  const catF = catalogoFormulas.filter(c => c.nome.toLowerCase().includes(bF.toLowerCase())).slice(0, 8);
+  const catX = catalogoExames.filter(n => n.toLowerCase().includes(bX.toLowerCase())).slice(0, 6);
+
+  const pagBadge: Record<string, string> = {
+    livre:        "bg-slate-100 text-slate-600 border-slate-300",
+    pago:         "bg-emerald-50 text-emerald-700 border-emerald-300",
+    pendente:     "bg-amber-50 text-amber-700 border-amber-300",
+    inadimplente: "bg-rose-50 text-rose-700 border-rose-300",
+  };
+
+  return (
+    <div className="flex flex-col items-center" style={{ minWidth: 160 }}>
+      {/* círculo do nó */}
+      <button
+        type="button"
+        onClick={onClick}
+        title={`Entrega ${no.numero} — ${fmtData(no.dataLiberacao)}`}
+        className={cn(
+          "relative w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all duration-200 z-10",
+          ativo
+            ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110"
+            : (temF && temX)
+              ? "bg-background border-primary/60 text-primary hover:scale-105"
+              : temF
+                ? "bg-background border-emerald-500 text-emerald-700 hover:scale-105"
+                : temX
+                  ? "bg-background border-amber-500 text-amber-700 hover:scale-105"
+                  : "bg-muted border-border/60 text-muted-foreground hover:border-primary/50 hover:scale-105",
+        )}
+      >
+        {no.numero}
+        {/* indicador de conteúdo */}
+        {(temF || temX) && !ativo && (
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary border-2 border-background" />
+        )}
+      </button>
+
+      {/* data */}
+      <div className="text-xs font-bold mt-1.5">{fmtData(no.dataLiberacao)}</div>
+      <div className="text-[10px] text-muted-foreground">E{no.numero}</div>
+
+      {/* badges de conteúdo */}
+      <div className="flex gap-1 mt-1 flex-wrap justify-center">
+        {temF && (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {no.formulas.length}F
+          </span>
+        )}
+        {temX && (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            {no.exames.length}E
+          </span>
+        )}
+        {temPagamento && (
+          <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold border", pagBadge[no.pagamentoStatus])}>
+            {no.pagamentoStatus === "pago" ? "✓" : no.pagamentoStatus === "inadimplente" ? "!" : "?"}
+          </span>
+        )}
+      </div>
+
+      {/* editor inline — expande abaixo do nó quando ativo */}
+      {ativo && (
+        <div className="mt-3 w-[320px] panel-3d-sub p-4 space-y-4 text-left z-20 shadow-xl">
+          {/* cabeçalho do editor */}
+          <div className="flex items-center justify-between pb-2 border-b border-border/40">
+            <div>
+              <div className="font-black text-sm">Entrega {no.numero}</div>
+              <div className="text-[11px] text-muted-foreground">{fmtData(no.dataLiberacao)}</div>
+            </div>
+            {temPagamento && (
+              <select
+                className="field-engraved text-[10px] px-1.5 py-1"
+                value={no.pagamentoStatus}
+                onChange={(e) => onUpdateNo(no.id, { pagamentoStatus: e.target.value as No["pagamentoStatus"] })}
+              >
+                <option value="livre">Livre</option>
+                <option value="pago">Pago</option>
+                <option value="pendente">Pendente</option>
+                <option value="inadimplente">Inadimplente</option>
+              </select>
+            )}
+          </div>
+
+          {/* Fórmulas */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest font-black text-emerald-700 flex items-center gap-1">
+              <FlaskConical className="w-3 h-3" /> Fórmulas Magistrais
+            </div>
+            {no.formulas.map((f) => (
+              <div key={f.id} className="flex items-center gap-2 bg-emerald-50/60 border border-emerald-200 rounded px-2 py-1.5">
+                <input
+                  className="flex-1 bg-transparent text-xs font-medium outline-none"
+                  value={f.nome}
+                  onChange={(e) => onUpdateFormula(no.id, f.id, { nome: e.target.value })}
+                  placeholder="Nome…"
+                />
+                <button onClick={() => onRemoveFormula(no.id, f.id)}
+                  className="text-muted-foreground hover:text-destructive shrink-0">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {/* busca rápida catálogo */}
+            <input
+              className="field-engraved w-full text-xs"
+              placeholder="Buscar fórmula…"
+              value={bF}
+              onChange={(e) => setBF(e.target.value)}
+            />
+            {bF && catF.map((c) => (
+              <button key={c.id} type="button"
+                onClick={() => { onAddFormula(no.id, c.nome, c.id); setBF(""); }}
+                className="w-full text-left text-xs px-2 py-1 hover:bg-primary/10 rounded transition-colors">
+                {c.nome}
+              </button>
+            ))}
+            {!bF && (
+              <button type="button"
+                onClick={() => onAddFormula(no.id, "")}
+                className="w-full text-xs text-muted-foreground border border-dashed border-border/60 rounded py-1 hover:border-primary/40 transition-colors">
+                + fórmula em branco
+              </button>
+            )}
+          </div>
+
+          {/* Exames */}
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-widest font-black text-amber-700 flex items-center gap-1">
+              <Microscope className="w-3 h-3" /> Exames
+            </div>
+            {no.exames.map((x) => (
+              <div key={x.id} className="flex items-center gap-2 bg-amber-50/60 border border-amber-200 rounded px-2 py-1.5">
+                <span className="flex-1 text-xs font-medium truncate">{x.nome}</span>
+                <button onClick={() => onRemoveExame(no.id, x.id)}
+                  className="text-muted-foreground hover:text-destructive shrink-0">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            <input
+              className="field-engraved w-full text-xs"
+              placeholder="Buscar ou digitar exame…"
+              value={bX}
+              onChange={(e) => setBX(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && bX.trim()) { onAddExame(no.id, bX); setBX(""); } }}
+            />
+            {bX && catX.map((n) => (
+              <button key={n} type="button"
+                onClick={() => { onAddExame(no.id, n); setBX(""); }}
+                className="w-full text-left text-xs px-2 py-1 hover:bg-primary/10 rounded transition-colors">
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 export default function ReceituarioAutomatico() {
   const { toast } = useToast();
 
-  // ── Config ─────────────────────────────────────────────────────────────────
+  // ── Config geral ─────────────────────────────────────────────────────────
   const [clientes, setClientes]         = useState<ClienteLite[]>([]);
   const [clienteSelId, setClienteSelId] = useState<number | null>(null);
-  const clienteSel = useMemo(() => clientes.find((c) => c.id === clienteSelId) ?? null, [clientes, clienteSelId]);
+  const clienteSel = useMemo(() => clientes.find(c => c.id === clienteSelId) ?? null, [clientes, clienteSelId]);
 
-  const [nEntregas, setNEntregas]       = useState(3);
-  const [frequenciaDias, setFrequenciaDias] = useState(30);
-  const [dataInicio, setDataInicio]     = useState(hoje());
+  // ── Programa ──────────────────────────────────────────────────────────────
+  const [nomePrograma, setNomePrograma] = useState("");
+  const [nNos, setNNos]               = useState(3);
+  const [frequencia, setFrequencia]   = useState(30);
+  const [dataInicio, setDataInicio]   = useState(hoje());
 
-  // ── Construtor ─────────────────────────────────────────────────────────────
-  const [entregas, setEntregas]         = useState<Entrega[]>([]);
-  const [slotAtivo, setSlotAtivo]       = useState<string | null>(null);
-  const [catalogo, setCatalogo]         = useState<FormulaCatalog[]>([]);
-  const [buscaFormula, setBuscaFormula] = useState("");
-  const [buscaExame, setBuscaExame]     = useState("");
-  const [catalogoExames, setCatalogoExames] = useState<string[]>([]);
+  // ── Mensalidade ───────────────────────────────────────────────────────────
+  const [temMensalidade, setTemMensalidade] = useState(false);
+  const [valorMes, setValorMes]             = useState(100);
+  const [diaVencimento, setDiaVencimento]   = useState(10);
+  const [bloquearSemPagto, setBloquearSemPagto] = useState(false);
 
-  // ── Salvar ─────────────────────────────────────────────────────────────────
-  const [nomeAgenda, setNomeAgenda]     = useState("");
-  const [diasAntecedencia, setDiasAntecedencia] = useState(5);
-  const [canais, setCanais]             = useState<string[]>(["email", "whatsapp", "portal"]);
-  const [salvando, setSalvando]         = useState(false);
-  const [protocolos, setProtocolos]     = useState<ProtocoloLite[]>([]);
-  const [protocolId, setProtocolId]     = useState("");
+  // ── Nós da timeline ───────────────────────────────────────────────────────
+  const [nos, setNos]               = useState<No[]>([]);
+  const [noAtivo, setNoAtivo]       = useState<string | null>(null);
+  const [catalogoF, setCatalogoF]   = useState<Array<{ id: string; nome: string; posologia?: string; via?: string }>>([]);
+  const [catalogoX, setCatalogoX]   = useState<string[]>([]);
+  const timelineRef                  = useRef<HTMLDivElement>(null);
 
-  // ── Agendas salvas (ferramenta original) ───────────────────────────────────
-  const [agendas, setAgendas]           = useState<Agenda[]>([]);
-  const [carregando, setCarregando]     = useState(false);
-  const [agendasAbertas, setAgendasAbertas] = useState(false);
-  const [expandidas, setExpandidas]     = useState<Set<number>>(new Set());
-  const [processando, setProcessando]   = useState(false);
+  // ── Agendas salvas ────────────────────────────────────────────────────────
+  const [agendas, setAgendas]       = useState<Agenda[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [salvando, setSalvando]     = useState(false);
+  const [agendasOpen, setAgendasOpen] = useState(false);
+  const [expandidas, setExpandidas]   = useState<Set<number>>(new Set());
 
-  // ── Scroll timeline ────────────────────────────────────────────────────────
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const slotsRef    = useRef<HTMLDivElement>(null);
-
-  // ── Carga inicial ──────────────────────────────────────────────────────────
+  // ── Carga inicial ─────────────────────────────────────────────────────────
   useEffect(() => {
     apiFetch("/api/clients?limit=500")
-      .then((d) => setClientes(Array.isArray(d) ? d : (d.clients ?? [])))
+      .then(d => setClientes(Array.isArray(d) ? d : (d.clients ?? [])))
       .catch(() => {});
-
-    apiFetch("/api/prescription-formulas")
-      .then((d) => {
+    apiFetch(CATALOG_API)
+      .then(d => {
         const arr = Array.isArray(d) ? d : (d.formulas ?? []);
-        setCatalogo(arr.map((f: Record<string, unknown>) => ({
+        setCatalogoF(arr.map((f: Record<string, unknown>) => ({
           id: String(f.id ?? f.code ?? f.nome),
           nome: String(f.nome ?? f.name ?? ""),
-          ativoPrincipal: f.ativoPrincipal as string,
           posologia: f.posologia as string,
           via: f.via as string,
         })));
-      })
-      .catch(() => {});
-
-    apiFetch("/api/catalogos/exames")
-      .then((d) => {
+      }).catch(() => {});
+    apiFetch(EXAMES_API)
+      .then(d => {
         const arr = Array.isArray(d) ? d : (d.exames ?? []);
-        setCatalogoExames(arr.map((e: Record<string, unknown>) => String(e.nome ?? e.name ?? e)));
-      })
-      .catch(() => {});
+        setCatalogoX(arr.map((e: Record<string, unknown>) => String(e.nome ?? e.name ?? e)));
+      }).catch(() => {});
   }, []);
 
-  // ── Carga ao trocar cliente ────────────────────────────────────────────────
+  // ── Carga por cliente ─────────────────────────────────────────────────────
   useEffect(() => {
-    setSlotAtivo(null);
-    if (!clienteSelId) { setAgendas([]); setProtocolos([]); return; }
+    if (!clienteSelId) { setAgendas([]); return; }
     setCarregando(true);
-    Promise.all([
-      apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`).catch(() => ({ agendas: [] })),
-      apiFetch(`/api/protocols?clientId=${clienteSelId}`).catch(() => []),
-    ]).then(([ag, pr]) => {
-      setAgendas(ag.agendas ?? []);
-      const lista = Array.isArray(pr) ? pr : (pr.protocols ?? []);
-      setProtocolos(lista);
-    }).finally(() => setCarregando(false));
+    apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`)
+      .then(d => setAgendas(d.agendas ?? []))
+      .catch(() => {})
+      .finally(() => setCarregando(false));
   }, [clienteSelId]);
 
-  // ── Gerar entregas ao mudar config ────────────────────────────────────────
+  // ── Gerar nós ao mudar config ──────────────────────────────────────────────
   useEffect(() => {
-    setEntregas((prev) => {
-      const next: Entrega[] = [];
-      for (let i = 0; i < nEntregas; i++) {
-        const data = addDias(dataInicio, i * frequenciaDias);
+    setNos(prev => {
+      const next: No[] = [];
+      for (let i = 0; i < nNos; i++) {
         const existing = prev[i];
         next.push({
-          id:           existing?.id           ?? uid(),
-          numero:       i + 1,
-          dataLiberacao: data,
-          nomeReceita:  existing?.nomeReceita  ?? `Receita ${i + 1}`,
-          formulas:     existing?.formulas     ?? [],
-          exames:       existing?.exames       ?? [],
+          id:             existing?.id ?? uid(),
+          numero:         i + 1,
+          dataLiberacao:  addDias(dataInicio, i * frequencia),
+          nomeReceita:    existing?.nomeReceita ?? `Entrega ${i + 1}`,
+          formulas:       existing?.formulas ?? [],
+          exames:         existing?.exames ?? [],
+          pagamentoStatus: existing?.pagamentoStatus ?? "livre",
         });
       }
       return next;
     });
-  }, [nEntregas, frequenciaDias, dataInicio]);
+  }, [nNos, frequencia, dataInicio]);
 
-  // ── Entrega ativa ──────────────────────────────────────────────────────────
-  const entrega = useMemo(() => entregas.find((e) => e.id === slotAtivo) ?? null, [entregas, slotAtivo]);
+  // ── Handlers de nó ────────────────────────────────────────────────────────
+  const updateNo = (id: string, patch: Partial<No>) =>
+    setNos(p => p.map(n => n.id === id ? { ...n, ...patch } : n));
 
-  function updateEntrega(id: string, patch: Partial<Entrega>) {
-    setEntregas((prev) => prev.map((e) => e.id === id ? { ...e, ...patch } : e));
-  }
+  const addFormula = (nId: string, nome: string, catalogId?: string) =>
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, formulas: [...n.formulas, { id: uid(), nome, dose: "", posologia: "", via: "Oral" }] }
+      : n));
+  const updateFormula = (nId: string, fId: string, patch: Partial<NoFormula>) =>
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, formulas: n.formulas.map(f => f.id === fId ? { ...f, ...patch } : f) }
+      : n));
+  const removeFormula = (nId: string, fId: string) =>
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, formulas: n.formulas.filter(f => f.id !== fId) }
+      : n));
 
-  // ── Fórmulas da entrega ────────────────────────────────────────────────────
-  function addFormula(eId: string, cat?: FormulaCatalog) {
-    const nova: EntregaFormula = {
-      id: uid(),
-      catalogId:  cat?.id,
-      nome:       cat?.nome    ?? "",
-      dose:       "",
-      posologia:  cat?.posologia ?? "",
-      via:        cat?.via       ?? "Oral",
-      observacao: "",
-    };
-    setEntregas((prev) => prev.map((e) => e.id === eId ? { ...e, formulas: [...e.formulas, nova] } : e));
-    setBuscaFormula("");
-  }
-  function updateFormula(eId: string, fId: string, patch: Partial<EntregaFormula>) {
-    setEntregas((prev) => prev.map((e) => e.id === eId
-      ? { ...e, formulas: e.formulas.map((f) => f.id === fId ? { ...f, ...patch } : f) }
-      : e));
-  }
-  function removeFormula(eId: string, fId: string) {
-    setEntregas((prev) => prev.map((e) => e.id === eId
-      ? { ...e, formulas: e.formulas.filter((f) => f.id !== fId) }
-      : e));
-  }
-
-  // ── Exames da entrega ──────────────────────────────────────────────────────
-  function addExame(eId: string, nome: string) {
+  const addExame = (nId: string, nome: string) => {
     if (!nome.trim()) return;
-    setEntregas((prev) => prev.map((e) => e.id === eId
-      ? { ...e, exames: [...e.exames, { id: uid(), nome: nome.trim() }] }
-      : e));
-    setBuscaExame("");
-  }
-  function removeExame(eId: string, xId: string) {
-    setEntregas((prev) => prev.map((e) => e.id === eId
-      ? { ...e, exames: e.exames.filter((x) => x.id !== xId) }
-      : e));
-  }
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, exames: [...n.exames, { id: uid(), nome: nome.trim() }] }
+      : n));
+  };
+  const updateExame = (nId: string, xId: string, patch: Partial<NoExame>) =>
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, exames: n.exames.map(x => x.id === xId ? { ...x, ...patch } : x) }
+      : n));
+  const removeExame = (nId: string, xId: string) =>
+    setNos(p => p.map(n => n.id === nId
+      ? { ...n, exames: n.exames.filter(x => x.id !== xId) }
+      : n));
 
-  // ── Salvar linha do tempo ──────────────────────────────────────────────────
-  const salvarLinha = async () => {
+  // ── Salvar programa ────────────────────────────────────────────────────────
+  const salvar = async () => {
     if (!clienteSelId) { toast({ title: "Selecione um cliente", variant: "destructive" }); return; }
-    if (!nomeAgenda.trim()) { toast({ title: "Dê um nome para esta linha do tempo", variant: "destructive" }); return; }
-    if (entregas.every((e) => e.formulas.length === 0)) {
-      toast({ title: "Adicione fórmulas em pelo menos uma entrega", variant: "destructive" }); return;
-    }
+    if (!nomePrograma.trim()) { toast({ title: "Dê um nome ao programa", variant: "destructive" }); return; }
     setSalvando(true);
     try {
       const ag = await apiFetch("/api/receituario/agendas", {
         method: "POST",
         body: JSON.stringify({
           clientId: clienteSelId,
-          nome: nomeAgenda,
-          descricao: `Linha do tempo: ${nEntregas} entregas a cada ${frequenciaDias} dias`,
-          frequenciaPadraoDias: frequenciaDias,
-          diasAntecedencia,
-          canaisPadrao: canais,
+          nome: nomePrograma,
+          descricao: temMensalidade
+            ? `Programa com mensalidade · R$${valorMes}/mês · venc. dia ${diaVencimento}`
+            : `${nNos} entregas a cada ${frequencia} dias`,
+          frequenciaPadraoDias: frequencia,
+          diasAntecedencia: 5,
+          canaisPadrao: ["email", "whatsapp", "portal"],
           incluirLembretePosologia: true,
-          protocolId: protocolId ? parseInt(protocolId) : undefined,
         }),
       });
       const agendaId = ag.id ?? ag.agenda?.id;
-      for (const e of entregas) {
-        if (e.formulas.length === 0 && e.exames.length === 0) continue;
+      for (const n of nos) {
+        if (n.formulas.length === 0 && n.exames.length === 0) continue;
         await apiFetch(`/api/receituario/agendas/${agendaId}/slots`, {
           method: "POST",
           body: JSON.stringify({
-            nome: e.nomeReceita,
-            dataLiberacao: e.dataLiberacao,
-            proximaEmDias: frequenciaDias,
-            formulas: e.formulas.map((f) => ({
-              nome: f.nome, catalogId: f.catalogId,
-              dose: f.dose, posologia: f.posologia, via: f.via, observacao: f.observacao,
-            })),
+            nome: n.nomeReceita,
+            dataLiberacao: n.dataLiberacao,
+            proximaEmDias: frequencia,
+            formulas: n.formulas.map(f => ({ nome: f.nome, dose: f.dose, posologia: f.posologia, via: f.via })),
             canais: null,
           }),
         });
       }
-      toast({ title: `Linha do tempo "${nomeAgenda}" salva!` });
-      setNomeAgenda("");
-      // recarregar agendas
+      toast({ title: `Programa "${nomePrograma}" salvo com sucesso!` });
+      setNomePrograma("");
       const d = await apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`);
       setAgendas(d.agendas ?? []);
-      setAgendasAbertas(true);
+      setAgendasOpen(true);
     } catch (err) {
       toast({ title: "Erro ao salvar", description: String(err), variant: "destructive" });
     } finally { setSalvando(false); }
   };
 
-  // ── Worker ────────────────────────────────────────────────────────────────
-  const processarWorker = async () => {
-    setProcessando(true);
-    try {
-      await apiFetch("/api/receituario/processar", { method: "POST" });
-      toast({ title: "Processamento concluído" });
-      if (clienteSelId) {
-        const d = await apiFetch(`/api/receituario/agendas?clientId=${clienteSelId}`);
-        setAgendas(d.agendas ?? []);
-      }
-    } catch { toast({ title: "Erro no worker", variant: "destructive" }); }
-    finally { setProcessando(false); }
-  };
+  const clientesOpts: ClientPickerOption[] = clientes.map(c => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
 
-  // ── Computed ──────────────────────────────────────────────────────────────
-  const catalogoFiltrado = catalogo.filter((f) =>
-    f.nome.toLowerCase().includes(buscaFormula.toLowerCase()) ||
-    (f.ativoPrincipal ?? "").toLowerCase().includes(buscaFormula.toLowerCase())
-  ).slice(0, 12);
-
-  const examesFiltrados = useMemo(() => {
-    if (!buscaExame.trim()) return [];
-    const q = buscaExame.toLowerCase();
-    return catalogoExames.filter((n) => n.toLowerCase().includes(q)).slice(0, 8);
-  }, [catalogoExames, buscaExame]);
-
-  const clientesOpts: ClientPickerOption[] = clientes.map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
-
-  const statsGlobais = useMemo(() => {
-    let totalFormulas = 0, totalExames = 0, entregasPreenchidas = 0;
-    for (const e of entregas) {
-      totalFormulas += e.formulas.length;
-      totalExames += e.exames.length;
-      if (e.formulas.length > 0 || e.exames.length > 0) entregasPreenchidas++;
+  // KPIs globais da linha do tempo
+  const kpis = useMemo(() => {
+    let totalF = 0, totalX = 0, preenchidos = 0;
+    for (const n of nos) {
+      totalF += n.formulas.length;
+      totalX += n.exames.length;
+      if (n.formulas.length > 0 || n.exames.length > 0) preenchidos++;
     }
-    return { totalFormulas, totalExames, entregasPreenchidas };
-  }, [entregas]);
-
-  // ── Scroll helpers ────────────────────────────────────────────────────────
-  function scrollTimeline(dir: -1 | 1) {
-    if (timelineRef.current) timelineRef.current.scrollLeft += dir * 300;
-  }
-  function scrollSlots(dir: -1 | 1) {
-    if (slotsRef.current) slotsRef.current.scrollLeft += dir * 200;
-  }
+    return { totalF, totalX, preenchidos };
+  }, [nos]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4 pb-16">
+    <div className="space-y-0 pb-20">
 
-      {/* ════════════════════════════════════════════════════════════════
-          BLOCO 1 — CABEÇALHO + CONFIG
-      ════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════
+          BLOCO 0 — CONFIGURAÇÃO DO PROGRAMA
+      ══════════════════════════════════════════════════════════════════ */}
       <div className="panel-3d overflow-hidden">
-        {/* título */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
+        {/* Mastro */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/40">
           <div className="flex items-center gap-3">
-            <div className="bevel-3d p-2.5 rounded">
-              <Calendar className="w-5 h-5 text-primary" />
+            <div className="bevel-3d p-2.5">
+              <Pill className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Prescrição Automática</div>
-              <h1 className="text-xl font-bold uppercase tracking-tight">Linha do Tempo de Fórmulas</h1>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Padcon Conect · Prescrição Clínica</div>
+              <h1 className="text-xl font-black uppercase tracking-tight leading-none mt-0.5">
+                Programa de Acompanhamento e Prescrição
+              </h1>
             </div>
           </div>
-          {/* KPIs rápidos */}
+
+          {/* KPIs */}
           {clienteSel && (
-            <div className="flex gap-3">
+            <div className="hidden md:flex gap-2">
               {[
-                { label: "Entregas",  valor: nEntregas,                       cor: "text-sky-600" },
-                { label: "Fórmulas", valor: statsGlobais.totalFormulas,       cor: "text-emerald-600" },
-                { label: "Exames",   valor: statsGlobais.totalExames,         cor: "text-amber-600" },
-                { label: "Preench.", valor: `${statsGlobais.entregasPreenchidas}/${nEntregas}`, cor: "text-primary" },
-              ].map((k) => (
-                <div key={k.label} className="screen-3d px-3 py-1.5 text-center min-w-[68px]">
-                  <div className={`text-xl font-bold ${k.cor}`}>{k.valor}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k.label}</div>
+                { label: "Entregas",  valor: nNos,               cor: "text-primary" },
+                { label: "Fórmulas", valor: kpis.totalF,         cor: "text-emerald-700" },
+                { label: "Exames",   valor: kpis.totalX,         cor: "text-amber-700" },
+                { label: "Nós preench.", valor: `${kpis.preenchidos}/${nNos}`, cor: "text-sky-700" },
+              ].map(k => (
+                <div key={k.label} className="screen-3d px-3 py-2 text-center min-w-[72px]">
+                  <div className={`text-xl font-black ${k.cor}`}>{k.valor}</div>
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{k.label}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Config bar */}
-        <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-          {/* Cliente */}
-          <div className="md:col-span-2 space-y-1">
-            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Cliente *</label>
-            <ClientPicker clientes={clientesOpts} value={clienteSelId} onChange={setClienteSelId} placeholder="Selecione o cliente…" />
+        {/* Linha 1: cliente + nome do programa */}
+        <div className="px-6 pt-4 pb-3 grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b border-border/30">
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Cliente *</label>
+            <ClientPicker clientes={clientesOpts} value={clienteSelId} onChange={v => { setClienteSelId(v); setNoAtivo(null); }} placeholder="Selecione o cliente…" />
           </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Nome do Programa *</label>
+            <input
+              className="field-engraved w-full"
+              placeholder="Ex: Protocolo Longevidade · 2026"
+              value={nomePrograma}
+              onChange={e => setNomePrograma(e.target.value)}
+            />
+          </div>
+        </div>
 
+        {/* Linha 2: parâmetros de frequência */}
+        <div className="px-6 py-3 grid grid-cols-2 md:grid-cols-4 gap-4 items-end border-b border-border/30">
           {/* N entregas */}
           <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Número de Entregas</label>
+            <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Número de Entregas</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setNEntregas((n) => Math.max(1, n - 1))}>
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setNNos(n => Math.max(1, n - 1))}>
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <input
-                type="number" min={1} max={24}
-                value={nEntregas}
-                onChange={(e) => setNEntregas(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
-                className="field-engraved text-center w-16 text-lg font-bold"
-              />
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setNEntregas((n) => Math.min(24, n + 1))}>
+              <input type="number" min={1} max={24} value={nNos}
+                onChange={e => setNNos(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                className="field-engraved text-center w-16 text-lg font-black" />
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setNNos(n => Math.min(24, n + 1))}>
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -387,18 +568,15 @@ export default function ReceituarioAutomatico() {
 
           {/* Frequência */}
           <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Freq. entre Entregas (dias)</label>
+            <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Frequência (dias)</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequenciaDias((n) => Math.max(1, n - 5))}>
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequencia(n => Math.max(1, n - 5))}>
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <input
-                type="number" min={1} max={365}
-                value={frequenciaDias}
-                onChange={(e) => setFrequenciaDias(Math.max(1, parseInt(e.target.value) || 30))}
-                className="field-engraved text-center w-16 text-lg font-bold"
-              />
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequenciaDias((n) => n + 5)}>
+              <input type="number" min={1} max={365} value={frequencia}
+                onChange={e => setFrequencia(Math.max(1, parseInt(e.target.value) || 30))}
+                className="field-engraved text-center w-16 text-lg font-black" />
+              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequencia(n => n + 5)}>
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -406,582 +584,401 @@ export default function ReceituarioAutomatico() {
 
           {/* Data início */}
           <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Primeira Entrega</label>
-            <input
-              type="date"
-              value={dataInicio}
-              onChange={(e) => setDataInicio(e.target.value)}
-              className="field-engraved w-full text-sm"
-            />
+            <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Primeira Entrega</label>
+            <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+              className="field-engraved w-full" />
           </div>
+
+          {/* Salvar */}
+          <div className="flex items-end">
+            <Button
+              className="btn-3d w-full gap-2"
+              onClick={salvar}
+              disabled={salvando || !clienteSelId || !nomePrograma.trim()}
+            >
+              {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar Programa
+            </Button>
+          </div>
+        </div>
+
+        {/* Linha 3: mensalidade toggle */}
+        <div className="px-6 py-4">
+          <div className="flex items-start gap-4 flex-wrap">
+            {/* Toggle mensalidade */}
+            <button
+              type="button"
+              onClick={() => setTemMensalidade(v => !v)}
+              className={cn(
+                "flex items-center gap-2.5 px-4 py-2.5 rounded border transition-all duration-200",
+                temMensalidade
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40",
+              )}
+            >
+              {temMensalidade
+                ? <ToggleRight className="w-5 h-5 text-primary" />
+                : <ToggleLeft className="w-5 h-5" />}
+              <Banknote className="w-4 h-4" />
+              <span className="text-[11px] uppercase tracking-widest font-black">Programa com Mensalidade</span>
+            </button>
+
+            {/* Campos de mensalidade (visíveis somente quando ativo) */}
+            {temMensalidade && (
+              <div className="flex items-center gap-3 flex-wrap animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="space-y-0.5">
+                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Valor R$/mês</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">R$</span>
+                    <input type="number" min={0} value={valorMes}
+                      onChange={e => setValorMes(parseFloat(e.target.value) || 0)}
+                      className="field-engraved w-24 text-sm font-bold" />
+                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Vencimento (dia do mês)</label>
+                  <input type="number" min={1} max={28} value={diaVencimento}
+                    onChange={e => setDiaVencimento(parseInt(e.target.value) || 10)}
+                    className="field-engraved w-16 text-sm font-bold text-center" />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setBloquearSemPagto(v => !v)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded border text-[11px] uppercase tracking-widest font-black transition-all",
+                    bloquearSemPagto
+                      ? "border-rose-400 bg-rose-50 text-rose-700"
+                      : "border-border text-muted-foreground hover:border-rose-300",
+                  )}
+                >
+                  {bloquearSemPagto ? <AlertCircle className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
+                  {bloquearSemPagto ? "Bloqueada sem pagamento" : "Liberar mesmo sem pagamento"}
+                </button>
+
+                {/* Resumo do plano */}
+                <div className="screen-3d px-3 py-2 text-sm">
+                  <span className="font-black text-primary">{fmtBRL(valorMes)}</span>
+                  <span className="text-muted-foreground text-xs">/mês · vence dia {diaVencimento}</span>
+                  {bloquearSemPagto && (
+                    <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                      ⚠ Fórmula bloqueada até pagamento confirmado
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Aviso de plano */}
+          {temMensalidade && bloquearSemPagto && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex gap-2 items-start">
+              <Bell className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div>
+                <strong>Comunicação automática ao cliente:</strong>{" "}
+                Quando inadimplente, o sistema enviará aviso via e-mail e WhatsApp informando que a liberação da fórmula
+                estará retida até a quitação da mensalidade em atraso ({fmtBRL(valorMes)}).
+                O cliente poderá pagar pelo Portal do Paciente.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════
-          BLOCO 2 — CONSTRUTOR DE SLOTS
-      ════════════════════════════════════════════════════════════════ */}
-      <div className="panel-3d overflow-hidden">
-        {/* sub-cabeçalho */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
-          <div className="flex items-center gap-2">
-            <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">
-              Construtor de Entregas
-            </span>
+      {/* ══════════════════════════════════════════════════════════════════
+          DIVISOR [1] — PRESCRIÇÃO DE FÓRMULAS
+      ══════════════════════════════════════════════════════════════════ */}
+      <DivisorBloco
+        numero={1}
+        titulo="Prescrição de Fórmulas Magistrais"
+        subtitulo="Ferramenta completa — catálogo, farmácias, classes ANVISA, desmembramento"
+        cor="emerald"
+        icon={FlaskConical}
+      />
+
+      {/* ── Bloco 1: Prescrição (ferramenta original completa) ────────── */}
+      <div className="panel-3d overflow-hidden border-l-4 border-l-emerald-600">
+        {!clienteSelId ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <FlaskConical className="w-8 h-8 opacity-30" />
+            <p className="text-sm font-semibold">Selecione um cliente no painel de configuração acima para habilitar a prescrição.</p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollSlots(-1)}>
+        ) : (
+          <div className="p-4">
+            <PrescricaoPage clientId={clienteSelId} embedded={true} />
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIVISOR [2] — SOLICITAÇÃO DE EXAMES
+      ══════════════════════════════════════════════════════════════════ */}
+      <DivisorBloco
+        numero={2}
+        titulo="Solicitação de Exames"
+        subtitulo="Ferramenta completa — catálogo, blocos, PDF por tipo, e-mail, WhatsApp"
+        cor="amber"
+        icon={Microscope}
+      />
+
+      {/* ── Bloco 2: Exames (ferramenta original completa) ───────────── */}
+      <div className="panel-3d overflow-hidden border-l-4 border-l-amber-600">
+        {!clienteSelId ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <Microscope className="w-8 h-8 opacity-30" />
+            <p className="text-sm font-semibold">Selecione um cliente no painel de configuração acima para habilitar os exames.</p>
+          </div>
+        ) : (
+          <div className="p-4">
+            <ExamesPage clientId={clienteSelId} embedded={true} initialViewMode="lista" />
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIVISOR [3] — LINHA DO TEMPO
+      ══════════════════════════════════════════════════════════════════ */}
+      <DivisorBloco
+        numero={3}
+        titulo="Linha do Tempo de Entregas"
+        subtitulo="Clique num nó para atribuir fórmulas e exames — independentes por entrega"
+        cor="sky"
+        icon={Calendar}
+      />
+
+      {/* ── Bloco 3: Linha do tempo ──────────────────────────────────── */}
+      <div className="panel-3d overflow-hidden border-l-4 border-l-sky-600">
+        {/* Trilha de navegação */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/30">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-black flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5" />
+            {nNos} entregas · a cada {frequencia} dias
+            {temMensalidade && (
+              <span className="ml-2 px-2 py-0.5 rounded border border-primary/40 text-primary text-[10px]">
+                {fmtBRL(valorMes)}/mês
+              </span>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            <button type="button" className="btn-3d-soft p-1.5"
+              onClick={() => timelineRef.current && (timelineRef.current.scrollLeft -= 240)}>
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollSlots(1)}>
+            <button type="button" className="btn-3d-soft p-1.5"
+              onClick={() => timelineRef.current && (timelineRef.current.scrollLeft += 240)}>
               <ChevronRight className="w-4 h-4" />
+            </button>
+            <button type="button" className="btn-3d-soft p-1.5 ml-1"
+              onClick={() => setNNos(n => Math.min(24, n + 1))}
+              title="Adicionar entrega">
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Faixa de slots */}
-        <div className="px-4 py-5">
-          <div ref={slotsRef} className="overflow-x-auto pb-3" style={{ scrollBehavior: "smooth" }}>
-            <div className="flex items-start gap-0 min-w-max">
-              {entregas.map((e, i) => {
-                const ativa = slotAtivo === e.id;
-                const temConteudo = e.formulas.length > 0 || e.exames.length > 0;
+        {/* Painel fino da trilha */}
+        <div
+          ref={timelineRef}
+          className="overflow-x-auto"
+          style={{ scrollBehavior: "smooth" }}
+        >
+          <div style={{ minWidth: Math.max(800, nos.length * 180), padding: "0 48px" }}>
+            {/* Trilha central com nós */}
+            <div className="relative pt-8 pb-6">
+              {/* Linha horizontal do trilho */}
+              <div
+                className="absolute bg-border/70"
+                style={{
+                  height: 3, top: "51px",
+                  left: 48, right: 48,
+                }}
+              />
+
+              {/* Nós */}
+              <div className="flex items-start justify-between relative">
+                {nos.map(n => (
+                  <NoTimeline
+                    key={n.id}
+                    no={n}
+                    ativo={noAtivo === n.id}
+                    onClick={() => setNoAtivo(noAtivo === n.id ? null : n.id)}
+                    catalogoFormulas={catalogoF}
+                    catalogoExames={catalogoX}
+                    onAddFormula={addFormula}
+                    onUpdateFormula={updateFormula}
+                    onRemoveFormula={removeFormula}
+                    onAddExame={addExame}
+                    onUpdateExame={updateExame}
+                    onRemoveExame={removeExame}
+                    onUpdateNo={updateNo}
+                    temPagamento={temMensalidade}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Cards de conteúdo abaixo da trilha */}
+            <div className="flex gap-3 pb-6 border-t border-border/30 pt-4 px-0">
+              {nos.map(n => {
+                const temF = n.formulas.length > 0;
+                const temX = n.exames.length > 0;
+                if (!temF && !temX) return (
+                  <div key={n.id} style={{ minWidth: 160 }}
+                    className="shrink-0 rounded border border-dashed border-border/40 px-3 py-2 text-center text-[10px] text-muted-foreground/50">
+                    E{n.numero} — vazio
+                  </div>
+                );
                 return (
-                  <div key={e.id} className="flex items-center gap-0">
-                    {/* Slot card */}
-                    <button
-                      type="button"
-                      onClick={() => setSlotAtivo(ativa ? null : e.id)}
-                      className={cn(
-                        "group relative flex flex-col items-center gap-2 rounded-lg px-4 py-4 transition-all duration-200 min-w-[130px]",
-                        ativa
-                          ? "panel-3d border-2 border-primary shadow-lg shadow-primary/20 scale-105"
-                          : temConteudo
-                            ? "panel-3d-sub border border-primary/40 hover:border-primary/70"
-                            : "concave-3d border border-dashed border-border/50 hover:border-primary/40",
-                      )}
-                    >
-                      {/* Número */}
-                      <div className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold",
-                        ativa ? "bg-primary text-primary-foreground" : temConteudo ? "bevel-3d text-primary" : "bg-muted text-muted-foreground",
-                      )}>
-                        {e.numero}
+                  <div
+                    key={n.id}
+                    style={{ minWidth: 160 }}
+                    className={cn(
+                      "shrink-0 rounded border px-3 py-2 space-y-1.5 cursor-pointer transition-colors",
+                      noAtivo === n.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border/60 hover:border-primary/40 hover:bg-muted/30",
+                    )}
+                    onClick={() => setNoAtivo(noAtivo === n.id ? null : n.id)}
+                  >
+                    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                      E{n.numero} · {fmtData(n.dataLiberacao)}
+                    </div>
+                    {temF && (
+                      <div className="space-y-0.5">
+                        <div className="text-[9px] text-emerald-700 font-black uppercase tracking-wider">Fórmulas</div>
+                        {n.formulas.map(f => (
+                          <div key={f.id} className="text-xs truncate flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
+                            {f.nome || <em className="text-muted-foreground">sem nome</em>}
+                          </div>
+                        ))}
                       </div>
-
-                      {/* Data */}
-                      <div className="text-center">
-                        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Entrega {e.numero}</div>
-                        <div className="text-sm font-bold">{fmtData(e.dataLiberacao)}</div>
-                      </div>
-
-                      {/* Badges de conteúdo */}
-                      <div className="flex gap-1.5 flex-wrap justify-center">
-                        {e.formulas.length > 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {e.formulas.length} fórm.
-                          </span>
-                        )}
-                        {e.exames.length > 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            {e.exames.length} exam.
-                          </span>
-                        )}
-                        {!temConteudo && (
-                          <span className="text-[10px] text-muted-foreground/50">vazio</span>
-                        )}
-                      </div>
-
-                      {/* Indicador ativo */}
-                      {ativa && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-primary" />
-                      )}
-                    </button>
-
-                    {/* Seta entre slots */}
-                    {i < entregas.length - 1 && (
-                      <div className="flex items-center px-1">
-                        <div className="w-8 h-px bg-border/60" />
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 -ml-1" />
+                    )}
+                    {temX && (
+                      <div className="space-y-0.5">
+                        <div className="text-[9px] text-amber-700 font-black uppercase tracking-wider">Exames</div>
+                        {n.exames.map(x => (
+                          <div key={x.id} className="text-xs truncate flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0" />
+                            {x.nome}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              {/* Botão adicionar mais */}
-              <div className="flex items-center pl-3">
-                <button
-                  type="button"
-                  onClick={() => setNEntregas((n) => Math.min(24, n + 1))}
-                  className="flex flex-col items-center gap-2 rounded-lg px-4 py-4 border border-dashed border-primary/30 hover:border-primary text-muted-foreground hover:text-primary transition-colors min-w-[80px]"
-                >
-                  <Plus className="w-6 h-6" />
-                  <span className="text-[10px] uppercase tracking-widest">Adicionar</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* ── EDITOR DO SLOT ATIVO ──────────────────────────────────── */}
-        {entrega && (
-          <div className="border-t border-border/40 bg-muted/20 px-5 py-5">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-              {/* Coluna esquerda — cabeçalho + fórmulas */}
-              <div className="space-y-4">
-                {/* Identificação da entrega */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Nome da Receita</label>
-                    <input
-                      className="field-engraved w-full text-sm"
-                      value={entrega.nomeReceita}
-                      onChange={(e) => updateEntrega(entrega.id, { nomeReceita: e.target.value })}
-                      placeholder={`Receita ${entrega.numero}`}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Data de Liberação</label>
-                    <input
-                      type="date"
-                      className="field-engraved w-full text-sm"
-                      value={entrega.dataLiberacao}
-                      onChange={(e) => updateEntrega(entrega.id, { dataLiberacao: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* Fórmulas magistrais */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1.5">
-                      <FlaskConical className="w-3.5 h-3.5" />
-                      Fórmulas Magistrais
-                    </div>
-                    <span className="text-[11px] text-muted-foreground">{entrega.formulas.length} adicionada(s)</span>
-                  </div>
-
-                  {/* Cards de fórmulas */}
-                  {entrega.formulas.map((f) => (
-                    <div key={f.id} className="panel-3d-sub p-3 space-y-2 border-l-2 border-l-primary/40">
-                      <div className="flex items-start justify-between gap-2">
-                        <input
-                          className="field-engraved flex-1 text-sm font-semibold"
-                          value={f.nome}
-                          onChange={(e) => updateFormula(entrega.id, f.id, { nome: e.target.value })}
-                          placeholder="Nome da fórmula"
-                        />
-                        <button type="button" onClick={() => removeFormula(entrega.id, f.id)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive shrink-0">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Dose</label>
-                          <input className="field-engraved w-full text-sm" value={f.dose}
-                            onChange={(e) => updateFormula(entrega.id, f.id, { dose: e.target.value })}
-                            placeholder="Ex: 500mg" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Via</label>
-                          <select className="field-engraved w-full text-sm" value={f.via}
-                            onChange={(e) => updateFormula(entrega.id, f.id, { via: e.target.value })}>
-                            {VIAS.map((v) => <option key={v} value={v}>{v}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Posologia</label>
-                        <input className="field-engraved w-full text-sm" value={f.posologia}
-                          onChange={(e) => updateFormula(entrega.id, f.id, { posologia: e.target.value })}
-                          placeholder="Ex: 1 cápsula pela manhã em jejum" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Observação</label>
-                        <input className="field-engraved w-full text-sm" value={f.observacao}
-                          onChange={(e) => updateFormula(entrega.id, f.id, { observacao: e.target.value })}
-                          placeholder="Instruções adicionais…" />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Busca do catálogo */}
-                  <div className="concave-3d p-3 space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input
-                        className="field-engraved w-full pl-8 text-sm"
-                        placeholder="Buscar fórmula no catálogo…"
-                        value={buscaFormula}
-                        onChange={(e) => setBuscaFormula(e.target.value)}
-                      />
-                    </div>
-                    {buscaFormula && catalogoFiltrado.length > 0 && (
-                      <div className="space-y-1">
-                        {catalogoFiltrado.map((cat) => (
-                          <button key={cat.id} type="button"
-                            onClick={() => addFormula(entrega.id, cat)}
-                            className="w-full text-left px-3 py-2 hover:bg-primary/10 rounded text-sm flex justify-between items-center group transition-colors">
-                            <span className="font-medium">{cat.nome}</span>
-                            <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <button type="button"
-                      onClick={() => addFormula(entrega.id)}
-                      className="btn-3d-soft w-full gap-2 text-sm">
-                      <Plus className="w-4 h-4" /> Fórmula em branco
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Coluna direita — exames + salvar */}
-              <div className="space-y-4">
-                {/* Exames a solicitar */}
-                <div className="space-y-3">
-                  <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5" />
-                    Exames a Solicitar
-                  </div>
-
-                  {entrega.exames.length === 0 && (
-                    <p className="text-sm text-muted-foreground italic text-center py-2">
-                      Nenhum exame nesta entrega
-                    </p>
-                  )}
-                  {entrega.exames.map((x) => (
-                    <div key={x.id} className="flex items-center gap-2 panel-3d-sub px-3 py-2">
-                      <span className="flex-1 text-sm font-medium">{x.nome}</span>
-                      <button type="button" onClick={() => removeExame(entrega.id, x.id)}
-                        className="p-1 text-muted-foreground hover:text-destructive">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* Busca de exame */}
-                  <div className="concave-3d p-3 space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                      <input
-                        className="field-engraved w-full pl-8 text-sm"
-                        placeholder="Buscar ou digitar nome do exame…"
-                        value={buscaExame}
-                        onChange={(e) => setBuscaExame(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { addExame(entrega.id, buscaExame); } }}
-                      />
-                    </div>
-                    {examesFiltrados.length > 0 && (
-                      <div className="space-y-1">
-                        {examesFiltrados.map((n) => (
-                          <button key={n} type="button"
-                            onClick={() => addExame(entrega.id, n)}
-                            className="w-full text-left px-3 py-1.5 hover:bg-primary/10 rounded text-sm flex justify-between items-center group transition-colors">
-                            <span>{n}</span>
-                            <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <button type="button"
-                      onClick={() => addExame(entrega.id, buscaExame)}
-                      disabled={!buscaExame.trim()}
-                      className="btn-3d-soft w-full gap-2 text-sm disabled:opacity-40">
-                      <Plus className="w-4 h-4" /> Adicionar exame
-                    </button>
-                  </div>
-                </div>
-
-                {/* Separador + info útil */}
-                <div className="panel-3d-sub p-3 space-y-2 text-sm">
-                  <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">Esta entrega em resumo</div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Data de liberação</span>
-                    <span className="font-bold">{fmtData(entrega.dataLiberacao)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Fórmulas magistrais</span>
-                    <span className="font-bold text-emerald-700">{entrega.formulas.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Exames a solicitar</span>
-                    <span className="font-bold text-amber-700">{entrega.exames.length}</span>
-                  </div>
-                  {entrega.numero < entregas.length && (
-                    <div className="flex justify-between border-t border-border/30 pt-2 mt-1">
-                      <span className="text-muted-foreground">Próxima entrega em</span>
-                      <span className="font-bold">{frequenciaDias} dias ({fmtData(entregas[entrega.numero]?.dataLiberacao ?? "")})</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── FORMULÁRIO DE SALVAMENTO ──────────────────────────────── */}
-        <div className="border-t border-border/40 px-5 py-4 bg-muted/10">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <div className="md:col-span-2 space-y-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Nome desta Linha do Tempo *</label>
-              <input
-                className="field-engraved w-full"
-                placeholder="Ex: Protocolo Capilar · 2026"
-                value={nomeAgenda}
-                onChange={(e) => setNomeAgenda(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Antecedência de Envio (dias)</label>
-              <input type="number" min={1} max={30} value={diasAntecedencia}
-                onChange={(e) => setDiasAntecedencia(parseInt(e.target.value) || 5)}
-                className="field-engraved w-full" />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button
-                className="btn-3d w-full gap-2"
-                onClick={salvarLinha}
-                disabled={salvando || !clienteSelId || !nomeAgenda.trim()}
-              >
-                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar Linha do Tempo
-              </Button>
-            </div>
-          </div>
-
-          {/* Canais */}
-          <div className="mt-3 flex gap-2 flex-wrap items-center">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Canais de entrega:</span>
-            {CANAIS_TODOS.map((c) => {
-              const on = canais.includes(c);
-              return (
-                <button key={c} type="button"
-                  onClick={() => setCanais(on ? canais.filter((x) => x !== c) : [...canais, c])}
-                  className={cn("px-2.5 py-1 rounded border text-[11px] uppercase tracking-wider font-semibold transition-colors",
-                    on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40")}>
-                  {c}
-                </button>
-              );
-            })}
-          </div>
+        {/* Rodapé com legenda de cores */}
+        <div className="px-5 py-3 border-t border-border/30 flex items-center gap-5 text-[10px] text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border-2 border-emerald-500" /> Só fórmulas</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border-2 border-amber-500" /> Só exames</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border-2 border-primary" /> Fórmulas + exames</div>
+          <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border-2 border-border/60" /> Vazio (sem conteúdo)</div>
+          {temMensalidade && (
+            <>
+              <div className="w-px h-3 bg-border/40" />
+              <div className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 className="w-3 h-3" /> Pago</div>
+              <div className="flex items-center gap-1.5 text-amber-700"><Clock className="w-3 h-3" /> Pendente</div>
+              <div className="flex items-center gap-1.5 text-rose-700"><AlertCircle className="w-3 h-3" /> Inadimplente</div>
+            </>
+          )}
+          <div className="ml-auto text-[10px] italic">Clique em qualquer nó ou card para editar</div>
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════
-          BLOCO 3 — LINHA DO TEMPO VISUAL
-      ════════════════════════════════════════════════════════════════ */}
-      <div className="panel-3d overflow-hidden">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/40">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-primary" />
-            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">Prévia — Linha do Tempo</span>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollTimeline(-1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button type="button" className="btn-3d-soft p-1.5" onClick={() => scrollTimeline(1)}>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      {/* ══════════════════════════════════════════════════════════════════
+          DIVISOR [4] — PROGRAMAS SALVOS
+      ══════════════════════════════════════════════════════════════════ */}
+      <DivisorBloco
+        numero={4}
+        titulo="Programas Salvos"
+        subtitulo="Agendas ativas do cliente selecionado · worker processa automaticamente"
+        cor="primary"
+        icon={Save}
+      />
 
-        <div
-          ref={timelineRef}
-          className="overflow-x-auto px-8 py-8"
-          style={{ scrollBehavior: "smooth" }}
-        >
-          {/* Trilho + nós */}
-          <div className="relative" style={{ minWidth: Math.max(800, entregas.length * 200), height: 160 }}>
-            {/* Linha horizontal */}
-            <div className="absolute top-12 left-0 right-0 h-0.5 bg-primary/30" />
-
-            {/* Nós */}
-            {entregas.map((e, i) => {
-              const pct = entregas.length === 1 ? 0.5 : i / (entregas.length - 1);
-              const left = `${pct * 100}%`;
-              const temFormulas = e.formulas.length > 0;
-              const temExames = e.exames.length > 0;
-              const temConteudo = temFormulas || temExames;
-              const isAtivo = slotAtivo === e.id;
-              return (
-                <div key={e.id}
-                  className="absolute flex flex-col items-center"
-                  style={{ left, transform: "translateX(-50%)", top: 0, width: 160 }}
-                >
-                  {/* Número da entrega (acima) */}
-                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">
-                    E{e.numero}
-                  </div>
-
-                  {/* Círculo nó */}
-                  <button type="button"
-                    onClick={() => { setSlotAtivo(isAtivo ? null : e.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                    className={cn(
-                      "w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm transition-all",
-                      isAtivo
-                        ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/30"
-                        : temConteudo
-                          ? "bg-background border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                          : "bg-muted border-border text-muted-foreground hover:border-primary/60",
-                    )}>
-                    {e.numero}
-                  </button>
-
-                  {/* Data */}
-                  <div className="text-xs font-bold mt-1">{fmtData(e.dataLiberacao)}</div>
-
-                  {/* Mini-card de conteúdo */}
-                  {temConteudo && (
-                    <div className="mt-2 panel-3d-sub px-2 py-1.5 text-center w-full max-w-[140px] space-y-0.5">
-                      {temFormulas && (
-                        <div className="text-[11px] font-semibold text-emerald-700">
-                          {e.formulas.length} fórmula{e.formulas.length !== 1 ? "s" : ""}
-                        </div>
-                      )}
-                      {temExames && (
-                        <div className="text-[11px] font-semibold text-amber-700">
-                          {e.exames.length} exame{e.exames.length !== 1 ? "s" : ""}
-                        </div>
-                      )}
-                      <div className="text-[10px] text-muted-foreground truncate max-w-full px-1">{e.nomeReceita}</div>
-                    </div>
-                  )}
-                  {!temConteudo && (
-                    <div className="mt-2 text-[10px] text-muted-foreground/50 italic text-center">vazio</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════
-          BLOCO 4 — AGENDAS SALVAS (ferramenta original)
-      ════════════════════════════════════════════════════════════════ */}
-      <div className="panel-3d overflow-hidden">
-        {/* Cabeçalho colapsável */}
-        <div className="flex items-center justify-between px-5 py-4">
+      {/* ── Bloco 4: Agendas salvas ──────────────────────────────────── */}
+      <div className="panel-3d overflow-hidden border-l-4 border-l-primary/60">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/30">
           <div
             role="button" tabIndex={0}
-            onClick={() => setAgendasAbertas((v) => !v)}
-            onKeyDown={(e) => e.key === "Enter" && setAgendasAbertas((v) => !v)}
-            className="flex items-center gap-3 cursor-pointer flex-1 select-none"
+            onClick={() => setAgendasOpen(v => !v)}
+            onKeyDown={e => e.key === "Enter" && setAgendasOpen(v => !v)}
+            className="flex items-center gap-2 cursor-pointer select-none flex-1"
           >
-            <Calendar className="w-4 h-4 text-primary" />
-            <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">
-              Agendas Salvas {clienteSel ? `— ${clienteSel.name}` : ""}
+            <span className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">
+              {agendas.length} programa(s) {clienteSel ? `de ${clienteSel.name}` : ""}
             </span>
-            {agendas.length > 0 && (
-              <span className="bevel-3d text-xs px-2 py-0.5">{agendas.length}</span>
-            )}
-            <span className="ml-1 text-muted-foreground">
-              {agendasAbertas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </span>
+            {agendasOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                         : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
           </div>
           <Button
-            className="btn-3d-soft gap-1 text-xs px-3 py-1.5 h-auto shrink-0"
-            onClick={() => void processarWorker()}
-            disabled={processando}
+            className="btn-3d-soft gap-1 text-xs px-3 py-1.5 h-auto"
+            onClick={() => apiFetch("/api/receituario/processar", { method: "POST" })
+              .then(() => toast({ title: "Worker executado" }))
+              .catch(() => toast({ title: "Erro", variant: "destructive" }))}
           >
-            {processando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Processar Hoje
+            <Play className="w-3.5 h-3.5" /> Processar Hoje
           </Button>
         </div>
 
-        {agendasAbertas && (
-          <div className="border-t border-border/40 px-5 py-4 space-y-3">
-            {!clienteSel && (
-              <p className="text-sm text-muted-foreground italic text-center py-4">Selecione um cliente para ver as agendas salvas.</p>
-            )}
+        {agendasOpen && (
+          <div className="px-5 py-4 space-y-3">
+            {!clienteSel && <p className="text-sm text-muted-foreground italic text-center py-6">Selecione um cliente para ver os programas salvos.</p>}
             {clienteSel && carregando && (
               <div className="flex items-center gap-2 justify-center py-6 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
               </div>
             )}
             {clienteSel && !carregando && agendas.length === 0 && (
-              <p className="text-sm text-muted-foreground italic text-center py-4">
-                Nenhuma agenda salva para este cliente. Use o construtor acima.
+              <p className="text-sm text-muted-foreground italic text-center py-6">
+                Nenhum programa salvo. Configure e salve acima.
               </p>
             )}
-            {agendas.map((ag) => (
-              <AgendaCard key={ag.id} agenda={ag}
-                expandida={expandidas.has(ag.id)}
-                onToggle={() => setExpandidas((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(ag.id)) next.delete(ag.id); else next.add(ag.id);
-                  return next;
-                })}
-              />
+            {agendas.map(ag => (
+              <div key={ag.id} className="panel-3d-sub overflow-hidden">
+                <div
+                  role="button" tabIndex={0}
+                  onClick={() => setExpandidas(p => { const s = new Set(p); s.has(ag.id) ? s.delete(ag.id) : s.add(ag.id); return s; })}
+                  onKeyDown={e => e.key === "Enter" && setExpandidas(p => { const s = new Set(p); s.has(ag.id) ? s.delete(ag.id) : s.add(ag.id); return s; })}
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none hover:bg-muted/10 transition-colors"
+                >
+                  <div className={cn("w-2 h-8 rounded-full shrink-0", ag.ativo ? "bg-emerald-500" : "bg-slate-300")} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate">{ag.nome}</div>
+                    <div className="text-[11px] text-muted-foreground">A cada {ag.frequenciaPadraoDias}d · {(ag.slots ?? []).length} slot(s)</div>
+                  </div>
+                  {expandidas.has(ag.id) ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                                          : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                </div>
+                {expandidas.has(ag.id) && (
+                  <div className="border-t border-border/30 px-4 py-3 space-y-1.5">
+                    {(ag.slots ?? []).length === 0 && <p className="text-xs text-muted-foreground italic">Sem slots.</p>}
+                    {(ag.slots ?? []).map(s => (
+                      <div key={s.id} className={cn(
+                        "flex items-center gap-3 px-3 py-1.5 rounded border text-sm",
+                        s.status === "ENTREGUE" ? "border-emerald-200 text-emerald-700"
+                          : s.status === "LIBERADA" ? "border-sky-200 text-sky-700"
+                          : s.status === "ERRO" ? "border-rose-200 text-rose-700"
+                          : "border-border/50 text-muted-foreground",
+                      )}>
+                        <span className="font-mono text-xs border px-1.5 py-0.5 rounded shrink-0">{s.status}</span>
+                        <span className="font-medium flex-1 truncate">{s.nome}</span>
+                        <span className="text-xs shrink-0">{s.dataLiberacao}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Sub-componente: card de agenda salva (compacto)
-// ══════════════════════════════════════════════════════════════════════════════
-function AgendaCard({ agenda, expandida, onToggle }: {
-  agenda: Agenda;
-  expandida: boolean;
-  onToggle: () => void;
-}) {
-  const slots: Slot[] = agenda.slots ?? [];
-  const temSlots = slots.length > 0;
-
-  const statusBadge = (s: Slot["status"]) => {
-    const map: Record<string, string> = {
-      AGUARDANDO: "text-slate-500 border-slate-300",
-      LIBERADA:   "text-sky-700  border-sky-400",
-      ENTREGUE:   "text-emerald-700 border-emerald-400",
-      ERRO:       "text-rose-700 border-rose-400",
-    };
-    return map[s] ?? "text-muted-foreground";
-  };
-
-  return (
-    <div className="panel-3d-sub overflow-hidden">
-      <button type="button" onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className={cn("w-2 h-8 rounded-full", agenda.ativo ? "bg-emerald-500" : "bg-slate-300")} />
-          <div className="text-left">
-            <div className="font-semibold text-sm">{agenda.nome}</div>
-            <div className="text-[11px] text-muted-foreground">
-              A cada {agenda.frequenciaPadraoDias}d · {slots.length} slot(s)
-              {agenda.proximaLiberacao && ` · próxima ${agenda.proximaLiberacao}`}
-            </div>
-          </div>
-        </div>
-        {expandida ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-                   : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
-      </button>
-
-      {expandida && (
-        <div className="border-t border-border/30 px-4 py-3 space-y-2">
-          {!temSlots && <p className="text-sm text-muted-foreground italic">Sem receitas nesta agenda.</p>}
-          {slots.map((s) => (
-            <div key={s.id} className={cn("flex items-center gap-3 px-3 py-2 rounded border text-sm", statusBadge(s.status))}>
-              <span className="shrink-0 font-mono text-xs border px-1.5 py-0.5 rounded">{s.status}</span>
-              <span className="font-medium flex-1">{s.nome}</span>
-              <span className="text-muted-foreground text-xs">{s.dataLiberacao}</span>
-              {s.pdfUrl && (
-                <a href={s.pdfUrl} target="_blank" rel="noreferrer"
-                  className="text-primary hover:underline text-xs">PDF</a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
