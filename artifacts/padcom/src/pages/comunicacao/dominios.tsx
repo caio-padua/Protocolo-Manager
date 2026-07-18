@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Globe, Search, Plus, Trash2, Loader2, RefreshCw, AtSign,
   AlertCircle, Settings, Mail, Shield, Building2, Pencil, X,
-  Save, Server, CreditCard, CheckCircle, XCircle, Eye, EyeOff, ExternalLink,
+  Save, Server, CreditCard, CheckCircle, XCircle, Eye, EyeOff, ExternalLink, Key,
 } from "lucide-react";
 import { ConsoleShell, BlockTitle, ExplainRow, BASE } from "./_shared";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
@@ -318,6 +318,8 @@ type RegistradorInfo = {
   linkExtra?: { label: string; href: string };
   ativo: Record<MasterField["key"], boolean>;
   tooltipNA: Partial<Record<MasterField["key"], string>>;
+  // Placeholders realistas — mostram o FORMATO REAL de cada chave
+  placeholders: Partial<Record<MasterField["key"], string>>;
 };
 
 const REGISTRADORES_INFO: RegistradorInfo[] = [
@@ -328,9 +330,13 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
     icon: Shield,
     precos: ".com.br R$ 40/ano",
     categoria: "Nacional",
-    linkExtra: { label: "Registrar manualmente → registro.br", href: "https://registro.br/registro/novo/" },
+    linkExtra: { label: "Gerar token → registro.br → Gerenciar → API", href: "https://registro.br/ajuda/acesso-por-chave-api/" },
     ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: false },
-    tooltipNA: { api_secret: "UOL não usa secret separado", client_ip: "UOL não exige whitelist de IP", account_id: "Autenticação por login + key — sem Account ID" },
+    tooltipNA: { api_secret: "UOL/Registro.br não usa secret separado — só login + token", client_ip: "UOL Host não exige whitelist de IP da API", account_id: "Autenticação por login + token — sem Account ID" },
+    placeholders: {
+      login:   "meunome.registrobr",
+      api_key: "tok_A7b3C9d2E1f8G4h5I6j7K8l9M0n1O2p3q4R5",
+    },
   },
   {
     id: "locaweb",
@@ -339,9 +345,14 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
     icon: Globe,
     precos: ".com.br R$ 69/ano",
     categoria: "Nacional",
-    linkExtra: { label: "Painel Locaweb ↗", href: "https://painel.locaweb.com.br" },
+    linkExtra: { label: "Token → painel.locaweb.com.br → Integrações → API", href: "https://painel.locaweb.com.br" },
     ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: true  },
-    tooltipNA: { api_secret: "Locaweb não usa secret — só token", client_ip: "Locaweb não exige whitelist de IP" },
+    tooltipNA: { api_secret: "Locaweb usa apenas token de acesso — sem secret adicional", client_ip: "Locaweb não exige whitelist de IP de origem" },
+    placeholders: {
+      login:      "clinica@email.com.br",
+      api_key:    "lw_api_A1b2C3d4E5f6G7h8I9j0K1L2m3N4o5P6",
+      account_id: "123456",
+    },
   },
   {
     id: "namecheap",
@@ -350,9 +361,14 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
     icon: CreditCard,
     precos: ".com ≈ R$ 57/ano",
     categoria: "Global",
-    linkExtra: { label: "Gerar chave → Profile → Tools → API Access", href: "https://ap.www.namecheap.com/settings/tools/apiaccess/" },
+    linkExtra: { label: "Profile → Tools → API Access → Enable + Whitelist IP", href: "https://ap.www.namecheap.com/settings/tools/apiaccess/" },
     ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: true,  account_id: false },
-    tooltipNA: { api_secret: "Namecheap não usa secret — só API Key", account_id: "Identificação pelo login + API Key" },
+    tooltipNA: { api_secret: "Namecheap autentica com login + API Key — sem secret adicional", account_id: "Namecheap identifica pelo login, não por Account ID" },
+    placeholders: {
+      login:     "seunome",
+      api_key:   "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8",
+      client_ip: "203.0.113.42  ← IP do servidor Replit (obrigatório)",
+    },
   },
   {
     id: "godaddy",
@@ -361,9 +377,13 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
     icon: Building2,
     precos: ".com ≈ R$ 75/ano",
     categoria: "Global",
-    linkExtra: { label: "Gerar chave → developer.godaddy.com → Keys", href: "https://developer.godaddy.com/keys" },
+    linkExtra: { label: "developer.godaddy.com → Keys → Criar par Key+Secret", href: "https://developer.godaddy.com/keys" },
     ativo:     { login: false, api_key: true,  api_secret: true,  client_ip: false, account_id: false },
-    tooltipNA: { login: "GoDaddy autentica por key + secret — sem login separado", client_ip: "GoDaddy não exige whitelist de IP", account_id: "GoDaddy não usa Account ID nesta API" },
+    tooltipNA: { login: "GoDaddy autentica pelo par Key+Secret — sem login separado na API", client_ip: "GoDaddy não exige whitelist de IP da API", account_id: "GoDaddy não usa Account ID — identificação pelo par Key+Secret" },
+    placeholders: {
+      api_key:    "3mXEHRFD_sKjTwqRQpz4Qn7gA3LxPvb2kMNdY8s",
+      api_secret: "VaXkPt7m_WnGcDhL5sRqB8jFyU2eRtW",
+    },
   },
   {
     id: "cloudflare",
@@ -372,9 +392,14 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
     icon: Server,
     precos: ".com ≈ R$ 57/ano",
     categoria: "Global",
-    linkExtra: { label: "Gerar token → dash.cloudflare.com → Profile → API Tokens", href: "https://dash.cloudflare.com/profile/api-tokens" },
+    linkExtra: { label: "dash.cloudflare.com → Profile → API Tokens → Criar token", href: "https://dash.cloudflare.com/profile/api-tokens" },
     ativo:     { login: true,  api_key: true,  api_secret: false, client_ip: false, account_id: true  },
-    tooltipNA: { api_secret: "Cloudflare usa só API Token — sem secret separado", client_ip: "Cloudflare não exige whitelist de IP" },
+    tooltipNA: { api_secret: "Cloudflare usa API Token único — sem secret separado", client_ip: "Cloudflare não exige whitelist de IP para tokens de API" },
+    placeholders: {
+      login:      "seu.email@dominio.com",
+      api_key:    "YXbBmKnA_pQrStUvWxYzA0123456789ABCDEF12",
+      account_id: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    },
   },
 ];
 
@@ -422,9 +447,16 @@ export default function PainelDominios() {
   async function saveCreds(regId: string) {
     setSavingReg(regId);
     try {
-      await new Promise(r => setTimeout(r, 600));
-      setSavedReg(regId);
-      setTimeout(() => setSavedReg(null), 2500);
+      const dados = creds[regId] ?? {};
+      const r = await fetch(`${BASE}/api/registradores/credenciais/${regId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dados }),
+      });
+      if (r.ok) {
+        setSavedReg(regId);
+        setTimeout(() => setSavedReg(null), 3000);
+      }
     } finally { setSavingReg(null); }
   }
 
@@ -833,72 +865,96 @@ export default function PainelDominios() {
 
                       {/* Grade Mestre — aparece ao expandir */}
                       {exp && (
-                        <div className="border-t border-border px-4 pt-4 pb-4 space-y-3">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                            Credenciais de API
-                          </p>
+                        <div className="border-t border-border">
 
-                          {MASTER_FIELDS.map(field => {
-                            const ativo = reg.ativo[field.key];
-                            const sensKey = `${reg.id}_${field.key}`;
-                            const visible = showSens[sensKey];
-                            const val = creds[reg.id]?.[field.key] ?? "";
-
-                            return (
-                              <div key={field.key}>
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">
-                                  {field.label}
-                                </label>
-                                {ativo ? (
-                                  <div className="relative">
-                                    <input
-                                      type={field.sensivel && !visible ? "password" : "text"}
-                                      value={val}
-                                      onChange={e => setCredsField(reg.id, field.key, e.target.value)}
-                                      placeholder={field.placeholderAtivo}
-                                      className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 pr-10"
-                                    />
-                                    {field.sensivel && (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleSens(sensKey)}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                        title={visible ? "Ocultar" : "Mostrar"}
-                                      >
-                                        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div
-                                    className="concave-3d w-full h-11 rounded px-3 flex items-center opacity-40 cursor-not-allowed"
-                                    title={reg.tooltipNA[field.key]}
-                                  >
-                                    <span className="text-[12px] text-muted-foreground italic">
-                                      N/A — {reg.tooltipNA[field.key] ?? "Não aplicável"}
-                                    </span>
-                                  </div>
-                                )}
+                          {/* ── Cabeçalho da seção de credenciais ─────── */}
+                          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+                            <div className="flex items-center gap-2">
+                              <div className="bevel-3d flex h-7 w-7 items-center justify-center shrink-0">
+                                <Key className="h-3.5 w-3.5 text-primary" />
                               </div>
-                            );
-                          })}
-
-                          {/* Rodapé da Grade Mestre */}
-                          <div className="flex items-center justify-between pt-2 gap-3 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                                Credenciais de API
+                              </span>
+                              <span className="paxter-led paxter-led-amber paxter-led-breathe ml-1" />
+                            </div>
                             {reg.linkExtra && (
                               <a
                                 href={reg.linkExtra.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline"
+                                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                               >
-                                <ExternalLink className="h-3 w-3" />
-                                {reg.linkExtra.label}
+                                <ExternalLink className="h-3 w-3 shrink-0" />
+                                <span className="hidden sm:inline">{reg.linkExtra.label}</span>
+                                <span className="sm:hidden">Onde gerar ↗</span>
                               </a>
                             )}
-                            <div className="flex items-center gap-2 ml-auto">
+                          </div>
+
+                          {/* ── Grid 2 colunas — mesmo padrão da edição de clientes ── */}
+                          <div className="px-4 pt-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-4">
+                            {MASTER_FIELDS.map(field => {
+                              const ativo = reg.ativo[field.key];
+                              const sensKey = `${reg.id}_${field.key}`;
+                              const visible = showSens[sensKey];
+                              const val = creds[reg.id]?.[field.key] ?? "";
+                              const ph = ativo
+                                ? (reg.placeholders[field.key] ?? field.placeholderAtivo)
+                                : (reg.tooltipNA[field.key] ?? "Não aplicável a esta plataforma");
+                              // api_key e api_secret ocupam a linha toda (mais largos)
+                              const full = field.key === "api_key" || field.key === "api_secret";
+
+                              return (
+                                <div key={field.key} className={full ? "col-span-2" : "col-span-1"}>
+                                  <label className="block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                                    {field.label}
+                                  </label>
+                                  {ativo ? (
+                                    <div className="relative">
+                                      <input
+                                        type={field.sensivel && !visible ? "password" : "text"}
+                                        value={val}
+                                        onChange={e => setCredsField(reg.id, field.key, e.target.value)}
+                                        placeholder={ph}
+                                        className="concave-3d w-full h-11 rounded-[6px] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 pr-10 font-mono"
+                                      />
+                                      {field.sensivel && (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleSens(sensKey)}
+                                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                          title={visible ? "Ocultar valor" : "Mostrar valor"}
+                                        >
+                                          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="concave-3d w-full h-11 rounded-[6px] px-3 flex items-center gap-2 opacity-35 cursor-not-allowed select-none"
+                                      title={reg.tooltipNA[field.key]}
+                                    >
+                                      <XCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="text-[11px] text-muted-foreground italic truncate">{ph}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* ── Rodapé — nota + botão Salvar ──────────── */}
+                          <div className="flex items-center justify-between gap-4 px-4 pb-4 pt-1 border-t border-border/40 flex-wrap">
+                            <p className="text-[11px] text-muted-foreground italic">
+                              Armazenado de forma segura — nunca exposto em logs
+                            </p>
+                            <div className="flex items-center gap-3 ml-auto">
                               {savedReg === reg.id && (
-                                <span className="text-[11px] text-emerald-600 font-semibold">✓ Salvo</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Credenciais salvas
+                                </span>
                               )}
                               <Button
                                 onClick={() => saveCreds(reg.id)}
@@ -912,6 +968,7 @@ export default function PainelDominios() {
                               </Button>
                             </div>
                           </div>
+
                         </div>
                       )}
                     </div>
