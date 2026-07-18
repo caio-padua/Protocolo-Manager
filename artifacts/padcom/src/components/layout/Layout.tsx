@@ -118,7 +118,6 @@ const navigation: NavEntry[] = [
       { name: "Atestados", href: "/arsenal/atestados", icon: FileSignature },
       { name: "Encaminhamentos", href: "/arsenal/encaminhamentos", icon: Send },
       { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
-      { name: "Cadernos Jurídicos", href: "/juridico/contratos", icon: Scale },
     ],
   },
   {
@@ -171,6 +170,7 @@ const navigation: NavEntry[] = [
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },
+      { name: "Cadernos Jurídicos", href: "/juridico/contratos", icon: Scale },
       { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },

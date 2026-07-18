@@ -1,25 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   FileSignature, RefreshCw, Sparkles, Edit3, Eye,
-  Save, Send, Copy, CheckCircle2, Clock, X,
-  ShieldCheck, BookOpen, FlaskConical, Syringe,
-  Lock, DollarSign, Camera, FileText, ChevronDown, ChevronRight,
-  User, Plus, Zap,
+  Save, X, BookOpen, FlaskConical, Syringe, Lock,
+  DollarSign, Camera, FileText, ChevronDown, ChevronRight,
+  Send, Loader2, Search, CheckSquare, Square,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function authHeader(): HeadersInit {
-  const token = localStorage.getItem("collab_token") || "";
-  return token
-    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+  const t = localStorage.getItem("collab_token") || "";
+  return t
+    ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };
 }
-
 async function apiFetch(path: string, opts?: RequestInit) {
   const r = await fetch(`${API}${path}`, {
     ...opts,
@@ -29,7 +25,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return r.json();
 }
 
-type Placeholder = { key: string; label: string; exemplo: string };
+// ─── Tipos ─────────────────────────────────────────────────────────────────
 type Caderno = {
   id: number | null;
   codigo: string;
@@ -38,25 +34,19 @@ type Caderno = {
   corpoHtml: string;
   semeado: boolean;
   ativo: boolean;
-  placeholders?: Placeholder[];
   atualizadoEm?: string;
 };
-type ClienteLite = {
-  id: number;
-  name: string;
-  cpf: string | null;
-  phone: string | null;
-  email: string | null;
-};
+type PlaceholderDef = { key: string; label: string; exemplo: string };
+type ClienteLite = { id: number; name: string; cpf: string | null; email: string | null; phone: string | null };
+type ProtocoloLite = { id: number; title: string; status: string; startDate: string; totalSessions: number; totalValue: number };
 
-// ─── CATEGORIAS ────────────────────────────────────────────────────────────────
+// ─── Categorias ────────────────────────────────────────────────────────────
 type Categoria = {
   id: string;
   label: string;
   descricao: string;
   icon: typeof FileSignature;
-  cor: string;
-  corBg: string;
+  faixa: string;      // cor da faixa lateral 4px
   codigos: string[];
 };
 
@@ -64,169 +54,149 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "fundamentos",
     label: "Fundamentos do Protocolo",
-    descricao: "Documentos‑base obrigatórios para qualquer protocolo terapêutico",
+    descricao: "Documentos-base obrigatórios para qualquer protocolo",
     icon: BookOpen,
-    cor: "text-blue-700",
-    corBg: "bg-blue-500/10 border-blue-400/30",
+    faixa: "bg-sky-400",
     codigos: ["CGLO", "TCLE", "CTCLE_G"],
   },
   {
     id: "vias",
-    label: "Consentimentos por Via de Administração",
-    descricao: "Termos específicos para cada via: IV, IM, Implante e Fórmulas Magistrais",
+    label: "Consentimentos por Via",
+    descricao: "IV · IM · Implante · Fórmulas Magistrais",
     icon: Syringe,
-    cor: "text-teal-700",
-    corBg: "bg-teal-500/10 border-teal-400/30",
+    faixa: "bg-emerald-400",
     codigos: ["CEND", "CIMU", "CIMP", "CFOR"],
   },
   {
     id: "substancias",
     label: "Substâncias Especiais",
-    descricao: "Peptídeos, GLP‑1/incretinas, secretagogos de GH e agentes lipolíticos",
+    descricao: "Peptídeos · GLP-1 · Secretagogos de GH · Lipolíticos",
     icon: FlaskConical,
-    cor: "text-purple-700",
-    corBg: "bg-purple-500/10 border-purple-400/30",
+    faixa: "bg-violet-400",
     codigos: ["CSUB", "CINC", "CPEP", "CLIP"],
   },
   {
     id: "estetica",
     label: "Procedimentos Estéticos",
-    descricao: "Consentimentos para estética invasiva e por tecnologia",
-    icon: Zap,
-    cor: "text-rose-700",
-    corBg: "bg-rose-500/10 border-rose-400/30",
+    descricao: "Estética invasiva e por tecnologia",
+    icon: Sparkles,
+    faixa: "bg-rose-400",
     codigos: ["CEIN", "CETE"],
   },
   {
     id: "dados",
-    label: "Proteção de Dados e Privacidade",
-    descricao: "LGPD, sigilo médico, política de privacidade e assinatura eletrônica",
+    label: "Proteção de Dados",
+    descricao: "LGPD · Sigilo médico · Assinatura eletrônica",
     icon: Lock,
-    cor: "text-emerald-700",
-    corBg: "bg-emerald-500/10 border-emerald-400/30",
+    faixa: "bg-emerald-500",
     codigos: ["CLGPD", "CPRIV", "CDIG"],
   },
   {
     id: "comercial",
-    label: "Contratos Comerciais e Garantias",
-    descricao: "Ciência financeira, obrigação de meio e limites de resultado",
+    label: "Contratos Comerciais",
+    descricao: "Ciência financeira · Obrigação de meio",
     icon: DollarSign,
-    cor: "text-amber-700",
-    corBg: "bg-amber-500/10 border-amber-400/30",
+    faixa: "bg-amber-400",
     codigos: ["CFIN", "CGAR"],
   },
   {
     id: "autorizacoes",
     label: "Autorizações e Registros",
-    descricao: "Uso de imagem e Registro de Assistência Sistêmica com valor jurídico",
+    descricao: "Uso de imagem · RAS com valor jurídico",
     icon: Camera,
-    cor: "text-slate-700",
-    corBg: "bg-slate-500/10 border-slate-400/30",
+    faixa: "bg-slate-400",
     codigos: ["CIMG", "RAS-JUR"],
   },
 ];
 
-const COR_BADGE: Record<string, string> = {
-  CGLO:     "bg-blue-100 text-blue-800 border-blue-300",
-  TCLE:     "bg-blue-100 text-blue-800 border-blue-300",
-  CTCLE_G:  "bg-blue-100 text-blue-800 border-blue-300",
-  CEND:     "bg-teal-100 text-teal-800 border-teal-300",
-  CIMU:     "bg-teal-100 text-teal-800 border-teal-300",
-  CIMP:     "bg-teal-100 text-teal-800 border-teal-300",
-  CFOR:     "bg-teal-100 text-teal-800 border-teal-300",
-  CSUB:     "bg-purple-100 text-purple-800 border-purple-300",
-  CINC:     "bg-purple-100 text-purple-800 border-purple-300",
-  CPEP:     "bg-purple-100 text-purple-800 border-purple-300",
-  CLIP:     "bg-purple-100 text-purple-800 border-purple-300",
-  CEIN:     "bg-rose-100 text-rose-800 border-rose-300",
-  CETE:     "bg-rose-100 text-rose-800 border-rose-300",
-  CLGPD:    "bg-emerald-100 text-emerald-800 border-emerald-300",
-  CPRIV:    "bg-emerald-100 text-emerald-800 border-emerald-300",
-  CDIG:     "bg-emerald-100 text-emerald-800 border-emerald-300",
-  CFIN:     "bg-amber-100 text-amber-800 border-amber-300",
-  CGAR:     "bg-amber-100 text-amber-800 border-amber-300",
-  CIMG:     "bg-slate-100 text-slate-800 border-slate-300",
-  "RAS-JUR":"bg-slate-100 text-slate-800 border-slate-300",
-};
-
-function fmtData(iso?: string): string {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("pt-BR"); } catch { return "—"; }
-}
-
-function substituirVariaveis(html: string, dados: Record<string, string>): string {
+// Substituição simples de variáveis no HTML
+function hidratarHtml(html: string, dados: Record<string, string>): string {
   let out = html;
   for (const [k, v] of Object.entries(dados)) {
-    out = out.replaceAll(`{{${k}}}`, v || `<span style="color:#c00;font-weight:bold">{{${k}}}</span>`);
+    out = out.replaceAll(
+      `{{${k}}}`,
+      v || `<span style="color:#c00;font-weight:bold">{{${k}}}</span>`,
+    );
   }
   return out;
 }
 
-function stripHtmlPreview(html: string, chars = 180): string {
+function stripPreview(html: string, chars = 160): string {
   const txt = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   return txt.length > chars ? txt.slice(0, chars) + "…" : txt;
 }
 
-// ─── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
+function fmtData(iso?: string) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString("pt-BR"); } catch { return "—"; }
+}
+
+// ─── Dados de preview fixos (amostra clínica) ──────────────────────────────
+const DADOS_PREVIEW: Record<string, string> = {
+  "cliente.nome":           "Carlucia da Silva",
+  "cliente.cpf":            "000.000.000-00",
+  "cliente.dataNascimento": "01/01/1980",
+  "cliente.email":          "carlucia@email.com",
+  "cliente.telefone":       "(11) 99999-9999",
+  "medico.nome":            "Dr. Caio Pádua",
+  "medico.crm":             "123456",
+  "medico.uf":              "SP",
+  "protocolo.titulo":       "Protocolo Longevidade Plena",
+  "protocolo.substancias":  "NAD+, Glutationa, Vitamina C IV, Ozônio IM, Testosterona (Implante)",
+  "protocolo.vias":         "Endovenosa (IV), Intramuscular (IM), Implante Subcutâneo",
+  "protocolo.dataInicio":   "01/08/2026",
+  "protocolo.totalSessoes": "12",
+  "protocolo.sessoes":      "12",
+  "protocolo.valorTotal":   "R$ 14.400,00",
+  "protocolo.valor":        "R$ 14.400,00",
+  "pagamento.metodo":       "PIX",
+  "pagamento.parcelas":     "1",
+  "clinica.nome":           "Clínica Padcon · Tatuapé",
+  "clinica.endereco":       "Rua Tuiuti, 1000 — Tatuapé, São Paulo — SP",
+  "clinica.email":          "contato@padconconect.com.br",
+  "data.hoje":              new Date().toLocaleDateString("pt-BR"),
+};
+
+// ─── Componente principal ───────────────────────────────────────────────────
 export default function ContratosJuridicos() {
   const { toast } = useToast();
-  const [cadernos, setCadernos] = useState<Caderno[]>([]);
-  const [placeholders, setPlaceholders] = useState<Placeholder[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [semeando, setSemeando] = useState(false);
 
-  // Categorias expandidas (padrão: todas abertas)
+  // Estado dos cadernos
+  const [cadernos, setCadernos]   = useState<Caderno[]>([]);
+  const [placeholders, setPlaceholders] = useState<PlaceholderDef[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [semeando, setSemeando]   = useState(false);
+
+  // Categorias expandidas
   const [expandidas, setExpandidas] = useState<Set<string>>(
-    new Set(CATEGORIAS.map((c) => c.id))
+    new Set(CATEGORIAS.map((c) => c.id)),
   );
 
-  // Modal editor
-  const [cadSelecionado, setCadSelecionado] = useState<Caderno | null>(null);
-  const [modo, setModo] = useState<"editar" | "preview">("preview");
-  const [htmlEditado, setHtmlEditado] = useState("");
-  const [salvando, setSalvando] = useState(false);
+  // Slide-over de edição/preview
+  const [cadSel, setCadSel]       = useState<Caderno | null>(null);
+  const [modo, setModo]           = useState<"ver" | "editar">("ver");
+  const [htmlEdit, setHtmlEdit]   = useState("");
+  const [salvando, setSalvando]   = useState(false);
 
-  // Modal emissão
+  // Modal de emissão
   const [modalEmissao, setModalEmissao] = useState(false);
-  const [clientes, setClientes] = useState<ClienteLite[]>([]);
-  const [busca, setBusca] = useState("");
-  const [clienteSel, setClienteSel] = useState<ClienteLite | null>(null);
-  const [emitindo, setEmitindo] = useState(false);
-  const [canais, setCanais] = useState<string[]>(["WHATSAPP", "EMAIL"]);
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [clientes, setClientes]         = useState<ClienteLite[]>([]);
+  const [clienteSel, setClienteSel]     = useState<ClienteLite | null>(null);
+  const [protocolos, setProtocolos]     = useState<ProtocoloLite[]>([]);
+  const [protocoloSel, setProtocoloSel] = useState<ProtocoloLite | null>(null);
+  const [codigosEmitir, setCodigosEmitir] = useState<Set<string>>(new Set());
+  const [dadosHidratacao, setDadosHidratacao] = useState<Record<string, string>>({});
+  const [resolvendo, setResolvendo]     = useState(false);
+  const [emitindo, setEmitindo]         = useState(false);
 
-  // Dados do preview (substituição de variáveis)
-  const [dadosPreview] = useState<Record<string, string>>({
-    "cliente.nome":           "Carlucia da Silva",
-    "cliente.cpf":            "000.000.000-00",
-    "cliente.dataNascimento": "01/01/1980",
-    "cliente.email":          "carlucia@email.com",
-    "cliente.telefone":       "(11) 99999-9999",
-    "medico.nome":            "Dr. Caio Pádua",
-    "medico.crm":             "123456",
-    "medico.uf":              "SP",
-    "protocolo.titulo":       "Protocolo Longevidade Plena",
-    "protocolo.substancias":  "NAD+, Glutationa, Vitamina C IV, Ozônio IM, GLP-1 SC, Testosterona (Implante)",
-    "protocolo.vias":         "IV, IM, SC, Implante",
-    "protocolo.dataInicio":   "01/08/2026",
-    "protocolo.totalSessoes": "12",
-    "protocolo.sessoes":      "12",
-    "protocolo.valorTotal":   "R$ 14.400,00",
-    "protocolo.valor":        "R$ 14.400,00",
-    "pagamento.metodo":       "PIX",
-    "pagamento.parcelas":     "1",
-    "clinica.nome":           "Clínica Tatuapé",
-    "clinica.endereco":       "Rua Tuiuti, 1000 — Tatuapé, São Paulo — SP",
-    "clinica.email":          "contato@clinicapadua.com.br",
-    "data.hoje":              new Date().toLocaleDateString("pt-BR"),
-  });
-
-  // ─── CARREGAR ──────────────────────────────────────────────────────────────
+  // ── Carregar cadernos ─────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
       const d = await apiFetch("/api/cadernos-juridicos");
-      setCadernos(d.cadernos || []);
-      setPlaceholders(d.placeholders || []);
+      setCadernos(d.cadernos ?? []);
+      setPlaceholders(d.placeholders ?? []);
     } catch {
       toast({ title: "Erro ao carregar cadernos", variant: "destructive" });
     } finally {
@@ -236,12 +206,12 @@ export default function ContratosJuridicos() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  // ─── SEMEAR ────────────────────────────────────────────────────────────────
+  // ── Semear ────────────────────────────────────────────────────────────────
   const semear = async () => {
     setSemeando(true);
     try {
       const d = await apiFetch("/api/cadernos-juridicos/seed", { method: "POST" });
-      toast({ title: `${d.inseridos} cadernos semeados com sucesso` });
+      toast({ title: `${d.inseridos} cadernos semeados` });
       await carregar();
     } catch {
       toast({ title: "Erro ao semear", variant: "destructive" });
@@ -250,25 +220,31 @@ export default function ContratosJuridicos() {
     }
   };
 
-  // ─── ABRIR EDITOR ──────────────────────────────────────────────────────────
-  const abrirEditor = (c: Caderno) => {
-    setCadSelecionado(c);
-    setHtmlEditado(c.corpoHtml || "");
-    setModo("preview");
+  // ── Abrir slide-over ──────────────────────────────────────────────────────
+  const abrirVer = (c: Caderno) => {
+    setCadSel(c);
+    setHtmlEdit(c.corpoHtml ?? "");
+    setModo("ver");
+  };
+  const abrirEditar = (c: Caderno) => {
+    setCadSel(c);
+    setHtmlEdit(c.corpoHtml ?? "");
+    setModo("editar");
   };
 
-  // ─── SALVAR ────────────────────────────────────────────────────────────────
+  // ── Salvar caderno ────────────────────────────────────────────────────────
   const salvar = async () => {
-    if (!cadSelecionado) return;
+    if (!cadSel) return;
     setSalvando(true);
     try {
-      const d = await apiFetch(`/api/cadernos-juridicos/${cadSelecionado.codigo}`, {
+      const d = await apiFetch(`/api/cadernos-juridicos/${cadSel.codigo}`, {
         method: "PUT",
-        body: JSON.stringify({ corpoHtml: htmlEditado }),
+        body: JSON.stringify({ corpoHtml: htmlEdit }),
       });
       toast({ title: "Caderno salvo" });
-      setCadSelecionado(d.caderno);
+      setCadSel(d.caderno);
       await carregar();
+      setModo("ver");
     } catch {
       toast({ title: "Erro ao salvar", variant: "destructive" });
     } finally {
@@ -276,57 +252,81 @@ export default function ContratosJuridicos() {
     }
   };
 
-  // ─── ABRIR MODAL EMISSÃO ────────────────────────────────────────────────────
+  // ── Abrir modal emissão ───────────────────────────────────────────────────
   const abrirEmissao = async () => {
     setModalEmissao(true);
+    setBuscaCliente("");
+    setClienteSel(null);
+    setProtocoloSel(null);
+    setProtocolos([]);
+    setCodigosEmitir(new Set());
+    setDadosHidratacao({});
     try {
-      const d = await apiFetch("/api/clients?limit=200");
-      setClientes(Array.isArray(d) ? d : (d.clients || d.data || []));
+      const d = await apiFetch("/api/clients?limit=300");
+      setClientes(Array.isArray(d) ? d : (d.clients ?? d.data ?? []));
     } catch { setClientes([]); }
   };
 
-  // ─── EMITIR ────────────────────────────────────────────────────────────────
+  // ── Selecionar cliente → carregar protocolos ──────────────────────────────
+  const selecionarCliente = async (c: ClienteLite) => {
+    setClienteSel(c);
+    setBuscaCliente(c.name);
+    setProtocoloSel(null);
+    setCodigosEmitir(new Set());
+    setDadosHidratacao({});
+    try {
+      const d = await apiFetch(`/api/protocols?clientId=${c.id}`);
+      setProtocolos(Array.isArray(d) ? d : (d.protocols ?? []));
+    } catch { setProtocolos([]); }
+  };
+
+  // ── Selecionar protocolo → resolver cadernos ──────────────────────────────
+  const selecionarProtocolo = async (p: ProtocoloLite) => {
+    setProtocoloSel(p);
+    setResolvendo(true);
+    try {
+      const d = await apiFetch(`/api/cadernos-juridicos/resolver/${p.id}`);
+      setCodigosEmitir(new Set(d.codigos ?? []));
+      setDadosHidratacao(d.dadosHidratacao ?? {});
+    } catch {
+      // fallback: seleciona todos
+      setCodigosEmitir(new Set(CATEGORIAS.flatMap((c) => c.codigos)));
+      toast({ title: "Não foi possível resolver automaticamente — seleção completa ativada", variant: "destructive" });
+    } finally {
+      setResolvendo(false);
+    }
+  };
+
+  // ── Emitir lote ───────────────────────────────────────────────────────────
   const emitir = async () => {
-    if (!clienteSel || !cadSelecionado) return;
+    if (!clienteSel || codigosEmitir.size === 0) return;
     setEmitindo(true);
     try {
-      await apiFetch("/api/assinaturas/enviar", {
+      const d = await apiFetch("/api/cadernos-juridicos/emitir-lote", {
         method: "POST",
         body: JSON.stringify({
-          templateId: cadSelecionado.id,
-          tipoDoc: cadSelecionado.tipoDoc,
-          titulo: cadSelecionado.titulo,
-          pacienteId: clienteSel.id,
-          canaisDistribuir: canais,
-          dadosHidratacao: {
-            "cliente.nome":     clienteSel.name,
-            "cliente.cpf":      clienteSel.cpf || "",
-            "cliente.email":    clienteSel.email || "",
-            "cliente.telefone": clienteSel.phone || "",
-          },
+          clientId: clienteSel.id,
+          protocolId: protocoloSel?.id,
+          codigos: [...codigosEmitir],
+          dadosHidratacao,
+          canais: ["WHATSAPP", "EMAIL"],
         }),
       });
-      toast({ title: `${cadSelecionado.titulo} enviado para ${clienteSel.name}` });
+      toast({ title: `${d.enviados} cadernos emitidos para ${clienteSel.name}` });
       setModalEmissao(false);
-      setClienteSel(null);
     } catch (e) {
-      toast({
-        title: `Erro: ${e instanceof Error ? e.message : "desconhecido"}`,
-        variant: "destructive",
-      });
+      toast({ title: `Erro: ${e instanceof Error ? e.message : "desconhecido"}`, variant: "destructive" });
     } finally {
       setEmitindo(false);
     }
   };
 
-  // ─── DERIVADOS ─────────────────────────────────────────────────────────────
-  const mapa = new Map(cadernos.map((c) => [c.codigo, c]));
-  const totalSemeados = cadernos.filter((c) => c.semeado).length;
-  const totalCadernos = cadernos.length || 20;
-  const todosSemeados = totalSemeados >= totalCadernos && totalCadernos > 0;
-  const clientesFiltrados = clientes.filter(
-    (c) => c.name.toLowerCase().includes(busca.toLowerCase()) || (c.cpf || "").includes(busca)
-  );
+  // ── Derivados ─────────────────────────────────────────────────────────────
+  const mapa        = new Map(cadernos.map((c) => [c.codigo, c]));
+  const totalCad    = cadernos.length || 20;
+  const totalSem    = cadernos.filter((c) => c.semeado).length;
+  const totalAtivos = cadernos.filter((c) => c.semeado && c.ativo).length;
+  const todosSem    = totalSem >= totalCad && totalCad > 0;
 
   const toggleCategoria = (id: string) =>
     setExpandidas((prev) => {
@@ -335,84 +335,105 @@ export default function ContratosJuridicos() {
       return next;
     });
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-6 pb-12">
+  const toggleCodigo = (cod: string) =>
+    setCodigosEmitir((prev) => {
+      const next = new Set(prev);
+      next.has(cod) ? next.delete(cod) : next.add(cod);
+      return next;
+    });
 
-      {/* ── CABEÇALHO ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <FileSignature className="w-6 h-6 text-primary" />
+  const clientesFiltrados = clientes.filter((c) =>
+    c.name.toLowerCase().includes(buscaCliente.toLowerCase()) ||
+    (c.cpf ?? "").includes(buscaCliente),
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-5 pb-16">
+
+      {/* ── CABEÇALHO ───────────────────────────────────────────────────── */}
+      <div className="panel-3d p-5 flex flex-col sm:flex-row sm:items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 mb-3 uppercase tracking-widest text-sm font-bold">
+            <FileSignature className="w-4 h-4" />
             Cadernos Jurídicos
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalCadernos} contratos organizados em {CATEGORIAS.length} categorias — edite e emita para assinatura digital
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Configuração e edição dos {totalCad} modelos de consentimento — emitidos ao cliente no fechamento de contrato
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={carregar} disabled={carregando}>
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${carregando ? "animate-spin" : ""}`} />
-            Atualizar
-          </Button>
-          {!todosSemeados && (
-            <Button size="sm" onClick={semear} disabled={semeando}>
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              {semeando ? "Semeando…" : `Semear ${totalCadernos - totalSemeados} cadernos`}
-            </Button>
-          )}
+
+        {/* KPIs */}
+        <div className="flex gap-2 flex-wrap shrink-0">
+          {[
+            { label: "TOTAL",    valor: totalCad },
+            { label: "SEMEADOS", valor: totalSem,    cor: "text-emerald-600" },
+            { label: "ATIVOS",   valor: totalAtivos,  cor: "text-sky-600" },
+            { label: "PENDENTES",valor: Math.max(0, totalCad - totalSem), cor: "text-amber-600" },
+          ].map((k) => (
+            <div key={k.label} className="screen-3d px-3 py-2 text-center min-w-[64px]">
+              <div className={`text-xl font-bold ${k.cor ?? ""}`}>{k.valor}</div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">{k.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Total",    valor: totalCadernos,                                              cor: "text-foreground" },
-          { label: "Semeados", valor: totalSemeados,                                              cor: "text-emerald-600" },
-          { label: "Pendentes",valor: Math.max(0, totalCadernos - totalSemeados),                 cor: "text-amber-600" },
-          { label: "Ativos",   valor: cadernos.filter((c) => c.semeado && c.ativo).length,        cor: "text-blue-600" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-md border bg-card p-3 text-center">
-            <div className={`text-2xl font-bold ${s.cor}`}>{s.valor}</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide mt-0.5">{s.label}</div>
-          </div>
-        ))}
+      {/* ── BARRA DE AÇÕES ───────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button className="btn-3d gap-2" onClick={abrirEmissao}>
+          <Send className="w-4 h-4" />
+          Emitir ao Cliente
+        </Button>
+        <Button className="btn-3d-soft gap-2" onClick={carregar} disabled={carregando}>
+          <RefreshCw className={`w-4 h-4 ${carregando ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
+        {!todosSem && (
+          <Button className="btn-3d-soft gap-2" onClick={semear} disabled={semeando}>
+            <Sparkles className="w-4 h-4" />
+            {semeando ? "Semeando…" : `Semear ${totalCad - totalSem}`}
+          </Button>
+        )}
       </div>
 
-      {/* ── CATEGORIAS ── */}
+      {/* ── CATEGORIAS ───────────────────────────────────────────────────── */}
       {carregando ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="h-32 rounded-xl border bg-muted animate-pulse" />
+            <div key={i} className="h-28 panel-3d animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {CATEGORIAS.map((cat) => {
-            const Icon = cat.icon;
-            const aberta = expandidas.has(cat.id);
-            const cadsDaCategoria = cat.codigos.map((cod) => mapa.get(cod)).filter(Boolean) as Caderno[];
-            const semeadosNaCategoria = cadsDaCategoria.filter((c) => c.semeado).length;
+            const Icon    = cat.icon;
+            const aberta  = expandidas.has(cat.id);
+            const cads    = cat.codigos.map((cod) => mapa.get(cod)).filter(Boolean) as Caderno[];
+            const nSem    = cads.filter((c) => c.semeado).length;
 
             return (
-              <div key={cat.id} className={`rounded-xl border ${cat.corBg} overflow-hidden`}>
+              <div key={cat.id} className="panel-3d overflow-hidden">
 
                 {/* Cabeçalho da categoria */}
                 <button
                   onClick={() => toggleCategoria(cat.id)}
-                  className="w-full flex items-center gap-3 px-5 py-4 hover:bg-black/5 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-primary/5 transition-colors"
                 >
-                  <div className={`p-2 rounded-lg bg-white/70 ${cat.cor}`}>
-                    <Icon className="w-5 h-5" />
+                  <div className={`w-1 self-stretch rounded-full ${cat.faixa}`} />
+                  <div className={`p-1.5 rounded-[6px] bg-white/60 dark:bg-white/10`}>
+                    <Icon className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className={`font-semibold text-base ${cat.cor}`}>{cat.label}</h2>
-                      <span className="text-xs bg-white/60 border rounded px-1.5 py-0.5 text-muted-foreground">
-                        {semeadosNaCategoria}/{cat.codigos.length}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest font-bold">
+                        {cat.label}
+                      </span>
+                      <span className="concave-3d text-[10px] px-2 py-0.5 font-mono">
+                        {nSem}/{cat.codigos.length}
                       </span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-0.5 truncate">{cat.descricao}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{cat.descricao}</p>
                   </div>
                   {aberta
                     ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -421,78 +442,64 @@ export default function ContratosJuridicos() {
 
                 {/* Cards dos cadernos */}
                 {aberta && (
-                  <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="p-3 pt-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {cat.codigos.map((cod) => {
                       const c = mapa.get(cod);
+
                       if (!c) return (
-                        <div key={cod} className="rounded-lg border bg-white/40 p-4 text-center text-sm text-muted-foreground">
-                          <Clock className="w-5 h-5 mx-auto mb-1 opacity-40" />
-                          Caderno <strong>{cod}</strong> não encontrado
+                        <div key={cod} className="panel-3d-sub flex items-center gap-3 p-4 opacity-60">
+                          <div className={`w-1 self-stretch rounded-full bg-muted`} />
+                          <div className="text-sm text-muted-foreground">
+                            <span className="concave-3d px-2 py-0.5 font-mono text-[11px] mr-2">{cod}</span>
+                            Não semeado
+                          </div>
                         </div>
                       );
 
-                      const preview = stripHtmlPreview(c.corpoHtml || "");
-                      const badgeCls = COR_BADGE[c.codigo] || "bg-gray-100 text-gray-700 border-gray-300";
+                      const preview = stripPreview(c.corpoHtml ?? "");
 
                       return (
-                        <div
-                          key={c.codigo}
-                          className="rounded-lg border bg-white/70 hover:bg-white transition-all shadow-sm flex flex-col"
-                        >
-                          {/* Topo do card */}
-                          <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className={`text-[10px] font-bold px-1.5 py-0 ${badgeCls}`}>
+                        <div key={c.codigo} className="panel-3d-sub flex overflow-hidden">
+
+                          {/* Faixa lateral de categoria — 4px */}
+                          <div className={`w-1 shrink-0 ${cat.faixa}`} />
+
+                          <div className="flex-1 flex flex-col p-3 min-w-0">
+                            {/* Linha superior: código + data */}
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="concave-3d px-2 py-0.5 text-[11px] font-mono font-bold tracking-wide">
                                 {c.codigo}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                {c.tipoDoc}
-                              </Badge>
-                            </div>
-                            {c.semeado
-                              ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                              : <Clock className="w-4 h-4 text-amber-400 shrink-0" />}
-                          </div>
-
-                          {/* Título */}
-                          <div className="px-4 pb-2">
-                            <h3 className="text-sm font-semibold leading-snug line-clamp-2">{c.titulo}</h3>
-                          </div>
-
-                          {/* Preview do texto */}
-                          <div className="px-4 pb-3 flex-1">
-                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
-                              {preview || "Sem conteúdo — clique em Editar para redigir."}
-                            </p>
-                          </div>
-
-                          {/* Data */}
-                          {c.semeado && c.atualizadoEm && (
-                            <div className="px-4 pb-2">
-                              <span className="text-[10px] text-muted-foreground">
-                                Atualizado: {fmtData(c.atualizadoEm)}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {fmtData(c.atualizadoEm)}
                               </span>
                             </div>
-                          )}
 
-                          {/* Ações */}
-                          <div className="border-t px-3 py-2 flex items-center gap-2 bg-white/50 rounded-b-lg">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 h-7 text-xs"
-                              onClick={() => { abrirEditor(c); setModo("preview"); }}
-                            >
-                              <Eye className="w-3 h-3 mr-1" /> Ver contrato
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => { abrirEditor(c); setModo("editar"); }}
-                            >
-                              <Edit3 className="w-3 h-3 mr-1" /> Editar
-                            </Button>
+                            {/* Título */}
+                            <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1.5">
+                              {c.titulo}
+                            </p>
+
+                            {/* Preview */}
+                            <p className="text-xs text-muted-foreground line-clamp-2 flex-1 mb-3">
+                              {preview}
+                            </p>
+
+                            {/* Botões */}
+                            <div className="flex gap-2">
+                              <Button
+                                className="btn-3d-soft h-7 text-xs gap-1 flex-1"
+                                onClick={() => abrirVer(c)}
+                              >
+                                <Eye className="w-3 h-3" /> Ver
+                              </Button>
+                              <Button
+                                className="btn-3d-soft h-7 text-xs gap-1 flex-1"
+                                onClick={() => abrirEditar(c)}
+                              >
+                                <Edit3 className="w-3 h-3" /> Editar
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -505,243 +512,302 @@ export default function ContratosJuridicos() {
         </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* MODAL EDITOR / PREVIEW DE CADERNO */}
-      {cadSelecionado && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-end">
-          <div className="bg-background w-full max-w-4xl h-full flex flex-col shadow-2xl">
+      {/* ═══════════════════════════════════════════════════════════════════
+          SLIDE-OVER: EDITAR / VER CADERNO
+      ═══════════════════════════════════════════════════════════════════ */}
+      {cadSel && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setCadSel(null)}
+          />
 
-            {/* Header do modal */}
-            <div className="flex items-center justify-between gap-2 px-5 py-3 border-b bg-muted/30 shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <Badge variant="outline" className={`text-[11px] font-bold shrink-0 ${COR_BADGE[cadSelecionado.codigo] || ""}`}>
-                  {cadSelecionado.codigo}
-                </Badge>
-                <span className="text-sm font-semibold truncate">{cadSelecionado.titulo}</span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  variant={modo === "preview" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setModo("preview")}
-                >
-                  <Eye className="w-3.5 h-3.5 mr-1" /> Preview
-                </Button>
-                <Button
-                  variant={modo === "editar" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setModo("editar")}
-                >
-                  <Edit3 className="w-3.5 h-3.5 mr-1" /> Editar
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setCadSelecionado(null)}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
+          {/* Painel lateral */}
+          <div className="relative w-full max-w-2xl h-full flex flex-col panel-3d rounded-none shadow-2xl overflow-hidden">
+
+            {/* Cabeçalho */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card/80">
+              <div className="bevel-3d px-2 py-0.5 text-[11px] font-mono font-bold">{cadSel.codigo}</div>
+              <h2 className="flex-1 font-semibold text-sm leading-tight truncate">{cadSel.titulo}</h2>
+              <button
+                className="concave-3d w-8 h-8 flex items-center justify-center rounded-[6px] hover:text-destructive transition-colors"
+                onClick={() => setCadSel(null)}
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Corpo do modal */}
-            <div className="flex-1 overflow-auto">
-              {modo === "preview" ? (
-                /* PREVIEW — documento renderizado com variáveis preenchidas */
-                <div className="p-6">
-                  <div className="max-w-3xl mx-auto rounded-lg border bg-white p-8 shadow-sm">
-                    <div
-                      className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{
-                        __html: substituirVariaveis(htmlEditado || cadSelecionado.corpoHtml || "", dadosPreview),
-                      }}
+            {/* Abas */}
+            <div className="flex border-b border-border">
+              {(["ver", "editar"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setModo(m)}
+                  className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium uppercase tracking-wide transition-colors ${
+                    modo === m
+                      ? "border-b-2 border-primary text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m === "ver" ? <Eye className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                  {m === "ver" ? "Visualizar" : "Editar"}
+                </button>
+              ))}
+            </div>
+
+            {/* Conteúdo */}
+            <div className="flex-1 overflow-y-auto">
+
+              {/* ── VER ── */}
+              {modo === "ver" && (
+                <div className="p-5">
+                  <div className="concave-3d p-1 mb-3 text-[10px] text-muted-foreground uppercase tracking-widest text-center">
+                    Pré-visualização com dados de exemplo (Carlucia · Longevidade Plena)
+                  </div>
+                  <div
+                    className="prose prose-sm max-w-none [&_h2]:text-base [&_h2]:font-bold [&_h3]:text-sm [&_h3]:font-semibold [&_p]:text-sm [&_li]:text-sm"
+                    dangerouslySetInnerHTML={{
+                      __html: hidratarHtml(cadSel.corpoHtml ?? "", DADOS_PREVIEW),
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* ── EDITAR ── */}
+              {modo === "editar" && (
+                <div className="p-4 space-y-4">
+                  {/* Paleta de variáveis */}
+                  <div className="panel-3d-sub p-3">
+                    <div className="bevel-3d text-[10px] px-2 py-0.5 uppercase tracking-widest mb-2 inline-block">
+                      Variáveis disponíveis
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {placeholders.map((p) => (
+                        <button
+                          key={p.key}
+                          className="concave-3d text-[10px] font-mono px-2 py-0.5 hover:text-primary transition-colors"
+                          title={`${p.label} — Ex: ${p.exemplo}`}
+                          onClick={() => setHtmlEdit((h) => h + `{{${p.key}}}`)}
+                        >
+                          {`{{${p.key}}}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Editor HTML */}
+                  <div>
+                    <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">
+                      Corpo HTML do Contrato
+                    </label>
+                    <textarea
+                      className="field-engraved w-full font-mono text-xs leading-relaxed resize-none"
+                      rows={22}
+                      value={htmlEdit}
+                      onChange={(e) => setHtmlEdit(e.target.value)}
                     />
                   </div>
                 </div>
-              ) : (
-                /* EDITOR */
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_220px] h-full divide-x">
-                  <div className="p-4 space-y-2 flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Use <code className="bg-muted px-1 rounded">{"{{variavel}}"}</code> para campos dinâmicos.
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto shrink-0"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(htmlEditado || cadSelecionado.corpoHtml || "");
-                          toast({ title: "HTML copiado" });
-                        }}
-                      >
-                        <Copy className="w-3.5 h-3.5 mr-1" /> Copiar
-                      </Button>
-                    </div>
-                    <textarea
-                      value={htmlEditado}
-                      onChange={(e) => setHtmlEditado(e.target.value)}
-                      className="flex-1 w-full rounded-md border bg-background font-mono text-xs p-3 resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[500px]"
-                      spellCheck={false}
-                    />
-                  </div>
+              )}
+            </div>
 
-                  {/* Variáveis */}
-                  <div className="p-4 space-y-2 overflow-y-auto">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                      Variáveis disponíveis
-                    </p>
-                    {(placeholders.length > 0 ? placeholders : cadSelecionado.placeholders || []).map((p) => (
-                      <div key={p.key} className="space-y-0.5">
-                        <button
-                          onClick={() => setHtmlEditado((prev) => (prev || cadSelecionado.corpoHtml || "") + `{{${p.key}}}`)}
-                          className="w-full text-left px-2 py-1.5 rounded border text-[11px] font-mono hover:bg-primary/10 hover:border-primary/40 transition-colors group"
-                        >
-                          <span className="text-primary font-semibold">{`{{${p.key}}}`}</span>
-                          <Plus className="w-3 h-3 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                        <p className="text-[10px] text-muted-foreground pl-2">{p.label}</p>
-                      </div>
+            {/* Rodapé do slide-over */}
+            {modo === "editar" && (
+              <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-card/80">
+                <Button className="btn-3d-soft" onClick={() => setModo("ver")}>
+                  Cancelar
+                </Button>
+                <Button className="btn-3d gap-2" onClick={salvar} disabled={salvando}>
+                  {salvando
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando…</>
+                    : <><Save className="w-4 h-4" /> Salvar Caderno</>}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MODAL: EMITIR AO CLIENTE
+      ═══════════════════════════════════════════════════════════════════ */}
+      {modalEmissao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setModalEmissao(false)}
+          />
+
+          <div className="relative w-full max-w-xl panel-3d overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-sm uppercase tracking-widest font-bold">
+                <Send className="w-4 h-4" />
+                Emitir Cadernos ao Cliente
+              </div>
+              <button
+                className="concave-3d w-8 h-8 flex items-center justify-center rounded-[6px]"
+                onClick={() => setModalEmissao(false)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-5">
+
+              {/* ── 1. Buscar cliente ── */}
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <span className="concave-3d px-1.5 py-0.5 text-[10px] font-bold">1</span>
+                  Selecionar Cliente
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    className="field-engraved w-full pl-9 text-sm"
+                    placeholder="Nome ou CPF do cliente…"
+                    value={buscaCliente}
+                    onChange={(e) => {
+                      setBuscaCliente(e.target.value);
+                      if (clienteSel && e.target.value !== clienteSel.name) {
+                        setClienteSel(null);
+                        setProtocoloSel(null);
+                        setCodigosEmitir(new Set());
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Lista de clientes filtrados */}
+                {buscaCliente.length >= 2 && !clienteSel && (
+                  <div className="mt-1.5 panel-3d-sub max-h-44 overflow-y-auto">
+                    {clientesFiltrados.slice(0, 8).map((c) => (
+                      <button
+                        key={c.id}
+                        className="w-full text-left px-3 py-2 hover:bg-primary/5 text-sm flex justify-between gap-2"
+                        onClick={() => selecionarCliente(c)}
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-muted-foreground text-xs font-mono">{c.cpf ?? "—"}</span>
+                      </button>
                     ))}
+                    {clientesFiltrados.length === 0 && (
+                      <p className="text-sm text-muted-foreground p-3 text-center">Nenhum cliente encontrado</p>
+                    )}
+                  </div>
+                )}
+
+                {clienteSel && (
+                  <div className="mt-1.5 concave-3d px-3 py-2 text-sm flex items-center justify-between">
+                    <span><strong>{clienteSel.name}</strong> · {clienteSel.cpf ?? "—"}</span>
+                    <button
+                      className="text-muted-foreground hover:text-destructive text-xs ml-2"
+                      onClick={() => { setClienteSel(null); setBuscaCliente(""); setProtocoloSel(null); setCodigosEmitir(new Set()); }}
+                    >
+                      trocar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ── 2. Selecionar protocolo ── */}
+              {clienteSel && (
+                <div>
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <span className="concave-3d px-1.5 py-0.5 text-[10px] font-bold">2</span>
+                    Protocolo a Assinar
+                  </label>
+                  {protocolos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground concave-3d p-3 text-center">
+                      Nenhum protocolo encontrado para este cliente
+                    </p>
+                  ) : (
+                    <div className="panel-3d-sub max-h-36 overflow-y-auto">
+                      {protocolos.map((p) => (
+                        <button
+                          key={p.id}
+                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors flex items-center gap-3 ${
+                            protocoloSel?.id === p.id
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-primary/5"
+                          }`}
+                          onClick={() => selecionarProtocolo(p)}
+                          disabled={resolvendo}
+                        >
+                          <FileText className="w-4 h-4 shrink-0" />
+                          <span className="font-medium flex-1 truncate">{p.title}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{p.totalSessions} sess.</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {resolvendo && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1.5 px-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Identificando cadernos necessários para este protocolo…
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 3. Cadernos selecionados ── */}
+              {protocoloSel && codigosEmitir.size > 0 && (
+                <div>
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                    <span className="concave-3d px-1.5 py-0.5 text-[10px] font-bold">3</span>
+                    Cadernos a Emitir
+                    <span className="concave-3d px-2 py-0.5 text-[10px] font-mono ml-auto">
+                      {codigosEmitir.size} selecionados
+                    </span>
+                  </label>
+                  <div className="panel-3d-sub max-h-52 overflow-y-auto grid grid-cols-1 divide-y divide-border/50">
+                    {CATEGORIAS.flatMap((cat) => cat.codigos).filter((cod) => {
+                      const c = mapa.get(cod);
+                      return c && c.semeado;
+                    }).map((cod) => {
+                      const c = mapa.get(cod)!;
+                      const selecionado = codigosEmitir.has(cod);
+                      return (
+                        <button
+                          key={cod}
+                          className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-primary/5 transition-colors text-left"
+                          onClick={() => toggleCodigo(cod)}
+                        >
+                          {selecionado
+                            ? <CheckSquare className="w-4 h-4 text-primary shrink-0" />
+                            : <Square className="w-4 h-4 text-muted-foreground shrink-0" />}
+                          <span className="concave-3d text-[10px] font-mono px-1.5 py-0.5 shrink-0">{cod}</span>
+                          <span className={`flex-1 truncate text-xs ${!selecionado ? "text-muted-foreground line-through" : ""}`}>
+                            {c.titulo}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
 
             {/* Rodapé do modal */}
-            <div className="flex items-center justify-between gap-2 px-5 py-3 border-t bg-muted/20 shrink-0">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {cadSelecionado.semeado
-                  ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Semeado no banco</>
-                  : <><Clock className="w-3.5 h-3.5 text-amber-500" /> Não semeado</>}
-                {cadSelecionado.atualizadoEm && (
-                  <span>· {fmtData(cadSelecionado.atualizadoEm)}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={salvar} disabled={salvando}>
-                  <Save className="w-3.5 h-3.5 mr-1.5" />
-                  {salvando ? "Salvando…" : "Salvar alterações"}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={abrirEmissao}
-                  disabled={!cadSelecionado.semeado}
-                >
-                  <Send className="w-3.5 h-3.5 mr-1.5" />
-                  Emitir para Cliente
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* MODAL EMISSÃO */}
-      {modalEmissao && cadSelecionado && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-card rounded-xl border shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="font-semibold flex items-center gap-2">
-                <Send className="w-4 h-4 text-primary" />
-                Emitir: {cadSelecionado.titulo}
-              </h2>
-              <Button variant="ghost" size="sm" onClick={() => setModalEmissao(false)}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="p-5 space-y-4">
-
-              {/* Busca de cliente */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5" /> Selecionar Cliente
-                </label>
-                <Input
-                  placeholder="Buscar por nome ou CPF…"
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="h-8 text-sm"
-                />
-                <div className="max-h-44 overflow-y-auto space-y-1 rounded-md border bg-muted/20 p-1">
-                  {clientesFiltrados.slice(0, 25).map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setClienteSel(c)}
-                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                        clienteSel?.id === c.id
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-accent"
-                      }`}
-                    >
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-[11px] opacity-70">{c.cpf || "sem CPF"} · {c.email || "sem e-mail"}</div>
-                    </button>
-                  ))}
-                  {clientesFiltrados.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-3">Nenhum cliente encontrado</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Canais */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Canais de envio</label>
-                <div className="flex gap-2 flex-wrap">
-                  {["WHATSAPP", "EMAIL", "TELEGRAM"].map((canal) => (
-                    <button
-                      key={canal}
-                      onClick={() =>
-                        setCanais((prev) =>
-                          prev.includes(canal) ? prev.filter((c) => c !== canal) : [...prev, canal]
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
-                        canais.includes(canal)
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border hover:bg-accent"
-                      }`}
-                    >
-                      {canal}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {clienteSel && (
-                <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="font-medium">{clienteSel.name}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {clienteSel.email || "sem e-mail"} · {clienteSel.phone || "sem telefone"}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 px-5 py-4 border-t">
-              <Button variant="outline" size="sm" onClick={() => setModalEmissao(false)}>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+              <Button className="btn-3d-soft" onClick={() => setModalEmissao(false)}>
                 Cancelar
               </Button>
-              <Button size="sm" onClick={emitir} disabled={!clienteSel || emitindo}>
-                <Send className="w-3.5 h-3.5 mr-1.5" />
-                {emitindo ? "Enviando…" : "Enviar para Assinatura"}
+              <Button
+                className="btn-3d gap-2"
+                onClick={emitir}
+                disabled={emitindo || !clienteSel || codigosEmitir.size === 0}
+              >
+                {emitindo
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Emitindo…</>
+                  : <><Send className="w-4 h-4" /> Emitir {codigosEmitir.size > 0 ? `${codigosEmitir.size} cadernos` : ""}</>}
               </Button>
             </div>
           </div>
         </div>
       )}
-
-      {/* ─── NOTA DE RODAPÉ ─────────────────────────────────────────────────── */}
-      <div className="rounded-lg border bg-muted/30 p-4 flex items-start gap-3">
-        <FileText className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
-        <div className="text-sm text-muted-foreground">
-          <strong className="text-foreground">Como usar:</strong>{" "}
-          Clique em <em>"Ver contrato"</em> para visualizar o documento com dados preenchidos.
-          Clique em <em>"Editar"</em> para alterar o texto HTML.
-          Clique em <em>"Emitir para Cliente"</em> para enviar para assinatura digital (ZapSign ou ICP-Brasil).
-          Os dados do preview são de demonstração (cliente Carlucia, protocolo Longevidade Plena).
-        </div>
-      </div>
     </div>
   );
 }

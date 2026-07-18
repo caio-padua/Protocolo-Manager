@@ -8,7 +8,10 @@
  * POST /api/cadernos-juridicos/emitir-lote    — emite todos (ou lista) para um cliente.
  */
 import { Router } from "express";
-import { db, assinaturaTemplatesTable, clientsTable } from "@workspace/db";
+import {
+  db, assinaturaTemplatesTable, clientsTable,
+  protocolsTable, protocolItemsTable, substancesTable, professionalsTable,
+} from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import type { CanalDistribuicao } from "../lib/assinatura/types";
@@ -1114,6 +1117,171 @@ router.post("/cadernos-juridicos/emitir-lote", async (req, res): Promise<void> =
     erros,
     resultados,
   });
+});
+
+// GET /api/cadernos-juridicos/resolver/:protocolId
+// Retorna: quais cadernos emitir + dados de hidratação pre-preenchidos a partir do protocolo real
+router.get("/cadernos-juridicos/resolver/:protocolId", async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.protocolId, 10);
+  if (!protocolId || isNaN(protocolId)) {
+    res.status(400).json({ error: "protocolId inválido" });
+    return;
+  }
+
+  try {
+    const [protocol] = await db
+      .select()
+      .from(protocolsTable)
+      .where(eq(protocolsTable.id, protocolId))
+      .limit(1);
+
+    if (!protocol) {
+      res.status(404).json({ error: "Protocolo não encontrado" });
+      return;
+    }
+
+    // Carrega itens + substâncias
+    const items = await db
+      .select({
+        substanceId: protocolItemsTable.substanceId,
+        dose: protocolItemsTable.dose,
+        substanceName: substancesTable.name,
+        procedureType: substancesTable.procedureType,
+        categoryType: substancesTable.categoryType,
+        viaUso: substancesTable.viaUso,
+      })
+      .from(protocolItemsTable)
+      .innerJoin(substancesTable, eq(protocolItemsTable.substanceId, substancesTable.id))
+      .where(eq(protocolItemsTable.protocolId, protocolId));
+
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(eq(clientsTable.id, protocol.clientId))
+      .limit(1);
+
+    // Médico
+    let medicoNome = "Dr. Caio Henrique Fernandes Pádua";
+    let medicoCrm = "XXXXX";
+    const medicoUf = "SP";
+    if (protocol.professionalId) {
+      const [prof] = await db
+        .select()
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, protocol.professionalId))
+        .limit(1);
+      if (prof) {
+        medicoNome = prof.name;
+        medicoCrm = prof.crm || "XXXXX";
+      }
+    }
+
+    // Clínica pelo unit
+    const unitMap: Record<string, { nome: string; endereco: string }> = {
+      Tatuapé:   { nome: "Clínica Padcon · Tatuapé",  endereco: "Rua Tuiuti, 1000 — Tatuapé, São Paulo — SP" },
+      Mooca:     { nome: "Clínica Padcon · Mooca",     endereco: "Rua da Mooca, 2000 — Mooca, São Paulo — SP" },
+      Domiciliar:{ nome: "Nurse Care Domiciliar",       endereco: "São Paulo — SP (atendimento domiciliar)" },
+    };
+    const clinica = unitMap[protocol.unit || ""] ?? { nome: "Clínica Padcon · Tatuapé", endereco: "São Paulo — SP" };
+
+    // Detectar vias
+    const procedureTypes = [...new Set(items.map((i) => i.procedureType).filter(Boolean))] as string[];
+    const hasIV     = procedureTypes.includes("iv");
+    const hasIM     = procedureTypes.includes("im");
+    const hasImplant = procedureTypes.includes("implant");
+    const hasSC     = procedureTypes.includes("sc");
+
+    // Detectar substâncias especiais por nome (normalizado)
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const allNames = items.map((i) => normalize(i.substanceName || "")).join(" ");
+
+    const isGLP1   = /semaglutida|tirzepatida|liraglutida|glp.?1|ozempic|wegovy|mounjaro|incretina/.test(allNames);
+    const isPeptide = /bpc.?157|tb.?500|ipamorelin|cjc.?1295|sermorelin|peptid|ghk|fragment|ghrp/.test(allNames);
+    const isLipo   = /fosfatidilcolina|pcdc|deoxicol|lipolit|melting/.test(allNames);
+    const isFormula = items.some(
+      (i) => i.categoryType === "formula" || i.categoryType === "manipulado" || hasSC,
+    );
+
+    // Lista de substâncias para o contrato: "Nome (Dose)"
+    const substanciasList = items
+      .map((i) => (i.dose ? `${i.substanceName} ${i.dose}` : (i.substanceName ?? "")))
+      .filter(Boolean)
+      .join(", ");
+
+    // Rótulo das vias
+    const viaLabel: Record<string, string> = {
+      iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
+      implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
+    };
+    const viasLabel = procedureTypes.map((t) => viaLabel[t] ?? t).join(", ");
+
+    // Data de início formatada
+    const startDateFmt = protocol.startDate
+      ? new Date(protocol.startDate + "T12:00:00").toLocaleDateString("pt-BR")
+      : "—";
+
+    // Valor total formatado
+    const valorTotal = new Intl.NumberFormat("pt-BR", {
+      style: "currency", currency: "BRL",
+    }).format(protocol.totalValue ?? 0);
+
+    // Cadernos obrigatórios
+    const codigos = new Set<string>([
+      "CGLO", "TCLE", "CTCLE_G",
+      "CLGPD", "CPRIV", "CDIG",
+      "CFIN", "CGAR",
+      "CIMG", "RAS-JUR",
+    ]);
+
+    if (hasIV)      codigos.add("CEND");
+    if (hasIM)      codigos.add("CIMU");
+    if (hasImplant) codigos.add("CIMP");
+    if (isFormula)  codigos.add("CFOR");
+    if (isGLP1)     codigos.add("CINC");
+    if (isPeptide)  codigos.add("CPEP");
+    if (isLipo)     codigos.add("CLIP");
+    if (isGLP1 || isPeptide || isLipo) codigos.add("CSUB");
+
+    const dadosHidratacao: Record<string, string> = {
+      "cliente.nome":           client?.name ?? "",
+      "cliente.cpf":            client?.cpf ?? "",
+      "cliente.dataNascimento": client?.birthDate
+        ? new Date(client.birthDate + "T12:00:00").toLocaleDateString("pt-BR")
+        : "",
+      "cliente.email":          client?.email ?? "",
+      "cliente.telefone":       client?.phone ?? "",
+      "medico.nome":            medicoNome,
+      "medico.crm":             medicoCrm,
+      "medico.uf":              medicoUf,
+      "protocolo.titulo":       protocol.title,
+      "protocolo.substancias":  substanciasList,
+      "protocolo.vias":         viasLabel,
+      "protocolo.dataInicio":   startDateFmt,
+      "protocolo.totalSessoes": String(protocol.totalSessions),
+      "protocolo.sessoes":      String(protocol.totalSessions),
+      "protocolo.valorTotal":   valorTotal,
+      "protocolo.valor":        valorTotal,
+      "clinica.nome":           clinica.nome,
+      "clinica.endereco":       clinica.endereco,
+      "clinica.email":          "contato@padconconect.com.br",
+      "data.hoje":              new Date().toLocaleDateString("pt-BR"),
+      "pagamento.metodo":       "PIX",
+      "pagamento.parcelas":     "1",
+    };
+
+    res.json({
+      protocolId,
+      protocolTitulo: protocol.title,
+      clientId: protocol.clientId,
+      clienteNome: client?.name ?? "",
+      codigos: [...codigos],
+      dadosHidratacao,
+      detalhes: { vias: procedureTypes, hasIV, hasIM, hasImplant, hasSC, isGLP1, isPeptide, isLipo, isFormula },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "erro_resolver", detalhe: String(err) });
+  }
 });
 
 // PUT /api/cadernos-juridicos/:codigo — atualiza corpoHtml e/ou titulo
