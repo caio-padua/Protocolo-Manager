@@ -550,33 +550,41 @@ export default function ReceituarioAutomatico() {
 
         {/* Linha 2: parâmetros de frequência */}
         <div className="px-6 py-3 grid grid-cols-2 md:grid-cols-4 gap-4 items-end border-b border-border/30">
-          {/* N entregas */}
+          {/* N entregas — Kaizen: botões h-9 w-9 alinhados com o campo */}
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Número de Entregas</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setNNos(n => Math.max(1, n - 1))}>
+              <button type="button"
+                className="btn-3d-soft h-9 w-9 flex items-center justify-center shrink-0"
+                onClick={() => setNNos(n => Math.max(1, n - 1))}>
                 <Minus className="w-3.5 h-3.5" />
               </button>
               <input type="number" min={1} max={24} value={nNos}
                 onChange={e => setNNos(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
-                className="field-engraved text-center w-16 text-lg font-black" />
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setNNos(n => Math.min(24, n + 1))}>
+                className="field-engraved text-center w-16 text-sm font-black" />
+              <button type="button"
+                className="btn-3d-soft h-9 w-9 flex items-center justify-center shrink-0"
+                onClick={() => setNNos(n => Math.min(24, n + 1))}>
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Frequência */}
+          {/* Frequência — mesma correção */}
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Frequência (dias)</label>
             <div className="flex items-center gap-1">
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequencia(n => Math.max(1, n - 5))}>
+              <button type="button"
+                className="btn-3d-soft h-9 w-9 flex items-center justify-center shrink-0"
+                onClick={() => setFrequencia(n => Math.max(1, n - 5))}>
                 <Minus className="w-3.5 h-3.5" />
               </button>
               <input type="number" min={1} max={365} value={frequencia}
                 onChange={e => setFrequencia(Math.max(1, parseInt(e.target.value) || 30))}
-                className="field-engraved text-center w-16 text-lg font-black" />
-              <button type="button" className="btn-3d-soft p-2" onClick={() => setFrequencia(n => n + 5)}>
+                className="field-engraved text-center w-16 text-sm font-black" />
+              <button type="button"
+                className="btn-3d-soft h-9 w-9 flex items-center justify-center shrink-0"
+                onClick={() => setFrequencia(n => n + 5)}>
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -590,7 +598,9 @@ export default function ReceituarioAutomatico() {
           </div>
 
           {/* Salvar */}
-          <div className="flex items-end">
+          <div className="space-y-1">
+            {/* Spacer invisível para alinhar o botão na mesma baseline que os campos com label */}
+            <div className="text-[10px] opacity-0 select-none" aria-hidden>·</div>
             <Button
               className="btn-3d w-full gap-2"
               onClick={salvar}
@@ -622,51 +632,60 @@ export default function ReceituarioAutomatico() {
               </label>
             </div>
 
-            {/* Campos de mensalidade (visíveis somente quando ativo) */}
+            {/* Campos de mensalidade — Kaizen: items-end + labels iguais + R$ embutido */}
             {temMensalidade && (
-              <div className="flex items-center gap-3 flex-wrap animate-in fade-in slide-in-from-left-4 duration-300">
-                <div className="space-y-0.5">
-                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Valor R$/mês</label>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">R$</span>
+              <div className="flex items-end gap-3 flex-wrap animate-in fade-in slide-in-from-left-4 duration-300">
+
+                {/* Valor R$/mês — prefixo "R$" absoluto dentro do field */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Valor R$/mês</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold select-none pointer-events-none">R$</span>
                     <input type="number" min={0} value={valorMes}
                       onChange={e => setValorMes(parseFloat(e.target.value) || 0)}
-                      className="field-engraved w-24 text-sm font-bold" />
+                      className="field-engraved w-28 pl-7 text-sm font-bold" />
                   </div>
                 </div>
 
-                <div className="space-y-0.5">
-                  <label className="text-[9px] uppercase tracking-widest text-muted-foreground font-black">Vencimento (dia do mês)</label>
+                {/* Vencimento */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Vencimento (dia)</label>
                   <input type="number" min={1} max={28} value={diaVencimento}
                     onChange={e => setDiaVencimento(parseInt(e.target.value) || 10)}
                     className="field-engraved w-16 text-sm font-bold text-center" />
                 </div>
 
-                {/* Toggle bloquear sem pagamento — ToggleWell */}
-                <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
-                  <Switch
-                    id="sw-bloquear"
-                    checked={bloquearSemPagto}
-                    onCheckedChange={setBloquearSemPagto}
-                  />
-                  <label
-                    htmlFor="sw-bloquear"
-                    className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-black cursor-pointer select-none"
-                  >
-                    <AlertCircle className={cn("w-3.5 h-3.5", bloquearSemPagto ? "text-rose-600" : "text-muted-foreground")} />
-                    {bloquearSemPagto ? "Bloqueada sem pagamento" : "Liberar sem checar pagamento"}
-                  </label>
+                {/* Toggle bloquear — ToggleWell com spacer de label */}
+                <div className="space-y-1">
+                  <div className="text-[10px] opacity-0 select-none" aria-hidden>·</div>
+                  <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+                    <Switch
+                      id="sw-bloquear"
+                      checked={bloquearSemPagto}
+                      onCheckedChange={setBloquearSemPagto}
+                    />
+                    <label
+                      htmlFor="sw-bloquear"
+                      className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-black cursor-pointer select-none"
+                    >
+                      <AlertCircle className={cn("w-3.5 h-3.5", bloquearSemPagto ? "text-rose-600" : "text-muted-foreground")} />
+                      {bloquearSemPagto ? "Bloqueada sem pagamento" : "Liberar sem checar pagamento"}
+                    </label>
+                  </div>
                 </div>
 
                 {/* Resumo do plano */}
-                <div className="screen-3d px-3 py-2 text-sm">
-                  <span className="font-black text-primary">{fmtBRL(valorMes)}</span>
-                  <span className="text-muted-foreground text-xs">/mês · vence dia {diaVencimento}</span>
-                  {bloquearSemPagto && (
-                    <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
-                      ⚠ Fórmula bloqueada até pagamento confirmado
-                    </div>
-                  )}
+                <div className="space-y-1">
+                  <div className="text-[10px] opacity-0 select-none" aria-hidden>·</div>
+                  <div className="screen-3d px-3 py-2 text-sm whitespace-nowrap">
+                    <span className="font-black text-primary">{fmtBRL(valorMes)}</span>
+                    <span className="text-muted-foreground text-xs">/mês · dia {diaVencimento}</span>
+                    {bloquearSemPagto && (
+                      <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                        ⚠ Retida até pagamento
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
