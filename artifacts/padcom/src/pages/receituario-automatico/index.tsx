@@ -17,10 +17,10 @@ import {
   FlaskConical, Microscope, Calendar, Save, Plus, Minus,
   ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
   CheckCircle2, Clock, Edit3, Loader2, Play, ChevronDown,
-  ChevronUp, ToggleLeft, ToggleRight, Banknote, Bell, Info,
-  Pill,
+  ChevronUp, Banknote, Bell, Info, Pill,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
 import { cn } from "@/lib/utils";
@@ -602,26 +602,25 @@ export default function ReceituarioAutomatico() {
           </div>
         </div>
 
-        {/* Linha 3: mensalidade toggle */}
+        {/* Linha 3: mensalidade toggle — Padrão 5 (Switch em sulco concave-3d) */}
         <div className="px-6 py-4">
           <div className="flex items-start gap-4 flex-wrap">
-            {/* Toggle mensalidade */}
-            <button
-              type="button"
-              onClick={() => setTemMensalidade(v => !v)}
-              className={cn(
-                "flex items-center gap-2.5 px-4 py-2.5 rounded border transition-all duration-200",
-                temMensalidade
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/40",
-              )}
-            >
-              {temMensalidade
-                ? <ToggleRight className="w-5 h-5 text-primary" />
-                : <ToggleLeft className="w-5 h-5" />}
-              <Banknote className="w-4 h-4" />
-              <span className="text-[11px] uppercase tracking-widest font-black">Programa com Mensalidade</span>
-            </button>
+
+            {/* Toggle mensalidade — ToggleWell */}
+            <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+              <Switch
+                id="sw-mensalidade"
+                checked={temMensalidade}
+                onCheckedChange={setTemMensalidade}
+              />
+              <label
+                htmlFor="sw-mensalidade"
+                className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-black cursor-pointer select-none"
+              >
+                <Banknote className="w-4 h-4 text-muted-foreground" />
+                Programa com Mensalidade
+              </label>
+            </div>
 
             {/* Campos de mensalidade (visíveis somente quando ativo) */}
             {temMensalidade && (
@@ -643,19 +642,21 @@ export default function ReceituarioAutomatico() {
                     className="field-engraved w-16 text-sm font-bold text-center" />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setBloquearSemPagto(v => !v)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded border text-[11px] uppercase tracking-widest font-black transition-all",
-                    bloquearSemPagto
-                      ? "border-rose-400 bg-rose-50 text-rose-700"
-                      : "border-border text-muted-foreground hover:border-rose-300",
-                  )}
-                >
-                  {bloquearSemPagto ? <AlertCircle className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
-                  {bloquearSemPagto ? "Bloqueada sem pagamento" : "Liberar mesmo sem pagamento"}
-                </button>
+                {/* Toggle bloquear sem pagamento — ToggleWell */}
+                <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+                  <Switch
+                    id="sw-bloquear"
+                    checked={bloquearSemPagto}
+                    onCheckedChange={setBloquearSemPagto}
+                  />
+                  <label
+                    htmlFor="sw-bloquear"
+                    className="flex items-center gap-2 text-[11px] uppercase tracking-widest font-black cursor-pointer select-none"
+                  >
+                    <AlertCircle className={cn("w-3.5 h-3.5", bloquearSemPagto ? "text-rose-600" : "text-muted-foreground")} />
+                    {bloquearSemPagto ? "Bloqueada sem pagamento" : "Liberar sem checar pagamento"}
+                  </label>
+                </div>
 
                 {/* Resumo do plano */}
                 <div className="screen-3d px-3 py-2 text-sm">
