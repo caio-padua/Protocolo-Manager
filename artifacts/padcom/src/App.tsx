@@ -87,6 +87,7 @@ import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import ComunicacaoCentralAuditoria from "@/pages/comunicacao/central-auditoria";
 import PainelDominios from "@/pages/comunicacao/dominios";
+import DominioEditPage from "@/pages/comunicacao/dominio-edit";
 import Hierarquia from "@/pages/hierarquia";
 import CommandCenter from "@/pages/CommandCenter";
 import Governanca from "@/pages/governanca";
@@ -244,6 +245,7 @@ function Router() {
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/comunicacao/central-auditoria" component={ComunicacaoCentralAuditoria} />
+            <Route path="/comunicacao/dominios/:id/edit" component={DominioEditPage} />
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />

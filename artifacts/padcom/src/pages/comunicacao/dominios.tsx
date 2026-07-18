@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   Globe, Search, Plus, Trash2, Loader2, RefreshCw, AtSign,
@@ -408,6 +409,7 @@ const REGISTRADORES_INFO: RegistradorInfo[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PainelDominios() {
+  const [, navigate] = useLocation();
   const [dominios, setDominios] = useState<Dominio[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -684,7 +686,7 @@ export default function PainelDominios() {
                     <Button
                       variant="outline" size="sm"
                       className="btn-3d-soft h-8 px-2.5"
-                      onClick={() => abrirModal({ dominio: d.dominio, registrador: d.registrador ?? "manual", notas: d.notas ?? "" })}
+                      onClick={() => navigate(`/comunicacao/dominios/${d.id}/edit`)}
                       title="Editar"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -1021,7 +1023,8 @@ export default function PainelDominios() {
                     </div>
                   </div>
                   <Button variant="outline" size="sm" className="btn-3d-soft h-8 px-2.5"
-                    onClick={() => abrirModal({ dominio: d.dominio, titular_nome: d.titular_nome ?? "", titular_documento: d.titular_documento ?? "" })}>
+                    onClick={() => navigate(`/comunicacao/dominios/${d.id}/edit`)}
+                    title="Editar">
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                 </div>
