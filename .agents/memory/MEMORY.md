@@ -125,3 +125,4 @@
 - [Pipeline ffmpeg via stdin](ffmpeg-stdin-pipeline.md) — stdin.on(error) obrigatório (EPIPE derruba o Node); race(drain,fim); GIF via palettegen+sierra2_4a (sem stat_mode); dedup em voo + tmp único.
 - [Card de profissional — padrão correto](card-profissional-padrao.md) — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase (NUNCA serifa); upload foto=cópia fiel do ClientPhotoCard.
 - [Receituário: worker lib, não rota](receituario-worker-lib.md) — liberarSlot e processarReceituarioDiario moram em lib/receituario-worker.ts; rotas importam do worker; cron.ts usa worker; lógica de entrega NUNCA na rota.
+- [Auditoria walking-dead: rotas x menu](auditoria-rotas-menu.md) — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.

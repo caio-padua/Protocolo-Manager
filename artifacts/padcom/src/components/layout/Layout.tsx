@@ -156,14 +156,16 @@ const navigation: NavEntry[] = [
       { name: "Comunicação Digital", href: "/comunicacao/digital", icon: Smartphone },
       { name: "E-mails", href: "/comunicacao/emails", icon: Mail },
       { name: "Plataformas Digitais", href: "/comunicacao/plataformas", icon: Cloud },
+      { name: "Status WhatsApp", href: "/comunicacao/whatsapp-status", icon: MessageSquareText },
     ],
   },
   {
     name: "Configurações & Administração",
     icon: Settings,
     children: [
-      { name: "Empresas Licenciadas", href: "/cadastros/empresas", icon: Building2 },
+      { name: "Empresas Licenciadas", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
+      { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
