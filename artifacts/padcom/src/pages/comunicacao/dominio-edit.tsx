@@ -99,17 +99,19 @@ function FSelect({
 
 function FToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-sm font-medium text-foreground">{label}</span>
+    <div className="flex items-center justify-between py-2.5">
+      <span className="text-[12px] font-medium text-foreground">{label}</span>
       <button
         type="button"
         onClick={() => onChange(!value)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${value ? "bg-primary" : "bg-border"}`}
         aria-pressed={value}
+        className={`bevel-3d h-8 min-w-[90px] px-4 rounded-[6px] text-[10px] font-extrabold uppercase tracking-[0.14em] transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+          value
+            ? "text-primary ring-1 ring-primary/40"
+            : "text-muted-foreground opacity-60"
+        }`}
       >
-        <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${value ? "translate-x-5" : "translate-x-0.5"}`}
-        />
+        {value ? "Ativo" : "Inativo"}
       </button>
     </div>
   );
@@ -132,20 +134,31 @@ function SectionPanel({ icon: Icon, label, children }: { icon: React.ElementType
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DominioEditPage() {
-  const [, params] = useRoute("/comunicacao/dominios/:id/edit");
+  const [, paramsEdit] = useRoute("/comunicacao/dominios/:id/edit");
+  const [, paramsNew] = useRoute("/comunicacao/dominios/new");
   const [, setLocation] = useLocation();
-  const id = parseInt(params?.id ?? "0", 10);
+  const isNew = paramsNew !== null || paramsEdit?.id === "new";
+  const id = isNew ? 0 : parseInt(paramsEdit?.id ?? "0", 10);
+  const prefillDominio = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("dominio") ?? ""
+    : "";
 
   const [dominio, setDominio] = useState<DominioData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(FORM_DEFAULT);
+  const [dominioNome, setDominioNome] = useState(prefillDominio);
 
   function f<K extends keyof FormState>(field: K) {
     return (v: FormState[K]) => setForm(p => ({ ...p, [field]: v }));
   }
 
   useEffect(() => {
+    if (isNew) {
+      setForm(p => ({ ...p, ...(prefillDominio ? {} : {}) }));
+      setLoading(false);
+      return;
+    }
     if (!id) return;
     setLoading(true);
     fetch(`${BASE}/api/dominios/${id}`)
@@ -174,26 +187,30 @@ export default function DominioEditPage() {
       })
       .catch(() => toast.error("Domínio não encontrado"))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isNew]);
 
   async function handleSalvar() {
     setSaving(true);
     try {
-      const r = await fetch(`${BASE}/api/dominios/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          valor_mensal_centavos: form.valor_mensal_centavos ? parseInt(form.valor_mensal_centavos) : null,
-          expira_em: form.expira_em || null,
-          data_registro: form.data_registro || null,
-          ns3: form.ns3 || null,
-          ns4: form.ns4 || null,
-          cloudflare_zone_id: form.cloudflare_zone_id || null,
-          zoho_conta_admin: form.zoho_conta_admin || null,
-          notas: form.notas || null,
-        }),
-      });
+      const payload = {
+        ...form,
+        valor_mensal_centavos: form.valor_mensal_centavos ? parseInt(form.valor_mensal_centavos) : null,
+        expira_em: form.expira_em || null,
+        data_registro: form.data_registro || null,
+        ns3: form.ns3 || null,
+        ns4: form.ns4 || null,
+        cloudflare_zone_id: form.cloudflare_zone_id || null,
+        zoho_conta_admin: form.zoho_conta_admin || null,
+        notas: form.notas || null,
+      };
+      const r = await fetch(
+        isNew ? `${BASE}/api/dominios` : `${BASE}/api/dominios/${id}`,
+        {
+          method: isNew ? "POST" : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(isNew ? { ...payload, dominio: dominioNome } : payload),
+        }
+      );
       if (r.ok) {
         toast.success("Domínio salvo com sucesso!");
         setLocation("/comunicacao/dominios");
@@ -217,7 +234,7 @@ export default function DominioEditPage() {
     );
   }
 
-  if (!dominio) {
+  if (!isNew && !dominio && !loading) {
     return (
       <div className="p-12 text-center font-bold uppercase tracking-widest text-muted-foreground">
         Domínio não encontrado.
@@ -239,9 +256,11 @@ export default function DominioEditPage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight uppercase">EDITAR DOMÍNIO</h1>
+          <h1 className="text-2xl font-bold tracking-tight uppercase">
+            {isNew ? "NOVO DOMÍNIO" : "EDITAR DOMÍNIO"}
+          </h1>
           <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">
-            {dominio.dominio}
+            {isNew ? (dominioNome || "Preencha o nome abaixo") : dominio?.dominio}
           </p>
         </div>
       </div>
@@ -249,14 +268,24 @@ export default function DominioEditPage() {
       <Card className="panel-3d border-none">
         <CardContent className="p-6 space-y-8">
 
-          {/* ── Domínio (somente leitura) ──────────────────────────────────── */}
+          {/* ── Domínio ──────────────────────────────────────────────────── */}
           <SectionPanel icon={Globe} label="Domínio">
             <div>
               <FLabel>Domínio completo</FLabel>
-              <FInput value={dominio.dominio} readOnly placeholder="" />
-              <p className="mt-1.5 text-[10px] text-muted-foreground italic">
-                O nome do domínio não pode ser alterado após o cadastro.
-              </p>
+              {isNew ? (
+                <FInput
+                  value={dominioNome}
+                  onChange={setDominioNome}
+                  placeholder="ex.: pawards.com.br"
+                />
+              ) : (
+                <>
+                  <FInput value={dominio?.dominio ?? ""} readOnly placeholder="" />
+                  <p className="mt-1.5 text-[10px] text-muted-foreground italic">
+                    O nome do domínio não pode ser alterado após o cadastro.
+                  </p>
+                </>
+              )}
             </div>
           </SectionPanel>
 
@@ -355,7 +384,7 @@ export default function DominioEditPage() {
                   type="email"
                   value={form.zoho_conta_admin}
                   onChange={f("zoho_conta_admin")}
-                  placeholder={`ex.: admin@${dominio.dominio}`}
+                  placeholder={`ex.: admin@${(dominio?.dominio ?? dominioNome) || "seudominio.com.br"}`}
                 />
               </div>
               <div>

@@ -39,27 +39,6 @@ type Dominio = {
   criado_em: string;
 };
 
-type DominioForm = {
-  dominio: string; registrador: string; status: string;
-  data_registro: string; expira_em: string; auto_renovar: boolean;
-  titular_nome: string; titular_documento: string; notas: string;
-  ns1: string; ns2: string; ns3: string; ns4: string;
-  dns_provider: string; cloudflare_zone_id: string;
-  zoho_verificado: boolean; zoho_metodo_verificacao: string;
-  zoho_conta_admin: string; zoho_auto_alias: boolean;
-  modulo_pago: boolean; valor_mensal_centavos: string;
-};
-
-const FORM_EMPTY: DominioForm = {
-  dominio: "", registrador: "manual", status: "ativo",
-  data_registro: "", expira_em: "", auto_renovar: true,
-  titular_nome: "", titular_documento: "", notas: "",
-  ns1: "", ns2: "", ns3: "", ns4: "",
-  dns_provider: "outro", cloudflare_zone_id: "",
-  zoho_verificado: false, zoho_metodo_verificacao: "txt",
-  zoho_conta_admin: "", zoho_auto_alias: false,
-  modulo_pago: false, valor_mensal_centavos: "",
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers visuais — identicos ao padrão Bancos
@@ -80,214 +59,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function BadgeRdap({ status }: { status: StatusRdap }) {
+  const base = "inline-block w-[100px] text-center text-[10px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded";
   if (status === "disponivel")
-    return <span className="text-[10px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-emerald-700 bg-emerald-500/15">Disponível</span>;
+    return <span className={`${base} text-emerald-700 bg-emerald-500/15`}>Disponível</span>;
   if (status === "registrado")
-    return <span className="text-[10px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-red-600 bg-red-500/15">Registrado</span>;
+    return <span className={`${base} text-red-600 bg-red-500/15`}>Registrado</span>;
   if (status === "verificando")
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-slate-500 bg-slate-500/15">
-        <Loader2 className="h-3 w-3 animate-spin" /> Verificando
-      </span>
-    );
-  return <span className="text-[10px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-amber-700 bg-amber-500/15">Erro</span>;
+    return <span className={`${base} inline-flex items-center justify-center gap-1 text-slate-500 bg-slate-500/15`}><Loader2 className="h-3 w-3 animate-spin" />Verificando</span>;
+  return <span className={`${base} text-amber-700 bg-amber-500/15`}>Erro</span>;
 }
 
-function Field({
-  label, value, onChange, type = "text", placeholder = "", disabled = false,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; disabled?: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">{label}</label>
-      <input
-        type={type} value={value} onChange={e => onChange(e.target.value)}
-        placeholder={placeholder} disabled={disabled}
-        className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
-      />
-    </div>
-  );
-}
-
-function SelectField({
-  label, value, onChange, options,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1">{label}</label>
-      <select
-        value={value} onChange={e => onChange(e.target.value)}
-        className="concave-3d w-full h-11 rounded px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-      >
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-foreground">{label}</span>
-      <button
-        type="button" onClick={() => onChange(!value)}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${value ? "bg-primary" : "bg-border"}`}
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? "translate-x-4" : "translate-x-0.5"}`} />
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Modal de adicionar / editar domínio (mantido intacto — so estrutura visual)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ModalDominio({
-  inicial, onSave, onClose,
-}: { inicial?: Partial<DominioForm>; onSave: (f: DominioForm) => Promise<void>; onClose: () => void }) {
-  const [form, setForm] = useState<DominioForm>({ ...FORM_EMPTY, ...inicial });
-  const [saving, setSaving] = useState(false);
-  const [erro, setErro] = useState("");
-  const [secao, setSecao] = useState<1 | 2 | 3>(1);
-
-  function f(field: keyof DominioForm) {
-    return (v: string | boolean) => setForm(p => ({ ...p, [field]: v }));
-  }
-
-  async function handleSave() {
-    if (!form.dominio.trim()) { setErro("Domínio é obrigatório"); return; }
-    setSaving(true); setErro("");
-    try { await onSave(form); onClose(); }
-    catch (e: unknown) { setErro(e instanceof Error ? e.message : "Erro ao salvar"); }
-    finally { setSaving(false); }
-  }
-
-  const tabClass = (n: 1 | 2 | 3) =>
-    `px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] border-b-2 transition-colors cursor-pointer ${
-      secao === n ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-    }`;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-border bg-background shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-bold text-[14px] text-foreground">
-            {inicial?.dominio ? `Editar: ${inicial.dominio}` : "Adicionar Domínio"}
-          </h2>
-          <button onClick={onClose} className="rounded p-1 hover:bg-muted transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex border-b border-border px-3 pt-2">
-          <button className={tabClass(1)} onClick={() => setSecao(1)}>1. Identificação</button>
-          <button className={tabClass(2)} onClick={() => setSecao(2)}>2. DNS</button>
-          <button className={tabClass(3)} onClick={() => setSecao(3)}>3. E-mail Zoho</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {secao === 1 && (
-            <>
-              <Field label="Domínio completo *" value={form.dominio} onChange={f("dominio")} placeholder="ex.: pawards.com.br" />
-              <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Registrador" value={form.registrador} onChange={f("registrador")} options={[
-                  { value: "manual", label: "Manual (já tenho)" },
-                  { value: "registrobr", label: "Registro.br / UOL Host" },
-                  { value: "namecheap", label: "Namecheap" },
-                  { value: "godaddy", label: "GoDaddy" },
-                  { value: "cloudflare", label: "Cloudflare" },
-                  { value: "locaweb", label: "Locaweb" },
-                ]} />
-                <SelectField label="Status" value={form.status} onChange={f("status")} options={[
-                  { value: "ativo", label: "Ativo" },
-                  { value: "pendente", label: "Pendente" },
-                  { value: "expirado", label: "Expirado" },
-                  { value: "cancelado", label: "Cancelado" },
-                ]} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Data de registro" value={form.data_registro} onChange={f("data_registro")} type="date" />
-                <Field label="Data de expiração" value={form.expira_em} onChange={f("expira_em")} type="date" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Titular" value={form.titular_nome} onChange={f("titular_nome")} placeholder="ex.: PADCOM Ltda" />
-                <Field label="CPF / CNPJ" value={form.titular_documento} onChange={f("titular_documento")} placeholder="ex.: 00.000.000/0001-00" />
-              </div>
-              <ToggleRow label="Auto-renovar" value={form.auto_renovar} onChange={f("auto_renovar")} />
-            </>
-          )}
-          {secao === 2 && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="NS1" value={form.ns1} onChange={f("ns1")} placeholder="ex.: ivan.ns.cloudflare.com" />
-                <Field label="NS2" value={form.ns2} onChange={f("ns2")} placeholder="ex.: uma.ns.cloudflare.com" />
-              </div>
-              <SelectField label="Provedor DNS" value={form.dns_provider} onChange={f("dns_provider")} options={[
-                { value: "cloudflare", label: "Cloudflare (recomendado)" },
-                { value: "registrobr", label: "Registro.br DNS" },
-                { value: "godaddy", label: "GoDaddy DNS" },
-                { value: "outro", label: "Outro" },
-              ]} />
-              {form.dns_provider === "cloudflare" && (
-                <Field label="Cloudflare Zone ID" value={form.cloudflare_zone_id}
-                  onChange={f("cloudflare_zone_id")} placeholder="ex.: abc123def456..." />
-              )}
-            </>
-          )}
-          {secao === 3 && (
-            <>
-              <ToggleRow label="Domínio já verificado no Zoho?" value={form.zoho_verificado} onChange={f("zoho_verificado")} />
-              <Field label="Conta admin Zoho" value={form.zoho_conta_admin} onChange={f("zoho_conta_admin")}
-                placeholder="ex.: admin@pawards.com.br" type="email" />
-              <ToggleRow label="Criar aliases automaticamente?" value={form.zoho_auto_alias} onChange={f("zoho_auto_alias")} />
-              <ToggleRow label="Módulo pago para clínica?" value={form.modulo_pago} onChange={f("modulo_pago")} />
-              {form.modulo_pago && (
-                <Field label="Valor mensal (centavos — ex.: 19900 = R$ 199,00)"
-                  value={form.valor_mensal_centavos} onChange={f("valor_mensal_centavos")} type="number" />
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="border-t border-border px-5 py-3 flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {([1, 2, 3] as const).map(n => (
-              <div key={n} className={`h-1.5 w-6 rounded-full ${secao === n ? "bg-primary" : "bg-border"}`} />
-            ))}
-          </div>
-          {erro && <p className="text-sm text-red-600 dark:text-red-400 mx-3">{erro}</p>}
-          <div className="flex gap-2 ml-auto">
-            {secao > 1 && (
-              <button onClick={() => setSecao(s => (s - 1) as 1 | 2 | 3)}
-                className="rounded border border-border px-4 py-2 text-xs font-semibold hover:bg-muted transition-colors">
-                Anterior
-              </button>
-            )}
-            {secao < 3 && (
-              <button onClick={() => setSecao(s => (s + 1) as 1 | 2 | 3)}
-                className="btn-3d px-4 py-2 text-xs font-semibold">
-                Próxima →
-              </button>
-            )}
-            {secao === 3 && (
-              <button onClick={handleSave} disabled={saving}
-                className="btn-3d inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold disabled:opacity-50">
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Salvar
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Grade Mestre — 5 campos IGUAIS para TODOS os registradores.
@@ -412,8 +193,6 @@ export default function PainelDominios() {
   const [, navigate] = useLocation();
   const [dominios, setDominios] = useState<Dominio[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [prefill, setPrefill] = useState<Partial<DominioForm>>({});
 
   // Verificador
   const [busca, setBusca] = useState("");
@@ -472,21 +251,6 @@ export default function PainelDominios() {
 
   useEffect(() => { fetchDominios(); }, [fetchDominios]);
 
-  async function handleAdd(form: DominioForm) {
-    const r = await fetch(`${BASE}/api/dominios`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        valor_mensal_centavos: form.valor_mensal_centavos ? parseInt(form.valor_mensal_centavos) : null,
-        expira_em: form.expira_em || null,
-        data_registro: form.data_registro || null,
-      }),
-    });
-    if (!r.ok) { const d = await r.json(); throw new Error(d.error ?? "Erro ao salvar"); }
-    await fetchDominios();
-  }
-
   async function handleDelete(id: number, dominio: string) {
     if (!window.confirm(`Remover "${dominio}" do painel?\n\nO domínio em si não será cancelado.`)) return;
     await fetch(`${BASE}/api/dominios/${id}`, { method: "DELETE" });
@@ -536,10 +300,6 @@ export default function PainelDominios() {
     finally { setEmailLoading(false); }
   }
 
-  function abrirModal(p?: Partial<DominioForm>) {
-    setPrefill(p ?? {}); setShowModal(true);
-  }
-
   const reginfoAtivo = REGISTRADORES_INFO.find(r => r.id === regAtivo);
 
   return (
@@ -548,10 +308,6 @@ export default function PainelDominios() {
       title="Painel de Domínios & Aliases"
       subtitle="Verifique disponibilidade, compre domínios via API, gerencie e-mails e aliases automaticamente via Zoho."
     >
-      {showModal && (
-        <ModalDominio inicial={prefill} onSave={handleAdd} onClose={() => setShowModal(false)} />
-      )}
-
       {/* ─── Seção A — Verificador ─────────────────────────────────────────── */}
       <section className="panel-3d p-5 space-y-4">
         <BlockTitle icon={Search}>Verificador de Disponibilidade</BlockTitle>
@@ -599,8 +355,8 @@ export default function PainelDominios() {
                   <BadgeRdap status={r.status} />
                   {r.status === "disponivel" ? (
                     <Button size="sm" className="btn-3d h-7 px-3 text-[11px] font-bold uppercase tracking-[0.08em]"
-                      onClick={() => abrirModal({ dominio: r.dominio })}>
-                      <Plus className="w-3 h-3 mr-1" /> Ao Painel
+                      onClick={() => navigate(`/comunicacao/dominios/new?dominio=${encodeURIComponent(r.dominio)}`)}>
+                      <Plus className="w-3 h-3 mr-1" /> Adicionar
                     </Button>
                   ) : (
                     <div className="w-[90px]" />
@@ -626,7 +382,7 @@ export default function PainelDominios() {
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
             <Button
-              onClick={() => abrirModal()}
+              onClick={() => navigate("/comunicacao/dominios/new")}
               className="btn-3d h-8 px-4 text-[11px] font-bold uppercase tracking-[0.12em]"
             >
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Novo domínio
@@ -642,7 +398,7 @@ export default function PainelDominios() {
           <div className="panel-3d p-8 text-center space-y-3">
             <Globe className="h-10 w-10 mx-auto opacity-10" />
             <p className="text-[13px] text-muted-foreground">Nenhum domínio cadastrado ainda.</p>
-            <Button onClick={() => abrirModal()} className="btn-3d h-9 px-4 text-[11px] font-bold uppercase tracking-[0.12em]">
+            <Button onClick={() => navigate("/comunicacao/dominios/new")} className="btn-3d h-9 px-4 text-[11px] font-bold uppercase tracking-[0.12em]">
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar primeiro domínio
             </Button>
           </div>
@@ -853,33 +609,49 @@ export default function PainelDominios() {
                   const exp = regExpanded === reg.id;
                   return (
                     <div key={reg.id} className={`panel-3d overflow-hidden transition-all ${sel ? "ring-2 ring-primary/40 ring-offset-1" : ""}`}>
-                      {/* Linha do cabeçalho — clicável */}
-                      <button
-                        type="button"
-                        onClick={() => clickReg(reg.id)}
-                        className="flex items-center gap-3 p-4 w-full text-left"
-                      >
-                        {/* LED verde à ESQUERDA quando selecionado */}
-                        {sel ? (
-                          <span className="paxter-led paxter-led-breathe shrink-0" style={{ background: "hsl(160 60% 40%)", boxShadow: "0 0 6px 2px hsl(160 60% 40% / 0.5)" }} />
-                        ) : (
-                          <span className="paxter-led paxter-led-off shrink-0" />
-                        )}
-                        <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
-                          <reg.icon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold uppercase tracking-[0.05em]">{reg.nome}</p>
+                      {/* Linha do cabeçalho */}
+                      <div className="flex items-center gap-3 p-4 w-full">
+                        {/* Lado esquerdo — clicável para expandir */}
+                        <button
+                          type="button"
+                          onClick={() => clickReg(reg.id)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        >
+                          {/* LED verde à ESQUERDA quando selecionado */}
+                          {sel ? (
+                            <span className="paxter-led paxter-led-breathe shrink-0" style={{ background: "hsl(160 60% 40%)", boxShadow: "0 0 6px 2px hsl(160 60% 40% / 0.5)" }} />
+                          ) : (
+                            <span className="paxter-led paxter-led-off shrink-0" />
+                          )}
+                          <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
+                            <reg.icon className="h-5 w-5" />
                           </div>
-                          <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
-                            {reg.precos}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold uppercase tracking-[0.05em]">{reg.nome}</p>
+                            </div>
+                            <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
+                              {reg.precos}
+                            </div>
                           </div>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {exp ? "▲" : "▼"}
-                        </span>
-                      </button>
+                          <span className="text-[10px] text-muted-foreground shrink-0 mr-2">
+                            {exp ? "▲" : "▼"}
+                          </span>
+                        </button>
+
+                        {/* Toggle retangular PAXTER — seleciona registrador ativo */}
+                        <button
+                          type="button"
+                          onClick={() => setRegAtivo(reg.id)}
+                          className={`shrink-0 bevel-3d h-8 px-3 rounded-[6px] text-[10px] font-bold uppercase tracking-[0.12em] transition-all border ${
+                            sel
+                              ? "border-primary/60 text-primary bg-primary/10"
+                              : "border-border text-muted-foreground hover:border-primary/30 hover:text-primary/70"
+                          }`}
+                        >
+                          {sel ? "✓ Ativo" : "Usar"}
+                        </button>
+                      </div>
 
                       {/* Grade Mestre — aparece ao expandir */}
                       {exp && (

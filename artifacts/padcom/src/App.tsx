@@ -245,6 +245,7 @@ function Router() {
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/comunicacao/central-auditoria" component={ComunicacaoCentralAuditoria} />
+            <Route path="/comunicacao/dominios/new" component={DominioEditPage} />
             <Route path="/comunicacao/dominios/:id/edit" component={DominioEditPage} />
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
