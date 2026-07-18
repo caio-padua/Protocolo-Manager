@@ -95,6 +95,7 @@ import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
 import ModelosDocumento from "@/pages/arsenal/modelos";
 import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
+import PortfolioClinico from "@/pages/portfolio-clinico";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -176,6 +177,7 @@ function Router() {
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
+            <Route path="/portfolio-clinico" component={PortfolioClinico} />
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
             <Route path="/exames" component={() => <Exames />} />
             <Route path="/exames-cliente" component={ExamesCliente} />

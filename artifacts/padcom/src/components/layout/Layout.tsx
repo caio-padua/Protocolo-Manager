@@ -125,6 +125,7 @@ const navigation: NavEntry[] = [
     name: "Cadastros Clínicos",
     icon: FolderTree,
     children: [
+      { name: "Portfólio Clínico", href: "/portfolio-clinico", icon: FlaskConical },
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
       { name: "RAS", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },

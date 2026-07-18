@@ -18,4 +18,5 @@ export interface UpdateProtocolBody {
   serviceType?: UpdateProtocolBodyServiceType;
   totalValue?: number;
   notes?: string | null;
+  linhaVenda?: string | null;
 }

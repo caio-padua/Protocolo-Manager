@@ -125,6 +125,7 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     completedSessions: protocol.completedSessions,
     totalValue: protocol.totalValue,
     notes: protocol.notes ?? null,
+    linhaVenda: (protocol as any).linhaVenda ?? null,
     items: items.map(item => {
       const unitPrice = item.unitPrice || substances[item.substanceId]?.pricePerUnit || 0;
       const lineTotal = unitPrice * item.totalSessions;

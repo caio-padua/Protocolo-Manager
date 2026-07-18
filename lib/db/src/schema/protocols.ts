@@ -23,6 +23,9 @@ export const protocolsTable = pgTable("protocols", {
   // Separado do totalValue (resposta A do CEO: somado automaticamente).
   nurseServiceFee: real("nurse_service_fee"),
   empresaId: integer("empresa_id"),
+  // Linha de venda à qual este protocolo pertence (classificação comercial).
+  // Valores canônicos: "magistral" | "digital" | "injetoterapia" | null (não classificado).
+  linhaVenda: text("linha_venda"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

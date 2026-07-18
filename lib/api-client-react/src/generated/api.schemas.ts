@@ -915,6 +915,7 @@ export interface Protocol {
   completedSessions: number;
   totalValue: number;
   notes?: string | null;
+  linhaVenda?: string | null;
   items: ProtocolItem[];
   sessions: Session[];
   createdAt: string;
@@ -990,6 +991,7 @@ export interface UpdateProtocolBody {
   serviceType?: UpdateProtocolBodyServiceType;
   totalValue?: number;
   notes?: string | null;
+  linhaVenda?: string | null;
 }
 
 export type CreateSessionBodyStatus =

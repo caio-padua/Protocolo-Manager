@@ -335,6 +335,7 @@ export const ListProtocolsResponseItem = zod.object({
   completedSessions: zod.number(),
   totalValue: zod.number(),
   notes: zod.string().nullish(),
+  linhaVenda: zod.string().nullish(),
   items: zod.array(
     zod.object({
       id: zod.number(),
@@ -457,6 +458,7 @@ export const GetProtocolResponse = zod.object({
   completedSessions: zod.number(),
   totalValue: zod.number(),
   notes: zod.string().nullish(),
+  linhaVenda: zod.string().nullish(),
   items: zod.array(
     zod.object({
       id: zod.number(),
@@ -537,6 +539,7 @@ export const UpdateProtocolBody = zod.object({
   serviceType: zod.enum(["clinic", "homecare"]).optional(),
   totalValue: zod.number().optional(),
   notes: zod.string().nullish(),
+  linhaVenda: zod.string().nullish(),
 });
 
 export const UpdateProtocolResponse = zod.object({
@@ -562,6 +565,7 @@ export const UpdateProtocolResponse = zod.object({
   completedSessions: zod.number(),
   totalValue: zod.number(),
   notes: zod.string().nullish(),
+  linhaVenda: zod.string().nullish(),
   items: zod.array(
     zod.object({
       id: zod.number(),
@@ -653,6 +657,7 @@ export const ValidateProtocolResponse = zod.object({
   completedSessions: zod.number(),
   totalValue: zod.number(),
   notes: zod.string().nullish(),
+  linhaVenda: zod.string().nullish(),
   items: zod.array(
     zod.object({
       id: zod.number(),

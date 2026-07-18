@@ -3789,6 +3789,9 @@ components:
         notes:
           type: string
           nullable: true
+        linhaVenda:
+          type: string
+          nullable: true
         items:
           type: array
           items:
@@ -3943,6 +3946,9 @@ components:
         totalValue:
           type: number
         notes:
+          type: string
+          nullable: true
+        linhaVenda:
           type: string
           nullable: true
 

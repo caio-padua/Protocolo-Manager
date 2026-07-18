@@ -27,6 +27,7 @@ export interface Protocol {
   completedSessions: number;
   totalValue: number;
   notes?: string | null;
+  linhaVenda?: string | null;
   items: ProtocolItem[];
   sessions: Session[];
   createdAt: string;
