@@ -127,3 +127,4 @@
 - [Card de profissional — padrão correto](card-profissional-padrao.md) — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase (NUNCA serifa); upload foto=cópia fiel do ClientPhotoCard.
 - [Receituário: worker lib, não rota](receituario-worker-lib.md) — liberarSlot e processarReceituarioDiario moram em lib/receituario-worker.ts; rotas importam do worker; cron.ts usa worker; lógica de entrega NUNCA na rota.
 - [Auditoria walking-dead: rotas x menu](auditoria-rotas-menu.md) — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.
+- [Painel de Domínios — padrões visuais](dominios-painel-padroes.md) — LED sempre à esquerda do card selecionado; bevel-3d badge flutuante para subtítulos de seção; RDAP: container fixo na direita para alinhar badge+botão; painel comercial = KPIs+modelo+tabela de preços.

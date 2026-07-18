@@ -594,13 +594,16 @@ export default function PainelDominios() {
                   </div>
                   <span className="font-mono font-bold text-[14px] text-foreground">{r.dominio}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Direita — badge + botão em container de largura fixa para alinhar verticalmente */}
+                <div className="flex items-center gap-2 shrink-0 w-[200px] justify-end">
                   <BadgeRdap status={r.status} />
-                  {r.status === "disponivel" && (
-                    <Button size="sm" className="btn-3d h-7 px-3 text-[11px] font-bold uppercase"
+                  {r.status === "disponivel" ? (
+                    <Button size="sm" className="btn-3d h-7 px-3 text-[11px] font-bold uppercase tracking-[0.08em]"
                       onClick={() => abrirModal({ dominio: r.dominio })}>
-                      <Plus className="w-3 h-3 mr-1" /> Adicionar
+                      <Plus className="w-3 h-3 mr-1" /> Ao Painel
                     </Button>
+                  ) : (
+                    <div className="w-[90px]" />
                   )}
                 </div>
               </div>
@@ -808,16 +811,28 @@ export default function PainelDominios() {
           Credenciais de API são configuradas nas integrações do sistema.
         </ExplainRow>
 
-        {/* Plataforma ativa */}
-        <div className="concave-3d flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-2">
-            {reginfoAtivo && <reginfoAtivo.icon className="h-4 w-4 text-primary shrink-0" />}
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Plataforma Ativa para Novos Registros</p>
-              <p className="font-bold text-[13px] text-foreground">{reginfoAtivo?.nome ?? "—"}</p>
-            </div>
+        {/* ── Vitrine da plataforma ativa — bevel badge + glass card ──────── */}
+        <div className="panel-3d-sub p-4 relative overflow-visible">
+          <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+            <Settings className="h-3 w-3 text-primary" />
+            Plataforma Ativa para Novos Registros
           </div>
-          <span className="paxter-led paxter-led-amber paxter-led-breathe" />
+          <div className="pt-2 flex items-center gap-4">
+            {/* LED verde na ESQUERDA */}
+            <span className="paxter-led paxter-led-breathe" style={{ background: "hsl(160 60% 40%)", boxShadow: "0 0 6px 2px hsl(160 60% 40% / 0.5)" }} />
+            <div className="bevel-3d flex h-11 w-11 items-center justify-center shrink-0">
+              {reginfoAtivo && <reginfoAtivo.icon className="h-6 w-6 text-primary" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[15px] text-foreground uppercase tracking-[0.04em]">
+                {reginfoAtivo?.nome ?? "—"}
+              </p>
+              <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{reginfoAtivo?.precos}</p>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] px-2 py-1 rounded text-emerald-700 bg-emerald-500/15 shrink-0">
+              Selecionado
+            </span>
+          </div>
         </div>
 
         {/* Grade por categoria — Nacional primeiro, Global depois */}
@@ -844,17 +859,18 @@ export default function PainelDominios() {
                         onClick={() => clickReg(reg.id)}
                         className="flex items-center gap-3 p-4 w-full text-left"
                       >
+                        {/* LED verde à ESQUERDA quando selecionado */}
+                        {sel ? (
+                          <span className="paxter-led paxter-led-breathe shrink-0" style={{ background: "hsl(160 60% 40%)", boxShadow: "0 0 6px 2px hsl(160 60% 40% / 0.5)" }} />
+                        ) : (
+                          <span className="paxter-led paxter-led-off shrink-0" />
+                        )}
                         <div className={`bevel-3d flex h-9 w-9 items-center justify-center shrink-0 ${sel ? "text-primary" : "text-muted-foreground/60"}`}>
                           <reg.icon className="h-5 w-5" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-bold uppercase tracking-[0.05em]">{reg.nome}</p>
-                            {sel && (
-                              <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-emerald-700 bg-emerald-500/15">
-                                Ativo
-                              </span>
-                            )}
                           </div>
                           <div className="concave-3d inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground">
                             {reg.precos}
@@ -982,63 +998,137 @@ export default function PainelDominios() {
         })}
       </section>
 
-      {/* ─── Seção E — Empresas Licenciadas ───────────────────────────────────── */}
-      <section className="panel-3d p-5 space-y-4">
-        <BlockTitle icon={Building2}>Empresas Licenciadas</BlockTitle>
+      {/* ─── Seção E — Painel Comercial · Domínios para Clínicas Licenciadas ─── */}
+      <section className="panel-3d p-5 space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <BlockTitle icon={Building2}>Domínios para Clínicas Licenciadas</BlockTitle>
+          <Button
+            onClick={() => navigate("/comunicacao/dominios/new")}
+            className="btn-3d h-8 px-4 text-[11px] font-bold uppercase tracking-[0.12em] -mt-1"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Nova Proposta
+          </Button>
+        </div>
         <ExplainRow>
-          Domínios PAXTER disponibilizados como módulo pago para clínicas parceiras.
-          Ative o módulo pago no modal de edição de cada domínio (aba E-mail Zoho).
+          Domínios PAXTER comercializados para clínicas parceiras como módulo mensal com e-mail corporativo Zoho incluso.
+          Fluxo: clínica solicita → CEO aprova → Asaas cobra → pagamento confirmado → e-mail criado automaticamente.
         </ExplainRow>
 
+        {/* KPIs do módulo comercial */}
+        {(() => {
+          const pagos = dominios.filter(d => d.modulo_pago);
+          const receitaMensal = pagos.reduce((s, d) => s + (d.valor_mensal_centavos ?? 0), 0);
+          return (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Domínios no Módulo", valor: String(pagos.length), cor: "text-foreground" },
+                { label: "Receita Mensal Projetada", valor: receitaMensal > 0 ? `R$ ${(receitaMensal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—", cor: "text-emerald-700" },
+                { label: "Status", valor: pagos.length > 0 ? "Ativo" : "Aguardando", cor: pagos.length > 0 ? "text-emerald-700" : "text-amber-600" },
+              ].map(k => (
+                <div key={k.label} className="concave-3d px-4 py-3 rounded-[6px]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-1">{k.label}</p>
+                  <p className={`text-[18px] font-bold ${k.cor}`}>{k.valor}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Cards dos domínios com módulo pago */}
         {dominios.filter(d => d.modulo_pago).length === 0 ? (
-          <div className="concave-3d flex flex-col items-center gap-3 py-10 text-center rounded">
-            <Building2 className="h-8 w-8 opacity-15" />
-            <p className="text-[13px] text-muted-foreground">Nenhum domínio marcado como módulo pago.</p>
-            <p className="text-[11px] text-muted-foreground/70">
-              Edite um domínio → aba "E-mail Zoho" → ative "Módulo pago para clínica?".
+          <div className="concave-3d flex flex-col items-center gap-3 py-10 text-center rounded-[6px]">
+            <Building2 className="h-10 w-10 opacity-10" />
+            <p className="text-[13px] font-semibold text-muted-foreground">Nenhum domínio no módulo comercial ainda.</p>
+            <p className="text-[11px] text-muted-foreground/70 max-w-xs">
+              Edite um domínio → seção "Módulo Pago" → ative e defina o valor mensal.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
             {dominios.filter(d => d.modulo_pago).map(d => (
-              <div key={d.id} className="panel-3d p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="bevel-3d w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0">
-                      <Building2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-[14px] text-foreground font-mono">{d.dominio}</p>
-                        <StatusBadge status={d.status} />
+              <div key={d.id} className="panel-3d overflow-hidden">
+                {/* Faixa lateral ciano — indica módulo ativo */}
+                <div className="flex">
+                  <div className="w-1 shrink-0 bg-cyan-500/70 rounded-l" />
+                  <div className="flex-1 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="bevel-3d w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0">
+                          <Globe className="w-5 h-5 text-cyan-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-[14px] text-foreground font-mono">{d.dominio}</p>
+                            <StatusBadge status={d.status} />
+                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-cyan-700 bg-cyan-500/15">
+                              Módulo Ativo
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-6 mt-1.5">
+                            <p className="text-[11px] text-muted-foreground">
+                              <span className="font-semibold">Mensal: </span>
+                              {d.valor_mensal_centavos
+                                ? <span className="text-emerald-700 font-bold">R$ {(d.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                                : <span className="text-amber-600 italic">—  não configurado</span>}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              <span className="font-semibold">Titular: </span>{d.titular_nome ?? "—"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[12px] text-muted-foreground mt-0.5">
-                        Titular: {d.titular_nome ?? "—"} · {d.titular_documento ?? "—"}
-                      </p>
-                      <p className="text-[12px] text-muted-foreground">
-                        {d.valor_mensal_centavos
-                          ? `Módulo: R$ ${(d.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/mês`
-                          : "Valor não configurado"}
-                      </p>
+                      <Button variant="outline" size="sm" className="btn-3d-soft h-8 px-2.5 shrink-0"
+                        onClick={() => navigate(`/comunicacao/dominios/${d.id}/edit`)}
+                        title="Editar módulo">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="btn-3d-soft h-8 px-2.5"
-                    onClick={() => navigate(`/comunicacao/dominios/${d.id}/edit`)}
-                    title="Editar">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        <div className="concave-3d rounded px-4 py-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Fluxo de aprovação</p>
-          <p className="text-[12px] text-muted-foreground">
-            Clínica solicita → CEO aprova via WhatsApp → Asaas cobra → pagamento confirmado → Zoho cria e-mail corporativo.
-          </p>
-          <p className="text-[10px] text-muted-foreground/60 italic">Módulo de solicitação externa: próxima onda.</p>
+        {/* Fluxo e modelo de monetização */}
+        <div className="panel-3d-sub p-4 relative overflow-visible space-y-3">
+          <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+            <CreditCard className="h-3 w-3 text-primary" />
+            Modelo de Monetização
+          </div>
+          <div className="pt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Fluxo de Aprovação</p>
+              <div className="text-[11px] text-muted-foreground space-y-1">
+                <p>① Clínica solicita via formulário ou WhatsApp</p>
+                <p>② CEO aprova e define o valor no painel</p>
+                <p>③ Asaas gera cobrança automática (PIX / boleto)</p>
+                <p>④ Pagamento confirmado → Zoho cria e-mail corporativo</p>
+                <p>⑤ Domínio marcado como ativo no sistema</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Tabela de Valores Sugeridos</p>
+              <div className="space-y-1">
+                {[
+                  { plano: "Básico (1 e-mail)", adesao: "R$ 297", mensal: "R$ 97/mês" },
+                  { plano: "Profissional (5 e-mails)", adesao: "R$ 497", mensal: "R$ 197/mês" },
+                  { plano: "Clínica (ilimitado)", adesao: "R$ 997", mensal: "R$ 397/mês" },
+                ].map(p => (
+                  <div key={p.plano} className="concave-3d flex items-center justify-between px-3 py-1.5 rounded-[4px]">
+                    <span className="text-[11px] text-foreground">{p.plano}</span>
+                    <div className="flex gap-3 text-[10px] text-muted-foreground">
+                      <span>Adesão: <strong className="text-foreground">{p.adesao}</strong></span>
+                      <span><strong className="text-emerald-700">{p.mensal}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 italic pt-1">
+                Módulo de solicitação externa (portal da clínica): próxima onda.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </ConsoleShell>
