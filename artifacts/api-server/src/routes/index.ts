@@ -68,6 +68,7 @@ import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
 import ceoRouter from "./ceo";
 import cadernosJuridicosRouter from "./cadernos-juridicos";
+import receituarioRouter from "./receituario";
 
 const router: IRouter = Router();
 
@@ -162,5 +163,6 @@ router.use(clientServiceAddressesRouter);
 router.use(empresasRouter);
 router.use(ceoRouter);
 router.use(cadernosJuridicosRouter);
+router.use(receituarioRouter);
 
 export default router;

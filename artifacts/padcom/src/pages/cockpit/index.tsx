@@ -32,6 +32,7 @@ import {
   Plus,
   TrendingUp,
   Wrench,
+  Calendar,
 } from "lucide-react";
 import {
   listarTimeline,
@@ -43,6 +44,7 @@ import EvolucaoExamesPanel from "./panels/EvolucaoExamesPanel";
 import PedidosExamesPanel from "./panels/PedidosExamesPanel";
 import PrescricaoFormulasPanel from "./panels/PrescricaoFormulasPanel";
 import Injetaveis from "./panels/Injetaveis";
+import { ReceituarioAlertaPanel } from "./panels/ReceituarioAlertaPanel";
 
 // ============================================================================
 // ONDA E — COCKPIT DA CONSULTA do Master Loop Paxter.
@@ -531,6 +533,16 @@ export default function Cockpit() {
               </AccordionTrigger>
               <AccordionContent>
                 <Injetaveis clientId={clienteId} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="receituario" className="panel-3d-sub rounded-md border-0 px-3">
+              <AccordionTrigger className="hover:no-underline" style={{ color: GOLD_FORTE }}>
+                <span className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Receituário Automático
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <ReceituarioAlertaPanel clientId={clienteId} />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

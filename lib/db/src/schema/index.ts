@@ -47,6 +47,8 @@ export * from "./medical-certificates";
 export * from "./referrals";
 export * from "./pulso-diario";
 
+export * from "./receituario-automatico";
+
 export * from "./assinatura";
 export * from "./empresas";
 export * from "./cargos";
