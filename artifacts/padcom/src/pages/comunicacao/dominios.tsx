@@ -585,7 +585,7 @@ function BlocoRegistrador({
     finally { setSaving(false); }
   }
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 
   return (
     <div className={`panel-3d border-l-4 ${config.cor} overflow-hidden transition-all duration-200 ${isAtivo ? `ring-2 ring-offset-1 ${config.corSeletor}` : ""}`}>
@@ -821,7 +821,7 @@ function BlocoVerificador({ onAddToControl }: { onAddToControl: (dominio: string
     );
   }
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 
   return (
     <div className="panel-3d overflow-hidden">
@@ -891,7 +891,7 @@ function BlocoRegistradores() {
 
   const configAtivo = REGISTRADORES.find(r => r.id === ativo)!;
 
-  const HERMES: React.CSSProperties = { fontFamily: "'Marcellus', 'Playfair Display', Georgia, serif" };
+  const HERMES: React.CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 
   return (
     <div className="space-y-5">
