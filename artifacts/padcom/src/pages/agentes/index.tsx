@@ -1598,6 +1598,9 @@ function AbaChatPro({ agentes }: { agentes: Agente[] }) {
   const [feedbacks, setFeedbacks]     = useState<Record<number, "up"|"down">>({});
   const [copiado, setCopiado]         = useState<number | null>(null);
   const [msgEditando, setMsgEditando] = useState<number | null>(null);
+  const [quickReplies, setQuickReplies] = useState<Array<{id:number;texto:string;ordem:number;ativo:boolean}>>([]);
+  const [novoQR, setNovoQR]           = useState("");
+  const [salvandoQR, setSalvandoQR]   = useState(false);
   const chatRef   = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -1606,9 +1609,24 @@ function AbaChatPro({ agentes }: { agentes: Agente[] }) {
   const carregarConversas = useCallback(async () => {
     const r = await apiFetch(`/agentes-chat/conversations?agente_id=${agenteId}`);
     setConversas(Array.isArray(r) ? r : []);
+    return Array.isArray(r) ? r : [];
   }, [agenteId]);
 
-  useEffect(() => { carregarConversas(); }, [carregarConversas]);
+  const carregarQuickReplies = useCallback(async (id: number) => {
+    const r = await apiFetch(`/agentes/${id}/quick-replies`);
+    setQuickReplies(r?.items?.filter((q: any) => q.ativo) ?? []);
+  }, []);
+
+  useEffect(() => {
+    carregarConversas().then(lista => {
+      // Kaizen A: ao trocar agente, auto-restaurar a conversa mais recente
+      if (lista.length > 0 && !convId) {
+        carregarConversa(lista[0]);
+      }
+    });
+  }, [carregarConversas]); // eslint-disable-line
+
+  useEffect(() => { if (agenteId) carregarQuickReplies(agenteId); }, [agenteId, carregarQuickReplies]);
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [mensagens, textoStream]);
@@ -1910,6 +1928,20 @@ function AbaChatPro({ agentes }: { agentes: Agente[] }) {
           )}
         </div>
 
+        {/* Quick-reply chips (Kaizen D) */}
+        {quickReplies.length > 0 && (
+          <div className="px-3 pb-0 pt-1 border-t border-border bg-muted/5 flex flex-wrap gap-1.5">
+            {quickReplies.slice(0, 6).map(qr => (
+              <button key={qr.id}
+                onClick={() => { setInput(qr.texto); inputRef.current?.focus(); }}
+                disabled={streaming}
+                className="text-[10px] px-2.5 py-1 rounded-full border border-border bg-muted/30 hover:bg-muted/60 hover:border-sidebar-primary/40 transition-all text-muted-foreground hover:text-foreground disabled:opacity-40">
+                {qr.texto}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Input */}
         <div className="p-3 border-t border-border bg-muted/5">
           <div className="flex gap-2">
@@ -2033,6 +2065,45 @@ function AbaChatPro({ agentes }: { agentes: Agente[] }) {
             }} className="w-full btn-3d-soft py-1.5 text-xs flex items-center justify-center gap-1.5 text-muted-foreground">
               <Download className="w-3 h-3" /> Exportar Conversa
             </button>
+
+            {/* Respostas Rápidas (Kaizen D) */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Respostas Rápidas</p>
+              <div className="space-y-1">
+                {quickReplies.map(qr => (
+                  <div key={qr.id} className="flex items-center gap-1 group">
+                    <span className="text-[10px] flex-1 truncate text-muted-foreground">{qr.texto}</span>
+                    <button onClick={async () => {
+                      await apiFetch(`/agentes/${agenteId}/quick-replies/${qr.id}`, { method: "DELETE" });
+                      carregarQuickReplies(agenteId);
+                    }} className="opacity-0 group-hover:opacity-100 text-red-400/60 hover:text-red-400 transition-all">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {quickReplies.length < 6 && (
+                <div className="flex gap-1">
+                  <input value={novoQR} onChange={e => setNovoQR(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key === "Enter" && novoQR.trim()) {
+                        setSalvandoQR(true);
+                        await apiFetch(`/agentes/${agenteId}/quick-replies`, {
+                          method: "POST",
+                          body: JSON.stringify({ texto: novoQR.trim(), ordem: quickReplies.length + 1 }),
+                        });
+                        setNovoQR(""); carregarQuickReplies(agenteId); setSalvandoQR(false);
+                      }
+                    }}
+                    placeholder="Nova resposta… (Enter)" maxLength={120}
+                    className="flex-1 text-[10px] bg-background border border-border rounded px-2 py-1 outline-none" />
+                  {salvandoQR && <Loader2 className="w-3 h-3 animate-spin self-center text-muted-foreground" />}
+                </div>
+              )}
+              {quickReplies.length >= 6 && (
+                <p className="text-[9px] text-muted-foreground">Limite de 6 atingido.</p>
+              )}
+            </div>
 
             {/* Ações de Integração */}
             <div className="border-t border-border pt-3 space-y-2">
@@ -2604,18 +2675,34 @@ function AbaIntegracoes() {
   const [copied,    setCopied]    = useState<string | null>(null);
   const [loading,   setLoading]   = useState(true);
 
+  // Kaizen B — toggle boas-vindas WPP
+  const [boasVindasAtivo, setBoasVindasAtivo] = useState(true);
+  const [salvandoBV,      setSalvandoBV]      = useState(false);
+
+  // Kaizen C — dashboard ao vivo
+  interface DashKPIs { trello: { total_cards: number; hoje: number; ultima_atividade: string|null }; wpp: { total_enviadas: number; hoje: number; ultima_atividade: string|null }; log_recente: Array<{ tipo: string; status: string; created_at: string; detalhe: any }> }
+  const [dash,       setDash]       = useState<DashKPIs | null>(null);
+  const [dashTick,   setDashTick]   = useState(0);
+
+  const carregarDash = useCallback(async () => {
+    const r = await apiFetch("/agentes-integracoes/dashboard");
+    setDash(r);
+  }, []);
+
   useEffect(() => {
     Promise.all([
       apiFetch("/agentes-trello/status"),
       apiFetch("/agentes-wpp/status"),
       apiFetch("/agentes-trello/listas"),
       apiFetch("/agentes"),
-    ]).then(([t, w, l, a]) => {
+      apiFetch("/settings/boas_vindas_wpp"),
+    ]).then(([t, w, l, a, bv]) => {
       setTrello(t);
       setWpp(w);
       setListas(l?.listas ?? []);
       const lista: Agente[] = a?.items ?? [];
       setAgentes(lista);
+      setBoasVindasAtivo(bv?.valor !== "false");
       const cfgs: Record<number, TrelloConfig> = {};
       lista.forEach((ag: Agente) => {
         cfgs[ag.id] = {
@@ -2628,13 +2715,20 @@ function AbaIntegracoes() {
       });
       setConfigs(cfgs);
       setLoading(false);
-      // Carregar configs individuais
       lista.forEach(async (ag: Agente) => {
         const r = await apiFetch(`/agentes-trello/config/${ag.id}`);
         if (r) setConfigs(prev => ({ ...prev, [ag.id]: { ...prev[ag.id], ...r } }));
       });
     });
+    carregarDash();
+  }, [carregarDash]);
+
+  // Auto-refresh do dashboard a cada 30s (Kaizen C)
+  useEffect(() => {
+    const id = setInterval(() => { setDashTick(n => n + 1); }, 30_000);
+    return () => clearInterval(id);
   }, []);
+  useEffect(() => { carregarDash(); }, [dashTick, carregarDash]);
 
   function copiar(texto: string, chave: string) {
     navigator.clipboard.writeText(texto);
@@ -2646,10 +2740,7 @@ function AbaIntegracoes() {
     const cfg = configs[agenteId];
     if (!cfg) return;
     setSalvando(p => ({ ...p, [agenteId]: true }));
-    await apiFetch("/agentes-trello/config", {
-      method: "POST",
-      body: JSON.stringify(cfg),
-    });
+    await apiFetch("/agentes-trello/config", { method: "POST", body: JSON.stringify(cfg) });
     setSalvando(p => ({ ...p, [agenteId]: false }));
   }
 
@@ -2657,39 +2748,237 @@ function AbaIntegracoes() {
     setConfigs(p => ({ ...p, [agenteId]: { ...p[agenteId], [campo]: valor } }));
   }
 
-  const ok  = "#22c55e";
-  const err = "#ef4444";
+  async function toggleBoasVindas(novo: boolean) {
+    setSalvandoBV(true);
+    setBoasVindasAtivo(novo);
+    await apiFetch("/settings/boas_vindas_wpp", {
+      method: "PUT",
+      body: JSON.stringify({ valor: String(novo) }),
+    });
+    setSalvandoBV(false);
+  }
+
+  const COR_OK  = "#22c55e";
+  const COR_ERR = "#ef4444";
+  const COR_AVS = "#f59e0b"; // amber — aviso
+
+  // Semáforo: calcula estado geral
+  const estadoGeral: "ok" | "parcial" | "pendente" =
+    trello?.configurado && wpp?.configurado ? "ok" :
+    trello?.configurado || wpp?.configurado ? "parcial" : "pendente";
+  const corSemaforo = estadoGeral === "ok" ? COR_OK : estadoGeral === "parcial" ? COR_AVS : COR_ERR;
+  const labelSemaforo = estadoGeral === "ok" ? "TUDO OPERACIONAL" : estadoGeral === "parcial" ? "PARCIAL" : "PENDENTE";
+
+  function fmtTipo(tipo: string) {
+    const mapa: Record<string,string> = {
+      trello_card:   "Trello Card", wpp_proativo: "WPP Proativo",
+      wpp_boasvindas: "WPP Boas-vindas", trello_externo: "Trello Externo",
+    };
+    return mapa[tipo] ?? tipo;
+  }
+  function fmtData(iso: string) {
+    return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+  }
 
   return (
-    <div className="space-y-6 p-4 max-w-3xl mx-auto">
-      {/* ── Status geral ── */}
+    <div className="space-y-5 p-4 max-w-3xl mx-auto">
+
+      {/* ══════════════════════════════════════════════════════
+          PAINEL VISUAL — COMO FUNCIONA (glossário + fluxo + semáforo)
+      ══════════════════════════════════════════════════════ */}
+      <div className="panel-3d-sub rounded-[6px] overflow-hidden">
+        {/* Cabeçalho com semáforo */}
+        <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-muted/10">
+          <div className="flex items-center gap-2 flex-1">
+            <Activity className="w-4 h-4" style={{ color: corSemaforo }} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Como Funciona</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: corSemaforo }} />
+            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: corSemaforo }}>
+              {loading ? "…" : labelSemaforo}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Fluxo Blueprint */}
+          <div className="concave-3d rounded-[4px] p-3 overflow-x-auto">
+            <div className="flex items-center gap-1 text-[10px] whitespace-nowrap min-w-max">
+              {[
+                { label: "Gatilho", desc: "Evento clínico", cor: "#3D7A7A" },
+                { label: "Agente IA", desc: "Detecta oportunidade", cor: "#45B8CC" },
+                { label: "Trello", desc: "Card registrado", cor: "#0052CC" },
+                { label: "WhatsApp", desc: "Msg ao cliente", cor: "#25D366" },
+                { label: "Log", desc: "Histórico salvo", cor: "#8B5CF6" },
+              ].map((passo, i, arr) => (
+                <div key={passo.label} className="flex items-center gap-1">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="px-2 py-1 rounded-[4px] border font-black uppercase tracking-wider"
+                      style={{ borderColor: passo.cor, color: passo.cor, fontSize: "9px" }}>
+                      {passo.label}
+                    </div>
+                    <span className="text-muted-foreground" style={{ fontSize: "8px" }}>{passo.desc}</span>
+                  </div>
+                  {i < arr.length - 1 && <span className="text-muted-foreground px-0.5">→</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Glossário técnico/leigo */}
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr style={{ backgroundColor: "rgba(69,184,204,0.08)" }}>
+                <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Termo Técnico</th>
+                <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">O que é (leigo)</th>
+                <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Gatilho / Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[
+                ["Webhook", "Canal de escuta", "Trello avisa o PAXTER quando algo muda no quadro"],
+                ["Card Trello", "Cartão de tarefa", "Criado automaticamente quando o agente age"],
+                ["WPP Proativo", "Mensagem ativa no WhatsApp", "Agente envia msg ao cliente sem que ele pergunte"],
+                ["Boas-vindas WPP", "Primeira mensagem automática", "Enviada ao cadastrar um cliente novo com telefone"],
+                ["Toggle", "Chave liga/desliga", "Controla cada integração por agente individualmente"],
+                ["Log de Atividade", "Registro histórico", "Todo disparo fica gravado com status e detalhe"],
+                ["Status PENDENTE", "Integração não configurada", "Secreto ausente — seguir os passos de configuração"],
+                ["Auto-refresh 30s", "Atualização automática", "O dashboard relê os dados a cada 30 segundos"],
+              ].map(([termo, leigo, acao]) => (
+                <tr key={termo} className="hover:bg-muted/10">
+                  <td className="p-1.5 font-semibold text-sidebar-primary">{termo}</td>
+                  <td className="p-1.5 text-muted-foreground">{leigo}</td>
+                  <td className="p-1.5 text-muted-foreground">{acao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          KAIZEN B — TOGGLE BOAS-VINDAS WPP
+      ══════════════════════════════════════════════════════ */}
+      <div className="panel-3d-sub rounded-[6px] p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-bold">Boas-vindas automático via WhatsApp</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Envia mensagem de boas-vindas ao cadastrar um cliente novo que tenha telefone.
+              Só dispara se o WhatsApp estiver configurado.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {salvandoBV && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+            <button onClick={() => toggleBoasVindas(!boasVindasAtivo)}
+              disabled={!wpp?.configurado}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40 ${
+                boasVindasAtivo ? "bg-emerald-500" : "bg-muted"
+              }`}>
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                boasVindasAtivo ? "translate-x-4" : "translate-x-0.5"
+              }`} />
+            </button>
+            <span className="text-[10px] font-black uppercase tracking-wider"
+              style={{ color: boasVindasAtivo ? COR_OK : COR_ERR }}>
+              {boasVindasAtivo ? "ATIVO" : "OFF"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          KAIZEN C — DASHBOARD AO VIVO
+      ══════════════════════════════════════════════════════ */}
+      <div className="panel-3d-sub rounded-[6px] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border flex items-center justify-between bg-muted/10">
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Dashboard de Integrações</span>
+          <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+            <RotateCcw className="w-2.5 h-2.5" /> auto-refresh 30s
+          </span>
+        </div>
+        <div className="p-4 space-y-4">
+          {/* KPIs */}
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { label: "Cards Trello",   valor: dash?.trello.total_cards ?? "—",   cor: "#0052CC", icon: <Layers className="w-3.5 h-3.5" /> },
+              { label: "Cards Hoje",     valor: dash?.trello.hoje ?? "—",           cor: "#3D7A7A", icon: <Activity className="w-3.5 h-3.5" /> },
+              { label: "WPP Enviados",   valor: dash?.wpp.total_enviadas ?? "—",   cor: "#25D366", icon: <Smartphone className="w-3.5 h-3.5" /> },
+              { label: "WPP Hoje",       valor: dash?.wpp.hoje ?? "—",             cor: "#45B8CC", icon: <MessageSquare className="w-3.5 h-3.5" /> },
+            ].map(k => (
+              <div key={k.label} className="concave-3d rounded-[4px] p-3 text-center">
+                <div className="flex justify-center mb-1" style={{ color: k.cor }}>{k.icon}</div>
+                <p className="text-xl font-black" style={{ color: k.cor }}>{String(k.valor)}</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-0.5">{k.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela de log recente */}
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-2">Últimas Atividades</p>
+            {!dash || dash.log_recente.length === 0 ? (
+              <div className="text-[11px] text-muted-foreground text-center py-4 concave-3d rounded-[4px]">
+                Nenhuma atividade registrada ainda.
+              </div>
+            ) : (
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: "rgba(61,122,122,0.08)" }}>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Tipo</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Status</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Data/Hora</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Detalhe</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {dash.log_recente.map((lg, i) => (
+                    <tr key={i} className="hover:bg-muted/10">
+                      <td className="p-1.5 font-semibold">{fmtTipo(lg.tipo)}</td>
+                      <td className="p-1.5">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
+                          style={{
+                            backgroundColor: lg.status === "ok" ? "rgba(34,197,94,0.15)" : lg.status === "skip" ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                            color:           lg.status === "ok" ? COR_OK                : lg.status === "skip" ? COR_AVS               : COR_ERR,
+                          }}>
+                          {lg.status}
+                        </span>
+                      </td>
+                      <td className="p-1.5 text-muted-foreground">{fmtData(lg.created_at)}</td>
+                      <td className="p-1.5 text-muted-foreground text-[10px] truncate max-w-[180px]">
+                        {lg.detalhe?.motivo ?? lg.detalhe?.sid ?? lg.detalhe?.erro ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          STATUS + WEBHOOKS DAS INTEGRAÇÕES
+      ══════════════════════════════════════════════════════ */}
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
           Status das Integrações
         </p>
         <div className="grid grid-cols-2 gap-3">
-          {/* Trello */}
           <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4" style={{ color: trello?.configurado ? ok : err }} />
+              <Layers className="w-4 h-4" style={{ color: trello?.configurado ? COR_OK : COR_ERR }} />
               <span className="font-bold text-sm">Trello</span>
               <span className="ml-auto text-[10px] font-black uppercase tracking-wider"
-                style={{ color: trello?.configurado ? ok : err }}>
+                style={{ color: trello?.configurado ? COR_OK : COR_ERR }}>
                 {loading ? "…" : trello?.configurado ? "CONFIGURADO" : "PENDENTE"}
               </span>
             </div>
             {trello && (
               <div className="space-y-1.5">
-                <WebhookUrlRow
-                  label="Webhook Interno"
-                  url={trello.webhook_interno}
-                  copied={copied} onCopy={copiar} chave="wi"
-                />
-                <WebhookUrlRow
-                  label="Webhook Externo"
-                  url={trello.webhook_externo}
-                  copied={copied} onCopy={copiar} chave="we"
-                />
+                <WebhookUrlRow label="Webhook Interno" url={trello.webhook_interno} copied={copied} onCopy={copiar} chave="wi" />
+                <WebhookUrlRow label="Webhook Externo" url={trello.webhook_externo} copied={copied} onCopy={copiar} chave="we" />
               </div>
             )}
             {!trello?.configurado && trello?.instrucoes && (
@@ -2698,35 +2987,31 @@ function AbaIntegracoes() {
               </ol>
             )}
           </div>
-
-          {/* WhatsApp */}
           <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <Smartphone className="w-4 h-4" style={{ color: wpp?.configurado ? ok : err }} />
+              <Smartphone className="w-4 h-4" style={{ color: wpp?.configurado ? COR_OK : COR_ERR }} />
               <span className="font-bold text-sm">WhatsApp</span>
               <span className="ml-auto text-[10px] font-black uppercase tracking-wider"
-                style={{ color: wpp?.configurado ? ok : err }}>
+                style={{ color: wpp?.configurado ? COR_OK : COR_ERR }}>
                 {loading ? "…" : wpp?.configurado ? "CONFIGURADO" : "PENDENTE"}
               </span>
             </div>
             {wpp?.configurado ? (
               <p className="text-[11px] text-muted-foreground">
-                Twilio conectado via TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN.
-                Notificações proativas disponíveis por agente.
+                Twilio conectado via TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN. Notificações proativas disponíveis por agente.
               </p>
             ) : (
               <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal list-inside">
-                {(wpp?.instrucoes ?? [
-                  "1. Configure TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN nos Secrets.",
-                  "2. O WhatsApp sandbox do Twilio é ativado automaticamente.",
-                ]).map((s, i) => <li key={i}>{s}</li>)}
+                {(wpp?.instrucoes ?? ["Configure TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN nos Secrets."]).map((s, i) => <li key={i}>{s}</li>)}
               </ol>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── Toggles por agente ── */}
+      {/* ══════════════════════════════════════════════════════
+          CONFIGURAÇÃO POR AGENTE
+      ══════════════════════════════════════════════════════ */}
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
           Configuração por Agente
@@ -2742,43 +3027,19 @@ function AbaIntegracoes() {
               if (!cfg) return null;
               return (
                 <div key={ag.id} className="panel-3d-sub rounded-[6px] p-3 flex flex-wrap items-center gap-3">
-                  {/* Identificação */}
                   <div className="flex items-center gap-2 w-44 shrink-0">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ background: ag.cor_hex }} />
                     <span className="text-xs font-bold truncate">{ag.nome}</span>
                   </div>
-
-                  {/* Toggles */}
                   <div className="flex flex-wrap items-center gap-4 flex-1">
-                    <ToggleItem
-                      label="Trello Int."
-                      ativo={cfg.trello_interno_ativo}
-                      disabled={!trello?.configurado}
-                      onChange={v => toggleCfg(ag.id, "trello_interno_ativo", v)}
-                    />
-                    <ToggleItem
-                      label="Trello Ext."
-                      ativo={cfg.trello_externo_ativo}
-                      disabled={!trello?.configurado}
-                      onChange={v => toggleCfg(ag.id, "trello_externo_ativo", v)}
-                    />
-                    <ToggleItem
-                      label="WPP Proativo"
-                      ativo={cfg.wpp_proativo_ativo}
-                      disabled={!wpp?.configurado}
-                      onChange={v => toggleCfg(ag.id, "wpp_proativo_ativo", v)}
-                    />
-
-                    {/* Lista Trello padrão */}
+                    <ToggleItem label="Trello Int."  ativo={cfg.trello_interno_ativo} disabled={!trello?.configurado} onChange={v => toggleCfg(ag.id, "trello_interno_ativo", v)} />
+                    <ToggleItem label="Trello Ext."  ativo={cfg.trello_externo_ativo} disabled={!trello?.configurado} onChange={v => toggleCfg(ag.id, "trello_externo_ativo", v)} />
+                    <ToggleItem label="WPP Proativo" ativo={cfg.wpp_proativo_ativo}   disabled={!wpp?.configurado}   onChange={v => toggleCfg(ag.id, "wpp_proativo_ativo",   v)} />
                     {trello?.configurado && listas.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Lista padrão</span>
-                        <select
-                          value={cfg.trello_list_id_default ?? ""}
-                          onChange={e => setConfigs(p => ({
-                            ...p,
-                            [ag.id]: { ...p[ag.id], trello_list_id_default: e.target.value || null }
-                          }))}
+                        <select value={cfg.trello_list_id_default ?? ""}
+                          onChange={e => setConfigs(p => ({ ...p, [ag.id]: { ...p[ag.id], trello_list_id_default: e.target.value || null } }))}
                           className="text-[10px] bg-muted/40 border border-border rounded px-1.5 py-0.5">
                           <option value="">— nenhuma —</option>
                           {listas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -2786,50 +3047,15 @@ function AbaIntegracoes() {
                       </div>
                     )}
                   </div>
-
-                  {/* Salvar */}
-                  <button
-                    onClick={() => salvarConfig(ag.id)}
-                    disabled={salvando[ag.id]}
+                  <button onClick={() => salvarConfig(ag.id)} disabled={salvando[ag.id]}
                     className="btn-3d-soft px-3 py-1 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 flex items-center gap-1">
-                    {salvando[ag.id]
-                      ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvando</>
-                      : <><Save className="w-3 h-3" /> Salvar</>}
+                    {salvando[ag.id] ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvando</> : <><Save className="w-3 h-3" /> Salvar</>}
                   </button>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
-
-      {/* ── Como funciona ── */}
-      <div className="panel-3d-sub rounded-[6px] p-4 space-y-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-          Como Funciona
-        </p>
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="bg-muted/30">
-              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Integração</th>
-              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Gatilho</th>
-              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Ação automática</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {[
-              ["Trello Interno", "Conversa IA inicia/encerra", "Card criado na lista padrão do agente"],
-              ["Trello Externo", "Cliente interage via WhatsApp", "Board privado do cliente atualizado"],
-              ["WPP Proativo",   "Agente detecta oportunidade", "Mensagem gerada por IA e enviada ao cliente"],
-            ].map(([int, gat, acao]) => (
-              <tr key={int}>
-                <td className="p-1.5 font-semibold">{int}</td>
-                <td className="p-1.5 text-muted-foreground">{gat}</td>
-                <td className="p-1.5 text-muted-foreground">{acao}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );

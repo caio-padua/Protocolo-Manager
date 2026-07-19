@@ -2,6 +2,9 @@ import { Router, type IRouter } from "express";
 import { eq, ilike, or, inArray, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
+import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
+import { logIntegracao } from "./agentes-integracoes";
+import { sql } from "drizzle-orm";
 import {
   ListClientsQueryParams,
   CreateClientBody,
@@ -129,6 +132,8 @@ router.post("/clients", async (req, res): Promise<void> => {
   const [client] = await db.insert(clientsTable).values({ ...clientData, empresaId }).returning();
   await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
+  // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
+  dispararBoasVindas(client.id, client.name, client.phone ?? null).catch(() => {});
 });
 
 router.get("/clients/:id", async (req, res): Promise<void> => {
@@ -232,5 +237,40 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Erro ao consultar CEP" });
   }
 });
+
+// ─── Boas-vindas automáticas por WPP (Kaizen B) ──────────────────────────────
+async function dispararBoasVindas(clientId: number, nome: string, telefone: string | null) {
+  if (!telefone) {
+    await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "skip", detalhe: { motivo: "sem_telefone" } });
+    return;
+  }
+  // Verificar toggle global
+  const cfg = await db.execute(sql`SELECT valor FROM app_settings WHERE chave = 'boas_vindas_wpp_ativo' LIMIT 1`);
+  const ativo = (cfg.rows[0] as any)?.valor;
+  if (ativo === "false" || ativo === false) {
+    await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "skip", detalhe: { motivo: "toggle_desativado" } });
+    return;
+  }
+  if (!isWhatsappConfigured()) {
+    await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "skip", detalhe: { motivo: "wpp_nao_configurado" } });
+    return;
+  }
+  const nomeFormatado = nome.split(" ")[0]; // Primeiro nome
+  const mensagem =
+    `Olá, ${nomeFormatado}! 🌿\n\n` +
+    `Bem-vindo(a) ao Instituto Padua — cuidado real, resultado clínico.\n\n` +
+    `Seu cadastro foi concluído com sucesso. Em breve nossa equipe entrará em contato para agendar sua consulta de avaliação.\n\n` +
+    `Qualquer dúvida, estamos aqui!\n— Equipe PAXTER`;
+  try {
+    const resultado = await sendWhatsapp({ to: telefone, body: mensagem });
+    await logIntegracao({
+      tipo: "wpp_boasvindas", client_id: clientId,
+      status: resultado.sent ? "ok" : "falhou",
+      detalhe: { sid: resultado.sid, via: resultado.via },
+    });
+  } catch (err: any) {
+    await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "falhou", detalhe: { erro: err.message } });
+  }
+}
 
 export default router;

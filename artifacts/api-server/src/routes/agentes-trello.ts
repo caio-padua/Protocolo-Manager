@@ -12,6 +12,7 @@ import {
   createCard, addComment, listLists, getCard,
 } from "../lib/trello";
 import { logger } from "../lib/logger";
+import { logIntegracao } from "./agentes-integracoes";
 
 const router: IRouter = Router();
 
@@ -227,6 +228,7 @@ router.post("/agentes-trello/card", async (req, res): Promise<void> => {
         ON CONFLICT (trello_card_id) DO NOTHING
       `);
 
+      logIntegracao({ tipo: "trello_card", client_id: client_id ?? undefined, status: "ok", detalhe: { card_id: card.id, titulo } }).catch(() => {});
       res.json({ ok: true, card_id: card.id, url: card.url, titulo });
     } catch (err) {
       logger.error({ err }, "agentes-trello: erro ao criar card");

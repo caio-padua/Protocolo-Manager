@@ -10,6 +10,7 @@ import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { sendWhatsapp, isWhatsappConfigured, buildWhatsappLink } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
+import { logIntegracao } from "./agentes-integracoes";
 
 const router: IRouter = Router();
 
@@ -131,9 +132,11 @@ _PAXTER Clinical Intelligence System_`;
       body: mensagem,
       clientId: client_id,
     });
+    logIntegracao({ tipo: "wpp_proativo", client_id, status: r.sent ? "ok" : "falhou", detalhe: { sid: r.sid, via: r.via } }).catch(() => {});
     res.json({ ok: true, sid: r.sid, status: r.status, telefone: telefone.slice(-4).padStart(telefone.length, "*") });
   } catch (err) {
     logger.error({ err }, "agentes-wpp: erro ao enviar");
+    logIntegracao({ tipo: "wpp_proativo", client_id, status: "falhou", detalhe: { erro: String(err) } }).catch(() => {});
     const link = buildWhatsappLink(telefone, mensagem);
     res.status(502).json({
       error: "Erro ao enviar WhatsApp",

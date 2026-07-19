@@ -368,4 +368,17 @@ router.put("/settings/governanca", requireCollaborator, async (req, res): Promis
   res.json(await governancaPayload());
 });
 
+// ─── Toggle Boas-vindas WPP (Kaizen B) ────────────────────────────────────────
+router.get("/settings/boas_vindas_wpp", requireCollaborator, async (_req, res): Promise<void> => {
+  const valor = await getSetting("boas_vindas_wpp_ativo");
+  res.json({ chave: "boas_vindas_wpp_ativo", valor: valor ?? "true" });
+});
+
+router.put("/settings/boas_vindas_wpp", requireCollaborator, async (req, res): Promise<void> => {
+  const { valor } = req.body ?? {};
+  if (typeof valor !== "string") { res.status(400).json({ error: "valor é string obrigatório" }); return; }
+  await setSetting("boas_vindas_wpp_ativo", valor);
+  res.json({ ok: true, valor });
+});
+
 export default router;

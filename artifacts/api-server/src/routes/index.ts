@@ -77,6 +77,8 @@ import agentesRouter from "./agentes";
 import agentesChatRouter from "./agentes-chat";
 import agentesTrelloRouter from "./agentes-trello";
 import agentesWppRouter from "./agentes-wpp";
+import agentesIntegracoesRouter from "./agentes-integracoes";
+import agentesQuickrepliesRouter from "./agentes-quickreplies";
 
 const router: IRouter = Router();
 
@@ -183,5 +185,7 @@ router.use(padteamRouter);
 router.use(agentesRouter);
 router.use(agentesChatRouter);
 router.use(agentesWppRouter);
+router.use(agentesIntegracoesRouter);
+router.use(agentesQuickrepliesRouter);
 
 export default router;
