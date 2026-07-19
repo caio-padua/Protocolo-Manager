@@ -18,11 +18,14 @@ interface PaxterSymbolGlassProps {
   /** Mantido por compatibilidade; o medalhao e sempre navy. */
   tone?: Tone;
   className?: string;
+  /** Vidro plano: cantos quase retos (radius=4/2) em vez de arredondados.
+   *  Elimina a impressao de vidro curvado nas bordas (CEP login). */
+  sharp?: boolean;
 }
 
-export function PaxterSymbolGlass({ size = 64, tone = "dark", className = "" }: PaxterSymbolGlassProps) {
-  const outerR = Math.max(9, Math.round(size * 0.3));
-  const innerR = Math.max(7, outerR - 2);
+export function PaxterSymbolGlass({ size = 64, tone = "dark", className = "", sharp = false }: PaxterSymbolGlassProps) {
+  const outerR = sharp ? 4 : Math.max(9, Math.round(size * 0.3));
+  const innerR = sharp ? 2 : Math.max(7, outerR - 2);
   const innerPad = Math.max(2, Math.round(size * 0.07));
   // Miolo: escuro = navy (CSS padrao). Claro = ESPRESSO quente (marrom-cafe):
   // tira o azul que destoa do creme, contrasta com o painel claro e mantem o

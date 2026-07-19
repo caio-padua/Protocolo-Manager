@@ -332,14 +332,17 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               target="_blank"
               rel="noopener noreferrer"
               aria-label="PAXTER — site institucional"
-              className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+              className="flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
             >
-              <PaxterSymbolGlass size={32} tone="dark" />
+              <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
             <div>
-              <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
-                PAXTER
-              </h1>
+              <img
+                src="/brand/parxis-wordmark-clean.png"
+                alt="PARXIS"
+                className="h-9 w-auto object-contain"
+                style={{ filter: isDark ? "brightness(1.1)" : "none" }}
+              />
               <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
             </div>
           </div>
@@ -526,16 +529,16 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     return (
       <LoginShell subtitle="PRIMEIRO ACESSO">
         <div className="panel-3d rounded-xl overflow-hidden">
-          <div className="bg-primary px-5 py-4">
+          <div className="login-card-topbar px-5 py-4">
             <div className="flex items-center gap-3">
               <KeyRound className="w-5 h-5 text-accent" />
-              <h2 className="text-white font-black text-sm uppercase tracking-widest">CRIAR SUA SENHA</h2>
+              <h2 className="text-primary font-black text-sm uppercase tracking-widest">CRIAR SUA SENHA</h2>
             </div>
-            <p className="text-primary-foreground/80 text-xs mt-1">
+            <p className="text-muted-foreground text-xs mt-1">
               Você entrou com uma senha provisória. Defina uma senha só sua para continuar.
             </p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="login-card-body p-5 space-y-4">
             <div>
               <label className={LABEL_CLS}>NOVA SENHA</label>
               <input
@@ -557,7 +560,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <button
               onClick={handleChangePassword}
               disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
-              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
             </button>
@@ -572,16 +575,16 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     return (
       <LoginShell subtitle="DEFINIR SENHA">
         <div className="panel-3d rounded-xl overflow-hidden">
-          <div className="bg-primary px-5 py-4">
+          <div className="login-card-topbar px-5 py-4">
             <div className="flex items-center gap-3">
               <KeyRound className="w-5 h-5 text-accent" />
-              <h2 className="text-white font-black text-sm uppercase tracking-widest">DEFINIR SENHA</h2>
+              <h2 className="text-primary font-black text-sm uppercase tracking-widest">DEFINIR SENHA</h2>
             </div>
-            <p className="text-primary-foreground/80 text-xs mt-1">
+            <p className="text-muted-foreground text-xs mt-1">
               Crie a senha de acesso à sua área.
             </p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="login-card-body p-5 space-y-4">
             <div>
               <label className={LABEL_CLS}>NOVA SENHA</label>
               <input
@@ -603,7 +606,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <button
               onClick={handleDefinePassword}
               disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
-              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
             </button>
@@ -625,19 +628,19 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
     <LoginShell subtitle="ÁREA DO PACIENTE">
       <div className="panel-3d rounded-xl overflow-hidden">
         {/* Zona 1 — TOP BAR */}
-        <div className="bg-primary px-5 py-4">
+        <div className="login-card-topbar px-5 py-4">
           <div className="flex items-center gap-3">
             {porSenha ? <KeyRound className="w-5 h-5 text-accent" /> : <User className="w-5 h-5 text-accent" />}
-            <h2 className="text-white font-black text-sm uppercase tracking-widest">
+            <h2 className="text-primary font-black text-sm uppercase tracking-widest">
               {porSenha ? "ENTRAR COM SENHA" : "IDENTIFICAÇÃO"}
             </h2>
           </div>
-          <p className="text-primary-foreground/80 text-xs mt-1">
+          <p className="text-muted-foreground text-xs mt-1">
             {porSenha ? "CPF + senha para entrar" : "CPF + data de nascimento para entrar"}
           </p>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="login-card-body p-5 space-y-4">
           <div>
             <label className={LABEL_CLS}>CPF</label>
             <input
@@ -678,7 +681,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
               cpf.replace(/\D/g, "").length !== 11 ||
               (porSenha ? password.length === 0 : birthDate.replace(/\D/g, "").length !== 8)
             }
-            className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
           </button>
