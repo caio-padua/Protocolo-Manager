@@ -79,6 +79,7 @@ import agentesTrelloRouter from "./agentes-trello";
 import agentesWppRouter from "./agentes-wpp";
 import agentesIntegracoesRouter from "./agentes-integracoes";
 import agentesQuickrepliesRouter from "./agentes-quickreplies";
+import whatsappInboundRouter from "./whatsapp-inbound";
 
 const router: IRouter = Router();
 
@@ -101,6 +102,10 @@ router.use(telegramWebhookRouter);
 // Webhook de STATUS do Twilio (StatusCallback): atualiza a entrega da mensagem.
 // Registrado ANTES do portao; autenticidade via assinatura X-Twilio-Signature.
 router.use(whatsappWebhookRouter);
+
+// Webhook de ENTRADA do Twilio (InboundRequestUrl): recebe mensagens dos usuários
+// e responde via Aurora ADM com contexto clínico. Registrado ANTES do portão.
+router.use(whatsappInboundRouter);
 
 // Webhooks do Trello (HEAD+POST de validação e eventos de cards).
 // Devem vir ANTES do portão — Trello não envia token de colaborador.
