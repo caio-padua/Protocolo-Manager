@@ -3,7 +3,7 @@ import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  HelpCircle, MessageCircle, TrendingUp,
+  HelpCircle, MessageCircle, TrendingUp, Sun, Moon,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -197,39 +197,79 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel flutuante — canto inferior direito — acima da nav — toggle + sair */}
+      {/* Mini-painel flutuante — canto inferior direito — acima da nav deslizante */}
+      {/* Ambos os botões idênticos: mesmo retângulo, mesma altura, empilhados */}
       <div
         className="fixed z-30"
         style={{
-          bottom: 72,
+          bottom: 76,   /* acima da nav ~64px + gap 12px */
           right: 10,
-          background: "rgba(4,2,2,0.96)",
-          border: "1px solid rgba(242,184,23,0.30)",
-          borderRadius: 10,
-          padding: "6px 7px",
+          background: "linear-gradient(160deg, #1a0e00 0%, #0d0800 100%)",
+          border: "1px solid rgba(242,184,23,0.40)",
+          borderRadius: 12,
+          padding: "8px",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          gap: 5,
-          boxShadow:
-            "0 -6px 24px rgba(0,0,0,0.55), 0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,216,90,0.10)",
+          gap: 6,
+          /* sombra forte para dar impressão de altura acima da nav */
+          boxShadow: [
+            "0 -8px 32px rgba(0,0,0,0.70)",
+            "0 8px 28px rgba(0,0,0,0.60)",
+            "0 0 0 1px rgba(242,184,23,0.08)",
+            "inset 0 1px 0 rgba(255,216,90,0.18)",
+            "inset 0 -1px 0 rgba(0,0,0,0.40)",
+          ].join(", "),
         }}
       >
-        <ThemeToggle theme={theme} onToggle={toggle} />
+        {/* Botão 1 — Tema claro/escuro */}
         <button
-          onClick={handleLogout}
-          title="Sair"
+          type="button"
+          onClick={toggle}
+          aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+          title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           style={{
-            width: 32, height: 32,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(242,184,23,0.20)",
-            borderRadius: 7,
-            color: "rgba(242,184,23,0.80)",
+            width: 52, height: 40,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 2,
+            background: "linear-gradient(160deg, rgba(255,216,90,0.12) 0%, rgba(180,110,0,0.08) 100%)",
+            border: "1px solid rgba(242,184,23,0.35)",
+            borderRadius: 8,
+            color: "rgba(242,184,23,0.95)",
             cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,216,90,0.20)",
+            transition: "all 120ms",
           }}
         >
-          <LogOut style={{ width: 15, height: 15 }} />
+          {theme === "dark"
+            ? <Sun  style={{ width: 16, height: 16 }} />
+            : <Moon style={{ width: 16, height: 16 }} />}
+          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.08em", color: "rgba(242,184,23,0.70)", lineHeight: 1 }}>
+            {theme === "dark" ? "CLARO" : "ESCURO"}
+          </span>
+        </button>
+
+        {/* Botão 2 — Sair (mesmo retângulo idêntico) */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          title="Sair da área do cliente"
+          style={{
+            width: 52, height: 40,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 2,
+            background: "linear-gradient(160deg, rgba(255,216,90,0.12) 0%, rgba(180,110,0,0.08) 100%)",
+            border: "1px solid rgba(242,184,23,0.35)",
+            borderRadius: 8,
+            color: "rgba(242,184,23,0.95)",
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,216,90,0.20)",
+            transition: "all 120ms",
+          }}
+        >
+          <LogOut style={{ width: 16, height: 16 }} />
+          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.08em", color: "rgba(242,184,23,0.70)", lineHeight: 1 }}>
+            SAIR
+          </span>
         </button>
       </div>
 
