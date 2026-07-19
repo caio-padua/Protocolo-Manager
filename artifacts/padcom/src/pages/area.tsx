@@ -235,13 +235,16 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
   return (
     <footer
       style={{
-        borderTop: `1px solid ${isDark ? "rgba(176,208,245,0.12)" : "rgba(138,109,47,0.22)"}`,
-        background: isDark ? "rgba(13,31,58,0.85)" : "rgba(243,236,221,0.92)",
-        padding: "6px 16px",
+        /* fundo sólido igual ao da página — claramente diferente da nav branca/panel-3d */
+        background: isDark ? "#0d1f3a" : "#f3ecdd",
+        /* linha dourada embaixo = separador visual forte entre logo-bar e nav */
+        borderTop:    `1px solid ${isDark ? "rgba(194,160,90,0.25)" : "rgba(138,109,47,0.30)"}`,
+        borderBottom: `2px solid ${isDark ? "rgba(194,160,90,0.55)" : "rgba(138,109,47,0.50)"}`,
+        padding: "7px 16px",
       }}
     >
       <div className="flex items-center justify-between max-w-lg mx-auto">
-        <PaxterWordmarkArt width={80} tone={isDark ? "dark" : "light"} />
+        <PaxterWordmarkArt width={82} tone={isDark ? "dark" : "light"} />
         <PadconSymbol height={22} />
       </div>
     </footer>
