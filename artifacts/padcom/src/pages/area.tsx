@@ -181,15 +181,21 @@ export default function Area() {
           </div>
         </a>
 
-        {/* Direita: nome do cliente em concave-3d pill */}
+        {/* Direita: nome do cliente — pill com fonte serifada de grife */}
         <div
           className="concave-3d flex items-center gap-2 px-3 py-2 flex-shrink-0"
           style={{ borderRadius: 8 }}
         >
           <User className="w-3.5 h-3.5 text-accent flex-shrink-0" />
           <span
-            className="text-accent text-sm font-semibold"
-            style={{ letterSpacing: "0.02em", lineHeight: 1.1 }}
+            className="text-accent"
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 600,
+              fontSize: "1.05rem",
+              letterSpacing: "0.04em",
+              lineHeight: 1.1,
+            }}
           >
             {formatClientName(client.name)}
           </span>
@@ -296,7 +302,7 @@ type LoginMode = "nascimento" | "senha" | "trocar" | "definir";
 function PadconWatermark({ bottom = "76px" }: { bottom?: string }) {
   return (
     <div
-      className="fixed right-3 z-10 pointer-events-none select-none"
+      className="fixed right-3 z-50 pointer-events-none select-none"
       style={{ bottom }}
       aria-hidden="true"
     >
