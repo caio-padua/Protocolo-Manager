@@ -5,6 +5,8 @@ import {
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
+import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -234,21 +236,13 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
     <footer
       style={{
         borderTop: `1px solid ${isDark ? "rgba(176,208,245,0.12)" : "rgba(138,109,47,0.22)"}`,
-        background: isDark ? "rgba(13,31,58,0.72)" : "rgba(255,255,255,0.50)",
-        padding: "8px 16px",
-        marginTop: "auto",
+        background: isDark ? "rgba(13,31,58,0.85)" : "rgba(243,236,221,0.92)",
+        padding: "6px 16px",
       }}
     >
       <div className="flex items-center justify-between max-w-lg mx-auto">
-        <div className="flex items-center gap-2">
-          <PaxterSymbolGlass size={20} tone="dark" />
-          <span className="mt-wordmark" style={{ fontSize: 11 }}>PAXTER</span>
-        </div>
-        <img
-          src={isDark ? `${API_BASE}/logo-padcon-white.png` : `${API_BASE}/logo-padcon-color.png`}
-          alt="PADCON"
-          style={{ height: 16, objectFit: "contain" }}
-        />
+        <PaxterWordmarkArt width={80} tone={isDark ? "dark" : "light"} />
+        <PadconSymbol height={22} />
       </div>
     </footer>
   );
