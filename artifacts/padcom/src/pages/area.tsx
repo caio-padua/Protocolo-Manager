@@ -204,13 +204,6 @@ export default function Area() {
               </button>
             );
           })}
-          {/* Símbolo PADCON — assinatura de marca no canto inferior direito da nav */}
-          <div
-            className="absolute right-2 bottom-1 pointer-events-none"
-            aria-hidden="true"
-          >
-            <PadconSymbol height={20} />
-          </div>
         </div>
       </nav>
       </div>
