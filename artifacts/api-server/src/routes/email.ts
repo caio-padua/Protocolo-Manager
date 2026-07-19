@@ -10,6 +10,7 @@ import {
   rasTable,
   locationsTable,
   emailLogTable,
+  protocolsTable,
 } from "@workspace/db";
 import {
   sendPreSessionEmail,
@@ -570,6 +571,54 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
     failed: results.filter(r => !r.success).length,
     details: results,
   });
+});
+
+// POST /api/email/send-copy — envia PDF de protocolo para qualquer e-mail (cópia para médico/admin)
+router.post("/email/send-copy", async (req, res): Promise<void> => {
+  const { to, protocolId } = req.body as { to?: string; protocolId?: number };
+  if (!to || !protocolId) {
+    res.status(400).json({ error: "Campos obrigatórios: to, protocolId" });
+    return;
+  }
+  try {
+    const { sendGmailMessage, isGmailConnected } = await import("../lib/google-gmail");
+    const gmailOk = await isGmailConnected();
+    if (!gmailOk) { res.status(503).json({ error: "Gmail não conectado" }); return; }
+
+    const [protocol] = await db
+      .select({ id: protocolsTable.id, title: protocolsTable.title })
+      .from(protocolsTable)
+      .where(eq(protocolsTable.id, protocolId))
+      .limit(1);
+    if (!protocol) { res.status(404).json({ error: "Protocolo não encontrado" }); return; }
+
+    // Gera o PDF via fetch interno
+    const pdfRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/protocols/${protocolId}/document-pdf`);
+    const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#3D7A7A;">PAXTER — Cópia do Protocolo</h2>
+        <p>Segue em anexo o documento jurídico completo do protocolo:</p>
+        <p><strong>${protocol.title}</strong></p>
+        <p>Gerado em ${hoje} pelo sistema PAXTER Clinical Intelligence.</p>
+        <hr/>
+        <p style="font-size:12px;color:#666;">Este é um envio automático — cópia para o médico/administrador.</p>
+      </div>`;
+
+    const filename = `${hoje.replace(/\//g,"-")} COPIA PROTOCOLO ${protocol.title.substring(0,40)}.pdf`;
+    const result = await sendGmailMessage({
+      to,
+      subject: `PAXTER | Cópia Protocolo | ${protocol.title.substring(0,50)}`,
+      html,
+      attachments: [{ filename, content: pdfBuf, contentType: "application/pdf" }],
+    });
+
+    res.json({ ok: result.success, to, messageId: result.messageId, error: result.error });
+  } catch (err) {
+    res.status(500).json({ error: "erro_send_copy", detalhe: String(err) });
+  }
 });
 
 export default router;
