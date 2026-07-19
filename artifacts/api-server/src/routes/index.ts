@@ -75,6 +75,8 @@ import adminPreviewRouter from "./admin-preview";
 import padteamRouter from "./padteam";
 import agentesRouter from "./agentes";
 import agentesChatRouter from "./agentes-chat";
+import agentesTrelloRouter from "./agentes-trello";
+import agentesWppRouter from "./agentes-wpp";
 
 const router: IRouter = Router();
 
@@ -97,6 +99,10 @@ router.use(telegramWebhookRouter);
 // Webhook de STATUS do Twilio (StatusCallback): atualiza a entrega da mensagem.
 // Registrado ANTES do portao; autenticidade via assinatura X-Twilio-Signature.
 router.use(whatsappWebhookRouter);
+
+// Webhooks do Trello (HEAD+POST de validação e eventos de cards).
+// Devem vir ANTES do portão — Trello não envia token de colaborador.
+router.use(agentesTrelloRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
@@ -176,5 +182,6 @@ router.use(dominiosComercialRouter);
 router.use(padteamRouter);
 router.use(agentesRouter);
 router.use(agentesChatRouter);
+router.use(agentesWppRouter);
 
 export default router;

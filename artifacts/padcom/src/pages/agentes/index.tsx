@@ -14,7 +14,8 @@ import {
   Thermometer, Copy, ThumbsUp, ThumbsDown, Hash, TrendingUp,
   DollarSign, Trash2, Plus, Settings, Globe, Lock, Crown,
   Award, Target, BarChart2, MessageCircle, Sliders, Download,
-  ChevronLeft, Search, PlusCircle, LayoutGrid, Layers,
+  ChevronLeft, Search, PlusCircle, LayoutGrid, Layers, Loader2,
+  Webhook, Smartphone, ExternalLink, ToggleLeft, ToggleRight,
 } from "lucide-react";
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -2032,8 +2033,112 @@ function AbaChatPro({ agentes }: { agentes: Agente[] }) {
             }} className="w-full btn-3d-soft py-1.5 text-xs flex items-center justify-center gap-1.5 text-muted-foreground">
               <Download className="w-3 h-3" /> Exportar Conversa
             </button>
+
+            {/* Ações de Integração */}
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Integrações</p>
+              <AcaoTrelloCard
+                agenteId={agente.id}
+                agenteCor={agente.cor_hex}
+                conversationId={convId ?? undefined}
+              />
+              <AcaoWppNotificar
+                agenteId={agente.id}
+                agenteCor={agente.cor_hex}
+                conversationId={convId ?? undefined}
+              />
+            </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mini-componente: botão Criar Card Trello ─────────────────────────────────
+function AcaoTrelloCard({ agenteId, agenteCor, conversationId }: {
+  agenteId: number; agenteCor: string; conversationId?: number;
+}) {
+  const [estado, setEstado] = useState<"idle"|"loading"|"ok"|"err"|"nconf">("idle");
+  const [url, setUrl]       = useState<string | null>(null);
+
+  async function criar() {
+    setEstado("loading");
+    const r = await apiFetch("/agentes-trello/card", {
+      method: "POST",
+      body: JSON.stringify({ agente_id: agenteId, conversation_id: conversationId }),
+    });
+    if (r?.configurado === false) { setEstado("nconf"); return; }
+    if (r?.ok) { setEstado("ok"); setUrl(r.url); }
+    else setEstado("err");
+  }
+
+  return (
+    <button onClick={criar} disabled={estado === "loading"}
+      className="w-full btn-3d-soft py-1.5 text-xs flex items-center justify-center gap-1.5 disabled:opacity-40"
+      style={{ color: estado === "ok" ? "#22c55e" : estado === "nconf" ? "#f59e0b" : agenteCor }}>
+      {estado === "loading" && <Loader2 className="w-3 h-3 animate-spin" />}
+      {estado === "ok"      && <Check className="w-3 h-3 text-emerald-400" />}
+      {estado === "nconf"   && <Settings className="w-3 h-3 text-amber-400" />}
+      {estado === "err"     && <X className="w-3 h-3 text-red-400" />}
+      {estado === "idle"    && <Layers className="w-3 h-3" />}
+      {estado === "idle"    && "Criar Card Trello"}
+      {estado === "loading" && "Criando card…"}
+      {estado === "ok"      && "Card criado!"}
+      {estado === "nconf"   && "Trello não configurado"}
+      {estado === "err"     && "Erro — ver Integrações"}
+      {estado === "ok" && url && (
+        <a href={url} target="_blank" rel="noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="ml-1 underline text-cyan-400">Abrir</a>
+      )}
+    </button>
+  );
+}
+
+// ─── Mini-componente: botão Notificar por WhatsApp ────────────────────────────
+function AcaoWppNotificar({ agenteId, agenteCor, conversationId }: {
+  agenteId: number; agenteCor: string; conversationId?: number;
+}) {
+  const [estado, setEstado] = useState<"idle"|"loading"|"ok"|"err"|"nconf">("idle");
+  const [link, setLink]     = useState<string | null>(null);
+
+  async function notificar() {
+    setEstado("loading");
+    const r = await apiFetch("/agentes-wpp/notificar", {
+      method: "POST",
+      body: JSON.stringify({ agente_id: agenteId, conversation_id: conversationId }),
+    });
+    if (r?.configurado === false) {
+      setEstado("nconf");
+      setLink(r.link_fallback ?? null);
+      return;
+    }
+    if (r?.ok) setEstado("ok");
+    else { setEstado("err"); setLink(r?.link_fallback ?? null); }
+  }
+
+  return (
+    <div className="space-y-1">
+      <button onClick={notificar} disabled={estado === "loading"}
+        className="w-full btn-3d-soft py-1.5 text-xs flex items-center justify-center gap-1.5 disabled:opacity-40"
+        style={{ color: estado === "ok" ? "#22c55e" : estado === "nconf" ? "#f59e0b" : agenteCor }}>
+        {estado === "loading" && <Loader2 className="w-3 h-3 animate-spin" />}
+        {estado === "ok"      && <Check className="w-3 h-3 text-emerald-400" />}
+        {estado === "nconf"   && <Settings className="w-3 h-3 text-amber-400" />}
+        {estado === "err"     && <X className="w-3 h-3 text-red-400" />}
+        {estado === "idle"    && <MessageCircle className="w-3 h-3" />}
+        {estado === "idle"    && "Notificar por WhatsApp"}
+        {estado === "loading" && "Enviando…"}
+        {estado === "ok"      && "WhatsApp enviado!"}
+        {estado === "nconf"   && "WPP não configurado"}
+        {estado === "err"     && "Erro — ver link abaixo"}
+      </button>
+      {link && (
+        <a href={link} target="_blank" rel="noreferrer"
+          className="block text-center text-[10px] text-cyan-400 underline">
+          Abrir no WhatsApp (fallback manual)
+        </a>
       )}
     </div>
   );
@@ -2468,6 +2573,309 @@ function KPICards({ agentes }: { agentes: Agente[] }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTEGRAÇÕES — Status Trello + WhatsApp + toggles por agente
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface TrelloStatus {
+  configurado: boolean;
+  webhook_interno: string;
+  webhook_externo: string;
+  board_id: string | null;
+  instrucoes: string[];
+}
+interface WppStatus { configurado: boolean; instrucoes: string[] | null; }
+interface TrelloLista { id: string; name: string; }
+interface TrelloConfig {
+  agente_id: number;
+  trello_interno_ativo: boolean;
+  trello_externo_ativo: boolean;
+  wpp_proativo_ativo: boolean;
+  trello_list_id_default: string | null;
+}
+
+function AbaIntegracoes() {
+  const [trello,    setTrello]    = useState<TrelloStatus | null>(null);
+  const [wpp,       setWpp]       = useState<WppStatus    | null>(null);
+  const [listas,    setListas]    = useState<TrelloLista[]>([]);
+  const [agentes,   setAgentes]   = useState<Agente[]>([]);
+  const [configs,   setConfigs]   = useState<Record<number, TrelloConfig>>({});
+  const [salvando,  setSalvando]  = useState<Record<number, boolean>>({});
+  const [copied,    setCopied]    = useState<string | null>(null);
+  const [loading,   setLoading]   = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch("/agentes-trello/status"),
+      apiFetch("/agentes-wpp/status"),
+      apiFetch("/agentes-trello/listas"),
+      apiFetch("/agentes"),
+    ]).then(([t, w, l, a]) => {
+      setTrello(t);
+      setWpp(w);
+      setListas(l?.listas ?? []);
+      const lista: Agente[] = a?.items ?? [];
+      setAgentes(lista);
+      const cfgs: Record<number, TrelloConfig> = {};
+      lista.forEach((ag: Agente) => {
+        cfgs[ag.id] = {
+          agente_id: ag.id,
+          trello_interno_ativo: false,
+          trello_externo_ativo: false,
+          wpp_proativo_ativo: false,
+          trello_list_id_default: null,
+        };
+      });
+      setConfigs(cfgs);
+      setLoading(false);
+      // Carregar configs individuais
+      lista.forEach(async (ag: Agente) => {
+        const r = await apiFetch(`/agentes-trello/config/${ag.id}`);
+        if (r) setConfigs(prev => ({ ...prev, [ag.id]: { ...prev[ag.id], ...r } }));
+      });
+    });
+  }, []);
+
+  function copiar(texto: string, chave: string) {
+    navigator.clipboard.writeText(texto);
+    setCopied(chave);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function salvarConfig(agenteId: number) {
+    const cfg = configs[agenteId];
+    if (!cfg) return;
+    setSalvando(p => ({ ...p, [agenteId]: true }));
+    await apiFetch("/agentes-trello/config", {
+      method: "POST",
+      body: JSON.stringify(cfg),
+    });
+    setSalvando(p => ({ ...p, [agenteId]: false }));
+  }
+
+  function toggleCfg(agenteId: number, campo: keyof TrelloConfig, valor: boolean) {
+    setConfigs(p => ({ ...p, [agenteId]: { ...p[agenteId], [campo]: valor } }));
+  }
+
+  const ok  = "#22c55e";
+  const err = "#ef4444";
+
+  return (
+    <div className="space-y-6 p-4 max-w-3xl mx-auto">
+      {/* ── Status geral ── */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
+          Status das Integrações
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Trello */}
+          <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4" style={{ color: trello?.configurado ? ok : err }} />
+              <span className="font-bold text-sm">Trello</span>
+              <span className="ml-auto text-[10px] font-black uppercase tracking-wider"
+                style={{ color: trello?.configurado ? ok : err }}>
+                {loading ? "…" : trello?.configurado ? "CONFIGURADO" : "PENDENTE"}
+              </span>
+            </div>
+            {trello && (
+              <div className="space-y-1.5">
+                <WebhookUrlRow
+                  label="Webhook Interno"
+                  url={trello.webhook_interno}
+                  copied={copied} onCopy={copiar} chave="wi"
+                />
+                <WebhookUrlRow
+                  label="Webhook Externo"
+                  url={trello.webhook_externo}
+                  copied={copied} onCopy={copiar} chave="we"
+                />
+              </div>
+            )}
+            {!trello?.configurado && trello?.instrucoes && (
+              <ol className="text-[10px] text-muted-foreground space-y-0.5 mt-2 list-decimal list-inside">
+                {trello.instrucoes.map((s, i) => <li key={i}>{s}</li>)}
+              </ol>
+            )}
+          </div>
+
+          {/* WhatsApp */}
+          <div className="panel-3d-sub rounded-[6px] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4" style={{ color: wpp?.configurado ? ok : err }} />
+              <span className="font-bold text-sm">WhatsApp</span>
+              <span className="ml-auto text-[10px] font-black uppercase tracking-wider"
+                style={{ color: wpp?.configurado ? ok : err }}>
+                {loading ? "…" : wpp?.configurado ? "CONFIGURADO" : "PENDENTE"}
+              </span>
+            </div>
+            {wpp?.configurado ? (
+              <p className="text-[11px] text-muted-foreground">
+                Twilio conectado via TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN.
+                Notificações proativas disponíveis por agente.
+              </p>
+            ) : (
+              <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal list-inside">
+                {(wpp?.instrucoes ?? [
+                  "1. Configure TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN nos Secrets.",
+                  "2. O WhatsApp sandbox do Twilio é ativado automaticamente.",
+                ]).map((s, i) => <li key={i}>{s}</li>)}
+              </ol>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Toggles por agente ── */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
+          Configuração por Agente
+        </p>
+        {loading ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm p-4">
+            <Loader2 className="w-4 h-4 animate-spin" /> Carregando agentes…
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {agentes.map(ag => {
+              const cfg = configs[ag.id];
+              if (!cfg) return null;
+              return (
+                <div key={ag.id} className="panel-3d-sub rounded-[6px] p-3 flex flex-wrap items-center gap-3">
+                  {/* Identificação */}
+                  <div className="flex items-center gap-2 w-44 shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: ag.cor_hex }} />
+                    <span className="text-xs font-bold truncate">{ag.nome}</span>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="flex flex-wrap items-center gap-4 flex-1">
+                    <ToggleItem
+                      label="Trello Int."
+                      ativo={cfg.trello_interno_ativo}
+                      disabled={!trello?.configurado}
+                      onChange={v => toggleCfg(ag.id, "trello_interno_ativo", v)}
+                    />
+                    <ToggleItem
+                      label="Trello Ext."
+                      ativo={cfg.trello_externo_ativo}
+                      disabled={!trello?.configurado}
+                      onChange={v => toggleCfg(ag.id, "trello_externo_ativo", v)}
+                    />
+                    <ToggleItem
+                      label="WPP Proativo"
+                      ativo={cfg.wpp_proativo_ativo}
+                      disabled={!wpp?.configurado}
+                      onChange={v => toggleCfg(ag.id, "wpp_proativo_ativo", v)}
+                    />
+
+                    {/* Lista Trello padrão */}
+                    {trello?.configurado && listas.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Lista padrão</span>
+                        <select
+                          value={cfg.trello_list_id_default ?? ""}
+                          onChange={e => setConfigs(p => ({
+                            ...p,
+                            [ag.id]: { ...p[ag.id], trello_list_id_default: e.target.value || null }
+                          }))}
+                          className="text-[10px] bg-muted/40 border border-border rounded px-1.5 py-0.5">
+                          <option value="">— nenhuma —</option>
+                          {listas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Salvar */}
+                  <button
+                    onClick={() => salvarConfig(ag.id)}
+                    disabled={salvando[ag.id]}
+                    className="btn-3d-soft px-3 py-1 text-[10px] font-black uppercase tracking-wider disabled:opacity-40 flex items-center gap-1">
+                    {salvando[ag.id]
+                      ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvando</>
+                      : <><Save className="w-3 h-3" /> Salvar</>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Como funciona ── */}
+      <div className="panel-3d-sub rounded-[6px] p-4 space-y-3">
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          Como Funciona
+        </p>
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-muted/30">
+              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Integração</th>
+              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Gatilho</th>
+              <th className="text-left p-1.5 text-[10px] uppercase tracking-wider font-black">Ação automática</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {[
+              ["Trello Interno", "Conversa IA inicia/encerra", "Card criado na lista padrão do agente"],
+              ["Trello Externo", "Cliente interage via WhatsApp", "Board privado do cliente atualizado"],
+              ["WPP Proativo",   "Agente detecta oportunidade", "Mensagem gerada por IA e enviada ao cliente"],
+            ].map(([int, gat, acao]) => (
+              <tr key={int}>
+                <td className="p-1.5 font-semibold">{int}</td>
+                <td className="p-1.5 text-muted-foreground">{gat}</td>
+                <td className="p-1.5 text-muted-foreground">{acao}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-componentes utilitários de AbaIntegracoes ───────────────────────────
+
+function WebhookUrlRow({ label, url, copied, onCopy, chave }: {
+  label: string; url: string; copied: string | null;
+  onCopy: (u: string, k: string) => void; chave: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Webhook className="w-3 h-3 text-muted-foreground shrink-0" />
+      <span className="text-[9px] text-muted-foreground uppercase tracking-wider w-24 shrink-0">{label}</span>
+      <span className="text-[10px] text-cyan-400 truncate flex-1 font-mono" title={url}>
+        {url.replace("https://", "").slice(0, 45)}…
+      </span>
+      <button onClick={() => onCopy(url, chave)}
+        className="shrink-0 p-0.5 hover:text-foreground text-muted-foreground">
+        {copied === chave
+          ? <Check className="w-3 h-3 text-emerald-400" />
+          : <Copy className="w-3 h-3" />}
+      </button>
+    </div>
+  );
+}
+
+function ToggleItem({ label, ativo, disabled, onChange }: {
+  label: string; ativo: boolean; disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={() => onChange(!ativo)}
+      className="flex items-center gap-1 text-[10px] disabled:opacity-40"
+      title={disabled ? "Integração não configurada" : undefined}>
+      {ativo
+        ? <ToggleRight className="w-4 h-4 text-emerald-400" />
+        : <ToggleLeft  className="w-4 h-4 text-muted-foreground" />}
+      <span className={ativo ? "text-emerald-400 font-bold" : "text-muted-foreground"}>{label}</span>
+    </button>
+  );
+}
+
 // ─── Hub Principal ────────────────────────────────────────────────────────────
 
 const ABAS = [
@@ -2481,6 +2889,7 @@ const ABAS = [
   { key: "chat",           label: "Chat IA",         icon: MessageSquare,grupo: "ia"         },
   { key: "chatpro",        label: "Console IA Pro",  icon: Sparkles,     grupo: "ia"         },
   { key: "provedores",     label: "Provedores",      icon: Cpu,          grupo: "ia"         },
+  { key: "integracoes",    label: "Integrações",     icon: Webhook,      grupo: "ia"         },
   { key: "uso",            label: "Uso & Custo",     icon: BarChart2,    grupo: "comercial"  },
   { key: "comercial",      label: "Comercial",       icon: DollarSign,   grupo: "comercial"  },
 ] as const;
@@ -2587,6 +2996,7 @@ export default function AgentesHub() {
             {aba === "chat"          && <AbaChat agentes={agentes} />}
             {aba === "chatpro"       && <AbaChatPro agentes={agentes} />}
             {aba === "provedores"    && <AbaProvedores agentes={agentes} />}
+            {aba === "integracoes"   && <AbaIntegracoes />}
             {aba === "uso"           && <AbaUso />}
             {aba === "comercial"     && <AbaComercial />}
           </div>
