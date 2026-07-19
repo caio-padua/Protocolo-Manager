@@ -146,7 +146,7 @@ export default function Area() {
   return (
     <div
       className={`${themeClass} area-elite relative`}
-      style={{ minHeight: "100vh", background: theme === "dark" ? "#0d1f3a" : "#f3ecdd" }}
+      style={{ minHeight: "100vh", background: theme === "dark" ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
       <div className="leva-fabric" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -156,40 +156,39 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header — segue o tema claro/escuro (panel-3d responde ao tema) */}
-      <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-2.5 border-b border-border/60">
+      {/* Header logado — mesma linguagem do LoginShell: símbolo glass + PARXIS filtrado + subtítulo centrado */}
+      <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
 
-        {/* Esquerda: símbolo RX + wordmark PARXIS (símbolo à esquerda, PARXIS à direita) */}
+        {/* Esquerda: símbolo glass + PARXIS + subtítulo centrado */}
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="PARXIS — site institucional"
-          className="flex items-center gap-2"
+          className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
         >
-          <PaxterSymbolGlass size={24} tone={theme === "dark" ? "dark" : "light"} />
-          <img
-            src="/brand/parxis-wordmark-clean.png"
-            alt="PARXIS"
-            style={{ height: 22, width: "auto" }}
-            draggable={false}
-          />
+          <PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} sharp={true} />
+          <div className="flex flex-col items-center">
+            <img
+              src="/brand/parxis-wordmark-clean.png"
+              alt="PARXIS"
+              className="h-8 w-auto object-contain"
+              style={{ filter: "hue-rotate(14deg) saturate(0.72) brightness(1.06)" }}
+              draggable={false}
+            />
+            <p className="text-accent text-[9px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
+          </div>
         </a>
 
-        {/* Direita: nome em concave-3d — responde ao tema via CSS (claro/escuro automático) */}
+        {/* Direita: nome do cliente em concave-3d pill */}
         <div
-          className="concave-3d flex items-center px-4 py-2 flex-shrink-0"
-          style={{ borderRadius: 8, minWidth: 110 }}
+          className="concave-3d flex items-center gap-2 px-3 py-2 flex-shrink-0"
+          style={{ borderRadius: 8 }}
         >
+          <User className="w-3.5 h-3.5 text-accent flex-shrink-0" />
           <span
-            className="text-accent"
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 16,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              lineHeight: 1.1,
-            }}
+            className="text-accent text-sm font-semibold"
+            style={{ letterSpacing: "0.02em", lineHeight: 1.1 }}
           >
             {formatClientName(client.name)}
           </span>
