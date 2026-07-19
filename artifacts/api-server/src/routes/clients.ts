@@ -262,7 +262,7 @@ async function dispararBoasVindas(clientId: number, nome: string, telefone: stri
     `Seu cadastro foi concluído com sucesso. Em breve nossa equipe entrará em contato para agendar sua consulta de avaliação.\n\n` +
     `Qualquer dúvida, estamos aqui!\n— Equipe PAXTER`;
   try {
-    const resultado = await sendWhatsapp({ to: telefone, body: mensagem });
+    const resultado = await sendWhatsapp(telefone, mensagem, { clienteId: clientId });
     await logIntegracao({
       tipo: "wpp_boasvindas", client_id: clientId,
       status: resultado.sent ? "ok" : "falhou",

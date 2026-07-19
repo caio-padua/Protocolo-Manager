@@ -127,13 +127,9 @@ _PAXTER Clinical Intelligence System_`;
   }
 
   try {
-    const r = await sendWhatsapp({
-      to: telefone,
-      body: mensagem,
-      clientId: client_id,
-    });
+    const r = await sendWhatsapp(telefone, mensagem, { clienteId: client_id });
     logIntegracao({ tipo: "wpp_proativo", client_id, status: r.sent ? "ok" : "falhou", detalhe: { sid: r.sid, via: r.via } }).catch(() => {});
-    res.json({ ok: true, sid: r.sid, status: r.status, telefone: telefone.slice(-4).padStart(telefone.length, "*") });
+    res.json({ ok: true, sid: r.sid, status: r.status, via: r.via, telefone: telefone.slice(-4).padStart(telefone.length, "*") });
   } catch (err) {
     logger.error({ err }, "agentes-wpp: erro ao enviar");
     logIntegracao({ tipo: "wpp_proativo", client_id, status: "falhou", detalhe: { erro: String(err) } }).catch(() => {});
