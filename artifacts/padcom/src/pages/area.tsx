@@ -146,41 +146,34 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header — fundo escuro (parxis-site), PARXIS maior à esq, símbolo+nome à dir */}
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between px-4 py-3"
-        style={{ background: "rgba(4,2,2,0.97)", borderBottom: "1px solid rgba(242,184,23,0.18)" }}
-      >
-        {/* PARXIS wordmark — PNG oficial maior */}
+      {/* Header — segue o tema claro/escuro (panel-3d responde ao tema) */}
+      <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-2.5 border-b border-border/60">
+
+        {/* Esquerda: símbolo RX + wordmark PARXIS (símbolo à esquerda, PARXIS à direita) */}
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="PARXIS — site institucional"
+          className="flex items-center gap-2"
         >
+          <PaxterSymbolGlass size={24} tone={theme === "dark" ? "dark" : "light"} />
           <img
             src="/brand/parxis-wordmark-clean.png"
             alt="PARXIS"
-            style={{ height: 28, width: "auto" }}
+            style={{ height: 22, width: "auto" }}
             draggable={false}
           />
         </a>
 
-        {/* Lado direito: símbolo RX + nome do cliente em Cormorant Garamond */}
-        <div className="flex items-center gap-2">
-          <PaxterSymbolGlass size={24} tone="dark" />
+        {/* Direita: nome do cliente em bevel/insert (concave-3d) */}
+        <div className="concave-3d flex items-center px-3 py-1 rounded" style={{ maxWidth: 160 }}>
           <span
+            className="text-accent font-semibold truncate"
             style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 15,
-              fontWeight: 600,
-              color: "rgba(242,184,23,0.90)",
-              letterSpacing: "0.04em",
-              lineHeight: 1,
-              maxWidth: 160,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              fontSize: 14,
+              letterSpacing: "0.03em",
             }}
           >
             {client.name}
@@ -197,79 +190,40 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel flutuante — canto inferior direito — acima da nav deslizante */}
-      {/* Ambos os botões idênticos: mesmo retângulo, mesma altura, empilhados */}
+      {/* Mini-painel DEITADO SOBRE a nav — mesma classe panel-3d, bottom-0, z-30 */}
+      {/* Fica no canto direito, visualmente integrado à nav (mesma cor de fundo) */}
       <div
-        className="fixed z-30"
-        style={{
-          bottom: 76,   /* acima da nav ~64px + gap 12px */
-          right: 10,
-          background: "linear-gradient(160deg, #1a0e00 0%, #0d0800 100%)",
-          border: "1px solid rgba(242,184,23,0.40)",
-          borderRadius: 12,
-          padding: "8px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          /* sombra forte para dar impressão de altura acima da nav */
-          boxShadow: [
-            "0 -8px 32px rgba(0,0,0,0.70)",
-            "0 8px 28px rgba(0,0,0,0.60)",
-            "0 0 0 1px rgba(242,184,23,0.08)",
-            "inset 0 1px 0 rgba(255,216,90,0.18)",
-            "inset 0 -1px 0 rgba(0,0,0,0.40)",
-          ].join(", "),
-        }}
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col"
+        style={{ borderTopLeftRadius: 8 }}
       >
-        {/* Botão 1 — Tema claro/escuro */}
+        {/* Botão tema — mesmo estilo de item de nav */}
         <button
           type="button"
           onClick={toggle}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-          title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-          style={{
-            width: 52, height: 40,
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 2,
-            background: "linear-gradient(160deg, rgba(255,216,90,0.12) 0%, rgba(180,110,0,0.08) 100%)",
-            border: "1px solid rgba(242,184,23,0.35)",
-            borderRadius: 8,
-            color: "rgba(242,184,23,0.95)",
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,216,90,0.20)",
-            transition: "all 120ms",
-          }}
+          className="flex flex-col items-center gap-0.5 py-3 px-4 text-accent hover:text-accent/70 transition-colors"
         >
-          {theme === "dark"
-            ? <Sun  style={{ width: 16, height: 16 }} />
-            : <Moon style={{ width: 16, height: 16 }} />}
-          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.08em", color: "rgba(242,184,23,0.70)", lineHeight: 1 }}>
+          <div className="concave-3d p-1.5 rounded-lg">
+            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </div>
+          <span className="text-[9px] font-bold uppercase tracking-wider">
             {theme === "dark" ? "CLARO" : "ESCURO"}
           </span>
         </button>
 
-        {/* Botão 2 — Sair (mesmo retângulo idêntico) */}
+        {/* Separador fino entre os dois botões */}
+        <div className="border-t border-border/40 mx-2" />
+
+        {/* Botão sair — mesmo estilo */}
         <button
           type="button"
           onClick={handleLogout}
-          title="Sair da área do cliente"
-          style={{
-            width: 52, height: 40,
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 2,
-            background: "linear-gradient(160deg, rgba(255,216,90,0.12) 0%, rgba(180,110,0,0.08) 100%)",
-            border: "1px solid rgba(242,184,23,0.35)",
-            borderRadius: 8,
-            color: "rgba(242,184,23,0.95)",
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,216,90,0.20)",
-            transition: "all 120ms",
-          }}
+          className="flex flex-col items-center gap-0.5 py-3 px-4 text-muted-foreground hover:text-accent transition-colors"
         >
-          <LogOut style={{ width: 16, height: 16 }} />
-          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.08em", color: "rgba(242,184,23,0.70)", lineHeight: 1 }}>
-            SAIR
-          </span>
+          <div className="p-1.5 rounded-lg">
+            <LogOut className="w-5 h-5" />
+          </div>
+          <span className="text-[9px] font-bold uppercase tracking-wider">SAIR</span>
         </button>
       </div>
 
@@ -280,7 +234,7 @@ export default function Area() {
       >
         <div
           className="flex"
-          style={{ minWidth: "max-content", paddingRight: 52 /* espaço p/ não sobrepar o mini-painel */ }}
+          style={{ minWidth: "max-content", paddingRight: 120 /* reserva espaço do mini-painel dir */ }}
         >
           {TABS.map((t) => {
             const Icon = t.icon;
