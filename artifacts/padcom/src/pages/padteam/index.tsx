@@ -8,7 +8,7 @@ import {
   Users, ClipboardList, Network, ShieldCheck, BarChart3,
   Plus, RefreshCw, AlertTriangle, CheckCircle2, Clock,
   Flame, ChevronRight, ChevronDown, User2, Star,
-  TrendingUp, Circle, Award
+  TrendingUp, Circle, Award, Mail, Copy, CheckCheck
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -73,6 +73,22 @@ interface ScoreRow {
   concluidas: number;
   no_prazo: number;
   taxa_resolucao: number | null;
+}
+
+interface EmailAlias {
+  id: number;
+  email: string;
+  cargo_codigo: string;
+  cargo_label: string;
+  modo: "local" | "remote";
+  hierarquia: string;
+  clinica: string;
+  is_trello_main: boolean;
+  member_id?: number;
+  member_nome?: string;
+  member_status?: string;
+  status: "ativo" | "vago" | "reservado";
+  observacoes?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -668,6 +684,284 @@ function AbaScoring() {
   );
 }
 
+// ─── Aba 6: E-mails Operacionais ──────────────────────────────────────────────
+
+const STATUS_ALIAS: Record<string, string> = {
+  ativo:     "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  vago:      "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+  reservado: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+};
+
+const HIERARQUIA_COR: Record<string, string> = {
+  alpha: "text-amber-400",
+  beta:  "text-sky-400",
+  gamma: "text-purple-400",
+  delta: "text-emerald-400",
+  epsilon: "text-rose-400",
+};
+
+function AbaEmails() {
+  const [aliases, setAliases] = useState<EmailAlias[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copiado, setCopiado] = useState<string | null>(null);
+  const [scriptVisivel, setScriptVisivel] = useState(false);
+
+  const carregar = useCallback(async () => {
+    const [a, m] = await Promise.all([
+      apiFetch("/padteam/email-aliases"),
+      apiFetch("/padteam/members"),
+    ]);
+    setAliases(a);
+    setMembers(m);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  function copiar(texto: string) {
+    navigator.clipboard.writeText(texto);
+    setCopiado(texto);
+    setTimeout(() => setCopiado(null), 2200);
+  }
+
+  async function atribuirMembro(aliasId: number, membroIdStr: string) {
+    const memberId = membroIdStr ? parseInt(membroIdStr) : null;
+    await apiFetch(`/padteam/email-aliases/${aliasId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ member_id: memberId }),
+    });
+    carregar();
+  }
+
+  const trelloMain = aliases.find(a => a.is_trello_main);
+  const operacionais = aliases.filter(a => !a.is_trello_main);
+
+  const scriptApps = `/**
+ * PADRÃO PAWARDS — Criar Aliases no Google Workspace
+ * Padrão: [cargo].[modo].[hierarquia].[clinica]@pawards.com.br
+ * Princípio RBAC: o e-mail representa o CARGO, não a pessoa.
+ * Quando um funcionário sai, o alias fica com a empresa.
+ */
+function criarAliasesOperacionais() {
+  var aliases = [
+${operacionais.map(a => `    "${a.email}"`).join(",\n")}
+  ];
+
+  aliases.forEach(function(email) {
+    // Substitua "conta-master@pawards.com.br" pela conta principal do domínio
+    AdminDirectory.Users.Aliases.insert(
+      { alias: email },
+      "conta-master@pawards.com.br"
+    );
+    Logger.log("Alias criado: " + email);
+  });
+}`;
+
+  if (loading) return <div className="text-sm text-muted-foreground py-8 text-center">Carregando aliases...</div>;
+
+  return (
+    <div className="space-y-6">
+
+      {/* Princípio RBAC */}
+      <div className="panel-3d-sub rounded-[6px] p-4 border-l-4 border-sidebar-primary">
+        <div className="flex items-center gap-2 mb-2">
+          <Mail className="w-4 h-4 text-sidebar-primary" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-sidebar-primary">Princípio PAWARDS — RBAC</span>
+        </div>
+        <p className="text-sm text-foreground leading-relaxed">
+          O e-mail representa o <strong>cargo</strong>, não a pessoa. Quando um colaborador sai,
+          o alias permanece com a empresa e é reatribuído ao próximo ocupante.
+          O e-mail do Trello é o elo raiz — ele cria os cards automaticamente via API.
+        </p>
+        <div className="mt-2.5 font-mono text-xs text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5 inline-block">
+          [cargo].[modo].[hierarquia].[clinica]@pawards.com.br
+        </div>
+      </div>
+
+      {/* E-mail principal Trello */}
+      {trelloMain && (
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            E-mail Principal — Integração Trello (Board)
+          </div>
+          <div className="panel-3d-sub rounded-[6px] p-4 border border-purple-500/40">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="w-10 h-10 rounded-[6px] bg-purple-500/20 flex items-center justify-center shrink-0 text-xl">
+                🤖
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-sm font-bold text-foreground select-all">{trelloMain.email}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {trelloMain.cargo_label} · Cria cards via API Trello · Propriedade permanente da empresa
+                </div>
+                {trelloMain.observacoes && (
+                  <div className="text-[10px] text-purple-400 mt-1">{trelloMain.observacoes}</div>
+                )}
+              </div>
+              <button
+                onClick={() => copiar(trelloMain.email)}
+                className="btn-3d-soft px-3 py-1.5 text-xs flex items-center gap-1.5 shrink-0"
+              >
+                {copiado === trelloMain.email
+                  ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  : <Copy className="w-3.5 h-3.5" />
+                }
+                {copiado === trelloMain.email ? "Copiado!" : "Copiar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela de aliases operacionais */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Aliases Operacionais — Clínica Padua ({operacionais.length} e-mails)
+          </div>
+          <button
+            onClick={() => copiar(operacionais.map(a => a.email).join("\n"))}
+            className="btn-3d-soft text-xs px-3 py-1.5 flex items-center gap-1.5"
+          >
+            {copiado && copiado.includes("\n")
+              ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+              : <Copy className="w-3.5 h-3.5" />
+            }
+            Copiar todos
+          </button>
+        </div>
+
+        <div className="rounded-[6px] border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/40">
+                <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">E-mail</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cargo</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Modo</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Responsável atual</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="px-3 py-2 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {operacionais.map((a, i) => (
+                <tr key={a.id} className={i % 2 === 0 ? "bg-card" : "bg-muted/10"}>
+                  {/* E-mail */}
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-foreground select-all leading-tight">{a.email}</span>
+                      <button
+                        onClick={() => copiar(a.email)}
+                        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title="Copiar e-mail"
+                      >
+                        {copiado === a.email
+                          ? <CheckCheck className="w-3 h-3 text-emerald-400" />
+                          : <Copy className="w-3 h-3" />
+                        }
+                      </button>
+                    </div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">
+                      hierarquia: <span className={HIERARQUIA_COR[a.hierarquia] ?? "text-muted-foreground"}>
+                        {a.hierarquia}
+                      </span>
+                    </div>
+                  </td>
+                  {/* Cargo */}
+                  <td className="px-3 py-2.5">
+                    <div className="text-xs text-foreground">{a.cargo_label}</div>
+                    {a.observacoes && (
+                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight max-w-[180px]">{a.observacoes}</div>
+                    )}
+                  </td>
+                  {/* Modo */}
+                  <td className="px-3 py-2.5">
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${
+                      a.modo === "remote"
+                        ? "bg-purple-500/15 text-purple-400"
+                        : "bg-sky-500/15 text-sky-400"
+                    }`}>
+                      {a.modo === "remote" ? "Remote" : "Local"}
+                    </span>
+                  </td>
+                  {/* Responsável */}
+                  <td className="px-3 py-2.5">
+                    <select
+                      value={a.member_id ?? ""}
+                      onChange={e => atribuirMembro(a.id, e.target.value)}
+                      className="text-[11px] bg-card border border-border rounded-[4px] px-2 py-1 text-foreground max-w-[160px] w-full"
+                    >
+                      <option value="">— Vago —</option>
+                      {members.filter(m => m.status === "ativo").map(m => (
+                        <option key={m.id} value={m.id}>{m.nome}</option>
+                      ))}
+                    </select>
+                  </td>
+                  {/* Status */}
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border ${STATUS_ALIAS[a.status] ?? ""}`}>
+                      {a.status}
+                    </span>
+                  </td>
+                  {/* Ação rápida */}
+                  <td className="px-2 py-2.5 text-right">
+                    <button
+                      onClick={() => copiar(a.email)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copiar"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Google Apps Script */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Script Google Workspace (Apps Script)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setScriptVisivel(v => !v)}
+              className="btn-3d-soft text-xs px-3 py-1.5"
+            >
+              {scriptVisivel ? "Ocultar" : "Ver Script"}
+            </button>
+            <button
+              onClick={() => copiar(scriptApps)}
+              className="bevel-3d text-xs px-3 py-1.5 flex items-center gap-1.5"
+            >
+              {copiado === scriptApps
+                ? <CheckCheck className="w-3 h-3 text-emerald-400" />
+                : <Copy className="w-3 h-3" />
+              }
+              {copiado === scriptApps ? "Copiado!" : "Copiar Script"}
+            </button>
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Cole este script no Google Apps Script (script.google.com) para criar todos os aliases no Google Workspace.
+          Requer ativação da API <strong>Admin SDK Directory</strong> no painel de serviços.
+        </p>
+        {scriptVisivel && (
+          <pre className="bg-zinc-900/80 text-zinc-200 rounded-[6px] p-4 text-[10px] font-mono overflow-x-auto whitespace-pre border border-zinc-700/60 leading-relaxed">
+            {scriptApps}
+          </pre>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
 // ─── Hub Principal ────────────────────────────────────────────────────────────
 
 const ABAS = [
@@ -676,6 +970,7 @@ const ABAS = [
   { key: "hierarquia", label: "Hierarquia", icon: Network       },
   { key: "governanca", label: "Governança", icon: ShieldCheck   },
   { key: "scoring",    label: "Scoring",    icon: BarChart3     },
+  { key: "emails",     label: "E-mails",    icon: Mail          },
 ] as const;
 
 type AbaKey = typeof ABAS[number]["key"];
@@ -728,6 +1023,7 @@ export default function PadteamHub() {
         {aba === "hierarquia" && <AbaHierarquia />}
         {aba === "governanca" && <AbaGovernanca />}
         {aba === "scoring"    && <AbaScoring />}
+        {aba === "emails"     && <AbaEmails />}
       </div>
     </div>
   );

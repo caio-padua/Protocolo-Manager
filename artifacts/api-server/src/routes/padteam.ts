@@ -139,6 +139,24 @@ async function initTables() {
     )
   `);
 
+  // Tabela de aliases de e-mail operacional (RBAC: e-mail = cargo, não pessoa)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS team_email_aliases (
+      id             SERIAL PRIMARY KEY,
+      email          TEXT NOT NULL UNIQUE,
+      cargo_codigo   TEXT NOT NULL,
+      cargo_label    TEXT NOT NULL,
+      modo           TEXT NOT NULL DEFAULT 'local',
+      hierarquia     TEXT NOT NULL DEFAULT 'alpha',
+      clinica        TEXT NOT NULL DEFAULT 'padua',
+      is_trello_main BOOLEAN DEFAULT false,
+      member_id      INTEGER REFERENCES team_members(id) ON DELETE SET NULL,
+      status         TEXT NOT NULL DEFAULT 'vago',
+      observacoes    TEXT,
+      criado_em      TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // Seed de posições padrão
   await db.execute(sql`
     INSERT INTO team_positions (nome, codigo, nivel, cor_hex, sla_horas, pode_criar_demandas)
@@ -154,6 +172,68 @@ async function initTables() {
       ('Financeiro',              'financeiro_02',1, '#8b7355', 24, false),
       ('Agente IA (Claude)',       'agente_ia',   2, '#7c3aed', 1,  true)
     ON CONFLICT (codigo) DO NOTHING
+  `);
+
+  // Seed de aliases de e-mail — padrão PAWARDS RBAC (Clínica Padua)
+  await db.execute(sql`
+    INSERT INTO team_email_aliases
+      (email, cargo_codigo, cargo_label, modo, hierarquia, clinica, is_trello_main, status, observacoes)
+    VALUES
+      ('trello.padua@pawards.com.br',
+        'sistema','Integração Trello (Board)','local','alpha','padua',
+        true,'ativo','E-mail raiz do board Trello. Cria cards via API. Propriedade permanente da empresa.'),
+
+      ('gestao.local.alpha.padua@pawards.com.br',
+        'ceo','CEO / Fundador','local','alpha','padua',
+        false,'ativo',NULL),
+
+      ('medico.local.alpha.padua@pawards.com.br',
+        'medico_01','Médico Titular','local','alpha','padua',
+        false,'ativo',NULL),
+      ('medico.local.beta.padua@pawards.com.br',
+        'medico_02','Médico Suporte','local','beta','padua',
+        false,'vago',NULL),
+      ('medico.remote.alpha.padua@pawards.com.br',
+        'medico_01','Médico Remoto','remote','alpha','padua',
+        false,'reservado','Reservado para teleconsulta futura'),
+
+      ('enfermagem.local.alpha.padua@pawards.com.br',
+        'enfermeira_01','Enfermeira Coordenadora','local','alpha','padua',
+        false,'ativo',NULL),
+      ('enfermagem.local.beta.padua@pawards.com.br',
+        'enfermeira_02','Enfermeira Operacional','local','beta','padua',
+        false,'vago',NULL),
+      ('enfermagem.remote.alpha.padua@pawards.com.br',
+        'enfermeira_01','Enfermagem Remota','remote','alpha','padua',
+        false,'reservado','Reservado para acompanhamento domiciliar remoto'),
+
+      ('administrativo.local.alpha.padua@pawards.com.br',
+        'adm_01','Administrativo Sênior','local','alpha','padua',
+        false,'ativo',NULL),
+      ('administrativo.local.beta.padua@pawards.com.br',
+        'adm_02','Administrativo','local','beta','padua',
+        false,'vago',NULL),
+      ('administrativo.remote.alpha.padua@pawards.com.br',
+        'adm_01','Administrativo Remoto','remote','alpha','padua',
+        false,'reservado','Reservado para operação remota / home office'),
+
+      ('financeiro.local.alpha.padua@pawards.com.br',
+        'financeiro_01','Financeiro Sênior','local','alpha','padua',
+        false,'ativo',NULL),
+      ('financeiro.local.beta.padua@pawards.com.br',
+        'financeiro_02','Financeiro','local','beta','padua',
+        false,'vago',NULL),
+
+      ('supervisao.local.alpha.padua@pawards.com.br',
+        'supervisao','Supervisão Clínica','local','alpha','padua',
+        false,'reservado','Reservado para supervisor de qualidade'),
+      ('consultoria.remote.alpha.padua@pawards.com.br',
+        'consultoria','Consultoria Remota','remote','alpha','padua',
+        false,'reservado','Reservado para consultores externos e parceiros'),
+      ('ouvidoria.local.alpha.padua@pawards.com.br',
+        'ouvidoria','Ouvidoria / Qualidade','local','alpha','padua',
+        false,'reservado','Canal de qualidade, ouvidoria e compliance')
+    ON CONFLICT (email) DO NOTHING
   `);
 }
 
@@ -496,6 +576,35 @@ router.get("/padteam/scoring", async (_req, res): Promise<void> => {
     ORDER BY taxa_resolucao DESC NULLS LAST, concluidas DESC
   `);
   res.json(rows(r));
+});
+
+// ─── E-mail Aliases (RBAC: e-mail = cargo, não pessoa) ───────────────────────
+
+router.get("/padteam/email-aliases", async (_req, res): Promise<void> => {
+  const r = await db.execute(sql`
+    SELECT ea.*, m.nome AS member_nome, m.status AS member_status
+    FROM team_email_aliases ea
+    LEFT JOIN team_members m ON m.id = ea.member_id
+    ORDER BY ea.is_trello_main DESC, ea.cargo_codigo, ea.hierarquia
+  `);
+  res.json(rows(r));
+});
+
+router.patch("/padteam/email-aliases/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const { member_id, status, observacoes } = req.body;
+  const novoStatus = status ?? (member_id !== undefined ? (member_id ? "ativo" : "vago") : undefined);
+  const r = await db.execute(sql`
+    UPDATE team_email_aliases SET
+      member_id   = CASE WHEN ${member_id !== undefined} THEN ${member_id ?? null}::integer ELSE member_id END,
+      status      = COALESCE(${novoStatus ?? null}, status),
+      observacoes = COALESCE(${observacoes ?? null}, observacoes)
+    WHERE id = ${id}
+    RETURNING *
+  `);
+  if (!rows(r).length) { res.status(404).json({ error: "Alias não encontrado" }); return; }
+  res.json(rows(r)[0]);
 });
 
 // ─── Sync Trello ─────────────────────────────────────────────────────────────
