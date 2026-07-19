@@ -23,4 +23,5 @@ Exemplo: `2026-06-15_IHE_formulas-faltantes.md`
 | 26/06/2026 | Dr. Claude | Master Loop Paxter (6 ondas) — relato + Kaizen + pendências | `2026-06-26_CLAUDE_master-loop-paxter.md` | Rascunho |
 | 27/06/2026 | Dr. Manus | Resposta ao diagnóstico — estado atual real (corrige "não existe Cockpit/Cartório") | `2026-06-27_MANUS_resposta-diagnostico-estado-atual.md` | Rascunho |
 | 16/07/2026 | Dr. Replit PADCON | Site com símbolo flutuante — pedido de documentação e canal de transferência via GitHub | `2026-07-16_PADCON_site-simbolo-flutuante.md` | Enviada |
-| 19/07/2026 | Dr. Replit Manager | Briefing completo Agentes Virtuais — 20 agentes, 6 tabelas, seed TypeScript, 7 abas, matrizes de personalidade e capacidades | `docs/dr-replit/PARA_MANAGER/BRIEFING_AGENTES_CARTA_MAGNA_26.07.19.md` | Pronta para envio |
+| 19/07/2026 | Dr. Replit Manager | Briefing completo Agentes Virtuais (PAWARDS) — 20 agentes, 6 tabelas, seed TypeScript, 7 abas, matrizes de personalidade e capacidades | `docs/dr-replit/PARA_MANAGER/BRIEFING_AGENTES_CARTA_MAGNA_26.07.19.md` | Pronta para envio |
+| 19/07/2026 | **RECEBIDA do IHE** | Briefing Agentes Virtuais (IHE) — 20 agentes, 9 tabelas, 22 narrativas, 22 dimensões de personalidade, 10 templates de motor de escrita, schema Drizzle completo | `docs/dr-replit/PARA_MANAGER/BRIEFING_AGENTES_IHE_26.07.19.md` | Recebida e salva |
