@@ -3,6 +3,7 @@ import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
+  HelpCircle, MessageCircle, TrendingUp,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -78,7 +79,8 @@ const TYPES_WITH_BODY = ["ultrassom", "tomografia", "ressonancia", "densitometri
 // Tipos
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
-type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar";
+type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
+           | "duvidas" | "suporte" | "evolucao";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -86,6 +88,9 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "agenda",     label: "AGENDA",      icon: CalendarDays },
   { key: "documentos", label: "DOCUMENTOS",  icon: FileText },
   { key: "enviar",     label: "ENVIAR",      icon: Upload },
+  { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
+  { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
+  { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
 ];
 
 // ---------------------------------------------------------------------------
@@ -141,51 +146,45 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header sticky — fundo navy escuro igual ao nav do parxis-site para o ouro aparecer */}
+      {/* Header — fundo escuro (parxis-site), PARXIS maior à esq, símbolo+nome à dir */}
       <header
-        className="sticky top-0 z-20 border-b"
-        style={{ background: "rgba(4,2,2,0.97)", borderColor: "rgba(242,184,23,0.18)" }}
+        className="sticky top-0 z-20 flex items-center justify-between px-4 py-3"
+        style={{ background: "rgba(4,2,2,0.97)", borderBottom: "1px solid rgba(242,184,23,0.18)" }}
       >
-        {/* Linha 1: símbolo RX + PARXIS alinhados | toggle + sair */}
-        <div className="flex items-center justify-between px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <a
-              href={PAXTER_SITE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="PARXIS — site institucional"
-              className="rounded flex items-center justify-center flex-shrink-0"
-            >
-              <PaxterSymbolGlass size={22} tone="dark" />
-            </a>
-            {/* wordmark PNG oficial RGBA — ouro sobre fundo escuro */}
-            <img
-              src="/brand/parxis-wordmark-clean.png"
-              alt="PARXIS"
-              style={{ height: 22, width: "auto" }}
-              draggable={false}
-            />
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <ThemeToggle theme={theme} onToggle={toggle} />
-            <button
-              onClick={handleLogout}
-              className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5"
-            >
-              <LogOut className="w-3.5 h-3.5" /> SAIR
-            </button>
-          </div>
-        </div>
-        {/* Linha 2: nome do cliente centralizado */}
-        <div
-          className="flex justify-center pb-2"
-          style={{ borderTop: "1px solid rgba(242,184,23,0.10)" }}
+        {/* PARXIS wordmark — PNG oficial maior */}
+        <a
+          href={PAXTER_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="PARXIS — site institucional"
         >
-          <div className="concave-3d mt-1.5 px-3 py-0.5 rounded">
-            <span className="text-accent text-[10px] font-black uppercase tracking-wider">
-              {client.name.toUpperCase()}
-            </span>
-          </div>
+          <img
+            src="/brand/parxis-wordmark-clean.png"
+            alt="PARXIS"
+            style={{ height: 28, width: "auto" }}
+            draggable={false}
+          />
+        </a>
+
+        {/* Lado direito: símbolo RX + nome do cliente em Cormorant Garamond */}
+        <div className="flex items-center gap-2">
+          <PaxterSymbolGlass size={24} tone="dark" />
+          <span
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 15,
+              fontWeight: 600,
+              color: "rgba(242,184,23,0.90)",
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+              maxWidth: 160,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {client.name}
+          </span>
         </div>
       </header>
 
@@ -198,9 +197,51 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Bottom navigation — mobile-first — PADCON symbol embarcado no canto dir */}
-      <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60">
-        <div className="relative flex max-w-lg mx-auto">
+      {/* Mini-painel flutuante — canto inferior direito — acima da nav — toggle + sair */}
+      <div
+        className="fixed z-30"
+        style={{
+          bottom: 72,
+          right: 10,
+          background: "rgba(4,2,2,0.96)",
+          border: "1px solid rgba(242,184,23,0.30)",
+          borderRadius: 10,
+          padding: "6px 7px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 5,
+          boxShadow:
+            "0 -6px 24px rgba(0,0,0,0.55), 0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,216,90,0.10)",
+        }}
+      >
+        <ThemeToggle theme={theme} onToggle={toggle} />
+        <button
+          onClick={handleLogout}
+          title="Sair"
+          style={{
+            width: 32, height: 32,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(242,184,23,0.20)",
+            borderRadius: 7,
+            color: "rgba(242,184,23,0.80)",
+            cursor: "pointer",
+          }}
+        >
+          <LogOut style={{ width: 15, height: 15 }} />
+        </button>
+      </div>
+
+      {/* Bottom navigation — deslizante horizontal (8 itens) */}
+      <nav
+        className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60"
+        style={{ overflowX: "auto", scrollbarWidth: "none" }}
+      >
+        <div
+          className="flex"
+          style={{ minWidth: "max-content", paddingRight: 52 /* espaço p/ não sobrepar o mini-painel */ }}
+        >
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
@@ -208,7 +249,8 @@ export default function Area() {
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-3 px-1 transition-colors ${
+                style={{ minWidth: 68 }}
+                className={`flex flex-col items-center gap-0.5 py-3 px-1 transition-colors ${
                   active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
               >
