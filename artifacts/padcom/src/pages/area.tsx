@@ -337,13 +337,8 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
             <div>
-              <img
-                src="/brand/parxis-wordmark-clean.png"
-                alt="PARXIS"
-                className="h-9 w-auto object-contain"
-                style={{ filter: isDark ? "brightness(1.1)" : "none" }}
-              />
-              <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
+              <ParxisWordmark fontSize={26} />
+              <p className="text-accent text-[10px] uppercase tracking-widest mt-1">{subtitle}</p>
             </div>
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
@@ -630,14 +625,18 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
         {/* Zona 1 — TOP BAR */}
         <div className="login-card-topbar px-5 py-4">
           <div className="flex items-center gap-3">
-            {porSenha ? <KeyRound className="w-5 h-5 text-accent" /> : <User className="w-5 h-5 text-accent" />}
-            <h2 className="text-primary font-black text-sm uppercase tracking-widest">
-              {porSenha ? "ENTRAR COM SENHA" : "IDENTIFICAÇÃO"}
-            </h2>
+            <div className="bevel-3d flex h-10 w-10 flex-shrink-0 items-center justify-center">
+              {porSenha ? <KeyRound className="w-5 h-5 text-primary" /> : <User className="w-5 h-5 text-primary" />}
+            </div>
+            <div>
+              <h2 className="text-base font-semibold uppercase tracking-[0.08em] text-primary leading-tight">
+                {porSenha ? "ENTRAR COM SENHA" : "IDENTIFICAÇÃO"}
+              </h2>
+              <p className="text-muted-foreground text-xs mt-0.5">
+                {porSenha ? "CPF + senha para entrar" : "CPF + data de nascimento para entrar"}
+              </p>
+            </div>
           </div>
-          <p className="text-muted-foreground text-xs mt-1">
-            {porSenha ? "CPF + senha para entrar" : "CPF + data de nascimento para entrar"}
-          </p>
         </div>
 
         <div className="login-card-body p-5 space-y-4">
