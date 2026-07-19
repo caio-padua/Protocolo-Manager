@@ -405,21 +405,21 @@
 }
 
 .dark .field-engraved {
-  background: linear-gradient(180deg, hsl(215 22% 8%) 0%, hsl(215 20% 12%) 28%);
-  border-color: hsl(215 16% 20%);
+  background: linear-gradient(180deg, hsl(215 45% 11%) 0%, hsl(215 40% 15%) 28%);
+  border-color: hsl(215 30% 24%);
   box-shadow:
-    inset 0 3px 6px rgba(0, 0, 0, 0.62),
-    inset 0 8px 12px rgba(0, 0, 0, 0.36),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 3px 6px rgba(0, 0, 0, 0.50),
+    inset 0 8px 12px rgba(0, 0, 0, 0.26),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .dark .concave-3d {
-  background: linear-gradient(160deg, hsl(215 22% 10%) 0%, hsl(215 20% 13%) 100%);
-  border-color: hsl(215 16% 21%);
+  background: linear-gradient(160deg, hsl(215 45% 12%) 0%, hsl(215 40% 16%) 100%);
+  border-color: hsl(215 30% 25%);
   box-shadow:
-    inset 0 4px 8px rgba(0, 0, 0, 0.55),
-    inset 0 10px 16px rgba(0, 0, 0, 0.30),
-    inset 0 -2px 0 rgba(255, 255, 255, 0.04);
+    inset 0 4px 8px rgba(0, 0, 0, 0.45),
+    inset 0 10px 16px rgba(0, 0, 0, 0.22),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.06);
 }
 
 .dark .screen-3d {
