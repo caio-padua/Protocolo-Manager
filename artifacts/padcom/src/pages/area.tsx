@@ -270,6 +270,9 @@ export default function Area() {
           })}
         </div>
       </nav>
+
+      {/* Carimbo discreto PADCON — fixo bottom-right, acima da nav */}
+      <PadconWatermark bottom="76px" />
       </div>
     </div>
   );
@@ -284,6 +287,35 @@ export default function Area() {
 //   trocar     -> troca obrigatoria no 1o acesso (senha provisoria)
 //   definir    -> definir/recuperar senha pelo link do e-mail (?definir=token)
 type LoginMode = "nascimento" | "senha" | "trocar" | "definir";
+
+// ---------------------------------------------------------------------------
+// CARIMBO DISCRETO — PADCON · Advanced Systems Architecture
+// Fixo no canto inferior direito em TODAS as telas da /area.
+// ---------------------------------------------------------------------------
+function PadconWatermark({ bottom = "76px" }: { bottom?: string }) {
+  return (
+    <div
+      className="fixed right-3 z-10 pointer-events-none select-none"
+      style={{ bottom }}
+      aria-hidden="true"
+    >
+      <div className="text-right opacity-55">
+        <p
+          className="text-accent font-black uppercase"
+          style={{ fontSize: 9, letterSpacing: "0.18em", lineHeight: 1.3 }}
+        >
+          PADCON
+        </p>
+        <p
+          className="text-muted-foreground"
+          style={{ fontSize: 7, letterSpacing: "0.06em", lineHeight: 1.3 }}
+        >
+          Advanced Systems Architecture
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // RODAPÉ DE ASSINATURA TERNO — PAXTER (esq) + PADCON (dir)
@@ -350,9 +382,6 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
         <main className="flex-1 flex items-start justify-center px-4 py-10">
           <div className="w-full max-w-sm space-y-6">
             {children}
-            <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
-              Instituto Pádua · Paxter — desenvolvido pela Padcon
-            </p>
             <div className="text-center">
               <a href={`${API_BASE}/anamnese/v2`}
                 className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
@@ -362,6 +391,8 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
           </div>
         </main>
         <TernoFooter theme={theme} />
+        {/* Carimbo discreto PADCON — fixo no canto inferior direito */}
+        <PadconWatermark bottom="20px" />
       </div>
     </div>
   );
