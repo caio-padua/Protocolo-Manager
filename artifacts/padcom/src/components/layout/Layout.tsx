@@ -189,6 +189,7 @@ const navigation: NavEntry[] = [
     icon: Network,
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
+      { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Hierarquia", href: "/hierarquia", icon: Network },
       { name: "Governança", href: "/cadastros/governanca", icon: Landmark },
     ],

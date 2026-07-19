@@ -72,6 +72,7 @@ import dominiosComercialRouter from "./dominios-comercial";
 import cadernosJuridicosRouter from "./cadernos-juridicos";
 import receituarioRouter from "./receituario";
 import adminPreviewRouter from "./admin-preview";
+import padteamRouter from "./padteam";
 
 const router: IRouter = Router();
 
@@ -170,5 +171,6 @@ router.use(receituarioRouter);
 router.use(adminPreviewRouter);
 router.use(dominiosRouter);
 router.use(dominiosComercialRouter);
+router.use(padteamRouter);
 
 export default router;

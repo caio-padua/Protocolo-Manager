@@ -101,6 +101,8 @@ import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
 import PortfolioClinico from "@/pages/portfolio-clinico";
 import ExperienciaCliente from "@/pages/experiencia-cliente";
+import PadteamHub from "@/pages/padteam/index";
+import NovaDemanda from "@/pages/padteam/nova-demanda";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -252,6 +254,8 @@ function Router() {
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />
+            <Route path="/padteam/nova" component={NovaDemanda} />
+            <Route path="/padteam" component={PadteamHub} />
 
             <Route path="/arsenal/atestados" component={Atestados} />
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
