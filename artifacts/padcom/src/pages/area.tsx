@@ -337,7 +337,11 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
             <div>
-              <ParxisWordmark fontSize={26} />
+              <img
+                src="/brand/parxis-wordmark-clean.png"
+                alt="PARXIS"
+                className="h-11 w-auto object-contain"
+              />
               <p className="text-accent text-[10px] uppercase tracking-widest mt-1">{subtitle}</p>
             </div>
           </div>
