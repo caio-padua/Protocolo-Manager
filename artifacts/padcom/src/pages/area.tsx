@@ -172,15 +172,19 @@ export default function Area() {
         </div>
       </header>
 
-      {/* Conteúdo principal com padding-bottom para a barra inferior */}
-      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
+      {/* Conteúdo principal — pb-36 libera espaço para logo-bar + bottom nav fixas */}
+      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-36">
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
-        <TernoFooter theme={theme} />
       </main>
+
+      {/* Logo-bar fixa — PAXTER (esq) + PADCON (dir) — painel que não rola */}
+      <div className="fixed bottom-[60px] left-0 right-0 z-19">
+        <TernoFooter theme={theme} />
+      </div>
 
       {/* Bottom navigation — mobile-first */}
       <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60">
