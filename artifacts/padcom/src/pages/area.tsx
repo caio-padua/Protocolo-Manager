@@ -8,6 +8,7 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
 import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
+import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { ParxisWordmark } from "@/components/layout/paxter-fx/ParxisWordmark";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
@@ -299,16 +300,12 @@ function PadconWatermark({ bottom = "76px" }: { bottom?: string }) {
       style={{ bottom }}
       aria-hidden="true"
     >
-      <div className="text-right opacity-55">
+      <div className="flex flex-col items-end gap-0.5 opacity-70">
+        {/* Arte oficial PADCON — PNG recortado, ouro polido */}
+        <PadconWordmark height={20} outlined />
         <p
-          className="text-accent font-black uppercase"
-          style={{ fontSize: 9, letterSpacing: "0.18em", lineHeight: 1.3 }}
-        >
-          PADCON
-        </p>
-        <p
-          className="text-muted-foreground"
-          style={{ fontSize: 7, letterSpacing: "0.06em", lineHeight: 1.3 }}
+          className="text-muted-foreground text-right"
+          style={{ fontSize: 7, letterSpacing: "0.07em", lineHeight: 1.2 }}
         >
           Advanced Systems Architecture
         </p>
