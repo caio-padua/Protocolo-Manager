@@ -74,6 +74,7 @@ import receituarioRouter from "./receituario";
 import adminPreviewRouter from "./admin-preview";
 import padteamRouter from "./padteam";
 import agentesRouter from "./agentes";
+import agentesChatRouter from "./agentes-chat";
 
 const router: IRouter = Router();
 
@@ -174,5 +175,6 @@ router.use(dominiosRouter);
 router.use(dominiosComercialRouter);
 router.use(padteamRouter);
 router.use(agentesRouter);
+router.use(agentesChatRouter);
 
 export default router;
