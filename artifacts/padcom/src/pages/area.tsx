@@ -559,7 +559,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <button
               onClick={handleChangePassword}
               disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
-              className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
+              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-white"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
             </button>
@@ -605,7 +605,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <button
               onClick={handleDefinePassword}
               disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
-              className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
+              className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-white"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
             </button>
@@ -684,7 +684,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
               cpf.replace(/\D/g, "").length !== 11 ||
               (porSenha ? password.length === 0 : birthDate.replace(/\D/g, "").length !== 8)
             }
-            className="btn-3d-gold w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest"
+            className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-white"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>ENTRAR <ChevronRight className="w-4 h-4" /></>}
           </button>
