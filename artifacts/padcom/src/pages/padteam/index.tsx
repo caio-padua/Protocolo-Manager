@@ -1555,10 +1555,254 @@ function AbaClassificacao() {
   );
 }
 
+// ─── Aba Quadro: Kanban interno (espelho do Trello) ───────────────────────────
+
+const COLUNAS_KANBAN = [
+  { key: "aberto",       label: "Aberto",       cor: "#45B8CC", textCor: "text-sky-400"     },
+  { key: "em_andamento", label: "Em Andamento",  cor: "#f59e0b", textCor: "text-amber-400"   },
+  { key: "aguardando",   label: "Aguardando",    cor: "#8b5cf6", textCor: "text-purple-400"  },
+  { key: "escalado",     label: "Escalado",      cor: "#f97316", textCor: "text-orange-400"  },
+  { key: "concluido",    label: "Concluído",     cor: "#22c55e", textCor: "text-emerald-400" },
+  { key: "cancelado",    label: "Cancelado",     cor: "#6b7280", textCor: "text-zinc-400"    },
+] as const;
+
+type StatusKanban = typeof COLUNAS_KANBAN[number]["key"];
+
+function KanbanCardItem({ d, onMove, onSync }: {
+  d: Demanda;
+  onMove: (id: number, novoStatus: StatusKanban) => Promise<void>;
+  onSync: (id: number) => Promise<string | null>;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncUrl, setSyncUrl] = useState<string | null>(null);
+
+  async function mover(novoStatus: StatusKanban) {
+    await onMove(d.id, novoStatus);
+  }
+
+  async function sincronizar() {
+    setSyncing(true);
+    const url = await onSync(d.id);
+    setSyncUrl(url);
+    setSyncing(false);
+  }
+
+  const statusAtual = d.status as StatusKanban;
+  const colunaIdx = COLUNAS_KANBAN.findIndex(c => c.key === statusAtual);
+  const proximaColuna = colunaIdx < COLUNAS_KANBAN.length - 1 ? COLUNAS_KANBAN[colunaIdx + 1] : null;
+
+  return (
+    <div
+      className="rounded-[6px] bg-card border border-border hover:border-sidebar-primary/40 transition-all cursor-pointer select-none"
+      style={{ borderLeftWidth: 3, borderLeftColor: PRIORIDADE_COR_HEX[d.prioridade] ?? "#647c97" }}
+      onClick={() => setExpandido(!expandido)}
+    >
+      <div className="p-2.5 space-y-1.5">
+        <div className="flex items-start gap-1.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-semibold leading-tight line-clamp-2">{d.titulo}</p>
+          </div>
+          {d.trello_card_id && (
+            <span title="Sincronizado com Trello" className="shrink-0 text-purple-400">
+              <Kanban className="w-3 h-3" />
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1 items-center">
+          <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${PRIORIDADE_COR[d.prioridade] ?? ""}`}>
+            {d.prioridade}
+          </span>
+          {d.assigned_role && (
+            <span className="text-[9px] text-muted-foreground font-mono">{d.assigned_role}</span>
+          )}
+        </div>
+        {d.member_nome && (
+          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <User2 className="w-2.5 h-2.5" />{d.member_nome}
+          </div>
+        )}
+        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" />{formatDate(d.prazo_em)}
+          {isVencida(d.prazo_em) && d.status !== "concluido" && (
+            <span className="text-red-400 font-bold">VENCIDA</span>
+          )}
+        </div>
+      </div>
+
+      {expandido && (
+        <div className="border-t border-border px-2.5 pb-2.5 pt-2 space-y-2" onClick={e => e.stopPropagation()}>
+          {d.descricao && <p className="text-[11px] text-muted-foreground leading-relaxed">{d.descricao}</p>}
+
+          {/* Mover para próxima coluna */}
+          {proximaColuna && statusAtual !== "cancelado" && statusAtual !== "concluido" && (
+            <button
+              onClick={() => mover(proximaColuna.key as StatusKanban)}
+              className="w-full btn-3d-soft text-[10px] px-2 py-1.5 flex items-center justify-center gap-1 font-semibold"
+              style={{ color: proximaColuna.cor }}
+            >
+              <ChevronRight className="w-3 h-3" />
+              Mover → {proximaColuna.label}
+            </button>
+          )}
+
+          {/* Mover para qualquer coluna */}
+          <select
+            defaultValue=""
+            onChange={e => { if (e.target.value) mover(e.target.value as StatusKanban); }}
+            className="w-full text-[10px] bg-background border border-border rounded-[4px] px-2 py-1.5"
+          >
+            <option value="">Mover para…</option>
+            {COLUNAS_KANBAN.filter(c => c.key !== statusAtual).map(c => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+          </select>
+
+          {/* Sync Trello */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={sincronizar}
+              disabled={syncing}
+              className="btn-3d-soft text-[10px] px-2 py-1 flex items-center gap-1 text-purple-400 disabled:opacity-50"
+            >
+              <Kanban className="w-2.5 h-2.5" />
+              {syncing ? "…" : d.trello_card_id ? "Re-sync Trello" : "→ Trello"}
+            </button>
+            {syncUrl && (
+              <a href={syncUrl} target="_blank" rel="noreferrer"
+                className="text-[10px] text-emerald-400 flex items-center gap-0.5 hover:underline">
+                <ExternalLink className="w-2.5 h-2.5" />Ver
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PRIORIDADE_COR_HEX: Record<string, string> = {
+  urgente: "#ef4444",
+  alta:    "#f59e0b",
+  normal:  "#45B8CC",
+  baixa:   "#6b7280",
+};
+
+function AbaQuadro() {
+  const [demandas, setDemandas] = useState<Demanda[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtroRole, setFiltroRole] = useState("");
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    const r = await apiFetch(`/padteam/demandas${filtroRole ? `?assigned_role=${filtroRole}` : ""}`);
+    setDemandas(r.items ?? []);
+    setLoading(false);
+  }, [filtroRole]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function moverCard(id: number, novoStatus: StatusKanban) {
+    await apiFetch(`/padteam/demandas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: novoStatus }),
+    });
+    // Atualiza local imediatamente (otimista)
+    setDemandas(prev => prev.map(d => d.id === id ? { ...d, status: novoStatus } : d));
+  }
+
+  async function syncTrello(id: number): Promise<string | null> {
+    const r = await apiFetch("/padteam/sync-trello", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ demanda_id: id }),
+    });
+    return r?.url ?? null;
+  }
+
+  const ROLES_UNICOS = [...new Set(demandas.map(d => d.assigned_role).filter(Boolean))];
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de controles */}
+      <div className="panel-3d rounded-[6px] px-4 py-2.5 flex flex-wrap items-center gap-3">
+        <Kanban className="w-4 h-4 text-purple-400" />
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Quadro Interno — espelho bidirecional do Trello
+        </span>
+        <select
+          value={filtroRole}
+          onChange={e => setFiltroRole(e.target.value)}
+          className="ml-auto text-xs bg-background border border-border rounded-[4px] px-2 py-1"
+        >
+          <option value="">Todos os cargos</option>
+          {ROLES_UNICOS.map(r => (
+            <option key={r} value={r!}>{CARGO_LABEL[r!] ?? r}</option>
+          ))}
+        </select>
+        <button onClick={carregar} className="btn-3d-soft px-3 py-1 text-xs flex items-center gap-1">
+          <RefreshCw className="w-3 h-3" /> Atualizar
+        </button>
+      </div>
+
+      {loading && <div className="text-sm text-muted-foreground py-4 text-center">Carregando quadro…</div>}
+
+      {/* Board: colunas lado a lado */}
+      {!loading && (
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {COLUNAS_KANBAN.map(col => {
+            const cards = demandas.filter(d => d.status === col.key);
+            return (
+              <div key={col.key} className="shrink-0 w-56 flex flex-col gap-2">
+                {/* Cabeçalho da coluna */}
+                <div className="bevel-3d rounded-[6px] px-3 py-2 flex items-center justify-between">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${col.textCor}`}>
+                    {col.label}
+                  </span>
+                  <span className="concave-3d text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] min-w-[20px] text-center">
+                    {cards.length}
+                  </span>
+                </div>
+
+                {/* Cards da coluna */}
+                <div className="flex flex-col gap-2 min-h-[80px]">
+                  {cards.length === 0 && (
+                    <div className="rounded-[6px] border border-dashed border-border h-16 flex items-center justify-center">
+                      <span className="text-[10px] text-muted-foreground/40">vazio</span>
+                    </div>
+                  )}
+                  {cards.map(d => (
+                    <KanbanCardItem
+                      key={d.id}
+                      d={d}
+                      onMove={moverCard}
+                      onSync={syncTrello}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Legenda */}
+      {!loading && (
+        <div className="text-[10px] text-muted-foreground flex flex-wrap gap-3 pt-1 border-t border-border">
+          <span><Kanban className="w-2.5 h-2.5 inline text-purple-400" /> = sincronizado com Trello real</span>
+          <span>Clique no card para expandir · Mover atualiza aqui e no Trello automaticamente</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Hub Principal ────────────────────────────────────────────────────────────
 
 const ABAS = [
   { key: "demandas",       label: "Demandas",    icon: ClipboardList },
+  { key: "quadro",         label: "Quadro",      icon: Kanban        },
   { key: "equipe",         label: "Equipe",      icon: Users         },
   { key: "hierarquia",     label: "Hierarquia",  icon: Network       },
   { key: "governanca",     label: "Governança",  icon: ShieldCheck   },
@@ -1614,6 +1858,7 @@ export default function PadteamHub() {
       {/* Conteúdo */}
       <div>
         {aba === "demandas"      && <AbaDemandas />}
+        {aba === "quadro"        && <AbaQuadro />}
         {aba === "equipe"        && <AbaEquipe />}
         {aba === "hierarquia"    && <AbaHierarquia />}
         {aba === "governanca"    && <AbaGovernanca />}
