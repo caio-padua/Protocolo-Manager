@@ -1251,6 +1251,16 @@
   opacity: 0.9;
 }
 
+/* ===== WORDMARK TERNO — fonte Cinzel, gradiente ouro (rodapé de assinatura) ===== */
+.mt-wordmark {
+  font-family: 'Cinzel', 'Playfair Display', serif;
+  letter-spacing: 0.28em;
+  background: linear-gradient(180deg, #f6e6b0 0%, #d8b667 46%, #a8823c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* ===== FAIXA DE GRUPOS — painel LISO sobre o tecido terno, limitado SO aos
    botoes de sigla (em cima e embaixo). NAO mexe no tecido; e uma camada por cima.
    CLARO = placa creme suave; ESCURO = placa navy suave. ===== */

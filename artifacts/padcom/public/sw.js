@@ -1,7 +1,7 @@
 // Service worker do Padcon Conect (PWA instalavel).
 // Estrategia network-first: busca sempre a versao fresca; so cai no cache
 // quando offline. Nunca cacheia /api (dados sempre frescos).
-const CACHE = "padcon-conect-v2";
+const CACHE = "padcon-conect-v3";
 // A porta de entrada do app instalado e /entrada (start_url do manifest), entao
 // o fallback offline precisa ser /entrada — e nao / (que pode nunca ser cacheado).
 const OFFLINE_FALLBACK = "/entrada";

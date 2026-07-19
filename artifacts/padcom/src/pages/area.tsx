@@ -126,7 +126,12 @@ export default function Area() {
   const themeClass = theme === "dark" ? "dark" : "";
 
   return (
-    <div className={`${themeClass} area-elite min-h-screen bg-slate-50 flex flex-col`}>
+    <div
+      className={`${themeClass} area-elite relative`}
+      style={{ minHeight: "100vh", background: theme === "dark" ? "#0d1f3a" : "#f3ecdd" }}
+    >
+      <div className="leva-fabric" aria-hidden="true" />
+      <div className="relative z-10 flex flex-col min-h-screen">
       {/* Faixa de aviso quando o admin está no modo preview */}
       {adminMode && (
         <div className="bg-amber-500 text-white text-center text-[11px] font-black uppercase tracking-widest py-1.5 px-4">
@@ -174,6 +179,7 @@ export default function Area() {
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
+        <TernoFooter theme={theme} />
       </main>
 
       {/* Bottom navigation — mobile-first */}
@@ -199,6 +205,7 @@ export default function Area() {
           })}
         </div>
       </nav>
+      </div>
     </div>
   );
 }
@@ -213,44 +220,86 @@ export default function Area() {
 //   definir    -> definir/recuperar senha pelo link do e-mail (?definir=token)
 type LoginMode = "nascimento" | "senha" | "trocar" | "definir";
 
-// Casca visual compartilhada por todas as telas de acesso (cabecalho PAXTER +
-// rodape). Evita repetir a moldura em cada modo.
-function LoginShell({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+// ---------------------------------------------------------------------------
+// RODAPÉ DE ASSINATURA TERNO — PAXTER (esq) + PADCON (dir)
+// Aparece tanto na tela de login quanto na área logada.
+// ---------------------------------------------------------------------------
+function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
+  const isDark = theme === "dark";
   return (
-    <div className="area-elite min-h-screen bg-slate-50 flex flex-col">
-      <header className="panel-3d px-4 py-5 flex items-center justify-center border-b border-border/60">
-        <div className="flex items-center gap-3">
-          <a
-            href={PAXTER_SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="PAXTER — site institucional"
-            className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
-          >
-            <PaxterSymbolGlass size={32} tone="dark" />
-          </a>
-          <div>
-            <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
-              PAXTER
-            </h1>
-            <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
-          </div>
+    <footer
+      style={{
+        borderTop: `1px solid ${isDark ? "rgba(176,208,245,0.12)" : "rgba(138,109,47,0.22)"}`,
+        background: isDark ? "rgba(13,31,58,0.72)" : "rgba(255,255,255,0.50)",
+        padding: "8px 16px",
+        marginTop: "auto",
+      }}
+    >
+      <div className="flex items-center justify-between max-w-lg mx-auto">
+        <div className="flex items-center gap-2">
+          <PaxterSymbolGlass size={20} tone="dark" />
+          <span className="mt-wordmark" style={{ fontSize: 11 }}>PAXTER</span>
         </div>
-      </header>
-      <main className="flex-1 flex items-start justify-center px-4 py-10">
-        <div className="w-full max-w-sm space-y-6">
-          {children}
-          <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
-            Instituto Pádua · Paxter — desenvolvido pela Padcon
-          </p>
-          <div className="text-center">
-            <a href={`${API_BASE}/anamnese/v2`}
-              className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
-              <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
+        <img
+          src={isDark ? `${API_BASE}/logo-padcon-white.png` : `${API_BASE}/logo-padcon-color.png`}
+          alt="PADCON"
+          style={{ height: 16, objectFit: "contain" }}
+        />
+      </div>
+    </footer>
+  );
+}
+
+// Casca visual compartilhada por todas as telas de acesso (cabecalho PAXTER +
+// rodape). Lê o tema atual do localStorage para manter coerência com a sessão
+// anterior do cliente (claro ou escuro).
+function LoginShell({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+  const { theme, toggle } = useScreenTheme();
+  const isDark = theme === "dark";
+  const themeClass = isDark ? "dark" : "";
+  return (
+    <div
+      className={`${themeClass} area-elite relative`}
+      style={{ minHeight: "100vh", background: isDark ? "#0d1f3a" : "#f3ecdd" }}
+    >
+      <div className="leva-fabric" aria-hidden="true" />
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <a
+              href={PAXTER_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="PAXTER — site institucional"
+              className="rounded-xl flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+            >
+              <PaxterSymbolGlass size={32} tone="dark" />
             </a>
+            <div>
+              <h1 className="text-primary font-black text-xl tracking-[0.16em] uppercase leading-none">
+                PAXTER
+              </h1>
+              <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
+            </div>
           </div>
-        </div>
-      </main>
+          <ThemeToggle theme={theme} onToggle={toggle} />
+        </header>
+        <main className="flex-1 flex items-start justify-center px-4 py-10">
+          <div className="w-full max-w-sm space-y-6">
+            {children}
+            <p className="text-center text-muted-foreground text-[10px] uppercase tracking-widest">
+              Instituto Pádua · Paxter — desenvolvido pela Padcon
+            </p>
+            <div className="text-center">
+              <a href={`${API_BASE}/anamnese/v2`}
+                className="inline-flex items-center gap-1.5 text-accent text-xs uppercase tracking-wider hover:text-primary">
+                <ClipboardList className="w-4 h-4" /> Preencher ficha de saúde
+              </a>
+            </div>
+          </div>
+        </main>
+        <TernoFooter theme={theme} />
+      </div>
     </div>
   );
 }
