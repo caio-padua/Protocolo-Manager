@@ -176,24 +176,10 @@ export default function Area() {
           />
         </a>
 
-        {/* Direita: nome em insert/bevel — claro nos 2 temas, fonte grife maior */}
-        {/* #1 mais alto e largo  #2 primeiro+último  #3 fonte nítida  #4 fundo claro */}
+        {/* Direita: nome em concave-3d — responde ao tema via CSS (claro/escuro automático) */}
         <div
-          className="flex items-center px-4 py-2"
-          style={{
-            borderRadius: 8,
-            /* insert claro: borda escura em cima, clara embaixo — funciona nos 2 temas */
-            boxShadow:
-              "inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -1px 2px rgba(255,255,255,0.60)",
-            background: theme === "dark"
-              ? "rgba(0,0,0,0.25)"
-              : "rgba(255,255,255,0.70)",
-            border: theme === "dark"
-              ? "1px solid rgba(255,255,255,0.10)"
-              : "1px solid rgba(0,0,0,0.12)",
-            minWidth: 110,
-            maxWidth: 170,
-          }}
+          className="concave-3d flex items-center px-4 py-2 flex-shrink-0"
+          style={{ borderRadius: 8, minWidth: 110 }}
         >
           <span
             className="text-accent"
@@ -203,7 +189,6 @@ export default function Area() {
               fontWeight: 700,
               letterSpacing: "0.04em",
               lineHeight: 1.1,
-              whiteSpace: "nowrap",
             }}
           >
             {formatClientName(client.name)}
