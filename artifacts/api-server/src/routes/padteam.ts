@@ -174,6 +174,74 @@ async function initTables() {
     ON CONFLICT (codigo) DO NOTHING
   `);
 
+  // ── process_responsibilities (Matriz RACI — quem é dono de cada processo/entrega) ──
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS process_responsibilities (
+      id            SERIAL PRIMARY KEY,
+      processo      TEXT NOT NULL UNIQUE,
+      categoria     TEXT NOT NULL DEFAULT 'operacional',
+      responsavel   TEXT NOT NULL DEFAULT '',
+      aprovador     TEXT NOT NULL DEFAULT '',
+      consultados   TEXT[] DEFAULT '{}',
+      informados    TEXT[] DEFAULT '{}',
+      ativo         BOOLEAN DEFAULT true,
+      criado_em     TIMESTAMPTZ DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    INSERT INTO process_responsibilities (processo, categoria, responsavel, aprovador, consultados, informados) VALUES
+      ('Gerar RAS Assinado',        'clinico',        'enfermeira_01','medico_01',    '{}',                      '{adm_01}'),
+      ('Aprovar Protocolo',         'clinico',        'medico_01',    'ceo',          '{enfermeira_01}',         '{adm_01,financeiro_01}'),
+      ('Lançar Protocolo',          'clinico',        'adm_01',       'medico_01',    '{enfermeira_01}',         '{financeiro_01}'),
+      ('Emitir Nota Fiscal',        'financeiro',     'financeiro_02','financeiro_01','{}',                      '{adm_01}'),
+      ('Cobrar Pagamento',          'financeiro',     'financeiro_01','ceo',          '{}',                      '{adm_01}'),
+      ('Agendar Sessão',            'operacional',    'adm_02',       'adm_01',       '{enfermeira_01}',         '{medico_01}'),
+      ('Enviar Lembrete WhatsApp',  'operacional',    'adm_02',       'adm_01',       '{}',                      '{}'),
+      ('Avaliar Enfermagem',        'qualidade',      'medico_02',    'medico_01',    '{enfermeira_01}',         '{ceo}'),
+      ('Conferir Trabalho Remoto',  'qualidade',      'adm_01',       'ceo',          '{medico_01}',             '{}'),
+      ('Criar Pasta Drive',         'administrativo', 'adm_01',       'adm_01',       '{}',                      '{medico_01}'),
+      ('Responder Ouvidoria',       'qualidade',      'adm_01',       'ceo',          '{}',                      '{medico_01}'),
+      ('Enviar E-mail Pós-Sessão',  'operacional',    'adm_02',       'adm_01',       '{medico_01}',             '{}'),
+      ('Revisão Mensal de Estoque', 'operacional',    'adm_01',       'medico_01',    '{financeiro_01}',         '{ceo}')
+    ON CONFLICT (processo) DO NOTHING
+  `);
+
+  // ── work_reviews (Conferência de entregas de trabalho remoto) ───────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS work_reviews (
+      id                SERIAL PRIMARY KEY,
+      member_id         INTEGER REFERENCES team_members(id),
+      demanda_id        INTEGER REFERENCES delegacoes(id),
+      entrega_descricao TEXT NOT NULL,
+      arquivos_links    TEXT,
+      data_entrega      TIMESTAMPTZ DEFAULT NOW(),
+      status            TEXT NOT NULL DEFAULT 'pendente',
+      notas_revisao     TEXT,
+      revisado_por      TEXT,
+      revisado_em       TIMESTAMPTZ,
+      criado_em         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ── work_ratings (Classificação da qualidade do trabalho) ──────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS work_ratings (
+      id           SERIAL PRIMARY KEY,
+      review_id    INTEGER REFERENCES work_reviews(id),
+      member_id    INTEGER REFERENCES team_members(id),
+      nota         INTEGER NOT NULL CHECK (nota BETWEEN 1 AND 5),
+      qualidade    INTEGER CHECK (qualidade BETWEEN 1 AND 5),
+      prazo        INTEGER CHECK (prazo BETWEEN 1 AND 5),
+      comunicacao  INTEGER CHECK (comunicacao BETWEEN 1 AND 5),
+      proatividade INTEGER CHECK (proatividade BETWEEN 1 AND 5),
+      comentario   TEXT,
+      avaliado_por TEXT,
+      criado_em    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   // Seed de aliases de e-mail — padrão PAWARDS RBAC (Clínica Padua)
   await db.execute(sql`
     INSERT INTO team_email_aliases
@@ -605,6 +673,175 @@ router.patch("/padteam/email-aliases/:id", async (req, res): Promise<void> => {
   `);
   if (!rows(r).length) { res.status(404).json({ error: "Alias não encontrado" }); return; }
   res.json(rows(r)[0]);
+});
+
+// ─── Matriz RACI — Responsabilidades de Processo ──────────────────────────────
+
+router.get("/padteam/process-responsibilities", async (_req, res): Promise<void> => {
+  const r = await db.execute(sql`SELECT * FROM process_responsibilities ORDER BY categoria, processo`);
+  res.json(rows(r));
+});
+
+router.patch("/padteam/process-responsibilities/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const { responsavel, aprovador, consultados, informados, ativo } = req.body;
+  const r = await db.execute(sql`
+    UPDATE process_responsibilities SET
+      responsavel   = COALESCE(${responsavel ?? null}, responsavel),
+      aprovador     = COALESCE(${aprovador ?? null}, aprovador),
+      consultados   = COALESCE(${consultados ?? null}::text[], consultados),
+      informados    = COALESCE(${informados ?? null}::text[], informados),
+      ativo         = COALESCE(${ativo ?? null}, ativo),
+      atualizado_em = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `);
+  if (!rows(r).length) { res.status(404).json({ error: "Processo não encontrado" }); return; }
+  res.json(rows(r)[0]);
+});
+
+// ─── Conferência de Trabalho Remoto ──────────────────────────────────────────
+
+router.get("/padteam/work-reviews", async (req, res): Promise<void> => {
+  const { member_id, status } = req.query as Record<string, string>;
+  const r = await db.execute(sql.raw(`
+    SELECT wr.*, m.nome AS member_nome, p.nome AS cargo_nome, p.cor_hex AS cargo_cor,
+           d.titulo AS demanda_titulo
+    FROM work_reviews wr
+    LEFT JOIN team_members m  ON m.id = wr.member_id
+    LEFT JOIN team_positions p ON p.id = m.cargo_id
+    LEFT JOIN delegacoes d    ON d.id = wr.demanda_id
+    ${member_id ? `WHERE wr.member_id = ${parseInt(member_id)}` : ""}
+    ${status && !member_id ? `WHERE wr.status = '${status}'` : status ? `AND wr.status = '${status}'` : ""}
+    ORDER BY wr.criado_em DESC LIMIT 100
+  `));
+  res.json(rows(r));
+});
+
+router.post("/padteam/work-reviews", async (req, res): Promise<void> => {
+  const { member_id, demanda_id, entrega_descricao, arquivos_links } = req.body;
+  if (!member_id || !entrega_descricao) {
+    res.status(400).json({ error: "member_id e entrega_descricao obrigatórios" }); return;
+  }
+  const r = await db.execute(sql`
+    INSERT INTO work_reviews (member_id, demanda_id, entrega_descricao, arquivos_links)
+    VALUES (${member_id}, ${demanda_id ?? null}, ${entrega_descricao}, ${arquivos_links ?? null})
+    RETURNING *
+  `);
+  res.status(201).json(rows(r)[0]);
+});
+
+router.patch("/padteam/work-reviews/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const { status, notas_revisao, revisado_por } = req.body;
+  const now = new Date().toISOString();
+  const r = await db.execute(sql`
+    UPDATE work_reviews SET
+      status        = COALESCE(${status ?? null}, status),
+      notas_revisao = COALESCE(${notas_revisao ?? null}, notas_revisao),
+      revisado_por  = COALESCE(${revisado_por ?? null}, revisado_por),
+      revisado_em   = CASE WHEN ${status ?? null} IN ('aprovado','reprovado') THEN ${now}::timestamptz ELSE revisado_em END
+    WHERE id = ${id}
+    RETURNING *
+  `);
+  if (!rows(r).length) { res.status(404).json({ error: "Review não encontrado" }); return; }
+  res.json(rows(r)[0]);
+});
+
+// ─── Classificação (Rating) de Trabalho ──────────────────────────────────────
+
+router.post("/padteam/work-ratings", async (req, res): Promise<void> => {
+  const { review_id, member_id, nota, qualidade, prazo, comunicacao, proatividade, comentario, avaliado_por } = req.body;
+  if (!review_id || !member_id || !nota) {
+    res.status(400).json({ error: "review_id, member_id e nota obrigatórios" }); return;
+  }
+  const r = await db.execute(sql`
+    INSERT INTO work_ratings (review_id, member_id, nota, qualidade, prazo, comunicacao, proatividade, comentario, avaliado_por)
+    VALUES (${review_id}, ${member_id}, ${nota}, ${qualidade ?? null}, ${prazo ?? null},
+            ${comunicacao ?? null}, ${proatividade ?? null}, ${comentario ?? null}, ${avaliado_por ?? null})
+    RETURNING *
+  `);
+  res.status(201).json(rows(r)[0]);
+});
+
+router.get("/padteam/work-ratings/summary", async (_req, res): Promise<void> => {
+  const r = await db.execute(sql`
+    SELECT
+      m.id AS member_id, m.nome, p.nome AS cargo, p.cor_hex,
+      COUNT(wr.id)::int AS total_avaliacoes,
+      ROUND(AVG(wr.nota), 1)         AS media_geral,
+      ROUND(AVG(wr.qualidade), 1)    AS media_qualidade,
+      ROUND(AVG(wr.prazo), 1)        AS media_prazo,
+      ROUND(AVG(wr.comunicacao), 1)  AS media_comunicacao,
+      ROUND(AVG(wr.proatividade), 1) AS media_proatividade
+    FROM team_members m
+    LEFT JOIN team_positions p  ON p.id = m.cargo_id
+    LEFT JOIN work_ratings wr   ON wr.member_id = m.id
+    WHERE m.status = 'ativo'
+    GROUP BY m.id, m.nome, p.nome, p.cor_hex
+    ORDER BY media_geral DESC NULLS LAST
+  `);
+  res.json(rows(r));
+});
+
+// ─── Trello Webhook (eventos do Trello real → nosso sistema) ─────────────────
+
+router.post("/padteam/trello-webhook", async (req, res): Promise<void> => {
+  // Trello envia HEAD para verificar o webhook — sempre responder 200
+  res.status(200).json({ ok: true });
+
+  const action = req.body?.action;
+  if (!action) return;
+
+  const { type, data } = action;
+  const cardId = data?.card?.id;
+
+  if (!cardId) return;
+
+  try {
+    // Buscar demanda vinculada ao card Trello
+    const dem = await db.execute(sql`SELECT * FROM delegacoes WHERE trello_card_id = ${cardId}`);
+    if (!rows(dem).length) return;
+
+    const d = rows(dem)[0] as Record<string, unknown>;
+    const demandaId = d.id as number;
+
+    // Mapear ações do Trello para nosso sistema
+    if (type === "updateCard") {
+      const listAfter = data?.listAfter;
+      if (listAfter) {
+        const nomeLista = String(listAfter.name ?? "").toLowerCase();
+        let novoStatus = "";
+        if (nomeLista.includes("conclu") || nomeLista.includes("done") || nomeLista.includes("feito")) {
+          novoStatus = "concluido";
+        } else if (nomeLista.includes("andamento") || nomeLista.includes("doing") || nomeLista.includes("progress")) {
+          novoStatus = "em_andamento";
+        } else if (nomeLista.includes("aguard") || nomeLista.includes("waiting") || nomeLista.includes("blocked")) {
+          novoStatus = "aguardando";
+        }
+        if (novoStatus) {
+          await db.execute(sql`UPDATE delegacoes SET status = ${novoStatus}, atualizado_em = NOW() WHERE id = ${demandaId}`);
+          logger.info({ demandaId, novoStatus, trelloCard: cardId }, "PADTEAM webhook: status atualizado pelo Trello");
+        }
+      }
+    } else if (type === "commentCard") {
+      const texto = data?.action?.data?.text ?? "";
+      if (texto) {
+        await db.execute(sql`
+          UPDATE delegacoes SET notas = COALESCE(notas, '') || '\n[Trello] ' || ${String(texto)}, atualizado_em = NOW()
+          WHERE id = ${demandaId}
+        `);
+      }
+    }
+  } catch (err) {
+    logger.error({ err: (err as Error).message, cardId }, "PADTEAM webhook: erro ao processar evento Trello");
+  }
+});
+
+router.head("/padteam/trello-webhook", (_req, res): void => {
+  res.status(200).end();
 });
 
 // ─── Sync Trello ─────────────────────────────────────────────────────────────

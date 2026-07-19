@@ -8,7 +8,9 @@ import {
   Users, ClipboardList, Network, ShieldCheck, BarChart3,
   Plus, RefreshCw, AlertTriangle, CheckCircle2, Clock,
   Flame, ChevronRight, ChevronDown, User2, Star,
-  TrendingUp, Circle, Award, Mail, Copy, CheckCheck
+  TrendingUp, Circle, Award, Mail, Copy, CheckCheck,
+  FileCheck2, ThumbsUp, ThumbsDown, Table2, Link2,
+  ToggleLeft, ToggleRight, Eye, Kanban, ExternalLink
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -62,6 +64,48 @@ interface Dashboard {
   concluidas30d: number;
   por_role: { assigned_role: string; total: number }[];
   recentes: Demanda[];
+}
+
+interface ProcessResponsibility {
+  id: number;
+  processo: string;
+  categoria: string;
+  responsavel: string;
+  aprovador: string;
+  consultados: string[];
+  informados: string[];
+  ativo: boolean;
+}
+
+interface WorkReview {
+  id: number;
+  member_id: number;
+  demanda_id?: number;
+  entrega_descricao: string;
+  arquivos_links?: string;
+  data_entrega: string;
+  status: "pendente" | "aprovado" | "reprovado";
+  notas_revisao?: string;
+  revisado_por?: string;
+  revisado_em?: string;
+  member_nome?: string;
+  cargo_nome?: string;
+  cargo_cor?: string;
+  demanda_titulo?: string;
+  criado_em: string;
+}
+
+interface WorkRatingSummary {
+  member_id: number;
+  nome: string;
+  cargo?: string;
+  cor_hex?: string;
+  total_avaliacoes: number;
+  media_geral: number | null;
+  media_qualidade: number | null;
+  media_prazo: number | null;
+  media_comunicacao: number | null;
+  media_proatividade: number | null;
 }
 
 interface ScoreRow {
@@ -137,13 +181,44 @@ async function apiFetch(path: string, opts?: RequestInit) {
 
 function KPICard({ label, value, sub, cor }: { label: string; value: number; sub?: string; cor?: string }) {
   return (
-    <div className="panel-3d-sub rounded-[6px] px-4 py-3 flex flex-col gap-1 min-w-[120px]">
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
-      <span className={`text-3xl font-black ${cor ?? "text-foreground"}`}>{value}</span>
+    <div className="panel-3d-sub rounded-[6px] px-4 py-3 flex flex-col gap-1.5 min-w-[120px]">
+      <span className="bevel-3d px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground inline-block rounded-[4px] self-start">{label}</span>
+      <div className="concave-3d rounded-[4px] px-3 py-1.5">
+        <span className={`text-3xl font-black ${cor ?? "text-foreground"}`}>{value}</span>
+      </div>
       {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
     </div>
   );
 }
+
+function StarRating({ value, max = 5 }: { value: number | null; max?: number }) {
+  const v = value ?? 0;
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <Star key={i} className={`w-3 h-3 ${i < Math.round(v) ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`} />
+      ))}
+      {v > 0 && <span className="text-[11px] text-muted-foreground ml-1">{Number(v).toFixed(1)}</span>}
+    </div>
+  );
+}
+
+const CARGO_LABEL: Record<string, string> = {
+  ceo:          "CEO",
+  medico_01:    "Médico Titular",
+  medico_02:    "Médico Suporte",
+  enfermeira_01:"Enfermeira Coord.",
+  enfermeira_02:"Enfermeira Oper.",
+  adm_01:       "ADM Sênior",
+  adm_02:       "Administrativo",
+  financeiro_01:"Financeiro Sênior",
+  financeiro_02:"Financeiro",
+  agente_ia:    "Agente IA",
+  supervisao:   "Supervisão",
+  consultoria:  "Consultoria",
+  ouvidoria:    "Ouvidoria",
+  "":           "— Vazio —",
+};
 
 function DemandaCard({ d, onUpdate }: { d: Demanda; onUpdate: () => void }) {
   const [expandido, setExpandido] = useState(false);
@@ -199,6 +274,7 @@ function DemandaCard({ d, onUpdate }: { d: Demanda; onUpdate: () => void }) {
               </button>
             </div>
           )}
+          <TrelloSyncBar demandaId={d.id} />
         </div>
       )}
     </div>
@@ -425,6 +501,49 @@ function AbaEquipe() {
   );
 }
 
+// ─── Trello sync helper (exibido na aba Demandas) ────────────────────────────
+
+function TrelloSyncBar({ demandaId }: { demandaId: number }) {
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; url?: string; error?: string } | null>(null);
+
+  async function syncTrello() {
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/padteam/sync-trello", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ demanda_id: demandaId }),
+      });
+      const j = await r.json();
+      setResult(r.ok ? { ok: true, url: j.url } : { ok: false, error: j.error });
+    } catch { setResult({ ok: false, error: "Erro de rede" }); }
+    finally { setSyncing(false); }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <button
+        onClick={syncTrello}
+        disabled={syncing}
+        className="btn-3d-soft text-xs px-2.5 py-1 flex items-center gap-1.5 text-purple-400 disabled:opacity-50"
+      >
+        <Kanban className="w-3 h-3" />
+        {syncing ? "Sincronizando..." : "Enviar ao Trello"}
+      </button>
+      {result?.ok && result.url && (
+        <a href={result.url} target="_blank" rel="noreferrer"
+          className="text-xs text-emerald-400 flex items-center gap-1 hover:underline">
+          <ExternalLink className="w-3 h-3" /> Ver no Trello
+        </a>
+      )}
+      {result && !result.ok && (
+        <span className="text-[11px] text-red-400">{result.error}</span>
+      )}
+    </div>
+  );
+}
+
 // ─── Aba 3: Hierarquia Visual ─────────────────────────────────────────────────
 
 interface NodoHierarquia {
@@ -500,28 +619,145 @@ function NodoHierarquiaCard({ nodo, nivel }: { nodo: NodoHierarquia; nivel: numb
 function AbaHierarquia() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [procs, setProcs] = useState<ProcessResponsibility[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"organograma" | "raci">("organograma");
+  const [saving, setSaving] = useState<number | null>(null);
 
-  useEffect(() => {
-    Promise.all([apiFetch("/padteam/positions"), apiFetch("/padteam/members")])
-      .then(([p, m]) => { setPositions(p); setMembers(m); })
-      .finally(() => setLoading(false));
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    const [p, m, r] = await Promise.all([
+      apiFetch("/padteam/positions"),
+      apiFetch("/padteam/members"),
+      apiFetch("/padteam/process-responsibilities"),
+    ]);
+    setPositions(p); setMembers(m); setProcs(r);
+    setLoading(false);
   }, []);
 
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function updateRaci(id: number, field: string, value: string) {
+    setSaving(id);
+    await apiFetch(`/padteam/process-responsibilities/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    await carregar();
+    setSaving(null);
+  }
+
   const tree = buildTree(positions, members);
+  const cargos = positions.map(p => p.codigo);
+  const categorias = [...new Set(procs.map(p => p.categoria))];
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">
-        Organograma recursivo — quem reporta a quem, com colaboradores alocados por cargo.
+      {/* Toggle Organograma / RACI */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => setView("organograma")}
+          className={`btn-3d-soft px-4 py-1.5 text-sm flex items-center gap-2 ${view === "organograma" ? "text-sidebar-primary" : ""}`}>
+          <Network className="w-3.5 h-3.5" /> Organograma
+        </button>
+        <button onClick={() => setView("raci")}
+          className={`btn-3d-soft px-4 py-1.5 text-sm flex items-center gap-2 ${view === "raci" ? "text-sidebar-primary" : ""}`}>
+          <Table2 className="w-3.5 h-3.5" /> Matriz RACI
+        </button>
+        <span className="text-[11px] text-muted-foreground ml-2">
+          {view === "raci" ? "Quem é responsável por cada processo/entrega" : "Quem reporta a quem"}
+        </span>
       </div>
+
       {loading && <div className="text-sm text-muted-foreground py-4 text-center">Carregando...</div>}
-      {!loading && tree.length === 0 && (
-        <div className="text-sm text-muted-foreground text-center py-8">
-          Nenhum cargo cadastrado. Vá à aba Equipe para adicionar colaboradores.
+
+      {/* Organograma */}
+      {!loading && view === "organograma" && (
+        <>
+          {tree.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-8">
+              Nenhum cargo cadastrado. Vá à aba Equipe.
+            </div>
+          )}
+          {tree.map(nodo => <NodoHierarquiaCard key={nodo.id} nodo={nodo} nivel={0} />)}
+        </>
+      )}
+
+      {/* Matriz RACI */}
+      {!loading && view === "raci" && (
+        <div className="space-y-4">
+          <div className="panel-3d-sub rounded-[6px] p-3 text-[11px] text-muted-foreground flex flex-wrap gap-4">
+            {[
+              { cor: "text-emerald-400", label: "R = Responsável", desc: "executa" },
+              { cor: "text-amber-400",   label: "A = Aprovador",   desc: "decide / assina" },
+              { cor: "text-sky-400",     label: "C = Consultado",  desc: "orienta antes" },
+              { cor: "text-purple-400",  label: "I = Informado",   desc: "notificado depois" },
+            ].map(item => (
+              <span key={item.label} className={item.cor}><strong>{item.label}</strong> — {item.desc}</span>
+            ))}
+          </div>
+
+          {categorias.map(cat => (
+            <div key={cat} className="space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1 py-1">
+                {cat}
+              </div>
+              <div className="rounded-[6px] border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="text-left px-3 py-2">Processo / Entrega</th>
+                      <th className="text-left px-3 py-2 text-emerald-400">R Responsável</th>
+                      <th className="text-left px-3 py-2 text-amber-400">A Aprovador</th>
+                      <th className="text-left px-3 py-2">Ativo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {procs.filter(p => p.categoria === cat).map((p, i) => (
+                      <tr key={p.id} className={`${i % 2 === 0 ? "bg-card" : "bg-muted/10"} ${saving === p.id ? "opacity-60" : ""}`}>
+                        <td className="px-3 py-2.5 font-medium text-sm">{p.processo}</td>
+                        <td className="px-3 py-2.5">
+                          <select
+                            value={p.responsavel}
+                            onChange={e => updateRaci(p.id, "responsavel", e.target.value)}
+                            className="text-[11px] bg-card border border-border rounded-[4px] px-2 py-1 text-emerald-400 font-medium"
+                          >
+                            {["", ...cargos].map(c => (
+                              <option key={c} value={c}>{CARGO_LABEL[c] ?? c}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <select
+                            value={p.aprovador}
+                            onChange={e => updateRaci(p.id, "aprovador", e.target.value)}
+                            className="text-[11px] bg-card border border-border rounded-[4px] px-2 py-1 text-amber-400 font-medium"
+                          >
+                            {["", ...cargos].map(c => (
+                              <option key={c} value={c}>{CARGO_LABEL[c] ?? c}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button
+                            onClick={() => updateRaci(p.id, "ativo", String(!p.ativo))}
+                            title={p.ativo ? "Desativar processo" : "Ativar processo"}
+                          >
+                            {p.ativo
+                              ? <ToggleRight className="w-5 h-5 text-emerald-400" />
+                              : <ToggleLeft className="w-5 h-5 text-muted-foreground/40" />
+                            }
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
       )}
-      {!loading && tree.map(nodo => <NodoHierarquiaCard key={nodo.id} nodo={nodo} nivel={0} />)}
     </div>
   );
 }
@@ -962,15 +1198,374 @@ ${operacionais.map(a => `    "${a.email}"`).join(",\n")}
   );
 }
 
+// ─── Aba 7: Conferência de Trabalho Remoto ────────────────────────────────────
+
+const STATUS_REVIEW: Record<string, string> = {
+  pendente:  "bg-amber-500/15 text-amber-400 border-amber-500/40",
+  aprovado:  "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
+  reprovado: "bg-red-500/15 text-red-400 border-red-500/40",
+};
+
+function AbaConferencia() {
+  const [reviews, setReviews] = useState<WorkReview[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtroStatus, setFiltroStatus] = useState("pendente");
+  const [novaEntrega, setNovaEntrega] = useState(false);
+  const [form, setForm] = useState({ member_id: "", entrega_descricao: "", arquivos_links: "" });
+  const [notaModal, setNotaModal] = useState<{ id: number; status: string } | null>(null);
+  const [nota, setNota] = useState("");
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    const [r, m] = await Promise.all([
+      apiFetch(`/padteam/work-reviews${filtroStatus ? `?status=${filtroStatus}` : ""}`),
+      apiFetch("/padteam/members"),
+    ]);
+    setReviews(r); setMembers(m);
+    setLoading(false);
+  }, [filtroStatus]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function registrarEntrega(e: React.FormEvent) {
+    e.preventDefault();
+    await apiFetch("/padteam/work-reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, member_id: parseInt(form.member_id) }),
+    });
+    setNovaEntrega(false);
+    setForm({ member_id: "", entrega_descricao: "", arquivos_links: "" });
+    carregar();
+  }
+
+  async function revisar(id: number, status: "aprovado" | "reprovado", notas?: string) {
+    await apiFetch(`/padteam/work-reviews/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, notas_revisao: notas ?? null, revisado_por: "CEO" }),
+    });
+    setNotaModal(null);
+    setNota("");
+    carregar();
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Cabeçalho da aba */}
+      <div className="panel-3d-sub rounded-[6px] p-4 border-l-4 border-purple-500/60">
+        <div className="flex items-center gap-2 mb-1">
+          <FileCheck2 className="w-4 h-4 text-purple-400" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-purple-400">Conferência de Entregas Remotas</span>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Registre e revise o que os colaboradores remotos entregaram. Cada entrega pode ser aprovada ou reprovada com nota.
+        </p>
+      </div>
+
+      {/* Controles */}
+      <div className="flex flex-wrap items-center gap-2">
+        {["pendente","aprovado","reprovado"].map(s => (
+          <button key={s} onClick={() => setFiltroStatus(s)}
+            className={`px-3 py-1.5 text-sm rounded-[6px] border transition-colors ${
+              filtroStatus === s ? "bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-primary/40 font-semibold" : "border-border text-muted-foreground hover:bg-accent/30"
+            }`}>
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+        <button onClick={() => setFiltroStatus("")}
+          className={`px-3 py-1.5 text-sm rounded-[6px] border transition-colors ${!filtroStatus ? "bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-primary/40 font-semibold" : "border-border text-muted-foreground hover:bg-accent/30"}`}>
+          Todos
+        </button>
+        <button onClick={() => setNovaEntrega(!novaEntrega)} className="bevel-3d px-4 py-1.5 text-sm flex items-center gap-1.5 ml-auto">
+          <Plus className="w-3.5 h-3.5" /> Registrar Entrega
+        </button>
+      </div>
+
+      {/* Formulário de nova entrega */}
+      {novaEntrega && (
+        <form onSubmit={registrarEntrega} className="panel-3d-sub rounded-[6px] p-4 space-y-3">
+          <div className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Nova Entrega Registrada</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <select required value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })}
+              className="bg-background border border-border rounded-[6px] px-3 py-2 text-sm">
+              <option value="">Selecionar colaborador *</option>
+              {members.filter(m => m.status === "ativo").map(m => (
+                <option key={m.id} value={m.id}>{m.nome} ({m.cargo_nome ?? "Sem cargo"})</option>
+              ))}
+            </select>
+            <input placeholder="Link do arquivo (Drive, GitHub, etc.)" value={form.arquivos_links}
+              onChange={e => setForm({ ...form, arquivos_links: e.target.value })}
+              className="bg-background border border-border rounded-[6px] px-3 py-2 text-sm" />
+            <textarea required placeholder="Descreva o que foi entregue *" value={form.entrega_descricao}
+              onChange={e => setForm({ ...form, entrega_descricao: e.target.value })}
+              rows={3} className="bg-background border border-border rounded-[6px] px-3 py-2 text-sm sm:col-span-2 resize-none" />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="bevel-3d px-4 py-1.5 text-sm">Salvar Entrega</button>
+            <button type="button" onClick={() => setNovaEntrega(false)} className="btn-3d-soft px-4 py-1.5 text-sm">Cancelar</button>
+          </div>
+        </form>
+      )}
+
+      {loading && <div className="text-sm text-muted-foreground py-4 text-center">Carregando...</div>}
+
+      {/* Modal de nota de reprovação */}
+      {notaModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="panel-3d rounded-[8px] p-6 w-full max-w-md space-y-4">
+            <div className="font-semibold uppercase tracking-wider text-red-400">Reprovar Entrega</div>
+            <textarea value={nota} onChange={e => setNota(e.target.value)}
+              placeholder="Motivo da reprovação (obrigatório)"
+              rows={4} className="w-full bg-background border border-border rounded-[6px] px-3 py-2 text-sm resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => revisar(notaModal.id, "reprovado", nota)}
+                disabled={!nota.trim()}
+                className="bevel-3d px-4 py-1.5 text-sm text-red-400 disabled:opacity-50">
+                Confirmar Reprovação
+              </button>
+              <button onClick={() => setNotaModal(null)} className="btn-3d-soft px-4 py-1.5 text-sm">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de entregas */}
+      {!loading && reviews.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          Nenhuma entrega {filtroStatus ? `com status "${filtroStatus}"` : ""} registrada.
+        </p>
+      )}
+      {!loading && reviews.map(r => (
+        <div key={r.id} className="panel-3d-sub rounded-[6px] p-4 space-y-2"
+          style={{ borderLeftWidth: 4, borderLeftColor: r.cargo_cor ?? "#647c97" }}>
+          <div className="flex flex-wrap items-start gap-2 justify-between">
+            <div>
+              <div className="font-semibold text-sm">{r.member_nome ?? "Colaborador"}</div>
+              <div className="text-[11px] text-muted-foreground">{r.cargo_nome ?? "Sem cargo"} · {formatDate(r.data_entrega)}</div>
+            </div>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border ${STATUS_REVIEW[r.status] ?? ""}`}>
+              {r.status}
+            </span>
+          </div>
+          {r.demanda_titulo && (
+            <div className="text-[11px] text-sky-400 flex items-center gap-1">
+              <ClipboardList className="w-3 h-3" /> Demanda: {r.demanda_titulo}
+            </div>
+          )}
+          <p className="text-sm text-foreground/90 leading-relaxed">{r.entrega_descricao}</p>
+          {r.arquivos_links && (
+            <a href={r.arquivos_links} target="_blank" rel="noreferrer"
+              className="text-xs text-sky-400 flex items-center gap-1 hover:underline">
+              <Link2 className="w-3 h-3" /> Ver arquivo/link
+            </a>
+          )}
+          {r.notas_revisao && (
+            <div className="text-[11px] text-muted-foreground italic border-l-2 border-border pl-2">{r.notas_revisao}</div>
+          )}
+          {r.status === "pendente" && (
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => revisar(r.id, "aprovado")}
+                className="btn-3d-soft text-xs px-3 py-1.5 flex items-center gap-1.5 text-emerald-400">
+                <ThumbsUp className="w-3.5 h-3.5" /> Aprovar
+              </button>
+              <button onClick={() => setNotaModal({ id: r.id, status: "reprovado" })}
+                className="btn-3d-soft text-xs px-3 py-1.5 flex items-center gap-1.5 text-red-400">
+                <ThumbsDown className="w-3.5 h-3.5" /> Reprovar
+              </button>
+            </div>
+          )}
+          {r.revisado_em && (
+            <div className="text-[10px] text-muted-foreground">Revisado por {r.revisado_por ?? "gestor"} em {formatDate(r.revisado_em)}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Aba 8: Classificação do Trabalho ─────────────────────────────────────────
+
+function AbaClassificacao() {
+  const [summary, setSummary] = useState<WorkRatingSummary[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [reviews, setReviews] = useState<WorkReview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [avaliacaoModal, setAvaliacaoModal] = useState<WorkReview | null>(null);
+  const [ratingForm, setRatingForm] = useState({
+    nota: 5, qualidade: 5, prazo: 5, comunicacao: 5, proatividade: 5, comentario: "",
+  });
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    const [s, m, r] = await Promise.all([
+      apiFetch("/padteam/work-ratings/summary"),
+      apiFetch("/padteam/members"),
+      apiFetch("/padteam/work-reviews?status=aprovado"),
+    ]);
+    setSummary(s); setMembers(m); setReviews(r);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function submitRating(reviewId: number, memberId: number) {
+    await apiFetch("/padteam/work-ratings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ review_id: reviewId, member_id: memberId, ...ratingForm, avaliado_por: "CEO" }),
+    });
+    setAvaliacaoModal(null);
+    setRatingForm({ nota: 5, qualidade: 5, prazo: 5, comunicacao: 5, proatividade: 5, comentario: "" });
+    carregar();
+  }
+
+  function StarInput({ label, field, value }: { label: string; field: keyof typeof ratingForm; value: number }) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground w-24">{label}</span>
+        <div className="flex gap-1">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button key={n} type="button" onClick={() => setRatingForm(f => ({ ...f, [field]: n }))}>
+              <Star className={`w-5 h-5 transition-colors ${n <= value ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Cabeçalho */}
+      <div className="panel-3d-sub rounded-[6px] p-4 border-l-4 border-amber-500/60">
+        <div className="flex items-center gap-2 mb-1">
+          <Star className="w-4 h-4 text-amber-400" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-amber-400">Classificação de Trabalho</span>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Avalie a qualidade das entregas dos colaboradores. Cada entrega aprovada pode receber uma nota em 5 dimensões.
+        </p>
+      </div>
+
+      {/* Modal de avaliação */}
+      {avaliacaoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="panel-3d rounded-[8px] p-6 w-full max-w-md space-y-4">
+            <div className="font-semibold uppercase tracking-wider text-amber-400">Avaliar Entrega</div>
+            <div className="text-sm text-foreground font-medium">{avaliacaoModal.member_nome}</div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{avaliacaoModal.entrega_descricao}</p>
+            <div className="concave-3d rounded-[6px] p-4 space-y-3">
+              <StarInput label="Nota Geral"     field="nota"        value={ratingForm.nota} />
+              <StarInput label="Qualidade"      field="qualidade"   value={ratingForm.qualidade} />
+              <StarInput label="Prazo"          field="prazo"       value={ratingForm.prazo} />
+              <StarInput label="Comunicação"    field="comunicacao" value={ratingForm.comunicacao} />
+              <StarInput label="Proatividade"   field="proatividade" value={ratingForm.proatividade} />
+            </div>
+            <textarea
+              value={ratingForm.comentario}
+              onChange={e => setRatingForm(f => ({ ...f, comentario: e.target.value }))}
+              placeholder="Comentário (opcional)"
+              rows={2} className="w-full bg-background border border-border rounded-[6px] px-3 py-2 text-sm resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => submitRating(avaliacaoModal.id, avaliacaoModal.member_id)}
+                className="bevel-3d px-4 py-1.5 text-sm">Salvar Avaliação</button>
+              <button onClick={() => setAvaliacaoModal(null)} className="btn-3d-soft px-4 py-1.5 text-sm">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="text-sm text-muted-foreground py-4 text-center">Carregando...</div>}
+
+      {/* Ranking por média */}
+      {!loading && summary.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Ranking de Desempenho</div>
+          <div className="rounded-[6px] border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="text-left px-3 py-2">#</th>
+                  <th className="text-left px-3 py-2">Colaborador</th>
+                  <th className="text-left px-3 py-2">Geral</th>
+                  <th className="text-left px-3 py-2 hidden md:table-cell">Qualidade</th>
+                  <th className="text-left px-3 py-2 hidden md:table-cell">Prazo</th>
+                  <th className="text-left px-3 py-2 hidden lg:table-cell">Comunicação</th>
+                  <th className="text-right px-3 py-2">Avaliações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.map((s, i) => (
+                  <tr key={s.member_id} className={i % 2 === 0 ? "bg-card" : "bg-muted/10"}>
+                    <td className="px-3 py-2.5 text-[11px] text-muted-foreground font-mono">{i + 1}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.cor_hex ?? "#647c97" }} />
+                        <div>
+                          <div className="font-medium text-sm">{s.nome}</div>
+                          <div className="text-[10px] text-muted-foreground">{s.cargo}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5"><StarRating value={s.media_geral} /></td>
+                    <td className="px-3 py-2.5 hidden md:table-cell"><StarRating value={s.media_qualidade} /></td>
+                    <td className="px-3 py-2.5 hidden md:table-cell"><StarRating value={s.media_prazo} /></td>
+                    <td className="px-3 py-2.5 hidden lg:table-cell"><StarRating value={s.media_comunicacao} /></td>
+                    <td className="px-3 py-2.5 text-right text-[11px] text-muted-foreground">{s.total_avaliacoes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Entregas aprovadas sem avaliação */}
+      {!loading && reviews.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Entregas Aprovadas — Aguardando Avaliação ({reviews.length})
+          </div>
+          {reviews.map(r => (
+            <div key={r.id} className="flex items-center gap-3 rounded-[6px] border border-border bg-card px-4 py-3">
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.cargo_cor ?? "#647c97" }} />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">{r.member_nome}</div>
+                <div className="text-[11px] text-muted-foreground line-clamp-1">{r.entrega_descricao}</div>
+              </div>
+              <div className="text-[11px] text-muted-foreground shrink-0">{formatDate(r.data_entrega)}</div>
+              <button onClick={() => setAvaliacaoModal(r)}
+                className="btn-3d-soft text-xs px-3 py-1.5 flex items-center gap-1.5 text-amber-400 shrink-0">
+                <Star className="w-3.5 h-3.5" /> Avaliar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && reviews.length === 0 && summary.length === 0 && (
+        <div className="text-center py-10 text-sm text-muted-foreground space-y-1">
+          <p>Nenhuma entrega aprovada para avaliar ainda.</p>
+          <p className="text-xs">Vá à aba <strong>Conferência</strong> → aprove uma entrega → ela aparecerá aqui para avaliação.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Hub Principal ────────────────────────────────────────────────────────────
 
 const ABAS = [
-  { key: "demandas",   label: "Demandas",   icon: ClipboardList },
-  { key: "equipe",     label: "Equipe",     icon: Users         },
-  { key: "hierarquia", label: "Hierarquia", icon: Network       },
-  { key: "governanca", label: "Governança", icon: ShieldCheck   },
-  { key: "scoring",    label: "Scoring",    icon: BarChart3     },
-  { key: "emails",     label: "E-mails",    icon: Mail          },
+  { key: "demandas",       label: "Demandas",    icon: ClipboardList },
+  { key: "equipe",         label: "Equipe",      icon: Users         },
+  { key: "hierarquia",     label: "Hierarquia",  icon: Network       },
+  { key: "governanca",     label: "Governança",  icon: ShieldCheck   },
+  { key: "conferencia",    label: "Conferência", icon: FileCheck2    },
+  { key: "classificacao",  label: "Classificação",icon: Star         },
+  { key: "scoring",        label: "Scoring",     icon: BarChart3     },
+  { key: "emails",         label: "E-mails",     icon: Mail          },
 ] as const;
 
 type AbaKey = typeof ABAS[number]["key"];
@@ -980,12 +1575,12 @@ export default function PadteamHub() {
 
   return (
     <div className="space-y-6 p-1">
-      {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Cabeçalho — panel-3d */}
+      <div className="panel-3d rounded-[8px] px-5 py-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-black uppercase tracking-widest text-foreground">PADTEAM</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Central de demandas · Equipe remota · Hierarquia · Governança de processos
+            Central de demandas · Equipe remota · Hierarquia · Governança · Conferência · Classificação
           </p>
         </div>
         <Link href="/padteam/nova">
@@ -1018,12 +1613,14 @@ export default function PadteamHub() {
 
       {/* Conteúdo */}
       <div>
-        {aba === "demandas"   && <AbaDemandas />}
-        {aba === "equipe"     && <AbaEquipe />}
-        {aba === "hierarquia" && <AbaHierarquia />}
-        {aba === "governanca" && <AbaGovernanca />}
-        {aba === "scoring"    && <AbaScoring />}
-        {aba === "emails"     && <AbaEmails />}
+        {aba === "demandas"      && <AbaDemandas />}
+        {aba === "equipe"        && <AbaEquipe />}
+        {aba === "hierarquia"    && <AbaHierarquia />}
+        {aba === "governanca"    && <AbaGovernanca />}
+        {aba === "conferencia"   && <AbaConferencia />}
+        {aba === "classificacao" && <AbaClassificacao />}
+        {aba === "scoring"       && <AbaScoring />}
+        {aba === "emails"        && <AbaEmails />}
       </div>
     </div>
   );
