@@ -68,6 +68,7 @@ import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
 import ceoRouter from "./ceo";
 import dominiosRouter from "./dominios";
+import dominiosComercialRouter from "./dominios-comercial";
 import cadernosJuridicosRouter from "./cadernos-juridicos";
 import receituarioRouter from "./receituario";
 import adminPreviewRouter from "./admin-preview";
@@ -168,5 +169,6 @@ router.use(cadernosJuridicosRouter);
 router.use(receituarioRouter);
 router.use(adminPreviewRouter);
 router.use(dominiosRouter);
+router.use(dominiosComercialRouter);
 
 export default router;

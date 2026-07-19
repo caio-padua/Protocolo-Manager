@@ -16,6 +16,22 @@ import { PaxterLogo } from "@/components/branding/PaxterLogo";
 type StatusRdap = "disponivel" | "registrado" | "erro" | "verificando";
 type CheckResult = { dominio: string; status: StatusRdap };
 
+type Proposta = {
+  id: number;
+  clinica_nome: string;
+  clinica_cnpj: string | null;
+  clinica_email: string | null;
+  clinica_telefone: string | null;
+  dominio: string;
+  plano: string;
+  emails_incluidos: number;
+  valor_adesao_centavos: number;
+  valor_mensal_centavos: number;
+  status: "rascunho" | "aprovada" | "cobranca_gerada" | "paga" | "ativa" | "cancelada";
+  asaas_invoice_url: string | null;
+  criado_em: string;
+};
+
 type Dominio = {
   id: number;
   dominio: string;
@@ -194,6 +210,10 @@ export default function PainelDominios() {
   const [dominios, setDominios] = useState<Dominio[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Propostas comerciais
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [loadingPropostas, setLoadingPropostas] = useState(false);
+
   // Verificador
   const [busca, setBusca] = useState("");
   const [verificando, setVerificando] = useState(false);
@@ -249,7 +269,15 @@ export default function PainelDominios() {
     } catch { /* silencioso */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchDominios(); }, [fetchDominios]);
+  const fetchPropostas = useCallback(async () => {
+    setLoadingPropostas(true);
+    try {
+      const r = await fetch(`${BASE}/api/dominios-comercial/propostas`);
+      if (r.ok) { const d = await r.json(); setPropostas(d.items ?? []); }
+    } catch { /* silencioso */ } finally { setLoadingPropostas(false); }
+  }, []);
+
+  useEffect(() => { fetchDominios(); fetchPropostas(); }, [fetchDominios, fetchPropostas]);
 
   async function handleDelete(id: number, dominio: string) {
     if (!window.confirm(`Remover "${dominio}" do painel?\n\nO domínio em si não será cancelado.`)) return;
@@ -775,7 +803,7 @@ export default function PainelDominios() {
         <div className="flex items-start justify-between gap-3">
           <BlockTitle icon={Building2}>Domínios para Clínicas Licenciadas</BlockTitle>
           <Button
-            onClick={() => navigate("/comunicacao/dominios/new")}
+            onClick={() => navigate("/comunicacao/dominios/nova-proposta")}
             className="btn-3d h-8 px-4 text-[11px] font-bold uppercase tracking-[0.12em] -mt-1"
           >
             <Plus className="w-3.5 h-3.5 mr-1.5" /> Nova Proposta
@@ -786,16 +814,17 @@ export default function PainelDominios() {
           Fluxo: clínica solicita → CEO aprova → Asaas cobra → pagamento confirmado → e-mail criado automaticamente.
         </ExplainRow>
 
-        {/* KPIs do módulo comercial */}
+        {/* KPIs — derivados das propostas reais */}
         {(() => {
-          const pagos = dominios.filter(d => d.modulo_pago);
-          const receitaMensal = pagos.reduce((s, d) => s + (d.valor_mensal_centavos ?? 0), 0);
+          const ativas = propostas.filter(p => p.status === "ativa");
+          const receitaMensal = ativas.reduce((s, p) => s + (p.valor_mensal_centavos ?? 0), 0);
+          const pendentes = propostas.filter(p => p.status !== "ativa" && p.status !== "cancelada").length;
           return (
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Domínios no Módulo", valor: String(pagos.length), cor: "text-foreground" },
-                { label: "Receita Mensal Projetada", valor: receitaMensal > 0 ? `R$ ${(receitaMensal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—", cor: "text-emerald-700" },
-                { label: "Status", valor: pagos.length > 0 ? "Ativo" : "Aguardando", cor: pagos.length > 0 ? "text-emerald-700" : "text-amber-600" },
+                { label: "Propostas Ativas", valor: String(ativas.length), cor: "text-emerald-700" },
+                { label: "Receita Mensal Ativa", valor: receitaMensal > 0 ? `R$ ${(receitaMensal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—", cor: "text-emerald-700" },
+                { label: "Em Andamento", valor: String(pendentes), cor: pendentes > 0 ? "text-amber-600" : "text-muted-foreground" },
               ].map(k => (
                 <div key={k.label} className="concave-3d px-4 py-3 rounded-[6px]">
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-1">{k.label}</p>
@@ -806,59 +835,87 @@ export default function PainelDominios() {
           );
         })()}
 
-        {/* Cards dos domínios com módulo pago */}
-        {dominios.filter(d => d.modulo_pago).length === 0 ? (
+        {/* Lista de propostas (da API) */}
+        {loadingPropostas ? (
+          <div className="concave-3d flex items-center justify-center gap-2 py-6 rounded-[6px] text-muted-foreground text-[12px]">
+            <Loader2 className="w-4 h-4 animate-spin" /> Carregando propostas...
+          </div>
+        ) : propostas.length === 0 ? (
           <div className="concave-3d flex flex-col items-center gap-3 py-10 text-center rounded-[6px]">
             <Building2 className="h-10 w-10 opacity-10" />
-            <p className="text-[13px] font-semibold text-muted-foreground">Nenhum domínio no módulo comercial ainda.</p>
+            <p className="text-[13px] font-semibold text-muted-foreground">Nenhuma proposta ainda.</p>
             <p className="text-[11px] text-muted-foreground/70 max-w-xs">
-              Edite um domínio → seção "Módulo Pago" → ative e defina o valor mensal.
+              Clique em "Nova Proposta" para criar a primeira proposta comercial.
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {dominios.filter(d => d.modulo_pago).map(d => (
-              <div key={d.id} className="panel-3d overflow-hidden">
-                {/* Faixa lateral ciano — indica módulo ativo */}
-                <div className="flex">
-                  <div className="w-1 shrink-0 bg-cyan-500/70 rounded-l" />
-                  <div className="flex-1 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="bevel-3d w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0">
-                          <Globe className="w-5 h-5 text-cyan-600" />
-                        </div>
-                        <div className="min-w-0">
+          <div className="space-y-2">
+            {propostas.map(p => {
+              const statusCor: Record<string, string> = {
+                rascunho: "text-amber-600 bg-amber-500/15",
+                aprovada: "text-blue-600 bg-blue-500/15",
+                cobranca_gerada: "text-indigo-600 bg-indigo-500/15",
+                paga: "text-emerald-600 bg-emerald-500/15",
+                ativa: "text-emerald-700 bg-emerald-500/20",
+                cancelada: "text-slate-500 bg-slate-500/15",
+              };
+              const statusLabel: Record<string, string> = {
+                rascunho: "Rascunho", aprovada: "Aprovada",
+                cobranca_gerada: "Cobrança Gerada", paga: "Paga",
+                ativa: "Ativa", cancelada: "Cancelada",
+              };
+              const faixa = p.status === "ativa" ? "bg-emerald-500/70"
+                : p.status === "cancelada" ? "bg-slate-400/40"
+                : "bg-amber-400/60";
+              return (
+                <div key={p.id} className="panel-3d overflow-hidden">
+                  <div className="flex">
+                    <div className={`w-1 shrink-0 ${faixa} rounded-l`} />
+                    <div className="flex-1 px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-bold text-[14px] text-foreground font-mono">{d.dominio}</p>
-                            <StatusBadge status={d.status} />
-                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded text-cyan-700 bg-cyan-500/15">
-                              Módulo Ativo
+                            <p className="font-bold text-[13px] text-foreground">{p.clinica_nome}</p>
+                            <span className="font-mono text-[11px] text-cyan-700">{p.dominio}</span>
+                            <span className={`text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded ${statusCor[p.status] ?? "text-slate-500 bg-slate-500/15"}`}>
+                              {statusLabel[p.status] ?? p.status}
                             </span>
                           </div>
-                          <div className="grid grid-cols-2 gap-x-6 mt-1.5">
-                            <p className="text-[11px] text-muted-foreground">
-                              <span className="font-semibold">Mensal: </span>
-                              {d.valor_mensal_centavos
-                                ? <span className="text-emerald-700 font-bold">R$ {(d.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                                : <span className="text-amber-600 italic">—  não configurado</span>}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              <span className="font-semibold">Titular: </span>{d.titular_nome ?? "—"}
-                            </p>
+                          <div className="flex gap-4 mt-1.5 flex-wrap">
+                            <span className="text-[11px] text-muted-foreground">
+                              Adesão: <strong className="text-foreground">
+                                {p.valor_adesao_centavos > 0
+                                  ? `R$ ${(p.valor_adesao_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                                  : "Isento"}
+                              </strong>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              Mensal: <strong className="text-emerald-700">
+                                R$ {(p.valor_mensal_centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/mês
+                              </strong>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground capitalize">{p.plano}</span>
                           </div>
                         </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {p.asaas_invoice_url && (
+                            <a href={p.asaas_invoice_url} target="_blank" rel="noopener noreferrer"
+                              className="btn-3d-soft h-7 px-2 flex items-center gap-1 text-[10px] font-semibold text-cyan-700">
+                              <ExternalLink className="w-3 h-3" /> Fatura
+                            </a>
+                          )}
+                          <Button variant="outline" size="sm" className="btn-3d-soft h-7 px-2"
+                            onClick={() => navigate("/comunicacao/dominios/nova-proposta")}
+                            title="Nova proposta">
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button variant="outline" size="sm" className="btn-3d-soft h-8 px-2.5 shrink-0"
-                        onClick={() => navigate(`/comunicacao/dominios/${d.id}/edit`)}
-                        title="Editar módulo">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -883,15 +940,24 @@ export default function PainelDominios() {
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Tabela de Valores Sugeridos</p>
               <div className="space-y-1">
                 {[
-                  { plano: "Básico (1 e-mail)", adesao: "R$ 297", mensal: "R$ 97/mês" },
-                  { plano: "Profissional (5 e-mails)", adesao: "R$ 497", mensal: "R$ 197/mês" },
-                  { plano: "Clínica (ilimitado)", adesao: "R$ 997", mensal: "R$ 397/mês" },
+                  { plano: "Básico", desc: "1 e-mail", adesao: "R$ 297", mensal: "R$ 97/mês" },
+                  { plano: "Profissional", desc: "5 e-mails", adesao: "R$ 497", mensal: "R$ 197/mês" },
+                  { plano: "Clínica", desc: "ilimitado", adesao: "R$ 997", mensal: "R$ 397/mês" },
                 ].map(p => (
-                  <div key={p.plano} className="concave-3d flex items-center justify-between px-3 py-1.5 rounded-[4px]">
-                    <span className="text-[11px] text-foreground">{p.plano}</span>
-                    <div className="flex gap-3 text-[10px] text-muted-foreground">
-                      <span>Adesão: <strong className="text-foreground">{p.adesao}</strong></span>
-                      <span><strong className="text-emerald-700">{p.mensal}</strong></span>
+                  <div key={p.plano} className="concave-3d px-3 py-2 rounded-[4px]">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[12px] font-bold text-foreground">{p.plano}</span>
+                      <span className="text-[10px] text-muted-foreground">({p.desc})</span>
+                    </div>
+                    <div className="flex gap-4 mt-1">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-[0.06em]">Adesão: </span>
+                        <span className="text-[12px] font-bold text-foreground">{p.adesao}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-[0.06em]">Mensal: </span>
+                        <span className="text-[12px] font-bold text-emerald-700">{p.mensal}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
