@@ -1561,25 +1561,27 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">TOTAL PAGO</p>
-                <p className="text-green-500 font-black text-xl" style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPago)}</p>
+                <p className="text-primary font-black text-xl" style={{ fontFamily: "'Archivo', sans-serif", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPago)}</p>
               </div>
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">PENDENTE</p>
-                <p className="text-red-500 font-black text-xl" style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPendente)}</p>
+                <p className="text-red-500 font-black text-xl" style={{ fontFamily: "'Archivo', sans-serif", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPendente)}</p>
               </div>
             </div>
             {f.payments.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">Nenhum pagamento registrado.</p>}
             {f.payments.map((p) => (
-              <div key={p.id} className="panel-3d-sub rounded-lg p-3 border-l-4"
-                style={{ borderLeftColor: p.status === "paid" ? "#22c55e" : "#ef4444" }}>
+              <div key={p.id} className="panel-3d-sub rounded-lg p-3 border-l-4 border-l-border/40">
                 <div className="flex items-center justify-between gap-2">
                   <p
-                    className={`font-black text-lg ${p.status === "paid" ? "text-primary" : "text-red-500"}`}
-                    style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
+                    className="text-primary font-black text-lg"
+                    style={{ fontFamily: "'Archivo', sans-serif", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
                   >
                     {brMoney(p.amount)}
                   </p>
-                  <StatusBadge status={p.status} />
+                  {/* Badge neutro — sem cor: status visível sem alarme */}
+                  <span className="inline-block border text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary/8 text-primary border-primary/15">
+                    {STATUS_LABELS[p.status] ?? p.status}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                   <span>{METHOD_LABELS[p.method] ?? p.method.toUpperCase()}</span>
