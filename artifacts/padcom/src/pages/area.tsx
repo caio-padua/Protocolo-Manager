@@ -321,7 +321,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
   return (
     <div
       className={`${themeClass} area-elite relative`}
-      style={{ minHeight: "100vh", background: isDark ? "#0d1f3a" : "#f3ecdd" }}
+      style={{ minHeight: "100vh", background: isDark ? "linear-gradient(160deg, #0b1e3a 0%, #0e2244 55%, #122a50 100%)" : "#f3ecdd" }}
     >
       <div className="leva-fabric" aria-hidden="true" />
       <div className="relative z-10 flex flex-col min-h-screen">
