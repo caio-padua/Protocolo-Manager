@@ -156,8 +156,8 @@ export default function Area() {
             <h1 className="text-primary font-black text-sm tracking-[0.16em] uppercase leading-none">
               PAXTER
             </h1>
-            <div className="concave-3d mt-0.5 px-2 py-0.5 inline-block rounded">
-              <span className="text-accent text-[9px] font-bold uppercase tracking-widest truncate">
+            <div className="concave-3d mt-1 px-2.5 py-1 inline-block rounded">
+              <span className="text-accent text-[11px] font-black uppercase tracking-wider truncate">
                 {client.name.toUpperCase()}
               </span>
             </div>
@@ -174,8 +174,8 @@ export default function Area() {
         </div>
       </header>
 
-      {/* Conteúdo principal — pb-36 libera espaço para logo-bar + bottom nav fixas */}
-      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-36">
+      {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
+      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
@@ -183,14 +183,9 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Logo-bar fixa — PAXTER (esq) + PADCON (dir) — painel que não rola */}
-      <div className="fixed bottom-[60px] left-0 right-0 z-[19]">
-        <TernoFooter theme={theme} />
-      </div>
-
-      {/* Bottom navigation — mobile-first */}
+      {/* Bottom navigation — mobile-first — PADCON symbol embarcado no canto dir */}
       <nav className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60">
-        <div className="flex max-w-lg mx-auto">
+        <div className="relative flex max-w-lg mx-auto">
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
@@ -209,6 +204,13 @@ export default function Area() {
               </button>
             );
           })}
+          {/* Símbolo PADCON — assinatura de marca no canto inferior direito da nav */}
+          <div
+            className="absolute right-2 bottom-1 pointer-events-none"
+            aria-hidden="true"
+          >
+            <PadconSymbol height={20} />
+          </div>
         </div>
       </nav>
       </div>
