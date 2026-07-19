@@ -7,6 +7,7 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
 import { PadconSymbol } from "@/components/layout/paxter-fx/PadconSymbol";
+import { ParxisWordmark } from "@/components/layout/paxter-fx/ParxisWordmark";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -152,12 +153,10 @@ export default function Area() {
           >
             <PaxterSymbolGlass size={24} tone="dark" />
           </a>
-          <div className="min-w-0">
-            <h1 className="text-primary font-black text-sm tracking-[0.16em] uppercase leading-none">
-              PAXTER
-            </h1>
-            <div className="concave-3d mt-1 px-2.5 py-1 inline-block rounded">
-              <span className="text-accent text-[11px] font-black uppercase tracking-wider truncate">
+          <div className="min-w-0 flex flex-col items-start">
+            <ParxisWordmark fontSize={13} />
+            <div className="concave-3d mt-0.5 px-2.5 py-0.5 inline-block rounded">
+              <span className="text-accent text-[10px] font-black uppercase tracking-wider truncate">
                 {client.name.toUpperCase()}
               </span>
             </div>
