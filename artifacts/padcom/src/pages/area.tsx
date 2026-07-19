@@ -76,6 +76,16 @@ const BODY_REGIONS = [
 const TYPES_WITH_BODY = ["ultrassom", "tomografia", "ressonancia", "densitometria"];
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+/** Retorna só primeiro + último nome (sem abreviar; remove nomes do meio) */
+function formatClientName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+// ---------------------------------------------------------------------------
 // Tipos
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
@@ -166,17 +176,37 @@ export default function Area() {
           />
         </a>
 
-        {/* Direita: nome do cliente em bevel/insert (concave-3d) */}
-        <div className="concave-3d flex items-center px-3 py-1 rounded" style={{ maxWidth: 160 }}>
+        {/* Direita: nome em insert/bevel — claro nos 2 temas, fonte grife maior */}
+        {/* #1 mais alto e largo  #2 primeiro+último  #3 fonte nítida  #4 fundo claro */}
+        <div
+          className="flex items-center px-4 py-2"
+          style={{
+            borderRadius: 8,
+            /* insert claro: borda escura em cima, clara embaixo — funciona nos 2 temas */
+            boxShadow:
+              "inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -1px 2px rgba(255,255,255,0.60)",
+            background: theme === "dark"
+              ? "rgba(0,0,0,0.25)"
+              : "rgba(255,255,255,0.70)",
+            border: theme === "dark"
+              ? "1px solid rgba(255,255,255,0.10)"
+              : "1px solid rgba(0,0,0,0.12)",
+            minWidth: 110,
+            maxWidth: 170,
+          }}
+        >
           <span
-            className="text-accent font-semibold truncate"
+            className="text-accent"
             style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: 14,
-              letterSpacing: "0.03em",
+              fontSize: 16,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
             }}
           >
-            {client.name}
+            {formatClientName(client.name)}
           </span>
         </div>
       </header>
@@ -190,18 +220,17 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel DEITADO SOBRE a nav — mesma classe panel-3d, bottom-0, z-30 */}
-      {/* Fica no canto direito, visualmente integrado à nav (mesma cor de fundo) */}
+      {/* Mini-painel DEITADO SOBRE a nav — lado a lado → mesma altura que a nav */}
       <div
-        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col"
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-row"
         style={{ borderTopLeftRadius: 8 }}
       >
-        {/* Botão tema — mesmo estilo de item de nav */}
+        {/* Botão tema — idêntico ao item de nav em altura */}
         <button
           type="button"
           onClick={toggle}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-          className="flex flex-col items-center gap-0.5 py-3 px-4 text-accent hover:text-accent/70 transition-colors"
+          className="flex flex-col items-center gap-0.5 py-3 px-3 text-accent hover:text-accent/70 transition-colors"
         >
           <div className="concave-3d p-1.5 rounded-lg">
             {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -211,14 +240,14 @@ export default function Area() {
           </span>
         </button>
 
-        {/* Separador fino entre os dois botões */}
-        <div className="border-t border-border/40 mx-2" />
+        {/* Separador vertical entre os dois botões */}
+        <div className="border-l border-border/40 my-3" />
 
-        {/* Botão sair — mesmo estilo */}
+        {/* Botão sair — mesmo py-3, lado a lado */}
         <button
           type="button"
           onClick={handleLogout}
-          className="flex flex-col items-center gap-0.5 py-3 px-4 text-muted-foreground hover:text-accent transition-colors"
+          className="flex flex-col items-center gap-0.5 py-3 px-3 text-muted-foreground hover:text-accent transition-colors"
         >
           <div className="p-1.5 rounded-lg">
             <LogOut className="w-5 h-5" />
