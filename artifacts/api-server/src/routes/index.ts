@@ -73,6 +73,7 @@ import cadernosJuridicosRouter from "./cadernos-juridicos";
 import receituarioRouter from "./receituario";
 import adminPreviewRouter from "./admin-preview";
 import padteamRouter from "./padteam";
+import agentesRouter from "./agentes";
 
 const router: IRouter = Router();
 
@@ -172,5 +173,6 @@ router.use(adminPreviewRouter);
 router.use(dominiosRouter);
 router.use(dominiosComercialRouter);
 router.use(padteamRouter);
+router.use(agentesRouter);
 
 export default router;

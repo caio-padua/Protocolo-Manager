@@ -103,6 +103,7 @@ import PortfolioClinico from "@/pages/portfolio-clinico";
 import ExperienciaCliente from "@/pages/experiencia-cliente";
 import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
+import AgentesHub from "@/pages/agentes/index";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -256,6 +257,7 @@ function Router() {
             <Route path="/ceo/command-center" component={CommandCenter} />
             <Route path="/padteam/nova" component={NovaDemanda} />
             <Route path="/padteam" component={PadteamHub} />
+            <Route path="/agentes" component={AgentesHub} />
 
             <Route path="/arsenal/atestados" component={Atestados} />
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />

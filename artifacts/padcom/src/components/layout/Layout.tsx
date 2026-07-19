@@ -55,6 +55,7 @@ import {
   Compass,
   Crown,
   Globe,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -190,6 +191,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
+      { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
       { name: "Hierarquia", href: "/hierarquia", icon: Network },
       { name: "Governança", href: "/cadastros/governanca", icon: Landmark },
     ],
