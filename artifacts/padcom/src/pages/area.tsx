@@ -336,13 +336,14 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
             >
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
-            <div>
+            <div className="flex flex-col items-center">
               <img
                 src="/brand/parxis-wordmark-clean.png"
                 alt="PARXIS"
                 className="h-11 w-auto object-contain"
+                style={{ filter: "hue-rotate(14deg) saturate(0.72) brightness(1.06)" }}
               />
-              <p className="text-accent text-[10px] uppercase tracking-widest mt-1">{subtitle}</p>
+              <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
             </div>
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
