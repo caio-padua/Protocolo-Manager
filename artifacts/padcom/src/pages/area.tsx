@@ -142,34 +142,39 @@ export default function Area() {
         </div>
       )}
       {/* Header sticky — TOP BAR da grade imaginária da tela inteira */}
-      <header className="panel-3d sticky top-0 z-20 px-4 py-3 flex items-center justify-between border-b border-border/60">
-        <div className="flex items-center gap-3 min-w-0">
-          <a
-            href={PAXTER_SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="PAXTER — site institucional"
-            className="rounded flex items-center justify-center flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
-          >
-            <PaxterSymbolGlass size={24} tone="dark" />
-          </a>
-          <div className="min-w-0 flex flex-col items-start">
+      <header className="panel-3d sticky top-0 z-20 px-4 py-2 border-b border-border/60">
+        {/* Linha 1: símbolo RX + PARXIS alinhados | toggle + sair */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <a
+              href={PAXTER_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="PARXIS — site institucional"
+              className="rounded flex items-center justify-center flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+            >
+              <PaxterSymbolGlass size={22} tone="dark" />
+            </a>
+            {/* wordmark na mesma linha horizontal do símbolo */}
             <ParxisWordmark fontSize={13} />
-            <div className="concave-3d mt-0.5 px-2.5 py-0.5 inline-block rounded">
-              <span className="text-accent text-[10px] font-black uppercase tracking-wider truncate">
-                {client.name.toUpperCase()}
-              </span>
-            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ThemeToggle theme={theme} onToggle={toggle} />
+            <button
+              onClick={handleLogout}
+              className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" /> SAIR
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <ThemeToggle theme={theme} onToggle={toggle} />
-          <button
-            onClick={handleLogout}
-            className="btn-3d-soft flex items-center gap-1.5 text-xs px-3 py-1.5"
-          >
-            <LogOut className="w-3.5 h-3.5" /> SAIR
-          </button>
+        {/* Linha 2: nome do cliente centralizado */}
+        <div className="flex justify-center mt-1">
+          <div className="concave-3d px-3 py-0.5 rounded">
+            <span className="text-accent text-[10px] font-black uppercase tracking-wider">
+              {client.name.toUpperCase()}
+            </span>
+          </div>
         </div>
       </header>
 
