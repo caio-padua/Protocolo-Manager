@@ -4,13 +4,17 @@
  * 7 abas: Catálogo | Identidade | Personalidade | Capacidades | Motor | Narrativas | Frases
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Bot, Users, Brain, Zap, MessageSquare, BookOpen, AlignLeft,
   ChevronRight, Shield, Clock, RefreshCw, Edit2, Save, X,
   CheckCircle2, XCircle, User, Wifi, WifiOff, Play, Pause,
   Star, AlertTriangle, Check, ChevronDown, ChevronUp,
   Send, Cpu, Sparkles, Activity, RotateCcw, Radio,
+  Thermometer, Copy, ThumbsUp, ThumbsDown, Hash, TrendingUp,
+  DollarSign, Trash2, Plus, Settings, Globe, Lock, Crown,
+  Award, Target, BarChart2, MessageCircle, Sliders, Download,
+  ChevronLeft, Search, PlusCircle, LayoutGrid, Layers,
 } from "lucide-react";
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -946,10 +950,10 @@ function AbaFrases({ agentes }: { agentes: Agente[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ONDA B — Chat IA com streaming + animação homenzinhos
+// ONDA B — Chat IA Profissional (nível Claude.ai / ChatGPT)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PROVEDORES_OPCOES = [
+const MODELOS_CHAT = [
   { id: "claude-sonnet-4-6",               label: "Claude Sonnet 4.6 (Anthropic)" },
   { id: "claude-opus-4-8",                 label: "Claude Opus 4.8 (Mais poderoso)" },
   { id: "claude-haiku-4-5",                label: "Claude Haiku 4.5 (Veloz)" },
@@ -1557,6 +1561,884 @@ function AbaProvedores({ agentes }: { agentes: Agente[] }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHAT PRO — Console de IA Profissional (nível Claude.ai / ChatGPT)
+// Painel 3 zonas: Histórico | Conversa | Configurações
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface ConvHistorico {
+  id: number; agente_id: number; title: string; provedor: string;
+  agente_nome: string; emoji: string; cor_hex: string;
+  total_mensagens: number; created_at: string;
+}
+interface MsgPro { id?: number; role: "user"|"assistant"; content: string; feedback?: "up"|"down"|null; }
+
+function copiarTexto(texto: string) {
+  navigator.clipboard.writeText(texto).catch(() => null);
+}
+
+function AbaChatPro({ agentes }: { agentes: Agente[] }) {
+  const [agenteId, setAgenteId]       = useState<number>(agentes[0]?.id ?? 0);
+  const [modelo, setModelo]           = useState("claude-sonnet-4-6");
+  const [temperatura, setTemperatura] = useState(0.7);
+  const [maxTokens, setMaxTokens]     = useState(4096);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory]   = useState(true);
+
+  const [mensagens, setMensagens]     = useState<MsgPro[]>([]);
+  const [input, setInput]             = useState("");
+  const [streaming, setStreaming]     = useState(false);
+  const [textoStream, setTextoStream] = useState("");
+  const [convId, setConvId]           = useState<number | null>(null);
+  const [conversas, setConversas]     = useState<ConvHistorico[]>([]);
+  const [buscaConv, setBuscaConv]     = useState("");
+  const [tokensUso, setTokensUso]     = useState({ input: 0, output: 0 });
+  const [custoSessao, setCustoSessao] = useState(0);
+  const [feedbacks, setFeedbacks]     = useState<Record<number, "up"|"down">>({});
+  const [copiado, setCopiado]         = useState<number | null>(null);
+  const [msgEditando, setMsgEditando] = useState<number | null>(null);
+  const chatRef   = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  const agente = useMemo(() => agentes.find(a => a.id === agenteId) ?? agentes[0], [agentes, agenteId]);
+
+  const carregarConversas = useCallback(async () => {
+    const r = await apiFetch(`/agentes-chat/conversations?agente_id=${agenteId}`);
+    setConversas(Array.isArray(r) ? r : []);
+  }, [agenteId]);
+
+  useEffect(() => { carregarConversas(); }, [carregarConversas]);
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }, [mensagens, textoStream]);
+
+  async function carregarConversa(conv: ConvHistorico) {
+    setConvId(conv.id);
+    const msgs = await apiFetch(`/agentes-chat/conversation/${conv.id}/messages`);
+    setMensagens(Array.isArray(msgs) ? msgs : []);
+    setAgenteId(conv.agente_id);
+    setTextoStream("");
+  }
+
+  async function novaConversa() {
+    setMensagens([]); setConvId(null); setTextoStream("");
+    setTokensUso({ input: 0, output: 0 }); setCustoSessao(0);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }
+
+  async function deletarConversa(id: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    const token = localStorage.getItem("collaborator_token") ?? "";
+    await fetch(`${BASE}api/agentes-chat/conversation/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (convId === id) novaConversa();
+    carregarConversas();
+  }
+
+  async function enviar() {
+    const texto = input.trim();
+    if (!texto || streaming || !agente) return;
+    setInput("");
+    const novaMsg: MsgPro = { role: "user", content: texto };
+    const historico = [...mensagens, novaMsg];
+    setMensagens(historico);
+    setStreaming(true); setTextoStream("");
+
+    const token = localStorage.getItem("collaborator_token") ?? "";
+
+    let cid = convId;
+    if (!cid) {
+      const r = await fetch(`${BASE}api/agentes-chat/conversation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agente_id: agente.id, title: texto.slice(0, 60), provedor: modelo }),
+      });
+      const data = await r.json();
+      cid = data.id; setConvId(cid);
+    }
+
+    await fetch(`${BASE}api/agentes-chat/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ conversation_id: cid, role: "user", content: texto }),
+    });
+
+    let acumulado = "";
+    try {
+      const resp = await fetch(`${BASE}api/agentes-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ agente_id: agente.id, mensagens: historico, conversation_id: cid, temperatura, max_tokens: maxTokens }),
+      });
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error("stream inválido");
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const linha of chunk.split("\n")) {
+          if (!linha.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(linha.slice(6));
+            if (evt.content) { acumulado += evt.content; setTextoStream(acumulado); }
+            if (evt.done) {
+              setTokensUso(prev => ({ input: prev.input + (evt.tokens?.input ?? 0), output: prev.output + (evt.tokens?.output ?? 0) }));
+              setCustoSessao(prev => prev + (evt.custo_usd ?? 0));
+            }
+          } catch { /* json parcial */ }
+        }
+      }
+    } catch { acumulado = "Erro ao conectar com a IA. Verifique os provedores."; }
+
+    setMensagens(prev => [...prev, { role: "assistant", content: acumulado }]);
+    setTextoStream(""); setStreaming(false);
+    carregarConversas();
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }
+
+  function regerarUltima() {
+    const ultimo = [...mensagens].reverse().find(m => m.role === "user");
+    if (!ultimo) return;
+    const idx = mensagens.lastIndexOf(ultimo);
+    setMensagens(mensagens.slice(0, idx));
+    setInput(ultimo.content);
+  }
+
+  function copiar(i: number, texto: string) {
+    copiarTexto(texto);
+    setCopiado(i);
+    setTimeout(() => setCopiado(null), 2000);
+  }
+
+  function feedback(i: number, tipo: "up"|"down") {
+    setFeedbacks(prev => ({ ...prev, [i]: prev[i] === tipo ? undefined! : tipo }));
+  }
+
+  const convsFiltradas = conversas.filter(c =>
+    c.title.toLowerCase().includes(buscaConv.toLowerCase()) ||
+    c.agente_nome.toLowerCase().includes(buscaConv.toLowerCase())
+  );
+
+  const estimTokensInput = useMemo(() =>
+    Math.round(input.length / 4), [input]);
+
+  if (!agente) return <div className="text-center text-muted-foreground py-12">Nenhum agente cadastrado.</div>;
+
+  return (
+    <div className="flex gap-3" style={{ height: "680px" }}>
+
+      {/* ── PAINEL ESQUERDO: Histórico de Conversas ── */}
+      {showHistory && (
+        <div className="flex flex-col w-64 shrink-0 panel-3d rounded-[6px] overflow-hidden">
+          {/* Header */}
+          <div className="px-3 py-2.5 border-b border-border bg-muted/20 flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Histórico</span>
+            <button onClick={novaConversa}
+              className="w-6 h-6 rounded-[4px] bg-sidebar-primary/20 border border-sidebar-primary/30 flex items-center justify-center hover:bg-sidebar-primary/30 transition-colors">
+              <Plus className="w-3 h-3 text-sidebar-primary" />
+            </button>
+          </div>
+          {/* Busca */}
+          <div className="px-2 py-1.5 border-b border-border">
+            <div className="flex items-center gap-1.5 bg-background rounded-[4px] border border-border px-2 py-1">
+              <Search className="w-3 h-3 text-muted-foreground" />
+              <input value={buscaConv} onChange={e => setBuscaConv(e.target.value)}
+                placeholder="Buscar conversa…" className="flex-1 text-[11px] bg-transparent outline-none" />
+            </div>
+          </div>
+          {/* Lista */}
+          <div className="flex-1 overflow-y-auto">
+            {convsFiltradas.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-[11px]">
+                Nenhuma conversa ainda.<br />Clique em + para começar.
+              </div>
+            )}
+            {convsFiltradas.map(c => (
+              <div key={c.id}
+                onClick={() => carregarConversa(c)}
+                className={`group px-3 py-2 cursor-pointer border-b border-border/30 hover:bg-muted/20 transition-colors flex items-start gap-2 ${
+                  convId === c.id ? "bg-sidebar-primary/10 border-l-2 border-l-sidebar-primary" : ""
+                }`}>
+                <span className="text-base shrink-0 mt-0.5">{c.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold truncate">{c.title}</p>
+                  <p className="text-[9px] text-muted-foreground">{c.agente_nome} · {c.total_mensagens} msgs</p>
+                </div>
+                <button onClick={e => deletarConversa(c.id, e)}
+                  className="opacity-0 group-hover:opacity-100 text-red-400/60 hover:text-red-400 transition-all p-0.5 shrink-0">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {/* Seletor de agente */}
+          <div className="p-2 border-t border-border bg-muted/10">
+            <select value={agenteId}
+              onChange={e => { setAgenteId(Number(e.target.value)); novaConversa(); }}
+              className="w-full text-[11px] bg-background border border-border rounded-[4px] px-2 py-1">
+              {agentes.map(a => <option key={a.id} value={a.id}>{a.emoji} {a.nome}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ── CENTRO: Área de Chat ── */}
+      <div className="flex-1 flex flex-col panel-3d rounded-[6px] overflow-hidden min-w-0"
+        style={{ borderLeftWidth: 3, borderLeftColor: agente.cor_hex }}>
+
+        {/* Cabeçalho */}
+        <div className="px-4 py-2.5 border-b border-border flex items-center gap-3 bg-muted/10">
+          <button onClick={() => setShowHistory(!showHistory)}
+            className="text-muted-foreground hover:text-foreground transition-colors">
+            {showHistory ? <ChevronLeft className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </button>
+          <AvatarAgente a={agente} size="sm" />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">{agente.nome}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{agente.cargo} · {modelo}</p>
+          </div>
+          {/* Stats de token e custo */}
+          <div className="hidden md:flex items-center gap-3 text-[10px] text-muted-foreground">
+            {tokensUso.input > 0 && (
+              <>
+                <span className="flex items-center gap-1">
+                  <Hash className="w-3 h-3" />
+                  {(tokensUso.input + tokensUso.output).toLocaleString("pt-BR")} tokens
+                </span>
+                <span className="flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  US$ {custoSessao.toFixed(5)}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-emerald-400 font-semibold hidden sm:block">ONLINE</span>
+          </div>
+          <button onClick={() => setShowSettings(!showSettings)}
+            className={`p-1.5 rounded-[4px] transition-colors ${showSettings ? "bg-sidebar-primary/20 text-sidebar-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            <Sliders className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Mensagens */}
+        <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
+          {mensagens.length === 0 && !streaming && (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-3">{agente.emoji}</div>
+              <p className="text-sm font-semibold">{agente.nome} pronto</p>
+              <p className="text-xs text-muted-foreground mt-1">{agente.descricao}</p>
+              <div className="mt-6 grid grid-cols-2 gap-2 max-w-sm mx-auto">
+                {[
+                  "Quais são suas capacidades?",
+                  "Como posso te usar na clínica?",
+                  "Resumo do meu protocolo mais recente",
+                  "Dicas para melhorar o atendimento",
+                ].map(s => (
+                  <button key={s} onClick={() => { setInput(s); inputRef.current?.focus(); }}
+                    className="text-left text-[11px] panel-3d rounded-[6px] px-3 py-2 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mensagens.map((m, i) => (
+            <div key={i} className={`group flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+              {m.role === "assistant" && <AvatarAgente a={agente} size="sm" />}
+              {m.role === "user" && (
+                <div className="w-8 h-8 rounded-[6px] bg-muted border border-border flex items-center justify-center text-xs font-black">DR</div>
+              )}
+              <div className="flex flex-col gap-1 max-w-[78%]">
+                <div className={`rounded-[6px] px-3.5 py-2.5 text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "bg-sidebar-primary/10 border border-sidebar-primary/20 ml-auto"
+                    : "bg-muted/30 border border-border"
+                }`}>
+                  {m.content}
+                </div>
+                {/* Ações da mensagem */}
+                <div className={`flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <button onClick={() => copiar(i, m.content)}
+                    className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded transition-colors">
+                    {copiado === i ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiado === i ? "Copiado!" : "Copiar"}
+                  </button>
+                  {m.role === "assistant" && (
+                    <>
+                      <button onClick={() => feedback(i, "up")}
+                        className={`p-1 rounded transition-colors ${feedbacks[i] === "up" ? "text-emerald-400" : "text-muted-foreground hover:text-emerald-400"}`}>
+                        <ThumbsUp className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => feedback(i, "down")}
+                        className={`p-1 rounded transition-colors ${feedbacks[i] === "down" ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}>
+                        <ThumbsDown className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                  {m.role === "assistant" && i === mensagens.length - 1 && (
+                    <button onClick={regerarUltima}
+                      className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded transition-colors">
+                      <RotateCcw className="w-3 h-3" /> Regerar
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {streaming && (
+            <div className="flex gap-2.5">
+              <AvatarAgente a={agente} size="sm" />
+              <div className="flex-1">
+                {!textoStream
+                  ? <HomenzinhosAnimacao cor={agente.cor_hex} />
+                  : (
+                    <div className="bg-muted/30 border border-border rounded-[6px] px-3.5 py-2.5 text-sm leading-relaxed">
+                      {textoStream}
+                      <span className="inline-block w-0.5 h-4 bg-sidebar-primary ml-0.5 animate-pulse align-middle" />
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-3 border-t border-border bg-muted/5">
+          <div className="flex gap-2">
+            <div className="flex-1 flex flex-col">
+              <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+                placeholder={`Fale com ${agente.nome}… (Enter=enviar · Shift+Enter=nova linha)`}
+                disabled={streaming} rows={2}
+                className="w-full text-sm bg-background border border-border rounded-[6px] px-3 py-2 resize-none focus:outline-none focus:border-sidebar-primary/50 disabled:opacity-50"
+              />
+              <div className="flex items-center gap-3 mt-1 px-1">
+                <span className="text-[10px] text-muted-foreground">
+                  ~{estimTokensInput} tokens · R$ {(estimTokensInput / 1_000_000 * 3.0 * 5.5).toFixed(5)} estimado
+                </span>
+                {mensagens.length > 0 && (
+                  <button onClick={regerarUltima}
+                    className="text-[10px] text-muted-foreground hover:text-amber-400 flex items-center gap-1 transition-colors ml-auto">
+                    <RotateCcw className="w-3 h-3" /> Regerar
+                  </button>
+                )}
+              </div>
+            </div>
+            <button onClick={enviar} disabled={streaming || !input.trim()}
+              className="btn-3d-soft px-4 flex items-center gap-1.5 text-sm disabled:opacity-40 self-start mt-0.5"
+              style={{ color: agente.cor_hex, paddingTop: "9px", paddingBottom: "9px" }}>
+              <Send className="w-4 h-4" />
+              {streaming ? "…" : "Enviar"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PAINEL DIREITO: Configurações ── */}
+      {showSettings && (
+        <div className="w-64 shrink-0 flex flex-col panel-3d rounded-[6px] overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-border bg-muted/20">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Configurações</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-5">
+
+            {/* Modelo */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Modelo de IA</p>
+              <select value={modelo} onChange={e => setModelo(e.target.value)}
+                className="w-full text-[11px] bg-background border border-border rounded-[4px] px-2 py-1.5">
+                {MODELOS_CHAT.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </div>
+
+            {/* Temperatura */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                  <Thermometer className="w-3 h-3" /> Temperatura
+                </p>
+                <span className="text-[11px] font-mono text-sidebar-primary">{temperatura.toFixed(1)}</span>
+              </div>
+              <input type="range" min="0" max="1" step="0.1" value={temperatura}
+                onChange={e => setTemperatura(Number(e.target.value))}
+                className="w-full accent-sidebar-primary" />
+              <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                <span>Preciso (0.0)</span><span>Criativo (1.0)</span>
+              </div>
+            </div>
+
+            {/* Max Tokens */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                  <Hash className="w-3 h-3" /> Max Tokens
+                </p>
+                <span className="text-[11px] font-mono text-sidebar-primary">{maxTokens.toLocaleString("pt-BR")}</span>
+              </div>
+              <input type="range" min="256" max="16384" step="256" value={maxTokens}
+                onChange={e => setMaxTokens(Number(e.target.value))}
+                className="w-full accent-sidebar-primary" />
+              <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                <span>256</span><span>16.384</span>
+              </div>
+            </div>
+
+            {/* Personalidade */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Calibragem Ativa</p>
+              {[
+                { label: "Formalidade", val: agente.formalidade ?? 3 },
+                { label: "Empatia",     val: agente.empatia     ?? 3 },
+                { label: "Autoridade",  val: agente.autoridade  ?? 3 },
+                { label: "Clareza",     val: agente.clareza     ?? 3 },
+              ].map(d => (
+                <div key={d.label} className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] text-muted-foreground w-20 shrink-0">{d.label}</span>
+                  <div className="flex gap-0.5 flex-1">
+                    {[1,2,3,4,5].map(n => (
+                      <div key={n} className="flex-1 h-1.5 rounded-full"
+                        style={{ backgroundColor: n <= d.val ? agente.cor_hex : "rgba(255,255,255,0.08)" }} />
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-mono" style={{ color: agente.cor_hex }}>{d.val}/5</span>
+                </div>
+              ))}
+            </div>
+
+            {/* System Prompt Preview */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">System Prompt</p>
+              <div className="concave-3d rounded-[4px] p-2 text-[10px] text-muted-foreground leading-relaxed max-h-32 overflow-y-auto">
+                Você é <strong className="text-foreground">{agente.nome}</strong>, {agente.cargo}.<br/>
+                Tom: <em>{agente.tom_voz ?? "Profissional"}</em><br/>
+                Não faz: {agente.nao_faz ?? "N/D"}
+              </div>
+            </div>
+
+            {/* Exportar */}
+            <button onClick={() => {
+              const txt = mensagens.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join("\n\n---\n\n");
+              const blob = new Blob([txt], { type: "text/plain" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url; a.download = `conversa-${agente.nome}.txt`; a.click();
+            }} className="w-full btn-3d-soft py-1.5 text-xs flex items-center justify-center gap-1.5 text-muted-foreground">
+              <Download className="w-3 h-3" /> Exportar Conversa
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USO & CUSTO — Dashboard de Analytics da IA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AbaUso() {
+  const [stats, setStats] = useState<Record<string, number> & {
+    top_agentes?: Array<{ nome: string; emoji: string; cor_hex: string; conversas: number }>;
+    custo_usd_estimado?: number; custo_brl_estimado?: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch("/agentes-chat/stats").then(r => { setStats(r); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground text-sm">Carregando analytics…</div>;
+  if (!stats) return <div className="text-center py-12 text-muted-foreground text-sm">Sem dados ainda.</div>;
+
+  const kpis = [
+    { label: "Total de Conversas",    val: stats.total_conversas?.toLocaleString("pt-BR") ?? "0", cor: "#45B8CC", icon: MessageCircle },
+    { label: "Últimos 30 Dias",       val: stats.conversas_30d?.toLocaleString("pt-BR") ?? "0",  cor: "#22c55e", icon: TrendingUp },
+    { label: "Últimos 7 Dias",        val: stats.conversas_7d?.toLocaleString("pt-BR") ?? "0",   cor: "#f59e0b", icon: Activity },
+    { label: "Total de Mensagens",    val: stats.total_msgs?.toLocaleString("pt-BR") ?? "0",      cor: "#8b5cf6", icon: Hash },
+    { label: "Tokens Consumidos",     val: ((stats.tokens_input_total ?? 0) + (stats.tokens_output_total ?? 0)).toLocaleString("pt-BR"), cor: "#f97316", icon: Layers },
+    { label: "Custo Estimado (BRL)",  val: `R$ ${(stats.custo_brl_estimado ?? 0).toFixed(2)}`, cor: "#10B981", icon: DollarSign },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        {kpis.map(k => {
+          const Icon = k.icon;
+          return (
+            <div key={k.label} className="panel-3d rounded-[6px] p-3 text-center"
+              style={{ borderTopWidth: 2, borderTopColor: k.cor }}>
+              <Icon className="w-4 h-4 mx-auto mb-1.5" style={{ color: k.cor }} />
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">{k.label}</p>
+              <p className="text-lg font-black" style={{ color: k.cor }}>{k.val}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Top Agentes */}
+        <div className="panel-3d rounded-[6px] overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/10">
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+              <Award className="w-3.5 h-3.5" /> Top 5 Agentes por Conversas
+            </span>
+          </div>
+          <div className="p-4 space-y-3">
+            {(stats.top_agentes ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma conversa registrada ainda.</p>
+            )}
+            {(stats.top_agentes ?? []).map((ag, i) => (
+              <div key={ag.nome} className="flex items-center gap-3">
+                <span className="text-[10px] font-black w-4 text-muted-foreground">{i + 1}º</span>
+                <span className="text-lg">{ag.emoji}</span>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-semibold">{ag.nome}</span>
+                    <span className="text-[10px] font-mono" style={{ color: ag.cor_hex }}>{ag.conversas}</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-muted/30">
+                    <div className="h-1.5 rounded-full" style={{
+                      width: `${Math.max(4, ((ag.conversas / Math.max(1, (stats.top_agentes ?? [])[0]?.conversas ?? 1)) * 100))}%`,
+                      backgroundColor: ag.cor_hex,
+                    }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Breakdown de Tokens */}
+        <div className="panel-3d rounded-[6px] overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/10">
+            <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex items-center gap-2">
+              <BarChart2 className="w-3.5 h-3.5" /> Detalhamento de Custo
+            </span>
+          </div>
+          <div className="p-4">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border/50">
+                  <th className="text-left py-1.5 text-[9px] font-black uppercase text-muted-foreground">Item</th>
+                  <th className="text-right py-1.5 text-[9px] font-black uppercase text-muted-foreground">Quantidade</th>
+                  <th className="text-right py-1.5 text-[9px] font-black uppercase text-muted-foreground">Custo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                <tr>
+                  <td className="py-2">Tokens de entrada (input)</td>
+                  <td className="text-right font-mono">{(stats.tokens_input_total ?? 0).toLocaleString("pt-BR")}</td>
+                  <td className="text-right font-mono text-emerald-400">
+                    US$ {((stats.tokens_input_total ?? 0) / 1_000_000 * 3.0).toFixed(4)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2">Tokens de saída (output)</td>
+                  <td className="text-right font-mono">{(stats.tokens_output_total ?? 0).toLocaleString("pt-BR")}</td>
+                  <td className="text-right font-mono text-amber-400">
+                    US$ {((stats.tokens_output_total ?? 0) / 1_000_000 * 15.0).toFixed(4)}
+                  </td>
+                </tr>
+                <tr className="font-bold">
+                  <td className="py-2 text-sidebar-primary">Total (USD)</td>
+                  <td></td>
+                  <td className="text-right font-mono text-sidebar-primary">
+                    US$ {(stats.custo_usd_estimado ?? 0).toFixed(4)}
+                  </td>
+                </tr>
+                <tr className="font-bold">
+                  <td className="py-2 text-amber-400">Total (BRL ~5,5x)</td>
+                  <td></td>
+                  <td className="text-right font-mono text-amber-400">
+                    R$ {(stats.custo_brl_estimado ?? 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-[9px] text-muted-foreground mt-4 text-center">
+              Preços referentes ao Claude Sonnet 4.6 (US$ 3/M input · US$ 15/M output). Cotação BRL estimada.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Alerta de economia */}
+      <div className="panel-3d rounded-[6px] p-4 flex items-start gap-3" style={{ borderLeftWidth: 3, borderLeftColor: "#22c55e" }}>
+        <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-bold text-emerald-400">Custo via Replit AI Integrations</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Este sistema usa o proxy do Replit para as chamadas de IA — <strong>você não precisa de uma chave própria da Anthropic</strong>.
+            O custo real é incluído na sua assinatura Replit. Ao vender licenças do PAXTER,
+            inclua uma margem de segurança de <strong>20–30%</strong> sobre o custo de IA estimado acima.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMERCIAL — Monetização e Venda de Licenças
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PLANOS = [
+  {
+    id: "basico",
+    nome: "Básico",
+    preco: 497,
+    cor: "#45B8CC",
+    icon: Globe,
+    descricao: "Para clínicas de 1 médico",
+    recursos: [
+      "Até 50 clientes ativos",
+      "Agenda + Protocolos + RAS",
+      "3 Agentes Virtuais",
+      "Chat IA (Claude Haiku — rápido)",
+      "WhatsApp via Twilio",
+      "Google Drive integrado",
+      "Suporte por e-mail",
+    ],
+    nao_inclui: ["IA avançada (Opus/GPT-5)", "Multi-clínica", "API própria"],
+  },
+  {
+    id: "pro",
+    nome: "Profissional",
+    preco: 997,
+    cor: "#D97706",
+    icon: Crown,
+    destaque: true,
+    descricao: "Para clínicas estruturadas",
+    recursos: [
+      "Clientes ilimitados",
+      "Todos os módulos clínicos",
+      "20 Agentes Virtuais completos",
+      "Chat IA (todos os 4 provedores)",
+      "RAS FAP + Assinatura Digital ICP-Brasil",
+      "Financeiro + Asaas integrado",
+      "Análise de exames por IA",
+      "Prioridade no suporte",
+    ],
+    nao_inclui: ["Multi-clínica", "White-label"],
+  },
+  {
+    id: "enterprise",
+    nome: "Enterprise",
+    preco: 2497,
+    cor: "#7C3AED",
+    icon: Award,
+    descricao: "Redes e franquias",
+    recursos: [
+      "Multi-clínica (até 10 unidades)",
+      "White-label (sua marca)",
+      "Painel central de comando",
+      "API REST própria documentada",
+      "SLA garantido 99,5%",
+      "Onboarding dedicado",
+      "Treinamento da equipe",
+      "Gestor de conta exclusivo",
+    ],
+    nao_inclui: [],
+  },
+];
+
+function AbaComercial() {
+  const [pitchCopiado, setPitchCopiado] = useState<string | null>(null);
+  const [planoSel, setPlanoSel] = useState("pro");
+  const [nomeClinica, setNomeClinica] = useState("");
+  const [nomeMedico, setNomeMedico] = useState("");
+
+  function gerarPitch(planoId: string) {
+    const plano = PLANOS.find(p => p.id === planoId)!;
+    const clinica = nomeClinica || "sua clínica";
+    const medico = nomeMedico || "Dr(a).";
+    return `Olá, ${medico}! 👋
+
+Quero te apresentar o *PAXTER* — o sistema de gestão clínica mais completo para protocolos injetáveis do Brasil.
+
+*${plano.nome} — R$ ${plano.preco.toLocaleString("pt-BR")}/mês*
+
+✅ ${plano.recursos.slice(0, 4).join("\n✅ ")}
+
+Para ${clinica}, isso significa:
+• Protocolos e RAS digitais com assinatura ICP-Brasil
+• Agenda integrada ao Google Calendar
+• Agentes de IA que respondem seus clientes automaticamente
+• Tudo rodando do celular, sem instalação
+
+📲 Posso agendar uma demo de 20min esta semana?
+
+_PAXTER — Clinical Intelligence System_`;
+  }
+
+  function copiarPitch(planoId: string) {
+    const txt = gerarPitch(planoId);
+    copiarTexto(txt);
+    setPitchCopiado(planoId);
+    setTimeout(() => setPitchCopiado(null), 3000);
+  }
+
+  return (
+    <div className="space-y-4">
+
+      {/* Planos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {PLANOS.map(p => {
+          const Icon = p.icon;
+          return (
+            <div key={p.id} className={`panel-3d rounded-[6px] overflow-hidden flex flex-col ${(p as Record<string,unknown>).destaque ? "ring-2" : ""}`}
+              style={{
+                borderTopWidth: 3, borderTopColor: p.cor,
+                ...(((p as Record<string,unknown>).destaque) ? { outlineColor: p.cor } : {}),
+              }}>
+              {((p as Record<string,unknown>).destaque) && (
+                <div className="text-center py-1 text-[9px] font-black uppercase tracking-widest"
+                  style={{ backgroundColor: p.cor + "30", color: p.cor }}>
+                  MAIS POPULAR
+                </div>
+              )}
+              <div className="p-4 flex-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-[6px] flex items-center justify-center"
+                    style={{ backgroundColor: p.cor + "20", borderWidth: 1, borderColor: p.cor + "40" }}>
+                    <Icon className="w-4 h-4" style={{ color: p.cor }} />
+                  </div>
+                  <div>
+                    <p className="font-black text-sm" style={{ color: p.cor }}>{p.nome}</p>
+                    <p className="text-[10px] text-muted-foreground">{p.descricao}</p>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-3xl font-black" style={{ color: p.cor }}>
+                    R$ {p.preco.toLocaleString("pt-BR")}
+                  </span>
+                  <span className="text-xs text-muted-foreground">/mês</span>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    = R$ {(p.preco / 30).toFixed(0)}/dia · {(p.preco / 30 / 8).toFixed(1)} por hora de clínica
+                  </p>
+                </div>
+                <ul className="space-y-1.5">
+                  {p.recursos.map(r => (
+                    <li key={r} className="flex items-start gap-1.5 text-[11px]">
+                      <Check className="w-3 h-3 mt-0.5 shrink-0 text-emerald-400" />
+                      {r}
+                    </li>
+                  ))}
+                  {p.nao_inclui.map(r => (
+                    <li key={r} className="flex items-start gap-1.5 text-[11px] text-muted-foreground/50">
+                      <X className="w-3 h-3 mt-0.5 shrink-0" />
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="p-3 border-t border-border">
+                <button onClick={() => copiarPitch(p.id)}
+                  className="w-full btn-3d-soft py-2 text-xs font-semibold flex items-center justify-center gap-1.5"
+                  style={{ color: p.cor }}>
+                  {pitchCopiado === p.id ? <><Check className="w-3 h-3 text-emerald-400" /> Copiado!</> : <><Copy className="w-3 h-3" /> Copiar Pitch WhatsApp</>}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Gerador de Pitch Personalizado */}
+      <div className="panel-3d rounded-[6px] overflow-hidden" style={{ borderLeftWidth: 3, borderLeftColor: "#D97706" }}>
+        <div className="px-4 py-3 border-b border-border bg-amber-500/5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+            <Target className="w-3.5 h-3.5" /> Gerador de Pitch Personalizado
+          </span>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Plano</label>
+                <select value={planoSel} onChange={e => setPlanoSel(e.target.value)}
+                  className="w-full text-xs bg-background border border-border rounded-[4px] px-2 py-1.5">
+                  {PLANOS.map(p => <option key={p.id} value={p.id}>{p.nome} — R$ {p.preco}/mês</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Nome do Médico</label>
+                <input value={nomeMedico} onChange={e => setNomeMedico(e.target.value)}
+                  placeholder="Dr. João Silva"
+                  className="w-full text-xs bg-background border border-border rounded-[4px] px-2 py-1.5" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Nome da Clínica</label>
+                <input value={nomeClinica} onChange={e => setNomeClinica(e.target.value)}
+                  placeholder="Clínica Bela Forma"
+                  className="w-full text-xs bg-background border border-border rounded-[4px] px-2 py-1.5" />
+              </div>
+              <button onClick={() => copiarPitch(planoSel)}
+                className="w-full btn-3d-soft py-2 text-xs font-semibold flex items-center justify-center gap-1.5 text-amber-400">
+                {pitchCopiado === planoSel ? <><Check className="w-3 h-3 text-emerald-400" /> Copiado!</> : <><Copy className="w-3 h-3" /> Copiar Pitch</>}
+              </button>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Prévia do Pitch</p>
+              <pre className="concave-3d rounded-[6px] p-3 text-[11px] whitespace-pre-wrap leading-relaxed text-foreground font-mono overflow-y-auto"
+                style={{ maxHeight: "220px" }}>
+                {gerarPitch(planoSel)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Roteiro de Vendas */}
+      <div className="panel-3d rounded-[6px] overflow-hidden" style={{ borderLeftWidth: 3, borderLeftColor: "#22c55e" }}>
+        <div className="px-4 py-3 border-b border-border bg-emerald-500/5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" /> Roteiro de Venda — 5 Etapas para a Primeira Licença
+          </span>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          <table className="w-full text-xs min-w-[640px]">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 text-[9px] font-black uppercase text-muted-foreground w-8">Etapa</th>
+                <th className="text-left py-2 text-[9px] font-black uppercase text-muted-foreground">Ação</th>
+                <th className="text-left py-2 text-[9px] font-black uppercase text-muted-foreground">Ferramenta</th>
+                <th className="text-left py-2 text-[9px] font-black uppercase text-muted-foreground">Prazo</th>
+                <th className="text-left py-2 text-[9px] font-black uppercase text-muted-foreground">Meta</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {[
+                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RAS)", ferr:"PAXTER internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
+                { e:"2", acao:"Gravar vídeo de 3min mostrando o sistema em uso real", ferr:"Celular + Loom", prazo:"Dia 14", meta:"Prova social visual" },
+                { e:"3", acao:"Listar 10 médicos conhecidos do seu network (WhatsApp)", ferr:"Contatos pessoais", prazo:"Dia 15", meta:"Pipeline de 10 leads" },
+                { e:"4", acao:"Enviar pitch personalizado para os 10 (usar gerador acima)", ferr:"WhatsApp + pitch desta aba", prazo:"Dias 15-17", meta:"3+ respostas positivas" },
+                { e:"5", acao:"Agendar demo de 20min e fechar contrato de 3 meses mínimo", ferr:"Google Meet + contrato simples", prazo:"Semana 3", meta:"1ª licença paga" },
+              ].map((r, i) => (
+                <tr key={i} className={i % 2 === 0 ? "bg-muted/5" : ""}>
+                  <td className="py-2 font-black text-emerald-400">{r.e}</td>
+                  <td className="py-2">{r.acao}</td>
+                  <td className="py-2 text-muted-foreground">{r.ferr}</td>
+                  <td className="py-2 font-mono text-sidebar-primary">{r.prazo}</td>
+                  <td className="py-2 text-amber-400">{r.meta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── KPI Cards ───────────────────────────────────────────────────────────────
 
 function KPICards({ agentes }: { agentes: Agente[] }) {
@@ -1589,15 +2471,18 @@ function KPICards({ agentes }: { agentes: Agente[] }) {
 // ─── Hub Principal ────────────────────────────────────────────────────────────
 
 const ABAS = [
-  { key: "catalogo",       label: "Catálogo",        icon: Bot           },
-  { key: "identidade",     label: "Identidade",      icon: User          },
-  { key: "personalidade",  label: "Personalidade",   icon: Brain         },
-  { key: "capacidades",    label: "Capacidades",     icon: Shield        },
-  { key: "chat",           label: "Chat IA",         icon: MessageSquare },
-  { key: "provedores",     label: "Provedores IA",   icon: Cpu           },
-  { key: "motor",          label: "Motor de Escrita",icon: Zap           },
-  { key: "narrativas",     label: "Narrativas",      icon: BookOpen      },
-  { key: "frases",         label: "Frases-Base",     icon: AlignLeft     },
+  { key: "catalogo",       label: "Catálogo",        icon: Bot,          grupo: "agentes"    },
+  { key: "identidade",     label: "Identidade",      icon: User,         grupo: "agentes"    },
+  { key: "personalidade",  label: "Personalidade",   icon: Brain,        grupo: "agentes"    },
+  { key: "capacidades",    label: "Capacidades",     icon: Shield,       grupo: "agentes"    },
+  { key: "motor",          label: "Motor de Escrita",icon: Zap,          grupo: "agentes"    },
+  { key: "narrativas",     label: "Narrativas",      icon: BookOpen,     grupo: "agentes"    },
+  { key: "frases",         label: "Frases-Base",     icon: AlignLeft,    grupo: "agentes"    },
+  { key: "chat",           label: "Chat IA",         icon: MessageSquare,grupo: "ia"         },
+  { key: "chatpro",        label: "Console IA Pro",  icon: Sparkles,     grupo: "ia"         },
+  { key: "provedores",     label: "Provedores",      icon: Cpu,          grupo: "ia"         },
+  { key: "uso",            label: "Uso & Custo",     icon: BarChart2,    grupo: "comercial"  },
+  { key: "comercial",      label: "Comercial",       icon: DollarSign,   grupo: "comercial"  },
 ] as const;
 
 type AbaKey = typeof ABAS[number]["key"];
@@ -1648,36 +2533,62 @@ export default function AgentesHub() {
       {!loading && <KPICards agentes={agentes} />}
       {loading && <div className="text-sm text-muted-foreground py-4 text-center">Carregando agentes…</div>}
 
-      {/* Abas */}
+      {/* Abas — agrupadas em 3 faixas */}
       {!loading && (
         <>
-          <div className="flex flex-wrap gap-1 border-b border-border pb-0">
-            {ABAS.map(a => {
-              const Icon = a.icon;
-              const ativo = aba === a.key;
+          {/* Faixa de grupos */}
+          <div className="space-y-0">
+            {[
+              { id: "agentes",   label: "Agentes",   cor: "#45B8CC" },
+              { id: "ia",        label: "IA",         cor: "#D97706" },
+              { id: "comercial", label: "Comercial",  cor: "#22c55e" },
+            ].map(grupo => {
+              const abasGrupo = ABAS.filter(a => a.grupo === grupo.id);
+              const temAtivo = abasGrupo.some(a => a.key === aba);
               return (
-                <button key={a.key} onClick={() => setAba(a.key)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-[4px] border-b-2 transition-all ${
-                    ativo
-                      ? "border-sidebar-primary text-sidebar-primary bg-sidebar-primary/5"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}>
-                  <Icon className="w-3.5 h-3.5" />{a.label}
-                </button>
+                <div key={grupo.id} className="mb-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[9px] font-black uppercase tracking-widest px-1.5"
+                      style={{ color: grupo.cor }}>
+                      {grupo.label}
+                    </span>
+                    <div className="flex-1 h-px" style={{ backgroundColor: grupo.cor + "30" }} />
+                  </div>
+                  <div className="flex flex-wrap gap-0.5">
+                    {abasGrupo.map(a => {
+                      const Icon = a.icon;
+                      const ativo = aba === a.key;
+                      return (
+                        <button key={a.key} onClick={() => setAba(a.key)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-[4px] border transition-all ${
+                            ativo
+                              ? "border-b-2 text-foreground bg-muted/20"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                          }`}
+                          style={ativo ? { borderBottomColor: grupo.cor, color: grupo.cor } : {}}>
+                          <Icon className="w-3 h-3" />{a.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
 
-          <div>
+          <div className="mt-2">
             {aba === "catalogo"      && <AbaCatalogo agentes={agentes} onSelect={selecionarAgente} />}
             {aba === "identidade"    && <AbaIdentidade agentes={agentes} />}
             {aba === "personalidade" && <AbaPersonalidade agentes={agentes} onReload={carregar} />}
             {aba === "capacidades"   && <AbaCapacidades agentes={agentes} onReload={carregar} />}
-            {aba === "chat"          && <AbaChat agentes={agentes} />}
-            {aba === "provedores"    && <AbaProvedores agentes={agentes} />}
             {aba === "motor"         && <AbaMotor agentes={agentes} />}
             {aba === "narrativas"    && <AbaNarrativas agentes={agentes} />}
             {aba === "frases"        && <AbaFrases agentes={agentes} />}
+            {aba === "chat"          && <AbaChat agentes={agentes} />}
+            {aba === "chatpro"       && <AbaChatPro agentes={agentes} />}
+            {aba === "provedores"    && <AbaProvedores agentes={agentes} />}
+            {aba === "uso"           && <AbaUso />}
+            {aba === "comercial"     && <AbaComercial />}
           </div>
         </>
       )}
