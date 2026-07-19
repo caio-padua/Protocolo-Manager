@@ -181,12 +181,11 @@ export default function Area() {
           </div>
         </a>
 
-        {/* Direita: nome do cliente — pill com fonte serifada de grife */}
+        {/* Direita: nome do cliente — pill com fonte serifada de grife, sem ícone */}
         <div
-          className="concave-3d flex items-center gap-2 px-3 py-2 flex-shrink-0"
+          className="concave-3d flex items-center px-3 py-2 flex-shrink-0"
           style={{ borderRadius: 8 }}
         >
-          <User className="w-3.5 h-3.5 text-accent flex-shrink-0" />
           <span
             className="text-accent"
             style={{
@@ -835,8 +834,8 @@ function StatusBadge({ status }: { status: string }) {
     scheduled: "bg-primary/10 text-primary border-primary/20",
     confirmed: "bg-cyan-100 text-cyan-700 border-cyan-200",
     missed:    "bg-red-100 text-red-600 border-red-200",
-    paid:      "bg-green-100 text-green-700 border-green-200",
-    pending:   "bg-amber-100 text-amber-700 border-amber-200",
+    paid:      "bg-primary/8 text-primary border-primary/15",
+    pending:   "bg-red-100 text-red-600 border-red-200",
   };
   const cls = map[status] ?? "bg-slate-100 text-slate-500 border-slate-200";
   return (
@@ -1562,19 +1561,24 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">TOTAL PAGO</p>
-                <p className="text-green-600 font-black text-base">{brMoney(f.totalPago)}</p>
+                <p className="text-green-500 font-black text-xl" style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPago)}</p>
               </div>
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">PENDENTE</p>
-                <p className="text-amber-600 font-black text-base">{brMoney(f.totalPendente)}</p>
+                <p className="text-red-500 font-black text-xl" style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{brMoney(f.totalPendente)}</p>
               </div>
             </div>
             {f.payments.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">Nenhum pagamento registrado.</p>}
             {f.payments.map((p) => (
               <div key={p.id} className="panel-3d-sub rounded-lg p-3 border-l-4"
-                style={{ borderLeftColor: p.status === "paid" ? "#22c55e" : "#f59e0b" }}>
+                style={{ borderLeftColor: p.status === "paid" ? "#22c55e" : "#ef4444" }}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-primary font-black text-base">{brMoney(p.amount)}</p>
+                  <p
+                    className={`font-black text-lg ${p.status === "paid" ? "text-primary" : "text-red-500"}`}
+                    style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}
+                  >
+                    {brMoney(p.amount)}
+                  </p>
                   <StatusBadge status={p.status} />
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
