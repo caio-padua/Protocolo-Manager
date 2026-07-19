@@ -184,7 +184,7 @@ export default function Area() {
       </main>
 
       {/* Logo-bar fixa — PAXTER (esq) + PADCON (dir) — painel que não rola */}
-      <div className="fixed bottom-[60px] left-0 right-0 z-19">
+      <div className="fixed bottom-[60px] left-0 right-0 z-[19]">
         <TernoFooter theme={theme} />
       </div>
 
