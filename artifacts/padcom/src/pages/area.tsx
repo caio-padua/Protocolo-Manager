@@ -912,9 +912,9 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
     <div className="space-y-4">
       {/* Saudação */}
       <div className="panel-3d rounded-xl overflow-hidden">
-        <div className="bg-primary px-5 py-4">
-          <p className="text-primary-foreground/80 text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
-          <h2 className="text-white font-black text-2xl mt-0.5">{firstName(data.client.name)}</h2>
+        <div className="login-card-topbar px-5 py-4">
+          <p className="text-muted-foreground text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
+          <h2 className="text-primary font-black text-2xl mt-0.5">{firstName(data.client.name)}</h2>
         </div>
         {/* Meta grid 2×2 */}
         <div className="grid grid-cols-2 gap-2 p-3">
@@ -1339,9 +1339,9 @@ function SelfScheduler({ client, onBooked, reagendar, onClose }: { client: Clien
 
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
-      <div className="bg-primary px-5 py-4 flex items-center gap-3">
+      <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
         <CalendarDays className="w-5 h-5 text-accent" />
-        <h2 className="text-white font-black text-sm uppercase tracking-widest">{isReagendar ? "REMARCAR ATENDIMENTO" : "GERENCIAR AGENDA"}</h2>
+        <h2 className="text-primary font-black text-sm uppercase tracking-widest">{isReagendar ? "REMARCAR ATENDIMENTO" : "GERENCIAR AGENDA"}</h2>
       </div>
       <div className="p-5 space-y-4">
         {isReagendar && (
@@ -1628,9 +1628,9 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
-      <div className="bg-primary px-5 py-4 flex items-center gap-3">
+      <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
         <FileUp className="w-5 h-5 text-accent" />
-        <h2 className="text-white font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
+        <h2 className="text-primary font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>
