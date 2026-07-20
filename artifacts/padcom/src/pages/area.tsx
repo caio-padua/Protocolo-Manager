@@ -219,49 +219,48 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel VERTICAL — estreito, empilhado, botões bevel */}
+      {/* Mini-painel VERTICAL — estreito, só ícones, mesma altura da nav */}
       <div
-        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center py-2 gap-1"
-        style={{ borderTopLeftRadius: 8, width: 54 }}
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-2"
+        style={{ borderTopLeftRadius: 8, width: 48 }}
       >
         <button
           type="button"
           onClick={toggle}
+          title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-          className="btn-3d-soft flex flex-col items-center gap-0.5 py-1.5 px-2 w-10 rounded-lg text-accent"
+          className="btn-3d-soft p-2 rounded-lg text-accent"
         >
           {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          <span className="text-[7px] font-bold uppercase tracking-wider leading-none">
-            {theme === "dark" ? "CLARO" : "ESCURO"}
-          </span>
         </button>
-
-        <div className="border-t border-border/40 w-8" />
-
         <button
           type="button"
           onClick={handleLogout}
-          className="btn-3d-soft flex flex-col items-center gap-0.5 py-1.5 px-2 w-10 rounded-lg text-muted-foreground hover:text-accent transition-colors"
+          title="Sair"
+          className="btn-3d-soft p-2 rounded-lg text-muted-foreground hover:text-accent transition-colors"
         >
           <LogOut className="w-4 h-4" />
-          <span className="text-[7px] font-bold uppercase tracking-wider leading-none">SAIR</span>
         </button>
       </div>
 
+      {/* Scroll affordance — FIXED, fora do overflow, aparece 2.8s e some */}
+      {showScrollHint && (
+        <div
+          className="scroll-hint-arrow pointer-events-none fixed z-25 flex items-center justify-center"
+          style={{ bottom: 0, right: 52, width: 28, height: 64 }}
+        >
+          <ChevronRight className="w-5 h-5 text-accent opacity-70" />
+        </div>
+      )}
+
       {/* Bottom navigation — deslizante horizontal (8 itens) */}
       <nav
-        className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60 relative"
+        className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60"
         style={{ overflowX: "auto", scrollbarWidth: "none" }}
       >
-        {/* Scroll affordance — seta que aparece 2.8s e some, indicando deslize */}
-        {showScrollHint && (
-          <div className="scroll-hint-arrow pointer-events-none absolute right-14 top-0 bottom-0 z-10 flex items-center">
-            <ChevronRight className="w-5 h-5 text-accent" />
-          </div>
-        )}
         <div
           className="flex"
-          style={{ minWidth: "max-content", paddingRight: 58 /* reserva espaço do mini-painel dir (54px) */ }}
+          style={{ minWidth: "max-content", paddingRight: 52 /* reserva espaço do mini-painel (48px) */ }}
         >
           {TABS.map((t) => {
             const Icon = t.icon;
