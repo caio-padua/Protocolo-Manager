@@ -1,0 +1,42 @@
+REPLIT — NÃO REDESENHE O ARABESCO
+
+Implemente o motor de temas de receituário usando os arquivos fornecidos.
+
+Há dois modos:
+
+1. INLINE SVG
+- renderMode = "inline-svg"
+- usar o componente InlineRinceauxPattern.tsx;
+- o SVG deve estar no DOM;
+- não usar CSS background-image para este modo;
+- melhor opção para PDF.
+
+2. RASTER STRIP
+- renderMode = "raster-strip"
+- usar um <img> absoluto atrás dos cartões;
+- usar os arquivos band-*.png;
+- não redesenhar, não repetir e não deformar;
+- object-fit: cover;
+- a imagem já tem a proporção correta da faixa.
+
+A seleção do modelo será feita pela propriedade modelId.
+O mesmo modelId deve ser aplicado à faixa superior e inferior.
+
+Não codifique ifs espalhados pela tela.
+Use o registro arabesqueModels.ts.
+
+A faixa:
+- deve ocupar 100% da largura disponível;
+- deve estar centralizada verticalmente nos cartões;
+- deve ser criada antes dos cartões;
+- deve ficar em z-index 0;
+- cartões em z-index 2;
+- cartões devem ter fundo branco opaco.
+
+Antes de finalizar:
+1. selecionar cada modelo no componente;
+2. exportar PDF A4;
+3. verificar que SVG inline aparece no PDF;
+4. verificar que PNG aparece sem deformação;
+5. verificar que a faixa é visível à esquerda, no meio e à direita;
+6. verificar que os cartões escondem o desenho sob sua área.
