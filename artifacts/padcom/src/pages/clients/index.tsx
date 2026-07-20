@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Plus, User, Phone, Mail, Activity,
   CheckSquare, Square, Trash2, UserCheck, UserX,
-  RotateCcw, AlertTriangle,
+  RotateCcw, AlertTriangle, Camera,
 } from "lucide-react";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { tituloProprio } from "@/lib/utils";
@@ -323,23 +323,44 @@ export default function Clients() {
                   }
                 </div>
 
-                {/* Link para o prontuário — clique no botão, não no card inteiro */}
+                {/* Conteúdo do card */}
                 <CardContent className="p-5 flex flex-col">
-                  <div className="flex justify-between items-start mb-4 pl-6">
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-bold leading-none text-primary tracking-tight line-clamp-1">
-                        {tituloProprio(client.name)}
-                      </h3>
-                      <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums">
-                        {client.cpf}
+
+                  {/* Cabeçalho: foto + identidade */}
+                  <div className="flex items-start gap-3 mb-4 pl-6">
+
+                    {/* Espaço retangular da foto (portrait 56×72 px) */}
+                    <div className="concave-3d rounded-[6px] p-1 shrink-0">
+                      <div className="w-14 h-[72px] rounded-[4px] overflow-hidden bg-muted flex items-center justify-center">
+                        {client.photoUrl ? (
+                          <img
+                            src={client.photoUrl}
+                            alt="Foto"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Camera className="w-5 h-5 text-muted-foreground/40" />
+                        )}
                       </div>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={`rounded-[4px] border-none px-2 py-1 text-[9px] font-extrabold uppercase tracking-widest shadow-sm ${getStatusColor(client.status)}`}
-                    >
-                      {formatStatus(client.status)}
-                    </Badge>
+
+                    {/* Nome + CPF + status */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-between h-[80px]">
+                      <div>
+                        <h3 className="text-base font-bold leading-tight text-primary tracking-tight line-clamp-2">
+                          {tituloProprio(client.name)}
+                        </h3>
+                        <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums mt-1">
+                          {client.cpf}
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`self-start rounded-[4px] border-none px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest shadow-sm ${getStatusColor(client.status)}`}
+                      >
+                        {formatStatus(client.status)}
+                      </Badge>
+                    </div>
                   </div>
 
                   <div className="space-y-2 mb-4">

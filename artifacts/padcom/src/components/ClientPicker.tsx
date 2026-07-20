@@ -22,6 +22,10 @@ export interface ClientPickerOption {
   id: number;
   name: string;
   cpf?: string | null;
+  /** Se fornecido, clientes com status != "active" ficam fora da lista. */
+  status?: string | null;
+  /** Se fornecido e não nulo, cliente está apagado e fica fora da lista. */
+  deletedAt?: string | null;
 }
 
 interface ClientPickerProps {
@@ -73,11 +77,15 @@ export function ClientPicker({
   }, [clientes]);
 
   // Filtro principal — busca por nome E CPF, combinado com filtro de letra
+  // Clientes inativos (status != "active") ou apagados (deletedAt != null) são excluídos
+  // quando esses campos estiverem presentes no objeto.
   const filtrados = useMemo(() => {
     const q      = norm(busca.trim());
     const digits = busca.replace(/\D/g, "");
     return clientes
       .filter((c) => {
+        if (c.deletedAt != null) return false;
+        if (c.status != null && c.status !== "active") return false;
         if (letra && inicial(c.name) !== letra) return false;
         if (!q && !digits) return true;
         const byName = q.length > 0 && norm(c.name).includes(q);
