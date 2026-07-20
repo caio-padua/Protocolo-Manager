@@ -8,7 +8,8 @@ import {
   LayoutTemplate, Save, Upload, Trash2, CheckCircle2, ChevronDown, ChevronRight,
   ImageIcon, Building2, AlignLeft, Layers, Footprints, Zap, Eye, EyeOff,
   AlertCircle, Info, Printer, Type, Palette, PenLine, Shield, GripVertical,
-  SplitSquareVertical, Rows, Users, Stethoscope, BadgeCheck,
+  SplitSquareVertical, Rows, Users, Stethoscope, BadgeCheck, ZoomIn, X,
+  FolderUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,8 +170,10 @@ export default function ConfigReceituario() {
   const [previewBand, setPreviewBand] = useState<string>(bandModel);
   const [previewCustomUrl, setPreviewCustomUrl] = useState<string | undefined>();
   const [showPreview, setShowPreview] = useState(true);
+  const [showZoom, setShowZoom]     = useState(false);    // P2: modal de zoom
   const [saved, setSaved]     = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [gerandoDemo, setGerandoDemo] = useState(false); // P7
 
   // P1: Seletor de clínica e médico
   const [locationsList, setLocationsList] = useState<Array<{ id: number; name: string; razaoSocial?: string; nomeFantasia?: string; cnpj?: string; certTitular?: string; certTipo?: string; certValidade?: string }>>([]);
@@ -183,6 +186,18 @@ export default function ConfigReceituario() {
 
   const selectedClinica = locationsList.find(l => l.id === (cfg.selectedClinicaId ?? 8));
   const selectedMedico  = profsList.find(p => p.id === (cfg.selectedMedicoId ?? 6));
+
+  // P4: data-bind para ReceituarioPreview (boxes emitente/clínica)
+  const medicoDataBind = selectedMedico ? {
+    name: selectedMedico.name,
+    crm: selectedMedico.crm,
+  } : undefined;
+  const clinicaDataBind = selectedClinica ? {
+    name: selectedClinica.nomeFantasia ?? selectedClinica.name,
+    nomeFantasia: selectedClinica.nomeFantasia,
+    phone: (selectedClinica as { phone?: string }).phone,
+    address: (selectedClinica as { address?: string }).address,
+  } : undefined;
 
   // Data-bind em tempo real — qualquer mudança no cfg reflete no preview imediatamente
   const patch = useCallback((partial: Partial<ReceituarioConfig>) => {
@@ -278,11 +293,41 @@ export default function ConfigReceituario() {
     (acc, m) => { if (!acc[m.category]) acc[m.category] = []; acc[m.category].push(m); return acc; }, {}
   );
 
+  // P7: Gerar receita demo assinada e fazer upload ao Drive
+  async function handleGerarDemo() {
+    setGerandoDemo(true);
+    try {
+      const res = await fetch(`${BASE}/api/receituario/gerar-demo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          professionalId: cfg.selectedMedicoId ?? 6,
+          locationId: cfg.selectedClinicaId ?? 8,
+        }),
+      });
+      const data = await res.json() as { ok?: boolean; driveUrl?: string; fileName?: string; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Falha ao gerar demo");
+      toast({
+        title: "Receita demo gerada e enviada ao Drive!",
+        description: data.driveUrl
+          ? `Arquivo: ${data.fileName}. Abra o link para visualizar.`
+          : `Arquivo: ${data.fileName}. Verifique o Google Drive.`,
+      });
+      if (data.driveUrl) window.open(data.driveUrl, "_blank");
+    } catch (e) {
+      toast({ title: "Erro ao gerar demo", description: String(e), variant: "destructive" });
+    } finally {
+      setGerandoDemo(false);
+    }
+  }
+
   // ── Preview de impressão: HTML do preview completo em escala 1:1 ──────────
   // Mantido em um div oculto no DOM para o window.print funcionar
   const printContent = (
     <div ref={printRef} style={{ display: "none" }}>
-      <ReceituarioPreview cfg={cfg} bandModelId={previewBand} customBandDataUrl={previewCustomUrl}/>
+      <ReceituarioPreview
+        cfg={cfg} bandModelId={previewBand} customBandDataUrl={previewCustomUrl}
+        medicoData={medicoDataBind} clinicaData={clinicaDataBind}/>
     </div>
   );
 
@@ -921,7 +966,7 @@ export default function ConfigReceituario() {
           {/* ══════════════════════════════════════════════════════════════════
               COLUNA DIREITA — Preview ao vivo (P7) + controles
           ══════════════════════════════════════════════════════════════════ */}
-          <div className="space-y-3 sticky top-[72px] max-h-[calc(100vh-80px)] overflow-y-auto pb-6">
+          <div className="space-y-3 sticky top-[72px] pb-6">
 
             {/* Controles do preview */}
             <div className="flex items-center justify-between">
@@ -938,6 +983,11 @@ export default function ConfigReceituario() {
                     </button>
                   ))}
                 </div>
+                {/* P2: botão de zoom */}
+                <button onClick={() => setShowZoom(true)}
+                  className="btn-3d-soft p-1.5" title="Ampliar preview (zoom)">
+                  <ZoomIn className="w-3.5 h-3.5"/>
+                </button>
                 <button onClick={() => setShowPreview(v => !v)}
                   className="btn-3d-soft p-1.5">
                   {showPreview ? <EyeOff className="w-3.5 h-3.5"/> : <Eye className="w-3.5 h-3.5"/>}
@@ -945,22 +995,23 @@ export default function ConfigReceituario() {
               </div>
             </div>
 
-            {/* Preview escalado (P7) */}
+            {/* P1: Preview sem scroll — altura natural */}
             {showPreview && (
-              <div className="concave-3d rounded-xl p-3 overflow-auto"
-                style={{ maxHeight: "calc(100vh - 160px)" }}>
+              <div className="concave-3d rounded-xl p-3">
                 <div style={{
                   transform: "scale(0.55)",
                   transformOrigin: "top left",
-                  width: "calc(794px)",
+                  width: "794px",
                   pointerEvents: "none",
                 }}>
                   <ReceituarioPreview
                     cfg={cfg}
                     bandModelId={previewBand}
-                    customBandDataUrl={previewCustomUrl}/>
+                    customBandDataUrl={previewCustomUrl}
+                    medicoData={medicoDataBind}
+                    clinicaData={clinicaDataBind}/>
                 </div>
-                {/* Espaçador para que o container respeite a altura escalada */}
+                {/* Espaçador: garante que o container respeite a altura escalada */}
                 <div style={{ height: `calc(1123px * 0.55)` }}/>
               </div>
             )}
@@ -990,6 +1041,15 @@ export default function ConfigReceituario() {
               <p className="text-xs text-gray-400 text-center">
                 No diálogo do navegador, escolha <b>"Salvar como PDF"</b> para gerar o arquivo.
               </p>
+              {/* P7: Gerar receita demo assinada e fazer upload ao Drive */}
+              <button onClick={handleGerarDemo} disabled={gerandoDemo}
+                className="btn-3d-soft w-full text-sm py-2 flex items-center justify-center gap-2 font-semibold disabled:opacity-60">
+                <FolderUp className="w-4 h-4"/>
+                {gerandoDemo ? "Gerando e enviando…" : "Gerar Demo no Drive"}
+              </button>
+              <p className="text-xs text-gray-400 text-center">
+                Gera PDF assinado (ICP-Brasil) e salva na pasta Drive.
+              </p>
               <button onClick={handleSave}
                 className={`w-full text-sm py-2.5 flex items-center justify-center gap-2 font-semibold ${saved ? "bevel-3d-ok" : "btn-3d-gold"}`}>
                 {saved ? <CheckCircle2 className="w-4 h-4"/> : <Save className="w-4 h-4"/>}
@@ -1000,6 +1060,59 @@ export default function ConfigReceituario() {
 
         </div>{/* fim grid */}
       </div>
+
+      {/* P2: Modal de zoom — preview ampliado (85% do A4) ──────────────────── */}
+      {showZoom && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(10,18,40,0.92)", backdropFilter: "blur(8px)",
+            overflow: "auto", padding: "32px 24px",
+          }}
+          onClick={() => setShowZoom(false)}>
+          {/* Barra superior */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 16, maxWidth: 794 * 0.85 + 48, margin: "0 auto 16px",
+          }}
+            onClick={e => e.stopPropagation()}>
+            <span style={{
+              color: "#c9a24e", fontSize: 11, fontWeight: 800,
+              letterSpacing: 3, textTransform: "uppercase",
+            }}>
+              Preview Ampliado — 85% do A4 &nbsp;|&nbsp; clique fora para fechar
+            </span>
+            <button onClick={() => setShowZoom(false)}
+              style={{
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 6, padding: "4px 10px", color: "#fff", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+              }}>
+              <X style={{ width: 14, height: 14 }}/> Fechar
+            </button>
+          </div>
+          {/* Preview em escala 85% */}
+          <div style={{ display: "flex", justifyContent: "center" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{
+              transform: "scale(0.85)",
+              transformOrigin: "top center",
+              width: 794,
+              pointerEvents: "none",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+            }}>
+              <ReceituarioPreview
+                cfg={cfg}
+                bandModelId={previewBand}
+                customBandDataUrl={previewCustomUrl}
+                medicoData={medicoDataBind}
+                clinicaData={clinicaDataBind}/>
+            </div>
+          </div>
+          {/* Espaçador para scroll */}
+          <div style={{ height: `calc(1123px * 0.85 + 64px)` }}/>
+        </div>
+      )}
     </div>
   );
 }

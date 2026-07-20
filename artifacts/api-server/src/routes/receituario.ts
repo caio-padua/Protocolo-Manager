@@ -21,9 +21,12 @@ import {
   receitasAgendadasSlotsTable,
   clientsTable,
   protocolsTable,
+  professionalsTable,
 } from "@workspace/db";
 import { eq, and, lte, gte, desc, asc } from "drizzle-orm";
 import { liberarSlot, processarReceituarioDiario } from "../lib/receituario-worker";
+import { generateReceituarioPdf } from "../lib/receituario-pdf";
+import { uploadToFolderById } from "../lib/google-drive";
 
 const router = Router();
 
@@ -414,6 +417,92 @@ router.get("/receituario/alertas", async (req, res): Promise<void> => {
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── P7: Gerar receita demo assinada + upload ao Drive ─────────────────────────
+const DEMO_DRIVE_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep"; // pasta PAXTER compartilhada
+
+router.post("/receituario/gerar-demo", async (req, res): Promise<void> => {
+  try {
+    const { professionalId, locationId } = req.body as {
+      professionalId?: number;
+      locationId?: number;
+    };
+
+    // Busca dados do profissional
+    let profName = "Dr. Caio Henrique Fernandes Pádua";
+    let profCrm = "CRM SP 123456";
+    if (professionalId) {
+      const [prof] = await db
+        .select()
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, professionalId));
+      if (prof) {
+        profName = prof.name;
+        profCrm = prof.crm ?? "CRM SP 000000";
+      }
+    }
+
+    const dataHoje = hoje();
+
+    // Monta dados demo
+    const demoData = {
+      clientName: "DEMONSTRAÇÃO — SEM VALIDADE MÉDICA",
+      clientCpf: "000.000.000-00",
+      professionalName: profName,
+      professionalCrm: profCrm,
+      nomeSerie: "Receituário Demo / PADCOM",
+      nomeSlot: `DEMO-${dataHoje}`,
+      dataLiberacao: dataHoje,
+      formulas: [
+        {
+          nome: "EXEMPLO DE MEDICAMENTO A 150 mg — comprimido",
+          ativoPrincipal: "Substância Demonstrativa A",
+          posologia: "1 comprimido ao dia",
+          dose: "150 mg",
+          via: "Oral",
+          frequencia: "Diário",
+          observacao: "Orientação demonstrativa — sem validade médica",
+        },
+        {
+          nome: "EXEMPLO DE MEDICAMENTO B 50 mg — comprimido",
+          ativoPrincipal: "Substância Demonstrativa B",
+          posologia: "1 comprimido à noite",
+          dose: "50 mg",
+          via: "Oral",
+          frequencia: "Noturno",
+        },
+      ],
+    };
+
+    // Gera PDF com assinatura ICP-Brasil
+    const pdfBytes = await generateReceituarioPdf(demoData);
+
+    // Nome do arquivo: YY.MM.DD RECEITUARIO DEMO PADCOM.pdf
+    const [y, m, d] = dataHoje.split("-");
+    const fileName = `${y.slice(2)}.${m}.${d} RECEITUARIO DEMO PADCOM.pdf`;
+
+    // Faz upload ao Drive
+    let driveUrl: string | null = null;
+    let driveId: string | null = null;
+    try {
+      const result = await uploadToFolderById(
+        DEMO_DRIVE_FOLDER_ID,
+        fileName,
+        "application/pdf",
+        Buffer.from(pdfBytes),
+      );
+      driveUrl = result.webViewLink ?? null;
+      driveId = result.id ?? null;
+    } catch (driveErr) {
+      req.log.warn({ driveErr }, "receituario gerar-demo: Drive upload falhou — devolvendo apenas OK");
+    }
+
+    res.json({ ok: true, fileName, driveUrl, driveId });
+  } catch (err) {
+    req.log.error({ err }, "receituario gerar-demo: falhou");
+    res.status(500).json({ error: "Falha ao gerar receita demo" });
   }
 });
 

@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// RECEITUÁRIO PREVIEW — Layout completo do receituário médico
+// RECEITUÁRIO PREVIEW v3 — Layout completo do receituário médico
+// P3/P4/P5/P6: campos fixos conforme modelo ANVISA + data-bind emitente
 // Usado tanto no preview da tela (scale 0.55) quanto na impressão (1:1)
 // Spec: specs/receituario-designer-v2.md
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9,9 +10,97 @@ import { ArabesqueBand } from "@/lib/arabesques/ArabesqueBand";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function parseCampos(s: string): string[] {
-  return s.split(",").map(f => f.trim()).filter(Boolean);
+// ── Data-bind types (P4) ──────────────────────────────────────────────────────
+export interface MedicoDataBind {
+  name?: string;
+  crm?: string;
+  rqe?: string;
+  phone?: string;
+  address?: string;
+}
+export interface ClinicaDataBind {
+  name?: string;
+  nomeFantasia?: string;
+  phone?: string;
+  address?: string;
+}
+
+// ── Campo unitário: label + value (data-bind) ou linha pontilhada ─────────────
+type CampoField = { label: string; value?: string };
+type CampoRow = CampoField | CampoField[];  // field único ou linha multi-coluna
+
+function FieldLine({ label, value }: { label: string; value?: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 5,
+      fontSize: 6.5, marginBottom: 3.5, color: "#111",
+    }}>
+      <span style={{
+        fontWeight: 700, color: "#555",
+        whiteSpace: "nowrap", flexShrink: 0,
+        fontSize: 6, letterSpacing: 0.3,
+        textTransform: "uppercase",
+      }}>{label}:</span>
+      {value
+        ? <span style={{ color: "#111", fontWeight: 400, fontSize: 7 }}>{value}</span>
+        : <span style={{
+            flex: 1, borderBottom: "0.4px dotted #bbb",
+            display: "block", minHeight: 10,
+          }}/>
+      }
+    </div>
+  );
+}
+
+// ── Box de identificação v2 — campos fixos por rows ───────────────────────────
+function IdentBoxV2({
+  titulo, rows, borderWidth, faixinha, faixinhaCor,
+}: {
+  titulo: string;
+  rows: CampoRow[];
+  borderWidth: number;
+  faixinha: boolean;
+  faixinhaCor: string;
+}) {
+  return (
+    <div style={{
+      position: "relative", zIndex: 2,
+      background: "#ffffff",
+      border: `${borderWidth}px solid #454545`,
+      borderRadius: 1,
+      borderLeft: faixinha
+        ? `${Math.max(borderWidth, 3)}px solid ${faixinhaCor}`
+        : `${borderWidth}px solid #454545`,
+      padding: "3mm 4mm",
+      boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
+    }}>
+      {/* Título do box */}
+      <div style={{
+        textAlign: "center", fontWeight: 700, fontSize: 7, letterSpacing: 1.5,
+        textTransform: "uppercase", marginBottom: 5,
+        borderBottom: "0.4px solid #ddd", paddingBottom: 3, color: "#222",
+      }}>{titulo}</div>
+
+      {/* Rows: single field ou array (multi-coluna) */}
+      {rows.map((row, i) => {
+        if (Array.isArray(row)) {
+          return (
+            <div key={i} style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+              gap: "0 6mm",
+              marginBottom: 1,
+            }}>
+              {row.map((field) => (
+                <FieldLine key={field.label} label={field.label} value={field.value}/>
+              ))}
+            </div>
+          );
+        }
+        return <FieldLine key={i} label={row.label} value={row.value}/>;
+      })}
+    </div>
+  );
 }
 
 // ── Linha decorativa (Kaizen C) ───────────────────────────────────────────────
@@ -32,71 +121,47 @@ function LinhaDecorativa({ estilo }: { estilo: ReceituarioConfig["linhaEstiloCab
   return <div style={{ margin: "3mm 0", borderTop: "0.5px solid #ccc" }}/>;
 }
 
-// ── Box de identificação (dentro da faixa) ────────────────────────────────────
-function IdentBox({ titulo, campos, faixinha, faixinhaCor, borderWidth }: {
-  titulo: string; campos: string[];
-  faixinha: boolean; faixinhaCor: string; borderWidth: number;
+// ── Faixa ornamental + 2 boxes (P3/P4/P5/P6) ─────────────────────────────────
+function BandaComBoxes({
+  cfg, bandModelId, customBandDataUrl,
+  leftTitulo, leftRows,
+  rightTitulo, rightRows,
+}: {
+  cfg: ReceituarioConfig;
+  bandModelId: string;
+  customBandDataUrl?: string;
+  leftTitulo: string;
+  leftRows: CampoRow[];
+  rightTitulo: string;
+  rightRows: CampoRow[];
 }) {
-  return (
-    <div style={{
-      position: "relative", zIndex: 2,
-      background: "#ffffff",
-      border: `${borderWidth}px solid #454545`,
-      borderRadius: 1,
-      borderLeft: faixinha ? `${Math.max(borderWidth, 3)}px solid ${faixinhaCor}` : `${borderWidth}px solid #454545`,
-      padding: "3mm 4mm",
-      boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
-    }}>
-      <div style={{
-        textAlign: "center", fontWeight: 700, fontSize: 7, letterSpacing: 1.5,
-        textTransform: "uppercase", marginBottom: 4,
-        borderBottom: "0.4px solid #ddd", paddingBottom: 3, color: "#222",
-      }}>{titulo}</div>
-      {campos.map((campo) => (
-        <div key={campo} style={{
-          display: "flex", alignItems: "baseline", gap: 6,
-          fontSize: 6.5, marginBottom: 4, color: "#111",
-        }}>
-          <span style={{ fontWeight: 600, color: "#555", whiteSpace: "nowrap", minWidth: 28 }}>
-            {campo}:
-          </span>
-          <span style={{
-            flex: 1, borderBottom: "0.4px dotted #ccc",
-            display: "block", minHeight: 10,
-          }}/>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Faixa ornamental + 2 boxes ────────────────────────────────────────────────
-function BandaComBoxes({ cfg, bandModelId, customBandDataUrl, leftTitulo, leftCampos, rightTitulo, rightCampos }: {
-  cfg: ReceituarioConfig; bandModelId: string; customBandDataUrl?: string;
-  leftTitulo: string; leftCampos: string[];
-  rightTitulo: string; rightCampos: string[];
-}) {
-  const [lw, rw] = cfg.boxSplitRatio === "60/40" ? ["60%","40%"]
-    : cfg.boxSplitRatio === "40/60" ? ["40%","60%"]
-    : ["50%","50%"];
+  const [lw, rw] = cfg.boxSplitRatio === "60/40" ? ["60%", "40%"]
+    : cfg.boxSplitRatio === "40/60" ? ["40%", "60%"]
+    : ["50%", "50%"];
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}>
       <div style={{ width: lw }}>
-        <IdentBox titulo={leftTitulo} campos={leftCampos}
-          faixinha={cfg.boxFaixinhaEsquerda} faixinhaCor={cfg.boxFaixinhaCor}
+        <IdentBoxV2
+          titulo={leftTitulo}
+          rows={leftRows}
+          faixinha={cfg.boxFaixinhaEsquerda}
+          faixinhaCor={cfg.boxFaixinhaCor}
           borderWidth={cfg.boxBorderWidth}/>
       </div>
       <div style={{ width: rw }}>
-        <IdentBox titulo={rightTitulo} campos={rightCampos}
-          faixinha={cfg.boxFaixinhaEsquerda} faixinhaCor={cfg.boxFaixinhaCor}
+        <IdentBoxV2
+          titulo={rightTitulo}
+          rows={rightRows}
+          faixinha={cfg.boxFaixinhaEsquerda}
+          faixinhaCor={cfg.boxFaixinhaCor}
           borderWidth={cfg.boxBorderWidth}/>
       </div>
     </ArabesqueBand>
   );
 }
 
-// ── Fórmula demo (P9, P10) ────────────────────────────────────────────────────
+// ── Fórmula demo ──────────────────────────────────────────────────────────────
 function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia, fonteTitulo, fonteCorpo }: {
   numero: string; nome: string; forma: string; concentracao: string;
   quantidade: string; posologia: string; fonteTitulo: string; fonteCorpo: string;
@@ -132,7 +197,7 @@ function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia,
   );
 }
 
-// ── Bloco de certificado (P12) ────────────────────────────────────────────────
+// ── Bloco de certificado ──────────────────────────────────────────────────────
 function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
   if (!cfg.certificadoMostrar) return null;
   return (
@@ -177,22 +242,57 @@ function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export function ReceituarioPreview({
   cfg, bandModelId, customBandDataUrl,
+  medicoData, clinicaData,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
   customBandDataUrl?: string;
+  medicoData?: MedicoDataBind;   // P4: data-bind emitente
+  clinicaData?: ClinicaDataBind; // P4: data-bind clínica
 }) {
-  const pacienteCampos   = parseCampos(cfg.boxPacienteCampos);
-  const medicoCampos     = parseCampos(cfg.boxMedicoCampos);
-  const compradorCampos  = parseCampos(cfg.boxCompradorCampos);
-  const farmaciaCampos   = parseCampos(cfg.boxFarmaciaCampos);
-  const rodapeEsq        = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
+  const rodapeEsq = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
 
-  // Resolução do logo do sistema (P1 / P5)
   const sistemaWordmarkSrc = cfg.rodapeSistemaModo === "imagem"
     ? (cfg.rodapeSistemaImagemDataUrl || `${BASE}/brand/paxter-wordmark.png`)
     : null;
   const sistemaLogoSrc = cfg.rodapeSistemaLogoDataUrl || `${BASE}/brand/paxter-symbol.png`;
+
+  // ── P3/P4: Campos fixos do modelo ANVISA — Box 1 (Emitente) ─────────────
+  const emitentRows: CampoRow[] = [
+    { label: "Profissional/Prescritor", value: medicoData?.name },
+    [
+      { label: "Conselho", value: medicoData?.crm },
+      { label: "RQE", value: medicoData?.rqe },
+      { label: "Telefone", value: clinicaData?.phone },
+    ],
+    { label: "Endereço do Consultório", value: clinicaData?.address },
+  ];
+
+  // ── P3/P5: Box 2 (Paciente) — sempre em branco (preenchido na consulta) ──
+  const pacienteRows: CampoRow[] = [
+    { label: "Nome Completo" },
+    [
+      { label: "CPF" },
+      { label: "Nascimento" },
+      { label: "Telefone" },
+    ],
+    { label: "Endereço Completo" },
+  ];
+
+  // ── P3/P5: Box 3 (Comprador) — em branco (farmácia preenche) ─────────────
+  const compradorRows: CampoRow[] = [
+    { label: "Nome" },
+    { label: "Endereço" },
+    [{ label: "Cidade" }, { label: "UF" }],
+    [{ label: "Identidade" }, { label: "Org. Emissora" }],
+    { label: "Telefone" },
+  ];
+
+  // ── P3/P5: Box 4 (Fornecedor) — em branco (farmácia preenche) ─────────────
+  const fornecedorRows: CampoRow[] = [
+    { label: "Assinatura do Farmacêutico" },
+    { label: "Data" },
+  ];
 
   return (
     <div style={{
@@ -206,15 +306,13 @@ export function ReceituarioPreview({
       padding: "10mm 12mm",
     }}>
 
-      {/* ═══ 1. CABEÇALHO (P4, P5, P6) ═══════════════════════════════════════ */}
+      {/* ═══ 1. CABEÇALHO ═══════════════════════════════════════════════════ */}
       <div style={{
         display: "flex", alignItems: "flex-start",
         justifyContent: "space-between", gap: 12,
         paddingBottom: "4mm",
       }}>
-        {/* Esquerda: logo + nome clínica */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Logo da clínica (P4) */}
           {cfg.cabecalhoLogoDataUrl
             ? <img src={cfg.cabecalhoLogoDataUrl} alt="Logo"
                 style={{ height: 40, maxWidth: 70, objectFit: "contain" }}/>
@@ -225,7 +323,6 @@ export function ReceituarioPreview({
               }}>LOGO</div>
           }
           <div>
-            {/* Nome da clínica: modo texto ou imagem (P6) */}
             {cfg.cabecalhoNomeModo === "imagem" && cfg.cabecalhoNomeImagemDataUrl
               ? <img src={cfg.cabecalhoNomeImagemDataUrl} alt="Nome clínica"
                   style={{ maxHeight: 24, objectFit: "contain" }}/>
@@ -245,8 +342,6 @@ export function ReceituarioPreview({
             )}
           </div>
         </div>
-
-        {/* Direita: RCE + vias */}
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{ fontSize: 7, fontWeight: 700, color: "#555", letterSpacing: 1 }}>
             {cfg.cabecalhoRceNumero || "RCE: 2025"}
@@ -257,10 +352,10 @@ export function ReceituarioPreview({
         </div>
       </div>
 
-      {/* ═══ Linha decorativa cabeçalho→título (KC) ═══════════════════════════ */}
+      {/* ═══ Linha decorativa cabeçalho→título ═════════════════════════════ */}
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
 
-      {/* ═══ 2. TÍTULO DO DOCUMENTO ══════════════════════════════════════════ */}
+      {/* ═══ 2. TÍTULO DO DOCUMENTO ═════════════════════════════════════════ */}
       <div style={{ textAlign: "center", marginBottom: "4mm" }}>
         <div style={{
           fontWeight: 800, fontSize: 16, letterSpacing: 2,
@@ -275,15 +370,18 @@ export function ReceituarioPreview({
         )}
       </div>
 
-      {/* ═══ Linha entre título e faixa superior (KC) ═════════════════════════ */}
+      {/* ═══ Linha entre título e faixa superior ═══════════════════════════ */}
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
 
-      {/* ═══ 3. FAIXA SUPERIOR (Emitente + Paciente) ════════════════════════ */}
-      <BandaComBoxes cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-        leftTitulo={cfg.boxMedicoTitulo}   leftCampos={medicoCampos}
-        rightTitulo={cfg.boxPacienteTitulo} rightCampos={pacienteCampos}/>
+      {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Emitente) + Box 2 (Paciente) ══════ */}
+      <BandaComBoxes
+        cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
+        leftTitulo={cfg.boxMedicoTitulo}
+        leftRows={emitentRows}
+        rightTitulo={cfg.boxPacienteTitulo}
+        rightRows={pacienteRows}/>
 
-      {/* ═══ 4. CORPO / FÓRMULAS (P9, P10) ══════════════════════════════════ */}
+      {/* ═══ 4. CORPO / FÓRMULAS ════════════════════════════════════════════ */}
       <div style={{ padding: "5mm 2mm 3mm" }}>
         <div style={{ fontSize: 11, fontStyle: "italic", marginBottom: "4mm",
           fontFamily: cfg.corpoFonteTitulo }}>
@@ -301,14 +399,12 @@ export function ReceituarioPreview({
           fonteTitulo={cfg.corpoFonteTitulo} fonteCorpo={cfg.corpoFonteCorpo}/>
       </div>
 
-      {/* ═══ 5. ASSINATURA + CERTIFICADO (P11, P12) ══════════════════════════ */}
+      {/* ═══ 5. ASSINATURA + CERTIFICADO ════════════════════════════════════ */}
       <div style={{
         display: "flex", alignItems: "flex-start", gap: "8mm",
         padding: "4mm 2mm 6mm", borderTop: "0.3px solid #eee", marginTop: "2mm",
       }}>
-        {/* Assinatura (P11) */}
         <div style={{ flex: "0 0 auto", minWidth: 140 }}>
-          {/* R11: respeita assinaturaModo explicitamente */}
           {cfg.assinaturaModo === "imagem" && cfg.assinaturaDataUrl
             ? <img src={cfg.assinaturaDataUrl} alt="Assinatura"
                 style={{ maxWidth: 130, maxHeight: 50, objectFit: "contain" }}/>
@@ -321,30 +417,31 @@ export function ReceituarioPreview({
               </div>
           }
           <div style={{ fontSize: 6.5, color: "#333", marginTop: 4, fontFamily: cfg.corpoFonteCorpo }}>
-            {cfg.cabecalhoNome.split("—")[0]?.trim() || "Dr. Nome Completo"}<br/>
-            CRM SP 000.000 — RQE: 00.000<br/>
-            São Paulo, {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+            {medicoData?.name || cfg.cabecalhoNome.split("—")[0]?.trim() || "Dr. Nome Completo"}<br/>
+            {medicoData?.crm || "CRM SP 000.000 — RQE: 00.000"}<br/>
+            {clinicaData?.address?.split(",")[1]?.trim()?.split("—")[0]?.trim() || "São Paulo"},
+            {" "}{new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
           </div>
         </div>
-
-        {/* Certificado digital (P12) */}
         <BlocoCertificado cfg={cfg}/>
       </div>
 
-      {/* ═══ 6. FAIXA INFERIOR (Comprador + Fornecedor) — só especial ══════ */}
+      {/* ═══ 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor) ════ */}
       {cfg.tipoReceitaPadrao === "especial" && (
-        <BandaComBoxes cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-          leftTitulo={cfg.boxCompradorTitulo}  leftCampos={compradorCampos}
-          rightTitulo={cfg.boxFarmaciaTitulo} rightCampos={farmaciaCampos}/>
+        <BandaComBoxes
+          cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
+          leftTitulo={cfg.boxCompradorTitulo}
+          leftRows={compradorRows}
+          rightTitulo={cfg.boxFarmaciaTitulo}
+          rightRows={fornecedorRows}/>
       )}
 
-      {/* ═══ 7. RODAPÉ ══════════════════════════════════════════════════════ */}
+      {/* ═══ 7. RODAPÉ ═══════════════════════════════════════════════════════ */}
       <div style={{
         position: "absolute", bottom: "8mm", left: "12mm", right: "12mm",
         display: "flex", alignItems: "flex-end", justifyContent: "space-between",
         borderTop: "0.3px solid #ddd", paddingTop: "3mm",
       }}>
-        {/* Esquerda (P3) */}
         <div>
           {rodapeEsq.map((linha, i) => (
             <div key={i} style={{
@@ -354,14 +451,10 @@ export function ReceituarioPreview({
             }}>{linha}</div>
           ))}
         </div>
-
-        {/* Direita: sistema (P1, P5) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          {/* Ícone do sistema (P1) */}
           <img src={sistemaLogoSrc} alt="ícone"
             style={{ height: 22, width: 22, objectFit: "contain", opacity: 0.8 }}/>
           <div>
-            {/* Wordmark (P5): modo imagem ou texto */}
             {sistemaWordmarkSrc
               ? <img src={sistemaWordmarkSrc} alt="wordmark"
                   style={{ maxHeight: 16, objectFit: "contain", display: "block" }}/>
