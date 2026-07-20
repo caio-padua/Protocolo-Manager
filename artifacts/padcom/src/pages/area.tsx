@@ -825,6 +825,22 @@ function SecLabel({ label, count }: { label: string; count?: number }) {
 }
 
 // Badge de status
+/** Barra segmentada — cada segmento = 1 sessão/atendimento */
+function SegmentedBar({ completed, total, height = 14 }: { completed: number; total: number; height?: number }) {
+  const n = Math.max(total, 1);
+  return (
+    <div className="flex gap-[3px]" style={{ height }}>
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} className="paxter-bar-track flex-1" style={{ borderRadius: 4 }}>
+          {i < completed && (
+            <span className="paxter-bar-fill block h-full" style={{ width: "100%", borderRadius: 4 }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     active:    "bg-cyan-100 text-cyan-700 border-cyan-200",
@@ -959,9 +975,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
             <p className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
             <p className="text-accent font-black text-sm">{pct}%</p>
           </div>
-          <div className="paxter-bar-track" style={{ height: 8 }}>
-            <span className="paxter-bar-fill transition-all" style={{ width: `${pct}%` }} />
-          </div>
+          <SegmentedBar completed={data.completedSessions} total={data.totalSessions} />
         </div>
       </div>
 
@@ -1063,9 +1077,7 @@ function ProtocolCard({ p }: { p: Proto }) {
           <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
           <span className="text-accent text-xs font-black">{pct}%</span>
         </div>
-        <div className="paxter-bar-track" style={{ height: 8 }}>
-          <span className="paxter-bar-fill transition-all" style={{ width: `${pct}%` }} />
-        </div>
+          <SegmentedBar completed={p.completedSessions} total={p.totalSessions} />
       </div>
 
       {/* Substâncias — colapsável */}
