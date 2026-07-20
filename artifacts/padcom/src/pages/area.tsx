@@ -219,10 +219,10 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel VERTICAL — mesma altura exata da nav (64px), botões retangulares empilhados */}
+      {/* Mini-painel VERTICAL — largura 58px, altura automática igual à nav */}
       <div
-        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-1.5"
-        style={{ borderTopLeftRadius: 8, width: 48, height: 64 }}
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-2 py-2"
+        style={{ borderTopLeftRadius: 8, width: 58 }}
       >
         <button
           type="button"
@@ -230,7 +230,7 @@ export default function Area() {
           title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
           className="btn-3d-soft flex items-center justify-center rounded text-accent"
-          style={{ width: 36, height: 24 }}
+          style={{ width: 32, height: 24 }}
         >
           {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
@@ -239,7 +239,7 @@ export default function Area() {
           onClick={handleLogout}
           title="Sair"
           className="btn-3d-soft flex items-center justify-center rounded text-muted-foreground hover:text-accent transition-colors"
-          style={{ width: 36, height: 24 }}
+          style={{ width: 32, height: 24 }}
         >
           <LogOut className="w-3.5 h-3.5" />
         </button>
@@ -249,20 +249,27 @@ export default function Area() {
       {showScrollHint && (
         <div
           className="scroll-hint-arrow pointer-events-none fixed z-25 flex items-center justify-center"
-          style={{ bottom: 0, right: 52, width: 28, height: 64 }}
+          style={{ bottom: 0, right: 60, width: 24, height: 60 }}
         >
-          <ChevronRight className="w-5 h-5 text-accent opacity-70" />
+          <ChevronRight className="w-4 h-4 text-accent opacity-70" />
         </div>
       )}
 
-      {/* Bottom navigation — deslizante horizontal (8 itens), altura fixa 64px */}
+      {/* Bottom navigation — NÃO tem height fixo para não clippar ícones;
+          overflowY hidden impede deslocamento vertical; só desliza horizontalmente */}
       <nav
         className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60"
-        style={{ overflowX: "auto", scrollbarWidth: "none", height: 64 }}
+        style={{
+          overflowX: "auto",
+          overflowY: "hidden",
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",  /* iOS smooth scroll */
+          transform: "translateZ(0)",          /* fixa o elemento no iOS */
+        } as React.CSSProperties}
       >
         <div
           className="flex"
-          style={{ minWidth: "max-content", paddingRight: 52 /* reserva espaço do mini-painel (48px) */ }}
+          style={{ minWidth: "max-content", paddingRight: 60 /* reserva espaço do mini-painel (58px) */ }}
         >
           {TABS.map((t) => {
             const Icon = t.icon;
