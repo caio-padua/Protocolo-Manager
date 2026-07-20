@@ -1,12 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ARABESQUE BAND — Motor unificado de faixas ornamentais para o padcom
-// Dois modos: inline-svg (vetorial) e raster-strip (PNG do PADUA Designer)
+// Dois modos padrão: inline-svg | raster-strip (PNG PADUA)
+// Terceiro modo: custom (base64 dataUrl enviado pelo operador via upload)
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useId } from "react";
 import { ARABESQUE_MODELS, type ArabesqueModelId } from "./models";
 import { getTileForModel } from "./InlinePatterns";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+/** Busca a dataUrl de uma faixa customizada no localStorage (fallback) */
+function getCustomDataUrlFromStorage(modelId: string): string | null {
+  try {
+    const raw = localStorage.getItem("paxter:receituario-config");
+    if (!raw) return null;
+    const cfg = JSON.parse(raw) as { customBands?: { id: string; dataUrl: string }[] };
+    return cfg.customBands?.find(b => b.id === modelId)?.dataUrl ?? null;
+  } catch { return null; }
+}
 
 // ─── Faixa SVG inline ─────────────────────────────────────────────────────────
 function InlineSVGBand({ modelId, patternId, bandH, children }: {
@@ -44,12 +55,10 @@ function InlineSVGBand({ modelId, patternId, bandH, children }: {
   );
 }
 
-// ─── Faixa raster (PNG) ───────────────────────────────────────────────────────
-function RasterBand({ modelId, bandH, children }: {
-  modelId: ArabesqueModelId; bandH: number; children: React.ReactNode;
+// ─── Faixa raster (PNG PADUA ou custom base64) ────────────────────────────────
+function RasterBand({ src, bandH, children }: {
+  src: string; bandH: number; children: React.ReactNode;
 }) {
-  const m = ARABESQUE_MODELS[modelId];
-  const src = m.assetFile ? `${BASE}/assets/arabesques/${m.assetFile}` : "";
   const border = "#8f8f8b";
   return (
     <div style={{ position: "relative", isolation: "isolate",
@@ -62,7 +71,7 @@ function RasterBand({ modelId, bandH, children }: {
         {src
           ? <img src={src} alt="" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}/>
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 7, color: "#aaa", letterSpacing: 2, fontStyle: "italic" }}>aguardando PNG</div>
+              fontSize: 7, color: "#aaa", letterSpacing: 2, fontStyle: "italic" }}>aguardando imagem</div>
         }
       </div>
       {children}
@@ -90,14 +99,28 @@ export function InfoCard({ titulo, rows }: { titulo: string; rows: [string, stri
 }
 
 // ─── Componente público ───────────────────────────────────────────────────────
-export function ArabesqueBand({ modelId, children }: {
-  modelId: ArabesqueModelId; children: React.ReactNode;
+export function ArabesqueBand({ modelId, customDataUrl, children }: {
+  modelId: string;
+  customDataUrl?: string;    // dataUrl direto (para preview de faixa customizada)
+  children: React.ReactNode;
 }) {
   const uid = useId();
   const pid = `abp-${uid}-${modelId}`.replace(/[^a-zA-Z0-9-]/g, "_");
-  const m = ARABESQUE_MODELS[modelId];
+
+  // Faixa customizada (id começa com "custom-")
+  if (modelId.startsWith("custom-") || customDataUrl) {
+    const dataUrl = customDataUrl ?? getCustomDataUrlFromStorage(modelId) ?? "";
+    return <RasterBand src={dataUrl} bandH={88}>{children}</RasterBand>;
+  }
+
+  // Modelo padrão do catálogo
+  const m = ARABESQUE_MODELS[modelId as ArabesqueModelId];
+  if (!m) return <RasterBand src="" bandH={88}>{children}</RasterBand>;
+
   const bandH = m.bandHeightPx;
-  return m.renderMode === "raster-strip"
-    ? <RasterBand modelId={modelId} bandH={bandH}>{children}</RasterBand>
-    : <InlineSVGBand modelId={modelId} patternId={pid} bandH={bandH}>{children}</InlineSVGBand>;
+  if (m.renderMode === "raster-strip") {
+    const src = m.assetFile ? `${BASE}/assets/arabesques/${m.assetFile}` : "";
+    return <RasterBand src={src} bandH={bandH}>{children}</RasterBand>;
+  }
+  return <InlineSVGBand modelId={modelId as ArabesqueModelId} patternId={pid} bandH={bandH}>{children}</InlineSVGBand>;
 }
