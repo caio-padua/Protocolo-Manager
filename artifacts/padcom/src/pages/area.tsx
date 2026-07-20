@@ -1561,11 +1561,11 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">TOTAL PAGO</p>
-                <p className="text-primary font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPago)}</p>
+                <p className="text-primary font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPago)}</p>
               </div>
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">PENDENTE</p>
-                <p className="text-red-500 font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPendente)}</p>
+                <p className="text-red-500 font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPendente)}</p>
               </div>
             </div>
             {f.payments.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">Nenhum pagamento registrado.</p>}
@@ -1574,12 +1574,19 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
                 <div className="flex items-center justify-between gap-2">
                   <p
                     className="text-primary font-black text-lg"
-                    style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "tabular-nums", letterSpacing: "0.01em" }}
+                    style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}
                   >
                     {brMoney(p.amount)}
                   </p>
-                  {/* Badge neutro — sem cor: status visível sem alarme */}
-                  <span className="inline-block border text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary/8 text-primary border-primary/15">
+                  {/* Badge largura fixa igual para todos os status — texto centralizado */}
+                  <span
+                    className={`inline-block border text-[9px] font-black uppercase tracking-wider py-0.5 rounded text-center flex-shrink-0 ${
+                      p.status === "paid"
+                        ? "bg-green-100 text-green-700 border-green-200"
+                        : "bg-red-100 text-red-600 border-red-200"
+                    }`}
+                    style={{ width: 68, lineHeight: 1.6 }}
+                  >
                     {STATUS_LABELS[p.status] ?? p.status}
                   </span>
                 </div>
