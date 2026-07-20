@@ -154,101 +154,98 @@ export default function Clients() {
         </div>
       </div>
 
-      {/* Barra de seleção em lote */}
+      {/* Barra de seleção em lote — esquerda: seletor | direita: ações */}
       {visible.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={toggleAll}
-            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {allSelected
-              ? <CheckSquare className="w-4 h-4 text-accent" />
-              : <Square className="w-4 h-4" />
-            }
-            {allSelected ? "DESMARCAR TODOS" : "SELECIONAR TODOS"}
-          </button>
+        <div className="panel-3d-sub flex items-center justify-between gap-3 px-3 py-2 rounded-lg">
 
+          {/* ESQUERDA — checkbox + contagem */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleAll}
+              className="flex items-center gap-2 group"
+              title={allSelected ? "Desmarcar todos" : "Selecionar todos"}
+            >
+              {allSelected
+                ? <CheckSquare className="w-5 h-5 text-accent" />
+                : <Square className="w-5 h-5 text-foreground/60 group-hover:text-foreground transition-colors" />
+              }
+            </button>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-foreground/70">
+              {someSelected
+                ? <span className="text-accent">{selected.size} SELECIONADO{selected.size > 1 ? "S" : ""}</span>
+                : "SELECIONAR TODOS"
+              }
+            </span>
+          </div>
+
+          {/* DIREITA — botões de ação (só aparecem quando há seleção) */}
           {someSelected && (
-            <>
-              <span className="text-[10px] font-bold text-accent uppercase tracking-widest">
-                {selected.size} SELECIONADO{selected.size > 1 ? "S" : ""}
-              </span>
-
-              <div className="flex gap-2 flex-wrap ml-auto">
-                {tab !== "ativos" && tab !== "apagados" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="btn-3d-soft text-[9px] h-7"
-                    disabled={busy}
-                    onClick={() => runBulk("activate")}
-                  >
-                    <UserCheck className="w-3 h-3 mr-1" />
-                    ATIVAR
-                  </Button>
-                )}
-                {tab === "ativos" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="btn-3d-soft text-[9px] h-7"
-                    disabled={busy}
-                    onClick={() => runBulk("deactivate")}
-                  >
-                    <UserX className="w-3 h-3 mr-1" />
-                    DESATIVAR
-                  </Button>
-                )}
-                {tab === "apagados" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="btn-3d-soft text-[9px] h-7"
-                    disabled={busy}
-                    onClick={() => runBulk("restore")}
-                  >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    RESTAURAR
-                  </Button>
-                )}
-                {tab !== "apagados" && (
-                  confirmDelete ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-bold text-destructive uppercase">
-                        Confirma apagar {selected.size}?
-                      </span>
-                      <Button
-                        size="sm"
-                        className="bg-destructive text-white text-[9px] h-7 hover:bg-destructive/80"
-                        disabled={busy}
-                        onClick={() => runBulk("delete")}
-                      >
-                        SIM, APAGAR
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="btn-3d-soft text-[9px] h-7"
-                        onClick={() => setConfirmDelete(false)}
-                      >
-                        CANCELAR
-                      </Button>
-                    </div>
-                  ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              {tab !== "ativos" && tab !== "apagados" && (
+                <Button
+                  size="sm"
+                  className="btn-3d-soft text-[10px] font-bold h-8 px-3"
+                  disabled={busy}
+                  onClick={() => runBulk("activate")}
+                >
+                  <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+                  ATIVAR
+                </Button>
+              )}
+              {tab === "ativos" && (
+                <Button
+                  size="sm"
+                  className="btn-3d-soft text-[10px] font-bold h-8 px-3"
+                  disabled={busy}
+                  onClick={() => runBulk("deactivate")}
+                >
+                  <UserX className="w-3.5 h-3.5 mr-1.5" />
+                  DESATIVAR
+                </Button>
+              )}
+              {tab === "apagados" && (
+                <Button
+                  size="sm"
+                  className="btn-3d-soft text-[10px] font-bold h-8 px-3"
+                  disabled={busy}
+                  onClick={() => runBulk("restore")}
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  RESTAURAR
+                </Button>
+              )}
+              {tab !== "apagados" && (
+                confirmDelete ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-destructive uppercase tracking-widest">
+                      Confirmar apagar {selected.size}?
+                    </span>
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="btn-3d-soft text-[9px] h-7 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      className="bg-destructive text-white text-[10px] font-bold h-8 px-3 hover:bg-destructive/80"
                       disabled={busy}
-                      onClick={() => setConfirmDelete(true)}
+                      onClick={() => runBulk("delete")}
                     >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      APAGAR
+                      SIM, APAGAR
                     </Button>
-                  )
-                )}
-              </div>
-            </>
+                    <Button
+                      className="btn-3d-soft text-[10px] font-bold h-8 px-3"
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      CANCELAR
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="btn-3d-soft text-[10px] font-bold h-8 px-3 text-destructive border border-destructive/40 hover:bg-destructive/10"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    APAGAR
+                  </Button>
+                )
+              )}
+            </div>
           )}
         </div>
       )}
