@@ -219,27 +219,29 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel VERTICAL — estreito, só ícones, mesma altura da nav */}
+      {/* Mini-painel VERTICAL — mesma altura exata da nav (64px), botões retangulares empilhados */}
       <div
-        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-2"
-        style={{ borderTopLeftRadius: 8, width: 48 }}
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center justify-center gap-1.5"
+        style={{ borderTopLeftRadius: 8, width: 48, height: 64 }}
       >
         <button
           type="button"
           onClick={toggle}
           title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-          className="btn-3d-soft p-2 rounded-lg text-accent"
+          className="btn-3d-soft flex items-center justify-center rounded text-accent"
+          style={{ width: 36, height: 24 }}
         >
-          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
         <button
           type="button"
           onClick={handleLogout}
           title="Sair"
-          className="btn-3d-soft p-2 rounded-lg text-muted-foreground hover:text-accent transition-colors"
+          className="btn-3d-soft flex items-center justify-center rounded text-muted-foreground hover:text-accent transition-colors"
+          style={{ width: 36, height: 24 }}
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -253,10 +255,10 @@ export default function Area() {
         </div>
       )}
 
-      {/* Bottom navigation — deslizante horizontal (8 itens) */}
+      {/* Bottom navigation — deslizante horizontal (8 itens), altura fixa 64px */}
       <nav
         className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60"
-        style={{ overflowX: "auto", scrollbarWidth: "none" }}
+        style={{ overflowX: "auto", scrollbarWidth: "none", height: 64 }}
       >
         <div
           className="flex"
