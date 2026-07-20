@@ -301,105 +301,138 @@ export default function Clients() {
             </Link>
           )}
         </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {visible.map((client: any) => {
-            const isSelected = selected.has(client.id);
-            return (
-              <div
-                key={client.id}
-                className={`relative panel-3d transition-all duration-200 cursor-pointer ${
-                  isSelected
-                    ? "ring-2 ring-accent ring-offset-1 ring-offset-background"
-                    : "hover:panel-3d-active neon-hover"
-                }`}
-                onClick={() => toggleSelect(client.id)}
-              >
-                {/* Checkbox de seleção */}
-                <div className="absolute top-3 left-3 z-10">
-                  {isSelected
-                    ? <CheckSquare className="w-4 h-4 text-accent" />
-                    : <Square className="w-4 h-4 text-muted-foreground/40 hover:text-muted-foreground" />
-                  }
-                </div>
-
-                {/* Conteúdo do card */}
-                <CardContent className="p-5 flex flex-col">
-
-                  {/* Cabeçalho: foto + identidade */}
-                  <div className="flex items-start gap-3 mb-4 pl-6">
-
-                    {/* Espaço retangular da foto (portrait 56×72 px) */}
-                    <div className="concave-3d rounded-[6px] p-1 shrink-0">
-                      <div className="w-14 h-[72px] rounded-[4px] overflow-hidden bg-muted flex items-center justify-center">
-                        {client.photoUrl ? (
-                          <img
-                            src={client.photoUrl}
-                            alt="Foto"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Camera className="w-5 h-5 text-muted-foreground/40" />
-                        )}
-                      </div>
+      ) : (() => {
+          // Ordena e agrupa por letra inicial
+          const sorted = [...visible].sort((a, b) =>
+            tituloProprio(a.name).localeCompare(tituloProprio(b.name), "pt-BR"),
+          );
+          const groups: { letra: string; clientes: typeof sorted }[] = [];
+          for (const c of sorted) {
+            const l = tituloProprio(c.name).charAt(0).toUpperCase() || "#";
+            const last = groups[groups.length - 1];
+            if (last && last.letra === l) {
+              last.clientes.push(c);
+            } else {
+              groups.push({ letra: l, clientes: [c] });
+            }
+          }
+          return (
+            <div className="space-y-6">
+              {groups.map(({ letra, clientes: grupo }) => (
+                <div key={letra}>
+                  {/* Divisor da letra */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bevel-3d w-8 h-8 rounded-md flex items-center justify-center text-sm font-extrabold text-primary shrink-0">
+                      {letra}
                     </div>
+                    <div className="flex-1 h-px bg-border/60" />
+                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                      {grupo.length} {grupo.length === 1 ? "cliente" : "clientes"}
+                    </span>
+                  </div>
 
-                    {/* Nome + CPF + status */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between h-[80px]">
-                      <div>
-                        <h3 className="text-base font-bold leading-tight text-primary tracking-tight line-clamp-2">
-                          {tituloProprio(client.name)}
-                        </h3>
-                        <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums mt-1">
-                          {client.cpf}
+                  {/* Grid do grupo — 2 colunas para cards mais largos */}
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {grupo.map((client: any) => {
+                      const isSelected = selected.has(client.id);
+                      const nomeFormatado = tituloProprio(client.name);
+                      return (
+                        <div
+                          key={client.id}
+                          className={`relative panel-3d transition-all duration-200 cursor-pointer ${
+                            isSelected
+                              ? "ring-2 ring-accent ring-offset-1 ring-offset-background"
+                              : "hover:panel-3d-active neon-hover"
+                          }`}
+                          onClick={() => toggleSelect(client.id)}
+                        >
+                          {/* Checkbox */}
+                          <div className="absolute top-3 left-3 z-10">
+                            {isSelected
+                              ? <CheckSquare className="w-4 h-4 text-accent" />
+                              : <Square className="w-4 h-4 text-muted-foreground/40 hover:text-muted-foreground" />
+                            }
+                          </div>
+
+                          <CardContent className="p-4 flex flex-row gap-3">
+
+                            {/* Foto portrait (64×88 px) */}
+                            <div className="concave-3d rounded-[6px] p-1 shrink-0 self-start mt-4">
+                              <div className="w-16 h-[88px] rounded-[4px] overflow-hidden bg-muted flex items-center justify-center">
+                                {client.photoUrl ? (
+                                  <img src={client.photoUrl} alt="Foto" className="w-full h-full object-cover" />
+                                ) : (
+                                  <Camera className="w-5 h-5 text-muted-foreground/35" />
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Dados — coluna direita */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+
+                              {/* Nome + CPF + status */}
+                              <div className="pl-5 space-y-1">
+                                <h3 className="text-sm font-bold leading-tight text-primary tracking-tight line-clamp-2">
+                                  {nomeFormatado}
+                                </h3>
+                                <div className="concave-3d inline-flex px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                                  {client.cpf}
+                                </div>
+                                <div>
+                                  <Badge
+                                    variant="outline"
+                                    className={`rounded-[4px] border-none px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest shadow-sm ${getStatusColor(client.status)}`}
+                                  >
+                                    {formatStatus(client.status)}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Contatos */}
+                              <div className="space-y-1 mt-2">
+                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+                                  <Phone className="w-3 h-3 text-primary shrink-0" />
+                                  <span className="tabular-nums truncate">{client.phone}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+                                  <Mail className="w-3 h-3 text-primary shrink-0" />
+                                  <span className="truncate lowercase">{client.email}</span>
+                                </div>
+                              </div>
+
+                              {tab === "apagados" && client.deletedAt && (
+                                <div className="text-[9px] font-bold text-destructive/70 uppercase tracking-widest mt-1">
+                                  Apagado em {new Date(client.deletedAt).toLocaleDateString("pt-BR")}
+                                </div>
+                              )}
+
+                              {/* Rodapé */}
+                              <div className="pt-2 border-t mt-2 flex items-center justify-between">
+                                <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground/60">
+                                  <Activity className="w-3 h-3" />
+                                  Prontuário
+                                </div>
+                                <Link
+                                  href={`/clients/${client.id}`}
+                                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                >
+                                  <div className="screen-3d px-2 py-1 text-[9px] font-bold text-primary uppercase tracking-wider">
+                                    Visualizar
+                                  </div>
+                                </Link>
+                              </div>
+                            </div>
+                          </CardContent>
                         </div>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={`self-start rounded-[4px] border-none px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest shadow-sm ${getStatusColor(client.status)}`}
-                      >
-                        {formatStatus(client.status)}
-                      </Badge>
-                    </div>
+                      );
+                    })}
                   </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      <Phone className="w-3 h-3 text-primary" />
-                      <span className="tabular-nums">{client.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      <Mail className="w-3 h-3 text-primary" />
-                      <span className="line-clamp-1 lowercase">{client.email}</span>
-                    </div>
-                  </div>
-
-                  {tab === "apagados" && client.deletedAt && (
-                    <div className="text-[10px] font-bold text-destructive/70 uppercase tracking-widest mb-2">
-                      Apagado em {new Date(client.deletedAt).toLocaleDateString("pt-BR")}
-                    </div>
-                  )}
-
-                  <div className="mt-auto pt-3 border-t flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground/70">
-                      <Activity className="w-3 h-3" />
-                      Prontuário
-                    </div>
-                    <Link
-                      href={`/clients/${client.id}`}
-                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    >
-                      <div className="screen-3d px-3 py-1 text-[10px] font-bold text-primary uppercase tracking-wider">
-                        Visualizar
-                      </div>
-                    </Link>
-                  </div>
-                </CardContent>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                </div>
+              ))}
+            </div>
+          );
+        })()
+      }
     </div>
   );
 }
