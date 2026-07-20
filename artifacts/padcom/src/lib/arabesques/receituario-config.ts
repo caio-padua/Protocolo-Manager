@@ -2,6 +2,7 @@
 // RECEITUÁRIO CONFIG v2 — Configuração completa do receituário médico
 // Persistida em localStorage("paxter:receituario-config")
 // Spec: specs/receituario-designer-v2.md  —  20/07/2026
+// P1 update: selectedClinicaId + selectedMedicoId (20/07/2026)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CONFIG_LS_KEY = "paxter:receituario-config";
@@ -19,6 +20,10 @@ export type CustomBand = {
 
 /** Configuração completa v2 */
 export type ReceituarioConfig = {
+  // ── Seletor de entidade emissora (P1) ──────────────────────────────────────
+  selectedClinicaId?: number;               // id da location selecionada (empresa emissora)
+  selectedMedicoId?: number;                // id do professional selecionado (médico prescritor)
+
   // ── Cabeçalho ──────────────────────────────────────────────────────────────
   cabecalhoLogoDataUrl?: string;            // logo da clínica (base64)
   cabecalhoNomeModo: "texto" | "imagem";    // P6: modo de entrada do nome
@@ -32,45 +37,45 @@ export type ReceituarioConfig = {
   // ── Título do documento ────────────────────────────────────────────────────
   tituloDocumento: string;                  // "RECEITUÁRIO DE CONTROLE ESPECIAL"
   tituloSubtitulo: string;                  // "MODELO DEMONSTRATIVO - SEM VALIDADE"
-  linhaEstiloCabecalho: "simples" | "dupla" | "ornamentada"; // KC: linha entre cabeç. e título
+  linhaEstiloCabecalho: "simples" | "dupla" | "ornamentada"; // KC
 
   // ── Tipo padrão da receita ─────────────────────────────────────────────────
   tipoReceitaPadrao: "especial" | "simples";
 
   // ── Boxes das faixas ───────────────────────────────────────────────────────
   boxPacienteTitulo: string;
-  boxPacienteCampos: string;               // vírgula separados, ordem é a exibição
+  boxPacienteCampos: string;
   boxMedicoTitulo: string;
   boxMedicoCampos: string;
   boxCompradorTitulo: string;
   boxCompradorCampos: string;
   boxFarmaciaTitulo: string;
   boxFarmaciaCampos: string;
-  boxSplitRatio: "50/50" | "40/60" | "60/40"; // KA: proporção dos boxes
-  boxBorderWidth: number;                   // 1–3 px (KA)
-  boxFaixinhaEsquerda: boolean;             // KB: borda decorativa esquerda
-  boxFaixinhaCor: string;                   // hex da faixinha (KB)
+  boxSplitRatio: "50/50" | "40/60" | "60/40";
+  boxBorderWidth: number;
+  boxFaixinhaEsquerda: boolean;
+  boxFaixinhaCor: string;
 
   // ── Corpo / Fórmulas (P9, P10) ────────────────────────────────────────────
-  corpoFonteTitulo: string;                 // font-family para nome da fórmula
-  corpoFonteCorpo: string;                  // font-family para posologia/campos
+  corpoFonteTitulo: string;
+  corpoFonteCorpo: string;
 
   // ── Assinatura (P11) ───────────────────────────────────────────────────────
-  assinaturaDataUrl?: string;               // imagem da assinatura (base64)
+  assinaturaDataUrl?: string;
   assinaturaModo: "databind" | "imagem";
-  assinaturaTextoFallback: string;          // nome cursivo texto se sem imagem
+  assinaturaTextoFallback: string;
 
   // ── Certificado digital (P12) ─────────────────────────────────────────────
   certificadoMostrar: boolean;
-  certificadoQrDataUrl?: string;            // QR code (base64)
-  certificadoLogoDataUrl?: string;          // logo do certificador (base64)
+  certificadoQrDataUrl?: string;
+  certificadoLogoDataUrl?: string;
 
   // ── Rodapé direito — sistema (P1, P5) ─────────────────────────────────────
-  rodapeSistemaModo: "texto" | "imagem";    // P5: modo de entrada do wordmark
-  rodapeSistemaImagemDataUrl?: string;      // wordmark PARXIS (base64)
-  rodapeSistemaLogoDataUrl?: string;        // símbolo/ícone (upload, P1)
-  rodapePaxterNome: string;                 // texto fallback do nome
-  rodapePaxterSubtitulo: string;            // subtítulo do sistema
+  rodapeSistemaModo: "texto" | "imagem";
+  rodapeSistemaImagemDataUrl?: string;
+  rodapeSistemaLogoDataUrl?: string;
+  rodapePaxterNome: string;
+  rodapePaxterSubtitulo: string;
 
   // ── Rodapé esquerdo (P3) ─────────────────────────────────────────────────
   rodapeEndereco: string;
@@ -84,6 +89,9 @@ export type ReceituarioConfig = {
 
 /** Valores padrão */
 export const DEFAULT_CONFIG: ReceituarioConfig = {
+  selectedClinicaId: 8,   // Instituto Padua
+  selectedMedicoId: 6,    // Dr. Caio
+
   cabecalhoNomeModo: "texto",
   cabecalhoNome:      "Clínica Padua — Dr. Caio H. F. Pádua",
   cabecalhoTitulo:    "Medicina Integrativa e Longevidade",

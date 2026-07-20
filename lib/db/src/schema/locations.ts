@@ -25,6 +25,13 @@ export const locationsTable = pgTable("locations", {
   // NULL = pertence ao tenant padrão (Instituto Pádua). FK lógica → empresas.id.
   // Ativação completa do isolamento em onda futura (não quebra comportamento atual).
   empresaId: integer("empresa_id"),
+  // ── Dados jurídicos e certificado digital (adicionado 20/07/2026 via ALTER TABLE) ──
+  cnpj: text("cnpj"),
+  razaoSocial: text("razao_social"),
+  nomeFantasia: text("nome_fantasia"),
+  certTitular: text("cert_titular"),
+  certValidade: text("cert_validade"),
+  certTipo: text("cert_tipo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

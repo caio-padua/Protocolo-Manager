@@ -8,7 +8,7 @@ import {
   LayoutTemplate, Save, Upload, Trash2, CheckCircle2, ChevronDown, ChevronRight,
   ImageIcon, Building2, AlignLeft, Layers, Footprints, Zap, Eye, EyeOff,
   AlertCircle, Info, Printer, Type, Palette, PenLine, Shield, GripVertical,
-  SplitSquareVertical, Rows,
+  SplitSquareVertical, Rows, Users, Stethoscope, BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,7 +91,7 @@ function ModelCard({ m, src, selected, isSaved, onSelect }: {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ACCORDION SECTION
+// ACCORDION SECTION — PAXTER 3D (P4: panel-3d, screen-3d badge, amber icon)
 // ══════════════════════════════════════════════════════════════════════════════
 function Section({ icon, label, badge, defaultOpen = false, children }: {
   icon: React.ReactNode; label: string; badge?: string;
@@ -99,15 +99,15 @@ function Section({ icon, label, badge, defaultOpen = false, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+    <div className="panel-3d overflow-hidden">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-        <span className="text-teal-600 shrink-0">{icon}</span>
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left transition-opacity hover:opacity-90">
+        <span className="text-amber-600 shrink-0">{icon}</span>
         <span className="font-bold text-sm text-gray-800 flex-1">{label}</span>
-        {badge && <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded font-semibold mr-1">{badge}</span>}
+        {badge && <span className="screen-3d text-xs px-2 py-0.5 mr-1 font-semibold text-gray-700">{badge}</span>}
         {open ? <ChevronDown className="w-4 h-4 text-gray-400"/> : <ChevronRight className="w-4 h-4 text-gray-400"/>}
       </button>
-      {open && <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-2 border-t border-amber-100/60 space-y-3">{children}</div>}
     </div>
   );
 }
@@ -122,16 +122,16 @@ function FieldRow({ label, hint, children }: { label: string; hint?: string; chi
   );
 }
 
-// Toggle modo imagem/texto
+// Toggle modo imagem/texto — P4: concave-3d container + bevel-3d selecionado
 function ModoToggle({ valor, onChange }: {
   valor: "texto" | "imagem"; onChange: (v: "texto" | "imagem") => void;
 }) {
   return (
-    <div className="flex border border-gray-300 rounded overflow-hidden text-xs w-fit">
+    <div className="concave-3d flex overflow-hidden text-xs w-fit">
       {(["texto", "imagem"] as const).map(m => (
         <button key={m} onClick={() => onChange(m)}
-          className={`px-3 py-1 font-semibold capitalize transition-colors
-            ${valor === m ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+          className={`px-3 py-1.5 font-semibold transition-all
+            ${valor === m ? "bevel-3d text-white" : "bg-transparent text-gray-600 hover:opacity-90"}`}>
           {m === "texto" ? "Texto" : "Imagem (upload)"}
         </button>
       ))}
@@ -171,6 +171,18 @@ export default function ConfigReceituario() {
   const [showPreview, setShowPreview] = useState(true);
   const [saved, setSaved]     = useState(false);
   const [dragging, setDragging] = useState(false);
+
+  // P1: Seletor de clínica e médico
+  const [locationsList, setLocationsList] = useState<Array<{ id: number; name: string; razaoSocial?: string; nomeFantasia?: string; cnpj?: string; certTitular?: string; certTipo?: string; certValidade?: string }>>([]);
+  const [profsList, setProfsList] = useState<Array<{ id: number; name: string; crm?: string; specialty?: string; category?: string }>>([]);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/locations`).then(r => r.json()).then((d: unknown) => { if (Array.isArray(d)) setLocationsList(d); }).catch(() => {});
+    fetch(`${BASE}/api/professionals`).then(r => r.json()).then((d: unknown) => { if (Array.isArray(d)) setProfsList(d); }).catch(() => {});
+  }, []);
+
+  const selectedClinica = locationsList.find(l => l.id === (cfg.selectedClinicaId ?? 8));
+  const selectedMedico  = profsList.find(p => p.id === (cfg.selectedMedicoId ?? 6));
 
   // Data-bind em tempo real — qualquer mudança no cfg reflete no preview imediatamente
   const patch = useCallback((partial: Partial<ReceituarioConfig>) => {
@@ -278,24 +290,25 @@ export default function ConfigReceituario() {
     <div className="min-h-screen bg-stone-100">
       {printContent}
 
-      {/* ── HEADER DA TELA ────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
+      {/* ── HEADER DA TELA — PAXTER (P4: navy) ───────────────────────────── */}
+      <div style={{ background: "linear-gradient(145deg, #163050 0%, #0f2340 100%)" }}
+        className="px-6 py-4 sticky top-0 z-30 border-b border-white/10">
         <div className="flex items-center gap-3 max-w-screen-2xl mx-auto">
-          <LayoutTemplate className="w-5 h-5 text-teal-600"/>
+          <LayoutTemplate className="w-5 h-5 text-amber-400"/>
           <div className="flex-1">
-            <h1 className="text-lg font-bold text-gray-800 tracking-wide">Designer do Receituário</h1>
-            <p className="text-xs text-gray-500">
+            <h1 className="text-lg font-bold text-white tracking-wide">Designer do Receituário</h1>
+            <p className="text-xs text-blue-300">
               Faixa ornamental · Cabeçalho · Boxes · Assinatura · Certificado · Rodapé · Preview ao vivo · PDF
             </p>
           </div>
-          <Button onClick={handlePrint} variant="outline" className="text-sm border-gray-300">
-            <Printer className="w-4 h-4 mr-2"/> Imprimir / PDF
-          </Button>
-          <Button onClick={handleSave}
-            className={`${saved ? "bg-green-600 hover:bg-green-700" : "bg-teal-600 hover:bg-teal-700"} text-white text-sm`}>
-            {saved ? <CheckCircle2 className="w-4 h-4 mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+          <button onClick={handlePrint} className="btn-3d-soft text-sm px-4 py-2 flex items-center gap-2 font-semibold">
+            <Printer className="w-4 h-4"/> Imprimir / PDF
+          </button>
+          <button onClick={handleSave}
+            className={`text-sm px-4 py-2 flex items-center gap-2 font-semibold ${saved ? "bevel-3d-ok" : "btn-3d-gold"}`}>
+            {saved ? <CheckCircle2 className="w-4 h-4"/> : <Save className="w-4 h-4"/>}
             {saved ? "Salvo" : "Salvar tudo"}
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -307,81 +320,14 @@ export default function ConfigReceituario() {
           ══════════════════════════════════════════════════════════════════ */}
           <div className="space-y-3">
 
-            {/* ── P3/P1: Upload de Faixas ─────────────────────────────────── */}
-            <Section icon={<Upload className="w-4 h-4"/>}
-              label="Upload de Faixa Ornamental Personalizada" badge="P3" defaultOpen>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <Info className="w-3.5 h-3.5"/> Especificações de arquivo
-                </div>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-blue-900">
-                  {[
-                    ["Formatos aceitos", UPLOAD_RULES.formatosTxt],
-                    ["Tamanho máximo", `${UPLOAD_RULES.maxSizeMb} MB`],
-                    ["Dimensões ideais", `${UPLOAD_RULES.recWidth} × ${UPLOAD_RULES.recHeight} px`],
-                    ["Orientação", "Horizontal (strip para faixa)"],
-                    ["Fundo recomendado", "Branco ou transparente (PNG)"],
-                    ["Armazenamento", "LocalStorage do navegador"],
-                  ].map(([k, v]) => (
-                    <React.Fragment key={k}>
-                      <span className="font-semibold text-blue-700">{k}:</span>
-                      <span>{v}</span>
-                    </React.Fragment>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) processaBandFile(f); }}
-                onClick={() => bandFileRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
-                  ${dragging ? "border-teal-400 bg-teal-50" : "border-gray-300 bg-gray-50 hover:border-teal-300 hover:bg-teal-50"}`}>
-                <input ref={bandFileRef} type="file" accept={UPLOAD_RULES.acceptedExts}
-                  className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) processaBandFile(f); e.target.value = ""; }}/>
-                <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2"/>
-                <p className="text-sm font-semibold text-gray-600">Solte aqui ou clique para selecionar</p>
-                <p className="text-xs text-gray-400 mt-1">{UPLOAD_RULES.formatosTxt} · máx. {UPLOAD_RULES.maxSizeMb} MB</p>
-              </div>
-
-              {cfg.customBands.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                    Faixas enviadas ({cfg.customBands.length})
-                  </div>
-                  {cfg.customBands.map(b => (
-                    <div key={b.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg p-2">
-                      <div className="w-20 h-8 overflow-hidden rounded border border-gray-100 shrink-0">
-                        <img src={b.dataUrl} alt={b.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-gray-700 truncate">{b.name}</div>
-                        <div className="text-xs text-gray-400">{b.widthPx}×{b.heightPx}px · {b.fileSizeKb} KB</div>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => { setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}
-                        className="text-xs px-2 h-7 border-teal-300 text-teal-700">Preview</Button>
-                      <button onClick={() => {
-                        patch({ customBands: cfg.customBands.filter(x => x.id !== b.id) });
-                        if (previewBand === b.id) { setPreviewBand(bandModel); setPreviewCustomUrl(undefined); }
-                      }} className="p-1.5 text-gray-400 hover:text-red-500">
-                        <Trash2 className="w-3.5 h-3.5"/>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
             {/* ── Seletor de faixa ativa (catálogo) ──────────────────────── */}
             <Section icon={<LayoutTemplate className="w-4 h-4"/>}
               label="Faixa Ornamental Ativa"
               badge={`${Object.keys(ARABESQUE_MODELS).length + cfg.customBands.length} modelos`}>
 
-              <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 mb-2">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
-                <span className="text-xs text-teal-800">
+              <div className="bevel-3d-ok flex items-center gap-2 px-3 py-2 mb-2">
+                <CheckCircle2 className="w-4 h-4 text-white shrink-0"/>
+                <span className="text-xs text-white">
                   <b>Ativo:</b> {
                     bandModel.startsWith("custom-")
                       ? (cfg.customBands.find(b => b.id === bandModel)?.name ?? bandModel)
@@ -514,8 +460,8 @@ export default function ConfigReceituario() {
                 <div className="flex gap-2">
                   {(["simples", "dupla", "ornamentada"] as const).map(s => (
                     <button key={s} onClick={() => patch({ linhaEstiloCabecalho: s })}
-                      className={`px-3 py-1 text-xs rounded border font-semibold capitalize transition-colors
-                        ${cfg.linhaEstiloCabecalho === s ? "bg-teal-600 text-white border-teal-600" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>
+                      className={`px-3 py-1 text-xs font-semibold capitalize transition-all
+                        ${cfg.linhaEstiloCabecalho === s ? "bevel-3d text-white" : "btn-3d-soft"}`}>
                       {s}
                     </button>
                   ))}
@@ -527,10 +473,10 @@ export default function ConfigReceituario() {
             <Section icon={<Layers className="w-4 h-4"/>}
               label="Campos Internos dos Boxes das Faixas" badge="P2">
 
-              <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded p-2">
+              <div className="screen-3d p-2 text-xs text-gray-700">
                 Defina o <b>título</b> de cada cartão e os <b>campos</b> (separados por vírgula, na ordem de exibição).
                 No preview, cada campo aparece com uma linha pontilhada de preenchimento.
-              </p>
+              </div>
 
               {[
                 { lbl: "Box 1 — Emitente / Médico (faixa superior, esquerda)", tk: "boxMedicoTitulo", ck: "boxMedicoCampos" },
@@ -538,7 +484,7 @@ export default function ConfigReceituario() {
                 { lbl: "Box 3 — Comprador (faixa inferior, esquerda — Controle Especial)", tk: "boxCompradorTitulo", ck: "boxCompradorCampos" },
                 { lbl: "Box 4 — Fornecedor / Farmácia (faixa inferior, direita)", tk: "boxFarmaciaTitulo", ck: "boxFarmaciaCampos" },
               ].map(({ lbl, tk, ck }) => (
-                <div key={tk} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                <div key={tk} className="panel-3d-sub p-3 space-y-2">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">{lbl}</div>
                   <FieldRow label="Título do cartão">
                     <Input value={(cfg as Record<string, string>)[tk]}
@@ -555,7 +501,7 @@ export default function ConfigReceituario() {
               ))}
 
               {/* Kaizen A: Split ratio + borderWidth */}
-              <div className="border border-gray-200 rounded-lg p-3 space-y-3 bg-gray-50">
+              <div className="panel-3d-sub p-3 space-y-3">
                 <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                   Kaizen A — Proporção e Estilo dos Boxes
                 </div>
@@ -563,8 +509,8 @@ export default function ConfigReceituario() {
                   <div className="flex gap-2">
                     {(["50/50", "40/60", "60/40"] as const).map(r => (
                       <button key={r} onClick={() => patch({ boxSplitRatio: r })}
-                        className={`px-3 py-1 text-xs rounded border font-semibold transition-colors
-                          ${cfg.boxSplitRatio === r ? "bg-teal-600 text-white border-teal-600" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>
+                        className={`px-3 py-1 text-xs font-semibold transition-all
+                          ${cfg.boxSplitRatio === r ? "bevel-3d text-white" : "btn-3d-soft"}`}>
                         {r}
                       </button>
                     ))}
@@ -578,14 +524,14 @@ export default function ConfigReceituario() {
               </div>
 
               {/* Kaizen B: faixinha esquerda */}
-              <div className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
+              <div className="panel-3d-sub p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Kaizen B — Faixinha Decorativa Esquerda dos Boxes
                   </div>
                   <button onClick={() => patch({ boxFaixinhaEsquerda: !cfg.boxFaixinhaEsquerda })}
-                    className={`px-3 py-1 text-xs rounded-full font-bold border transition-colors
-                      ${cfg.boxFaixinhaEsquerda ? "bg-teal-600 text-white border-teal-600" : "border-gray-300 text-gray-500"}`}>
+                    className={`px-3 py-1 text-xs font-bold transition-all
+                      ${cfg.boxFaixinhaEsquerda ? "bevel-3d-ok text-white" : "btn-3d-soft"}`}>
                     {cfg.boxFaixinhaEsquerda ? "Ativada" : "Desativada"}
                   </button>
                 </div>
@@ -690,13 +636,65 @@ export default function ConfigReceituario() {
             <Section icon={<Shield className="w-4 h-4"/>}
               label="Bloco do Certificado Digital" badge="P12">
 
+              {/* P1: Seletores de empresa emissora e médico prescritor */}
+              <div className="panel-3d-sub p-3 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-amber-600"/> Empresa Emissora
+                </div>
+                <select
+                  value={cfg.selectedClinicaId ?? 8}
+                  onChange={e => patch({ selectedClinicaId: Number(e.target.value) })}
+                  className="w-full field-engraved border border-amber-200/60 rounded px-3 py-2 text-sm bg-transparent">
+                  {locationsList.length === 0 && <option value={8}>Instituto Padua (carregando...)</option>}
+                  {locationsList.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                {selectedClinica && (
+                  <div className="screen-3d p-2 space-y-0.5 text-xs text-gray-700">
+                    {selectedClinica.nomeFantasia && <div><span className="font-semibold">Nome fantasia:</span> {selectedClinica.nomeFantasia}</div>}
+                    {selectedClinica.razaoSocial && <div><span className="font-semibold">Razão social:</span> {selectedClinica.razaoSocial}</div>}
+                    {selectedClinica.cnpj && selectedClinica.cnpj !== "a confirmar" && <div><span className="font-semibold">CNPJ:</span> {selectedClinica.cnpj}</div>}
+                    {selectedClinica.certTitular && (
+                      <div className="flex items-center gap-1">
+                        <BadgeCheck className="w-3 h-3 text-amber-600 shrink-0"/>
+                        <span className="font-semibold">Cert:</span> {selectedClinica.certTitular}
+                        {selectedClinica.certTipo && <span className="text-gray-500"> — {selectedClinica.certTipo}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="panel-3d-sub p-3 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-amber-600"/> Médico Prescritor
+                </div>
+                <select
+                  value={cfg.selectedMedicoId ?? 6}
+                  onChange={e => patch({ selectedMedicoId: Number(e.target.value) })}
+                  className="w-full field-engraved border border-amber-200/60 rounded px-3 py-2 text-sm bg-transparent">
+                  {profsList.length === 0 && <option value={6}>Dr. Caio H. F. Pádua (carregando...)</option>}
+                  {profsList.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.crm ? ` — CRM ${p.crm}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedMedico && (
+                  <div className="screen-3d p-2 text-xs text-gray-700 space-y-0.5">
+                    <div><span className="font-semibold">Nome:</span> {selectedMedico.name}</div>
+                    {selectedMedico.crm && <div><span className="font-semibold">CRM:</span> {selectedMedico.crm}</div>}
+                    {selectedMedico.specialty && <div><span className="font-semibold">Especialidade:</span> {selectedMedico.specialty}</div>}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-500">
                   Aparece à direita da assinatura. Exibe os dados do certificado ICP-Brasil e QR de verificação.
                 </p>
                 <button onClick={() => patch({ certificadoMostrar: !cfg.certificadoMostrar })}
-                  className={`px-3 py-1 text-xs rounded-full font-bold border shrink-0 ml-3 transition-colors
-                    ${cfg.certificadoMostrar ? "bg-teal-600 text-white border-teal-600" : "border-gray-300 text-gray-500"}`}>
+                  className={`px-3 py-1.5 text-xs font-bold shrink-0 ml-3 transition-all
+                    ${cfg.certificadoMostrar ? "bevel-3d-ok text-white" : "btn-3d-soft"}`}>
                   {cfg.certificadoMostrar ? "Visível" : "Oculto"}
                 </button>
               </div>
@@ -851,12 +849,79 @@ export default function ConfigReceituario() {
               </FieldRow>
             </Section>
 
+            {/* ── P3/P1: Upload de Faixas — ÚLTIMO BLOCO (P6) ──────────── */}
+            <Section icon={<Upload className="w-4 h-4"/>}
+              label="Upload de Faixa Ornamental Personalizada" badge="P3">
+
+              <div className="screen-3d p-3">
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 text-amber-600"/> Especificações de arquivo
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-700">
+                  {[
+                    ["Formatos aceitos", UPLOAD_RULES.formatosTxt],
+                    ["Tamanho máximo", `${UPLOAD_RULES.maxSizeMb} MB`],
+                    ["Dimensões ideais", `${UPLOAD_RULES.recWidth} × ${UPLOAD_RULES.recHeight} px`],
+                    ["Orientação", "Horizontal (strip para faixa)"],
+                    ["Fundo recomendado", "Branco ou transparente (PNG)"],
+                    ["Armazenamento", "LocalStorage do navegador"],
+                  ].map(([k, v]) => (
+                    <React.Fragment key={k}>
+                      <span className="font-semibold text-gray-600">{k}:</span>
+                      <span>{v}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) processaBandFile(f); }}
+                onClick={() => bandFileRef.current?.click()}
+                className={`concave-3d border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
+                  ${dragging ? "border-teal-400" : "border-amber-200 hover:border-teal-300"}`}>
+                <input ref={bandFileRef} type="file" accept={UPLOAD_RULES.acceptedExts}
+                  className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) processaBandFile(f); e.target.value = ""; }}/>
+                <Upload className="w-7 h-7 text-amber-500 mx-auto mb-2"/>
+                <p className="text-sm font-semibold text-gray-700">Solte aqui ou clique para selecionar</p>
+                <p className="text-xs text-gray-500 mt-1">{UPLOAD_RULES.formatosTxt} · máx. {UPLOAD_RULES.maxSizeMb} MB</p>
+              </div>
+
+              {cfg.customBands.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                    Faixas enviadas ({cfg.customBands.length})
+                  </div>
+                  {cfg.customBands.map(b => (
+                    <div key={b.id} className="panel-3d-sub flex items-center gap-3 p-2">
+                      <div className="w-20 h-8 overflow-hidden rounded border border-amber-100/80 shrink-0">
+                        <img src={b.dataUrl} alt={b.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-gray-700 truncate">{b.name}</div>
+                        <div className="text-xs text-gray-400">{b.widthPx}×{b.heightPx}px · {b.fileSizeKb} KB</div>
+                      </div>
+                      <button onClick={() => { setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}
+                        className="btn-3d-soft text-xs px-2 py-1 font-semibold">Preview</button>
+                      <button onClick={() => {
+                        patch({ customBands: cfg.customBands.filter(x => x.id !== b.id) });
+                        if (previewBand === b.id) { setPreviewBand(bandModel); setPreviewCustomUrl(undefined); }
+                      }} className="p-1.5 text-gray-400 hover:text-red-500">
+                        <Trash2 className="w-3.5 h-3.5"/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
           </div>{/* fim coluna esquerda */}
 
           {/* ══════════════════════════════════════════════════════════════════
               COLUNA DIREITA — Preview ao vivo (P7) + controles
           ══════════════════════════════════════════════════════════════════ */}
-          <div className="space-y-3 sticky top-20">
+          <div className="space-y-3 sticky top-[72px] max-h-[calc(100vh-80px)] overflow-y-auto pb-6">
 
             {/* Controles do preview */}
             <div className="flex items-center justify-between">
@@ -864,17 +929,17 @@ export default function ConfigReceituario() {
                 Preview ao vivo — escala ~55% do A4
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex border border-gray-300 rounded overflow-hidden text-xs">
+                <div className="concave-3d flex overflow-hidden text-xs">
                   {(["especial", "simples"] as const).map(t => (
                     <button key={t} onClick={() => patch({ tipoReceitaPadrao: t })}
-                      className={`px-3 py-1 font-semibold transition-colors
-                        ${cfg.tipoReceitaPadrao === t ? "bg-slate-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+                      className={`px-3 py-1 font-semibold transition-all
+                        ${cfg.tipoReceitaPadrao === t ? "bevel-3d text-white" : "bg-transparent text-gray-600 hover:opacity-90"}`}>
                       {t === "especial" ? "Controle Especial" : "Simples"}
                     </button>
                   ))}
                 </div>
                 <button onClick={() => setShowPreview(v => !v)}
-                  className="p-1.5 border border-gray-200 rounded text-gray-400 hover:text-gray-600">
+                  className="btn-3d-soft p-1.5">
                   {showPreview ? <EyeOff className="w-3.5 h-3.5"/> : <Eye className="w-3.5 h-3.5"/>}
                 </button>
               </div>
@@ -882,8 +947,8 @@ export default function ConfigReceituario() {
 
             {/* Preview escalado (P7) */}
             {showPreview && (
-              <div className="bg-gray-300 rounded-xl p-3 overflow-auto"
-                style={{ maxHeight: "calc(100vh - 200px)" }}>
+              <div className="concave-3d rounded-xl p-3 overflow-auto"
+                style={{ maxHeight: "calc(100vh - 160px)" }}>
                 <div style={{
                   transform: "scale(0.55)",
                   transformOrigin: "top left",
@@ -901,7 +966,7 @@ export default function ConfigReceituario() {
             )}
 
             {/* Info + botões */}
-            <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs space-y-1.5">
+            <div className="panel-3d-sub p-3 text-xs space-y-1.5">
               {[
                 ["Tipo", cfg.tipoReceitaPadrao === "especial" ? "Controle Especial (4 boxes)" : "Simples (2 boxes)"],
                 ["Faixa ativa", bandModel.startsWith("custom-")
@@ -919,17 +984,17 @@ export default function ConfigReceituario() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Button onClick={handlePrint} variant="outline" className="w-full text-sm border-gray-300">
-                <Printer className="w-4 h-4 mr-2"/> Imprimir / Baixar PDF
-              </Button>
+              <button onClick={handlePrint} className="btn-3d-soft w-full text-sm py-2 flex items-center justify-center gap-2 font-semibold">
+                <Printer className="w-4 h-4"/> Imprimir / Baixar PDF
+              </button>
               <p className="text-xs text-gray-400 text-center">
                 No diálogo do navegador, escolha <b>"Salvar como PDF"</b> para gerar o arquivo.
               </p>
-              <Button onClick={handleSave}
-                className={`w-full text-sm ${saved ? "bg-green-600 hover:bg-green-700" : "bg-teal-600 hover:bg-teal-700"} text-white`}>
-                {saved ? <CheckCircle2 className="w-4 h-4 mr-2"/> : <Save className="w-4 h-4 mr-2"/>}
+              <button onClick={handleSave}
+                className={`w-full text-sm py-2.5 flex items-center justify-center gap-2 font-semibold ${saved ? "bevel-3d-ok" : "btn-3d-gold"}`}>
+                {saved ? <CheckCircle2 className="w-4 h-4"/> : <Save className="w-4 h-4"/>}
                 {saved ? "Configuração salva" : "Salvar toda a configuração"}
-              </Button>
+              </button>
             </div>
           </div>
 

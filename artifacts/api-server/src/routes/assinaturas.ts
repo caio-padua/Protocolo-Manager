@@ -397,4 +397,24 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
   }
 });
 
+// GET /api/cert/metadata — metadados públicos do certificado A1 embarcado
+// Retorna: titular, CPF, validade, tipo, emissor — nunca expõe chave privada.
+assinaturasRouter.get("/cert/metadata", async (_req, res): Promise<void> => {
+  try {
+    const { getCertInfo } = await import("../lib/pdf-signer.js");
+    const info = getCertInfo();
+    res.json({
+      titular:  info.subject  ?? null,
+      cpf:      info.cpf      ?? null,
+      validade: info.validTo  ?? null,
+      emissor:  info.issuer   ?? null,
+      serial:   info.serial   ?? null,
+      tipo:     "A1 ICP-Brasil",
+      ok:       true,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 export default assinaturasRouter;

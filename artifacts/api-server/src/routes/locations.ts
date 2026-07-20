@@ -145,6 +145,12 @@ function serializeLocation(loc: typeof locationsTable.$inferSelect) {
     estado: loc.estado ?? null,
     zona: loc.zona ?? null,
     createdAt: loc.createdAt.toISOString(),
+    cnpj: loc.cnpj ?? null,
+    razaoSocial: loc.razaoSocial ?? null,
+    nomeFantasia: loc.nomeFantasia ?? null,
+    certTitular: loc.certTitular ?? null,
+    certTipo: loc.certTipo ?? null,
+    certValidade: loc.certValidade ?? null,
   };
 }
 
