@@ -201,20 +201,18 @@ function ItemRx({
 function BlocoAssinaturaDigital() {
   return (
     <div style={{
-      border: `0.5px solid ${RULE}`,
-      padding: "7px 9px",
-      background: "#fefcf3",
+      padding: "7px 0 7px 14px",
       flex: 1,
       fontSize: 6.5,
       color: INK,
     }}>
       <div style={{
         fontSize: 6, fontWeight: 800, letterSpacing: 2, color: AMBER_DARK,
-        textTransform: "uppercase", marginBottom: 5, borderBottom: `0.3px solid ${RULE}`, paddingBottom: 3,
+        textTransform: "uppercase", marginBottom: 5, paddingBottom: 3,
       }}>
         Documento Assinado Eletronicamente
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div style={{ flex: 1, lineHeight: 1.8 }}>
           <div><span style={{ color: AMBER_DARK }}>Assinante: </span>CAIO HENRIQUE FERNANDES PÁDUA · CPF: ***·293.***-**</div>
           <div><span style={{ color: AMBER_DARK }}>Certificado: </span>ICP-Brasil · AC SingularID Múltipla G7</div>
@@ -225,14 +223,9 @@ function BlocoAssinaturaDigital() {
             Confira em: <span style={{ color: AMBER_DARK }}>https://verificador.iti.gov.br</span>
           </div>
         </div>
-        {/* QR code placeholder */}
-        <div style={{
-          width: 44, height: 44, flexShrink: 0,
-          border: `0.5px solid ${RULE}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <svg width="38" height="38" viewBox="0 0 38 38">
-            {/* QR simulado com padrão de células */}
+        {/* QR code — sem moldura */}
+        <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="44" height="44" viewBox="0 0 38 38">
             {[0,1,2,3,4,5,6].map(r => [0,1,2,3,4,5,6].map(c => {
               const isCorner = (r < 2 && c < 2) || (r < 2 && c > 4) || (r > 4 && c < 2);
               const isDark = isCorner || (r === 0 || r === 6 || c === 0 || c === 6)
@@ -265,12 +258,6 @@ export function ControleEspecial() {
         boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
       }}>
 
-        {/* ── TARJA SUPERIOR LISTRADA ── */}
-        <div style={{
-          height: 10,
-          background: `repeating-linear-gradient(90deg, ${AMBER} 0px, ${AMBER} 6px, #e8c565 6px, #e8c565 12px)`,
-        }}/>
-
         {/* ── CABEÇALHO ── */}
         <div style={{ padding: "14px 22px 8px", borderBottom: `0.5px solid ${RULE}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -286,12 +273,6 @@ export function ControleEspecial() {
               </div>
               <div style={{ fontSize: 6.5, letterSpacing: 3.5, color: AMBER_DARK, marginTop: 2 }}>
                 Medicina Integrativa e Longevidade
-              </div>
-              <div style={{ width: 120, borderBottom: `0.4px solid ${RULE}`, margin: "4px 0" }}/>
-              <div style={{ fontSize: 6, color: "#666", lineHeight: 1.7 }}>
-                <div>Dr. Caio Henrique Fernandes Pádua · CRM/SP 125.475 · RQE 12.547</div>
-                <div>Rua Guaxupé, 327 · Vila Formosa · São Paulo/SP · CEP 03371-010</div>
-                <div>Tel. (11) 3209-4400 · padcon.com.br</div>
               </div>
             </div>
 
@@ -325,9 +306,6 @@ export function ControleEspecial() {
               fontSize: 12, fontWeight: 900, letterSpacing: 5, color: INK, textTransform: "uppercase",
             }}>
               Receituário de Controle Especial
-            </div>
-            <div style={{ fontSize: 6.5, color: AMBER_DARK, letterSpacing: 1.5, marginTop: 2 }}>
-              Portaria SVS/MS N.º 344/1998 · Lista C1 · Validade: 30 dias
             </div>
           </div>
         </div>
@@ -422,30 +400,8 @@ export function ControleEspecial() {
           </div>
         </div>
 
-        {/* ── AVISO LEGAL ── */}
-        <div style={{
-          margin: "0 22px 10px",
-          padding: "4px 10px",
-          border: `0.5px solid ${AMBER}`,
-          background: "#fffbec",
-          fontSize: 6.5, color: AMBER_DARK, lineHeight: 1.5,
-        }}>
-          ⚠ Medicamento sujeito a controle especial — Portaria SVS/MS 344/1998 · Lista C1<br/>
-          Conservar em local seco, fresco e fora do alcance de crianças. Não tomar mais do que o prescrito.
-        </div>
-
-        {/* ── BARRA RETENÇÃO ── */}
-        <div style={{
-          background: AMBER_DARK, padding: "5px 22px",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-        }}>
-          <div style={{ fontSize: 6.5, fontWeight: 800, letterSpacing: 3, color: "#fff", textTransform: "uppercase" }}>
-            Retenção — Farmácia / Dispensário
-          </div>
-          <div style={{ fontSize: 6, color: "rgba(255,255,255,0.7)" }}>
-            Preencher no ato da dispensação
-          </div>
-        </div>
+        {/* ── DIVISOR FINO ANTES DA SEÇÃO DE RETENÇÃO ── */}
+        <div style={{ margin: "0 22px", borderTop: `0.4px solid ${RULE}` }} />
 
         {/* ════════════════════════════════════════════════════════════════
             PAINEL 2 — FAIXA ARABESCA atrás de Comprador + Fornecedor
@@ -532,11 +488,6 @@ export function ControleEspecial() {
           </div>
         </div>
 
-        {/* ── TARJA INFERIOR ── */}
-        <div style={{
-          height: 8,
-          background: `repeating-linear-gradient(90deg, ${AMBER} 0px, ${AMBER} 6px, #e8c565 6px, #e8c565 12px)`,
-        }}/>
       </div>
     </div>
   );
