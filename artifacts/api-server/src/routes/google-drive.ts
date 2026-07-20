@@ -275,4 +275,31 @@ router.post("/rename-files", async (_req: Request, res: Response) => {
   }
 });
 
+// Upload de asset local para uma pasta Drive arbitrária (uso interno / design)
+router.post("/upload-asset", async (req: Request, res: Response) => {
+  try {
+    const { folderId, fileName, filePath } = req.body as {
+      folderId: string;
+      fileName: string;
+      filePath: string;
+    };
+    if (!folderId || !fileName || !filePath) {
+      return res.status(400).json({ error: "folderId, fileName e filePath sao obrigatorios" });
+    }
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const abs = path.resolve(filePath);
+    const buf = await fs.readFile(abs);
+    const ext = abs.split(".").pop()?.toLowerCase();
+    const mime = ext === "pdf" ? "application/pdf"
+      : ext === "png" ? "image/png"
+      : ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+      : "application/octet-stream";
+    const result = await uploadFileToDrive(folderId, fileName, mime, buf, true);
+    res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
