@@ -3,7 +3,7 @@
 // Usado tanto no preview da tela (scale 0.55) quanto na impressão (1:1)
 // Spec: specs/receituario-designer-v2.md
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useId } from "react";
+import React from "react";
 import { type ReceituarioConfig } from "@/lib/arabesques/receituario-config";
 import { ArabesqueBand } from "@/lib/arabesques/ArabesqueBand";
 
