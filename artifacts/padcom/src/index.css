@@ -1468,3 +1468,22 @@
   .craniotomia-edge-active { animation: none; }
   .craniotomia-pisca { animation: none; opacity: 1; }
 }
+
+/* Scroll affordance — seta da nav inferior que aparece e some */
+@keyframes scrollHintBounce {
+  0%, 100% { transform: translateX(0);   opacity: 0.9; }
+  50%       { transform: translateX(5px); opacity: 1;   }
+}
+@keyframes scrollHintFade {
+  0%, 60% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+.scroll-hint-arrow {
+  animation: scrollHintFade 2.8s ease forwards;
+}
+.scroll-hint-arrow svg {
+  animation: scrollHintBounce 0.55s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint-arrow { animation: none; opacity: 0; }
+}

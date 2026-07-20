@@ -114,7 +114,13 @@ export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
   const [adminMode, setAdminMode] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
   const { theme, toggle } = useScreenTheme();
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowScrollHint(false), 2800);
+    return () => clearTimeout(t);
+  }, []);
 
   // Modo de preview admin: ?preview_id=<n>&preview_name=<name>&preview_token=<tok>
   // O dono da clínica usa a página /experiencia-cliente para gerar esta URL
@@ -213,50 +219,49 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
       </main>
 
-      {/* Mini-painel DEITADO SOBRE a nav — lado a lado → mesma altura que a nav */}
+      {/* Mini-painel VERTICAL — estreito, empilhado, botões bevel */}
       <div
-        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-row"
-        style={{ borderTopLeftRadius: 8 }}
+        className="panel-3d fixed bottom-0 right-0 z-30 border-t border-l border-border/60 flex flex-col items-center py-2 gap-1"
+        style={{ borderTopLeftRadius: 8, width: 54 }}
       >
-        {/* Botão tema — idêntico ao item de nav em altura */}
         <button
           type="button"
           onClick={toggle}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-          className="flex flex-col items-center gap-0.5 py-3 px-3 text-accent hover:text-accent/70 transition-colors"
+          className="btn-3d-soft flex flex-col items-center gap-0.5 py-1.5 px-2 w-10 rounded-lg text-accent"
         >
-          <div className="concave-3d p-1.5 rounded-lg">
-            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </div>
-          <span className="text-[9px] font-bold uppercase tracking-wider">
+          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          <span className="text-[7px] font-bold uppercase tracking-wider leading-none">
             {theme === "dark" ? "CLARO" : "ESCURO"}
           </span>
         </button>
 
-        {/* Separador vertical entre os dois botões */}
-        <div className="border-l border-border/40 my-3" />
+        <div className="border-t border-border/40 w-8" />
 
-        {/* Botão sair — mesmo py-3, lado a lado */}
         <button
           type="button"
           onClick={handleLogout}
-          className="flex flex-col items-center gap-0.5 py-3 px-3 text-muted-foreground hover:text-accent transition-colors"
+          className="btn-3d-soft flex flex-col items-center gap-0.5 py-1.5 px-2 w-10 rounded-lg text-muted-foreground hover:text-accent transition-colors"
         >
-          <div className="p-1.5 rounded-lg">
-            <LogOut className="w-5 h-5" />
-          </div>
-          <span className="text-[9px] font-bold uppercase tracking-wider">SAIR</span>
+          <LogOut className="w-4 h-4" />
+          <span className="text-[7px] font-bold uppercase tracking-wider leading-none">SAIR</span>
         </button>
       </div>
 
       {/* Bottom navigation — deslizante horizontal (8 itens) */}
       <nav
-        className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60"
+        className="panel-3d fixed bottom-0 left-0 right-0 z-20 border-t border-border/60 relative"
         style={{ overflowX: "auto", scrollbarWidth: "none" }}
       >
+        {/* Scroll affordance — seta que aparece 2.8s e some, indicando deslize */}
+        {showScrollHint && (
+          <div className="scroll-hint-arrow pointer-events-none absolute right-14 top-0 bottom-0 z-10 flex items-center">
+            <ChevronRight className="w-5 h-5 text-accent" />
+          </div>
+        )}
         <div
           className="flex"
-          style={{ minWidth: "max-content", paddingRight: 120 /* reserva espaço do mini-painel dir */ }}
+          style={{ minWidth: "max-content", paddingRight: 58 /* reserva espaço do mini-painel dir (54px) */ }}
         >
           {TABS.map((t) => {
             const Icon = t.icon;
