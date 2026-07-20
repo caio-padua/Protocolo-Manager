@@ -80,6 +80,7 @@ export const modules: ModuleMap = {
   "./components/mockups/receituario-especial/AF5.tsx": () => import("../components/mockups/receituario-especial/AF5.tsx"),
   "./components/mockups/receituario-especial/AF6.tsx": () => import("../components/mockups/receituario-especial/AF6.tsx"),
   "./components/mockups/receituario-especial/ArabescoFaixas.tsx": () => import("../components/mockups/receituario-especial/ArabescoFaixas.tsx"),
+  "./components/mockups/receituario-especial/ArabescoLuxo.tsx": () => import("../components/mockups/receituario-especial/ArabescoLuxo.tsx"),
   "./components/mockups/receituario-especial/ArabescoOcidental.tsx": () => import("../components/mockups/receituario-especial/ArabescoOcidental.tsx"),
   "./components/mockups/receituario-especial/ArabescoVariantes.tsx": () => import("../components/mockups/receituario-especial/ArabescoVariantes.tsx"),
   "./components/mockups/receituario-especial/ControleEspecial.tsx": () => import("../components/mockups/receituario-especial/ControleEspecial.tsx"),
