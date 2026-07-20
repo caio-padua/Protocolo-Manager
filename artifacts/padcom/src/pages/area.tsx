@@ -44,6 +44,9 @@ function brMoney(v: number): string {
 function firstName(name: string): string {
   return name.split(" ")[0] ?? name;
 }
+function toTitleCase(str: string): string {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
 
 const METHOD_LABELS: Record<string, string> = {
   pix: "PIX", credit: "CARTÃO DE CRÉDITO", debit: "CARTÃO DE DÉBITO",
@@ -975,7 +978,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
             <p className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO DO TRATAMENTO</p>
             <p className="text-accent font-black text-sm">{pct}%</p>
           </div>
-          <SegmentedBar completed={data.completedSessions} total={data.totalSessions} />
+          <SegmentedBar completed={data.completedSessions} total={data.totalSessions} height={10} />
         </div>
       </div>
 
@@ -1040,44 +1043,37 @@ function ProtocolCard({ p }: { p: Proto }) {
   const [expanded, setExpanded] = useState(p.status === "active");
   const pct = p.totalSessions > 0 ? Math.round((p.completedSessions / p.totalSessions) * 100) : 0;
 
+  const stMap: Record<string, { text: string; cls: string }> = {
+    active:    { text: "Ativo",     cls: "text-cyan-400" },
+    completed: { text: "Concluído", cls: "text-green-400" },
+    cancelled: { text: "Cancelado", cls: "text-slate-400" },
+  };
+  const st = stMap[p.status] ?? { text: p.status, cls: "text-primary" };
+
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
-      {/* ZONA 1 — TOP BAR: status + data */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
-        <div className="flex items-center gap-2 shrink-0">
-          <StatusBadge status={p.status} />
-        </div>
-        <span className="text-muted-foreground text-[10px] font-semibold shrink-0">Início {brDate(p.startDate)}</span>
+      {/* TÍTULO */}
+      <div className="px-4 pt-4 pb-3 border-b border-border/40">
+        <h3 className="text-primary font-black text-base leading-snug">{toTitleCase(p.title)}</h3>
       </div>
 
-      {/* ZONA 2 — TÍTULO */}
-      <div className="px-4 pt-3 pb-1">
-        <h3 className="text-primary font-black text-base uppercase truncate">{p.title}</h3>
-      </div>
-
-      {/* ZONA 3 — IDENTIDADE: progresso concave + badge tipo */}
-      <div className="flex items-center gap-2 px-4 pb-3">
-        <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
-          <span className="text-primary text-xs font-black">{p.completedSessions} / {p.totalSessions} atendimentos</span>
-        </div>
-        <div className="concave-3d px-3 py-1 rounded-lg shrink-0">
-          <span className="text-accent text-[10px] font-black uppercase tracking-wider">{PROC_LABELS[p.serviceType] ?? p.serviceType}</span>
-        </div>
-      </div>
-
-      {/* ZONA 4 — META GRID 2×2 */}
-      <div className="grid grid-cols-2 gap-2 px-4 pb-3">
+      {/* GRADE UNIFORME 3×2 — todos concave, mesma altura */}
+      <div className="grid grid-cols-2 gap-2 p-4 pb-3">
+        <MetaField label="STATUS" value={<span className={`font-black text-xs ${st.cls}`}>{st.text}</span>} />
+        <MetaField label="INÍCIO" value={brDate(p.startDate)} />
         <MetaField label="LOCAL" value={p.unit} />
+        <MetaField label="TIPO" value={PROC_LABELS[p.serviceType] ?? p.serviceType} />
+        <MetaField label="SESSÕES" value={`${p.completedSessions} / ${p.totalSessions}`} />
         <MetaField label="CONCLUSÃO" value={brDate(p.endDate)} />
       </div>
 
-      {/* ZONA 5 — BARRA DE PROGRESSO */}
-      <div className="px-4 pb-3">
-        <div className="flex items-center justify-between mb-1">
+      {/* BARRA DE PROGRESSO */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center justify-between mb-1.5">
           <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
           <span className="text-accent text-xs font-black">{pct}%</span>
         </div>
-          <SegmentedBar completed={p.completedSessions} total={p.totalSessions} />
+        <SegmentedBar completed={p.completedSessions} total={p.totalSessions} height={10} />
       </div>
 
       {/* Substâncias — colapsável */}
