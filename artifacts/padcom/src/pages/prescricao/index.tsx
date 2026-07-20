@@ -3,7 +3,10 @@ import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
   CheckCircle2, ArrowUp, ArrowDown, Layers, Clock, FolderPlus,
   Building2, ShieldAlert, Send, ExternalLink, MessageSquare, AlertTriangle, Eye, FileSignature,
+  ChevronDown, ChevronUp, LayoutTemplate,
 } from "lucide-react";
+import { ArabesqueModelSelector } from "@/lib/arabesques/ArabesqueModelSelector";
+import { getSavedBandModel, saveBandModel, type ArabesqueModelId } from "@/lib/arabesques/models";
 import {
   HEADER_BOILERPLATE, SEPARATOR, PERIODOS, VIAS, CATEGORIES, FORMULAS, PROTOCOLOS_SEED,
   parseBody, parseAtivosLines, tomadaToText, buildFormulaText, getPrecoMedio, formatBRL,
@@ -59,6 +62,9 @@ export default function PrescricaoPage(
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
   const [customProtocolos, setCustomProtocolos] = useState<Protocolo[]>([]);
   const [copied, setCopied] = useState(false);
+  // Faixa ornamental do receituário
+  const [bandOpen, setBandOpen] = useState(false);
+  const [bandModel, setBandModel] = useState<ArabesqueModelId>(getSavedBandModel);
 
   // Modo embutido (cockpit): busca o cliente e preenche o paciente automaticamente,
   // pulando o formulário manual. Sem clientId, a tela funciona como standalone.
@@ -393,6 +399,30 @@ export default function PrescricaoPage(
           <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
         </div>
       )}
+
+      {/* PAINEL — FAIXA ORNAMENTAL DO RECEITUÁRIO */}
+      <section className="no-print">
+        <button
+          onClick={() => setBandOpen((v) => !v)}
+          className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg border border-dashed border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors text-xs font-bold uppercase tracking-widest"
+        >
+          <LayoutTemplate className="w-3.5 h-3.5 shrink-0"/>
+          <span>Estilo da Faixa Ornamental do Receituário</span>
+          {bandOpen
+            ? <ChevronUp className="w-3.5 h-3.5 ml-auto"/>
+            : <ChevronDown className="w-3.5 h-3.5 ml-auto"/>
+          }
+        </button>
+        {bandOpen && (
+          <div className="mt-2 rounded-lg border border-teal-200 overflow-hidden">
+            <ArabesqueModelSelector
+              value={bandModel}
+              onChange={(id) => { setBandModel(id); saveBandModel(id); }}
+              compact
+            />
+          </div>
+        )}
+      </section>
 
       {/* BLOCO — DADOS DO CLIENTE */}
       <section className="no-print panel-3d p-5">

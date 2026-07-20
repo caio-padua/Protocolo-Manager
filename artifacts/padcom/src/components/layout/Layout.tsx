@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
 import {
   LayoutDashboard,
+  LayoutTemplate,
   Users,
   FlaskConical,
   ExternalLink,
@@ -183,6 +184,7 @@ const navigation: NavEntry[] = [
       { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
+      { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
     ],
   },
