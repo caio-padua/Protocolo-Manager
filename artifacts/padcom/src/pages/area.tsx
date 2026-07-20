@@ -902,7 +902,7 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-b border-border/40">
+      <div className="login-card-topbar flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <KeyRound className="w-4 h-4 text-accent" />
           <span className="text-primary text-xs font-black uppercase tracking-widest">VALIDAR PRESENÇA</span>
@@ -986,7 +986,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
       {data.nextSession ? (
         <div className="panel-3d rounded-xl overflow-hidden">
           {/* TOP BAR */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+          <div className="login-card-topbar flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-accent" />
               <span className="text-primary text-xs font-black uppercase tracking-widest">PRÓXIMO ATENDIMENTO</span>
@@ -1053,7 +1053,7 @@ function ProtocolCard({ p }: { p: Proto }) {
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
       {/* TÍTULO */}
-      <div className="px-4 pt-4 pb-3 border-b border-border/40">
+      <div className="login-card-topbar px-4 pt-4 pb-3">
         <h3 className="text-primary font-black text-base leading-snug">{toTitleCase(p.title)}</h3>
       </div>
 
@@ -1181,7 +1181,7 @@ function AgendaTab({ client }: { client: ClientInfo }) {
   const renderSession = (s: Sess) => (
     <div key={s.id} className={`panel-3d rounded-xl overflow-hidden border-l-4 ${SESS_ACCENT[s.status] ?? "border-border"}`}>
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
+      <div className="login-card-topbar flex items-center justify-between px-4 py-2.5">
         <span className="text-primary text-xs font-black">{brDate(s.scheduledDate)} · {s.scheduledTime}</span>
         <StatusBadge status={s.status} />
       </div>
@@ -1473,7 +1473,7 @@ function CategorySection({ label, count, defaultOpen, children }: {
     <div className="panel-3d rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((x) => !x)}
-        className="w-full flex items-center justify-between px-4 py-3 border-b border-border/40"
+        className="login-card-topbar w-full flex items-center justify-between px-4 py-3"
       >
         <div className="flex items-center gap-2">
           <span className="text-primary text-xs font-black uppercase tracking-widest">{label}</span>
