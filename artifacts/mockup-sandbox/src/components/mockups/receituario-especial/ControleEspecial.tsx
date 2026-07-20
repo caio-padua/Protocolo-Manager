@@ -12,7 +12,7 @@ const AMBER_DARK = "#6b4c08";
 const CREAM      = "#fffdf6";
 const INK        = "#111008";
 const RULE       = "#d4b87a";
-const BORDER_W   = 22; // largura da moldura arabesca em px
+// BORDER_W removido — arabesco agora é faixa horizontal, não moldura
 
 // ── SVG arabesco para tile de borda (padrão floral denso) ────────────────────
 function ArabescoBorder({ vertical = false }: { vertical?: boolean }) {
@@ -55,36 +55,41 @@ function ArabescoBorder({ vertical = false }: { vertical?: boolean }) {
   );
 }
 
-// ── Painel com moldura arabesca ao redor de todo o conteúdo ─────────────────
-function PainelMoldura({ children }: { children: ReactNode }) {
+// ── Painel: faixa de arabesco horizontal atrás dos boxes ────────────────────
+// Conceito: arabesco = faixa mais estreita que os boxes, centralizada atrás.
+// Os boxes (mais altos) ficam deitados sobre a faixa — transbordando ±OVERFLOW px
+// para cima e para baixo da faixa. A faixa ocupa top:OVERFLOW, bottom:OVERFLOW
+// do container (que tem exatamente a altura dos boxes).
+const OVERFLOW = 22; // px que os boxes transbordam acima/abaixo da faixa
+
+function PainelFaixa({ children }: { children: ReactNode }) {
   return (
-    <div style={{ position: "relative", margin: "0 18px", marginBottom: 0 }}>
-      {/* borda externa */}
+    <div style={{ position: "relative" }}>
+
+      {/* Faixa arabesca: position absolute, inset OVERFLOW do topo e base */}
       <div style={{
-        border: `1px solid ${AMBER}`,
-        outline: `2.5px solid ${AMBER_DARK}`,
-        outlineOffset: -1,
+        position: "absolute",
+        top: OVERFLOW,
+        left: 0,
+        right: 0,
+        bottom: OVERFLOW,
+        overflow: "hidden",
+        borderTop: `1.2px solid ${AMBER_DARK}`,
+        borderBottom: `1.2px solid ${AMBER_DARK}`,
+        zIndex: 0,
       }}>
-        {/* Faixa top arabesco */}
-        <div style={{ height: BORDER_W, overflow: "hidden", background: CREAM }}>
-          <ArabescoBorder />
-        </div>
-        {/* Meio: faixas laterais + conteúdo */}
-        <div style={{ display: "flex" }}>
-          <div style={{ width: BORDER_W, overflow: "hidden", background: CREAM }}>
-            <ArabescoBorder vertical />
-          </div>
-          <div style={{ flex: 1, background: CREAM, padding: "8px 10px" }}>
-            {children}
-          </div>
-          <div style={{ width: BORDER_W, overflow: "hidden", background: CREAM }}>
-            <ArabescoBorder vertical />
-          </div>
-        </div>
-        {/* Faixa bottom arabesco */}
-        <div style={{ height: BORDER_W, overflow: "hidden", background: CREAM }}>
-          <ArabescoBorder />
-        </div>
+        <ArabescoBorder />
+      </div>
+
+      {/* Boxes: fluxo normal, ficam acima da faixa (zIndex 2) */}
+      <div style={{
+        position: "relative",
+        zIndex: 2,
+        display: "flex",
+        gap: 14,
+        padding: "0 22px",
+      }}>
+        {children}
       </div>
     </div>
   );
@@ -328,12 +333,12 @@ export function ControleEspecial() {
         </div>
 
         {/* ════════════════════════════════════════════════════════════════
-            PAINEL 1 — MOLDURA ARABESCA ao redor de Paciente + Emitente
+            PAINEL 1 — FAIXA ARABESCA atrás de Paciente + Emitente
             Paciente ESQUERDA | Emitente DIREITA
         ════════════════════════════════════════════════════════════════ */}
-        <div style={{ padding: "10px 0 0" }}>
-          <PainelMoldura>
-            <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ marginTop: 10 }}>
+          <PainelFaixa>
+            <div style={{ display: "flex", gap: 14, flex: 1 }}>
 
               {/* PACIENTE — ESQUERDA */}
               <CaixaId titulo="Identificação do Paciente">
@@ -358,7 +363,7 @@ export function ControleEspecial() {
               </CaixaId>
 
             </div>
-          </PainelMoldura>
+          </PainelFaixa>
         </div>
 
         {/* ── PRESCRIÇÃO ── */}
@@ -443,11 +448,11 @@ export function ControleEspecial() {
         </div>
 
         {/* ════════════════════════════════════════════════════════════════
-            PAINEL 2 — MOLDURA ARABESCA ao redor de Comprador + Fornecedor
+            PAINEL 2 — FAIXA ARABESCA atrás de Comprador + Fornecedor
         ════════════════════════════════════════════════════════════════ */}
-        <div style={{ padding: "10px 0 0" }}>
-          <PainelMoldura>
-            <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ marginTop: 0 }}>
+          <PainelFaixa>
+            <div style={{ display: "flex", gap: 14, flex: 1 }}>
 
               {/* COMPRADOR — ESQUERDA */}
               <CaixaId titulo="Identificação do Comprador">
@@ -492,7 +497,7 @@ export function ControleEspecial() {
               </CaixaId>
 
             </div>
-          </PainelMoldura>
+          </PainelFaixa>
         </div>
 
         {/* ── RODAPÉ ── */}
