@@ -275,6 +275,51 @@ router.post("/rename-files", async (_req: Request, res: Response) => {
   }
 });
 
+// Converte imagem local em PDF (pdf-lib) e envia para pasta Drive arbitrária
+router.post("/upload-image-as-pdf", async (req: Request, res: Response) => {
+  try {
+    const { folderId, fileName, imagePath } = req.body as {
+      folderId: string; fileName: string; imagePath: string;
+    };
+    if (!folderId || !fileName || !imagePath) {
+      return res.status(400).json({ error: "folderId, fileName e imagePath sao obrigatorios" });
+    }
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const { PDFDocument } = await import("pdf-lib");
+
+    const imgBuf = await fs.readFile(path.resolve(imagePath));
+    const pdfDoc = await PDFDocument.create();
+
+    // Detectar tipo da imagem pelo conteúdo
+    const ext = imagePath.split(".").pop()?.toLowerCase();
+    const pdfImg = (ext === "png")
+      ? await pdfDoc.embedPng(imgBuf)
+      : await pdfDoc.embedJpg(imgBuf);
+
+    // Página A4 em pontos (595 x 842)
+    const page = pdfDoc.addPage([595, 842]);
+    const { width, height } = page.getSize();
+    const scale = Math.min(width / pdfImg.width, height / pdfImg.height);
+    const imgW = pdfImg.width  * scale;
+    const imgH = pdfImg.height * scale;
+    page.drawImage(pdfImg, {
+      x: (width  - imgW) / 2,
+      y: (height - imgH) / 2,
+      width: imgW,
+      height: imgH,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfBuf = Buffer.from(pdfBytes);
+    const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+    const result = await uploadFileToDrive(folderId, safeName, "application/pdf", pdfBuf, true);
+    res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Upload de asset local para uma pasta Drive arbitrária (uso interno / design)
 router.post("/upload-asset", async (req: Request, res: Response) => {
   try {
