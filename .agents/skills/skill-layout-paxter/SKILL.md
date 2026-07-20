@@ -98,10 +98,30 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 | Familia | Uso | Onde |
 |---|---|---|
 | Lora (serifa humanista) | Texto de PERGUNTA da anamnese do cliente (calma, legivel, leitura longa) | `.leva-q` (index.css); carregada via Google Fonts em `artifacts/padcom/index.html` |
-| Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros) | padrao do app |
+| Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros genericos) | padrao do app |
+| **Cormorant Garamond** (serifa grife) | Nome do paciente (chip header) + **valores financeiros de destaque** (KPI de pagamento, totais) | `fontFamily: "'Cormorant Garamond', serif"` |
 
 Regra (decisao do CEO, 24/06/2026): a serifa **Lora** e reservada a LEITURA do cliente (pergunta da
 anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses continuam sans/MAIUSCULO.
+
+**PADRAO DE NUMERAL FINANCEIRO (aprovado pelo CEO, 19/07/2026):**
+
+| Atributo | Valor | Motivo |
+|---|---|---|
+| `fontFamily` | `'Cormorant Garamond', serif` | Serifa grife ja aprovada; numerais elegantes, nao "grosseiros" |
+| `fontVariantNumeric` | `lining-nums tabular-nums` | `lining-nums` = todos os digitos mesma altura; `tabular-nums` = mesma largura (colunas alinhadas) |
+| `letterSpacing` | `0.01em` | Pequeno ar entre digitos serifados melhora leitura |
+| `fontWeight` | `700` (`font-bold`) ou `900` (`font-black`) conforme tamanho | KPI grande = black; card secundario = bold |
+| Cor PENDENTE (KPI) | `text-red-500` | Unico local onde vermelho e permitido — campinho bevel de resumo |
+| Cor demais valores | `text-primary` | Normal, sem alarme cromatico |
+
+**Badges de status de pagamento (largura fixa igual — aprovado CEO 19/07/2026):**
+
+- Largura fixa `width: 68px` nos dois badges (PAGO e PENDENTE) — mesma caixa, texto centralizado
+- PAGO: `bg-green-100 text-green-700 border-green-200`
+- PENDENTE: `bg-red-100 text-red-600 border-red-200`
+- Fonte: `text-[9px] font-black uppercase tracking-wider`
+- Regra: vermelho nos BADGES dos cards e permitido; vermelho no VALOR dos cards nao e (so no KPI de resumo)
 
 ### 2.2 Pele escura "misto" da anamnese do cliente (/anamnese/v2)
 
