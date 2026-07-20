@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, inArray, and } from "drizzle-orm";
+import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
@@ -85,20 +85,35 @@ router.get("/clients", async (req, res): Promise<void> => {
   const empresaId = resolveEmpresaId(req);
   const tenantFilter = eq(clientsTable.empresaId, empresaId);
 
-  const conditions: ReturnType<typeof ilike>[] = [];
-  if (query.data.search) {
-    conditions.push(ilike(clientsTable.name, `%${query.data.search}%`));
-    conditions.push(ilike(clientsTable.cpf, `%${query.data.search}%`));
+  // tab = "ativos" | "desativados" | "apagados" | undefined (padrão = ativos)
+  const tab = (req.query.tab as string) ?? "ativos";
+
+  const baseFilters = [tenantFilter];
+
+  if (tab === "apagados") {
+    baseFilters.push(isNotNull(clientsTable.deletedAt));
+  } else {
+    baseFilters.push(isNull(clientsTable.deletedAt));
+    if (tab === "desativados") {
+      baseFilters.push(eq(clientsTable.status, "inactive"));
+    } else {
+      baseFilters.push(eq(clientsTable.status, "active"));
+    }
   }
 
-  let clients: ClientRow[];
-  if (query.data.status) {
-    clients = await db.select().from(clientsTable).where(and(tenantFilter, eq(clientsTable.status, query.data.status)));
-  } else if (conditions.length > 0) {
-    clients = await db.select().from(clientsTable).where(and(tenantFilter, or(...conditions)));
-  } else {
-    clients = await db.select().from(clientsTable).where(tenantFilter);
+  if (query.data.search) {
+    baseFilters.push(
+      or(
+        ilike(clientsTable.name, `%${query.data.search}%`),
+        ilike(clientsTable.cpf, `%${query.data.search}%`),
+      )!
+    );
   }
+
+  const clients = await db
+    .select()
+    .from(clientsTable)
+    .where(and(...baseFilters));
 
   const ids = clients.map((c) => c.id);
   const junctions = ids.length
@@ -118,6 +133,65 @@ router.get("/clients", async (req, res): Promise<void> => {
   }
 
   res.json(clients.map((c) => serializeClient(c, byClient.get(c.id) ?? [])));
+});
+
+// ─── Ações em lote ─────────────────────────────────────────────────────────
+// POST /api/clients/bulk
+// body: { ids: number[], action: "activate" | "deactivate" | "delete" | "restore" }
+// "delete"  → soft-delete (deleted_at = now)
+// "restore" → restaura (deleted_at = null), máx 5 anos
+// "activate" / "deactivate" → muda status (só clientes não apagados)
+router.post("/clients/bulk", async (req, res): Promise<void> => {
+  const { ids, action } = req.body ?? {};
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids deve ser array não-vazio" });
+    return;
+  }
+  if (!["activate", "deactivate", "delete", "restore"].includes(action)) {
+    res.status(400).json({ error: "action inválida" });
+    return;
+  }
+
+  const safeIds = ids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (safeIds.length === 0) {
+    res.status(400).json({ error: "ids inválidos" });
+    return;
+  }
+
+  const CINCO_ANOS_MS = 5 * 365.25 * 24 * 3600 * 1000;
+
+  if (action === "delete") {
+    await db
+      .update(clientsTable)
+      .set({ deletedAt: new Date() })
+      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+  } else if (action === "restore") {
+    // Só restaura dentro dos 5 anos
+    const limite = new Date(Date.now() - CINCO_ANOS_MS);
+    await db
+      .update(clientsTable)
+      .set({ deletedAt: null })
+      .where(
+        and(
+          inArray(clientsTable.id, safeIds),
+          isNotNull(clientsTable.deletedAt),
+          sql`deleted_at > ${limite.toISOString()}`,
+        )
+      );
+  } else if (action === "activate") {
+    await db
+      .update(clientsTable)
+      .set({ status: "active" })
+      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+  } else if (action === "deactivate") {
+    await db
+      .update(clientsTable)
+      .set({ status: "inactive" })
+      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+  }
+
+  res.json({ ok: true, affected: safeIds.length });
 });
 
 router.post("/clients", async (req, res): Promise<void> => {
