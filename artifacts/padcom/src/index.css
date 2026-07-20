@@ -2,6 +2,13 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* Bloqueia pull-to-refresh nativo do iOS/Chrome — a faixa da nav não pode "puxar" a página */
+html,
+body,
+#root {
+  overscroll-behavior-y: none;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
