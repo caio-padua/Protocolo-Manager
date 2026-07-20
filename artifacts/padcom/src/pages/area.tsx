@@ -336,9 +336,8 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
         padding: "7px 16px",
       }}
     >
-      <div className="flex items-center justify-between max-w-lg mx-auto">
+      <div className="flex items-center max-w-lg mx-auto">
         <PaxterWordmarkArt width={82} tone={isDark ? "dark" : "light"} />
-        <PadconSymbol height={22} />
       </div>
     </footer>
   );
