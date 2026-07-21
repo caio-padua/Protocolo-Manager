@@ -433,57 +433,68 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   }
 
   /**
-   * RÓTULO em maiúsculas muted (5.5pt) acima + valor (dark 6.5pt) ou linha pontilhada.
-   * Retorna novo y após o campo.
+   * Rótulo em maiúsculas muted 6pt + valor dark 7pt (ou linha pontilhada).
+   * bold=true usa fontBold para o valor — aplicar no campo de nome (destaque).
+   * Retorna novo y após o campo (campo ocupa ~19pt total).
    */
   function drawField(
     bx: number, by: number, label: string,
-    value: string | null | undefined, maxW: number, fSize = 6.5,
+    value: string | null | undefined,
+    maxW: number,
+    opts: { bold?: boolean; valueSize?: number } = {},
   ): number {
-    page.drawText(`${label.toUpperCase()}:`, { x: bx, y: by, font: fontBold, size: 5.5, color: MUTED });
+    const vSize = opts.valueSize ?? 7;
+    const vFont = opts.bold ? fontBold : fontReg;
+    // Rótulo: 6pt bold #555, letterSpacing via espaçamento manual entre palavras
+    page.drawText(`${label.toUpperCase()}:`, {
+      x: bx, y: by, font: fontBold, size: 6, color: MUTED,
+    });
     by -= 9;
     if (value?.trim()) {
-      for (const ln of wrapLines(value, fontReg, fSize, maxW)) {
-        page.drawText(ln, { x: bx, y: by, font: fontReg, size: fSize, color: DARK });
-        by -= 9;
+      for (const ln of wrapLines(value, vFont, vSize, maxW)) {
+        page.drawText(ln, { x: bx, y: by, font: vFont, size: vSize, color: DARK });
+        by -= (vSize + 2);
       }
     } else {
+      // Linha pontilhada: 0.4px dotted #bbb (motor: borderBottom dotted #bbb)
       page.drawLine({
         start: { x: bx, y: by + 2 }, end: { x: bx + maxW, y: by + 2 },
-        thickness: 0.35, color: LINE, dashArray: [1, 2.5], dashPhase: 0,
+        thickness: 0.4, color: rgb(0.73, 0.73, 0.73), dashArray: [1, 2.5], dashPhase: 0,
       });
-      by -= 9;
+      by -= 10;
     }
     return by - 2;
   }
 
   /**
-   * Linha inline de múltiplas colunas — espelha o array CampoField[] do motor.
-   * totalW = largura total disponível para as N colunas.
+   * Linha inline de múltiplas colunas — gap 6mm entre colunas (motor: gap "0 6mm").
    * Retorna novo y.
    */
   function drawInlineRow(
     bx: number, by: number,
     cols: { label: string; value?: string | null }[],
-    totalW: number, fSize = 6.5,
+    totalW: number,
   ): number {
-    const colW = totalW / cols.length;
-    for (let i = 0; i < cols.length; i++) {
-      const cx = bx + i * colW;
+    const GAP  = 6;  // gap em pt entre colunas (≈ 6mm seria 17pt mas comprimimos)
+    const nCols = cols.length;
+    const colW = (totalW - GAP * (nCols - 1)) / nCols;
+    for (let i = 0; i < nCols; i++) {
+      const cx = bx + i * (colW + GAP);
       const c  = cols[i];
-      page.drawText(`${c.label.toUpperCase()}:`, { x: cx, y: by, font: fontBold, size: 5.5, color: MUTED });
+      page.drawText(`${c.label.toUpperCase()}:`, {
+        x: cx, y: by, font: fontBold, size: 6, color: MUTED,
+      });
       const vy = by - 9;
       if (c.value?.trim()) {
-        const maxPts = colW - 6;
         let txt = safeTxt(c.value);
-        while (txt.length > 1 && (fontReg as any).widthOfTextAtSize(txt, fSize) > maxPts) {
+        while (txt.length > 1 && (fontReg as any).widthOfTextAtSize(txt, 7) > colW - 2) {
           txt = txt.slice(0, -1);
         }
-        page.drawText(txt, { x: cx, y: vy, font: fontReg, size: fSize, color: DARK });
+        page.drawText(txt, { x: cx, y: vy, font: fontReg, size: 7, color: DARK });
       } else {
         page.drawLine({
-          start: { x: cx, y: vy + 2 }, end: { x: cx + colW - 6, y: vy + 2 },
-          thickness: 0.35, color: LINE, dashArray: [1, 2.5], dashPhase: 0,
+          start: { x: cx, y: vy + 2 }, end: { x: cx + colW - 2, y: vy + 2 },
+          thickness: 0.4, color: rgb(0.73, 0.73, 0.73), dashArray: [1, 2.5], dashPhase: 0,
         });
       }
     }
@@ -539,19 +550,28 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     titulo1: string, titulo2: string,
   ): void {
     for (const [bx, titulo] of [[bx1, titulo1], [bx2, titulo2]] as [number, string][]) {
-      // Caixa principal — borda escura #454545
+      // ① Caixa principal branca — borda escura #454545, borderWidth 0.8
       page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
         color: WHITE, borderColor: BOX_BORDER, borderWidth: 0.8 });
-      // Faixinha lateral esquerda ciano (3pt)
+
+      // ② Faixinha lateral esquerda ciano (3pt) — cobre a borda esq. da caixa
       page.drawRectangle({ x: bx, y: boxTop - boxH, width: STRIP_W, height: boxH,
         color: BOX_STRIP });
-      // Fundo do título
-      page.drawRectangle({ x: bx, y: boxTop - titleH, width: boxW, height: titleH,
-        color: rgb(0.94, 0.96, 0.97) });
-      // Texto do título centralizado
-      const tW = (fontBold as any).widthOfTextAtSize(titulo, 6);
-      page.drawText(titulo, { x: bx + (boxW - tW) / 2, y: boxTop - 10,
-        font: fontBold, size: 6, color: DARK });
+
+      // ③ Título: texto centralizado bold 7pt (motor: fontSize:7 fontWeight:700)
+      //    SEM fill rect — apenas linha pontilhada ABAIXO do texto (motor: borderBottom 0.4px #ddd)
+      const tW = (fontBold as any).widthOfTextAtSize(titulo, 7);
+      page.drawText(titulo, {
+        x: bx + (boxW - tW) / 2, y: boxTop - 11,
+        font: fontBold, size: 7, color: rgb(0.13, 0.13, 0.13),
+      });
+      // Linha separadora abaixo do título (motor: borderBottom: "0.4px solid #ddd")
+      const titleLineY = boxTop - titleH;
+      page.drawLine({
+        start: { x: bx + STRIP_W + 2, y: titleLineY },
+        end:   { x: bx + boxW - 2,    y: titleLineY },
+        thickness: 0.4, color: rgb(0.87, 0.87, 0.87),
+      });
     }
   }
 
@@ -632,44 +652,57 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE",
   );
 
+  // Padding interno dos boxes — motor: padding "3mm 4mm" = ~8.5pt top / ~11.3pt left
+  const BP_L = 11;   // 4mm left padding (do extremo esquerdo do box, incl. faixinha)
+  const BP_T = 8;    // 3mm top padding abaixo da linha do título
+
   // Box 1 — Emitente (motor: emitentRows)
   {
-    const iW = BOX_W - 10;
-    let fy = BOX1_TOP - TITLE_H - 6;
-    // ROW 1 single: Profissional/Prescritor
-    fy = drawField(BX1 + 5, fy, "Profissional/Prescritor", data.medicoName, iW);
+    const iW = BOX_W - BP_L - 6; // largura interna para campos
+    let fy = BOX1_TOP - TITLE_H - BP_T;
+
+    // ROW 1: Profissional/Prescritor — BOLD 8pt para destacar o nome (CEO req.)
+    fy = drawField(BX1 + BP_L, fy, "Profissional/Prescritor",
+      data.medicoName, iW, { bold: true, valueSize: 8 });
+
     // ROW 2 inline 3 cols: Conselho | RQE | Telefone
-    fy = drawInlineRow(BX1 + 5, fy,
+    fy = drawInlineRow(BX1 + BP_L, fy,
       [
         { label: "Conselho",  value: data.medicoCrm },
         { label: "RQE",       value: data.medicoRqe },
         { label: "Telefone",  value: data.clinicaTelefone },
       ], iW);
+
     // ROW 3 single: Endereço do Consultório
-    drawField(BX1 + 5, fy, "Endereço do Consultório", data.clinicaEndereco, iW);
+    drawField(BX1 + BP_L, fy, "Endereço do Consultório", data.clinicaEndereco, iW);
   }
 
   // Box 2 — Paciente (motor: pacienteRows)
   {
-    const iW = BOX_W - 10;
-    let fy = BOX1_TOP - TITLE_H - 6;
+    const iW = BOX_W - BP_L - 6;
+    let fy = BOX1_TOP - TITLE_H - BP_T;
+
     // Normaliza nascimento: aceita DD/MM/YYYY ou YYYY-MM-DD
     let nasc: string | undefined;
     if (data.pacienteNascimento?.trim()) {
       const n = data.pacienteNascimento.trim();
       nasc = /^\d{2}\/\d{2}\/\d{4}$/.test(n) ? n : fmtData(n);
     }
-    // ROW 1 single: Nome Completo
-    fy = drawField(BX2 + 5, fy, "Nome Completo", data.pacienteNome, iW);
+
+    // ROW 1: Nome Completo — BOLD 8pt para destacar o nome do paciente (CEO req.)
+    fy = drawField(BX2 + BP_L, fy, "Nome Completo",
+      data.pacienteNome, iW, { bold: true, valueSize: 8 });
+
     // ROW 2 inline 3 cols: CPF | Nascimento | Telefone
-    fy = drawInlineRow(BX2 + 5, fy,
+    fy = drawInlineRow(BX2 + BP_L, fy,
       [
         { label: "CPF",        value: data.pacienteCpf },
         { label: "Nascimento", value: nasc },
         { label: "Telefone",   value: data.pacienteTelefone },
       ], iW);
+
     // ROW 3 single: Endereço Completo
-    drawField(BX2 + 5, fy, "Endereço Completo", data.pacienteEndereco, iW);
+    drawField(BX2 + BP_L, fy, "Endereço Completo", data.pacienteEndereco, iW);
   }
 
   y = BOX1_TOP - BOX1_H - 8;
@@ -830,24 +863,36 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     );
 
     // Box 3 — Comprador (motor: compradorRows — 5 linhas)
+    // Labels do screenshot: "Nome", "Endereço", "Cidade" | "UF", "Ident." | "Org. Emissor", "Telefone"
     {
-      const iW = BOX_W - 10;
-      let fy = BOX2_TOP - TITLE_H - 6;
-      fy = drawField(BX1 + 5, fy, "Nome",     undefined, iW);
-      fy = drawField(BX1 + 5, fy, "Endereço", undefined, iW);
-      // Cidade | UF (2 colunas inline)
-      fy = drawInlineRow(BX1 + 5, fy, [{ label: "Cidade" }, { label: "UF" }], iW);
-      // Identidade | Org. Emissora (2 colunas inline)
-      fy = drawInlineRow(BX1 + 5, fy, [{ label: "Identidade" }, { label: "Org. Emissora" }], iW);
-      drawField(BX1 + 5, fy, "Telefone", undefined, iW);
+      const iW = BOX_W - BP_L - 6;
+      let fy = BOX2_TOP - TITLE_H - BP_T;
+
+      fy = drawField(BX1 + BP_L, fy, "Nome",     undefined, iW);
+      fy = drawField(BX1 + BP_L, fy, "Endereço", undefined, iW);
+      // Cidade | UF — coluna UF estreita (motor: repeat(2,1fr))
+      fy = drawInlineRow(BX1 + BP_L, fy,
+        [{ label: "Cidade" }, { label: "UF" }], iW);
+      // Ident. | Org. Emissor — abreviados para caber (screenshot: "Ident." + "Org. Emissor")
+      fy = drawInlineRow(BX1 + BP_L, fy,
+        [{ label: "Ident." }, { label: "Org. Emissor" }], iW);
+      drawField(BX1 + BP_L, fy, "Telefone", undefined, iW);
     }
 
-    // Box 4 — Fornecedor/Farmácia (motor: fornecedorRows — apenas 2 campos)
+    // Box 4 — Fornecedor/Farmácia (motor: fornecedorRows — 2 campos ANCORADOS NO FUNDO)
+    // CEO: "no box 4 a posição dos campos está no FUNDO" — âncora bottom-up
     {
-      const iW = BOX_W - 10;
-      let fy = BOX2_TOP - TITLE_H - 6;
-      fy = drawField(BX2 + 5, fy, "Assinatura do Farmacêutico", undefined, iW);
-      drawField(BX2 + 5, fy, "Data", undefined, iW);
+      const iW = BOX_W - BP_L - 6;
+      const boxBottom = BOX2_TOP - BOX2_H;
+      // 2 campos × ~19pt + 9pt padding no fundo → começa em boxBottom + 47
+      // drawField: label 6pt (-9pt) + value/linha (-10pt) + gap (-2pt) = -21pt por campo
+      const FIELD_H = 21;
+      const BOT_PAD = 9;  // ~3mm fundo
+      const fyStart = boxBottom + BOT_PAD + 2 * FIELD_H; // ≈ boxBottom + 51
+
+      let fy = fyStart;
+      fy = drawField(BX2 + BP_L, fy, "Assinatura do Farmacêutico", undefined, iW);
+      drawField(BX2 + BP_L, fy, "Data", undefined, iW);
     }
 
     y = BOX2_TOP - BOX2_H - 8;
