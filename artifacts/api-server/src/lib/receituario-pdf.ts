@@ -326,6 +326,10 @@ export interface ReceituarioDataV2 {
   boxCompradorTitulo?: string;
   boxFarmaciaTitulo?: string;
 
+  // Título e assinatura
+  tituloSubtitulo?: string;         // ex: "MODELO DEMONSTRATIVO — SEM VALIDADE"
+  assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
+
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
   rodapeLinhas?: string[];
 }
@@ -522,16 +526,29 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     page.drawLine({ start: { x: 0, y: bandY         }, end: { x: PAGE_W, y: bandY         }, thickness: 0.5, color: LINE });
   }
 
-  /** Desenha o par de boxes BRANCOS (com título) sobre a faixa arabesca. */
+  /** Desenha o par de boxes (D06 corrigido: borda escura #454545 + faixinha lateral ciano). */
+  // Borda escura: rgb(0.27, 0.27, 0.27) = #454545 (motor: border 1px #454545)
+  const BOX_BORDER = rgb(0.27, 0.27, 0.27);
+  // Faixinha lateral esquerda: 3pt de largura, cor ciano da marca (#45B8CC)
+  const BOX_STRIP  = rgb(0.271, 0.722, 0.800); // #45B8CC
+  const STRIP_W    = 3;
+
   function drawBoxPair(
     boxTop: number, boxH: number, titleH: number,
     bx1: number, bx2: number, boxW: number,
     titulo1: string, titulo2: string,
   ): void {
     for (const [bx, titulo] of [[bx1, titulo1], [bx2, titulo2]] as [number, string][]) {
+      // Caixa principal — borda escura #454545
       page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
-        color: WHITE, borderColor: LINE, borderWidth: 0.6 });
-      page.drawRectangle({ x: bx, y: boxTop - titleH, width: boxW, height: titleH, color: LIGHT });
+        color: WHITE, borderColor: BOX_BORDER, borderWidth: 0.8 });
+      // Faixinha lateral esquerda ciano (3pt)
+      page.drawRectangle({ x: bx, y: boxTop - boxH, width: STRIP_W, height: boxH,
+        color: BOX_STRIP });
+      // Fundo do título
+      page.drawRectangle({ x: bx, y: boxTop - titleH, width: boxW, height: titleH,
+        color: rgb(0.94, 0.96, 0.97) });
+      // Texto do título centralizado
       const tW = (fontBold as any).widthOfTextAtSize(titulo, 6);
       page.drawText(titulo, { x: bx + (boxW - tW) / 2, y: boxTop - 10,
         font: fontBold, size: 6, color: DARK });
@@ -555,19 +572,16 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
   page.drawText("LOGO", { x: M + 9, y: y - 16, font: fontReg, size: 5, color: MUTED });
 
-  // Nome da clínica bold 11pt
+  // Nome da clínica bold 13pt (motor: fontWeight 800, fontSize 13)
   page.drawText(safeTxt(data.clinicaNome), {
-    x: M + 40, y: y - 11, font: fontBold, size: 11, color: DARK,
+    x: M + 40, y: y - 11, font: fontBold, size: 13, color: DARK,
   });
-  // Subtítulo / endereço pequeno
+  // Subtítulo: cabecalhoTitulo (motor: fontSize 7, letterSpacing 1.5, color #666)
   if (data.clinicaEndereco) {
     page.drawText(safeTxt(data.clinicaEndereco).slice(0, 75),
-      { x: M + 40, y: y - 22, font: fontReg, size: 6, color: MUTED });
+      { x: M + 40, y: y - 25, font: fontReg, size: 7, color: MUTED });
   }
-  // Nome e CRM do médico (terceira linha esquerda)
-  const doctorLine = `Dr(a). ${safeTxt(data.medicoName)}${crmRqeStr ? `  ·  ${crmRqeStr}` : ""}`;
-  page.drawText(doctorLine.slice(0, 80),
-    { x: M + 40, y: y - 32, font: fontReg, size: 6, color: MUTED });
+  // D05 REMOVIDO: linha médico/CRM não existe no cabeçalho do motor
 
   // RCE code + vias (lado DIREITO — motor: textAlign right, stack de linhas)
   const rce  = data.numeroReceita ? `Nº ${data.numeroReceita}` : `RCE: ${ano}`;
@@ -588,10 +602,20 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   // ══════════════════════════════════════════════════════════════════════════
   // 2. TÍTULO DO DOCUMENTO (motor: centrado bold 16px uppercase letterSpacing 2)
   // ══════════════════════════════════════════════════════════════════════════
-  const titW = (fontBold as any).widthOfTextAtSize(tituloDoc, 13);
+  // D07 corrigido: size 16 (motor usa fontSize 16, fontWeight 800)
+  const titW = (fontBold as any).widthOfTextAtSize(tituloDoc, 16);
   page.drawText(tituloDoc,
-    { x: (PAGE_W - titW) / 2, y, font: fontBold, size: 13, color: DARK });
-  y -= 16;
+    { x: (PAGE_W - titW) / 2, y, font: fontBold, size: 16, color: DARK });
+  y -= 18;
+  // D10 corrigido: tituloSubtitulo abaixo do título (motor: fontSize 7, letterSpacing 2, color MUTED)
+  if (data.tituloSubtitulo?.trim()) {
+    const subW = (fontReg as any).widthOfTextAtSize(data.tituloSubtitulo.toUpperCase(), 7);
+    page.drawText(data.tituloSubtitulo.toUpperCase(),
+      { x: (PAGE_W - subW) / 2, y, font: fontReg, size: 7, color: MUTED });
+    y -= 10;
+  } else {
+    y -= 4;
+  }
   drawDecorLine(y);
   y -= 10;
 
@@ -656,15 +680,39 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: DARK });
   y -= 16;
 
+  // Verde posologia (motor: color #0a7a6e)
+  const VERDE = rgb(0.039, 0.478, 0.431);
+
   for (let i = 0; i < data.formulas.length; i++) {
     const f   = data.formulas[i];
     const num = String(i + 1).padStart(2, "0");
-    // Número ouro + nome bold
-    page.drawText(`${num}.`, { x: M, y, font: fontBold, size: 9, color: GOLD });
-    page.drawText(`  ${safeTxt(f.nome).toUpperCase()}`,
-      { x: M + 14, y, font: fontBold, size: 9, color: DARK });
+
+    // D03 corrigido: número MUTED (cinza #555), NÃO dourado
+    // D04 corrigido: nome preserva case original (NÃO força uppercase)
+    page.drawText(`${num}.`, { x: M, y, font: fontBold, size: 9, color: MUTED });
+    page.drawText(`  ${safeTxt(f.nome)}`,
+      { x: M + 14, y, font: fontBold, size: 10, color: DARK });
     y -= 13;
-    // Ativos (multi-linha, prefixo dois espaços)
+
+    // D01 corrigido: Via | Forma vêm ANTES dos ativos (motor: FormulaReal linha 198-213)
+    if (f.via || f.forma) {
+      const viaCols = [
+        f.via   ? { label: "Via",   value: f.via }   : null,
+        f.forma ? { label: "Forma", value: f.forma } : null,
+      ].filter(Boolean) as { label: string; value: string }[];
+      const colW = 60;
+      for (let ci = 0; ci < viaCols.length; ci++) {
+        const cx = M + 26 + ci * colW;
+        const c  = viaCols[ci];
+        page.drawText(c.label.toUpperCase(),
+          { x: cx, y, font: fontBold, size: 5.5, color: rgb(0.67, 0.67, 0.67) });
+        page.drawText(c.value,
+          { x: cx, y: y - 9, font: fontBold, size: 7, color: rgb(0.20, 0.20, 0.20) });
+      }
+      y -= 20;
+    }
+
+    // Ativos — fonte monospace-like (motor: fontFamily monospace, fontSize 8)
     if (f.ativos?.trim()) {
       for (const raw of f.ativos.split("\n")) {
         const ln = raw.trim();
@@ -674,32 +722,25 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
         });
       }
     }
-    // Posologia (multi-linha)
+
+    // D02 corrigido: posologia com ▸ prefix + cor verde #0a7a6e (motor: linha 220-222)
     if (f.posologia?.trim()) {
       for (const raw of f.posologia.split("\n")) {
         const ln = raw.trim();
         if (!ln) continue;
-        y = drawWrappedText(page, `  Posologia: ${ln}`, {
-          x: M + 14, y, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        y = drawWrappedText(page, `  >> ${ln}`, {
+          x: M + 14, y, maxWidth: CW - 14, font: fontBold, size: 7, color: VERDE, lineHeight: 10,
         });
       }
     }
-    // Via | Forma (muted, 7.5pt)
-    const viaForma = [
-      f.via   ? `Via: ${f.via}` : null,
-      f.forma ? `Forma: ${f.forma}` : null,
-    ].filter(Boolean).join("  |  ");
-    if (viaForma) {
-      page.drawText(`  ${viaForma}`,
-        { x: M + 14, y, font: fontReg, size: 7.5, color: MUTED });
-      y -= 11;
-    }
-    // Observação (italic muted)
+
+    // Observação (italic muted) — mantida
     if (f.observacao?.trim()) {
       page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
         { x: M + 14, y, font: fontItal, size: 7.5, color: MUTED });
       y -= 11;
     }
+
     // Separador pontilhado entre fórmulas
     if (i < data.formulas.length - 1) {
       y -= 4;
@@ -724,7 +765,13 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   const CERT_H      = 64;
   const sigTopY     = y;
 
-  // ESQUERDA: assinatura (motor: assinaturaTextoFallback + nome + crm + data)
+  // ESQUERDA: assinatura (D08 corrigido: texto cursivo italic 18pt ANTES da linha)
+  // Motor: Georgia italic 18px, cor DARK, posição acima da linha horizontal
+  {
+    const sigTxt = safeTxt(data.assinaturaTextoFallback ?? data.medicoName ?? "Assinatura");
+    page.drawText(sigTxt.slice(0, 28),
+      { x: M, y: y + 18, font: fontItal, size: 18, color: DARK });
+  }
   page.drawLine({ start: { x: M, y }, end: { x: M + 130, y },
     thickness: 0.5, color: DARK });
   y -= 10;
@@ -834,15 +881,33 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     rl_y -= 7;
   });
 
-  // PAXTER wordmark à direita (motor: símbolo + wordmark ouro)
-  const paxterW   = (fontBold as any).widthOfTextAtSize("PAXTER", 9);
-  const subTxt    = "Clinical Intelligence System";
-  const subW      = (fontReg as any).widthOfTextAtSize(subTxt, 5);
-  const rightX    = PAGE_W - M - Math.max(paxterW, subW);
-  page.drawText("PAXTER",
-    { x: rightX, y: FOOTER_TOP - 6, font: fontBold, size: 9, color: GOLD });
-  page.drawText(subTxt,
-    { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
+  // PAXTER wordmark à direita (D09 corrigido: PNG oficial, fallback texto ouro)
+  {
+    let drewPng = false;
+    try {
+      const wmarkBuf = readFileSync(
+        "/home/runner/workspace/artifacts/padcom/public/brand/paxter-wordmark.png"
+      );
+      const wmarkImg  = await pdfDoc.embedPng(wmarkBuf);
+      // Escala proporcional: altura alvo = 22pt
+      const wmarkH    = 22;
+      const wmarkW    = (wmarkImg.width / wmarkImg.height) * wmarkH;
+      const wmarkX    = PAGE_W - M - wmarkW;
+      page.drawImage(wmarkImg, { x: wmarkX, y: FOOTER_TOP - wmarkH - 2, width: wmarkW, height: wmarkH });
+      drewPng = true;
+    } catch { /* fallback abaixo */ }
+
+    if (!drewPng) {
+      const paxterW = (fontBold as any).widthOfTextAtSize("PAXTER", 9);
+      const subTxt  = "Clinical Intelligence System";
+      const subW    = (fontReg as any).widthOfTextAtSize(subTxt, 5);
+      const rightX  = PAGE_W - M - Math.max(paxterW, subW);
+      page.drawText("PAXTER",
+        { x: rightX, y: FOOTER_TOP - 6, font: fontBold, size: 9, color: GOLD });
+      page.drawText(subTxt,
+        { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
+    }
+  }
 
   return signPdfBytes(pdfDoc, safeTxt(data.medicoName));
 }
