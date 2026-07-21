@@ -359,7 +359,55 @@ export default function PrescricaoPage(
       }
     }
   };
-  const handlePrint = () => window.print();
+  // ── Motor real: gera PDF ANVISA assinado ICP-Brasil, sobe ao Drive e envia e-mail ──
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+
+  const handleGerarReceituario = async () => {
+    if (!selected.length) return;
+    if (!patient.nome.trim()) {
+      toast({ title: "Informe o nome do paciente antes de gerar", variant: "destructive" });
+      return;
+    }
+    setGerandoPdf(true);
+    try {
+      const formulas = selected.map((f) => ({
+        nome: f.name,
+        ativos: f.ativos,
+        posologia: f.tomadas.length ? f.tomadas.map(tomadaToText).join("\n") : undefined,
+        via: "Oral",
+      }));
+      const payload = {
+        patient: {
+          nome: patient.nome,
+          cpf: patient.cpf || undefined,
+          dataNascimento: patient.dataNascimento || undefined,
+          telefone: patient.telefone || undefined,
+        },
+        formulas,
+        tipoReceita: "especial",
+      };
+      const resp = await fetch(`${BASE}/api/receituario/emitir-prescricao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error("Falha ao gerar receituário");
+      const result = await resp.json();
+      toast({
+        title: "Receituário gerado e assinado!",
+        description: result.emailSent
+          ? "PDF enviado ao Drive e para drcaiohenriquepadua@gmail.com"
+          : result.driveUrl
+            ? "PDF enviado ao Drive (e-mail com falha — verifique o Gmail)"
+            : "PDF gerado (Drive e e-mail com falha — verifique logs)",
+      });
+      if (result.driveUrl) window.open(result.driveUrl, "_blank");
+    } catch {
+      toast({ title: "Erro ao gerar receituário", description: "Verifique os logs do servidor", variant: "destructive" });
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const s: Record<string, number> = { all: allFormulas.length };
@@ -621,8 +669,15 @@ export default function PrescricaoPage(
             {copied ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
             {copied ? "Copiado!" : "Copiar texto"}
           </button>
-          <button onClick={handlePrint} disabled={!selected.length} className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40">
-            <Printer className="w-4 h-4" />Imprimir / PDF
+          <button
+            onClick={handleGerarReceituario}
+            disabled={!selected.length || gerandoPdf}
+            className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            {gerandoPdf
+              ? <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full inline-block" />Gerando...</>
+              : <><FileSignature className="w-4 h-4" />Gerar Receituário Assinado</>
+            }
           </button>
         </div>
       </section>

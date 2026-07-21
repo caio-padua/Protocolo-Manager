@@ -2,7 +2,7 @@
  * RECEITUÁRIO MAGISTRAL — gerador de PDF com assinatura ICP-Brasil (PAdES).
  * Padrão visual PAXTER: faixa navy, tabela de fórmulas, rodapé com selo.
  */
-import { PDFDocument, StandardFonts, rgb, PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
@@ -281,4 +281,362 @@ export async function generateReceituarioPdf(data: ReceituarioData): Promise<Uin
   const signpdf = new SignPdf();
   const signed  = await signpdf.sign(Buffer.from(withPlaceholder), signer);
   return new Uint8Array(signed);
+}
+
+// ─── V2: Layout ANVISA 4 Boxes ────────────────────────────────────────────────
+
+export interface ReceituarioDataV2 {
+  // Box 1 — Emitente (carregado automaticamente pelo backend)
+  medicoName: string;
+  medicoCrm: string;
+  clinicaNome: string;
+  clinicaEndereco?: string;
+  clinicaTelefone?: string;
+
+  // Box 2 — Paciente
+  pacienteNome?: string;
+  pacienteCpf?: string;
+  pacienteNascimento?: string;   // YYYY-MM-DD
+  pacienteTelefone?: string;
+  pacienteEndereco?: string;
+
+  // Prescrição
+  formulas: {
+    nome: string;
+    ativos?: string;       // texto livre multi-linha
+    posologia?: string;    // texto livre multi-linha
+    via?: string;
+    forma?: string;
+    observacao?: string;
+  }[];
+
+  // Metadados
+  tipoReceita?: "especial" | "simples";
+  dataEmissao?: string;   // YYYY-MM-DD; default = hoje BRT
+  validadeDias?: number;  // default 30
+  numeroReceita?: string;
+}
+
+async function signPdfBytes(
+  pdfDoc: PDFDocument,
+  profName: string,
+): Promise<Uint8Array> {
+  let pfxBuf: Buffer;
+  let password: string;
+  try {
+    pfxBuf   = getCertBufferSync();
+    password = getCertPasswordsSync()[0] ?? "";
+  } catch {
+    return pdfDoc.save();
+  }
+  pdflibAddPlaceholder({
+    pdfDoc,
+    reason:      "Receituário assinado digitalmente — PAXTER",
+    contactInfo: "PAXTER Clinical Intelligence System",
+    name:        profName || "Médico Responsável",
+    location:    "Brasil",
+    signatureLength: 16384,
+  });
+  const withPlaceholder = await pdfDoc.save({ useObjectStreams: false });
+  const signer  = new P12Signer(pfxBuf, { passphrase: password });
+  const signpdf = new SignPdf();
+  const signed  = await signpdf.sign(Buffer.from(withPlaceholder), signer);
+  return new Uint8Array(signed);
+}
+
+export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise<Uint8Array> {
+  const pdfDoc   = await PDFDocument.create();
+  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontItal = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
+  const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  const M    = 36;
+  const CW   = PAGE_W - M * 2; // ~523
+
+  const dataStr  = data.dataEmissao ?? hoje();
+  const dataFmt  = fmtData(dataStr);
+  const validade = data.validadeDias ?? 30;
+  const tipo     = data.tipoReceita ?? "especial";
+  const tituloDoc = tipo === "especial"
+    ? "RECEITUÁRIO DE CONTROLE ESPECIAL"
+    : "RECEITUÁRIO SIMPLES — FÓRMULAS MANIPULADAS";
+
+  // ── Header NAVY ───────────────────────────────────────────────────────────
+  const HEADER_H = 72;
+  page.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: HEADER_H, color: NAVY });
+  page.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: 2, color: GOLD });
+
+  page.drawText("PAXTER", { x: M, y: PAGE_H - 26, font: fontBold, size: 18, color: GOLD });
+  page.drawText(safeTxt(data.clinicaNome), { x: M, y: PAGE_H - 42, font: fontBold, size: 10, color: WHITE });
+  if (data.clinicaEndereco) {
+    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 68),
+      { x: M, y: PAGE_H - 54, font: fontReg, size: 6.5, color: CYAN });
+  }
+  if (data.clinicaTelefone) {
+    page.drawText(`Tel: ${safeTxt(data.clinicaTelefone)}`,
+      { x: M, y: PAGE_H - 63, font: fontReg, size: 6.5, color: CYAN });
+  }
+
+  const titleW = fontBold.widthOfTextAtSize(tituloDoc, 9);
+  page.drawText(tituloDoc, { x: PAGE_W - M - titleW, y: PAGE_H - 28, font: fontBold, size: 9, color: WHITE });
+
+  const viasStr = "1ª via - Farmácia  /  2ª via - Paciente";
+  const viasW   = fontReg.widthOfTextAtSize(viasStr, 7);
+  page.drawText(viasStr, { x: PAGE_W - M - viasW, y: PAGE_H - 40, font: fontReg, size: 7, color: CYAN });
+
+  if (data.numeroReceita) {
+    const numStr = `Nº ${data.numeroReceita}`;
+    const numW   = fontBold.widthOfTextAtSize(numStr, 8);
+    page.drawText(numStr, { x: PAGE_W - M - numW, y: PAGE_H - 52, font: fontBold, size: 8, color: GOLD });
+  }
+  const validStr = `Validade: ${validade} dias  |  Emitido: ${dataFmt}`;
+  const validW   = fontReg.widthOfTextAtSize(validStr, 6.5);
+  page.drawText(validStr, { x: PAGE_W - M - validW, y: PAGE_H - 64, font: fontReg, size: 6.5, color: MUTED });
+
+  // ── Helper: draw a labelled field in a box ────────────────────────────────
+  // Returns the new y after drawing (decremented).
+  function drawBoxField(
+    bx: number, by: number,
+    label: string,
+    value: string | null | undefined,
+    maxW: number,
+    fR: PDFFont, fB: PDFFont,
+  ): number {
+    bx; // keep bx in scope for linter
+    page.drawText(label, { x: bx + 5, y: by, font: fB, size: 5.5, color: MUTED });
+    by -= 10;
+    if (value && value.trim()) {
+      const words = value.split(" ");
+      let line = "";
+      for (const word of words) {
+        const cand = line ? `${line} ${word}` : word;
+        if (fR.widthOfTextAtSize(cand, 7.5) > maxW - 10 && line) {
+          page.drawText(line, { x: bx + 5, y: by, font: fR, size: 7.5, color: DARK });
+          by -= 10;
+          line = word;
+        } else {
+          line = cand;
+        }
+      }
+      if (line) {
+        page.drawText(line, { x: bx + 5, y: by, font: fR, size: 7.5, color: DARK });
+        by -= 10;
+      }
+    } else {
+      page.drawLine({
+        start: { x: bx + 5, y: by + 3 }, end: { x: bx + maxW - 5, y: by + 3 },
+        thickness: 0.3, color: LINE, dashArray: [1, 3], dashPhase: 0,
+      });
+      by -= 10;
+    }
+    return by - 3;
+  }
+
+  let y = PAGE_H - HEADER_H - 4;
+
+  // ── BOX PAIR 1: Emitente | Paciente ──────────────────────────────────────
+  const BOX_GAP = 8;
+  const BOX_W   = (CW - BOX_GAP) / 2;   // ~257
+  const BX1     = M;
+  const BX2     = M + BOX_W + BOX_GAP;
+  const BOX1_H  = 142;
+  const TITLE_H = 15;
+  const BOX_TOP = y;
+
+  // Borders
+  page.drawRectangle({
+    x: BX1, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
+    borderColor: LINE, borderWidth: 0.6, color: WHITE,
+  });
+  page.drawRectangle({
+    x: BX2, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
+    borderColor: LINE, borderWidth: 0.6, color: WHITE,
+  });
+  // Title bars
+  page.drawRectangle({ x: BX1, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+  page.drawRectangle({ x: BX2, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+
+  const t1 = "IDENTIFICAÇÃO DO EMITENTE";
+  const t2 = "IDENTIFICAÇÃO DO PACIENTE";
+  page.drawText(t1, {
+    x: BX1 + (BOX_W - fontBold.widthOfTextAtSize(t1, 6)) / 2,
+    y: BOX_TOP - 10, font: fontBold, size: 6, color: DARK,
+  });
+  page.drawText(t2, {
+    x: BX2 + (BOX_W - fontBold.widthOfTextAtSize(t2, 6)) / 2,
+    y: BOX_TOP - 10, font: fontBold, size: 6, color: DARK,
+  });
+
+  // Box 1: Emitente (always filled)
+  let fy1 = BOX_TOP - TITLE_H - 6;
+  fy1 = drawBoxField(BX1, fy1, "Profissional / Prescritor:", data.medicoName, BOX_W, fontReg, fontBold);
+  fy1 = drawBoxField(BX1, fy1, "Conselho:", data.medicoCrm, BOX_W, fontReg, fontBold);
+  if (data.clinicaTelefone) {
+    fy1 = drawBoxField(BX1, fy1, "Telefone:", data.clinicaTelefone, BOX_W, fontReg, fontBold);
+  }
+  if (data.clinicaEndereco) {
+    drawBoxField(BX1, fy1, "Endereço:", data.clinicaEndereco.slice(0, 55), BOX_W, fontReg, fontBold);
+  }
+
+  // Box 2: Paciente
+  let fy2 = BOX_TOP - TITLE_H - 6;
+  fy2 = drawBoxField(BX2, fy2, "Nome Completo:", data.pacienteNome, BOX_W, fontReg, fontBold);
+  const cpfNasc = [
+    data.pacienteCpf       && `CPF: ${data.pacienteCpf}`,
+    data.pacienteNascimento && `Nasc.: ${fmtData(data.pacienteNascimento)}`,
+  ].filter(Boolean).join("   ") || undefined;
+  fy2 = drawBoxField(BX2, fy2, "CPF / Data de Nascimento:", cpfNasc, BOX_W, fontReg, fontBold);
+  fy2 = drawBoxField(BX2, fy2, "Telefone:", data.pacienteTelefone, BOX_W, fontReg, fontBold);
+  drawBoxField(BX2, fy2, "Endereço:", data.pacienteEndereco, BOX_W, fontReg, fontBold);
+
+  y = BOX_TOP - BOX1_H - 12;
+
+  // ── Separator ─────────────────────────────────────────────────────────────
+  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.5, color: LINE });
+  y -= 16;
+
+  // ── Prescrição ────────────────────────────────────────────────────────────
+  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: DARK });
+  y -= 18;
+
+  for (let i = 0; i < data.formulas.length; i++) {
+    const f = data.formulas[i];
+    const numStr  = `${String(i + 1).padStart(2, "0")}.`;
+
+    page.drawText(numStr, { x: M, y, font: fontBold, size: 9, color: GOLD });
+    page.drawText(`  ${safeTxt(f.nome).toUpperCase()}`,
+      { x: M + 14, y, font: fontBold, size: 9, color: DARK });
+    y -= 14;
+
+    // Ativos (multi-line)
+    if (f.ativos?.trim()) {
+      for (const rawLine of f.ativos.split("\n")) {
+        const ln = rawLine.trim();
+        if (!ln) continue;
+        y = drawWrappedText(page, `    ${ln}`, {
+          x: M + 14, y, maxWidth: CW - 14,
+          font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        });
+      }
+    }
+
+    // Posologia (multi-line)
+    if (f.posologia?.trim()) {
+      for (const rawLine of f.posologia.split("\n")) {
+        const ln = rawLine.trim();
+        if (!ln) continue;
+        y = drawWrappedText(page, `    ${ln}`, {
+          x: M + 14, y, maxWidth: CW - 14,
+          font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        });
+      }
+    }
+
+    // Via / Forma
+    const viaForma = [
+      f.via   && `Via: ${f.via}`,
+      f.forma && `Forma: ${f.forma}`,
+    ].filter(Boolean).join("  |  ");
+    if (viaForma) {
+      page.drawText(`    ${viaForma}`, { x: M + 14, y, font: fontReg, size: 7.5, color: MUTED });
+      y -= 11;
+    }
+
+    // Observação
+    if (f.observacao?.trim()) {
+      page.drawText(`    Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
+        { x: M + 14, y, font: fontItal, size: 7.5, color: MUTED });
+      y -= 11;
+    }
+
+    // Thin separator between formulas
+    if (i < data.formulas.length - 1) {
+      y -= 4;
+      page.drawLine({
+        start: { x: M + 14, y }, end: { x: PAGE_W - M, y },
+        thickness: 0.3, color: LINE, dashArray: [2, 4], dashPhase: 0,
+      });
+      y -= 8;
+    } else {
+      y -= 6;
+    }
+  }
+
+  y -= 14;
+  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.5, color: LINE });
+  y -= 26;
+
+  // ── Assinatura ────────────────────────────────────────────────────────────
+  const SIG_W = 190;
+  page.drawLine({
+    start: { x: M, y }, end: { x: M + SIG_W, y }, thickness: 0.7, color: DARK,
+  });
+  y -= 13;
+  page.drawText(safeTxt(data.medicoName), { x: M, y, font: fontBold, size: 9, color: DARK });
+  y -= 12;
+  page.drawText(safeTxt(data.medicoCrm), { x: M, y, font: fontReg, size: 8, color: MUTED });
+
+  const dateCity = `São Paulo, ${dataFmt}`;
+  page.drawText(dateCity, {
+    x: PAGE_W - M - fontReg.widthOfTextAtSize(dateCity, 8), y,
+    font: fontReg, size: 8, color: MUTED,
+  });
+  y -= 22;
+
+  // ── BOX PAIR 2: Comprador | Fornecedor (apenas controle especial) ─────────
+  if (tipo === "especial") {
+    const BOX2_H  = 118;
+    const BOX3_TOP = y;
+
+    page.drawRectangle({
+      x: BX1, y: BOX3_TOP - BOX2_H, width: BOX_W, height: BOX2_H,
+      borderColor: LINE, borderWidth: 0.6, color: WHITE,
+    });
+    page.drawRectangle({
+      x: BX2, y: BOX3_TOP - BOX2_H, width: BOX_W, height: BOX2_H,
+      borderColor: LINE, borderWidth: 0.6, color: WHITE,
+    });
+    page.drawRectangle({ x: BX1, y: BOX3_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+    page.drawRectangle({ x: BX2, y: BOX3_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+
+    const t3 = "IDENTIFICAÇÃO DO COMPRADOR";
+    const t4 = "IDENTIFICAÇÃO DO FORNECEDOR";
+    page.drawText(t3, {
+      x: BX1 + (BOX_W - fontBold.widthOfTextAtSize(t3, 6)) / 2,
+      y: BOX3_TOP - 10, font: fontBold, size: 6, color: DARK,
+    });
+    page.drawText(t4, {
+      x: BX2 + (BOX_W - fontBold.widthOfTextAtSize(t4, 6)) / 2,
+      y: BOX3_TOP - 10, font: fontBold, size: 6, color: DARK,
+    });
+
+    let c3y = BOX3_TOP - TITLE_H - 6;
+    c3y = drawBoxField(BX1, c3y, "Nome:", undefined, BOX_W, fontReg, fontBold);
+    c3y = drawBoxField(BX1, c3y, "Endereço:", undefined, BOX_W, fontReg, fontBold);
+    c3y = drawBoxField(BX1, c3y, "Cidade / UF:", undefined, BOX_W, fontReg, fontBold);
+    drawBoxField(BX1, c3y, "Identidade Nº / Órgão Emissor:", undefined, BOX_W, fontReg, fontBold);
+
+    let c4y = BOX3_TOP - TITLE_H - 6;
+    c4y = drawBoxField(BX2, c4y, "Assinatura do Farmacêutico:", undefined, BOX_W, fontReg, fontBold);
+    c4y = drawBoxField(BX2, c4y, "Data de Dispensação:", undefined, BOX_W, fontReg, fontBold);
+    drawBoxField(BX2, c4y, "Nº CRF:", undefined, BOX_W, fontReg, fontBold);
+
+    y = BOX3_TOP - BOX2_H - 10;
+  }
+
+  // ── Footer NAVY ───────────────────────────────────────────────────────────
+  const FOOTER_H = 38;
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: FOOTER_H, color: NAVY });
+  page.drawRectangle({ x: 0, y: FOOTER_H - 2, width: PAGE_W, height: 1.5, color: GOLD });
+  page.drawText(
+    "PAXTER Clinical Intelligence System — Documento gerado e assinado digitalmente (ICP-Brasil / PAdES)",
+    { x: M, y: 20, font: fontReg, size: 6.5, color: CYAN },
+  );
+  page.drawText(
+    `${safeTxt(data.clinicaNome)} — CNPJ registrado`,
+    { x: M, y: 9, font: fontReg, size: 6, color: MUTED },
+  );
+
+  return signPdfBytes(pdfDoc, safeTxt(data.medicoName));
 }
