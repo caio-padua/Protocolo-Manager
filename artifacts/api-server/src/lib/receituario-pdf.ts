@@ -392,65 +392,61 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     ? "RECEITUÁRIO DE CONTROLE ESPECIAL"
     : "RECEITUÁRIO SIMPLES — FÓRMULAS MANIPULADAS";
 
-  // ── Header NAVY ───────────────────────────────────────────────────────────
-  const HEADER_H = 72;
-  page.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: HEADER_H, color: NAVY });
-  page.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: 2, color: GOLD });
+  // ── Header MOTOR — cabeçalho limpo (sem faixa NAVY) ─────────────────────
+  // Layout espelha o ReceituarioPreview: clínica + médico à esquerda,
+  // título do documento centralizado, arabescos correm ATRÁS dos boxes.
+  let hy = PAGE_H - 14;
 
-  page.drawText("PAXTER", { x: M, y: PAGE_H - 26, font: fontBold, size: 18, color: GOLD });
-  page.drawText(safeTxt(data.clinicaNome), { x: M, y: PAGE_H - 42, font: fontBold, size: 10, color: WHITE });
+  // Linha 1: "PAXTER" ouro (pequeno) | código RCE (direita)
+  page.drawText("PAXTER", { x: M, y: hy, font: fontBold, size: 9, color: GOLD });
+  const rceCode = data.numeroReceita ? `Nº ${data.numeroReceita}` : `RCE · ${dataStr.slice(0, 4)}`;
+  const rceTxtW = fontBold.widthOfTextAtSize(rceCode, 7);
+  page.drawText(rceCode, { x: PAGE_W - M - rceTxtW, y: hy, font: fontBold, size: 7, color: MUTED });
+  hy -= 13;
+
+  // Linha 2: nome da clínica bold
+  page.drawText(safeTxt(data.clinicaNome), { x: M, y: hy, font: fontBold, size: 9, color: DARK });
+  hy -= 11;
+
+  // Linha 3: endereço da clínica
   if (data.clinicaEndereco) {
-    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 68),
-      { x: M, y: PAGE_H - 54, font: fontReg, size: 6.5, color: CYAN });
-  }
-  if (data.clinicaTelefone) {
-    page.drawText(`Tel: ${safeTxt(data.clinicaTelefone)}`,
-      { x: M, y: PAGE_H - 63, font: fontReg, size: 6.5, color: CYAN });
+    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 82),
+      { x: M, y: hy, font: fontReg, size: 6.5, color: MUTED });
+    hy -= 10;
   }
 
-  const titleW = fontBold.widthOfTextAtSize(tituloDoc, 9);
-  page.drawText(tituloDoc, { x: PAGE_W - M - titleW, y: PAGE_H - 28, font: fontBold, size: 9, color: WHITE });
+  // Linha 4: telefone + médico (mesma linha)
+  const telMedico = [
+    data.clinicaTelefone ? `Tel: ${safeTxt(data.clinicaTelefone)}` : null,
+    `Dr(a). ${safeTxt(data.medicoName)} — ${safeTxt(data.medicoCrm)}`,
+  ].filter(Boolean).join("   ");
+  page.drawText(telMedico, { x: M, y: hy, font: fontReg, size: 6.5, color: MUTED });
+  hy -= 12;
 
+  // Separador fino
+  page.drawLine({ start: { x: M, y: hy }, end: { x: PAGE_W - M, y: hy }, thickness: 0.5, color: LINE });
+  hy -= 14;
+
+  // Título do documento CENTRALIZADO (estilo motor)
+  const titW = fontBold.widthOfTextAtSize(tituloDoc, 11);
+  page.drawText(tituloDoc, { x: (PAGE_W - titW) / 2, y: hy, font: fontBold, size: 11, color: DARK });
+  hy -= 12;
+
+  // Sub-linha: vias
   const viasStr = "1ª via - Farmácia  /  2ª via - Paciente";
   const viasW   = fontReg.widthOfTextAtSize(viasStr, 7);
-  page.drawText(viasStr, { x: PAGE_W - M - viasW, y: PAGE_H - 40, font: fontReg, size: 7, color: CYAN });
+  page.drawText(viasStr, { x: (PAGE_W - viasW) / 2, y: hy, font: fontReg, size: 7, color: MUTED });
+  hy -= 10;
 
-  if (data.numeroReceita) {
-    const numStr = `Nº ${data.numeroReceita}`;
-    const numW   = fontBold.widthOfTextAtSize(numStr, 8);
-    page.drawText(numStr, { x: PAGE_W - M - numW, y: PAGE_H - 52, font: fontBold, size: 8, color: GOLD });
-  }
+  // Sub-linha: validade + data emissão
   const validStr = `Validade: ${validade} dias  |  Emitido: ${dataFmt}`;
   const validW   = fontReg.widthOfTextAtSize(validStr, 6.5);
-  page.drawText(validStr, { x: PAGE_W - M - validW, y: PAGE_H - 64, font: fontReg, size: 6.5, color: MUTED });
+  page.drawText(validStr, { x: (PAGE_W - validW) / 2, y: hy, font: fontReg, size: 6.5, color: MUTED });
+  hy -= 14;
 
-  // ── Faixa Arabesca (PNG raster — PADUA Designer) ───────────────────────────
-  const ARABESQUE_H = 46; // altura da faixa no PDF (pontos A4)
-  const ARABESQUE_MODELS_RASTER = [
-    "padua-01-floral-islamico", "padua-02-floral-simetrico", "padua-03-rinceau-flamingo",
-    "padua-04-acanto-florentino", "padua-05-ogival-moghul", "padua-06-rinceau-mandala",
-    "padua-07-acanto-barroco", "padua-08-acanto-renascentista", "padua-09-rinceau-fino",
-    "padua-10-acanto-floral", "padua-11-acanto-romantico",
-  ];
-  const bandId = data.bandModel ?? "padua-01-floral-islamico";
-  let arabBandH = 0;
-  if (ARABESQUE_MODELS_RASTER.includes(bandId)) {
-    try {
-      const pngPath = join(
-        "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
-        `${bandId}.png`,
-      );
-      const pngBytes = readFileSync(pngPath);
-      const pngImage = await pdfDoc.embedPng(pngBytes);
-      const bandY = PAGE_H - HEADER_H - ARABESQUE_H;
-      page.drawImage(pngImage, { x: 0, y: bandY, width: PAGE_W, height: ARABESQUE_H });
-      // Linha dourada fina separando faixa do corpo
-      page.drawLine({ start: { x: 0, y: bandY }, end: { x: PAGE_W, y: bandY }, thickness: 0.8, color: GOLD });
-      arabBandH = ARABESQUE_H;
-    } catch {
-      // PNG não encontrado — ignora silenciosamente (não quebra o PDF)
-    }
-  }
+  // Separador de fechamento do cabeçalho
+  page.drawLine({ start: { x: M, y: hy }, end: { x: PAGE_W - M, y: hy }, thickness: 0.5, color: LINE });
+  hy -= 6;
 
   // ── Helper: draw a labelled field in a box ────────────────────────────────
   // Returns the new y after drawing (decremented).
@@ -491,18 +487,47 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     return by - 3;
   }
 
-  let y = PAGE_H - HEADER_H - arabBandH - 4;
-
-  // ── BOX PAIR 1: Emitente | Paciente ──────────────────────────────────────
+  // ── BOX PAIR 1: Emitente | Paciente com arabescos POR TRÁS ──────────────
+  // Espelha o motor ReceituarioPreview: faixa horizontal corre no centro
+  // da área de boxes; boxes brancos são desenhados DEPOIS (z-order = na frente).
   const BOX_GAP = 8;
   const BOX_W   = (CW - BOX_GAP) / 2;   // ~257
   const BX1     = M;
   const BX2     = M + BOX_W + BOX_GAP;
-  const BOX1_H  = 142;
+  const BOX1_H  = 148;
   const TITLE_H = 15;
-  const BOX_TOP = y;
+  const BOX_TOP = hy;   // usa o cursor hy do cabeçalho
 
-  // Borders
+  // 1. Arabescos PRIMEIRO (ficarão atrás dos boxes brancos)
+  const ARABESQUE_H = 46;
+  const ARABESQUE_MODELS_RASTER = [
+    "padua-01-floral-islamico", "padua-02-floral-simetrico", "padua-03-rinceau-flamingo",
+    "padua-04-acanto-florentino", "padua-05-ogival-moghul", "padua-06-rinceau-mandala",
+    "padua-07-acanto-barroco", "padua-08-acanto-renascentista", "padua-09-rinceau-fino",
+    "padua-10-acanto-floral", "padua-11-acanto-romantico",
+  ];
+  const bandId = data.bandModel ?? "padua-01-floral-islamico";
+  if (ARABESQUE_MODELS_RASTER.includes(bandId)) {
+    try {
+      const pngPath = join(
+        "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
+        `${bandId}.png`,
+      );
+      const pngBytes = readFileSync(pngPath);
+      const pngImage = await pdfDoc.embedPng(pngBytes);
+      // Centraliza verticalmente na área dos boxes (igual ao motor HTML)
+      const bandCenterY = BOX_TOP - BOX1_H / 2;
+      const bandDrawY   = bandCenterY - ARABESQUE_H / 2;
+      // Largura total da página — a faixa "sangra" nas margens como no motor
+      page.drawImage(pngImage, { x: 0, y: bandDrawY, width: PAGE_W, height: ARABESQUE_H });
+      page.drawLine({ start: { x: 0, y: bandDrawY + ARABESQUE_H }, end: { x: PAGE_W, y: bandDrawY + ARABESQUE_H }, thickness: 0.5, color: LINE });
+      page.drawLine({ start: { x: 0, y: bandDrawY }, end: { x: PAGE_W, y: bandDrawY }, thickness: 0.5, color: LINE });
+    } catch {
+      // PNG não encontrado — segue sem arabesco
+    }
+  }
+
+  // 2. Boxes brancos DEPOIS (cobrem a faixa onde os boxes ficam)
   page.drawRectangle({
     x: BX1, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
     borderColor: LINE, borderWidth: 0.6, color: WHITE,
@@ -511,7 +536,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     x: BX2, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
     borderColor: LINE, borderWidth: 0.6, color: WHITE,
   });
-  // Title bars
+
+  // Barras de título dos boxes
   page.drawRectangle({ x: BX1, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
   page.drawRectangle({ x: BX2, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
 
@@ -526,7 +552,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     y: BOX_TOP - 10, font: fontBold, size: 6, color: DARK,
   });
 
-  // Box 1: Emitente (always filled)
+  // Box 1: Emitente
   let fy1 = BOX_TOP - TITLE_H - 6;
   fy1 = drawBoxField(BX1, fy1, "Profissional / Prescritor:", data.medicoName, BOX_W, fontReg, fontBold);
   fy1 = drawBoxField(BX1, fy1, "Conselho:", data.medicoCrm, BOX_W, fontReg, fontBold);
@@ -537,18 +563,24 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     drawBoxField(BX1, fy1, "Endereço:", data.clinicaEndereco.slice(0, 55), BOX_W, fontReg, fontBold);
   }
 
-  // Box 2: Paciente
+  // Box 2: Paciente — data de nascimento normalizada (aceita DD/MM/YYYY ou YYYY-MM-DD)
   let fy2 = BOX_TOP - TITLE_H - 6;
   fy2 = drawBoxField(BX2, fy2, "Nome Completo:", data.pacienteNome, BOX_W, fontReg, fontBold);
+  let nascFmt: string | undefined;
+  if (data.pacienteNascimento) {
+    const n = data.pacienteNascimento.trim();
+    // já está em DD/MM/YYYY — usar direto; se YYYY-MM-DD, converter
+    nascFmt = /^\d{2}\/\d{2}\/\d{4}$/.test(n) ? n : fmtData(n);
+  }
   const cpfNasc = [
-    data.pacienteCpf       && `CPF: ${data.pacienteCpf}`,
-    data.pacienteNascimento && `Nasc.: ${fmtData(data.pacienteNascimento)}`,
+    data.pacienteCpf  && `CPF: ${data.pacienteCpf}`,
+    nascFmt           && `Nasc.: ${nascFmt}`,
   ].filter(Boolean).join("   ") || undefined;
   fy2 = drawBoxField(BX2, fy2, "CPF / Data de Nascimento:", cpfNasc, BOX_W, fontReg, fontBold);
   fy2 = drawBoxField(BX2, fy2, "Telefone:", data.pacienteTelefone, BOX_W, fontReg, fontBold);
   drawBoxField(BX2, fy2, "Endereço:", data.pacienteEndereco, BOX_W, fontReg, fontBold);
 
-  y = BOX_TOP - BOX1_H - 12;
+  let y = BOX_TOP - BOX1_H - 12;
 
   // ── Separator ─────────────────────────────────────────────────────────────
   page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.5, color: LINE });
