@@ -2,6 +2,8 @@
  * RECEITUÁRIO MAGISTRAL — gerador de PDF com assinatura ICP-Brasil (PAdES).
  * Padrão visual PAXTER: faixa navy, tabela de fórmulas, rodapé com selo.
  */
+import { readFileSync } from "fs";
+import { join } from "path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
@@ -315,6 +317,8 @@ export interface ReceituarioDataV2 {
   dataEmissao?: string;   // YYYY-MM-DD; default = hoje BRT
   validadeDias?: number;  // default 30
   numeroReceita?: string;
+  // Faixa arabesca — id do modelo (ex: "padua-01-floral-islamico"); default = padua-01
+  bandModel?: string;
 }
 
 async function signPdfBytes(
@@ -342,6 +346,32 @@ async function signPdfBytes(
   const signpdf = new SignPdf();
   const signed  = await signpdf.sign(Buffer.from(withPlaceholder), signer);
   return new Uint8Array(signed);
+}
+
+// ── Gera PDF a partir de uma imagem PNG capturada do motor HTML ──────────────
+// Usada pela rota /assinar-imagem-pdf (motor html2canvas → PNG → este PDF → ICP-Brasil)
+export async function generatePdfFromPngBase64(
+  pngBase64: string,
+  profName: string,
+): Promise<Uint8Array> {
+  const pdfDoc   = await PDFDocument.create();
+  const pngBytes = Buffer.from(pngBase64, "base64");
+  const pngImage = await pdfDoc.embedPng(pngBytes);
+
+  // Página A4 (595.28 x 841.89 pts)
+  const page   = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  // Escala o PNG para preencher a largura total da página A4
+  const scale  = PAGE_W / pngImage.width;
+  const drawH  = pngImage.height * scale;
+
+  page.drawImage(pngImage, {
+    x:      0,
+    y:      Math.max(0, PAGE_H - drawH),
+    width:  PAGE_W,
+    height: Math.min(drawH, PAGE_H),
+  });
+
+  return signPdfBytes(pdfDoc, profName);
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise<Uint8Array> {
@@ -394,6 +424,34 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   const validW   = fontReg.widthOfTextAtSize(validStr, 6.5);
   page.drawText(validStr, { x: PAGE_W - M - validW, y: PAGE_H - 64, font: fontReg, size: 6.5, color: MUTED });
 
+  // ── Faixa Arabesca (PNG raster — PADUA Designer) ───────────────────────────
+  const ARABESQUE_H = 46; // altura da faixa no PDF (pontos A4)
+  const ARABESQUE_MODELS_RASTER = [
+    "padua-01-floral-islamico", "padua-02-floral-simetrico", "padua-03-rinceau-flamingo",
+    "padua-04-acanto-florentino", "padua-05-ogival-moghul", "padua-06-rinceau-mandala",
+    "padua-07-acanto-barroco", "padua-08-acanto-renascentista", "padua-09-rinceau-fino",
+    "padua-10-acanto-floral", "padua-11-acanto-romantico",
+  ];
+  const bandId = data.bandModel ?? "padua-01-floral-islamico";
+  let arabBandH = 0;
+  if (ARABESQUE_MODELS_RASTER.includes(bandId)) {
+    try {
+      const pngPath = join(
+        "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
+        `${bandId}.png`,
+      );
+      const pngBytes = readFileSync(pngPath);
+      const pngImage = await pdfDoc.embedPng(pngBytes);
+      const bandY = PAGE_H - HEADER_H - ARABESQUE_H;
+      page.drawImage(pngImage, { x: 0, y: bandY, width: PAGE_W, height: ARABESQUE_H });
+      // Linha dourada fina separando faixa do corpo
+      page.drawLine({ start: { x: 0, y: bandY }, end: { x: PAGE_W, y: bandY }, thickness: 0.8, color: GOLD });
+      arabBandH = ARABESQUE_H;
+    } catch {
+      // PNG não encontrado — ignora silenciosamente (não quebra o PDF)
+    }
+  }
+
   // ── Helper: draw a labelled field in a box ────────────────────────────────
   // Returns the new y after drawing (decremented).
   function drawBoxField(
@@ -433,7 +491,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     return by - 3;
   }
 
-  let y = PAGE_H - HEADER_H - 4;
+  let y = PAGE_H - HEADER_H - arabBandH - 4;
 
   // ── BOX PAIR 1: Emitente | Paciente ──────────────────────────────────────
   const BOX_GAP = 8;

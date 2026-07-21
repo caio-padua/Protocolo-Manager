@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
   CheckCircle2, ArrowUp, ArrowDown, Layers, Clock, FolderPlus,
@@ -18,6 +18,14 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../comunicacao/_shared";
+import {
+  ReceituarioPreview,
+  type RealFormula,
+  type PacienteDataBind,
+  type MedicoDataBind,
+  type ClinicaDataBind,
+} from "@/components/receituario/ReceituarioPreview";
+import { loadReceituarioConfig } from "@/lib/arabesques/receituario-config";
 
 const NAVY = "#16284a";
 const OURO = "#c9a24e";
@@ -359,7 +367,8 @@ export default function PrescricaoPage(
       }
     }
   };
-  // ── Motor real: gera PDF ANVISA assinado ICP-Brasil, sobe ao Drive e envia e-mail ──
+  // ── Motor real: captura o preview HTML → PNG → backend assina ICP-Brasil → Drive → email ──
+  const previewRef = useRef<HTMLDivElement>(null);
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const handleGerarReceituario = async () => {
@@ -368,46 +377,114 @@ export default function PrescricaoPage(
       toast({ title: "Informe o nome do paciente antes de gerar", variant: "destructive" });
       return;
     }
+    if (!previewRef.current) {
+      toast({ title: "Preview do motor não encontrado", description: "Rolar até o Modelo Visual antes de gerar", variant: "destructive" });
+      return;
+    }
     setGerandoPdf(true);
     try {
-      const formulas = selected.map((f) => ({
-        nome: f.name,
-        ativos: f.ativos,
-        posologia: f.tomadas.length ? f.tomadas.map(tomadaToText).join("\n") : undefined,
-        via: "Oral",
-      }));
-      const payload = {
-        patient: {
-          nome: patient.nome,
-          cpf: patient.cpf || undefined,
-          dataNascimento: patient.dataNascimento || undefined,
-          telefone: patient.telefone || undefined,
-        },
-        formulas,
-        tipoReceita: "especial",
-      };
-      const resp = await fetch(`${BASE}/api/receituario/emitir-prescricao`, {
+      // 1. Captura o motor visual (ReceituarioPreview) como PNG em alta resolução
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+      const pngBase64 = canvas.toDataURL("image/png").split(",")[1];
+
+      // 2. Envia ao backend — assina ICP-Brasil, sobe ao Drive, envia e-mail
+      const today = new Date().toLocaleDateString("pt-BR");
+      const patientNameSlug = patient.nome.replace(/\s+/g, "_").toUpperCase();
+      const fileName = `${today.split("/").reverse().join(".")} RECEITUARIO ${patientNameSlug}.pdf`;
+
+      const resp = await fetch(`${BASE}/api/receituario/assinar-imagem-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          pngBase64,
+          patientName: patient.nome,
+          fileName,
+          patientEmail: patient.email || undefined,
+        }),
       });
-      if (!resp.ok) throw new Error("Falha ao gerar receituário");
-      const result = await resp.json();
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Falha ao assinar o receituário");
+      }
+      const result = await resp.json() as { ok: boolean; driveUrl?: string; emailSent?: boolean };
       toast({
-        title: "Receituário gerado e assinado!",
+        title: "Receituário assinado e enviado!",
         description: result.emailSent
           ? "PDF enviado ao Drive e para drcaiohenriquepadua@gmail.com"
           : result.driveUrl
-            ? "PDF enviado ao Drive (e-mail com falha — verifique o Gmail)"
+            ? "PDF salvo no Drive (e-mail com falha — verifique o Gmail)"
             : "PDF gerado (Drive e e-mail com falha — verifique logs)",
       });
       if (result.driveUrl) window.open(result.driveUrl, "_blank");
-    } catch {
-      toast({ title: "Erro ao gerar receituário", description: "Verifique os logs do servidor", variant: "destructive" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast({ title: "Erro ao gerar receituário", description: msg, variant: "destructive" });
     } finally {
       setGerandoPdf(false);
     }
   };
+
+  // ── Dados do emitente e do paciente (data-bind para o ReceituarioPreview) ──
+  const [medicoDataBind, setMedicoDataBind] = useState<MedicoDataBind>({});
+  const [clinicaDataBind, setClinicaDataBind] = useState<ClinicaDataBind>({});
+
+  useEffect(() => {
+    const cfg = loadReceituarioConfig();
+    const medicoId = cfg.selectedMedicoId ?? 6;
+    const clinicaId = cfg.selectedClinicaId ?? 8;
+
+    fetch(`${BASE}/api/professionals/${medicoId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { name?: string; specialization?: string; crm?: string; phone?: string } | null) => {
+        if (!d) return;
+        setMedicoDataBind({
+          name: d.name,
+          crm: d.crm,
+          rqe: undefined,
+          phone: d.phone,
+        });
+      })
+      .catch(() => {/* silencioso — emitente usa fallback do config */});
+
+    fetch(`${BASE}/api/locations/${clinicaId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { name?: string; address?: string; phone?: string } | null) => {
+        if (!d) return;
+        setClinicaDataBind({
+          name: d.name,
+          phone: d.phone,
+          address: d.address,
+        });
+      })
+      .catch(() => {/* silencioso */});
+  }, []);
+
+  // ── Converte selected → formulasReais para o motor ───────────────────────
+  const formulasReais = useMemo<RealFormula[]>(() =>
+    selected.map((f, i) => ({
+      numero: i + 1,
+      nome: f.name,
+      ativos: f.ativos,
+      posologia: f.tomadas.length ? f.tomadas.map(tomadaToText).join("\n") : "",
+      via: "Oral",
+    })),
+    [selected],
+  );
+
+  // ── Dados do paciente para preencher o Box 2 ─────────────────────────────
+  const pacienteDataBind = useMemo<PacienteDataBind>(() => ({
+    nome: patient.nome || undefined,
+    cpf: patient.cpf || undefined,
+    nascimento: patient.dataNascimento || undefined,
+    telefone: patient.telefone || undefined,
+  }), [patient]);
 
   const stats = useMemo(() => {
     const s: Record<string, number> = { all: allFormulas.length };
@@ -682,12 +759,27 @@ export default function PrescricaoPage(
         </div>
       </section>
 
-      {/* BLOCO 2 — PDF VISUAL MODEL */}
+      {/* BLOCO 2 — MOTOR VISUAL (ReceituarioPreview com dados reais) */}
       {selected.length > 0 && (
         <section className="no-print panel-3d p-5">
           <BlockTitle icon={Eye} color="text-primary">Modelo Visual do PDF</BlockTitle>
-          <div className="bg-white border border-border rounded-md p-6 max-h-[720px] overflow-y-auto rx-scroll shadow-inner max-w-3xl mx-auto mt-4">
-            <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} />
+          <p className="text-[11px] text-muted-foreground mt-1 mb-3">
+            Este é o motor completo — arabescos, boxes ANVISA e fórmulas reais.
+            O botão "Gerar Receituário Assinado" captura exatamente este layout.
+          </p>
+          {/* Wrapper capturável pelo html2canvas — largura A4 em px */}
+          <div
+            ref={previewRef}
+            style={{ width: 794, margin: "0 auto", background: "#fff" }}
+          >
+            <ReceituarioPreview
+              cfg={loadReceituarioConfig()}
+              bandModelId={bandModel}
+              medicoData={medicoDataBind}
+              clinicaData={clinicaDataBind}
+              formulasReais={formulasReais}
+              pacienteData={pacienteDataBind}
+            />
           </div>
         </section>
       )}
@@ -928,12 +1020,19 @@ export default function PrescricaoPage(
         </section>
       )}
 
-      {/* PRINT */}
+      {/* PRINT — usa o mesmo motor visual ReceituarioPreview */}
       <div className="print-only">
-        <div style={{ padding: "36px", fontFamily: "Georgia, serif" }}>
-          <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} print />
-        </div>
+        <ReceituarioPreview
+          cfg={loadReceituarioConfig()}
+          bandModelId={bandModel}
+          medicoData={medicoDataBind}
+          clinicaData={clinicaDataBind}
+          formulasReais={formulasReais}
+          pacienteData={pacienteDataBind}
+        />
       </div>
+      {/* PdfModel STANDBY — mantido no arquivo; fora do fluxo ativo desde 21/07/2026 */}
+      {/* <PdfModel patient={patient} idade={idade} today={today} duracao={duracao} cid={cid} selected={selected} /> */}
     </div>
   );
 }

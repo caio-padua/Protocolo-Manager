@@ -25,6 +25,25 @@ export interface ClinicaDataBind {
   address?: string;
 }
 
+// ── Fórmula real (da tela de prescrição) ────────────────────────────────────
+export interface RealFormula {
+  numero: number;
+  nome: string;
+  ativos: string;    // multi-linha (ex: "Bupropiona 180mg\nTopiramato 20mg")
+  posologia: string; // multi-linha (ex: "1 dose VO – Antes do Almoço")
+  via?: string;
+  forma?: string;
+}
+
+// ── Dados do paciente (data-bind para o Box 2) ───────────────────────────────
+export interface PacienteDataBind {
+  nome?: string;
+  cpf?: string;
+  nascimento?: string;
+  telefone?: string;
+  endereco?: string;
+}
+
 // ── Campo unitário: label + value (data-bind) ou linha pontilhada ─────────────
 type CampoField = { label: string; value?: string };
 type CampoRow = CampoField | CampoField[];  // field único ou linha multi-coluna
@@ -161,6 +180,51 @@ function BandaComBoxes({
   );
 }
 
+// ── Fórmula REAL (dados vivos da tela de prescrição) ─────────────────────────
+function FormulaReal({ f, cfg }: { f: RealFormula; cfg: { corpoFonteTitulo: string; corpoFonteCorpo: string } }) {
+  const ativosLines = f.ativos.split("\n").filter(Boolean);
+  const posologiaLines = f.posologia.split("\n").filter(Boolean);
+  return (
+    <div style={{ marginBottom: "5mm", borderBottom: "0.3px dashed #e5e5e5", paddingBottom: "4mm" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <span style={{
+          fontWeight: 700, fontSize: 9, color: "#555", fontFamily: cfg.corpoFonteCorpo,
+          minWidth: 18, textAlign: "right",
+        }}>{String(f.numero).padStart(2, "0")}.</span>
+        <span style={{ fontWeight: 700, fontSize: 10, color: "#111", fontFamily: cfg.corpoFonteTitulo }}>
+          {f.nome}
+        </span>
+      </div>
+      {(f.via || f.forma) && (
+        <div style={{ marginLeft: 26, display: "flex", gap: "8mm", fontSize: 6.5, color: "#555", marginBottom: 4, fontFamily: cfg.corpoFonteCorpo }}>
+          {f.via && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 5.5, textTransform: "uppercase", letterSpacing: 1, color: "#aaa" }}>Via</span>
+              <span style={{ fontWeight: 600, color: "#333" }}>{f.via}</span>
+            </div>
+          )}
+          {f.forma && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 5.5, textTransform: "uppercase", letterSpacing: 1, color: "#aaa" }}>Forma</span>
+              <span style={{ fontWeight: 600, color: "#333" }}>{f.forma}</span>
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ marginLeft: 26, fontFamily: "monospace", fontSize: 8, color: "#1a1a1a", marginBottom: 5, lineHeight: 1.55 }}>
+        {ativosLines.map((l, i) => <div key={i}>{l}</div>)}
+      </div>
+      {posologiaLines.length > 0 && (
+        <div style={{ marginLeft: 26, fontFamily: cfg.corpoFonteCorpo, fontSize: 7 }}>
+          {posologiaLines.map((l, i) => (
+            <div key={i} style={{ color: "#0a7a6e", fontWeight: 600, marginBottom: 2 }}>▸ {l}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Fórmula demo ──────────────────────────────────────────────────────────────
 function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia, fonteTitulo, fonteCorpo }: {
   numero: string; nome: string; forma: string; concentracao: string;
@@ -243,12 +307,18 @@ function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
 export function ReceituarioPreview({
   cfg, bandModelId, customBandDataUrl,
   medicoData, clinicaData,
+  formulasReais,
+  pacienteData,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
   customBandDataUrl?: string;
-  medicoData?: MedicoDataBind;   // P4: data-bind emitente
-  clinicaData?: ClinicaDataBind; // P4: data-bind clínica
+  medicoData?: MedicoDataBind;
+  clinicaData?: ClinicaDataBind;
+  /** Fórmulas reais da tela de prescrição — substitui os demos quando fornecido */
+  formulasReais?: RealFormula[];
+  /** Dados reais do paciente — preenche o Box 2 quando fornecido */
+  pacienteData?: PacienteDataBind;
 }) {
   const rodapeEsq = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
 
@@ -268,15 +338,15 @@ export function ReceituarioPreview({
     { label: "Endereço do Consultório", value: clinicaData?.address },
   ];
 
-  // ── P3/P5: Box 2 (Paciente) — sempre em branco (preenchido na consulta) ──
+  // ── P3/P5: Box 2 (Paciente) — data-bind quando pacienteData disponível ──
   const pacienteRows: CampoRow[] = [
-    { label: "Nome Completo" },
+    { label: "Nome Completo", value: pacienteData?.nome },
     [
-      { label: "CPF" },
-      { label: "Nascimento" },
-      { label: "Telefone" },
+      { label: "CPF",        value: pacienteData?.cpf },
+      { label: "Nascimento", value: pacienteData?.nascimento },
+      { label: "Telefone",   value: pacienteData?.telefone },
     ],
-    { label: "Endereço Completo" },
+    { label: "Endereço Completo", value: pacienteData?.endereco },
   ];
 
   // ── P3/P5: Box 3 (Comprador) — em branco (farmácia preenche) ─────────────
@@ -387,16 +457,28 @@ export function ReceituarioPreview({
           fontFamily: cfg.corpoFonteTitulo }}>
           Prescrevo:
         </div>
-        <FormulaDemo numero="01"
-          nome="EXEMPLO DE MEDICAMENTO A 150 mg — comprimido"
-          forma="Comprimido" concentracao="150 mg" quantidade="60 (sessenta)"
-          posologia="Orientação demonstrativa a ser validada pelo prescritor."
-          fonteTitulo={cfg.corpoFonteTitulo} fonteCorpo={cfg.corpoFonteCorpo}/>
-        <FormulaDemo numero="02"
-          nome="EXEMPLO DE MEDICAMENTO B 50 mg — comprimido"
-          forma="Comprimido" concentracao="50 mg" quantidade="30 (trinta)"
-          posologia="Orientação demonstrativa a ser validada pelo prescritor."
-          fonteTitulo={cfg.corpoFonteTitulo} fonteCorpo={cfg.corpoFonteCorpo}/>
+
+        {/* ── Fórmulas REAIS (da tela de prescrição) ── */}
+        {formulasReais && formulasReais.length > 0
+          ? formulasReais.map((f) => (
+              <FormulaReal key={f.numero} f={f} cfg={cfg}/>
+            ))
+          : (
+            /* ── Demo (designer / visualização sem dados reais) ── */
+            <>
+              <FormulaDemo numero="01"
+                nome="EXEMPLO DE MEDICAMENTO A 150 mg — comprimido"
+                forma="Comprimido" concentracao="150 mg" quantidade="60 (sessenta)"
+                posologia="Orientação demonstrativa a ser validada pelo prescritor."
+                fonteTitulo={cfg.corpoFonteTitulo} fonteCorpo={cfg.corpoFonteCorpo}/>
+              <FormulaDemo numero="02"
+                nome="EXEMPLO DE MEDICAMENTO B 50 mg — comprimido"
+                forma="Comprimido" concentracao="50 mg" quantidade="30 (trinta)"
+                posologia="Orientação demonstrativa a ser validada pelo prescritor."
+                fonteTitulo={cfg.corpoFonteTitulo} fonteCorpo={cfg.corpoFonteCorpo}/>
+            </>
+          )
+        }
       </div>
 
       {/* ═══ 5. ASSINATURA + CERTIFICADO ════════════════════════════════════ */}
