@@ -536,8 +536,9 @@ router.post("/receituario/emitir-prescricao", async (req, res): Promise<void> =>
     const [y, m, d] = dataHoje.split("-");
 
     const pdfData: ReceituarioDataV2 = {
-      medicoName:      medico?.name    ?? "Dr. Caio Henrique Fernandes Pádua",
-      medicoCrm:       medico?.crm     ?? "CRM SP 123456",
+      medicoName:      medico?.name      ?? "Dr. Caio Henrique Fernandes Pádua",
+      medicoCrm:       medico?.crm       ?? "CRM SP 123456",
+      medicoRqe:       medico?.specialty ?? undefined,
       clinicaNome:     (clinica as any)?.nome_fantasia ?? clinica?.name ?? "Instituto Padua",
       clinicaEndereco: clinica?.address ?? undefined,
       clinicaTelefone: clinica?.phone   ?? undefined,

@@ -291,6 +291,7 @@ export interface ReceituarioDataV2 {
   // Box 1 — Emitente (carregado automaticamente pelo backend)
   medicoName: string;
   medicoCrm: string;
+  medicoRqe?: string;           // RQE do médico (ex: "12.345")
   clinicaNome: string;
   clinicaEndereco?: string;
   clinicaTelefone?: string;
@@ -298,7 +299,7 @@ export interface ReceituarioDataV2 {
   // Box 2 — Paciente
   pacienteNome?: string;
   pacienteCpf?: string;
-  pacienteNascimento?: string;   // YYYY-MM-DD
+  pacienteNascimento?: string;   // YYYY-MM-DD ou DD/MM/YYYY
   pacienteTelefone?: string;
   pacienteEndereco?: string;
 
@@ -317,8 +318,16 @@ export interface ReceituarioDataV2 {
   dataEmissao?: string;   // YYYY-MM-DD; default = hoje BRT
   validadeDias?: number;  // default 30
   numeroReceita?: string;
-  // Faixa arabesca — id do modelo (ex: "padua-01-floral-islamico"); default = padua-01
-  bandModel?: string;
+  bandModel?: string;     // id do modelo arabesco (ex: "padua-01-floral-islamico")
+
+  // Títulos dos boxes (opcional — usa defaults ANVISA se omitido)
+  boxMedicoTitulo?: string;
+  boxPacienteTitulo?: string;
+  boxCompradorTitulo?: string;
+  boxFarmaciaTitulo?: string;
+
+  // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
+  rodapeLinhas?: string[];
 }
 
 async function signPdfBytes(
@@ -381,352 +390,459 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   const fontItal = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  const M    = 36;
-  const CW   = PAGE_W - M * 2; // ~523
+  const M  = 36;
+  const CW = PAGE_W - M * 2; // ≈ 523
 
-  const dataStr  = data.dataEmissao ?? hoje();
-  const dataFmt  = fmtData(dataStr);
-  const validade = data.validadeDias ?? 30;
-  const tipo     = data.tipoReceita ?? "especial";
+  const dataStr   = data.dataEmissao ?? hoje();
+  const dataFmt   = fmtData(dataStr);
+  const tipo      = data.tipoReceita ?? "especial";
   const tituloDoc = tipo === "especial"
     ? "RECEITUÁRIO DE CONTROLE ESPECIAL"
     : "RECEITUÁRIO SIMPLES — FÓRMULAS MANIPULADAS";
 
-  // ── Header MOTOR — cabeçalho limpo (sem faixa NAVY) ─────────────────────
-  // Layout espelha o ReceituarioPreview: clínica + médico à esquerda,
-  // título do documento centralizado, arabescos correm ATRÁS dos boxes.
-  let hy = PAGE_H - 14;
+  // Data por extenso para o bloco de assinatura
+  const MESES = [
+    "janeiro","fevereiro","março","abril","maio","junho",
+    "julho","agosto","setembro","outubro","novembro","dezembro",
+  ];
+  const [ano, mes, dia] = dataStr.split("-");
+  const dataExtenso = `${parseInt(dia, 10)} de ${MESES[parseInt(mes, 10) - 1] ?? ""} de ${ano}`;
 
-  // Linha 1: "PAXTER" ouro (pequeno) | código RCE (direita)
-  page.drawText("PAXTER", { x: M, y: hy, font: fontBold, size: 9, color: GOLD });
-  const rceCode = data.numeroReceita ? `Nº ${data.numeroReceita}` : `RCE · ${dataStr.slice(0, 4)}`;
-  const rceTxtW = fontBold.widthOfTextAtSize(rceCode, 7);
-  page.drawText(rceCode, { x: PAGE_W - M - rceTxtW, y: hy, font: fontBold, size: 7, color: MUTED });
-  hy -= 13;
+  // Linha CRM + RQE usada em cabeçalho e assinatura
+  const crmRqeStr = data.medicoCrm
+    ? (data.medicoRqe ? `${data.medicoCrm} — RQE: ${data.medicoRqe}` : data.medicoCrm)
+    : "";
 
-  // Linha 2: nome da clínica bold
-  page.drawText(safeTxt(data.clinicaNome), { x: M, y: hy, font: fontBold, size: 9, color: DARK });
-  hy -= 11;
-
-  // Linha 3: endereço da clínica
-  if (data.clinicaEndereco) {
-    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 82),
-      { x: M, y: hy, font: fontReg, size: 6.5, color: MUTED });
-    hy -= 10;
+  // ── Helpers internos ──────────────────────────────────────────────────────
+  function wrapLines(text: string, font: PDFFont, size: number, maxW: number): string[] {
+    const words = safeTxt(text).split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const cand = cur ? `${cur} ${w}` : w;
+      if ((font as any).widthOfTextAtSize(cand, size) > maxW && cur) {
+        lines.push(cur); cur = w;
+      } else { cur = cand; }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [""];
   }
 
-  // Linha 4: telefone + médico (mesma linha)
-  const telMedico = [
-    data.clinicaTelefone ? `Tel: ${safeTxt(data.clinicaTelefone)}` : null,
-    `Dr(a). ${safeTxt(data.medicoName)} — ${safeTxt(data.medicoCrm)}`,
-  ].filter(Boolean).join("   ");
-  page.drawText(telMedico, { x: M, y: hy, font: fontReg, size: 6.5, color: MUTED });
-  hy -= 12;
-
-  // Separador fino
-  page.drawLine({ start: { x: M, y: hy }, end: { x: PAGE_W - M, y: hy }, thickness: 0.5, color: LINE });
-  hy -= 14;
-
-  // Título do documento CENTRALIZADO (estilo motor)
-  const titW = fontBold.widthOfTextAtSize(tituloDoc, 11);
-  page.drawText(tituloDoc, { x: (PAGE_W - titW) / 2, y: hy, font: fontBold, size: 11, color: DARK });
-  hy -= 12;
-
-  // Sub-linha: vias
-  const viasStr = "1ª via - Farmácia  /  2ª via - Paciente";
-  const viasW   = fontReg.widthOfTextAtSize(viasStr, 7);
-  page.drawText(viasStr, { x: (PAGE_W - viasW) / 2, y: hy, font: fontReg, size: 7, color: MUTED });
-  hy -= 10;
-
-  // Sub-linha: validade + data emissão
-  const validStr = `Validade: ${validade} dias  |  Emitido: ${dataFmt}`;
-  const validW   = fontReg.widthOfTextAtSize(validStr, 6.5);
-  page.drawText(validStr, { x: (PAGE_W - validW) / 2, y: hy, font: fontReg, size: 6.5, color: MUTED });
-  hy -= 14;
-
-  // Separador de fechamento do cabeçalho
-  page.drawLine({ start: { x: M, y: hy }, end: { x: PAGE_W - M, y: hy }, thickness: 0.5, color: LINE });
-  hy -= 6;
-
-  // ── Helper: draw a labelled field in a box ────────────────────────────────
-  // Returns the new y after drawing (decremented).
-  function drawBoxField(
-    bx: number, by: number,
-    label: string,
-    value: string | null | undefined,
-    maxW: number,
-    fR: PDFFont, fB: PDFFont,
+  /**
+   * RÓTULO em maiúsculas muted (5.5pt) acima + valor (dark 6.5pt) ou linha pontilhada.
+   * Retorna novo y após o campo.
+   */
+  function drawField(
+    bx: number, by: number, label: string,
+    value: string | null | undefined, maxW: number, fSize = 6.5,
   ): number {
-    bx; // keep bx in scope for linter
-    page.drawText(label, { x: bx + 5, y: by, font: fB, size: 5.5, color: MUTED });
-    by -= 10;
-    if (value && value.trim()) {
-      const words = value.split(" ");
-      let line = "";
-      for (const word of words) {
-        const cand = line ? `${line} ${word}` : word;
-        if (fR.widthOfTextAtSize(cand, 7.5) > maxW - 10 && line) {
-          page.drawText(line, { x: bx + 5, y: by, font: fR, size: 7.5, color: DARK });
-          by -= 10;
-          line = word;
-        } else {
-          line = cand;
-        }
-      }
-      if (line) {
-        page.drawText(line, { x: bx + 5, y: by, font: fR, size: 7.5, color: DARK });
-        by -= 10;
+    page.drawText(`${label.toUpperCase()}:`, { x: bx, y: by, font: fontBold, size: 5.5, color: MUTED });
+    by -= 9;
+    if (value?.trim()) {
+      for (const ln of wrapLines(value, fontReg, fSize, maxW)) {
+        page.drawText(ln, { x: bx, y: by, font: fontReg, size: fSize, color: DARK });
+        by -= 9;
       }
     } else {
       page.drawLine({
-        start: { x: bx + 5, y: by + 3 }, end: { x: bx + maxW - 5, y: by + 3 },
-        thickness: 0.3, color: LINE, dashArray: [1, 3], dashPhase: 0,
+        start: { x: bx, y: by + 2 }, end: { x: bx + maxW, y: by + 2 },
+        thickness: 0.35, color: LINE, dashArray: [1, 2.5], dashPhase: 0,
       });
-      by -= 10;
+      by -= 9;
     }
-    return by - 3;
+    return by - 2;
   }
 
-  // ── BOX PAIR 1: Emitente | Paciente com arabescos POR TRÁS ──────────────
-  // Espelha o motor ReceituarioPreview: faixa horizontal corre no centro
-  // da área de boxes; boxes brancos são desenhados DEPOIS (z-order = na frente).
-  const BOX_GAP = 8;
-  const BOX_W   = (CW - BOX_GAP) / 2;   // ~257
-  const BX1     = M;
-  const BX2     = M + BOX_W + BOX_GAP;
-  const BOX1_H  = 148;
-  const TITLE_H = 15;
-  const BOX_TOP = hy;   // usa o cursor hy do cabeçalho
+  /**
+   * Linha inline de múltiplas colunas — espelha o array CampoField[] do motor.
+   * totalW = largura total disponível para as N colunas.
+   * Retorna novo y.
+   */
+  function drawInlineRow(
+    bx: number, by: number,
+    cols: { label: string; value?: string | null }[],
+    totalW: number, fSize = 6.5,
+  ): number {
+    const colW = totalW / cols.length;
+    for (let i = 0; i < cols.length; i++) {
+      const cx = bx + i * colW;
+      const c  = cols[i];
+      page.drawText(`${c.label.toUpperCase()}:`, { x: cx, y: by, font: fontBold, size: 5.5, color: MUTED });
+      const vy = by - 9;
+      if (c.value?.trim()) {
+        const maxPts = colW - 6;
+        let txt = safeTxt(c.value);
+        while (txt.length > 1 && (fontReg as any).widthOfTextAtSize(txt, fSize) > maxPts) {
+          txt = txt.slice(0, -1);
+        }
+        page.drawText(txt, { x: cx, y: vy, font: fontReg, size: fSize, color: DARK });
+      } else {
+        page.drawLine({
+          start: { x: cx, y: vy + 2 }, end: { x: cx + colW - 6, y: vy + 2 },
+          thickness: 0.35, color: LINE, dashArray: [1, 2.5], dashPhase: 0,
+        });
+      }
+    }
+    return by - 9 - 9 - 3;
+  }
 
-  // 1. Arabescos PRIMEIRO (ficarão atrás dos boxes brancos)
-  const ARABESQUE_H = 46;
-  const ARABESQUE_MODELS_RASTER = [
-    "padua-01-floral-islamico", "padua-02-floral-simetrico", "padua-03-rinceau-flamingo",
-    "padua-04-acanto-florentino", "padua-05-ogival-moghul", "padua-06-rinceau-mandala",
-    "padua-07-acanto-barroco", "padua-08-acanto-renascentista", "padua-09-rinceau-fino",
-    "padua-10-acanto-floral", "padua-11-acanto-romantico",
+  /** Linha decorativa fina — igual ao <LinhaDecorativa/> do motor. */
+  function drawDecorLine(y: number): void {
+    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.4, color: LINE });
+  }
+
+  // ── Arabesco: carrega o PNG uma só vez, reutiliza nas duas faixas ─────────
+  const ARAB_IDS = [
+    "padua-01-floral-islamico","padua-02-floral-simetrico","padua-03-rinceau-flamingo",
+    "padua-04-acanto-florentino","padua-05-ogival-moghul","padua-06-rinceau-mandala",
+    "padua-07-acanto-barroco","padua-08-acanto-renascentista","padua-09-rinceau-fino",
+    "padua-10-acanto-floral","padua-11-acanto-romantico",
   ];
   const bandId = data.bandModel ?? "padua-01-floral-islamico";
-  if (ARABESQUE_MODELS_RASTER.includes(bandId)) {
-    try {
-      const pngPath = join(
+  let arabImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+  try {
+    if (ARAB_IDS.includes(bandId)) {
+      const buf = readFileSync(join(
         "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
         `${bandId}.png`,
-      );
-      const pngBytes = readFileSync(pngPath);
-      const pngImage = await pdfDoc.embedPng(pngBytes);
-      // Centraliza verticalmente na área dos boxes (igual ao motor HTML)
-      const bandCenterY = BOX_TOP - BOX1_H / 2;
-      const bandDrawY   = bandCenterY - ARABESQUE_H / 2;
-      // Largura total da página — a faixa "sangra" nas margens como no motor
-      page.drawImage(pngImage, { x: 0, y: bandDrawY, width: PAGE_W, height: ARABESQUE_H });
-      page.drawLine({ start: { x: 0, y: bandDrawY + ARABESQUE_H }, end: { x: PAGE_W, y: bandDrawY + ARABESQUE_H }, thickness: 0.5, color: LINE });
-      page.drawLine({ start: { x: 0, y: bandDrawY }, end: { x: PAGE_W, y: bandDrawY }, thickness: 0.5, color: LINE });
-    } catch {
-      // PNG não encontrado — segue sem arabesco
+      ));
+      arabImg = await pdfDoc.embedPng(buf);
+    }
+  } catch { /* sem arabesco — continua */ }
+
+  const ARAB_H = 46; // altura da faixa em pontos
+
+  /** Desenha a faixa arabesca ATRÁS dos boxes (full-width, centralizada no bloco). */
+  function drawArabBand(boxTop: number, boxH: number): void {
+    if (!arabImg) return;
+    const cy    = boxTop - boxH / 2;
+    const bandY = cy - ARAB_H / 2;
+    page.drawImage(arabImg, { x: 0, y: bandY, width: PAGE_W, height: ARAB_H });
+    page.drawLine({ start: { x: 0, y: bandY + ARAB_H }, end: { x: PAGE_W, y: bandY + ARAB_H }, thickness: 0.5, color: LINE });
+    page.drawLine({ start: { x: 0, y: bandY         }, end: { x: PAGE_W, y: bandY         }, thickness: 0.5, color: LINE });
+  }
+
+  /** Desenha o par de boxes BRANCOS (com título) sobre a faixa arabesca. */
+  function drawBoxPair(
+    boxTop: number, boxH: number, titleH: number,
+    bx1: number, bx2: number, boxW: number,
+    titulo1: string, titulo2: string,
+  ): void {
+    for (const [bx, titulo] of [[bx1, titulo1], [bx2, titulo2]] as [number, string][]) {
+      page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
+        color: WHITE, borderColor: LINE, borderWidth: 0.6 });
+      page.drawRectangle({ x: bx, y: boxTop - titleH, width: boxW, height: titleH, color: LIGHT });
+      const tW = (fontBold as any).widthOfTextAtSize(titulo, 6);
+      page.drawText(titulo, { x: bx + (boxW - tW) / 2, y: boxTop - 10,
+        font: fontBold, size: 6, color: DARK });
     }
   }
 
-  // 2. Boxes brancos DEPOIS (cobrem a faixa onde os boxes ficam)
-  page.drawRectangle({
-    x: BX1, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
-    borderColor: LINE, borderWidth: 0.6, color: WHITE,
-  });
-  page.drawRectangle({
-    x: BX2, y: BOX_TOP - BOX1_H, width: BOX_W, height: BOX1_H,
-    borderColor: LINE, borderWidth: 0.6, color: WHITE,
-  });
+  // ── Constantes de layout ──────────────────────────────────────────────────
+  const BOX_GAP  = 8;
+  const BOX_W    = (CW - BOX_GAP) / 2; // ≈ 257
+  const BX1      = M;
+  const BX2      = M + BOX_W + BOX_GAP;
+  const TITLE_H  = 14;
 
-  // Barras de título dos boxes
-  page.drawRectangle({ x: BX1, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
-  page.drawRectangle({ x: BX2, y: BOX_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1. CABEÇALHO (motor: logo LEFT + nome + subtítulo  |  RCE + vias RIGHT)
+  // ══════════════════════════════════════════════════════════════════════════
+  let y = PAGE_H - M;
 
-  const t1 = "IDENTIFICAÇÃO DO EMITENTE";
-  const t2 = "IDENTIFICAÇÃO DO PACIENTE";
-  page.drawText(t1, {
-    x: BX1 + (BOX_W - fontBold.widthOfTextAtSize(t1, 6)) / 2,
-    y: BOX_TOP - 10, font: fontBold, size: 6, color: DARK,
-  });
-  page.drawText(t2, {
-    x: BX2 + (BOX_W - fontBold.widthOfTextAtSize(t2, 6)) / 2,
-    y: BOX_TOP - 10, font: fontBold, size: 6, color: DARK,
-  });
+  // Placeholder de logo (motor: caixa dashed 48×36 → 34×26 em pt)
+  page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26,
+    color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
+  page.drawText("LOGO", { x: M + 9, y: y - 16, font: fontReg, size: 5, color: MUTED });
 
-  // Box 1: Emitente
-  let fy1 = BOX_TOP - TITLE_H - 6;
-  fy1 = drawBoxField(BX1, fy1, "Profissional / Prescritor:", data.medicoName, BOX_W, fontReg, fontBold);
-  fy1 = drawBoxField(BX1, fy1, "Conselho:", data.medicoCrm, BOX_W, fontReg, fontBold);
-  if (data.clinicaTelefone) {
-    fy1 = drawBoxField(BX1, fy1, "Telefone:", data.clinicaTelefone, BOX_W, fontReg, fontBold);
-  }
+  // Nome da clínica bold 11pt
+  page.drawText(safeTxt(data.clinicaNome), {
+    x: M + 40, y: y - 11, font: fontBold, size: 11, color: DARK,
+  });
+  // Subtítulo / endereço pequeno
   if (data.clinicaEndereco) {
-    drawBoxField(BX1, fy1, "Endereço:", data.clinicaEndereco.slice(0, 55), BOX_W, fontReg, fontBold);
+    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 75),
+      { x: M + 40, y: y - 22, font: fontReg, size: 6, color: MUTED });
+  }
+  // Nome e CRM do médico (terceira linha esquerda)
+  const doctorLine = `Dr(a). ${safeTxt(data.medicoName)}${crmRqeStr ? `  ·  ${crmRqeStr}` : ""}`;
+  page.drawText(doctorLine.slice(0, 80),
+    { x: M + 40, y: y - 32, font: fontReg, size: 6, color: MUTED });
+
+  // RCE code + vias (lado DIREITO — motor: textAlign right, stack de linhas)
+  const rce  = data.numeroReceita ? `Nº ${data.numeroReceita}` : `RCE: ${ano}`;
+  const rceW = (fontBold as any).widthOfTextAtSize(rce, 7);
+  page.drawText(rce,
+    { x: PAGE_W - M - rceW, y: y - 11, font: fontBold, size: 7, color: MUTED });
+  const via1 = "1ª via - Farmácia";
+  const via2 = "2ª via - Paciente";
+  page.drawText(via1,
+    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(via1, 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
+  page.drawText(via2,
+    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(via2, 6), y: y - 30, font: fontReg, size: 6, color: MUTED });
+
+  y -= 42;
+  drawDecorLine(y);
+  y -= 12;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2. TÍTULO DO DOCUMENTO (motor: centrado bold 16px uppercase letterSpacing 2)
+  // ══════════════════════════════════════════════════════════════════════════
+  const titW = (fontBold as any).widthOfTextAtSize(tituloDoc, 13);
+  page.drawText(tituloDoc,
+    { x: (PAGE_W - titW) / 2, y, font: fontBold, size: 13, color: DARK });
+  y -= 16;
+  drawDecorLine(y);
+  y -= 10;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3. FAIXA SUPERIOR — Box 1 (Emitente) + Box 2 (Paciente)
+  //    Arabescos ATRÁS; boxes brancos NA FRENTE. (motor: BandaComBoxes)
+  // ══════════════════════════════════════════════════════════════════════════
+  const BOX1_H   = 116;
+  const BOX1_TOP = y;
+
+  drawArabBand(BOX1_TOP, BOX1_H);
+  drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX_W,
+    data.boxMedicoTitulo   ?? "IDENTIFICAÇÃO DO EMITENTE",
+    data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE",
+  );
+
+  // Box 1 — Emitente (motor: emitentRows)
+  {
+    const iW = BOX_W - 10;
+    let fy = BOX1_TOP - TITLE_H - 6;
+    // ROW 1 single: Profissional/Prescritor
+    fy = drawField(BX1 + 5, fy, "Profissional/Prescritor", data.medicoName, iW);
+    // ROW 2 inline 3 cols: Conselho | RQE | Telefone
+    fy = drawInlineRow(BX1 + 5, fy,
+      [
+        { label: "Conselho",  value: data.medicoCrm },
+        { label: "RQE",       value: data.medicoRqe },
+        { label: "Telefone",  value: data.clinicaTelefone },
+      ], iW);
+    // ROW 3 single: Endereço do Consultório
+    drawField(BX1 + 5, fy, "Endereço do Consultório", data.clinicaEndereco, iW);
   }
 
-  // Box 2: Paciente — data de nascimento normalizada (aceita DD/MM/YYYY ou YYYY-MM-DD)
-  let fy2 = BOX_TOP - TITLE_H - 6;
-  fy2 = drawBoxField(BX2, fy2, "Nome Completo:", data.pacienteNome, BOX_W, fontReg, fontBold);
-  let nascFmt: string | undefined;
-  if (data.pacienteNascimento) {
-    const n = data.pacienteNascimento.trim();
-    // já está em DD/MM/YYYY — usar direto; se YYYY-MM-DD, converter
-    nascFmt = /^\d{2}\/\d{2}\/\d{4}$/.test(n) ? n : fmtData(n);
+  // Box 2 — Paciente (motor: pacienteRows)
+  {
+    const iW = BOX_W - 10;
+    let fy = BOX1_TOP - TITLE_H - 6;
+    // Normaliza nascimento: aceita DD/MM/YYYY ou YYYY-MM-DD
+    let nasc: string | undefined;
+    if (data.pacienteNascimento?.trim()) {
+      const n = data.pacienteNascimento.trim();
+      nasc = /^\d{2}\/\d{2}\/\d{4}$/.test(n) ? n : fmtData(n);
+    }
+    // ROW 1 single: Nome Completo
+    fy = drawField(BX2 + 5, fy, "Nome Completo", data.pacienteNome, iW);
+    // ROW 2 inline 3 cols: CPF | Nascimento | Telefone
+    fy = drawInlineRow(BX2 + 5, fy,
+      [
+        { label: "CPF",        value: data.pacienteCpf },
+        { label: "Nascimento", value: nasc },
+        { label: "Telefone",   value: data.pacienteTelefone },
+      ], iW);
+    // ROW 3 single: Endereço Completo
+    drawField(BX2 + 5, fy, "Endereço Completo", data.pacienteEndereco, iW);
   }
-  const cpfNasc = [
-    data.pacienteCpf  && `CPF: ${data.pacienteCpf}`,
-    nascFmt           && `Nasc.: ${nascFmt}`,
-  ].filter(Boolean).join("   ") || undefined;
-  fy2 = drawBoxField(BX2, fy2, "CPF / Data de Nascimento:", cpfNasc, BOX_W, fontReg, fontBold);
-  fy2 = drawBoxField(BX2, fy2, "Telefone:", data.pacienteTelefone, BOX_W, fontReg, fontBold);
-  drawBoxField(BX2, fy2, "Endereço:", data.pacienteEndereco, BOX_W, fontReg, fontBold);
 
-  let y = BOX_TOP - BOX1_H - 12;
+  y = BOX1_TOP - BOX1_H - 8;
 
-  // ── Separator ─────────────────────────────────────────────────────────────
-  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.5, color: LINE });
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4. CORPO / FÓRMULAS (motor: "Prescrevo:" italic + FormulaReal)
+  // ══════════════════════════════════════════════════════════════════════════
+  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: DARK });
   y -= 16;
 
-  // ── Prescrição ────────────────────────────────────────────────────────────
-  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: DARK });
-  y -= 18;
-
   for (let i = 0; i < data.formulas.length; i++) {
-    const f = data.formulas[i];
-    const numStr  = `${String(i + 1).padStart(2, "0")}.`;
-
-    page.drawText(numStr, { x: M, y, font: fontBold, size: 9, color: GOLD });
+    const f   = data.formulas[i];
+    const num = String(i + 1).padStart(2, "0");
+    // Número ouro + nome bold
+    page.drawText(`${num}.`, { x: M, y, font: fontBold, size: 9, color: GOLD });
     page.drawText(`  ${safeTxt(f.nome).toUpperCase()}`,
       { x: M + 14, y, font: fontBold, size: 9, color: DARK });
-    y -= 14;
-
-    // Ativos (multi-line)
+    y -= 13;
+    // Ativos (multi-linha, prefixo dois espaços)
     if (f.ativos?.trim()) {
-      for (const rawLine of f.ativos.split("\n")) {
-        const ln = rawLine.trim();
+      for (const raw of f.ativos.split("\n")) {
+        const ln = raw.trim();
         if (!ln) continue;
-        y = drawWrappedText(page, `    ${ln}`, {
-          x: M + 14, y, maxWidth: CW - 14,
-          font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        y = drawWrappedText(page, `  ${ln}`, {
+          x: M + 14, y, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
         });
       }
     }
-
-    // Posologia (multi-line)
+    // Posologia (multi-linha)
     if (f.posologia?.trim()) {
-      for (const rawLine of f.posologia.split("\n")) {
-        const ln = rawLine.trim();
+      for (const raw of f.posologia.split("\n")) {
+        const ln = raw.trim();
         if (!ln) continue;
-        y = drawWrappedText(page, `    ${ln}`, {
-          x: M + 14, y, maxWidth: CW - 14,
-          font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        y = drawWrappedText(page, `  Posologia: ${ln}`, {
+          x: M + 14, y, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
         });
       }
     }
-
-    // Via / Forma
+    // Via | Forma (muted, 7.5pt)
     const viaForma = [
-      f.via   && `Via: ${f.via}`,
-      f.forma && `Forma: ${f.forma}`,
+      f.via   ? `Via: ${f.via}` : null,
+      f.forma ? `Forma: ${f.forma}` : null,
     ].filter(Boolean).join("  |  ");
     if (viaForma) {
-      page.drawText(`    ${viaForma}`, { x: M + 14, y, font: fontReg, size: 7.5, color: MUTED });
+      page.drawText(`  ${viaForma}`,
+        { x: M + 14, y, font: fontReg, size: 7.5, color: MUTED });
       y -= 11;
     }
-
-    // Observação
+    // Observação (italic muted)
     if (f.observacao?.trim()) {
-      page.drawText(`    Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
+      page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
         { x: M + 14, y, font: fontItal, size: 7.5, color: MUTED });
       y -= 11;
     }
-
-    // Thin separator between formulas
+    // Separador pontilhado entre fórmulas
     if (i < data.formulas.length - 1) {
       y -= 4;
-      page.drawLine({
-        start: { x: M + 14, y }, end: { x: PAGE_W - M, y },
-        thickness: 0.3, color: LINE, dashArray: [2, 4], dashPhase: 0,
-      });
+      page.drawLine({ start: { x: M + 14, y }, end: { x: PAGE_W - M, y },
+        thickness: 0.3, color: LINE, dashArray: [2, 4], dashPhase: 0 });
       y -= 8;
     } else {
       y -= 6;
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // 5. ASSINATURA + CERTIFICADO — LADO A LADO (motor: flex row, gap 8mm)
+  // ══════════════════════════════════════════════════════════════════════════
+  y -= 10;
+  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.3, color: LIGHT });
   y -= 14;
-  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.5, color: LINE });
-  y -= 26;
 
-  // ── Assinatura ────────────────────────────────────────────────────────────
-  const SIG_W = 190;
-  page.drawLine({
-    start: { x: M, y }, end: { x: M + SIG_W, y }, thickness: 0.7, color: DARK,
-  });
-  y -= 13;
-  page.drawText(safeTxt(data.medicoName), { x: M, y, font: fontBold, size: 9, color: DARK });
-  y -= 12;
-  page.drawText(safeTxt(data.medicoCrm), { x: M, y, font: fontReg, size: 8, color: MUTED });
+  const SIG_W       = 155;
+  const CERT_X      = M + SIG_W + 10;
+  const CERT_W      = CW - SIG_W - 10;
+  const CERT_H      = 64;
+  const sigTopY     = y;
 
-  const dateCity = `São Paulo, ${dataFmt}`;
-  page.drawText(dateCity, {
-    x: PAGE_W - M - fontReg.widthOfTextAtSize(dateCity, 8), y,
-    font: fontReg, size: 8, color: MUTED,
-  });
-  y -= 22;
+  // ESQUERDA: assinatura (motor: assinaturaTextoFallback + nome + crm + data)
+  page.drawLine({ start: { x: M, y }, end: { x: M + 130, y },
+    thickness: 0.5, color: DARK });
+  y -= 10;
+  page.drawText(safeTxt(data.medicoName),
+    { x: M, y, font: fontBold, size: 8, color: DARK });
+  y -= 10;
+  page.drawText(crmRqeStr,
+    { x: M, y, font: fontReg, size: 7, color: MUTED });
+  y -= 10;
+  page.drawText(`São Paulo, ${dataExtenso}`,
+    { x: M, y, font: fontReg, size: 7, color: MUTED });
 
-  // ── BOX PAIR 2: Comprador | Fornecedor (apenas controle especial) ─────────
+  // DIREITA: BlocoCertificado (motor: título + 4 campos + QR placeholder)
+  page.drawRectangle({ x: CERT_X, y: sigTopY - CERT_H, width: CERT_W, height: CERT_H,
+    color: WHITE, borderColor: LINE, borderWidth: 0.5 });
+  const certTitulo = "DOCUMENTO ASSINADO ELETRONICAMENTE";
+  const certTitW   = (fontBold as any).widthOfTextAtSize(certTitulo, 5.5);
+  page.drawText(certTitulo,
+    { x: CERT_X + (CERT_W - certTitW) / 2, y: sigTopY - 10,
+      font: fontBold, size: 5.5, color: DARK });
+  const certFields: [string, string][] = [
+    ["Assinante",   safeTxt(data.medicoName)],
+    ["Certificado", crmRqeStr || safeTxt(data.medicoCrm)],
+    ["Assinado em", dataFmt],
+    ["Verificação", "paxter.med.br/verificar"],
+  ];
+  let certY = sigTopY - 20;
+  for (const [k, v] of certFields) {
+    page.drawText(`${k}:`,
+      { x: CERT_X + 5, y: certY, font: fontBold, size: 5, color: MUTED });
+    page.drawText(v.slice(0, 55),
+      { x: CERT_X + 38, y: certY, font: fontReg, size: 5.5, color: DARK });
+    certY -= 8;
+  }
+  // QR placeholder (canto inferior direito do bloco)
+  page.drawRectangle({ x: CERT_X + CERT_W - 32, y: sigTopY - CERT_H + 4,
+    width: 28, height: 28, borderColor: LINE, borderWidth: 0.4 });
+  page.drawText("QR",
+    { x: CERT_X + CERT_W - 24, y: sigTopY - CERT_H + 14,
+      font: fontReg, size: 6, color: LIGHT });
+
+  y = sigTopY - CERT_H - 12;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor/Farmácia)
+  //    Apenas receituário especial. Arabescos ATRÁS. (motor: BandaComBoxes)
+  // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
-    const BOX2_H  = 118;
-    const BOX3_TOP = y;
+    const BOX2_H   = 120;
+    const BOX2_TOP = y;
 
-    page.drawRectangle({
-      x: BX1, y: BOX3_TOP - BOX2_H, width: BOX_W, height: BOX2_H,
-      borderColor: LINE, borderWidth: 0.6, color: WHITE,
-    });
-    page.drawRectangle({
-      x: BX2, y: BOX3_TOP - BOX2_H, width: BOX_W, height: BOX2_H,
-      borderColor: LINE, borderWidth: 0.6, color: WHITE,
-    });
-    page.drawRectangle({ x: BX1, y: BOX3_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
-    page.drawRectangle({ x: BX2, y: BOX3_TOP - TITLE_H, width: BOX_W, height: TITLE_H, color: LIGHT });
+    drawArabBand(BOX2_TOP, BOX2_H);
+    drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX_W,
+      data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR",
+      data.boxFarmaciaTitulo  ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA",
+    );
 
-    const t3 = "IDENTIFICAÇÃO DO COMPRADOR";
-    const t4 = "IDENTIFICAÇÃO DO FORNECEDOR";
-    page.drawText(t3, {
-      x: BX1 + (BOX_W - fontBold.widthOfTextAtSize(t3, 6)) / 2,
-      y: BOX3_TOP - 10, font: fontBold, size: 6, color: DARK,
-    });
-    page.drawText(t4, {
-      x: BX2 + (BOX_W - fontBold.widthOfTextAtSize(t4, 6)) / 2,
-      y: BOX3_TOP - 10, font: fontBold, size: 6, color: DARK,
-    });
+    // Box 3 — Comprador (motor: compradorRows — 5 linhas)
+    {
+      const iW = BOX_W - 10;
+      let fy = BOX2_TOP - TITLE_H - 6;
+      fy = drawField(BX1 + 5, fy, "Nome",     undefined, iW);
+      fy = drawField(BX1 + 5, fy, "Endereço", undefined, iW);
+      // Cidade | UF (2 colunas inline)
+      fy = drawInlineRow(BX1 + 5, fy, [{ label: "Cidade" }, { label: "UF" }], iW);
+      // Identidade | Org. Emissora (2 colunas inline)
+      fy = drawInlineRow(BX1 + 5, fy, [{ label: "Identidade" }, { label: "Org. Emissora" }], iW);
+      drawField(BX1 + 5, fy, "Telefone", undefined, iW);
+    }
 
-    let c3y = BOX3_TOP - TITLE_H - 6;
-    c3y = drawBoxField(BX1, c3y, "Nome:", undefined, BOX_W, fontReg, fontBold);
-    c3y = drawBoxField(BX1, c3y, "Endereço:", undefined, BOX_W, fontReg, fontBold);
-    c3y = drawBoxField(BX1, c3y, "Cidade / UF:", undefined, BOX_W, fontReg, fontBold);
-    drawBoxField(BX1, c3y, "Identidade Nº / Órgão Emissor:", undefined, BOX_W, fontReg, fontBold);
+    // Box 4 — Fornecedor/Farmácia (motor: fornecedorRows — apenas 2 campos)
+    {
+      const iW = BOX_W - 10;
+      let fy = BOX2_TOP - TITLE_H - 6;
+      fy = drawField(BX2 + 5, fy, "Assinatura do Farmacêutico", undefined, iW);
+      drawField(BX2 + 5, fy, "Data", undefined, iW);
+    }
 
-    let c4y = BOX3_TOP - TITLE_H - 6;
-    c4y = drawBoxField(BX2, c4y, "Assinatura do Farmacêutico:", undefined, BOX_W, fontReg, fontBold);
-    c4y = drawBoxField(BX2, c4y, "Data de Dispensação:", undefined, BOX_W, fontReg, fontBold);
-    drawBoxField(BX2, c4y, "Nº CRF:", undefined, BOX_W, fontReg, fontBold);
-
-    y = BOX3_TOP - BOX2_H - 10;
+    y = BOX2_TOP - BOX2_H - 8;
   }
 
-  // ── Footer NAVY ───────────────────────────────────────────────────────────
-  const FOOTER_H = 38;
-  page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: FOOTER_H, color: NAVY });
-  page.drawRectangle({ x: 0, y: FOOTER_H - 2, width: PAGE_W, height: 1.5, color: GOLD });
-  page.drawText(
-    "PAXTER Clinical Intelligence System — Documento gerado e assinado digitalmente (ICP-Brasil / PAdES)",
-    { x: M, y: 20, font: fontReg, size: 6.5, color: CYAN },
-  );
-  page.drawText(
-    `${safeTxt(data.clinicaNome)} — CNPJ registrado`,
-    { x: M, y: 9, font: fontReg, size: 6, color: MUTED },
-  );
+  // ══════════════════════════════════════════════════════════════════════════
+  // 7. RODAPÉ — fundo BRANCO, borda fina no topo (motor: posição absoluta)
+  //    LEFT: rodapeLinhas  |  RIGHT: "PAXTER" ouro + subtítulo
+  // ══════════════════════════════════════════════════════════════════════════
+  const FOOTER_LINE_Y = 30;
+  const FOOTER_TOP    = FOOTER_LINE_Y + 34;
+
+  page.drawLine({ start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
+    thickness: 0.3, color: LINE });
+
+  // Linhas à esquerda
+  const rodapeLinhas = (data.rodapeLinhas?.length)
+    ? data.rodapeLinhas
+    : [
+        safeTxt(data.clinicaNome),
+        ...(data.clinicaEndereco ? [safeTxt(data.clinicaEndereco)] : []),
+        ...(data.clinicaTelefone ? [`Tel: ${safeTxt(data.clinicaTelefone)}`] : []),
+        "Documento assinado digitalmente — ICP-Brasil / PAdES",
+      ];
+  let rl_y = FOOTER_TOP - 5;
+  rodapeLinhas.slice(0, 4).forEach((linha, i) => {
+    page.drawText(safeTxt(linha).slice(0, 72), {
+      x: M, y: rl_y,
+      font: fontReg, size: i === 0 ? 5.5 : 5, color: i === 0 ? DARK : MUTED,
+    });
+    rl_y -= 7;
+  });
+
+  // PAXTER wordmark à direita (motor: símbolo + wordmark ouro)
+  const paxterW   = (fontBold as any).widthOfTextAtSize("PAXTER", 9);
+  const subTxt    = "Clinical Intelligence System";
+  const subW      = (fontReg as any).widthOfTextAtSize(subTxt, 5);
+  const rightX    = PAGE_W - M - Math.max(paxterW, subW);
+  page.drawText("PAXTER",
+    { x: rightX, y: FOOTER_TOP - 6, font: fontBold, size: 9, color: GOLD });
+  page.drawText(subTxt,
+    { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
 
   return signPdfBytes(pdfDoc, safeTxt(data.medicoName));
 }
