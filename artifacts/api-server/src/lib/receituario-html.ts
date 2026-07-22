@@ -161,14 +161,23 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     : d.medicoCrm;
 
   // Box 1 — Emitente
+  // Linha 2: 3 colunas separadas (Conselho | RQE | Telefone) como no modelo aprovado
+  const box1Row2: Array<{ label: string; value?: string }> = d.medicoRqe
+    ? [
+        { label: "Conselho", value: d.medicoCrm },
+        { label: "RQE",      value: d.medicoRqe },
+        { label: "Telefone", value: d.clinicaTelefone || d.medicoTelefone },
+      ]
+    : [
+        { label: "Conselho", value: d.medicoCrm },
+        { label: "Telefone", value: d.clinicaTelefone || d.medicoTelefone },
+      ];
+
   const box1 = identBox(
     "Identificação do Emitente",
     [
       fieldLine("Profissional/Prescritor", d.medicoNome),
-      [
-        { label: "Conselho", value: crmRqe },
-        { label: "Telefone", value: d.clinicaTelefone || d.medicoTelefone },
-      ],
+      box1Row2,
       fieldLine("Endereço do Consultório", d.clinicaEndereco),
     ],
   );
@@ -199,9 +208,9 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     ],
   );
 
-  // Box 4 — Fornecedor (em branco)
+  // Box 4 — Fornecedor/Farmácia (em branco) — título idêntico ao modelo aprovado
   const box4 = identBox(
-    "Identificação do Fornecedor",
+    "Identificação do Fornecedor / Farmácia",
     [
       fieldLine("Assinatura do Farmacêutico"),
       fieldLine("Data"),
