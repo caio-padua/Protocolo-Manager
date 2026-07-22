@@ -156,7 +156,7 @@ function BandaComBoxes({
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
-      columns={columns} gap={`${cfg.boxBandGap}mm`}>
+      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={cfg.boxMinHeight}>
       <div style={{ minWidth: 0, height: "100%" }}>
         <IdentBoxV2
           titulo={leftTitulo}

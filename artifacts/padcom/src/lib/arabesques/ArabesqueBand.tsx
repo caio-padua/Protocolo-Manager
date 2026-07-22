@@ -20,9 +20,9 @@ function getCustomDataUrlFromStorage(modelId: string): string | null {
 }
 
 // ─── Faixa SVG inline ─────────────────────────────────────────────────────────
-function InlineSVGBand({ modelId, patternId, bandH, columns, gap, children }: {
+function InlineSVGBand({ modelId, patternId, bandH, columns, gap, contentMinHeight, children }: {
   modelId: ArabesqueModelId; patternId: string; bandH: number;
-  columns?: string; gap?: string; children: React.ReactNode;
+  columns?: string; gap?: string; contentMinHeight?: number; children: React.ReactNode;
 }) {
   const m = ARABESQUE_MODELS[modelId];
   const tileW = m.tileW ?? 60, tileH = m.tileH ?? 60;
@@ -30,11 +30,12 @@ function InlineSVGBand({ modelId, patternId, bandH, columns, gap, children }: {
   const sw = m.strokeWidth ?? 1.2, op = m.strokeOpacity ?? 0.9;
   const scale = m.scaleToHeight ? bandH / tileH : 1;
   const scaledW = tileW * scale, scaledH = tileH * scale;
+  const gridMinH = Math.max(bandH + 48, contentMinHeight ?? 0);
 
   return (
     <div style={{ position: "relative", isolation: "isolate",
       display: "grid", gridTemplateColumns: columns ?? "repeat(2, 1fr)",
-      gap: gap ?? "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "stretch" }}>
+      gap: gap ?? "5mm", paddingInline: "10mm", minHeight: gridMinH, alignItems: "stretch" }}>
       <svg width="100%" height={bandH} xmlns="http://www.w3.org/2000/svg"
         style={{ position: "absolute", top: "50%", left: 0, transform: "translateY(-50%)", zIndex: 0 }}>
         <defs>
@@ -57,14 +58,15 @@ function InlineSVGBand({ modelId, patternId, bandH, columns, gap, children }: {
 }
 
 // ─── Faixa raster (PNG PADUA ou custom base64) ────────────────────────────────
-function RasterBand({ src, bandH, columns, gap, children }: {
-  src: string; bandH: number; columns?: string; gap?: string; children: React.ReactNode;
+function RasterBand({ src, bandH, columns, gap, contentMinHeight, children }: {
+  src: string; bandH: number; columns?: string; gap?: string; contentMinHeight?: number; children: React.ReactNode;
 }) {
   const border = "#8f8f8b";
+  const gridMinH = Math.max(bandH + 48, contentMinHeight ?? 0);
   return (
     <div style={{ position: "relative", isolation: "isolate",
       display: "grid", gridTemplateColumns: columns ?? "repeat(2, 1fr)",
-      gap: gap ?? "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "stretch" }}>
+      gap: gap ?? "5mm", paddingInline: "10mm", minHeight: gridMinH, alignItems: "stretch" }}>
       <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: bandH,
         transform: "translateY(-50%)", zIndex: 0,
         borderTop: `0.8px solid ${border}`, borderBottom: `0.8px solid ${border}`,
@@ -100,11 +102,12 @@ export function InfoCard({ titulo, rows }: { titulo: string; rows: [string, stri
 }
 
 // ─── Componente público ───────────────────────────────────────────────────────
-export function ArabesqueBand({ modelId, customDataUrl, columns, gap, children }: {
+export function ArabesqueBand({ modelId, customDataUrl, columns, gap, contentMinHeight, children }: {
   modelId: string;
-  customDataUrl?: string;    // dataUrl direto (para preview de faixa customizada)
-  columns?: string;          // gridTemplateColumns (ex: "3fr 2fr" para 60/40)
-  gap?: string;              // gap entre os 2 boxes (ex: "4mm")
+  customDataUrl?: string;       // dataUrl direto (para preview de faixa customizada)
+  columns?: string;             // gridTemplateColumns (ex: "3fr 2fr" para 60/40)
+  gap?: string;                 // gap entre os 2 boxes (ex: "4mm")
+  contentMinHeight?: number;    // altura mínima forçada do grid container (px) — iguala as 2 faixas
   children: React.ReactNode;
 }) {
   const uid = useId();
@@ -113,17 +116,17 @@ export function ArabesqueBand({ modelId, customDataUrl, columns, gap, children }
   // Faixa customizada (id começa com "custom-")
   if (modelId.startsWith("custom-") || customDataUrl) {
     const dataUrl = customDataUrl ?? getCustomDataUrlFromStorage(modelId) ?? "";
-    return <RasterBand src={dataUrl} bandH={88} columns={columns} gap={gap}>{children}</RasterBand>;
+    return <RasterBand src={dataUrl} bandH={88} columns={columns} gap={gap} contentMinHeight={contentMinHeight}>{children}</RasterBand>;
   }
 
   // Modelo padrão do catálogo
   const m = ARABESQUE_MODELS[modelId as ArabesqueModelId];
-  if (!m) return <RasterBand src="" bandH={88} columns={columns} gap={gap}>{children}</RasterBand>;
+  if (!m) return <RasterBand src="" bandH={88} columns={columns} gap={gap} contentMinHeight={contentMinHeight}>{children}</RasterBand>;
 
   const bandH = m.bandHeightPx;
   if (m.renderMode === "raster-strip") {
     const src = m.assetFile ? `${BASE}/assets/arabesques/${m.assetFile}` : "";
-    return <RasterBand src={src} bandH={bandH} columns={columns} gap={gap}>{children}</RasterBand>;
+    return <RasterBand src={src} bandH={bandH} columns={columns} gap={gap} contentMinHeight={contentMinHeight}>{children}</RasterBand>;
   }
-  return <InlineSVGBand modelId={modelId as ArabesqueModelId} patternId={pid} bandH={bandH} columns={columns} gap={gap}>{children}</InlineSVGBand>;
+  return <InlineSVGBand modelId={modelId as ArabesqueModelId} patternId={pid} bandH={bandH} columns={columns} gap={gap} contentMinHeight={contentMinHeight}>{children}</InlineSVGBand>;
 }

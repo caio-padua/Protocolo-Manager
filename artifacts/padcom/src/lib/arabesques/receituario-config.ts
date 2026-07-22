@@ -107,7 +107,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxFarmaciaTitulo:   "Identificação do Fornecedor / Farmácia",
   boxSplitRatio:       "50/50",
   boxBorderWidth:      1,
-  boxMinHeight:        90,
+  boxMinHeight:        180,
   boxBandGap:          4,
   boxFaixinhaEsquerda: false,
   boxFaixinhaCor:      "#45B8CC",
@@ -136,7 +136,10 @@ export function loadReceituarioConfig(): ReceituarioConfig {
   try {
     const raw = localStorage.getItem(CONFIG_LS_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) as Partial<ReceituarioConfig> };
+    const stored = JSON.parse(raw) as Partial<ReceituarioConfig>;
+    // migração: boxMinHeight antigo (90) era insuficiente para equalizar as 4 faixas — força 180
+    if ((stored.boxMinHeight ?? 0) < 150) stored.boxMinHeight = DEFAULT_CONFIG.boxMinHeight;
+    return { ...DEFAULT_CONFIG, ...stored };
   } catch { return { ...DEFAULT_CONFIG }; }
 }
 

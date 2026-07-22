@@ -544,11 +544,11 @@ export default function ConfigReceituario() {
                   Dimensões dos Boxes
                 </div>
                 <FieldRow label={`Altura mínima de cada box: ${cfg.boxMinHeight} px`}>
-                  <input type="range" min={60} max={160} step={5} value={cfg.boxMinHeight}
+                  <input type="range" min={100} max={300} step={10} value={cfg.boxMinHeight}
                     onChange={e => patch({ boxMinHeight: Number(e.target.value) })}
                     className="w-full accent-teal-600"/>
                   <div className="flex justify-between text-xs text-gray-400 mt-1">
-                    <span>60 px (compacto)</span><span>160 px (espaçoso)</span>
+                    <span>100 px (compacto)</span><span>300 px (espaçoso)</span>
                   </div>
                 </FieldRow>
                 <FieldRow label={`Distância entre os 2 boxes na faixa: ${cfg.boxBandGap} mm`}>
