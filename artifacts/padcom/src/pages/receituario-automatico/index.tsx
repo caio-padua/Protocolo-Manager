@@ -352,7 +352,12 @@ export default function ReceituarioAutomatico() {
   const [emitirAberto,    setEmitirAberto]    = useState(false);
   const [emitirLoading,   setEmitirLoading]   = useState(false);
   const [emitirResultado, setEmitirResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
-  const [emitirFormula,   setEmitirFormula]   = useState({ nome: "", dose: "", posologia: "", via: "oral" });
+  const [emitirFormula,   setEmitirFormula]   = useState({
+    nome:      "Bupropiona 180mg + Topiramato 20mg",
+    dose:      "Cápsula XR — 30 unidades",
+    posologia: "1 dose VO – 2h Antes do Almoço (Sugestão: 10h)\n1 dose VO – 2h Antes do Jantar (Sugestão: 18h)",
+    via:       "oral",
+  });
 
   async function emitirReceita() {
     if (!emitirFormula.nome.trim()) return;
