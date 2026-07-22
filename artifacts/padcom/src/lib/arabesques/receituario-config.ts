@@ -115,7 +115,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxWidthPct:         100,
   boxBorderWidth:      1,
   boxSuperiorMinHeight: 120,
-  boxMinHeight:        180,
+  boxMinHeight:        150,
   boxInferiorBottom:   18,
   boxBandGap:          4,
   boxInnerPaddingX:    4,
@@ -147,8 +147,8 @@ export function loadReceituarioConfig(): ReceituarioConfig {
     const raw = localStorage.getItem(CONFIG_LS_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
     const stored = JSON.parse(raw) as Partial<ReceituarioConfig>;
-    // migração: boxMinHeight antigo (90) era insuficiente — força 180
-    if ((stored.boxMinHeight ?? 0) < 150) stored.boxMinHeight = DEFAULT_CONFIG.boxMinHeight;
+    // migração: valores abaixo de 100 (antigo default 90) sobem para 150; valores no antigo default (180) descem para 150
+    if ((stored.boxMinHeight ?? 0) < 100 || (stored.boxMinHeight ?? 0) >= 175) stored.boxMinHeight = DEFAULT_CONFIG.boxMinHeight;
     // migração: boxInferiorBottom antigo (30) estava alto demais — rebaixa para 18
     if ((stored.boxInferiorBottom ?? 0) >= 28) stored.boxInferiorBottom = DEFAULT_CONFIG.boxInferiorBottom;
     return { ...DEFAULT_CONFIG, ...stored };
