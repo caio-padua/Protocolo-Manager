@@ -112,8 +112,8 @@ function IdentBoxV2({
             return (
               <div key={i} style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(${row.length}, 1fr)`,
-                gap: "0 6mm",
+                gridTemplateColumns: `repeat(${row.length}, auto)`,
+                gap: "0 3mm",
                 marginBottom: 1,
               }}>
                 {row.map((field) => (
