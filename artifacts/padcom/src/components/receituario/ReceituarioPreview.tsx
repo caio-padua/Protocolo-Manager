@@ -419,10 +419,10 @@ export function ReceituarioPreview({
 
   // ── P3/P5: Box 4 (Fornecedor) — sempre manuscrito (farmácia preenche à mão) ─
   const fornecedorRows: CampoRow[] = [
-    [
-      { label: "Assinatura do Farmacêutico", manuscrito: true },
-      { label: "Data",                       manuscrito: true },
-    ],
+    { label: "Nome",      manuscrito: true },
+    { label: "Endereço",  manuscrito: true },
+    [{ label: "CRF",      manuscrito: true }, { label: "Data", manuscrito: true }],
+    { label: "Assinatura do Farmacêutico", manuscrito: true },
   ];
 
   return (
