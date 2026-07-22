@@ -45,10 +45,29 @@ export interface PacienteDataBind {
 }
 
 // ── Campo unitário: label + value (data-bind) ou linha pontilhada ─────────────
-type CampoField = { label: string; value?: string };
+type CampoField = { label: string; value?: string; manuscrito?: boolean };
 type CampoRow = CampoField | CampoField[];  // field único ou linha multi-coluna
 
-function FieldLine({ label, value }: { label: string; value?: string }) {
+function FieldLine({ label, value, manuscrito }: { label: string; value?: string; manuscrito?: boolean }) {
+  // Modo manuscrito: linha pontilhada acima (espaço para escrever) + label abaixo
+  if (manuscrito) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 2 }}>
+        <span style={{
+          borderBottom: "0.55px dashed #c0c0c0",
+          display: "block",
+          minHeight: 13,
+          marginTop: 1,
+        }}/>
+        <span style={{
+          fontWeight: 700, color: "#aaa",
+          fontSize: 5, letterSpacing: 0.7,
+          textTransform: "uppercase",
+        }}>{label}</span>
+      </div>
+    );
+  }
+  // Modo normal: label acima + valor (ou linha fina se vazio)
   return (
     <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
       <span style={{
@@ -189,7 +208,7 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}
+            minHeight={stretch ? cfg.boxMinHeight : undefined}
             contentAlign="top"/>
         </div>
       </div>
@@ -208,7 +227,7 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}
+            minHeight={stretch ? cfg.boxMinHeight : undefined}
             contentAlign={rightContentAlign ?? "top"}/>
         </div>
       </div>
@@ -388,20 +407,20 @@ export function ReceituarioPreview({
     { label: "Endereço Completo", value: pacienteData?.endereco ?? (showDemoData ? "Rua das Flores, 250 — São Paulo, SP" : undefined) },
   ];
 
-  // ── P3/P5: Box 3 (Comprador) — em branco (farmácia preenche); demo no designer ─
+  // ── P3/P5: Box 3 (Comprador) — sempre manuscrito (farmácia preenche à mão) ─
   const compradorRows: CampoRow[] = [
-    { label: "Nome",     value: showDemoData ? "João Carlos Rodrigues" : undefined },
-    { label: "Endereço", value: showDemoData ? "Av. Paulista, 1000, Ap 203" : undefined },
-    [{ label: "Cidade", value: showDemoData ? "São Paulo" : undefined }, { label: "UF", value: showDemoData ? "SP" : undefined }],
-    [{ label: "Identidade", value: showDemoData ? "12.345.678-9" : undefined }, { label: "Org. Emissora", value: showDemoData ? "SSP/SP" : undefined }],
-    { label: "Telefone", value: showDemoData ? "(11) 98888-7777" : undefined },
+    { label: "Nome",      manuscrito: true },
+    { label: "Endereço",  manuscrito: true },
+    [{ label: "Cidade", manuscrito: true }, { label: "UF", manuscrito: true }],
+    [{ label: "Identidade", manuscrito: true }, { label: "Org. Emissora", manuscrito: true }],
+    { label: "Telefone",  manuscrito: true },
   ];
 
-  // ── P3/P5: Box 4 (Fornecedor) — Assinatura e Data lado a lado (modelo ANVISA) ─
+  // ── P3/P5: Box 4 (Fornecedor) — sempre manuscrito (farmácia preenche à mão) ─
   const fornecedorRows: CampoRow[] = [
     [
-      { label: "Assinatura do Farmacêutico", value: showDemoData ? "Dra. Paula Farmacêutica" : undefined },
-      { label: "Data",                       value: showDemoData ? new Date().toLocaleDateString("pt-BR") : undefined },
+      { label: "Assinatura do Farmacêutico", manuscrito: true },
+      { label: "Data",                       manuscrito: true },
     ],
   ];
 
