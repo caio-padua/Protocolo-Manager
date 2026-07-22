@@ -59,11 +59,11 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
           fontSize: 5, letterSpacing: 0.7,
           textTransform: "uppercase",
         }}>{label}</span>
-        {/* P0: linha pontilhada ABAIXO — chão da escrita (borderBottom) */}
+        {/* P0: linha visível ABAIXO — chão da escrita; 1px garante visibilidade em print e preview */}
         <span style={{
-          borderBottom: "0.6px dashed #bbb",
+          borderBottom: "1px dashed #aaa",
           display: "block",
-          minHeight: 11,
+          minHeight: 14,
         }}/>
       </div>
     );

@@ -116,7 +116,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxBorderWidth:      1,
   boxSuperiorMinHeight: 120,
   boxMinHeight:        180,
-  boxInferiorBottom:   30,
+  boxInferiorBottom:   18,
   boxBandGap:          4,
   boxInnerPaddingX:    4,
   boxFaixinhaEsquerda: false,
@@ -147,8 +147,10 @@ export function loadReceituarioConfig(): ReceituarioConfig {
     const raw = localStorage.getItem(CONFIG_LS_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
     const stored = JSON.parse(raw) as Partial<ReceituarioConfig>;
-    // migração: boxMinHeight antigo (90) era insuficiente para equalizar as 4 faixas — força 180
+    // migração: boxMinHeight antigo (90) era insuficiente — força 180
     if ((stored.boxMinHeight ?? 0) < 150) stored.boxMinHeight = DEFAULT_CONFIG.boxMinHeight;
+    // migração: boxInferiorBottom antigo (30) estava alto demais — rebaixa para 18
+    if ((stored.boxInferiorBottom ?? 0) >= 28) stored.boxInferiorBottom = DEFAULT_CONFIG.boxInferiorBottom;
     return { ...DEFAULT_CONFIG, ...stored };
   } catch { return { ...DEFAULT_CONFIG }; }
 }
