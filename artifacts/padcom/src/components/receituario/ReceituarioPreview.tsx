@@ -52,18 +52,19 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   // Modo manuscrito: linha pontilhada acima (espaço para escrever) + label abaixo
   if (manuscrito) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
-        {/* LINHA NO TOPO — espaço vazio para escrever à mão; a linha dashed é o chão da escrita */}
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 2, gap: 0 }}>
+        {/* LINHA NO TOPO — espaço vazio para escrever à mão; borderBottom é o chão da escrita */}
         <span style={{
           borderBottom: "1px dashed #aaa",
           display: "block",
-          minHeight: 14,
+          minHeight: 11,
         }}/>
-        {/* LABEL ABAIXO DA LINHA — identifica o que deve ser escrito acima */}
+        {/* LABEL ABAIXO DA LINHA — identifica o campo */}
         <span style={{
           fontWeight: 700, color: "#aaa",
-          fontSize: 5, letterSpacing: 0.7,
+          fontSize: 4.5, letterSpacing: 0.7,
           textTransform: "uppercase",
+          lineHeight: 1.4,
         }}>{label}</span>
       </div>
     );
@@ -108,7 +109,8 @@ function IdentBoxV2({
       borderLeft: faixinha
         ? `${Math.max(borderWidth, 3)}px solid ${faixinhaCor}`
         : `${borderWidth}px solid #454545`,
-      padding: `3mm ${px}mm`,
+      paddingTop: "3mm", paddingLeft: `${px}mm`, paddingRight: `${px}mm`,
+      paddingBottom: "2mm",
       boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
       minHeight: minHeight ? `${minHeight}px` : undefined,
       height: "100%", boxSizing: "border-box",
@@ -173,6 +175,7 @@ function BandaComBoxes({
   leftTitulo, leftRows,
   rightTitulo, rightRows,
   stretchBoxes,
+  leftContentAlign,
   rightContentAlign,
   minHeightOverride,
 }: {
@@ -185,6 +188,8 @@ function BandaComBoxes({
   rightRows: CampoRow[];
   /** false = boxes encolhem ao conteúdo (sem espaço morto abaixo); padrão true */
   stretchBoxes?: boolean;
+  /** "bottom" = campos do box esquerdo ficam na parte inferior */
+  leftContentAlign?: "top" | "bottom";
   /** "bottom" = campos do box direito ficam na parte inferior */
   rightContentAlign?: "top" | "bottom";
   /** sobrepõe cfg.boxMinHeight para este grupo de boxes — P6/P7 */
@@ -214,7 +219,7 @@ function BandaComBoxes({
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
             minHeight={boxH}
-            contentAlign="top"/>
+            contentAlign={leftContentAlign ?? "top"}/>
         </div>
       </div>
       {/* box direito */}
@@ -593,6 +598,7 @@ export function ReceituarioPreview({
             leftRows={compradorRows}
             rightTitulo={cfg.boxFarmaciaTitulo}
             rightRows={fornecedorRows}
+            leftContentAlign="bottom"
             rightContentAlign="bottom"
             minHeightOverride={cfg.boxMinHeight}/>
         </div>
