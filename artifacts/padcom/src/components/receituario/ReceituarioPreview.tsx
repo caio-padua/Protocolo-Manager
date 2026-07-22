@@ -203,8 +203,9 @@ function BandaComBoxes({
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
       columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={stretch ? boxH : undefined}>
-      {/* box esquerdo */}
+      {/* box esquerdo — position:relative garante que compete com o SVG ornamental (zIndex:0) */}
       <div style={{
+        position: "relative", zIndex: 2,
         minWidth: 0,
         height: stretch ? "100%" : undefined,
         alignSelf: stretch ? undefined : "start",
@@ -222,8 +223,9 @@ function BandaComBoxes({
             contentAlign={leftContentAlign ?? "top"}/>
         </div>
       </div>
-      {/* box direito */}
+      {/* box direito — idem */}
       <div style={{
+        position: "relative", zIndex: 2,
         minWidth: 0,
         height: stretch ? "100%" : undefined,
         alignSelf: stretch ? undefined : "start",
