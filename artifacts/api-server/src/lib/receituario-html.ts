@@ -2,6 +2,33 @@
 // RECEITUÁRIO HTML — Gera HTML idêntico ao ReceituarioPreview.tsx para captura
 // Puppeteer → PNG → generatePdfFromPngBase64 → PDF assinado ICP-Brasil
 // ─────────────────────────────────────────────────────────────────────────────
+import fs from "fs";
+import path from "path";
+
+// PNG embutido como base64 — evita qualquer dependência de rede no Puppeteer
+// CWD varia: workspace root quando node direto, ou artifacts/api-server quando via pnpm filter
+let _arabesqueDataUrl: string | null = null;
+function getArabesqueDataUrl(): string {
+  if (_arabesqueDataUrl !== null) return _arabesqueDataUrl;
+  const rel = "artifacts/padcom/public/assets/arabesques/padua-01-floral-islamico.png";
+  const candidates = [
+    path.join(process.cwd(), rel),                          // CWD = workspace root
+    path.join(process.cwd(), "../..", rel),                 // CWD = artifacts/api-server
+    path.join(process.cwd(), "..", rel),                    // CWD = artifacts
+    "/home/runner/workspace/" + rel,                        // absoluto garantido
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        const buf = fs.readFileSync(p);
+        _arabesqueDataUrl = `data:image/png;base64,${buf.toString("base64")}`;
+        return _arabesqueDataUrl;
+      }
+    } catch { /* tenta próximo */ }
+  }
+  _arabesqueDataUrl = "";
+  return _arabesqueDataUrl;
+}
 
 export interface PrescricaoHtmlData {
   medicoNome: string;
@@ -57,20 +84,38 @@ function identBox(titulo: string, rows: (string | { label: string; value?: strin
     return r;
   }).join("");
   return `
-    <div style="position:relative;z-index:2;background:#fff;border:1px solid #454545;border-radius:1px;border-left:3px solid #3D7A7A;padding:3mm 4mm;box-shadow:0.4mm 0.4mm 0 rgba(0,0,0,0.05)">
+    <div style="
+      background:#fff;
+      border:1px solid #454545;
+      border-radius:1px;
+      border-left:3px solid #3D7A7A;
+      padding:3mm 4mm;
+      box-shadow:0.4mm 0.4mm 0 rgba(0,0,0,0.05);
+      box-sizing:border-box;
+      height:100%;
+    ">
       <div style="text-align:center;font-weight:700;font-size:7px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;border-bottom:0.4px solid #ddd;padding-bottom:3px;color:#222">${titulo}</div>
       ${rowsHtml}
     </div>`;
 }
 
-function arabesqueBand(assetsBase: string, children: string): string {
-  const bandH = 90;
-  const imgUrl = `${assetsBase}/assets/arabesques/padua-01-floral-islamico.png`;
+function arabesqueBand(children: string): string {
+  const dataUrl = getArabesqueDataUrl();
+  const bgStyle = dataUrl
+    ? `background-image:url('${dataUrl}');background-size:cover;background-position:center center;`
+    : `background-color:#f3f3f0;`;
   return `
-    <div style="position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(2,1fr);gap:5mm;padding-inline:10mm;min-height:${bandH + 48}px;align-items:center;margin-bottom:0">
-      <div style="position:absolute;top:50%;left:0;right:0;height:${bandH}px;transform:translateY(-50%);z-index:0;border-top:0.8px solid #8f8f8b;border-bottom:0.8px solid #8f8f8b;overflow:hidden;background:#f3f3f0">
-        <img src="${imgUrl}" alt="" style="display:block;width:100%;height:100%;object-fit:cover"/>
-      </div>
+    <div style="
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:5mm;
+      padding:8mm 10mm;
+      margin:3mm 0;
+      ${bgStyle}
+      border-top:0.8px solid #8f8f8b;
+      border-bottom:0.8px solid #8f8f8b;
+      align-items:stretch;
+    ">
       ${children}
     </div>`;
 }
@@ -162,8 +207,8 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     ],
   );
 
-  const faixaSuperior = arabesqueBand(base, box1 + box2);
-  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(base, box3 + box4) : "";
+  const faixaSuperior = arabesqueBand(box1 + box2);
+  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4) : "";
 
   const formulasHtml = d.formulas.map(f => formulaBlock(f)).join("");
 

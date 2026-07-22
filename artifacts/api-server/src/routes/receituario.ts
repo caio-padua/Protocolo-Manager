@@ -722,6 +722,48 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
   }
 });
 
+// ── GET /api/receituario/preview-html ─────────────────────────────────────────
+// Serve o HTML da receita diretamente para inspeção visual (dev only)
+router.get("/receituario/preview-html", async (req, res): Promise<void> => {
+  try {
+    const clientId = Number(req.query.clientId ?? 11);
+    const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    const [medico]  = await db.select().from(professionalsTable).where(eq(professionalsTable.id, 6));
+    const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, 8));
+
+    const assetsBaseUrl = "http://localhost:80/padcom";
+    const dataEmissao   = new Date().toISOString().slice(0, 10);
+    const crmRqe = (medico as any)?.crm ?? "CRM SP 123456";
+
+    const html = buildPrescricaoHtml({
+      medicoNome: medico?.name ?? "Dr. Caio Henrique Fernandes Pádua",
+      medicoCrm:  crmRqe,
+      clinicaNome: clinica?.name ?? "Instituto Padua",
+      clinicaEndereco: (clinica as any)?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP",
+      pacienteNome: cliente?.name ?? "CARLUCIA SANTOS FERNANDES",
+      pacienteCpf:  cliente?.cpf ?? "024.862.801-11",
+      pacienteNascimento: "30/01/1988",
+      pacienteTelefone:   cliente?.phone ?? "(62) 98269-6656",
+      pacienteEndereco:   cliente?.address ?? "Rua Guaxupé, 327, Vila Formosa, São Paulo - SP",
+      formulas: [{
+        numero: 1,
+        nome: "Bupropiona + Topiramato Manipulado",
+        ativos: "Cloridrato de Bupropiona 150mg\nCloridrato de Topiramato 50mg",
+        posologia: "1 cápsula via oral pela manhã em jejum",
+        via: "Oral", forma: "Cápsula Manipulada — 30 unidades",
+      }],
+      tipoReceita: "especial",
+      dataEmissao,
+      assetsBaseUrl,
+    });
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: String((err as Error).message) });
+  }
+});
+
 // ── POST /api/receituario/emitir-cliente ──────────────────────────────────────
 // Gera receita real via Puppeteer (captura fiel do motor HTML) + assina ICP-Brasil
 // Body: { clientId, formulas[], tipoReceita, driveFolder? }
