@@ -53,18 +53,18 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   if (manuscrito) {
     return (
       <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
-        {/* Label no TOPO — identifica o campo */}
+        {/* Linha pontilhada NO TOPO — espaço para escrever à mão */}
+        <span style={{
+          borderTop: "0.6px dashed #bbb",
+          display: "block",
+          minHeight: 11,
+        }}/>
+        {/* Label ABAIXO da linha — identifica o campo */}
         <span style={{
           fontWeight: 700, color: "#aaa",
           fontSize: 5, letterSpacing: 0.7,
           textTransform: "uppercase",
         }}>{label}</span>
-        {/* Linha pontilhada ABAIXO do label — espaço para escrever à mão */}
-        <span style={{
-          borderBottom: "0.6px dashed #bbb",
-          display: "block",
-          minHeight: 11,
-        }}/>
       </div>
     );
   }
