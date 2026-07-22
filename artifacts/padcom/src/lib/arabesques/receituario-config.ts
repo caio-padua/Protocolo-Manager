@@ -49,6 +49,7 @@ export type ReceituarioConfig = {
   boxFarmaciaTitulo: string;
   boxSplitRatio: "50/50" | "40/60" | "60/40";
   boxLeftWidthPercent: number;  // largura do box esquerdo em % (0–100); 50 = igual
+  boxWidthPct: number;          // % da coluna que cada box ocupa (30–100); <100 expõe arabesque
   boxBorderWidth: number;
   boxMinHeight: number;   // altura mínima de cada box (px)
   boxBandGap: number;     // distância entre os 2 boxes dentro de cada faixa (mm)
@@ -109,6 +110,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxFarmaciaTitulo:   "Identificação do Fornecedor / Farmácia",
   boxSplitRatio:       "50/50",
   boxLeftWidthPercent: 50,
+  boxWidthPct:         100,
   boxBorderWidth:      1,
   boxMinHeight:        180,
   boxBandGap:          4,

@@ -159,25 +159,31 @@ function BandaComBoxes({
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
       columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={cfg.boxMinHeight}>
-      <div style={{ minWidth: 0, height: "100%" }}>
-        <IdentBoxV2
-          titulo={leftTitulo}
-          rows={leftRows}
-          paddingX={cfg.boxInnerPaddingX}
-          faixinha={cfg.boxFaixinhaEsquerda}
-          faixinhaCor={cfg.boxFaixinhaCor}
-          borderWidth={cfg.boxBorderWidth}
-          minHeight={cfg.boxMinHeight}/>
+      {/* box esquerdo: alinha à esquerda — parte direita da coluna fica exposta */}
+      <div style={{ minWidth: 0, height: "100%", display: "flex", alignItems: "stretch", justifyContent: "flex-start" }}>
+        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: "100%" }}>
+          <IdentBoxV2
+            titulo={leftTitulo}
+            rows={leftRows}
+            paddingX={cfg.boxInnerPaddingX}
+            faixinha={cfg.boxFaixinhaEsquerda}
+            faixinhaCor={cfg.boxFaixinhaCor}
+            borderWidth={cfg.boxBorderWidth}
+            minHeight={cfg.boxMinHeight}/>
+        </div>
       </div>
-      <div style={{ minWidth: 0, height: "100%" }}>
-        <IdentBoxV2
-          titulo={rightTitulo}
-          rows={rightRows}
-          paddingX={cfg.boxInnerPaddingX}
-          faixinha={cfg.boxFaixinhaEsquerda}
-          faixinhaCor={cfg.boxFaixinhaCor}
-          borderWidth={cfg.boxBorderWidth}
-          minHeight={cfg.boxMinHeight}/>
+      {/* box direito: alinha à direita — parte esquerda da coluna fica exposta */}
+      <div style={{ minWidth: 0, height: "100%", display: "flex", alignItems: "stretch", justifyContent: "flex-end" }}>
+        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: "100%" }}>
+          <IdentBoxV2
+            titulo={rightTitulo}
+            rows={rightRows}
+            paddingX={cfg.boxInnerPaddingX}
+            faixinha={cfg.boxFaixinhaEsquerda}
+            faixinhaCor={cfg.boxFaixinhaCor}
+            borderWidth={cfg.boxBorderWidth}
+            minHeight={cfg.boxMinHeight}/>
+        </div>
       </div>
     </ArabesqueBand>
   );

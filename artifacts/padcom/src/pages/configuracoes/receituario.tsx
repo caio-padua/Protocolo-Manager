@@ -575,6 +575,14 @@ export default function ConfigReceituario() {
                     <span>10% (esquerdo mínimo)</span><span>90% (esquerdo máximo)</span>
                   </div>
                 </FieldRow>
+                <FieldRow label={`Largura de cada box (ocupa ${cfg.boxWidthPct ?? 100}% da coluna)`}>
+                  <input type="range" min={30} max={100} step={5} value={cfg.boxWidthPct ?? 100}
+                    onChange={e => patch({ boxWidthPct: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>30% (compacto, arabesque aparece)</span><span>100% (cobre a coluna toda)</span>
+                  </div>
+                </FieldRow>
                 <FieldRow label={`Espessura da borda do box: ${cfg.boxBorderWidth} px`}>
                   <input type="range" min={1} max={3} step={1} value={cfg.boxBorderWidth}
                     onChange={e => patch({ boxBorderWidth: Number(e.target.value) })}
