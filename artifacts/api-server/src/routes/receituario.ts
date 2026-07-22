@@ -29,6 +29,8 @@ import { liberarSlot, processarReceituarioDiario } from "../lib/receituario-work
 import { generateReceituarioPdf, generateReceituarioPdfV2, generatePdfFromPngBase64, type ReceituarioDataV2 } from "../lib/receituario-pdf";
 import { uploadToFolderById } from "../lib/google-drive";
 import { sendGmailMessage } from "../lib/google-gmail";
+import { buildPrescricaoHtml } from "../lib/receituario-html";
+import { htmlToPngBase64 } from "../lib/puppeteer-capture";
 
 const router = Router();
 
@@ -717,6 +719,139 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
   } catch (err) {
     req.log.error({ err }, "assinar-imagem-pdf: erro geral");
     res.status(500).json({ error: "Falha ao assinar o receituário" });
+  }
+});
+
+// ── POST /api/receituario/emitir-cliente ──────────────────────────────────────
+// Gera receita real via Puppeteer (captura fiel do motor HTML) + assina ICP-Brasil
+// Body: { clientId, formulas[], tipoReceita, driveFolder? }
+router.post("/receituario/emitir-cliente", async (req, res): Promise<void> => {
+  try {
+    const { clientId, formulas, tipoReceita = "especial", driveFolder } = req.body ?? {};
+
+    if (!clientId) { res.status(400).json({ error: "clientId obrigatório" }); return; }
+    if (!Array.isArray(formulas) || formulas.length === 0) {
+      res.status(400).json({ error: "formulas[] obrigatório e não-vazio" }); return;
+    }
+
+    // ── Busca dados do cliente, médico e clínica ─────────────────────────────
+    const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, Number(clientId)));
+    if (!cliente) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+
+    const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, 6));
+    const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, 8));
+
+    // ── Monta a URL base dos assets (padcom) ─────────────────────────────────
+    const domains = (process.env.REPLIT_DOMAINS ?? "").split(",").map(s => s.trim()).filter(Boolean);
+    const primaryDomain = domains[0] ?? "localhost";
+    const assetsBaseUrl = primaryDomain.startsWith("localhost")
+      ? "http://localhost:80/padcom"
+      : `https://${primaryDomain}/padcom`;
+
+    const hoje = new Date();
+    const dataEmissao = hoje.toISOString().slice(0, 10);
+
+    // ── Gera HTML idêntico ao motor ReceituarioPreview ────────────────────────
+    const html = buildPrescricaoHtml({
+      medicoNome:       medico?.name  ?? "Dr. Caio Henrique Fernandes Pádua",
+      medicoCrm:        (medico as any)?.crm ?? "CRM SP 123456",
+      medicoRqe:        (medico as any)?.rqe ?? undefined,
+      clinicaNome:      clinica?.name ?? "Instituto Padua",
+      clinicaEndereco:  (clinica as any)?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP",
+      clinicaTelefone:  (clinica as any)?.phone  ?? undefined,
+      pacienteNome:     cliente.name,
+      pacienteCpf:      cliente.cpf ?? "",
+      pacienteNascimento: cliente.birthDate
+        ? (() => { const [y,m,d] = (cliente.birthDate as string).split("-"); return `${d}/${m}/${y}`; })()
+        : undefined,
+      pacienteTelefone: cliente.phone ?? undefined,
+      pacienteEndereco: cliente.address ?? undefined,
+      formulas: (formulas as any[]).map((f, i) => ({
+        numero:   i + 1,
+        nome:     f.nome,
+        ativos:   f.ativos,
+        posologia:f.posologia,
+        via:      f.via,
+        forma:    f.forma,
+      })),
+      tipoReceita: tipoReceita as "especial" | "simples",
+      dataEmissao,
+      assetsBaseUrl,
+    });
+
+    // ── Puppeteer: renderiza HTML → PNG ───────────────────────────────────────
+    req.log.info("emitir-cliente: iniciando Puppeteer...");
+    const pngBase64 = await htmlToPngBase64(html);
+    req.log.info("emitir-cliente: PNG capturado, gerando PDF assinado...");
+
+    // ── Gera PDF A4 a partir do PNG e assina ICP-Brasil ──────────────────────
+    const profName = medico?.name ?? "Dr. Caio Henrique Fernandes Pádua";
+    const pdfBytes = await generatePdfFromPngBase64(pngBase64, profName);
+
+    // ── Nome do arquivo ───────────────────────────────────────────────────────
+    const [y, m, d] = dataEmissao.split("-");
+    const slugNome = cliente.name
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase().slice(0, 28);
+    const fileName = `${y.slice(2)}.${m}.${d} RECEITUARIO ${slugNome}.pdf`;
+
+    // ── Upload Drive ──────────────────────────────────────────────────────────
+    // Prefere pasta de PRESCRICOES do cliente; fallback para pasta geral
+    const fichaClinica = (cliente as any).fichaClinica ?? {};
+    const prescricoesFolderId = fichaClinica?.drive_subpastas?.["03 PRESCRICOES/RECEITAS"]
+      ?? fichaClinica?.drive_subpastas?.["03 PRESCRICOES"]
+      ?? driveFolder
+      ?? "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+
+    let driveUrl: string | null = null;
+    let driveId: string | null = null;
+    try {
+      const result = await uploadToFolderById(
+        prescricoesFolderId, fileName, "application/pdf", Buffer.from(pdfBytes),
+      );
+      driveUrl = result.webViewLink ?? null;
+      driveId  = result.id ?? null;
+      req.log.info({ driveUrl }, "emitir-cliente: Drive upload OK");
+    } catch (driveErr) {
+      req.log.warn({ driveErr }, "emitir-cliente: Drive upload falhou");
+    }
+
+    // ── E-mail ────────────────────────────────────────────────────────────────
+    let emailSent = false;
+    try {
+      const toAddresses = ["drcaiohenriquepadua@gmail.com"];
+      if (cliente.email) toAddresses.push(cliente.email);
+      const mailResult = await sendGmailMessage({
+        to: toAddresses.join(", "),
+        subject: `PAXTER | Receituário | ${cliente.name} | ${d}/${m}/${y}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#16284a;padding:20px 24px;text-align:center">
+            <h1 style="color:#c9a24e;margin:0;font-size:24px;letter-spacing:2px">PAXTER</h1>
+            <p style="color:#45B8CC;margin:4px 0 0;font-size:13px">Motor Clínico — Receituário Assinado</p>
+          </div>
+          <div style="padding:24px;background:#f8fafc">
+            <h2 style="color:#16284a;margin-top:0">Receituário Emitido</h2>
+            <p><strong>Paciente:</strong> ${cliente.name}</p>
+            <p><strong>Data:</strong> ${d}/${m}/${y}</p>
+            ${driveUrl ? `<p><a href="${driveUrl}" style="background:#45B8CC;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none">Ver no Google Drive</a></p>` : ""}
+            <p style="font-size:12px;color:#666;margin-top:16px">Gerado via captura fiel do motor visual (Puppeteer + ICP-Brasil PAdES)</p>
+          </div>
+        </div>`,
+        attachments: [{
+          filename: fileName,
+          content:  Buffer.from(pdfBytes),
+          contentType: "application/pdf",
+        }],
+      });
+      emailSent = mailResult.success;
+    } catch (emailErr) {
+      req.log.warn({ emailErr }, "emitir-cliente: e-mail excecao");
+    }
+
+    res.json({ ok: true, fileName, driveUrl, driveId, emailSent, pngCaptured: true });
+  } catch (err) {
+    req.log.error({ err }, "emitir-cliente: erro geral");
+    res.status(500).json({ error: String((err as Error).message ?? err) });
   }
 });
 
