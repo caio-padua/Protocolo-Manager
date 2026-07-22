@@ -52,13 +52,14 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   // Modo manuscrito: linha pontilhada acima (espaço para escrever) + label abaixo
   if (manuscrito) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 2 }}>
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
+        {/* Linha pontilhada NO TOPO — borderTop coloca a linha na borda superior exata */}
         <span style={{
-          borderBottom: "0.55px dashed #c0c0c0",
+          borderTop: "0.6px dashed #bbb",
           display: "block",
-          minHeight: 13,
-          marginTop: 1,
+          minHeight: 11,
         }}/>
+        {/* Label imediatamente abaixo da linha */}
         <span style={{
           fontWeight: 700, color: "#aaa",
           fontSize: 5, letterSpacing: 0.7,
