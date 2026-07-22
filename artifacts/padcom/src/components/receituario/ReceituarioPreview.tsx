@@ -209,7 +209,7 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={stretch ? cfg.boxMinHeight : undefined}
+            minHeight={cfg.boxMinHeight}
             contentAlign="top"/>
         </div>
       </div>
@@ -228,7 +228,7 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={stretch ? cfg.boxMinHeight : undefined}
+            minHeight={cfg.boxMinHeight}
             contentAlign={rightContentAlign ?? "top"}/>
         </div>
       </div>
