@@ -581,10 +581,30 @@ export function ReceituarioPreview({
       </div>
 
       {/* ═══ 5. ASSINATURA + CERTIFICADO ════════════════════════════════════ */}
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: "8mm",
-        padding: "4mm 2mm 6mm", borderTop: "0.3px solid #eee", marginTop: "2mm",
-      }}>
+      {/* No modo especial: absolutamente posicionado logo acima dos boxes 3+4.
+          bottom = boxInferiorBottom(mm) + boxMinHeight(px→mm) + 4mm gap.
+          Conversão px→mm: 1mm = 3.7795px (96 DPI padrão CSS).
+          Quando boxMinHeight aumenta → bottom sobe automaticamente (Pedido 2). */}
+      <div style={(() => {
+        if (cfg.tipoReceitaPadrao !== "especial") {
+          return {
+            display: "flex", alignItems: "flex-start", gap: "8mm",
+            padding: "4mm 2mm 6mm", borderTop: "0.3px solid #eee", marginTop: "2mm",
+          };
+        }
+        const PX_PER_MM = 3.7795;
+        const boxHeightMm = (cfg.boxMinHeight ?? 150) / PX_PER_MM;
+        const bottomMm = (cfg.boxInferiorBottom ?? 8) + boxHeightMm + 4;
+        return {
+          position: "absolute",
+          bottom: `${bottomMm.toFixed(2)}mm`,
+          left: "12mm",
+          right: "12mm",
+          display: "flex", alignItems: "flex-start", gap: "8mm",
+          paddingTop: "4mm",
+          borderTop: "0.3px solid #eee",
+        };
+      })()}>
         <div style={{ flex: "0 0 auto", minWidth: 140 }}>
           {cfg.assinaturaModo === "imagem" && cfg.assinaturaDataUrl
             ? <img src={cfg.assinaturaDataUrl} alt="Assinatura"
