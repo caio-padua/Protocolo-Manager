@@ -66,7 +66,7 @@ function FieldLine({ label, value }: { label: string; value?: string }) {
 
 // ── Box de identificação v2 — campos fixos por rows ───────────────────────────
 function IdentBoxV2({
-  titulo, rows, borderWidth, faixinha, faixinhaCor, minHeight, paddingX,
+  titulo, rows, borderWidth, faixinha, faixinhaCor, minHeight, paddingX, contentAlign,
 }: {
   titulo: string;
   rows: CampoRow[];
@@ -75,6 +75,8 @@ function IdentBoxV2({
   faixinhaCor: string;
   minHeight?: number;
   paddingX?: number;
+  /** "bottom" empurra os campos para a parte inferior do box via spacer flex */
+  contentAlign?: "top" | "bottom";
 }) {
   const px = paddingX ?? 4;
   return (
@@ -90,32 +92,39 @@ function IdentBoxV2({
       boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
       minHeight: minHeight ? `${minHeight}px` : undefined,
       height: "100%", boxSizing: "border-box",
+      display: "flex", flexDirection: "column",
     }}>
-      {/* Título do box */}
+      {/* Título do box — sempre no topo */}
       <div style={{
         textAlign: "center", fontWeight: 700, fontSize: 7, letterSpacing: 1.5,
         textTransform: "uppercase", marginBottom: 5,
         borderBottom: "0.4px solid #ddd", paddingBottom: 3, color: "#222",
+        flexShrink: 0,
       }}>{titulo}</div>
 
+      {/* Spacer: empurra rows para o fundo quando contentAlign="bottom" */}
+      {contentAlign === "bottom" && <div style={{ flex: 1 }}/>}
+
       {/* Rows: single field ou array (multi-coluna) */}
-      {rows.map((row, i) => {
-        if (Array.isArray(row)) {
-          return (
-            <div key={i} style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${row.length}, 1fr)`,
-              gap: "0 6mm",
-              marginBottom: 1,
-            }}>
-              {row.map((field) => (
-                <FieldLine key={field.label} label={field.label} value={field.value}/>
-              ))}
-            </div>
-          );
-        }
-        return <FieldLine key={i} label={row.label} value={row.value}/>;
-      })}
+      <div>
+        {rows.map((row, i) => {
+          if (Array.isArray(row)) {
+            return (
+              <div key={i} style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+                gap: "0 6mm",
+                marginBottom: 1,
+              }}>
+                {row.map((field) => (
+                  <FieldLine key={field.label} label={field.label} value={field.value}/>
+                ))}
+              </div>
+            );
+          }
+          return <FieldLine key={i} label={row.label} value={row.value}/>;
+        })}
+      </div>
     </div>
   );
 }
@@ -143,6 +152,8 @@ function BandaComBoxes({
   cfg, bandModelId, customBandDataUrl,
   leftTitulo, leftRows,
   rightTitulo, rightRows,
+  stretchBoxes,
+  rightContentAlign,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
@@ -151,17 +162,26 @@ function BandaComBoxes({
   leftRows: CampoRow[];
   rightTitulo: string;
   rightRows: CampoRow[];
+  /** false = boxes encolhem ao conteúdo (sem espaço morto abaixo); padrão true */
+  stretchBoxes?: boolean;
+  /** "bottom" = campos do box direito ficam na parte inferior */
+  rightContentAlign?: "top" | "bottom";
 }) {
-  // slider contínuo sobrepõe o ratio discreto quando diferente de 50
   const leftPct = cfg.boxLeftWidthPercent ?? 50;
   const columns = `${leftPct}fr ${100 - leftPct}fr`;
+  const stretch = stretchBoxes !== false;
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
       columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={cfg.boxMinHeight}>
-      {/* box esquerdo: alinha à esquerda — parte direita da coluna fica exposta */}
-      <div style={{ minWidth: 0, height: "100%", display: "flex", alignItems: "stretch", justifyContent: "flex-start" }}>
-        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: "100%" }}>
+      {/* box esquerdo: alinha à esquerda */}
+      <div style={{
+        minWidth: 0,
+        height: stretch ? "100%" : undefined,
+        alignSelf: stretch ? undefined : "start",
+        display: "flex", alignItems: "stretch", justifyContent: "flex-start",
+      }}>
+        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: stretch ? "100%" : undefined }}>
           <IdentBoxV2
             titulo={leftTitulo}
             rows={leftRows}
@@ -169,12 +189,18 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}/>
+            minHeight={cfg.boxMinHeight}
+            contentAlign="top"/>
         </div>
       </div>
-      {/* box direito: alinha à direita — parte esquerda da coluna fica exposta */}
-      <div style={{ minWidth: 0, height: "100%", display: "flex", alignItems: "stretch", justifyContent: "flex-end" }}>
-        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: "100%" }}>
+      {/* box direito: alinha à direita */}
+      <div style={{
+        minWidth: 0,
+        height: stretch ? "100%" : undefined,
+        alignSelf: stretch ? undefined : "start",
+        display: "flex", alignItems: "stretch", justifyContent: "flex-end",
+      }}>
+        <div style={{ width: `${cfg.boxWidthPct ?? 100}%`, height: stretch ? "100%" : undefined }}>
           <IdentBoxV2
             titulo={rightTitulo}
             rows={rightRows}
@@ -182,7 +208,8 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}/>
+            minHeight={cfg.boxMinHeight}
+            contentAlign={rightContentAlign ?? "top"}/>
         </div>
       </div>
     </ArabesqueBand>
@@ -457,13 +484,16 @@ export function ReceituarioPreview({
       {/* ═══ Linha entre título e faixa superior ═══════════════════════════ */}
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
 
-      {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Emitente) + Box 2 (Paciente) ══════ */}
+      {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Paciente) + Box 2 (Emitente) ══════ */}
+      {/* P3: Paciente à esquerda, Emitente à direita (posições trocadas pelo CEO) */}
+      {/* P2: stretchBoxes=false elimina espaço vazio abaixo do endereço */}
       <BandaComBoxes
         cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-        leftTitulo={cfg.boxMedicoTitulo}
-        leftRows={emitentRows}
-        rightTitulo={cfg.boxPacienteTitulo}
-        rightRows={pacienteRows}/>
+        leftTitulo={cfg.boxPacienteTitulo}
+        leftRows={pacienteRows}
+        rightTitulo={cfg.boxMedicoTitulo}
+        rightRows={emitentRows}
+        stretchBoxes={false}/>
 
       {/* ═══ 4. CORPO / FÓRMULAS ════════════════════════════════════════════ */}
       <div style={{ padding: "5mm 2mm 3mm" }}>
@@ -523,13 +553,15 @@ export function ReceituarioPreview({
       </div>
 
       {/* ═══ 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor) ════ */}
+      {/* P1: rightContentAlign="bottom" coloca campos do Fornecedor na parte inferior */}
       {cfg.tipoReceitaPadrao === "especial" && (
         <BandaComBoxes
           cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
           leftTitulo={cfg.boxCompradorTitulo}
           leftRows={compradorRows}
           rightTitulo={cfg.boxFarmaciaTitulo}
-          rightRows={fornecedorRows}/>
+          rightRows={fornecedorRows}
+          rightContentAlign="bottom"/>
       )}
 
       {/* ═══ 7. RODAPÉ ═══════════════════════════════════════════════════════ */}
