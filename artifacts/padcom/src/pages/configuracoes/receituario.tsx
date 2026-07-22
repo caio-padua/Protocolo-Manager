@@ -518,73 +518,119 @@ export default function ConfigReceituario() {
                 Separadores de Seção
               </div>
 
-              {/* Superior 1 */}
-              <FieldRow label="Separador 1 — entre cabeçalho e título">
-                <div className="flex items-center gap-3 mb-2">
-                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
-                    <input type="checkbox" checked={cfg.sepSup1Ativo ?? true}
-                      onChange={e => patch({ sepSup1Ativo: e.target.checked })}
-                      className="accent-teal-600 w-4 h-4"/>
-                    {cfg.sepSup1Ativo ?? true ? "Visível" : "Oculto"}
-                  </label>
-                </div>
-                <input type="range" min={0.1} max={2} step={0.1}
-                  disabled={!(cfg.sepSup1Ativo ?? true)}
-                  value={cfg.sepSup1Espessura ?? 0.5}
-                  onChange={e => patch({ sepSup1Espessura: Number(e.target.value) })}
-                  className="w-full accent-teal-600 disabled:opacity-40"/>
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>0,1 px (finíssimo)</span>
-                  <span className="font-semibold">{(cfg.sepSup1Espessura ?? 0.5).toFixed(1)} px</span>
-                  <span>2 px (grosso)</span>
-                </div>
-              </FieldRow>
+              {/* ── helper local: 5 botões de espessura ──────────────────── */}
+              {(() => {
+                const PRESETS: { label: string; px: number }[] = [
+                  { label: "Fantasma", px: 0.2 },
+                  { label: "Fina",     px: 0.5 },
+                  { label: "Média",    px: 1.0 },
+                  { label: "Grossa",   px: 1.5 },
+                  { label: "Espessa",  px: 2.5 },
+                ];
+                function EspBtns({ val, disabled, onPick }: {
+                  val: number; disabled?: boolean;
+                  onPick: (px: number) => void;
+                }) {
+                  return (
+                    <div className={`flex gap-1 flex-wrap ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+                      {PRESETS.map(p => (
+                        <button key={p.px} onClick={() => onPick(p.px)}
+                          className={`px-2 py-0.5 text-xs font-semibold transition-all rounded-sm
+                            ${Math.abs(val - p.px) < 0.05 ? "bevel-3d text-white" : "btn-3d-soft"}`}>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                }
 
-              {/* Superior 2 */}
-              <FieldRow label="Separador 2 — entre título e boxes 1+2">
-                <div className="flex items-center gap-3 mb-2">
-                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
-                    <input type="checkbox" checked={cfg.sepSup2Ativo ?? true}
-                      onChange={e => patch({ sepSup2Ativo: e.target.checked })}
-                      className="accent-teal-600 w-4 h-4"/>
-                    {cfg.sepSup2Ativo ?? true ? "Visível" : "Oculto"}
-                  </label>
-                </div>
-                <input type="range" min={0.1} max={2} step={0.1}
-                  disabled={!(cfg.sepSup2Ativo ?? true)}
-                  value={cfg.sepSup2Espessura ?? 0.5}
-                  onChange={e => patch({ sepSup2Espessura: Number(e.target.value) })}
-                  className="w-full accent-teal-600 disabled:opacity-40"/>
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>0,1 px (finíssimo)</span>
-                  <span className="font-semibold">{(cfg.sepSup2Espessura ?? 0.5).toFixed(1)} px</span>
-                  <span>2 px (grosso)</span>
-                </div>
-              </FieldRow>
+                return (
+                  <>
+                    {/* Superior 1 */}
+                    <FieldRow label="Separador 1 — entre cabeçalho e título">
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
+                          <input type="checkbox" checked={cfg.sepSup1Ativo ?? true}
+                            onChange={e => patch({ sepSup1Ativo: e.target.checked })}
+                            className="accent-teal-600 w-4 h-4"/>
+                          {cfg.sepSup1Ativo ?? true ? "Visível" : "Oculto"}
+                        </label>
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">Espessura</div>
+                      <EspBtns val={cfg.sepSup1Espessura ?? 0.5}
+                        disabled={!(cfg.sepSup1Ativo ?? true)}
+                        onPick={px => patch({ sepSup1Espessura: px })}/>
+                      <div className="text-xs text-gray-500 mt-3 mb-1">Distância do topo</div>
+                      <input type="range" min={0} max={20} step={0.5}
+                        disabled={!(cfg.sepSup1Ativo ?? true)}
+                        value={cfg.sepSup1MarginTop ?? 3}
+                        onChange={e => patch({ sepSup1MarginTop: Number(e.target.value) })}
+                        className="w-full accent-teal-600 disabled:opacity-40"/>
+                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>0 mm (topo)</span>
+                        <span className="font-semibold">{(cfg.sepSup1MarginTop ?? 3).toFixed(1)} mm</span>
+                        <span>20 mm (baixo)</span>
+                      </div>
+                    </FieldRow>
 
-              {/* Inferior (apenas receituário especial) */}
-              {cfg.tipoReceitaPadrao === "especial" && (
-                <FieldRow label="Separador inferior — entre boxes 3+4 e rodapé">
-                  <div className="flex items-center gap-3 mb-2">
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
-                      <input type="checkbox" checked={cfg.sepInfAtivo ?? true}
-                        onChange={e => patch({ sepInfAtivo: e.target.checked })}
-                        className="accent-teal-600 w-4 h-4"/>
-                      {cfg.sepInfAtivo ?? true ? "Visível" : "Oculto"}
-                    </label>
-                  </div>
-                  <input type="range" min={8} max={60} step={0.5}
-                    disabled={!(cfg.sepInfAtivo ?? true)}
-                    value={cfg.sepInfBottom ?? 20}
-                    onChange={e => patch({ sepInfBottom: Number(e.target.value) })}
-                    className="w-full accent-teal-600 disabled:opacity-40"/>
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
-                    <span>8 mm (junto ao rodapé)</span>
-                    <span className="font-semibold">{(cfg.sepInfBottom ?? 20).toFixed(1)} mm do fundo</span>
-                    <span>60 mm (alto)</span>
-                  </div>
-                </FieldRow>
-              )}
+                    {/* Superior 2 */}
+                    <FieldRow label="Separador 2 — entre título e boxes 1+2">
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
+                          <input type="checkbox" checked={cfg.sepSup2Ativo ?? true}
+                            onChange={e => patch({ sepSup2Ativo: e.target.checked })}
+                            className="accent-teal-600 w-4 h-4"/>
+                          {cfg.sepSup2Ativo ?? true ? "Visível" : "Oculto"}
+                        </label>
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">Espessura</div>
+                      <EspBtns val={cfg.sepSup2Espessura ?? 0.5}
+                        disabled={!(cfg.sepSup2Ativo ?? true)}
+                        onPick={px => patch({ sepSup2Espessura: px })}/>
+                      <div className="text-xs text-gray-500 mt-3 mb-1">Distância do topo</div>
+                      <input type="range" min={0} max={20} step={0.5}
+                        disabled={!(cfg.sepSup2Ativo ?? true)}
+                        value={cfg.sepSup2MarginTop ?? 3}
+                        onChange={e => patch({ sepSup2MarginTop: Number(e.target.value) })}
+                        className="w-full accent-teal-600 disabled:opacity-40"/>
+                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>0 mm (topo)</span>
+                        <span className="font-semibold">{(cfg.sepSup2MarginTop ?? 3).toFixed(1)} mm</span>
+                        <span>20 mm (baixo)</span>
+                      </div>
+                    </FieldRow>
+
+                    {/* Inferior (apenas receituário especial) */}
+                    {cfg.tipoReceitaPadrao === "especial" && (
+                      <FieldRow label="Separador inferior — entre boxes 3+4 e rodapé">
+                        <div className="flex items-center gap-3 mb-2">
+                          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
+                            <input type="checkbox" checked={cfg.sepInfAtivo ?? true}
+                              onChange={e => patch({ sepInfAtivo: e.target.checked })}
+                              className="accent-teal-600 w-4 h-4"/>
+                            {cfg.sepInfAtivo ?? true ? "Visível" : "Oculto"}
+                          </label>
+                        </div>
+                        <div className="text-xs text-gray-500 mb-1">Espessura</div>
+                        <EspBtns val={cfg.sepInfEspessura ?? 0.3}
+                          disabled={!(cfg.sepInfAtivo ?? true)}
+                          onPick={px => patch({ sepInfEspessura: px })}/>
+                        <div className="text-xs text-gray-500 mt-3 mb-1">Distância do fundo</div>
+                        <input type="range" min={8} max={60} step={0.5}
+                          disabled={!(cfg.sepInfAtivo ?? true)}
+                          value={cfg.sepInfBottom ?? 20}
+                          onChange={e => patch({ sepInfBottom: Number(e.target.value) })}
+                          className="w-full accent-teal-600 disabled:opacity-40"/>
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>8 mm (junto ao rodapé)</span>
+                          <span className="font-semibold">{(cfg.sepInfBottom ?? 20).toFixed(1)} mm do fundo</span>
+                          <span>60 mm (alto)</span>
+                        </div>
+                      </FieldRow>
+                    )}
+                  </>
+                );
+              })()}
             </Section>
 
             {/* ── P2: Boxes das Faixas ─────────────────────────────────────── */}

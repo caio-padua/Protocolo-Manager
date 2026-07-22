@@ -153,30 +153,33 @@ function IdentBoxV2({
 
 // ── Linha decorativa (Kaizen C) ───────────────────────────────────────────────
 function LinhaDecorativa({
-  estilo, ativo = true, espessura,
+  estilo, ativo = true, espessura, marginTopMm,
 }: {
   estilo: ReceituarioConfig["linhaEstiloCabecalho"];
   /** false = linha oculta (não ocupa espaço) */
   ativo?: boolean;
-  /** espessura da linha em px; sobrepõe o padrão do estilo */
+  /** espessura da linha em px */
   espessura?: number;
+  /** distância do topo em mm (margin-top) */
+  marginTopMm?: number;
 }) {
   if (!ativo) return null;
   const esp = espessura ?? 0.5;
+  const mt = marginTopMm !== undefined ? `${marginTopMm}mm` : "3mm";
   if (estilo === "dupla") return (
-    <div style={{ margin: "3mm 0", display: "flex", flexDirection: "column", gap: 2 }}>
+    <div style={{ marginTop: mt, marginBottom: "3mm", display: "flex", flexDirection: "column", gap: 2 }}>
       <div style={{ borderTop: `${esp * 1.2}px solid #bbb`, width: "100%" }}/>
       <div style={{ borderTop: `${esp * 0.6}px solid #ddd`, width: "100%" }}/>
     </div>
   );
   if (estilo === "ornamentada") return (
-    <div style={{ margin: "3mm 0", display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ marginTop: mt, marginBottom: "3mm", display: "flex", alignItems: "center", gap: 6 }}>
       <div style={{ flex: 1, borderTop: `${esp}px solid #bbb` }}/>
       <span style={{ fontSize: 8, color: "#bbb", letterSpacing: 2 }}>❧</span>
       <div style={{ flex: 1, borderTop: `${esp}px solid #bbb` }}/>
     </div>
   );
-  return <div style={{ margin: "3mm 0", borderTop: `${esp}px solid #ccc` }}/>;
+  return <div style={{ marginTop: mt, marginBottom: "3mm", borderTop: `${esp}px solid #ccc` }}/>;
 }
 
 // ── Faixa ornamental + 2 boxes (P3/P4/P5/P6) ─────────────────────────────────
@@ -511,7 +514,8 @@ export function ReceituarioPreview({
       {/* ═══ Linha decorativa cabeçalho→título (separador superior 1) ═════ */}
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}
         ativo={cfg.sepSup1Ativo ?? true}
-        espessura={cfg.sepSup1Espessura ?? 0.5}/>
+        espessura={cfg.sepSup1Espessura ?? 0.5}
+        marginTopMm={cfg.sepSup1MarginTop ?? 3}/>
 
       {/* ═══ 2. TÍTULO DO DOCUMENTO ═════════════════════════════════════════ */}
       <div style={{ textAlign: "center", marginBottom: "4mm" }}>
@@ -531,7 +535,8 @@ export function ReceituarioPreview({
       {/* ═══ Linha entre título e faixa superior (separador superior 2) ══ */}
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}
         ativo={cfg.sepSup2Ativo ?? true}
-        espessura={cfg.sepSup2Espessura ?? 0.5}/>
+        espessura={cfg.sepSup2Espessura ?? 0.5}
+        marginTopMm={cfg.sepSup2MarginTop ?? 3}/>
 
       {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Paciente) + Box 2 (Emitente) ══════ */}
       {/* Âncora no topo: topo fixo, limite inferior cresce para baixo (P1+P2) */}
@@ -631,7 +636,7 @@ export function ReceituarioPreview({
           position: "absolute",
           bottom: `${cfg.sepInfBottom ?? 20}mm`,
           left: "12mm", right: "12mm",
-          borderTop: "0.3px solid #ddd",
+          borderTop: `${cfg.sepInfEspessura ?? 0.3}px solid #ddd`,
           pointerEvents: "none",
         }}/>
       )}

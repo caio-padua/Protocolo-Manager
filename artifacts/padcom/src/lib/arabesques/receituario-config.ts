@@ -41,11 +41,14 @@ export type ReceituarioConfig = {
 
   // ── Separadores controláveis ───────────────────────────────────────────────
   sepSup1Ativo: boolean;       // linha entre cabeçalho e título
-  sepSup1Espessura: number;    // espessura em px (0.1 – 2)
+  sepSup1Espessura: number;    // espessura em px (preset: 0.2/0.5/1/1.5/2.5)
+  sepSup1MarginTop: number;    // distância do topo em mm (0–20)
   sepSup2Ativo: boolean;       // linha entre título e boxes 1+2
   sepSup2Espessura: number;    // espessura em px
+  sepSup2MarginTop: number;    // distância do topo em mm (0–20)
   sepInfAtivo: boolean;        // separador entre boxes 3+4 e rodapé
   sepInfBottom: number;        // posição em mm acima do fundo da página
+  sepInfEspessura: number;     // espessura em px (preset)
 
   // ── Tipo padrão da receita ─────────────────────────────────────────────────
   tipoReceitaPadrao: "especial" | "simples";
@@ -114,10 +117,13 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   linhaEstiloCabecalho: "simples",
   sepSup1Ativo:        true,
   sepSup1Espessura:    0.5,
+  sepSup1MarginTop:    3,
   sepSup2Ativo:        true,
   sepSup2Espessura:    0.5,
+  sepSup2MarginTop:    3,
   sepInfAtivo:         true,
   sepInfBottom:        20,
+  sepInfEspessura:     0.3,
   tipoReceitaPadrao:  "especial",
 
   boxPacienteTitulo:   "Identificação do Paciente",
