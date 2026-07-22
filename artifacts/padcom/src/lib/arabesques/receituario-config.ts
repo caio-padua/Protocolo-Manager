@@ -39,6 +39,14 @@ export type ReceituarioConfig = {
   tituloSubtitulo: string;                  // "MODELO DEMONSTRATIVO - SEM VALIDADE"
   linhaEstiloCabecalho: "simples" | "dupla" | "ornamentada"; // KC
 
+  // ── Separadores controláveis ───────────────────────────────────────────────
+  sepSup1Ativo: boolean;       // linha entre cabeçalho e título
+  sepSup1Espessura: number;    // espessura em px (0.1 – 2)
+  sepSup2Ativo: boolean;       // linha entre título e boxes 1+2
+  sepSup2Espessura: number;    // espessura em px
+  sepInfAtivo: boolean;        // separador entre boxes 3+4 e rodapé
+  sepInfBottom: number;        // posição em mm acima do fundo da página
+
   // ── Tipo padrão da receita ─────────────────────────────────────────────────
   tipoReceitaPadrao: "especial" | "simples";
 
@@ -104,6 +112,12 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   tituloDocumento:    "RECEITUÁRIO DE CONTROLE ESPECIAL",
   tituloSubtitulo:    "",
   linhaEstiloCabecalho: "simples",
+  sepSup1Ativo:        true,
+  sepSup1Espessura:    0.5,
+  sepSup2Ativo:        true,
+  sepSup2Espessura:    0.5,
+  sepInfAtivo:         true,
+  sepInfBottom:        20,
   tipoReceitaPadrao:  "especial",
 
   boxPacienteTitulo:   "Identificação do Paciente",

@@ -152,21 +152,31 @@ function IdentBoxV2({
 }
 
 // ── Linha decorativa (Kaizen C) ───────────────────────────────────────────────
-function LinhaDecorativa({ estilo }: { estilo: ReceituarioConfig["linhaEstiloCabecalho"] }) {
+function LinhaDecorativa({
+  estilo, ativo = true, espessura,
+}: {
+  estilo: ReceituarioConfig["linhaEstiloCabecalho"];
+  /** false = linha oculta (não ocupa espaço) */
+  ativo?: boolean;
+  /** espessura da linha em px; sobrepõe o padrão do estilo */
+  espessura?: number;
+}) {
+  if (!ativo) return null;
+  const esp = espessura ?? 0.5;
   if (estilo === "dupla") return (
     <div style={{ margin: "3mm 0", display: "flex", flexDirection: "column", gap: 2 }}>
-      <div style={{ borderTop: "0.6px solid #bbb", width: "100%" }}/>
-      <div style={{ borderTop: "0.3px solid #ddd", width: "100%" }}/>
+      <div style={{ borderTop: `${esp * 1.2}px solid #bbb`, width: "100%" }}/>
+      <div style={{ borderTop: `${esp * 0.6}px solid #ddd`, width: "100%" }}/>
     </div>
   );
   if (estilo === "ornamentada") return (
     <div style={{ margin: "3mm 0", display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ flex: 1, borderTop: "0.5px solid #bbb" }}/>
+      <div style={{ flex: 1, borderTop: `${esp}px solid #bbb` }}/>
       <span style={{ fontSize: 8, color: "#bbb", letterSpacing: 2 }}>❧</span>
-      <div style={{ flex: 1, borderTop: "0.5px solid #bbb" }}/>
+      <div style={{ flex: 1, borderTop: `${esp}px solid #bbb` }}/>
     </div>
   );
-  return <div style={{ margin: "3mm 0", borderTop: "0.5px solid #ccc" }}/>;
+  return <div style={{ margin: "3mm 0", borderTop: `${esp}px solid #ccc` }}/>;
 }
 
 // ── Faixa ornamental + 2 boxes (P3/P4/P5/P6) ─────────────────────────────────
@@ -206,8 +216,7 @@ function BandaComBoxes({
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
-      columns={columns} gap={gap} contentMinHeight={stretch ? boxH : undefined}
-      bandTopPct={bandTopPct}>
+      columns={columns} gap={gap} contentMinHeight={stretch ? boxH : undefined}>
       {/* box esquerdo — position:relative garante que compete com o SVG ornamental (zIndex:0) */}
       <div style={{
         position: "relative", zIndex: 2,
@@ -499,8 +508,10 @@ export function ReceituarioPreview({
         </div>
       </div>
 
-      {/* ═══ Linha decorativa cabeçalho→título ═════════════════════════════ */}
-      <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
+      {/* ═══ Linha decorativa cabeçalho→título (separador superior 1) ═════ */}
+      <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}
+        ativo={cfg.sepSup1Ativo ?? true}
+        espessura={cfg.sepSup1Espessura ?? 0.5}/>
 
       {/* ═══ 2. TÍTULO DO DOCUMENTO ═════════════════════════════════════════ */}
       <div style={{ textAlign: "center", marginBottom: "4mm" }}>
@@ -517,8 +528,10 @@ export function ReceituarioPreview({
         )}
       </div>
 
-      {/* ═══ Linha entre título e faixa superior ═══════════════════════════ */}
-      <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
+      {/* ═══ Linha entre título e faixa superior (separador superior 2) ══ */}
+      <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}
+        ativo={cfg.sepSup2Ativo ?? true}
+        espessura={cfg.sepSup2Espessura ?? 0.5}/>
 
       {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Paciente) + Box 2 (Emitente) ══════ */}
       {/* Âncora no topo: topo fixo, limite inferior cresce para baixo (P1+P2) */}
@@ -612,11 +625,22 @@ export function ReceituarioPreview({
         </div>
       )}
 
+      {/* ═══ Separador inferior controlável (entre boxes 3+4 e rodapé) ════ */}
+      {(cfg.sepInfAtivo ?? true) && cfg.tipoReceitaPadrao === "especial" && (
+        <div style={{
+          position: "absolute",
+          bottom: `${cfg.sepInfBottom ?? 20}mm`,
+          left: "12mm", right: "12mm",
+          borderTop: "0.3px solid #ddd",
+          pointerEvents: "none",
+        }}/>
+      )}
+
       {/* ═══ 7. RODAPÉ ═══════════════════════════════════════════════════════ */}
       <div style={{
         position: "absolute", bottom: "8mm", left: "12mm", right: "12mm",
         display: "flex", alignItems: "flex-end", justifyContent: "space-between",
-        borderTop: "0.3px solid #ddd", paddingTop: "3mm",
+        paddingTop: "3mm",
       }}>
         <div>
           {rodapeEsq.map((linha, i) => (
