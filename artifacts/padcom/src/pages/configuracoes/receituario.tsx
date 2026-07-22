@@ -538,19 +538,64 @@ export default function ConfigReceituario() {
                 </div>
               ))}
 
+              {/* P8 — Toggle tipo de receituário */}
+              <div className="panel-3d-sub p-3 space-y-2">
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">Tipo de Receituário</div>
+                <div className="flex gap-2">
+                  {(["especial", "simples"] as const).map(t => (
+                    <button key={t} onClick={() => patch({ tipoReceitaPadrao: t })}
+                      className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all
+                        ${cfg.tipoReceitaPadrao === t ? "bevel-3d text-white" : "btn-3d-soft text-gray-600"}`}>
+                      {t === "especial" ? "Controle Especial" : "Receituário Comum"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400">
+                  {cfg.tipoReceitaPadrao === "especial"
+                    ? "Exibe os boxes 3 e 4 (Comprador e Fornecedor) fixos acima do rodapé."
+                    : "Sem boxes 3 e 4 — prescrição simples sem identificação de farmácia."}
+                </p>
+              </div>
+
               {/* Dimensões dos boxes */}
               <div className="panel-3d-sub p-3 space-y-3">
                 <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                   Dimensões dos Boxes
                 </div>
-                <FieldRow label={`Altura mínima de cada box: ${cfg.boxMinHeight} px`}>
-                  <input type="range" min={100} max={300} step={10} value={cfg.boxMinHeight}
+
+                {/* P6 — Slider exclusivo Boxes 1+2 */}
+                <FieldRow label={`Altura — Boxes 1 e 2 (faixa superior): ${cfg.boxSuperiorMinHeight ?? 120} px`}>
+                  <input type="range" min={60} max={300} step={10}
+                    value={cfg.boxSuperiorMinHeight ?? 120}
+                    onChange={e => patch({ boxSuperiorMinHeight: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>60 px (compacto)</span><span>300 px (espaçoso)</span>
+                  </div>
+                </FieldRow>
+
+                {/* P7 — Slider exclusivo Boxes 3+4 */}
+                <FieldRow label={`Altura — Boxes 3 e 4 (faixa inferior): ${cfg.boxMinHeight} px`}>
+                  <input type="range" min={60} max={300} step={10} value={cfg.boxMinHeight}
                     onChange={e => patch({ boxMinHeight: Number(e.target.value) })}
                     className="w-full accent-teal-600"/>
                   <div className="flex justify-between text-xs text-gray-400 mt-1">
-                    <span>100 px (compacto)</span><span>300 px (espaçoso)</span>
+                    <span>60 px (compacto)</span><span>300 px (espaçoso)</span>
                   </div>
                 </FieldRow>
+
+                {/* Posição vertical dos boxes 3+4 */}
+                {cfg.tipoReceitaPadrao === "especial" && (
+                  <FieldRow label={`Distância do fundo — Boxes 3 e 4: ${cfg.boxInferiorBottom ?? 30} mm`}>
+                    <input type="range" min={20} max={80} step={1}
+                      value={cfg.boxInferiorBottom ?? 30}
+                      onChange={e => patch({ boxInferiorBottom: Number(e.target.value) })}
+                      className="w-full accent-teal-600"/>
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>20 mm (mais baixo)</span><span>80 mm (mais alto)</span>
+                    </div>
+                  </FieldRow>
+                )}
                 <FieldRow label={`Espaço interno horizontal de cada box: ${cfg.boxInnerPaddingX} mm`}>
                   <input type="range" min={1} max={15} step={0.5} value={cfg.boxInnerPaddingX}
                     onChange={e => patch({ boxInnerPaddingX: Number(e.target.value) })}

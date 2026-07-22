@@ -51,7 +51,9 @@ export type ReceituarioConfig = {
   boxLeftWidthPercent: number;  // largura do box esquerdo em % (0–100); 50 = igual
   boxWidthPct: number;          // % da coluna que cada box ocupa (30–100); <100 expõe arabesque
   boxBorderWidth: number;
-  boxMinHeight: number;   // altura mínima de cada box (px)
+  boxSuperiorMinHeight: number; // altura mínima boxes 1+2 (px) — P6
+  boxMinHeight: number;         // altura mínima boxes 3+4 (px) — P7
+  boxInferiorBottom: number;    // distância mm do fundo da página aos boxes 3+4 — P3
   boxBandGap: number;     // distância entre os 2 boxes dentro de cada faixa (mm)
   boxInnerPaddingX: number; // padding horizontal interno de cada box (mm)
   boxFaixinhaEsquerda: boolean;
@@ -112,7 +114,9 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxLeftWidthPercent: 50,
   boxWidthPct:         100,
   boxBorderWidth:      1,
+  boxSuperiorMinHeight: 120,
   boxMinHeight:        180,
+  boxInferiorBottom:   30,
   boxBandGap:          4,
   boxInnerPaddingX:    4,
   boxFaixinhaEsquerda: false,

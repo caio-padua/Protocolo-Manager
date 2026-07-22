@@ -53,18 +53,18 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   if (manuscrito) {
     return (
       <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
-        {/* Linha pontilhada NO TOPO — espaço para escrever à mão */}
-        <span style={{
-          borderTop: "0.6px dashed #bbb",
-          display: "block",
-          minHeight: 11,
-        }}/>
-        {/* Label ABAIXO da linha — identifica o campo */}
+        {/* P0: label NO TOPO — identifica o campo */}
         <span style={{
           fontWeight: 700, color: "#aaa",
           fontSize: 5, letterSpacing: 0.7,
           textTransform: "uppercase",
         }}>{label}</span>
+        {/* P0: linha pontilhada ABAIXO — chão da escrita (borderBottom) */}
+        <span style={{
+          borderBottom: "0.6px dashed #bbb",
+          display: "block",
+          minHeight: 11,
+        }}/>
       </div>
     );
   }
@@ -174,6 +174,7 @@ function BandaComBoxes({
   rightTitulo, rightRows,
   stretchBoxes,
   rightContentAlign,
+  minHeightOverride,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
@@ -186,15 +187,18 @@ function BandaComBoxes({
   stretchBoxes?: boolean;
   /** "bottom" = campos do box direito ficam na parte inferior */
   rightContentAlign?: "top" | "bottom";
+  /** sobrepõe cfg.boxMinHeight para este grupo de boxes — P6/P7 */
+  minHeightOverride?: number;
 }) {
   const leftPct = cfg.boxLeftWidthPercent ?? 50;
   const columns = `${leftPct}fr ${100 - leftPct}fr`;
   const stretch = stretchBoxes !== false;
+  const boxH = minHeightOverride ?? cfg.boxMinHeight;
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
-      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={stretch ? cfg.boxMinHeight : undefined}>
-      {/* box esquerdo: alinha à esquerda */}
+      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={stretch ? boxH : undefined}>
+      {/* box esquerdo */}
       <div style={{
         minWidth: 0,
         height: stretch ? "100%" : undefined,
@@ -209,11 +213,11 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}
+            minHeight={boxH}
             contentAlign="top"/>
         </div>
       </div>
-      {/* box direito: alinha à direita */}
+      {/* box direito */}
       <div style={{
         minWidth: 0,
         height: stretch ? "100%" : undefined,
@@ -228,7 +232,7 @@ function BandaComBoxes({
             faixinha={cfg.boxFaixinhaEsquerda}
             faixinhaCor={cfg.boxFaixinhaCor}
             borderWidth={cfg.boxBorderWidth}
-            minHeight={cfg.boxMinHeight}
+            minHeight={boxH}
             contentAlign={rightContentAlign ?? "top"}/>
         </div>
       </div>
@@ -505,15 +509,16 @@ export function ReceituarioPreview({
       <LinhaDecorativa estilo={cfg.linhaEstiloCabecalho}/>
 
       {/* ═══ 3. FAIXA SUPERIOR — Box 1 (Paciente) + Box 2 (Emitente) ══════ */}
-      {/* P3: Paciente à esquerda, Emitente à direita (posições trocadas pelo CEO) */}
-      {/* P2: stretchBoxes=false elimina espaço vazio abaixo do endereço */}
+      {/* Âncora no topo: topo fixo, limite inferior cresce para baixo (P1+P2) */}
+      {/* minHeightOverride = boxSuperiorMinHeight — slider exclusivo P6 */}
       <BandaComBoxes
         cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
         leftTitulo={cfg.boxPacienteTitulo}
         leftRows={pacienteRows}
         rightTitulo={cfg.boxMedicoTitulo}
         rightRows={emitentRows}
-        stretchBoxes={false}/>
+        stretchBoxes={false}
+        minHeightOverride={cfg.boxSuperiorMinHeight ?? 120}/>
 
       {/* ═══ 4. CORPO / FÓRMULAS ════════════════════════════════════════════ */}
       <div style={{ padding: "5mm 2mm 3mm" }}>
@@ -573,15 +578,24 @@ export function ReceituarioPreview({
       </div>
 
       {/* ═══ 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor) ════ */}
-      {/* P1: rightContentAlign="bottom" coloca campos do Fornecedor na parte inferior */}
+      {/* P3+P4+P5: position:absolute ancorado acima do rodapé — NÃO flutua com prescrições */}
+      {/* P9: visível apenas em receituário especial */}
       {cfg.tipoReceitaPadrao === "especial" && (
-        <BandaComBoxes
-          cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-          leftTitulo={cfg.boxCompradorTitulo}
-          leftRows={compradorRows}
-          rightTitulo={cfg.boxFarmaciaTitulo}
-          rightRows={fornecedorRows}
-          rightContentAlign="bottom"/>
+        <div style={{
+          position: "absolute",
+          bottom: `${cfg.boxInferiorBottom ?? 30}mm`,
+          left: "12mm",
+          right: "12mm",
+        }}>
+          <BandaComBoxes
+            cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
+            leftTitulo={cfg.boxCompradorTitulo}
+            leftRows={compradorRows}
+            rightTitulo={cfg.boxFarmaciaTitulo}
+            rightRows={fornecedorRows}
+            rightContentAlign="bottom"
+            minHeightOverride={cfg.boxMinHeight}/>
+        </div>
       )}
 
       {/* ═══ 7. RODAPÉ ═══════════════════════════════════════════════════════ */}
