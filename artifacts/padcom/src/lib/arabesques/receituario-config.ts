@@ -54,6 +54,7 @@ export type ReceituarioConfig = {
   boxSuperiorMinHeight: number; // altura mínima boxes 1+2 (px) — P6
   boxMinHeight: number;         // altura mínima boxes 3+4 (px) — P7
   boxInferiorBottom: number;    // distância mm do fundo da página aos boxes 3+4 — P3
+  boxInferiorBandTopPct: number; // posição vertical (%) da faixa ornamental dentro dos boxes 3+4 (0=topo, 50=centro)
   boxBandGap: number;     // distância entre os 2 boxes dentro de cada faixa (mm)
   boxInnerPaddingX: number; // padding horizontal interno de cada box (mm)
   boxFaixinhaEsquerda: boolean;
@@ -117,6 +118,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxSuperiorMinHeight: 120,
   boxMinHeight:        150,
   boxInferiorBottom:   8,
+  boxInferiorBandTopPct: 0,
   boxBandGap:          4,
   boxInnerPaddingX:    4,
   boxFaixinhaEsquerda: false,

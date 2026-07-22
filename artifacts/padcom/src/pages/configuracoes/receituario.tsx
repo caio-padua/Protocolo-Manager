@@ -586,6 +586,7 @@ export default function ConfigReceituario() {
 
                 {/* Posição vertical dos boxes 3+4 */}
                 {cfg.tipoReceitaPadrao === "especial" && (
+                  <>
                   <FieldRow label={`Distância do fundo — Boxes 3 e 4: ${cfg.boxInferiorBottom ?? 30} mm`}>
                     <input type="range" min={20} max={80} step={1}
                       value={cfg.boxInferiorBottom ?? 30}
@@ -595,6 +596,16 @@ export default function ConfigReceituario() {
                       <span>20 mm (mais baixo)</span><span>80 mm (mais alto)</span>
                     </div>
                   </FieldRow>
+                  <FieldRow label={`Altura da faixa ornamental — Boxes 3 e 4: ${cfg.boxInferiorBandTopPct ?? 0}%`}>
+                    <input type="range" min={0} max={70} step={1}
+                      value={cfg.boxInferiorBandTopPct ?? 0}
+                      onChange={e => patch({ boxInferiorBandTopPct: Number(e.target.value) })}
+                      className="w-full accent-teal-600"/>
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>0% (topo do box)</span><span>70% (mais baixo)</span>
+                    </div>
+                  </FieldRow>
+                  </>
                 )}
                 <FieldRow label={`Espaço interno horizontal de cada box: ${cfg.boxInnerPaddingX} mm`}>
                   <input type="range" min={1} max={15} step={0.5} value={cfg.boxInnerPaddingX}
