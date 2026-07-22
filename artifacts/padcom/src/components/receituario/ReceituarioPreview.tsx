@@ -66,7 +66,7 @@ function FieldLine({ label, value }: { label: string; value?: string }) {
 
 // ── Box de identificação v2 — campos fixos por rows ───────────────────────────
 function IdentBoxV2({
-  titulo, rows, borderWidth, faixinha, faixinhaCor, minHeight,
+  titulo, rows, borderWidth, faixinha, faixinhaCor, minHeight, paddingX,
 }: {
   titulo: string;
   rows: CampoRow[];
@@ -74,7 +74,9 @@ function IdentBoxV2({
   faixinha: boolean;
   faixinhaCor: string;
   minHeight?: number;
+  paddingX?: number;
 }) {
+  const px = paddingX ?? 4;
   return (
     <div style={{
       position: "relative", zIndex: 2,
@@ -84,7 +86,7 @@ function IdentBoxV2({
       borderLeft: faixinha
         ? `${Math.max(borderWidth, 3)}px solid ${faixinhaCor}`
         : `${borderWidth}px solid #454545`,
-      padding: "3mm 4mm",
+      padding: `3mm ${px}mm`,
       boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
       minHeight: minHeight ? `${minHeight}px` : undefined,
       height: "100%", boxSizing: "border-box",
@@ -161,6 +163,7 @@ function BandaComBoxes({
         <IdentBoxV2
           titulo={leftTitulo}
           rows={leftRows}
+          paddingX={cfg.boxInnerPaddingX}
           faixinha={cfg.boxFaixinhaEsquerda}
           faixinhaCor={cfg.boxFaixinhaCor}
           borderWidth={cfg.boxBorderWidth}
@@ -170,6 +173,7 @@ function BandaComBoxes({
         <IdentBoxV2
           titulo={rightTitulo}
           rows={rightRows}
+          paddingX={cfg.boxInnerPaddingX}
           faixinha={cfg.boxFaixinhaEsquerda}
           faixinhaCor={cfg.boxFaixinhaCor}
           borderWidth={cfg.boxBorderWidth}
@@ -308,6 +312,7 @@ export function ReceituarioPreview({
   medicoData, clinicaData,
   formulasReais,
   pacienteData,
+  showDemoData,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
@@ -318,6 +323,8 @@ export function ReceituarioPreview({
   formulasReais?: RealFormula[];
   /** Dados reais do paciente — preenche o Box 2 quando fornecido */
   pacienteData?: PacienteDataBind;
+  /** Preenche boxes 2–4 com dados fictícios para testar o layout no designer */
+  showDemoData?: boolean;
 }) {
   const rodapeEsq = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
 
@@ -339,28 +346,28 @@ export function ReceituarioPreview({
 
   // ── P3/P5: Box 2 (Paciente) — data-bind quando pacienteData disponível ──
   const pacienteRows: CampoRow[] = [
-    { label: "Nome Completo", value: pacienteData?.nome },
+    { label: "Nome Completo", value: pacienteData?.nome ?? (showDemoData ? "Marina Oliveira da Silva" : undefined) },
     [
-      { label: "CPF",        value: pacienteData?.cpf },
-      { label: "Nascimento", value: pacienteData?.nascimento },
-      { label: "Telefone",   value: pacienteData?.telefone },
+      { label: "CPF",        value: pacienteData?.cpf        ?? (showDemoData ? "000.000.000-00" : undefined) },
+      { label: "Nascimento", value: pacienteData?.nascimento ?? (showDemoData ? "01/01/1990" : undefined) },
+      { label: "Telefone",   value: pacienteData?.telefone   ?? (showDemoData ? "(11) 99999-9999" : undefined) },
     ],
-    { label: "Endereço Completo", value: pacienteData?.endereco },
+    { label: "Endereço Completo", value: pacienteData?.endereco ?? (showDemoData ? "Rua das Flores, 250 — São Paulo, SP" : undefined) },
   ];
 
-  // ── P3/P5: Box 3 (Comprador) — em branco (farmácia preenche) ─────────────
+  // ── P3/P5: Box 3 (Comprador) — em branco (farmácia preenche); demo no designer ─
   const compradorRows: CampoRow[] = [
-    { label: "Nome" },
-    { label: "Endereço" },
-    [{ label: "Cidade" }, { label: "UF" }],
-    [{ label: "Identidade" }, { label: "Org. Emissora" }],
-    { label: "Telefone" },
+    { label: "Nome",     value: showDemoData ? "João Carlos Rodrigues" : undefined },
+    { label: "Endereço", value: showDemoData ? "Av. Paulista, 1000, Ap 203" : undefined },
+    [{ label: "Cidade", value: showDemoData ? "São Paulo" : undefined }, { label: "UF", value: showDemoData ? "SP" : undefined }],
+    [{ label: "Identidade", value: showDemoData ? "12.345.678-9" : undefined }, { label: "Org. Emissora", value: showDemoData ? "SSP/SP" : undefined }],
+    { label: "Telefone", value: showDemoData ? "(11) 98888-7777" : undefined },
   ];
 
-  // ── P3/P5: Box 4 (Fornecedor) — em branco (farmácia preenche) ─────────────
+  // ── P3/P5: Box 4 (Fornecedor) — em branco (farmácia preenche); demo no designer ─
   const fornecedorRows: CampoRow[] = [
-    { label: "Assinatura do Farmacêutico" },
-    { label: "Data" },
+    { label: "Assinatura do Farmacêutico", value: showDemoData ? "Dra. Paula Farmacêutica" : undefined },
+    { label: "Data", value: showDemoData ? new Date().toLocaleDateString("pt-BR") : undefined },
   ];
 
   return (

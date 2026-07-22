@@ -51,6 +51,7 @@ export type ReceituarioConfig = {
   boxBorderWidth: number;
   boxMinHeight: number;   // altura mínima de cada box (px)
   boxBandGap: number;     // distância entre os 2 boxes dentro de cada faixa (mm)
+  boxInnerPaddingX: number; // padding horizontal interno de cada box (mm)
   boxFaixinhaEsquerda: boolean;
   boxFaixinhaCor: string;
 
@@ -109,6 +110,7 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   boxBorderWidth:      1,
   boxMinHeight:        180,
   boxBandGap:          4,
+  boxInnerPaddingX:    4,
   boxFaixinhaEsquerda: false,
   boxFaixinhaCor:      "#45B8CC",
 

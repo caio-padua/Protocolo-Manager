@@ -551,8 +551,16 @@ export default function ConfigReceituario() {
                     <span>100 px (compacto)</span><span>300 px (espaçoso)</span>
                   </div>
                 </FieldRow>
+                <FieldRow label={`Espaço interno horizontal de cada box: ${cfg.boxInnerPaddingX} mm`}>
+                  <input type="range" min={1} max={15} step={0.5} value={cfg.boxInnerPaddingX}
+                    onChange={e => patch({ boxInnerPaddingX: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>1 mm (mínimo — encolhido ao conteúdo)</span><span>15 mm (espaçoso)</span>
+                  </div>
+                </FieldRow>
                 <FieldRow label={`Distância entre os 2 boxes na faixa: ${cfg.boxBandGap} mm`}>
-                  <input type="range" min={2} max={12} step={1} value={cfg.boxBandGap}
+                  <input type="range" min={0} max={12} step={0.5} value={cfg.boxBandGap}
                     onChange={e => patch({ boxBandGap: Number(e.target.value) })}
                     className="w-full accent-teal-600"/>
                   <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -1007,21 +1015,32 @@ export default function ConfigReceituario() {
             {/* P1: Preview sem scroll — altura natural */}
             {showPreview && (
               <div className="concave-3d rounded-xl p-3">
+                {/* FIX distorção: wrapper com dimensões VISUAIS exatas.
+                    CSS transform não afeta layout flow — o inner div ocupa 794px de layout
+                    mesmo visualmente menor. position:absolute retira do fluxo e o wrapper
+                    externo define o footprint correto, eliminando overflow e distorção de escala. */}
                 <div style={{
-                  transform: "scale(0.55)",
-                  transformOrigin: "top left",
-                  width: "794px",
-                  pointerEvents: "none",
+                  width: "calc(794px * 0.55)",
+                  height: "calc(1123px * 0.55)",
+                  position: "relative",
+                  overflow: "hidden",
                 }}>
-                  <ReceituarioPreview
-                    cfg={cfg}
-                    bandModelId={previewBand}
-                    customBandDataUrl={previewCustomUrl}
-                    medicoData={medicoDataBind}
-                    clinicaData={clinicaDataBind}/>
+                  <div style={{
+                    position: "absolute", top: 0, left: 0,
+                    width: "794px",
+                    transform: "scale(0.55)",
+                    transformOrigin: "top left",
+                    pointerEvents: "none",
+                  }}>
+                    <ReceituarioPreview
+                      cfg={cfg}
+                      bandModelId={previewBand}
+                      customBandDataUrl={previewCustomUrl}
+                      medicoData={medicoDataBind}
+                      clinicaData={clinicaDataBind}
+                      showDemoData={true}/>
+                  </div>
                 </div>
-                {/* Espaçador: garante que o container respeite a altura escalada */}
-                <div style={{ height: `calc(1123px * 0.55)` }}/>
               </div>
             )}
 
@@ -1100,26 +1119,37 @@ export default function ConfigReceituario() {
               <X style={{ width: 14, height: 14 }}/> Fechar
             </button>
           </div>
-          {/* Preview em escala 85% */}
+          {/* FIX distorção: mesmo padrão do preview pequeno — position:absolute dentro
+              de wrapper com dimensões visuais exatas. Ambos os previews ficam idênticos
+              proporcionalmente (sem distorção ao comparar 55% vs 85%). */}
           <div style={{ display: "flex", justifyContent: "center" }}
             onClick={e => e.stopPropagation()}>
             <div style={{
-              transform: "scale(0.85)",
-              transformOrigin: "top center",
-              width: 794,
-              pointerEvents: "none",
+              width: "calc(794px * 0.85)",
+              height: "calc(1123px * 0.85)",
+              position: "relative",
+              overflow: "hidden",
               boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
             }}>
-              <ReceituarioPreview
-                cfg={cfg}
-                bandModelId={previewBand}
-                customBandDataUrl={previewCustomUrl}
-                medicoData={medicoDataBind}
-                clinicaData={clinicaDataBind}/>
+              <div style={{
+                position: "absolute", top: 0, left: 0,
+                width: "794px",
+                transform: "scale(0.85)",
+                transformOrigin: "top left",
+                pointerEvents: "none",
+              }}>
+                <ReceituarioPreview
+                  cfg={cfg}
+                  bandModelId={previewBand}
+                  customBandDataUrl={previewCustomUrl}
+                  medicoData={medicoDataBind}
+                  clinicaData={clinicaDataBind}
+                  showDemoData={true}/>
+              </div>
             </div>
           </div>
           {/* Espaçador para scroll */}
-          <div style={{ height: `calc(1123px * 0.85 + 64px)` }}/>
+          <div style={{ height: "64px" }}/>
         </div>
       )}
     </div>
