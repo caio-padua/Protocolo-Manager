@@ -215,19 +215,33 @@ export default function ModeloReceituario() {
 
                 {/* Ações */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Emitir teste */}
+                  {/* Emitir Receituário (Motor Único) */}
+                  <Button
+                    size="sm"
+                    disabled={isTestando}
+                    onClick={() => emitirTeste(m.id)}
+                    className="bg-[#3D7A7A] hover:bg-[#4a9090] text-white text-xs gap-1.5 border-0"
+                    title="Motor único — emite PDF real com dados do modelo"
+                  >
+                    {isTestando
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <FlaskConical className="w-3.5 h-3.5" />}
+                    Emitir Receituário
+                  </Button>
+
+                  {/* Gerar PDF Visual (Puppeteer server-side) */}
                   <Button
                     size="sm"
                     variant="ghost"
                     disabled={isTestando}
                     onClick={() => emitirTeste(m.id)}
                     className="text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 text-xs gap-1.5"
-                    title="Emitir PDF de demonstração com este modelo"
+                    title="Puppeteer server-side — captura fiel do template HTML"
                   >
                     {isTestando
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       : <FlaskConical className="w-3.5 h-3.5" />}
-                    Testar
+                    Gerar PDF Visual
                   </Button>
 
                   {/* Ativar */}

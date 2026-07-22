@@ -4,7 +4,7 @@
  * e os slots atrasados (vencidos sem liberar).
  */
 import { useEffect, useState } from "react";
-import { Calendar, AlertTriangle, Send, Loader2, CheckCircle2, FileText, X, ExternalLink, Zap } from "lucide-react";
+import { Calendar, AlertTriangle, Send, Loader2, CheckCircle2, FileText, X, ExternalLink, Zap, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,16 +41,45 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
   const [carregando, setCarregando] = useState(true);
   const [liberando, setLiberando] = useState<number | null>(null);
 
-  // ── Emissão rápida ICP-Brasil ────────────────────────────────────────────
+  // ── Emissão rápida ICP-Brasil (Motor Único) ──────────────────────────────
   const [emitirAberto,    setEmitirAberto]    = useState(false);
   const [emitirLoading,   setEmitirLoading]   = useState(false);
   const [emitirResultado, setEmitirResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
+  // ── Gerar PDF Visual (server-side Puppeteer — fiel ao template HTML) ─────
+  const [gerarLoading, setGerarLoading] = useState(false);
+  const [gerarResultado, setGerarResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
   const [emitirFormula,   setEmitirFormula]   = useState({
     nome: "Bupropiona 180mg + Topiramato 20mg",
     dose: "Cápsula XR",
     posologia: "1 dose VO – 2h Antes do Almoço (10h)\n1 dose VO – 2h Antes do Jantar (18h)",
     via: "oral",
   });
+
+  async function gerarPdfVisual() {
+    setGerarLoading(true);
+    setGerarResultado(null);
+    try {
+      const r = await apiFetch("/api/receituario/emitir-cliente", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: clientId ?? 11,
+          formulas: [{
+            nome:      emitirFormula.nome,
+            forma:     emitirFormula.dose || undefined,
+            posologia: emitirFormula.posologia || undefined,
+            via:       emitirFormula.via || "oral",
+          }],
+          tipoReceita: "especial",
+        }),
+      });
+      setGerarResultado({ ok: true, driveUrl: r.driveUrl, emailSent: r.emailSent });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setGerarResultado({ ok: false, error: msg });
+    } finally {
+      setGerarLoading(false);
+    }
+  }
 
   async function emitirReceita() {
     if (!emitirFormula.nome.trim()) return;
@@ -143,13 +172,25 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
           Receituário Automático
           <span className="concave-3d px-1.5 py-0 text-[10px] font-bold ml-1">{total}</span>
         </div>
-        <Button
-          className="btn-3d h-7 text-xs gap-1 shrink-0"
-          onClick={() => { setEmitirResultado(null); setEmitirAberto(true); }}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          Emitir Receita Real
-        </Button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            className="btn-3d h-7 text-xs gap-1"
+            onClick={() => { setEmitirResultado(null); setEmitirAberto(true); }}
+            title="Motor único — lê o modelo ativo do banco"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Emitir Receituário
+          </Button>
+          <Button
+            className="btn-3d-soft h-7 text-xs gap-1"
+            onClick={() => { void gerarPdfVisual(); }}
+            disabled={gerarLoading}
+            title="Puppeteer server-side — fiel ao template HTML"
+          >
+            {gerarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+            PDF Visual
+          </Button>
+        </div>
       </div>
 
       {/* Modal emissão rápida ICP-Brasil */}

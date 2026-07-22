@@ -384,6 +384,13 @@ export default function PrescricaoPage(
     setGerandoPdf(true);
     try {
       // 1. Captura o motor visual (ReceituarioPreview) como PNG em alta resolução
+      // Aguarda fontes + imagens carregarem (elimina captura com fonte fallback)
+      await document.fonts.ready;
+      await Promise.all(
+        Array.from(previewRef.current.querySelectorAll("img")).map(
+          (img) => img.complete ? Promise.resolve() : new Promise<void>((r) => { img.onload = () => r(); img.onerror = () => r(); })
+        )
+      );
       const { default: html2canvas } = await import("html2canvas");
       const canvas = await html2canvas(previewRef.current, {
         scale: 2,

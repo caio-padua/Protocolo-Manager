@@ -85,6 +85,10 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
   const [routing, setRouting] = useState<Record<string, RouteState>>({});
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
+  // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
+  const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
+  // ── PDF Visual (Puppeteer server-side — fiel ao template HTML) ────────────
+  const [gerarPdfVisualLoading, setGerarPdfVisualLoading] = useState(false);
 
   const { data: pharmacies } = useListPharmacies();
 
@@ -261,6 +265,64 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
       }
     }
     return null;
+  };
+
+  const handleEmitirMotorUnico = async () => {
+    setEmitirMotorUnicoLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/receituario/emitir-prescricao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("collab_token") ?? ""}` },
+        body: JSON.stringify({
+          clientId,
+          formulas: selected.map(f => ({
+            nome: f.formula,
+            posologia: f.posologia || undefined,
+            via: "oral",
+          })),
+          tipoReceita: "especial",
+        }),
+      });
+      const d = await r.json() as { ok?: boolean; driveUrl?: string };
+      if (d.ok) {
+        alert(`Receituário emitido com sucesso!${d.driveUrl ? " Salvo no Drive." : ""}`);
+      } else {
+        alert("Erro ao emitir receituário. Verifique os logs.");
+      }
+    } catch (e) {
+      alert(`Erro de conexão: ${String(e)}`);
+    } finally {
+      setEmitirMotorUnicoLoading(false);
+    }
+  };
+
+  const handleGerarPdfVisual = async () => {
+    setGerarPdfVisualLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/receituario/emitir-cliente`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("collab_token") ?? ""}` },
+        body: JSON.stringify({
+          clientId,
+          formulas: selected.map(f => ({
+            nome: f.formula,
+            posologia: f.posologia || undefined,
+            via: "oral",
+          })),
+          tipoReceita: "especial",
+        }),
+      });
+      const d = await r.json() as { ok?: boolean; driveUrl?: string };
+      if (d.ok) {
+        alert(`PDF Visual gerado!${d.driveUrl ? " Salvo no Drive." : ""}`);
+      } else {
+        alert("Erro ao gerar PDF Visual. Verifique os logs.");
+      }
+    } catch (e) {
+      alert(`Erro de conexão: ${String(e)}`);
+    } finally {
+      setGerarPdfVisualLoading(false);
+    }
   };
 
   const handlePreview = () => {
@@ -749,6 +811,24 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                     >
                       {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
+                    </button>
+                    {/* ── Motor Único (lê modelo ativo do banco) ── */}
+                    <button
+                      onClick={() => { void handleEmitirMotorUnico(); }}
+                      disabled={emitirMotorUnicoLoading}
+                      className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                    >
+                      {emitirMotorUnicoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      Emitir Receituário
+                    </button>
+                    {/* ── PDF Visual (Puppeteer server-side) ── */}
+                    <button
+                      onClick={() => { void handleGerarPdfVisual(); }}
+                      disabled={gerarPdfVisualLoading}
+                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                    >
+                      {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      Gerar PDF Visual
                     </button>
                   </div>
 

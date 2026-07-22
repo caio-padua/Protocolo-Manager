@@ -4,7 +4,7 @@
 // Usado tanto no preview da tela (scale 0.55) quanto na impressão (1:1)
 // Spec: specs/receituario-designer-v2.md
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useRef, useState, useEffect } from "react";
+import React from "react";
 import { type ReceituarioConfig } from "@/lib/arabesques/receituario-config";
 import { ArabesqueBand } from "@/lib/arabesques/ArabesqueBand";
 
@@ -407,27 +407,9 @@ export function ReceituarioPreview({
   /** Preenche boxes 2–4 com dados fictícios para testar o layout no designer */
   showDemoData?: boolean;
 }) {
-  // ── ResizeObserver: mede a altura REAL dos boxes 3+4 ─────────────────────
-  // offsetHeight = content + padding + border (layout px, ignora transform:scale)
-  // Conversão exata: página = 794px de largura = 210mm (A4)  →  1px = 210/794 mm
-  const boxesRef = useRef<HTMLDivElement>(null);
-  const isEspecial = cfg.tipoReceitaPadrao === "especial";
-  const [boxesHeightPx, setBoxesHeightPx] = useState<number>(cfg.boxMinHeight ?? 150);
-
-  useEffect(() => {
-    if (!isEspecial) return;
-    const el = boxesRef.current;
-    if (!el) return;
-    const measure = () => setBoxesHeightPx(el.offsetHeight);
-    const obs = new ResizeObserver(measure);
-    obs.observe(el);
-    measure(); // medição inicial
-    return () => obs.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEspecial, cfg.boxMinHeight]); // re-run when boxMinHeight changes too
-
-  const MM_PER_PX = 210 / 794; // proporção exata da página A4 renderizada
-  const assinaturaBottomMm = (cfg.boxInferiorBottom ?? 8) + (boxesHeightPx * MM_PER_PX) + 4;
+  // ── CSS Grid determinístico (v4 — sem ResizeObserver) ───────────────────
+  // Layout: [top: header+sep+boxes1+2] | [corpo: 1fr] | [bottom: assinatura+boxes3+4+rodapé]
+  // Elimina position:absolute e dependência de medição JS — html2canvas captura layout estável.
 
   const rodapeEsq = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
 
@@ -478,14 +460,18 @@ export function ReceituarioPreview({
   return (
     <div style={{
       background: "#fff",
-      width: 794, minHeight: 1123,
+      width: 794, height: 1123,
       fontFamily: "Georgia, serif",
       fontSize: 8,
       color: "#111",
-      position: "relative",
       boxSizing: "border-box",
       padding: "10mm 12mm",
+      display: "grid",
+      gridTemplateRows: "auto 1fr auto",
     }}>
+
+      {/* ══ BLOCO TOPO (grid row 1: auto) — cabeçalho + separadores + boxes 1+2 ══ */}
+      <div>
 
       {/* ═══ 1. CABEÇALHO ═══════════════════════════════════════════════════ */}
       <div style={{
@@ -572,8 +558,10 @@ export function ReceituarioPreview({
         stretchBoxes={false}
         minHeightOverride={cfg.boxSuperiorMinHeight ?? 120}/>
 
-      {/* ═══ 4. CORPO / FÓRMULAS ════════════════════════════════════════════ */}
-      <div style={{ padding: "5mm 2mm 3mm" }}>
+      </div>{/* ── fim BLOCO TOPO ── */}
+
+      {/* ══ BLOCO CORPO (grid row 2: 1fr) — fórmulas preenchem o espaço restante ══ */}
+      <div style={{ padding: "5mm 2mm 3mm", overflow: "hidden" }}>
         <div style={{ fontSize: 11, fontStyle: "italic", marginBottom: "4mm",
           fontFamily: cfg.corpoFonteTitulo }}>
           Prescrevo:
@@ -600,30 +588,20 @@ export function ReceituarioPreview({
             </>
           )
         }
-      </div>
+      </div>{/* ── fim BLOCO CORPO ── */}
+
+      {/* ══ BLOCO BOTTOM (grid row 3: auto) — assinatura + boxes 3+4 + rodapé ══ */}
+      {/* Layout determinístico: sem position:absolute, sem ResizeObserver.       */}
+      {/* O grid row 2 (1fr) cresce para preencher o espaço, empurrando o bottom. */}
+      <div>
 
       {/* ═══ 5. ASSINATURA + CERTIFICADO ════════════════════════════════════ */}
-      {/* No modo especial: absolutamente posicionado logo acima dos boxes 3+4.
-          bottom = boxInferiorBottom(mm) + boxMinHeight(px→mm) + 4mm gap.
-          Conversão px→mm: 1mm = 3.7795px (96 DPI padrão CSS).
-          Quando boxMinHeight aumenta → bottom sobe automaticamente (Pedido 2). */}
-      <div style={(() => {
-        if (cfg.tipoReceitaPadrao !== "especial") {
-          return {
-            display: "flex", alignItems: "flex-start", gap: "8mm",
-            padding: "4mm 2mm 6mm", borderTop: "0.3px solid #eee", marginTop: "2mm",
-          };
-        }
-        return {
-          position: "absolute",
-          bottom: `${assinaturaBottomMm.toFixed(2)}mm`,
-          left: "12mm",
-          right: "12mm",
-          display: "flex", alignItems: "flex-start", gap: "8mm",
-          paddingTop: "4mm",
-          borderTop: "0.3px solid #eee",
-        };
-      })()}>
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: "8mm",
+        padding: "4mm 2mm 6mm",
+        borderTop: "0.3px solid #eee",
+        marginTop: "2mm",
+      }}>
         <div style={{ flex: "0 0 auto", minWidth: 140 }}>
           {cfg.assinaturaModo === "imagem" && cfg.assinaturaDataUrl
             ? <img src={cfg.assinaturaDataUrl} alt="Assinatura"
@@ -647,15 +625,9 @@ export function ReceituarioPreview({
       </div>
 
       {/* ═══ 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor) ════ */}
-      {/* P3+P4+P5: position:absolute ancorado acima do rodapé — NÃO flutua com prescrições */}
-      {/* P9: visível apenas em receituário especial */}
+      {/* Grid determinístico: flui após a assinatura, sem position:absolute */}
       {cfg.tipoReceitaPadrao === "especial" && (
-        <div ref={boxesRef} style={{
-          position: "absolute",
-          bottom: `${cfg.boxInferiorBottom ?? 8}mm`,
-          left: "12mm",
-          right: "12mm",
-        }}>
+        <div style={{ marginTop: "2mm" }}>
           <BandaComBoxes
             cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
             leftTitulo={cfg.boxCompradorTitulo}
@@ -669,22 +641,20 @@ export function ReceituarioPreview({
         </div>
       )}
 
-      {/* ═══ Separador inferior controlável (entre boxes 3+4 e rodapé) ════ */}
+      {/* ═══ Separador inferior (entre boxes 3+4 e rodapé) ════ */}
       {(cfg.sepInfAtivo ?? true) && cfg.tipoReceitaPadrao === "especial" && (
         <div style={{
-          position: "absolute",
-          bottom: `${cfg.sepInfBottom ?? 20}mm`,
-          left: "12mm", right: "12mm",
           borderTop: `${cfg.sepInfEspessura ?? 0.3}px solid #ddd`,
+          marginTop: "2mm",
           pointerEvents: "none",
         }}/>
       )}
 
       {/* ═══ 7. RODAPÉ ═══════════════════════════════════════════════════════ */}
       <div style={{
-        position: "absolute", bottom: "8mm", left: "12mm", right: "12mm",
         display: "flex", alignItems: "flex-end", justifyContent: "space-between",
         paddingTop: "3mm",
+        marginTop: cfg.tipoReceitaPadrao === "especial" ? "2mm" : "auto",
       }}>
         <div>
           {rodapeEsq.map((linha, i) => (
@@ -715,6 +685,8 @@ export function ReceituarioPreview({
           </div>
         </div>
       </div>
+
+      </div>{/* ── fim BLOCO BOTTOM ── */}
 
     </div>
   );

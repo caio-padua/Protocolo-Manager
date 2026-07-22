@@ -17,7 +17,7 @@ import {
   FlaskConical, Microscope, Calendar, Save, Plus, Minus,
   ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
   CheckCircle2, Clock, Edit3, Loader2, Play, ChevronDown,
-  ChevronUp, Banknote, Bell, Info, Pill, FileText, ExternalLink, Zap,
+  ChevronUp, Banknote, Bell, Info, Pill, FileText, ExternalLink, Zap, Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -352,6 +352,39 @@ export default function ReceituarioAutomatico() {
   const [emitirAberto,    setEmitirAberto]    = useState(false);
   const [emitirLoading,   setEmitirLoading]   = useState(false);
   const [emitirResultado, setEmitirResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
+  // ── Gerar PDF Visual (Puppeteer server-side — fiel ao template HTML) ─────
+  const [gerarLoading, setGerarLoading] = useState(false);
+
+  async function gerarPdfVisual() {
+    if (!clienteSelId) return;
+    setGerarLoading(true);
+    try {
+      const r = await fetch(`${API}/api/receituario/emitir-cliente`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({
+          clientId: clienteSelId,
+          formulas: [{
+            nome:      emitirFormula.nome || "Bupropiona 180mg + Topiramato 20mg",
+            posologia: emitirFormula.posologia || undefined,
+            via:       emitirFormula.via || "oral",
+          }],
+          tipoReceita: "especial",
+        }),
+      });
+      const data = await r.json() as { ok?: boolean; driveUrl?: string; emailSent?: boolean };
+      if (data.ok) {
+        toast({ title: "PDF Visual gerado", description: data.driveUrl ? "Salvo no Drive" : "Gerado com sucesso" });
+      } else {
+        toast({ title: "Erro ao gerar PDF Visual", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Erro de conexão", description: String(e), variant: "destructive" });
+    } finally {
+      setGerarLoading(false);
+    }
+  }
+
   const [emitirFormula,   setEmitirFormula]   = useState({
     nome:      "Bupropiona 180mg + Topiramato 20mg",
     dose:      "Cápsula XR — 30 unidades",
@@ -774,13 +807,25 @@ export default function ReceituarioAutomatico() {
             </div>
           </div>
         </div>
-        <Button
-          className="btn-3d shrink-0 gap-2 text-sm"
-          onClick={() => { setEmitirResultado(null); setEmitirFormula({ nome: "", dose: "", posologia: "", via: "oral" }); setEmitirAberto(true); }}
-        >
-          <FileText className="w-4 h-4" />
-          Emitir Receita Real
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            className="btn-3d gap-2 text-sm"
+            onClick={() => { setEmitirResultado(null); setEmitirFormula({ nome: "", dose: "", posologia: "", via: "oral" }); setEmitirAberto(true); }}
+            title="Motor único — lê o modelo ativo do banco"
+          >
+            <FileText className="w-4 h-4" />
+            Emitir Receituário
+          </Button>
+          <Button
+            className="btn-3d-soft gap-2 text-sm"
+            disabled={gerarLoading}
+            onClick={() => { void gerarPdfVisual(); }}
+            title="Puppeteer server-side — fiel ao template HTML"
+          >
+            {gerarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            PDF Visual
+          </Button>
+        </div>
       </div>
 
       {/* ── Modal: emissão rápida ─────────────────────────────────────── */}
