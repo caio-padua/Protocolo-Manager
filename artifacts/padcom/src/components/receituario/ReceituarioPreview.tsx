@@ -193,7 +193,7 @@ function BandaComBoxes({
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
-      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={cfg.boxMinHeight}>
+      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={stretch ? cfg.boxMinHeight : undefined}>
       {/* box esquerdo: alinha à esquerda */}
       <div style={{
         minWidth: 0,
