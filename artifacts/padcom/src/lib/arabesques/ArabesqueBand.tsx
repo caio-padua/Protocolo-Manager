@@ -33,7 +33,7 @@ function InlineSVGBand({ modelId, patternId, bandH, children }: {
   return (
     <div style={{ position: "relative", isolation: "isolate",
       display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
-      gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "center" }}>
+      gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "flex-start" }}>
       <svg width="100%" height={bandH} xmlns="http://www.w3.org/2000/svg"
         style={{ position: "absolute", top: "50%", left: 0, transform: "translateY(-50%)", zIndex: 0 }}>
         <defs>
@@ -63,7 +63,7 @@ function RasterBand({ src, bandH, children }: {
   return (
     <div style={{ position: "relative", isolation: "isolate",
       display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
-      gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "center" }}>
+      gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "flex-start" }}>
       <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: bandH,
         transform: "translateY(-50%)", zIndex: 0,
         borderTop: `0.8px solid ${border}`, borderBottom: `0.8px solid ${border}`,
