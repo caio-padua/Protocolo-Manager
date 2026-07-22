@@ -4,7 +4,7 @@
 // Usado tanto no preview da tela (scale 0.55) quanto na impressão (1:1)
 // Spec: specs/receituario-designer-v2.md
 // ─────────────────────────────────────────────────────────────────────────────
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { type ReceituarioConfig } from "@/lib/arabesques/receituario-config";
 import { ArabesqueBand } from "@/lib/arabesques/ArabesqueBand";
 
@@ -407,6 +407,28 @@ export function ReceituarioPreview({
   /** Preenche boxes 2–4 com dados fictícios para testar o layout no designer */
   showDemoData?: boolean;
 }) {
+  // ── ResizeObserver: mede a altura REAL dos boxes 3+4 ─────────────────────
+  // offsetHeight = content + padding + border (layout px, ignora transform:scale)
+  // Conversão exata: página = 794px de largura = 210mm (A4)  →  1px = 210/794 mm
+  const boxesRef = useRef<HTMLDivElement>(null);
+  const isEspecial = cfg.tipoReceitaPadrao === "especial";
+  const [boxesHeightPx, setBoxesHeightPx] = useState<number>(cfg.boxMinHeight ?? 150);
+
+  useEffect(() => {
+    if (!isEspecial) return;
+    const el = boxesRef.current;
+    if (!el) return;
+    const measure = () => setBoxesHeightPx(el.offsetHeight);
+    const obs = new ResizeObserver(measure);
+    obs.observe(el);
+    measure(); // medição inicial
+    return () => obs.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEspecial, cfg.boxMinHeight]); // re-run when boxMinHeight changes too
+
+  const MM_PER_PX = 210 / 794; // proporção exata da página A4 renderizada
+  const assinaturaBottomMm = (cfg.boxInferiorBottom ?? 8) + (boxesHeightPx * MM_PER_PX) + 4;
+
   const rodapeEsq = [cfg.rodapeEndereco, cfg.rodapeDados, cfg.rodapeDados2, cfg.rodapeDados3].filter(Boolean);
 
   const sistemaWordmarkSrc = cfg.rodapeSistemaModo === "imagem"
@@ -592,12 +614,9 @@ export function ReceituarioPreview({
             padding: "4mm 2mm 6mm", borderTop: "0.3px solid #eee", marginTop: "2mm",
           };
         }
-        const PX_PER_MM = 3.7795;
-        const boxHeightMm = (cfg.boxMinHeight ?? 150) / PX_PER_MM;
-        const bottomMm = (cfg.boxInferiorBottom ?? 8) + boxHeightMm + 4;
         return {
           position: "absolute",
-          bottom: `${bottomMm.toFixed(2)}mm`,
+          bottom: `${assinaturaBottomMm.toFixed(2)}mm`,
           left: "12mm",
           right: "12mm",
           display: "flex", alignItems: "flex-start", gap: "8mm",
@@ -631,9 +650,9 @@ export function ReceituarioPreview({
       {/* P3+P4+P5: position:absolute ancorado acima do rodapé — NÃO flutua com prescrições */}
       {/* P9: visível apenas em receituário especial */}
       {cfg.tipoReceitaPadrao === "especial" && (
-        <div style={{
+        <div ref={boxesRef} style={{
           position: "absolute",
-          bottom: `${cfg.boxInferiorBottom ?? 30}mm`,
+          bottom: `${cfg.boxInferiorBottom ?? 8}mm`,
           left: "12mm",
           right: "12mm",
         }}>
