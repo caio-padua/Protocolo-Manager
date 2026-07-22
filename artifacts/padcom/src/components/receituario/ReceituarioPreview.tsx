@@ -50,22 +50,15 @@ type CampoRow = CampoField | CampoField[];  // field único ou linha multi-colun
 
 function FieldLine({ label, value }: { label: string; value?: string }) {
   return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 5,
-      fontSize: 6.5, marginBottom: 3.5, color: "#111",
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
       <span style={{
-        fontWeight: 700, color: "#555",
-        whiteSpace: "nowrap", flexShrink: 0,
-        fontSize: 6, letterSpacing: 0.3,
+        fontWeight: 700, color: "#888",
+        fontSize: 5.5, letterSpacing: 0.8,
         textTransform: "uppercase",
-      }}>{label}:</span>
+      }}>{label}</span>
       {value
-        ? <span style={{ color: "#111", fontWeight: 400, fontSize: 7 }}>{value}</span>
-        : <span style={{
-            flex: 1, borderBottom: "0.4px dotted #bbb",
-            display: "block", minHeight: 10,
-          }}/>
+        ? <span style={{ color: "#111", fontWeight: 600, fontSize: 7.5, lineHeight: 1.3 }}>{value}</span>
+        : <span style={{ borderBottom: "0.4px dotted #bbb", display: "block", minHeight: 11, marginTop: 2 }}/>
       }
     </div>
   );
@@ -73,13 +66,14 @@ function FieldLine({ label, value }: { label: string; value?: string }) {
 
 // ── Box de identificação v2 — campos fixos por rows ───────────────────────────
 function IdentBoxV2({
-  titulo, rows, borderWidth, faixinha, faixinhaCor,
+  titulo, rows, borderWidth, faixinha, faixinhaCor, minHeight,
 }: {
   titulo: string;
   rows: CampoRow[];
   borderWidth: number;
   faixinha: boolean;
   faixinhaCor: string;
+  minHeight?: number;
 }) {
   return (
     <div style={{
@@ -92,6 +86,8 @@ function IdentBoxV2({
         : `${borderWidth}px solid #454545`,
       padding: "3mm 4mm",
       boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
+      minHeight: minHeight ? `${minHeight}px` : undefined,
+      height: "100%", boxSizing: "border-box",
     }}>
       {/* Título do box */}
       <div style={{
@@ -159,22 +155,25 @@ function BandaComBoxes({
     : "1fr 1fr";
 
   return (
-    <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl} columns={columns}>
-      <div style={{ minWidth: 0 }}>
+    <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
+      columns={columns} gap={`${cfg.boxBandGap}mm`}>
+      <div style={{ minWidth: 0, height: "100%" }}>
         <IdentBoxV2
           titulo={leftTitulo}
           rows={leftRows}
           faixinha={cfg.boxFaixinhaEsquerda}
           faixinhaCor={cfg.boxFaixinhaCor}
-          borderWidth={cfg.boxBorderWidth}/>
+          borderWidth={cfg.boxBorderWidth}
+          minHeight={cfg.boxMinHeight}/>
       </div>
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, height: "100%" }}>
         <IdentBoxV2
           titulo={rightTitulo}
           rows={rightRows}
           faixinha={cfg.boxFaixinhaEsquerda}
           faixinhaCor={cfg.boxFaixinhaCor}
-          borderWidth={cfg.boxBorderWidth}/>
+          borderWidth={cfg.boxBorderWidth}
+          minHeight={cfg.boxMinHeight}/>
       </div>
     </ArabesqueBand>
   );

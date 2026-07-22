@@ -44,15 +44,13 @@ export type ReceituarioConfig = {
 
   // ── Boxes das faixas ───────────────────────────────────────────────────────
   boxPacienteTitulo: string;
-  boxPacienteCampos: string;
   boxMedicoTitulo: string;
-  boxMedicoCampos: string;
   boxCompradorTitulo: string;
-  boxCompradorCampos: string;
   boxFarmaciaTitulo: string;
-  boxFarmaciaCampos: string;
   boxSplitRatio: "50/50" | "40/60" | "60/40";
   boxBorderWidth: number;
+  boxMinHeight: number;   // altura mínima de cada box (px)
+  boxBandGap: number;     // distância entre os 2 boxes dentro de cada faixa (mm)
   boxFaixinhaEsquerda: boolean;
   boxFaixinhaCor: string;
 
@@ -104,15 +102,13 @@ export const DEFAULT_CONFIG: ReceituarioConfig = {
   tipoReceitaPadrao:  "especial",
 
   boxPacienteTitulo:   "Identificação do Paciente",
-  boxPacienteCampos:   "Nome Completo, CPF, Data de Nascimento, Telefone, Endereço Completo, Cidade / UF",
   boxMedicoTitulo:     "Identificação do Emitente",
-  boxMedicoCampos:     "Profissional Prescritor, Conselho, RQE, Telefone, Endereço do Consultório",
   boxCompradorTitulo:  "Identificação do Comprador",
-  boxCompradorCampos:  "Nome, Endereço, Cidade, UF, Identidade, Órgão Emissor",
-  boxFarmaciaTitulo:   "Identificação do Fornecedor",
-  boxFarmaciaCampos:   "Farmácia, Endereço, Cidade / UF, Farmacêutico Responsável, Data",
+  boxFarmaciaTitulo:   "Identificação do Fornecedor / Farmácia",
   boxSplitRatio:       "50/50",
   boxBorderWidth:      1,
+  boxMinHeight:        90,
+  boxBandGap:          4,
   boxFaixinhaEsquerda: false,
   boxFaixinhaCor:      "#45B8CC",
 

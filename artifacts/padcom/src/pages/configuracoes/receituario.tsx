@@ -514,21 +514,20 @@ export default function ConfigReceituario() {
               </FieldRow>
             </Section>
 
-            {/* ── P2: Campos dos Boxes ─────────────────────────────────────── */}
+            {/* ── P2: Boxes das Faixas ─────────────────────────────────────── */}
             <Section icon={<Layers className="w-4 h-4"/>}
               label="Campos Internos dos Boxes das Faixas" badge="P2">
 
               <div className="screen-3d p-2 text-xs text-gray-700">
-                Defina o <b>título</b> de cada cartão e os <b>campos</b> (separados por vírgula, na ordem de exibição).
-                No preview, cada campo aparece com uma linha pontilhada de preenchimento.
+                Os <b>campos</b> de cada box são fixos pelo modelo ANVISA — apenas o <b>título</b> do cartão é personalizável.
               </div>
 
               {[
-                { lbl: "Box 1 — Emitente / Médico (faixa superior, esquerda)", tk: "boxMedicoTitulo", ck: "boxMedicoCampos" },
-                { lbl: "Box 2 — Paciente (faixa superior, direita)", tk: "boxPacienteTitulo", ck: "boxPacienteCampos" },
-                { lbl: "Box 3 — Comprador (faixa inferior, esquerda — Controle Especial)", tk: "boxCompradorTitulo", ck: "boxCompradorCampos" },
-                { lbl: "Box 4 — Fornecedor / Farmácia (faixa inferior, direita)", tk: "boxFarmaciaTitulo", ck: "boxFarmaciaCampos" },
-              ].map(({ lbl, tk, ck }) => (
+                { lbl: "Box 1 — Emitente / Médico (faixa superior, esquerda)", tk: "boxMedicoTitulo" },
+                { lbl: "Box 2 — Paciente (faixa superior, direita)", tk: "boxPacienteTitulo" },
+                { lbl: "Box 3 — Comprador (faixa inferior, esquerda — Controle Especial)", tk: "boxCompradorTitulo" },
+                { lbl: "Box 4 — Fornecedor / Farmácia (faixa inferior, direita)", tk: "boxFarmaciaTitulo" },
+              ].map(({ lbl, tk }) => (
                 <div key={tk} className="panel-3d-sub p-3 space-y-2">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">{lbl}</div>
                   <FieldRow label="Título do cartão">
@@ -536,21 +535,31 @@ export default function ConfigReceituario() {
                       onChange={e => patch({ [tk]: e.target.value } as Partial<ReceituarioConfig>)}
                       placeholder={(DEFAULT_CONFIG as Record<string, string>)[tk]} className="text-sm"/>
                   </FieldRow>
-                  <FieldRow label="Campos (separados por vírgula — a ordem é a exibição)"
-                    hint='Ex: "Nome Completo, CPF, Data de Nascimento, Endereço"'>
-                    <Input value={(cfg as Record<string, string>)[ck]}
-                      onChange={e => patch({ [ck]: e.target.value } as Partial<ReceituarioConfig>)}
-                      placeholder={(DEFAULT_CONFIG as Record<string, string>)[ck]} className="text-sm"/>
-                  </FieldRow>
                 </div>
               ))}
 
-              {/* Kaizen A: Split ratio + borderWidth */}
+              {/* Dimensões dos boxes */}
               <div className="panel-3d-sub p-3 space-y-3">
                 <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                  Kaizen A — Proporção e Estilo dos Boxes
+                  Dimensões dos Boxes
                 </div>
-                <FieldRow label="Proporção dos 2 boxes (esq / dir)">
+                <FieldRow label={`Altura mínima de cada box: ${cfg.boxMinHeight} px`}>
+                  <input type="range" min={60} max={160} step={5} value={cfg.boxMinHeight}
+                    onChange={e => patch({ boxMinHeight: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>60 px (compacto)</span><span>160 px (espaçoso)</span>
+                  </div>
+                </FieldRow>
+                <FieldRow label={`Distância entre os 2 boxes na faixa: ${cfg.boxBandGap} mm`}>
+                  <input type="range" min={2} max={12} step={1} value={cfg.boxBandGap}
+                    onChange={e => patch({ boxBandGap: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>2 mm (próximos)</span><span>12 mm (afastados)</span>
+                  </div>
+                </FieldRow>
+                <FieldRow label="Largura relativa (proporção esquerda / direita)">
                   <div className="flex gap-2">
                     {(["50/50", "40/60", "60/40"] as const).map(r => (
                       <button key={r} onClick={() => patch({ boxSplitRatio: r })}
