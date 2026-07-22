@@ -152,9 +152,9 @@ function BandaComBoxes({
   rightTitulo: string;
   rightRows: CampoRow[];
 }) {
-  const columns = cfg.boxSplitRatio === "60/40" ? "3fr 2fr"
-    : cfg.boxSplitRatio === "40/60" ? "2fr 3fr"
-    : "1fr 1fr";
+  // slider contínuo sobrepõe o ratio discreto quando diferente de 50
+  const leftPct = cfg.boxLeftWidthPercent ?? 50;
+  const columns = `${leftPct}fr ${100 - leftPct}fr`;
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
@@ -364,10 +364,12 @@ export function ReceituarioPreview({
     { label: "Telefone", value: showDemoData ? "(11) 98888-7777" : undefined },
   ];
 
-  // ── P3/P5: Box 4 (Fornecedor) — em branco (farmácia preenche); demo no designer ─
+  // ── P3/P5: Box 4 (Fornecedor) — Assinatura e Data lado a lado (modelo ANVISA) ─
   const fornecedorRows: CampoRow[] = [
-    { label: "Assinatura do Farmacêutico", value: showDemoData ? "Dra. Paula Farmacêutica" : undefined },
-    { label: "Data", value: showDemoData ? new Date().toLocaleDateString("pt-BR") : undefined },
+    [
+      { label: "Assinatura do Farmacêutico", value: showDemoData ? "Dra. Paula Farmacêutica" : undefined },
+      { label: "Data",                       value: showDemoData ? new Date().toLocaleDateString("pt-BR") : undefined },
+    ],
   ];
 
   return (

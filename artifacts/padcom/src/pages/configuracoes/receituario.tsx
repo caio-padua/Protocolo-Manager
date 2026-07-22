@@ -567,15 +567,12 @@ export default function ConfigReceituario() {
                     <span>2 mm (próximos)</span><span>12 mm (afastados)</span>
                   </div>
                 </FieldRow>
-                <FieldRow label="Largura relativa (proporção esquerda / direita)">
-                  <div className="flex gap-2">
-                    {(["50/50", "40/60", "60/40"] as const).map(r => (
-                      <button key={r} onClick={() => patch({ boxSplitRatio: r })}
-                        className={`px-3 py-1 text-xs font-semibold transition-all
-                          ${cfg.boxSplitRatio === r ? "bevel-3d text-white" : "btn-3d-soft"}`}>
-                        {r}
-                      </button>
-                    ))}
+                <FieldRow label={`Largura do box esquerdo: ${cfg.boxLeftWidthPercent}% | direito: ${100 - cfg.boxLeftWidthPercent}%`}>
+                  <input type="range" min={10} max={90} step={1} value={cfg.boxLeftWidthPercent}
+                    onChange={e => patch({ boxLeftWidthPercent: Number(e.target.value) })}
+                    className="w-full accent-teal-600"/>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>10% (esquerdo mínimo)</span><span>90% (esquerdo máximo)</span>
                   </div>
                 </FieldRow>
                 <FieldRow label={`Espessura da borda do box: ${cfg.boxBorderWidth} px`}>
