@@ -49,6 +49,7 @@ import ConfigCertificados from "@/pages/configuracoes/certificados";
 import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import ConfigReceituario from "@/pages/configuracoes/receituario";
+import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
 import FinanceiroMetas from "@/pages/financeiro/metas";
 import FinanceiroCobranca from "@/pages/financeiro/cobranca";
@@ -186,6 +187,7 @@ function Router() {
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
+            <Route path="/modelo-receituario" component={ModeloReceituario} />
             <Route path="/portfolio-clinico" component={PortfolioClinico} />
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
             <Route path="/exames" component={() => <Exames />} />

@@ -185,6 +185,7 @@ const navigation: NavEntry[] = [
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
       { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
+      { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
     ],
   },

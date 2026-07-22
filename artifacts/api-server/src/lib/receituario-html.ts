@@ -30,6 +30,14 @@ function getArabesqueDataUrl(): string {
   return _arabesqueDataUrl;
 }
 
+export interface CertMetaHtml {
+  assinante: string;
+  cpf: string | null;
+  ac: string;
+  serial: string;
+  validTo: string;
+}
+
 export interface PrescricaoHtmlData {
   medicoNome: string;
   medicoCrm: string;
@@ -54,6 +62,7 @@ export interface PrescricaoHtmlData {
   tipoReceita: "especial" | "simples";
   dataEmissao: string;
   assetsBaseUrl: string;
+  certMeta?: CertMetaHtml | null;
 }
 
 function fmtData(iso: string): string {
@@ -296,14 +305,16 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
         São Paulo, ${dataExtenso}
       </div>
     </div>
-    <!-- Bloco certificado digital ICP-Brasil -->
+    <!-- Bloco certificado digital ICP-Brasil — dados reais do PFX quando disponível -->
     <div style="flex:1;border:0.5px solid #bbb;border-radius:2px;padding:4px 6px;background:#fafafa;font-family:Arial,sans-serif">
-      <div style="font-size:5.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#555;border-bottom:0.4px solid #ddd;padding-bottom:2px;margin-bottom:3px">Documento Assinado Eletronicamente</div>
+      <div style="font-size:5.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#555;border-bottom:0.4px solid #ddd;padding-bottom:2px;margin-bottom:3px">Documento Assinado Digitalmente — ICP-Brasil</div>
       <table style="width:100%;border-collapse:collapse;font-size:5.5px;color:#333">
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinante:</td><td style="font-weight:600">${d.medicoNome}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Certificado:</td><td style="font-weight:600">${crmRqe}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinante:</td><td style="font-weight:600">${d.certMeta?.assinante ?? d.medicoNome}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">CPF:</td><td style="font-weight:600">${d.certMeta?.cpf ?? "—"}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Autoridade Cert.:</td><td style="font-weight:600">${d.certMeta?.ac ?? "ICP-Brasil"}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Validade:</td><td style="font-weight:600">${d.certMeta?.validTo ? new Date(d.certMeta.validTo).toLocaleDateString("pt-BR") : "—"}</td></tr>
         <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinado em:</td><td style="font-weight:600">${dataFormatada}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Verificação:</td><td style="font-weight:600">paxter.med.br/verificar</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Verificação:</td><td style="font-weight:600">https://validar.iti.gov.br/</td></tr>
       </table>
     </div>
   </div>
