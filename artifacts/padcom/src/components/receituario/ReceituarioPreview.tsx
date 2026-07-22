@@ -178,6 +178,7 @@ function BandaComBoxes({
   leftContentAlign,
   rightContentAlign,
   minHeightOverride,
+  gapMm,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
@@ -194,15 +195,18 @@ function BandaComBoxes({
   rightContentAlign?: "top" | "bottom";
   /** sobrepõe cfg.boxMinHeight para este grupo de boxes — P6/P7 */
   minHeightOverride?: number;
+  /** sobrepõe cfg.boxBandGap (mm) entre os dois boxes; use 0 para eliminar fenda ornamental */
+  gapMm?: number;
 }) {
   const leftPct = cfg.boxLeftWidthPercent ?? 50;
   const columns = `${leftPct}fr ${100 - leftPct}fr`;
   const stretch = stretchBoxes !== false;
   const boxH = minHeightOverride ?? cfg.boxMinHeight;
+  const gap = gapMm !== undefined ? `${gapMm}mm` : `${cfg.boxBandGap}mm`;
 
   return (
     <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}
-      columns={columns} gap={`${cfg.boxBandGap}mm`} contentMinHeight={stretch ? boxH : undefined}>
+      columns={columns} gap={gap} contentMinHeight={stretch ? boxH : undefined}>
       {/* box esquerdo — position:relative garante que compete com o SVG ornamental (zIndex:0) */}
       <div style={{
         position: "relative", zIndex: 2,
@@ -602,6 +606,7 @@ export function ReceituarioPreview({
             rightRows={fornecedorRows}
             leftContentAlign="bottom"
             rightContentAlign="bottom"
+            gapMm={0}
             minHeightOverride={cfg.boxMinHeight}/>
         </div>
       )}
