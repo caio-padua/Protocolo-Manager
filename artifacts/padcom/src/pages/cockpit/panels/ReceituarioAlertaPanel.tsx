@@ -4,7 +4,7 @@
  * e os slots atrasados (vencidos sem liberar).
  */
 import { useEffect, useState } from "react";
-import { Calendar, AlertTriangle, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { Calendar, AlertTriangle, Send, Loader2, CheckCircle2, FileText, X, ExternalLink, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,6 +40,50 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
   const [atrasados, setAtrasados] = useState<AlertaSlot[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [liberando, setLiberando] = useState<number | null>(null);
+
+  // ── Emissão rápida ICP-Brasil ────────────────────────────────────────────
+  const [emitirAberto,    setEmitirAberto]    = useState(false);
+  const [emitirLoading,   setEmitirLoading]   = useState(false);
+  const [emitirResultado, setEmitirResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
+  const [emitirFormula,   setEmitirFormula]   = useState({
+    nome: "Bupropiona 180mg + Topiramato 20mg",
+    dose: "Cápsula XR",
+    posologia: "1 dose VO – 2h Antes do Almoço (10h)\n1 dose VO – 2h Antes do Jantar (18h)",
+    via: "oral",
+  });
+
+  async function emitirReceita() {
+    if (!emitirFormula.nome.trim()) return;
+    setEmitirLoading(true);
+    setEmitirResultado(null);
+    try {
+      const r = await apiFetch("/api/receituario/emitir-prescricao", {
+        method: "POST",
+        body: JSON.stringify({
+          patient: {
+            nome:           "CARLUCIA SANTOS FERNANDES",
+            cpf:            "024.862.801-11",
+            dataNascimento: "1988-01-30",
+            telefone:       "(62) 98269-6656",
+            endereco:       "Rua Guaxupé, 327, Vila Formosa, São Paulo - SP",
+          },
+          formulas: [{
+            nome:      emitirFormula.nome,
+            forma:     emitirFormula.dose || undefined,
+            posologia: emitirFormula.posologia || undefined,
+            via:       emitirFormula.via || "oral",
+          }],
+          tipoReceita: "especial",
+        }),
+      });
+      setEmitirResultado({ ok: true, driveUrl: r.driveUrl, emailSent: r.emailSent });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setEmitirResultado({ ok: false, error: msg });
+    } finally {
+      setEmitirLoading(false);
+    }
+  }
 
   const carregar = async () => {
     setCarregando(true);
@@ -92,11 +136,122 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1">
-        <Calendar className="w-3.5 h-3.5" />
-        Receituário Automático
-        <span className="concave-3d px-1.5 py-0 text-[10px] font-bold ml-1">{total}</span>
+      {/* Cabeçalho + botão de emissão rápida */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="bevel-3d text-[11px] px-2 py-0.5 uppercase tracking-widest inline-flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5" />
+          Receituário Automático
+          <span className="concave-3d px-1.5 py-0 text-[10px] font-bold ml-1">{total}</span>
+        </div>
+        <Button
+          className="btn-3d h-7 text-xs gap-1 shrink-0"
+          onClick={() => { setEmitirResultado(null); setEmitirAberto(true); }}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Emitir Receita Real
+        </Button>
       </div>
+
+      {/* Modal emissão rápida ICP-Brasil */}
+      {emitirAberto && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="panel-3d w-full max-w-md space-y-3 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Receituário de Controle Especial — ICP-Brasil</div>
+                <div className="text-sm font-black mt-0.5 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                  Emissão Rápida
+                </div>
+              </div>
+              <button type="button" className="btn-3d-soft p-1.5" onClick={() => setEmitirAberto(false)}>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="screen-3d px-3 py-2 text-xs space-y-0.5">
+              <div><span className="text-muted-foreground">Paciente:</span> <span className="font-bold">CARLUCIA SANTOS FERNANDES</span></div>
+              <div><span className="text-muted-foreground">CPF:</span> 024.862.801-11 · <span className="text-muted-foreground">Médico:</span> Dr. Caio — CRM SP 125.475</div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Fórmula</label>
+              <input
+                className="field-engraved w-full text-sm"
+                value={emitirFormula.nome}
+                onChange={e => setEmitirFormula(f => ({ ...f, nome: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Forma</label>
+                <input
+                  className="field-engraved w-full text-sm"
+                  placeholder="ex: Cápsula XR"
+                  value={emitirFormula.dose}
+                  onChange={e => setEmitirFormula(f => ({ ...f, dose: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Via</label>
+                <input
+                  className="field-engraved w-full text-sm"
+                  value={emitirFormula.via}
+                  onChange={e => setEmitirFormula(f => ({ ...f, via: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Posologia</label>
+              <textarea
+                className="field-engraved w-full text-sm resize-none"
+                rows={2}
+                value={emitirFormula.posologia}
+                onChange={e => setEmitirFormula(f => ({ ...f, posologia: e.target.value }))}
+              />
+            </div>
+
+            {emitirResultado && (
+              <div className={`p-2.5 rounded text-xs flex items-start gap-2 border ${emitirResultado.ok ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
+                {emitirResultado.ok
+                  ? <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" />
+                  : <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-rose-600" />}
+                <div>
+                  {emitirResultado.ok ? (
+                    <>
+                      <div className="font-bold">PDF gerado e assinado!</div>
+                      {emitirResultado.driveUrl && (
+                        <a href={emitirResultado.driveUrl} target="_blank" rel="noreferrer"
+                          className="underline flex items-center gap-1 mt-1 text-emerald-700 font-semibold">
+                          <ExternalLink className="w-3 h-3" />
+                          Abrir no Drive
+                        </a>
+                      )}
+                      {emitirResultado.emailSent && <div className="text-[10px] mt-0.5 text-emerald-600">E-mail enviado ao Dr. Caio</div>}
+                    </>
+                  ) : <div>{emitirResultado.error}</div>}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1 border-t border-border/30">
+              <button type="button" className="btn-3d-soft px-3 py-1.5 text-xs"
+                onClick={() => { setEmitirAberto(false); setEmitirResultado(null); }}>
+                Fechar
+              </button>
+              <Button className="btn-3d gap-1.5 text-xs h-8"
+                disabled={emitirLoading || !emitirFormula.nome.trim()}
+                onClick={emitirReceita}>
+                {emitirLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {emitirLoading ? "Gerando…" : "Gerar e Assinar PDF"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Atrasados — prioridade máxima */}
       {atrasados.map((s) => (
