@@ -577,10 +577,10 @@ export function ReceituarioPreview({
       {cfg.tipoReceitaPadrao === "especial" && (
         <BandaComBoxes
           cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-          leftTitulo={cfg.boxCompradorTitulo}
-          leftRows={compradorRows}
-          rightTitulo={cfg.boxFarmaciaTitulo}
-          rightRows={fornecedorRows}
+          leftTitulo={cfg.boxFarmaciaTitulo}
+          leftRows={fornecedorRows}
+          rightTitulo={cfg.boxCompradorTitulo}
+          rightRows={compradorRows}
           rightContentAlign="bottom"/>
       )}
 
