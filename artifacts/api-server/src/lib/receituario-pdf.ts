@@ -525,16 +525,23 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     }
   } catch { /* sem arabesco — continua */ }
 
-  const ARAB_H = 46; // altura da faixa em pontos
-
-  /** Desenha a faixa arabesca ATRÁS dos boxes (full-width, centralizada no bloco). */
+  /**
+   * Desenha a faixa arabesca ATRÁS dos boxes.
+   * Motor HTML: a faixa cobre TODA a altura do bloco (bandH = boxH),
+   * full-width da página — os boxes brancos ficam por cima.
+   * Borda superior e inferior de 0.8px (motor: borderTop + borderBottom 0.8px solid #8f8f8b).
+   */
   function drawArabBand(boxTop: number, boxH: number): void {
     if (!arabImg) return;
-    const cy    = boxTop - boxH / 2;
-    const bandY = cy - ARAB_H / 2;
-    page.drawImage(arabImg, { x: 0, y: bandY, width: PAGE_W, height: ARAB_H });
-    page.drawLine({ start: { x: 0, y: bandY + ARAB_H }, end: { x: PAGE_W, y: bandY + ARAB_H }, thickness: 0.5, color: LINE });
-    page.drawLine({ start: { x: 0, y: bandY         }, end: { x: PAGE_W, y: bandY         }, thickness: 0.5, color: LINE });
+    const bandY = boxTop - boxH;          // topo do box = topo da faixa
+    const bandH = boxH;                   // faixa cobre toda a altura do bloco
+    page.drawImage(arabImg, { x: 0, y: bandY, width: PAGE_W, height: bandH });
+    // Linhas de borda (motor: borderTop + borderBottom #8f8f8b 0.8px)
+    const borderC = rgb(0.56, 0.56, 0.545); // #8f8f8b
+    page.drawLine({ start: { x: 0, y: bandY + bandH }, end: { x: PAGE_W, y: bandY + bandH },
+      thickness: 0.8, color: borderC });
+    page.drawLine({ start: { x: 0, y: bandY }, end: { x: PAGE_W, y: bandY },
+      thickness: 0.8, color: borderC });
   }
 
   /** Desenha o par de boxes (D06 corrigido: borda escura #454545 + faixinha lateral ciano). */
