@@ -91,13 +91,15 @@ function identBox(titulo: string, rows: (string | { label: string; value?: strin
       border-left:3px solid #3D7A7A;
       padding:3mm 4mm;
       box-shadow:0.4mm 0.4mm 0 rgba(0,0,0,0.05);
+      box-sizing:border-box;
+      height:100%;
     ">
       <div style="text-align:center;font-weight:700;font-size:7px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;border-bottom:0.4px solid #ddd;padding-bottom:3px;color:#222">${titulo}</div>
       ${rowsHtml}
     </div>`;
 }
 
-function arabesqueBand(children: string, align: "flex-start" | "flex-end" = "flex-start"): string {
+function arabesqueBand(children: string, align: "flex-start" | "flex-end" | "stretch" = "flex-start"): string {
   const dataUrl = getArabesqueDataUrl();
   const bgStyle = dataUrl
     ? `background-image:url('${dataUrl}');background-size:cover;background-position:center center;`
@@ -207,7 +209,7 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
   );
 
   const faixaSuperior = arabesqueBand(box1 + box2, "flex-start");
-  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4, "flex-end") : "";
+  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4, "stretch") : "";
 
   const formulasHtml = d.formulas.map(f => formulaBlock(f)).join("");
 
