@@ -137,12 +137,12 @@ function IdentBoxV2({
                 marginBottom: 1,
               }}>
                 {row.map((field) => (
-                  <FieldLine key={field.label} label={field.label} value={field.value}/>
+                  <FieldLine key={field.label} label={field.label} value={field.value} manuscrito={field.manuscrito}/>
                 ))}
               </div>
             );
           }
-          return <FieldLine key={i} label={row.label} value={row.value}/>;
+          return <FieldLine key={i} label={row.label} value={row.value} manuscrito={row.manuscrito}/>;
         })}
       </div>
     </div>
