@@ -179,7 +179,6 @@ function BandaComBoxes({
   rightContentAlign,
   minHeightOverride,
   gapMm,
-  bandTopPct,
 }: {
   cfg: ReceituarioConfig;
   bandModelId: string;
@@ -198,8 +197,6 @@ function BandaComBoxes({
   minHeightOverride?: number;
   /** sobrepõe cfg.boxBandGap (mm) entre os dois boxes; use 0 para eliminar fenda ornamental */
   gapMm?: number;
-  /** posição vertical (%) da faixa ornamental no container; undefined = 50% (centrado) */
-  bandTopPct?: number;
 }) {
   const leftPct = cfg.boxLeftWidthPercent ?? 50;
   const columns = `${leftPct}fr ${100 - leftPct}fr`;
@@ -611,8 +608,7 @@ export function ReceituarioPreview({
             leftContentAlign="bottom"
             rightContentAlign="bottom"
             gapMm={0}
-            minHeightOverride={cfg.boxMinHeight}
-            bandTopPct={cfg.boxInferiorBandTopPct ?? 0}/>
+            minHeightOverride={cfg.boxMinHeight}/>
         </div>
       )}
 
