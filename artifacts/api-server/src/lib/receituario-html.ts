@@ -91,15 +91,13 @@ function identBox(titulo: string, rows: (string | { label: string; value?: strin
       border-left:3px solid #3D7A7A;
       padding:3mm 4mm;
       box-shadow:0.4mm 0.4mm 0 rgba(0,0,0,0.05);
-      box-sizing:border-box;
-      height:100%;
     ">
       <div style="text-align:center;font-weight:700;font-size:7px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;border-bottom:0.4px solid #ddd;padding-bottom:3px;color:#222">${titulo}</div>
       ${rowsHtml}
     </div>`;
 }
 
-function arabesqueBand(children: string): string {
+function arabesqueBand(children: string, align: "flex-start" | "flex-end" = "flex-start"): string {
   const dataUrl = getArabesqueDataUrl();
   const bgStyle = dataUrl
     ? `background-image:url('${dataUrl}');background-size:cover;background-position:center center;`
@@ -109,12 +107,13 @@ function arabesqueBand(children: string): string {
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:5mm;
-      padding:8mm 10mm;
+      padding:6mm 10mm;
       margin:3mm 0;
       ${bgStyle}
       border-top:0.8px solid #8f8f8b;
       border-bottom:0.8px solid #8f8f8b;
-      align-items:stretch;
+      align-items:${align};
+      min-height:80px;
     ">
       ${children}
     </div>`;
@@ -207,8 +206,8 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     ],
   );
 
-  const faixaSuperior = arabesqueBand(box1 + box2);
-  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4) : "";
+  const faixaSuperior = arabesqueBand(box1 + box2, "flex-start");
+  const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4, "flex-end") : "";
 
   const formulasHtml = d.formulas.map(f => formulaBlock(f)).join("");
 
@@ -285,6 +284,16 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
         ${crmRqe}<br/>
         São Paulo, ${dataExtenso}
       </div>
+    </div>
+    <!-- Bloco certificado digital ICP-Brasil -->
+    <div style="flex:1;border:0.5px solid #bbb;border-radius:2px;padding:4px 6px;background:#fafafa;font-family:Arial,sans-serif">
+      <div style="font-size:5.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#555;border-bottom:0.4px solid #ddd;padding-bottom:2px;margin-bottom:3px">Documento Assinado Eletronicamente</div>
+      <table style="width:100%;border-collapse:collapse;font-size:5.5px;color:#333">
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinante:</td><td style="font-weight:600">${d.medicoNome}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Certificado:</td><td style="font-weight:600">${crmRqe}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinado em:</td><td style="font-weight:600">${dataFormatada}</td></tr>
+        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Verificação:</td><td style="font-weight:600">paxter.med.br/verificar</td></tr>
+      </table>
     </div>
   </div>
 
