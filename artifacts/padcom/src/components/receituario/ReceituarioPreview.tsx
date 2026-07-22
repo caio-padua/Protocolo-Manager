@@ -53,18 +53,18 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   if (manuscrito) {
     return (
       <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
-        {/* Linha pontilhada NO TOPO — borderTop coloca a linha na borda superior exata */}
-        <span style={{
-          borderTop: "0.6px dashed #bbb",
-          display: "block",
-          minHeight: 11,
-        }}/>
-        {/* Label imediatamente abaixo da linha */}
+        {/* Label no TOPO — identifica o campo */}
         <span style={{
           fontWeight: 700, color: "#aaa",
           fontSize: 5, letterSpacing: 0.7,
           textTransform: "uppercase",
         }}>{label}</span>
+        {/* Linha pontilhada ABAIXO do label — espaço para escrever à mão */}
+        <span style={{
+          borderBottom: "0.6px dashed #bbb",
+          display: "block",
+          minHeight: 11,
+        }}/>
       </div>
     );
   }
@@ -417,12 +417,12 @@ export function ReceituarioPreview({
     { label: "Telefone",  manuscrito: true },
   ];
 
-  // ── P3/P5: Box 4 (Fornecedor) — sempre manuscrito (farmácia preenche à mão) ─
+  // ── P3/P5: Box 4 (Fornecedor) — campos mínimos ANVISA ─
   const fornecedorRows: CampoRow[] = [
-    { label: "Nome",      manuscrito: true },
-    { label: "Endereço",  manuscrito: true },
-    [{ label: "CRF",      manuscrito: true }, { label: "Data", manuscrito: true }],
-    { label: "Assinatura do Farmacêutico", manuscrito: true },
+    [
+      { label: "Assinatura do Farmacêutico", manuscrito: true },
+      { label: "Data",                       manuscrito: true },
+    ],
   ];
 
   return (
@@ -577,10 +577,10 @@ export function ReceituarioPreview({
       {cfg.tipoReceitaPadrao === "especial" && (
         <BandaComBoxes
           cfg={cfg} bandModelId={bandModelId} customBandDataUrl={customBandDataUrl}
-          leftTitulo={cfg.boxFarmaciaTitulo}
-          leftRows={fornecedorRows}
-          rightTitulo={cfg.boxCompradorTitulo}
-          rightRows={compradorRows}
+          leftTitulo={cfg.boxCompradorTitulo}
+          leftRows={compradorRows}
+          rightTitulo={cfg.boxFarmaciaTitulo}
+          rightRows={fornecedorRows}
           rightContentAlign="bottom"/>
       )}
 
