@@ -126,6 +126,53 @@ export async function saveCertificate(
   return meta;
 }
 
+// Metadados chave do certificado ativo para exibição em documentos.
+// Lê o PFX de forma síncrona (best-effort) — retorna null se falhar.
+export interface CertDocMeta {
+  assinante: string;       // nome limpo do titular (sem o CPF após ":")
+  cpf: string | null;      // CPF formatado 000.000.000-00
+  ac: string;              // nome da autoridade certificadora
+  serial: string;          // número de série em maiúsculas
+  validTo: string;         // ISO date string da expiração
+}
+
+export function readCertMetaSync(): CertDocMeta | null {
+  try {
+    const buffer = getCertBufferSync();
+    const passwords = getCertPasswordsSync();
+    const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(buffer));
+    const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
+    let p12: forge.pkcs12.Pkcs12Pfx | null = null;
+    for (const pw of passwords) {
+      try { p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw); break; } catch { /* continua */ }
+    }
+    if (!p12) return null;
+    const certBags = p12.getBags({ bagType: forge.oids.certBag });
+    const bag = certBags[forge.oids.certBag];
+    if (!bag?.length || !bag[0].cert) return null;
+    const cert = bag[0].cert;
+    const cn = cert.subject.getField("CN");
+    const cnVal = cn?.value ? String(cn.value) : "";
+    // CN do ICP-Brasil PF: "NOME COMPLETO:11111111111" — split no ":"
+    const assinante = cnVal.includes(":") ? cnVal.split(":")[0].trim() : cnVal.trim();
+    let cpf: string | null = null;
+    const m = cnVal.match(/(\d{11})$/);
+    if (m) {
+      const d = m[1];
+      cpf = `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+    }
+    const acCn = cert.issuer.getField("CN");
+    const ac = acCn?.value ? String(acCn.value) : "ICP-Brasil";
+    return {
+      assinante,
+      cpf,
+      ac,
+      serial: cert.serialNumber.toUpperCase(),
+      validTo: cert.validity.notAfter.toISOString(),
+    };
+  } catch { return null; }
+}
+
 // Formata CPF no padrao Brasil (000.000.000-00). Se nao tiver 11 digitos,
 // devolve o valor original (nao inventa mascara em algo que nao e CPF).
 function formatCpf(raw: string | null): string | null {

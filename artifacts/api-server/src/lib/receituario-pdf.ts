@@ -8,7 +8,8 @@ import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
-import { getCertBufferSync, getCertPasswordsSync } from "./cert-source";
+import { getCertBufferSync, getCertPasswordsSync, readCertMetaSync } from "./cert-source";
+import QRCode from "qrcode";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -392,6 +393,20 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontItal = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
+  // ── Metadados reais do certificado ICP-Brasil ──────────────────────────────
+  // URL oficial do ITI (Instituto Nacional de Tecnologia da Informação) para
+  // que o farmacêutico valide o documento digitalmente assinado.
+  const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
+  const certMeta = readCertMetaSync(); // best-effort, null se cert não configurado
+  let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
+  try {
+    const qrBuf = await QRCode.toBuffer(ITI_VALIDATION_URL, {
+      width: 80, margin: 1,
+      color: { dark: "#151c2eff", light: "#ffffffff" },
+    });
+    certQrImg = await pdfDoc.embedPng(qrBuf);
+  } catch { /* sem QR — documento sai sem imagem */ }
 
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   const M  = 36;
@@ -832,26 +847,46 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   page.drawText(certTitulo,
     { x: CERT_X + (CERT_W - certTitW) / 2, y: sigTopY - 10,
       font: fontBold, size: 5.5, color: DARK });
+  // ── Bloco de certificado ICP-Brasil com dados reais do cert ativo ────────
+  // QR fica no canto inferior direito (28×28 pt); texto à esquerda do QR.
+  const QR_S   = 28;                         // tamanho do QR em pt
+  const QR_X   = CERT_X + CERT_W - QR_S - 4;
+  const QR_Y   = sigTopY - CERT_H + 4;
+  const TXT_W  = QR_X - CERT_X - 9;         // largura disponível para os campos
+
+  // Campos preenchidos com dados reais do cert (fallback para dados do médico)
+  const fmtValidTo = certMeta?.validTo
+    ? fmtData(certMeta.validTo.slice(0, 10))
+    : "—";
+  const serialFmt = certMeta?.serial
+    ? certMeta.serial.slice(0, 20)  // primeiros 20 hex chars
+    : "—";
   const certFields: [string, string][] = [
-    ["Assinante",   safeTxt(data.medicoName)],
-    ["Certificado", crmRqeStr || safeTxt(data.medicoCrm)],
-    ["Assinado em", dataFmt],
-    ["Verificação", "paxter.med.br/verificar"],
+    ["Assinante",    certMeta?.assinante ?? safeTxt(data.medicoName)],
+    ["CPF",          certMeta?.cpf       ?? safeTxt(data.medicoCrm)],
+    ["Certificadora", certMeta?.ac        ?? "ICP-Brasil"],
+    ["Nr. Série",    serialFmt],
+    ["Válido até",   fmtValidTo],
+    ["Validar em",   "validar.iti.gov.br"],
   ];
-  let certY = sigTopY - 20;
+  let certY = sigTopY - 18;
   for (const [k, v] of certFields) {
     page.drawText(`${k}:`,
-      { x: CERT_X + 5, y: certY, font: fontBold, size: 5, color: MUTED });
-    page.drawText(v.slice(0, 55),
-      { x: CERT_X + 38, y: certY, font: fontReg, size: 5.5, color: DARK });
-    certY -= 8;
+      { x: CERT_X + 5, y: certY, font: fontBold, size: 4.5, color: MUTED });
+    page.drawText(v.slice(0, 52),
+      { x: CERT_X + 38, y: certY, font: fontReg, size: 5, color: DARK });
+    certY -= 7;
   }
-  // QR placeholder (canto inferior direito do bloco)
-  page.drawRectangle({ x: CERT_X + CERT_W - 32, y: sigTopY - CERT_H + 4,
-    width: 28, height: 28, borderColor: LINE, borderWidth: 0.4 });
-  page.drawText("QR",
-    { x: CERT_X + CERT_W - 24, y: sigTopY - CERT_H + 14,
-      font: fontReg, size: 6, color: LIGHT });
+
+  // QR real apontando para validar.iti.gov.br (gerado no início da função)
+  if (certQrImg) {
+    page.drawImage(certQrImg, { x: QR_X, y: QR_Y, width: QR_S, height: QR_S });
+  } else {
+    // Placeholder visual se QR falhou
+    page.drawRectangle({ x: QR_X, y: QR_Y, width: QR_S, height: QR_S,
+      borderColor: LINE, borderWidth: 0.4 });
+    page.drawText("QR", { x: QR_X + 7, y: QR_Y + 10, font: fontReg, size: 6, color: LIGHT });
+  }
 
   y = sigTopY - CERT_H - 12;
 

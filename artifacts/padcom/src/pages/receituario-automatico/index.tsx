@@ -17,7 +17,7 @@ import {
   FlaskConical, Microscope, Calendar, Save, Plus, Minus,
   ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
   CheckCircle2, Clock, Edit3, Loader2, Play, ChevronDown,
-  ChevronUp, Banknote, Bell, Info, Pill,
+  ChevronUp, Banknote, Bell, Info, Pill, FileText, ExternalLink, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -347,6 +347,45 @@ export default function ReceituarioAutomatico() {
   const [salvando, setSalvando]     = useState(false);
   const [agendasOpen, setAgendasOpen] = useState(false);
   const [expandidas, setExpandidas]   = useState<Set<number>>(new Set());
+
+  // ── Emissão rápida ICP-Brasil (Carlucia + Dr. Caio) ───────────────────────
+  const [emitirAberto,    setEmitirAberto]    = useState(false);
+  const [emitirLoading,   setEmitirLoading]   = useState(false);
+  const [emitirResultado, setEmitirResultado] = useState<{ ok: boolean; driveUrl?: string; emailSent?: boolean; error?: string } | null>(null);
+  const [emitirFormula,   setEmitirFormula]   = useState({ nome: "", dose: "", posologia: "", via: "oral" });
+
+  async function emitirReceita() {
+    if (!emitirFormula.nome.trim()) return;
+    setEmitirLoading(true);
+    setEmitirResultado(null);
+    try {
+      const r = await apiFetch("/api/receituario/emitir-prescricao", {
+        method: "POST",
+        body: JSON.stringify({
+          patient: {
+            nome:           "CARLUCIA SANTOS FERNANDES",
+            cpf:            "024.862.801-11",
+            dataNascimento: "1988-01-30",
+            telefone:       "(62) 98269-6656",
+            endereco:       "Rua Guaxupé, 327, Vila Formosa, São Paulo - SP",
+          },
+          formulas: [{
+            nome:      emitirFormula.nome,
+            dose:      emitirFormula.dose      || undefined,
+            posologia: emitirFormula.posologia || undefined,
+            via:       emitirFormula.via       || "oral",
+          }],
+          tipoReceita: "especial",
+        }),
+      });
+      setEmitirResultado({ ok: true, driveUrl: r.driveUrl, emailSent: r.emailSent });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setEmitirResultado({ ok: false, error: msg });
+    } finally {
+      setEmitirLoading(false);
+    }
+  }
 
   // ── Carga inicial ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -716,6 +755,158 @@ export default function ReceituarioAutomatico() {
         cor="emerald"
         icon={FlaskConical}
       />
+
+      {/* ── Barra de emissão rápida ICP-Brasil ───────────────────────── */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border border-emerald-200 bg-emerald-50/60">
+        <div className="flex items-center gap-2 min-w-0">
+          <Zap className="w-4 h-4 text-emerald-700 shrink-0" />
+          <div>
+            <div className="text-[11px] uppercase tracking-widest font-black text-emerald-800 leading-none">
+              Emissão Rápida ICP-Brasil
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Dr. Caio — CRM SP 125.475 · Certificado digital ativo · Carlucia Santos Fernandes
+            </div>
+          </div>
+        </div>
+        <Button
+          className="btn-3d shrink-0 gap-2 text-sm"
+          onClick={() => { setEmitirResultado(null); setEmitirFormula({ nome: "", dose: "", posologia: "", via: "oral" }); setEmitirAberto(true); }}
+        >
+          <FileText className="w-4 h-4" />
+          Emitir Receita Real
+        </Button>
+      </div>
+
+      {/* ── Modal: emissão rápida ─────────────────────────────────────── */}
+      {emitirAberto && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="panel-3d w-full max-w-lg space-y-4 p-6">
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[11px] uppercase tracking-widest font-black text-muted-foreground">Receituário de Controle Especial</div>
+                <div className="text-base font-black mt-0.5">Assinatura ICP-Brasil</div>
+              </div>
+              <button type="button" className="btn-3d-soft p-1.5" onClick={() => setEmitirAberto(false)}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Paciente — fixo */}
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Paciente</div>
+              <div className="screen-3d px-3 py-2 text-sm">
+                <span className="font-bold">CARLUCIA SANTOS FERNANDES</span>
+                <span className="text-muted-foreground ml-2 text-xs">CPF 024.862.801-11</span>
+              </div>
+            </div>
+
+            {/* Médico — fixo */}
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Médico Responsável</div>
+              <div className="screen-3d px-3 py-2 text-sm">
+                <span className="font-bold">Dr. Caio Henrique Fernandes Pádua</span>
+                <span className="text-muted-foreground ml-2 text-xs">CRM SP 125.475</span>
+              </div>
+            </div>
+
+            {/* Fórmula */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">
+                Fórmula / Medicamento <span className="text-rose-500">*</span>
+              </label>
+              <input
+                className="field-engraved w-full text-sm"
+                placeholder="Nome da fórmula magistral ou medicamento"
+                value={emitirFormula.nome}
+                onChange={e => setEmitirFormula(f => ({ ...f, nome: e.target.value }))}
+                autoFocus
+              />
+            </div>
+
+            {/* Dose + Posologia */}
+            <div className="flex gap-3">
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Dose</label>
+                <input
+                  className="field-engraved w-full text-sm"
+                  placeholder="ex: 500mg"
+                  value={emitirFormula.dose}
+                  onChange={e => setEmitirFormula(f => ({ ...f, dose: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Posologia</label>
+                <input
+                  className="field-engraved w-full text-sm"
+                  placeholder="ex: 1 comprimido ao dia"
+                  value={emitirFormula.posologia}
+                  onChange={e => setEmitirFormula(f => ({ ...f, posologia: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Resultado */}
+            {emitirResultado && (
+              <div className={cn(
+                "p-3 rounded text-sm flex items-start gap-2 border",
+                emitirResultado.ok
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-rose-50 text-rose-800 border-rose-200",
+              )}>
+                {emitirResultado.ok
+                  ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+                  : <AlertCircle  className="w-4 h-4 mt-0.5 shrink-0 text-rose-600" />}
+                <div>
+                  {emitirResultado.ok ? (
+                    <>
+                      <div className="font-bold">PDF gerado e assinado com sucesso!</div>
+                      {emitirResultado.driveUrl && (
+                        <a
+                          href={emitirResultado.driveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline flex items-center gap-1 mt-1 text-emerald-700 font-semibold"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Abrir no Google Drive
+                        </a>
+                      )}
+                      {emitirResultado.emailSent && (
+                        <div className="text-xs mt-1 text-emerald-600">E-mail enviado ao Dr. Caio</div>
+                      )}
+                    </>
+                  ) : (
+                    <div>{emitirResultado.error}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Ações */}
+            <div className="flex justify-end gap-2 pt-1 border-t border-border/30">
+              <button
+                type="button"
+                className="btn-3d-soft px-4 py-2 text-sm"
+                onClick={() => { setEmitirAberto(false); setEmitirResultado(null); }}
+              >
+                Fechar
+              </button>
+              <Button
+                className="btn-3d gap-2 text-sm"
+                disabled={emitirLoading || !emitirFormula.nome.trim()}
+                onClick={emitirReceita}
+              >
+                {emitirLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <FileText className="w-4 h-4" />}
+                {emitirLoading ? "Gerando PDF..." : "Gerar e Assinar PDF"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Bloco 1: Prescrição (ferramenta original completa) ────────── */}
       <div className="panel-3d overflow-hidden border-l-4 border-l-emerald-600">
