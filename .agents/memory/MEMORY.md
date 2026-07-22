@@ -1,3 +1,4 @@
+- [Receituário manuscrito: linha ACIMA, label ABAIXO](receituario-manuscrito-layout.md) — borderBottom no span superior; label no span inferior; prop manuscrito deve ser passado explicitamente no IdentBoxV2.
 - [Receituário: Puppeteer + Chromium Nix](receituario-puppeteer-chromium.md) — HTML→screenshot→PDF é o caminho correto; Chromium via pkgs.chromium Nix (path fixo no puppeteer-capture.ts); POST /api/receituario/emitir-cliente emite receita real.
 - [CSS transform scale — distorção de preview](css-transform-preview-distorcao.md) — scale() não afeta layout; usar position:absolute dentro de wrapper com dimensões visuais exatas (elimina distorção mm vs escala).
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.

@@ -53,18 +53,18 @@ function FieldLine({ label, value, manuscrito }: { label: string; value?: string
   if (manuscrito) {
     return (
       <div style={{ display: "flex", flexDirection: "column", marginBottom: 5, gap: 1 }}>
-        {/* P0: label NO TOPO — identifica o campo */}
-        <span style={{
-          fontWeight: 700, color: "#aaa",
-          fontSize: 5, letterSpacing: 0.7,
-          textTransform: "uppercase",
-        }}>{label}</span>
-        {/* P0: linha visível ABAIXO — chão da escrita; 1px garante visibilidade em print e preview */}
+        {/* LINHA NO TOPO — espaço vazio para escrever à mão; a linha dashed é o chão da escrita */}
         <span style={{
           borderBottom: "1px dashed #aaa",
           display: "block",
           minHeight: 14,
         }}/>
+        {/* LABEL ABAIXO DA LINHA — identifica o que deve ser escrito acima */}
+        <span style={{
+          fontWeight: 700, color: "#aaa",
+          fontSize: 5, letterSpacing: 0.7,
+          textTransform: "uppercase",
+        }}>{label}</span>
       </div>
     );
   }
