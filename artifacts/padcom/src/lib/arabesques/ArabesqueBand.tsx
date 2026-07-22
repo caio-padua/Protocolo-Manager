@@ -20,8 +20,9 @@ function getCustomDataUrlFromStorage(modelId: string): string | null {
 }
 
 // ─── Faixa SVG inline ─────────────────────────────────────────────────────────
-function InlineSVGBand({ modelId, patternId, bandH, children }: {
-  modelId: ArabesqueModelId; patternId: string; bandH: number; children: React.ReactNode;
+function InlineSVGBand({ modelId, patternId, bandH, columns, children }: {
+  modelId: ArabesqueModelId; patternId: string; bandH: number;
+  columns?: string; children: React.ReactNode;
 }) {
   const m = ARABESQUE_MODELS[modelId];
   const tileW = m.tileW ?? 60, tileH = m.tileH ?? 60;
@@ -32,7 +33,7 @@ function InlineSVGBand({ modelId, patternId, bandH, children }: {
 
   return (
     <div style={{ position: "relative", isolation: "isolate",
-      display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
+      display: "grid", gridTemplateColumns: columns ?? "repeat(2, 1fr)",
       gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "flex-start" }}>
       <svg width="100%" height={bandH} xmlns="http://www.w3.org/2000/svg"
         style={{ position: "absolute", top: "50%", left: 0, transform: "translateY(-50%)", zIndex: 0 }}>
@@ -56,13 +57,13 @@ function InlineSVGBand({ modelId, patternId, bandH, children }: {
 }
 
 // ─── Faixa raster (PNG PADUA ou custom base64) ────────────────────────────────
-function RasterBand({ src, bandH, children }: {
-  src: string; bandH: number; children: React.ReactNode;
+function RasterBand({ src, bandH, columns, children }: {
+  src: string; bandH: number; columns?: string; children: React.ReactNode;
 }) {
   const border = "#8f8f8b";
   return (
     <div style={{ position: "relative", isolation: "isolate",
-      display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
+      display: "grid", gridTemplateColumns: columns ?? "repeat(2, 1fr)",
       gap: "5mm", paddingInline: "10mm", minHeight: bandH + 48, alignItems: "flex-start" }}>
       <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: bandH,
         transform: "translateY(-50%)", zIndex: 0,
@@ -99,9 +100,10 @@ export function InfoCard({ titulo, rows }: { titulo: string; rows: [string, stri
 }
 
 // ─── Componente público ───────────────────────────────────────────────────────
-export function ArabesqueBand({ modelId, customDataUrl, children }: {
+export function ArabesqueBand({ modelId, customDataUrl, columns, children }: {
   modelId: string;
   customDataUrl?: string;    // dataUrl direto (para preview de faixa customizada)
+  columns?: string;          // gridTemplateColumns (ex: "3fr 2fr" para 60/40)
   children: React.ReactNode;
 }) {
   const uid = useId();
@@ -110,17 +112,17 @@ export function ArabesqueBand({ modelId, customDataUrl, children }: {
   // Faixa customizada (id começa com "custom-")
   if (modelId.startsWith("custom-") || customDataUrl) {
     const dataUrl = customDataUrl ?? getCustomDataUrlFromStorage(modelId) ?? "";
-    return <RasterBand src={dataUrl} bandH={88}>{children}</RasterBand>;
+    return <RasterBand src={dataUrl} bandH={88} columns={columns}>{children}</RasterBand>;
   }
 
   // Modelo padrão do catálogo
   const m = ARABESQUE_MODELS[modelId as ArabesqueModelId];
-  if (!m) return <RasterBand src="" bandH={88}>{children}</RasterBand>;
+  if (!m) return <RasterBand src="" bandH={88} columns={columns}>{children}</RasterBand>;
 
   const bandH = m.bandHeightPx;
   if (m.renderMode === "raster-strip") {
     const src = m.assetFile ? `${BASE}/assets/arabesques/${m.assetFile}` : "";
-    return <RasterBand src={src} bandH={bandH}>{children}</RasterBand>;
+    return <RasterBand src={src} bandH={bandH} columns={columns}>{children}</RasterBand>;
   }
-  return <InlineSVGBand modelId={modelId as ArabesqueModelId} patternId={pid} bandH={bandH}>{children}</InlineSVGBand>;
+  return <InlineSVGBand modelId={modelId as ArabesqueModelId} patternId={pid} bandH={bandH} columns={columns}>{children}</InlineSVGBand>;
 }

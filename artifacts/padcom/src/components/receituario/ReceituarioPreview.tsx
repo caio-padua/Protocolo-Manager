@@ -154,13 +154,13 @@ function BandaComBoxes({
   rightTitulo: string;
   rightRows: CampoRow[];
 }) {
-  const [lw, rw] = cfg.boxSplitRatio === "60/40" ? ["60%", "40%"]
-    : cfg.boxSplitRatio === "40/60" ? ["40%", "60%"]
-    : ["50%", "50%"];
+  const columns = cfg.boxSplitRatio === "60/40" ? "3fr 2fr"
+    : cfg.boxSplitRatio === "40/60" ? "2fr 3fr"
+    : "1fr 1fr";
 
   return (
-    <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl}>
-      <div style={{ width: lw }}>
+    <ArabesqueBand modelId={bandModelId} customDataUrl={customBandDataUrl} columns={columns}>
+      <div style={{ minWidth: 0 }}>
         <IdentBoxV2
           titulo={leftTitulo}
           rows={leftRows}
@@ -168,7 +168,7 @@ function BandaComBoxes({
           faixinhaCor={cfg.boxFaixinhaCor}
           borderWidth={cfg.boxBorderWidth}/>
       </div>
-      <div style={{ width: rw }}>
+      <div style={{ minWidth: 0 }}>
         <IdentBoxV2
           titulo={rightTitulo}
           rows={rightRows}
