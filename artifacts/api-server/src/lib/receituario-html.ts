@@ -63,6 +63,7 @@ export interface PrescricaoHtmlData {
   dataEmissao: string;
   assetsBaseUrl: string;
   certMeta?: CertMetaHtml | null;
+  consultaUrl?: string;  // URL pública de consulta (QR code e rodapé apontam para ela)
 }
 
 function fmtData(iso: string): string {
@@ -315,6 +316,7 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
         <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Validade:</td><td style="font-weight:600">${d.certMeta?.validTo ? new Date(d.certMeta.validTo).toLocaleDateString("pt-BR") : "—"}</td></tr>
         <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinado em:</td><td style="font-weight:600">${dataFormatada}</td></tr>
         <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Verificação:</td><td style="font-weight:600">https://validar.iti.gov.br/</td></tr>
+        ${d.consultaUrl ? `<tr><td style="color:#888;padding-right:4px;white-space:nowrap">Acesse em:</td><td style="font-weight:600;color:#1a6b6b">${d.consultaUrl}</td></tr>` : ""}
       </table>
     </div>
   </div>

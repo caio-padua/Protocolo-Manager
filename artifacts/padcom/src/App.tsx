@@ -59,6 +59,7 @@ import FinanceiroTransferencias from "@/pages/financeiro/transferencias";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import Portal from "@/pages/portal";
+import ConsultaReceituario from "@/pages/consulta-receituario";
 import Foto from "@/pages/foto";
 import Cadastro from "@/pages/cadastro";
 import Agendar from "@/pages/agendar";
@@ -124,6 +125,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/portal" component={Portal} />
+      <Route path="/consulta-receituario" component={ConsultaReceituario} />
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
       <Route path="/agendar/status/:id" component={AgendarStatus} />

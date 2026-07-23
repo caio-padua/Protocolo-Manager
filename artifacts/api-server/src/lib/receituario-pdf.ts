@@ -321,6 +321,9 @@ export interface ReceituarioDataV2 {
   numeroReceita?: string;
   bandModel?: string;     // id do modelo arabesco (ex: "padua-01-floral-islamico")
 
+  // URL pública de consulta do documento (QR code aponta para ela)
+  consultaUrl?: string;   // ex: https://dominio.app/consulta-receituario?token=12C9AA79
+
   // Títulos dos boxes (opcional — usa defaults ANVISA se omitido)
   boxMedicoTitulo?: string;
   boxPacienteTitulo?: string;
@@ -398,10 +401,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   // URL oficial do ITI (Instituto Nacional de Tecnologia da Informação) para
   // que o farmacêutico valide o documento digitalmente assinado.
   const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
+  // QR aponta para a página de consulta do documento (quando disponível) ou para o ITI
+  const qrTarget = data.consultaUrl ?? ITI_VALIDATION_URL;
   const certMeta = readCertMetaSync(); // best-effort, null se cert não configurado
   let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
   try {
-    const qrBuf = await QRCode.toBuffer(ITI_VALIDATION_URL, {
+    const qrBuf = await QRCode.toBuffer(qrTarget, {
       width: 80, margin: 1,
       color: { dark: "#151c2eff", light: "#ffffffff" },
     });
@@ -867,7 +872,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     ["Certificadora", certMeta?.ac        ?? "ICP-Brasil"],
     ["Nr. Série",    serialFmt],
     ["Válido até",   fmtValidTo],
-    ["Validar em",   "validar.iti.gov.br"],
+    ["Verificar",    "validar.iti.gov.br"],
+    ["Acesse em",    data.consultaUrl ? data.consultaUrl.replace(/^https?:\/\//, "").slice(0, 52) : "—"],
   ];
   let certY = sigTopY - 18;
   for (const [k, v] of certFields) {

@@ -32,9 +32,49 @@ import { sendGmailMessage } from "../lib/google-gmail";
 import { buildPrescricaoHtml } from "../lib/receituario-html";
 import { htmlToPngBase64 } from "../lib/puppeteer-capture";
 // ── MOTOR ÚNICO: todas as novas emissões passam por aqui ────────────────────
-import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
+import { emitirReceituarioPdf, garantirTabelaTokens } from "../lib/receituario-motor.js";
+import { sql } from "drizzle-orm";
 
 const router = Router();
+
+// ── ROTA PÚBLICA — consulta de receituário por token (sem autenticação) ──────
+// GET /api/receituario/consulta?token=12C9AA79
+// Usada pela página /consulta-receituario (QR code da receita aponta para ela)
+router.get("/receituario/consulta", async (req, res): Promise<void> => {
+  const { token } = req.query;
+  if (!token || typeof token !== "string") {
+    res.status(400).json({ error: "Parâmetro token obrigatório" });
+    return;
+  }
+  try {
+    await garantirTabelaTokens();
+    const rows = await db.execute(sql`
+      SELECT token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url
+      FROM receituario_tokens
+      WHERE token = ${token.toUpperCase().trim()}
+      LIMIT 1
+    `);
+    const row = (rows as unknown as { rows: Record<string, unknown>[] }).rows?.[0]
+      ?? (Array.isArray(rows) ? rows[0] : null);
+
+    if (!row) {
+      res.status(404).json({ error: "Documento não encontrado" });
+      return;
+    }
+    res.json({
+      paciente:    row.paciente,
+      medico:      row.medico,
+      crm:         row.crm,
+      clinica:     row.clinica,
+      dataEmissao: row.data_emissao,
+      arquivo:     row.arquivo,
+      driveUrl:    row.drive_url ?? null,
+    });
+  } catch (e) {
+    req.log.error({ err: e instanceof Error ? e.message : String(e) }, "receituario/consulta: erro");
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 

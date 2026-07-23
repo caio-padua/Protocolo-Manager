@@ -3,6 +3,7 @@
 // Qualquer rota que gera PDF de receita chama emitirReceituarioPdf().
 // Despacha para o motor correto com base no modelo ativo do banco.
 // ─────────────────────────────────────────────────────────────────────────────
+import { randomBytes } from "crypto";
 import { db, professionalsTable, locationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
@@ -13,6 +14,7 @@ import { generatePdfFromPngBase64, generateReceituarioPdfV2, type ReceituarioDat
 import { uploadToFolderById } from "./google-drive.js";
 import { sendGmailMessage } from "./google-gmail.js";
 import { logger } from "./logger.js";
+import { baseUrlFromEnv } from "./messaging/base-url.js";
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -62,6 +64,39 @@ export interface EmitirResult {
   emailSent: boolean;
   modeloUsado: string;
   tipoMotor: TipoModelo;
+  consultaToken: string;   // token curto (8 hex) para a página de consulta pública
+  consultaUrl: string;     // URL completa: {dominio}/consulta-receituario?token=TOKEN
+}
+
+// ── Token de consulta pública ─────────────────────────────────────────────────
+
+function gerarTokenCurto(): string {
+  return randomBytes(4).toString("hex").toUpperCase();
+}
+
+let _tokensGarantido = false;
+
+export async function garantirTabelaTokens(): Promise<void> {
+  if (_tokensGarantido) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS receituario_tokens (
+        token        TEXT PRIMARY KEY,
+        paciente     TEXT NOT NULL,
+        medico       TEXT NOT NULL,
+        crm          TEXT NOT NULL,
+        clinica      TEXT NOT NULL,
+        data_emissao TEXT NOT NULL,
+        arquivo      TEXT NOT NULL,
+        drive_url    TEXT,
+        formulas     JSONB NOT NULL DEFAULT '[]',
+        criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    _tokensGarantido = true;
+  } catch (e) {
+    logger.error({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: falha ao criar tabela de tokens");
+  }
 }
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
@@ -187,6 +222,11 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const dataHoje = hoje();
   const [y, m, d] = dataHoje.split("-");
 
+  // 0. Gera token curto + URL de consulta pública (antes do PDF para embutir no QR)
+  const consultaToken = gerarTokenCurto();
+  const baseUrl = baseUrlFromEnv();
+  const consultaUrl = `${baseUrl}/consulta-receituario?token=${consultaToken}`;
+
   // 1. Carrega o modelo ativo (ou override por modeloId)
   const modelo = await getModeloAtivo(params.modeloId);
   logger.info({ modeloId: modelo.id, tipo: modelo.tipo }, "receituario-motor: modelo selecionado");
@@ -235,6 +275,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       tipoReceita: params.tipoReceita ?? "especial",
       dataEmissao: dataHoje,
       bandModel:   (modelo.config.bandModel as string) ?? "padua-01-floral-islamico",
+      consultaUrl,
     };
     pdfBytes = await generateReceituarioPdfV2(pdfData);
   } else {
@@ -265,6 +306,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       dataEmissao: dataHoje,
       assetsBaseUrl: assetsBase,
       certMeta,
+      consultaUrl,
     };
 
     const html = buildPrescricaoHtml(htmlData);
@@ -327,7 +369,30 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: e-mail falhou");
   }
 
-  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, modeloUsado: modelo.nome, tipoMotor: modelo.tipo };
+  // 8. Salva token de consulta pública no banco (best-effort)
+  try {
+    await garantirTabelaTokens();
+    await db.execute(sql`
+      INSERT INTO receituario_tokens (token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url, formulas)
+      VALUES (
+        ${consultaToken},
+        ${params.patient.nome},
+        ${medicoNome},
+        ${medicoCrm},
+        ${clinicaNome},
+        ${dataHoje},
+        ${fileName},
+        ${driveUrl},
+        ${JSON.stringify(params.formulas)}
+      )
+      ON CONFLICT (token) DO NOTHING
+    `);
+    logger.info({ consultaToken, consultaUrl }, "receituario-motor: token de consulta salvo");
+  } catch (e) {
+    logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: falha ao salvar token");
+  }
+
+  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, modeloUsado: modelo.nome, tipoMotor: modelo.tipo, consultaToken, consultaUrl };
 }
 
 // ── HTML do e-mail de notificação ─────────────────────────────────────────────
