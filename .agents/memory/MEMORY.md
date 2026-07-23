@@ -2,6 +2,7 @@
 - [Cockpit unificado — padrão de fusão](cockpit-unificado-fusao.md) — sticky header+nav como bloco único; redirect /clients/:id → cockpit; accordion protocolos; 3 abas transplantadas; clients/detail.tsx preservado.
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas; 5 rotas corrigidas.
 - [Drive-watcher + planilha comparativa de analitos](drive-watcher-analitos.md) — importação automática a cada 4h; extractPdfText retorna objeto .text; PlanilhaComparativa pivot no prontuário.
+- [Drive watcher — empresa_id e sourcePdfDriveId obrigatórios](drive-watcher-empresa-id.md) — bug crítico: insert sem empresa_id faz tenant-filter excluir tudo; sourcePdfDriveId=file.id obrigatório para botão Drive funcionar.
 - [Receituário manuscrito: linha ACIMA, label ABAIXO](receituario-manuscrito-layout.md) — borderBottom no span superior; label no span inferior; prop manuscrito deve ser passado explicitamente no IdentBoxV2.
 - [Motor Único de Receituário](motor-unico-receituario.md) — emitirReceituarioPdf() despacha para faixas_paxter (Puppeteer) ou classico_anvisa (pdf-lib); tabela receituario_modelos governa o ativo; certMeta injetado no HTML.
 - [Receituário: Puppeteer + Chromium Nix](receituario-puppeteer-chromium.md) — HTML→screenshot→PDF é o caminho correto; Chromium via pkgs.chromium Nix (path fixo no puppeteer-capture.ts); POST /api/receituario/emitir-cliente emite receita real.

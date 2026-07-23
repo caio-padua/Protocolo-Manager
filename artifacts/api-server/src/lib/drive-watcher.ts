@@ -400,11 +400,14 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
                 .insert(examDocumentsTable)
                 .values({
                   clientId,
+                  empresaId: 5,
                   hash,
                   fileName: newName,
                   examKind: "lab",
                   origin: "drive-watcher",
                   status: "recebido",
+                  sourcePdfDriveId: file.id,
+                  sourcePath: file.name,
                 })
                 .onConflictDoNothing()
                 .returning({ id: examDocumentsTable.id });
@@ -432,11 +435,14 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
                 .insert(examDocumentsTable)
                 .values({
                   clientId,
+                  empresaId: 5,
                   hash,
                   fileName: newName,
                   examKind: "imagem",
                   origin: "drive-watcher",
                   status: "recebido",
+                  sourcePdfDriveId: file.id,
+                  sourcePath: file.name,
                 })
                 .onConflictDoNothing();
             } catch { /* duplicado */ }
