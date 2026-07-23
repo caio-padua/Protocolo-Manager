@@ -159,7 +159,10 @@ function Router() {
             }} />
             <Route path="/cockpit/:clientId" component={({ params }: { params?: { clientId?: string } }) => {
               const id = params?.clientId && /^\d+$/.test(params.clientId) ? Number(params.clientId) : null;
-              return <CockpitCliente initialClientId={id} />;
+              // key={params.clientId} força remontagem completa ao trocar de cliente.
+              // Sem isso, useState não re-inicializa ao navegar de /cockpit/A para /cockpit/B.
+              // React Query mantém o cache, então não há custo extra de rede na troca.
+              return <CockpitCliente key={params?.clientId ?? "sem-cliente"} initialClientId={id} />;
             }} />
             
             <Route path="/substances" component={Substances} />
