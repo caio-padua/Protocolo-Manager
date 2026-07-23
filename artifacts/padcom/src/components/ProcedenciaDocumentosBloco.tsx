@@ -71,6 +71,8 @@ export interface AnalyteResult {
   unitConverted: boolean;
   /** Resultado extraído do histórico interno do laudo (coleta anterior impressa no PDF) */
   isHistory?: boolean;
+  /** Nome canônico do catálogo (display_name de exam_analyte_catalog) — K3 Kaizen-001 */
+  canonicalName?: string | null;
 }
 
 // ── Calhas (canais de entrada) ─────────────────────────────────────────────────
@@ -101,10 +103,22 @@ const CALHA_CFG: Record<string, {
     Icon: FolderOpen,
   },
   "drive-watcher": {
-    label: "Calha Drive · Auto",
-    sublabel: "Watcher automático",
+    label: "Drive · Aspirador",
+    sublabel: "Watcher automático (5 min)",
     led: "paxter-led paxter-led-breathe paxter-led-amber",
     Icon: FolderSync,
+  },
+  manual: {
+    label: "Upload Manual",
+    sublabel: "Enviado avulso pela equipe",
+    led: "paxter-led paxter-led-breathe paxter-led-amber",
+    Icon: Upload,
+  },
+  demo: {
+    label: "Demonstração",
+    sublabel: "Dado de teste do sistema",
+    led: "paxter-led paxter-led-breathe",
+    Icon: Bot,
   },
 };
 const CALHA_DEFAULT = {
@@ -113,6 +127,63 @@ const CALHA_DEFAULT = {
   led: "paxter-led paxter-led-breathe",
   Icon: Globe,
 };
+
+// ── Canais fixos (para o Painel de Classificação) ─────────────────────────────
+// TODOS os canais aparecem em POSIÇÃO FIXA em cada card — K2 Kaizen-001
+const TODOS_CANAIS: Array<{ key: string; label: string; Icon: typeof Globe }> = [
+  { key: "portal",        label: "Portal do Cliente",   Icon: Globe     },
+  { key: "drive-watcher", label: "Drive · Aspirador",   Icon: FolderSync},
+  { key: "drive-import",  label: "Importação em Massa", Icon: FolderOpen},
+  { key: "upload",        label: "Upload pela Clínica", Icon: Upload    },
+  { key: "demo",          label: "Demonstração",        Icon: Bot       },
+];
+
+function ClassificationPanel({ activeOrigin }: { activeOrigin: string | null }) {
+  const key = activeOrigin ?? "";
+  return (
+    <div
+      className="bevel-3d flex-shrink-0 flex flex-col p-2.5 gap-0.5"
+      style={{ minWidth: 158, maxWidth: 175 }}
+    >
+      <div
+        className="text-[7.5px] font-black uppercase tracking-[0.22em] pb-1.5 mb-1"
+        style={{ color: GOLD, borderBottom: "1px solid rgba(154,123,50,0.22)" }}
+      >
+        Canal de Entrada
+      </div>
+      {TODOS_CANAIS.map(({ key: k, label, Icon }) => {
+        const active = key === k;
+        const cfg = CALHA_CFG[k];
+        return (
+          <div
+            key={k}
+            className="flex items-center gap-1.5 rounded-[3px] px-1.5 py-[3px]"
+            style={{ background: active ? "rgba(22,40,74,0.08)" : "transparent" }}
+          >
+            {active ? (
+              <span className={`${cfg?.led ?? "paxter-led paxter-led-breathe paxter-led-amber"} flex-shrink-0`} />
+            ) : (
+              <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: "rgba(100,124,151,0.18)" }} />
+            )}
+            <Icon
+              className="h-2.5 w-2.5 flex-shrink-0"
+              style={{ color: active ? NAVY : MUTED, opacity: active ? 1 : 0.38 }}
+            />
+            <span
+              className="text-[8.5px] truncate"
+              style={{ color: active ? NAVY : MUTED, fontWeight: active ? 700 : 400 }}
+            >
+              {label}
+            </span>
+            {active && (
+              <CheckCircle2 className="ml-auto h-2.5 w-2.5 flex-shrink-0" style={{ color: "#15803d" }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // Tipo de exame → faixa lateral e ícone
 const KIND_CFG: Record<string, { label: string; cor: string; Icon: typeof FileText }> = {
@@ -183,37 +254,58 @@ function fmtDateShort(iso: string | null | undefined): string {
 }
 
 function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
-  const stCfg    = ANALYTE_STATUS[a.status ?? ""];
-  const valor    = a.valueCanonical ?? a.valueRaw ?? "—";
-  const unLab    = a.unitRaw ?? "—";
-  const unCanon  = a.unitCanonical ?? null;
+  const stCfg   = ANALYTE_STATUS[a.status ?? ""];
+  const valor   = a.valueCanonical ?? a.valueRaw ?? "—";
+  const unLab   = a.unitRaw ?? "—";
+  const unCanon = a.unitCanonical ?? null;
 
-  // Ícone de conversão
-  let convIcon = "—";
+  // K3: nome canônico do catálogo; fallback = code; último fallback = nome extraído
+  const canonName = a.canonicalName
+    ?? (a.analyteCode ? a.analyteCode.replace(/-/g, " ") : null)
+    ?? a.analyteNameRaw;
+  // Só exibe "como foi extraído" quando difere do canônico (evita repetição)
+  const showExtracted = !!a.analyteNameRaw
+    && canonName.toLowerCase() !== a.analyteNameRaw.toLowerCase();
+
+  // K4: quando houve conversão de unidade, Col 3 mostra "leitura original" (origVal + origUnit)
+  // em vez de sub-linha abaixo do valor → alinhamento vertical mantido
+  const col3Convertido = a.unitConverted && a.valueRaw && a.valueRaw !== valor;
+
+  // Ícone / cor de conversão
+  let convIcon  = "—";
   let convColor = MUTED;
   if (unCanon) {
-    if (a.unitConverted) {
-      convIcon = "↔"; convColor = "#1d4ed8";
-    } else {
-      convIcon = "✓"; convColor = "#15803d";
-    }
+    convIcon  = a.unitConverted ? "→" : "✓";
+    convColor = a.unitConverted ? "#1d4ed8" : "#15803d";
   }
 
   return (
     <div
       className={`grid items-start gap-x-2 px-3 py-1.5 ${last ? "" : "border-b"}`}
-      style={{ gridTemplateColumns: GRID_COLS, borderColor: "rgba(209,195,165,0.25)" }}
+      style={{
+        gridTemplateColumns: GRID_COLS,
+        borderColor: "rgba(209,195,165,0.25)",
+        borderLeft: a.unitConverted ? "2px solid rgba(29,78,216,0.28)" : undefined,
+      }}
     >
-      {/* Col 1 — Nome + badge + data */}
+      {/* Col 1 — Nome canônico (linha 1) + como foi extraído (linha 2, só se diferente) */}
       <span className="min-w-0">
-        <span className="block truncate text-[11px] font-semibold leading-tight" style={{ color: NAVY }}>
-          {a.analyteNameRaw}
-          {a.analyteCode && (
-            <span className="ml-1 text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
-              {a.analyteCode}
-            </span>
-          )}
+        <span
+          className="block truncate text-[11px] font-bold leading-tight"
+          style={{ color: NAVY }}
+          title={canonName}
+        >
+          {canonName}
         </span>
+        {showExtracted && (
+          <span
+            className="block truncate text-[9px] italic leading-snug"
+            style={{ color: MUTED }}
+            title={`Extraído do laudo: ${a.analyteNameRaw}`}
+          >
+            ext: {a.analyteNameRaw}
+          </span>
+        )}
         <span className="flex flex-wrap items-center gap-1 mt-0.5">
           {a.isHistory && (
             <span
@@ -231,47 +323,48 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
         </span>
       </span>
 
-      {/* Col 2 — Valor (canônico se convertido, raw caso contrário) */}
+      {/* Col 2 — Valor canônico (sem sub-linha — K4 Kaizen-001) */}
       <span className="text-right leading-tight pt-0.5 min-w-0">
-        <span className="block text-[11px] font-mono font-bold tabular-nums" style={{ color: valor === "—" ? MUTED : NAVY }}>
+        <span
+          className="block text-[11px] font-mono font-bold tabular-nums"
+          style={{ color: valor === "—" ? MUTED : NAVY }}
+        >
           {valor}
         </span>
-        {/* Sub-linha: valor original quando houve conversão */}
-        {a.unitConverted && a.valueRaw && a.valueRaw !== valor && (
+      </span>
+
+      {/* Col 3 — Un. Lab / Leitura original (K4: se convertido mostra "origVal origUnit" em azul) */}
+      <span className="text-[9px] leading-tight pt-0.5 min-w-0">
+        {col3Convertido ? (
           <span
-            className="block text-right text-[8px] tabular-nums"
-            style={{ color: "#1d4ed8" }}
-            title="Valor original do laudo antes da conversão"
+            className="block font-mono tabular-nums"
+            style={{ color: "#5b7cb8" }}
+            title="Leitura original do laudo antes da conversão de unidade"
           >
-            orig: {a.valueRaw}
+            {a.valueRaw} {unLab}
+          </span>
+        ) : (
+          <span className="block" style={{ color: a.unitConverted ? "#1d4ed8" : MUTED }}>
+            {unLab}
           </span>
         )}
       </span>
 
-      {/* Col 3 — Un. Lab (extraída do laudo, unidade original) */}
-      <span className="text-[9px] leading-tight pt-0.5 min-w-0">
-        <span className="block" style={{ color: a.unitConverted ? "#1d4ed8" : MUTED }}>
-          {unLab}
-        </span>
-      </span>
-
-      {/* Col 4 — Un. Canônica (padrão do sistema) */}
+      {/* Col 4 — Un. Canônica */}
       <span className="text-[9px] font-semibold leading-tight pt-0.5 min-w-0">
         <span className="block" style={{ color: unCanon ? NAVY : MUTED }}>
           {unCanon ?? "—"}
         </span>
       </span>
 
-      {/* Col 5 — Ícone de conversão */}
+      {/* Col 5 — Símbolo de conversão (→ para convertido; ✓ para mesma unidade; — sem catálogo) */}
       <span
         className="text-center text-[12px] font-black leading-tight pt-0.5"
         style={{ color: convColor }}
         title={
           a.unitConverted
             ? `Convertido: ${a.unitRaw ?? "?"} → ${a.unitCanonical ?? "?"}`
-            : unCanon
-              ? "Unidade já canônica"
-              : "Sem conversão catalogada"
+            : unCanon ? "Unidade já canônica" : "Sem conversão catalogada"
         }
       >
         {convIcon}
@@ -336,7 +429,6 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
     }
   }
 
-  const calha     = CALHA_CFG[doc.origin ?? ""] ?? CALHA_DEFAULT;
   const kindCfg   = KIND_CFG[doc.examKind ?? ""] ?? KIND_DEFAULT;
   const statusCfg = DOC_STATUS[doc.status] ?? { label: doc.status, cor: "#94a3b8" };
   const dUrl      = driveLink(doc.sourcePdfDriveId);
@@ -415,32 +507,18 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       style={{ borderLeft: `4px solid ${kindCfg.cor}` }}
     >
 
-      {/* ── ZONA 1: TOP BAR — calha + status ───────────────────────────────── */}
+      {/* ── ZONA 1: TOP BAR — tipo + status + confiança (K2: origem saiu para ClassificationPanel) */}
       <div
-        className="flex flex-wrap items-center gap-3 px-4 py-2.5"
+        className="flex flex-wrap items-center gap-2 px-4 py-2"
         style={{ borderBottom: "1px solid rgba(209,195,165,0.4)" }}
       >
-        {/* Calha — LED + label */}
-        <span className="flex items-center gap-2">
-          <span className={calha.led} />
-          <span className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: NAVY }}>
-            {calha.label}
-          </span>
-          <span className="text-[9px]" style={{ color: MUTED }}>
-            · {calha.sublabel}
-          </span>
-        </span>
-
-        {/* Separador */}
-        <span className="h-4 w-px" style={{ background: "rgba(209,195,165,0.5)" }} />
-
-        {/* Tipo de exame — bevel saliente */}
+        {/* Tipo de exame */}
         <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px]">
           <kindCfg.Icon className="h-3 w-3" style={{ color: kindCfg.cor }} />
           {kindCfg.label}
         </span>
 
-        {/* Status — concave afundado */}
+        {/* Status */}
         <span
           className="concave-3d ml-auto inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-widest"
           style={{ color: statusCfg.cor }}
@@ -448,36 +526,43 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
           {statusCfg.label}
         </span>
 
+        {/* Confiança IA */}
+        {confianca !== null && (
+          <span
+            className="concave-3d inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
+            style={{ color: MUTED }}
+          >
+            <Bot className="h-2.5 w-2.5" />
+            {confianca}%
+          </span>
+        )}
+
         {/* Extraído com sucesso */}
         {extraidoOk && (
           <span className="bevel-3d-ok inline-flex items-center gap-1 px-2.5 py-1 text-[9px]">
             <Zap className="h-2.5 w-2.5" />
-            Extraído com sucesso
+            Extraído
           </span>
         )}
       </div>
 
-      {/* ── ZONA 2: TÍTULO + RENOMEAÇÃO ──────────────────────────────────────── */}
-      <div className="px-4 pt-3 pb-2 space-y-2">
-        <div className="flex items-start gap-2">
-          <kindCfg.Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: kindCfg.cor }} />
-          <p className="text-[13px] font-bold leading-snug" style={{ color: NAVY, wordBreak: "break-word" }}>
-            {doc.fileName}
-          </p>
-          {confianca !== null && (
-            <span
-              className="concave-3d ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
-              style={{ color: MUTED }}
-            >
-              <Bot className="h-2.5 w-2.5" />
-              {confianca}%
-            </span>
-          )}
-        </div>
+      {/* ── ZONA 2: PAINEL DE CLASSIFICAÇÃO (esq) + TÍTULO E PROVENIÊNCIA (dir) — K2 Kaizen-001 */}
+      <div className="flex gap-3 px-4 pt-3 pb-2">
 
-        {/* ── ZONA 2: PROVENIÊNCIA — 3 insert-bevels separados ── */}
-        {/* Padrão: valor dentro do bevel + label/subtítulo ABAIXO do bevel    */}
-        <div className="grid grid-cols-3 gap-3 mx-4 mb-4">
+        {/* Painel de Classificação — esquerda, bevel saliente, canais fixos */}
+        <ClassificationPanel activeOrigin={doc.origin} />
+
+        {/* Direita: título + 3 bevels de proveniência */}
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-start gap-2">
+            <kindCfg.Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: kindCfg.cor }} />
+            <p className="text-[13px] font-bold leading-snug" style={{ color: NAVY, wordBreak: "break-word" }}>
+              {doc.fileName}
+            </p>
+          </div>
+
+          {/* PROVENIÊNCIA — 3 insert-bevels (Nome de importação / Renomeado para / Clone no Drive) */}
+          <div className="grid grid-cols-3 gap-2">
 
           {/* Bevel 1 — Nome de importação (original do Drive) */}
           <div className="flex flex-col gap-1">
@@ -563,8 +648,9 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
             </span>
           </div>
 
-        </div>
-      </div>
+          </div>{/* fecha grid-cols-3 gap-2 */}
+        </div>{/* fecha coluna direita flex-1 */}
+      </div>{/* fecha flex gap-3 px-4 (ZONA 2) */}
 
       {/* ── ZONA 3: META GRID (grid-cols-3 fixo) ─────────────────────────────── */}
       <div

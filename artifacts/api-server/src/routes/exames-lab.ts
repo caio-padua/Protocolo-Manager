@@ -421,8 +421,13 @@ router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
         collectionDate: examResultsTable.collectionDate,
         unitConverted: examResultsTable.unitConverted,
         isHistory: examResultsTable.isHistory,
+        canonicalName: examAnalyteCatalogTable.displayName,
       })
       .from(examResultsTable)
+      .leftJoin(
+        examAnalyteCatalogTable,
+        eq(examResultsTable.analyteCode, examAnalyteCatalogTable.code),
+      )
       .where(eq(examResultsTable.clientId, clientId))
       .orderBy(examResultsTable.examDocumentId, examResultsTable.id);
     res.json(results);

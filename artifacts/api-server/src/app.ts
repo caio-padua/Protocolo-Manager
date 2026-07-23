@@ -37,7 +37,7 @@ app.use("/api", router);
 // Roda a cada 4 horas sem intervenção manual. Primeira rodada 2 min após boot.
 import { processWatchedFolders, getWatcherState } from "./lib/drive-watcher.js";
 
-const DRIVE_WATCH_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 horas
+const DRIVE_WATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos — CEO K5 Kaizen-001
 
 function runDriveWatcher() {
   if (getWatcherState().running) return; // já em andamento
@@ -47,6 +47,7 @@ function runDriveWatcher() {
 }
 
 setTimeout(runDriveWatcher, 2 * 60 * 1000);              // primeira execução em 2 min
-setInterval(runDriveWatcher, DRIVE_WATCH_INTERVAL_MS);   // recorrente a cada 4h
+void runDriveWatcher();                                    // rodar imediatamente no boot
+setInterval(runDriveWatcher, DRIVE_WATCH_INTERVAL_MS);   // recorrente a cada 5min
 
 export default app;
