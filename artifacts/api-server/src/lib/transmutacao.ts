@@ -500,6 +500,8 @@ export async function runTransmutacao(opts: {
           codigoSemantico: payload.codigoSemantico,
           fichaClinica: payload.fichaClinica,
           needsReview,
+          empresaId: 5,
+          locationId: 8,
         })
         .returning({ id: clientsTable.id });
       indexClient({

@@ -110,6 +110,9 @@ export async function runSeedDemoRogerio(
         comoConheceu: "Indicação de cliente",
         address: "Rua das Palmeiras, 320, Apto 45, Tatuapé, São Paulo - SP",
         fichaClinica: FICHA_DEMO,
+        status: "active",
+        empresaId: 5,
+        locationId: 8,
       })
       .returning({ id: clientsTable.id });
     clienteId = novo!.id;
