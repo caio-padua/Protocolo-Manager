@@ -41,6 +41,7 @@ import {
   uploadFileToDrive,
   removeDiacritics,
   driveDownloadFile,
+  driveCopyFileInFolder,
 } from "../lib/google-drive";
 import {
   runTriagemBackfill,
@@ -2337,6 +2338,92 @@ router.post(
     }
   },
 );
+
+// ─── Clone retroativo no Drive do paciente ───────────────────────────────────
+// Cria a cópia canônica na pasta EXAMES do paciente para documentos que
+// foram processados antes do fix de destino de pasta (copiedDriveId = null).
+router.post("/exames-lab/documento/:docId/clonar-drive", async (req: Request, res: Response) => {
+  try {
+    const docId = Number(req.params.docId);
+    if (!docId) return res.status(400).json({ error: "docId inválido" });
+
+    // 1. Buscar o exam_document
+    const [doc] = await db
+      .select()
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, docId))
+      .limit(1);
+    if (!doc) return res.status(404).json({ error: "Documento não encontrado" });
+    if (!doc.sourcePdfDriveId) return res.status(422).json({ error: "Documento sem sourcePdfDriveId — não é possível clonar" });
+
+    // 2. Buscar o registro do watcher (para renamedTo e folderType)
+    const watcherRows = await db.execute(
+      sql`SELECT file_id, folder_type, renamed_to, copied_drive_id
+          FROM drive_watcher_files
+          WHERE exam_document_id = ${docId}
+          LIMIT 1`
+    );
+    const watcher = (watcherRows.rows ?? [])[0] as {
+      file_id: string; folder_type: string;
+      renamed_to: string | null; copied_drive_id: string | null;
+    } | undefined;
+
+    if (watcher?.copied_drive_id) {
+      return res.status(409).json({
+        error: "Clone já existe",
+        copiedDriveId: watcher.copied_drive_id,
+        driveUrl: `https://drive.google.com/file/d/${watcher.copied_drive_id}/view`,
+      });
+    }
+
+    const renamedTo = watcher?.renamed_to ?? doc.fileName;
+    const folderType = watcher?.folder_type ?? "sangue";
+
+    // 3. Resolver pasta pessoal do paciente
+    const [clientRow] = await db
+      .select({ name: clientsTable.name, cpf: clientsTable.cpf })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, doc.clientId))
+      .limit(1);
+    if (!clientRow) return res.status(422).json({ error: "Cliente não encontrado" });
+
+    const structure = await ensureClientFolderStructure(clientRow.name, clientRow.cpf ?? "");
+    const subs = structure.subfolders;
+    const examesFolderId = folderType === "sangue" ? subs["EXAMES"] : subs["IMAGENS"];
+    if (!examesFolderId) {
+      return res.status(422).json({ error: "Subpasta EXAMES/IMAGENS não encontrada na estrutura do cliente" });
+    }
+
+    // 4. Copiar no Drive
+    const { fileId: copiedDriveId } = await driveCopyFileInFolder(
+      doc.sourcePdfDriveId,
+      examesFolderId,
+      renamedTo,
+    );
+
+    // 5. Gravar o copiedDriveId no drive_watcher_files (PK = file_id)
+    if (watcher) {
+      await db.execute(sql`
+        UPDATE drive_watcher_files
+        SET copied_drive_id = ${copiedDriveId},
+            copied_name     = ${renamedTo}
+        WHERE file_id = ${watcher.file_id}
+      `);
+    }
+
+    req.log.info({ docId, copiedDriveId, examesFolderId }, "Clone retroativo criado no Drive");
+
+    return res.json({
+      ok: true,
+      copiedDriveId,
+      copiedName: renamedTo,
+      driveUrl: `https://drive.google.com/file/d/${copiedDriveId}/view`,
+    });
+  } catch (e) {
+    req.log.error({ err: e }, "POST /exames-lab/documento/:docId/clonar-drive falhou");
+    return res.status(500).json({ error: String(e) });
+  }
+});
 
 // ─── SIMULAÇÃO: conversão de unidade ─────────────────────────────────────────
 // Cria um documento e analito fictícios com conversão de unidade explícita.

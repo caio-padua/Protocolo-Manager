@@ -304,10 +304,37 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
   const [reextrai, setReextrai] = useState(false);
   const [reextraiMsg, setReextraiMsg] = useState("");
 
+  // Clone retroativo no Drive
+  const [clonando, setClonando] = useState(false);
+  const [cloneResultId, setCloneResultId] = useState<string | null>(doc.copiedDriveId ?? null);
+
   // Lab name editável (corrige quando a IA não reconheceu o laboratório)
   const [labEditando, setLabEditando] = useState(false);
   const [labValor, setLabValor] = useState(doc.labName ?? "");
   const [labSalvando, setLabSalvando] = useState(false);
+
+  async function handleClonarDrive() {
+    setClonando(true);
+    try {
+      const r = await fetch(`/api/exames-lab/documento/${doc.id}/clonar-drive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const j = await r.json();
+      if (r.ok && j.copiedDriveId) {
+        setCloneResultId(j.copiedDriveId);
+      } else if (r.status === 409 && j.copiedDriveId) {
+        // Clone já existia — mostrar link
+        setCloneResultId(j.copiedDriveId);
+      } else {
+        alert(`Erro ao clonar: ${j.error ?? r.status}`);
+      }
+    } catch (e) {
+      alert(`Erro de rede: ${String(e)}`);
+    } finally {
+      setClonando(false);
+    }
+  }
 
   const calha     = CALHA_CFG[doc.origin ?? ""] ?? CALHA_DEFAULT;
   const kindCfg   = KIND_CFG[doc.examKind ?? ""] ?? KIND_DEFAULT;
@@ -317,7 +344,8 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
   // Proveniência: prioridade watcher > sourcePath > fileName
   const nomeOrig  = doc.originalName ?? (doc.sourcePath ? basename(doc.sourcePath) : null) ?? doc.fileName;
   const nomeRen   = doc.renamedTo ?? doc.fileName;
-  const cloneUrl  = doc.copiedDriveId ? driveLink(doc.copiedDriveId) : null;
+  // cloneResultId é estado local — atualiza ao clicar "Clonar no Drive"
+  const cloneUrl  = cloneResultId ? driveLink(cloneResultId) : null;
 
   // Extração OK
   const extraidoOk = doc.status === "conferido_1" || doc.status === "conferido";
@@ -493,9 +521,9 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
             </span>
           </div>
 
-          {/* Bevel 3 — Clone no Drive (link se existir) */}
+          {/* Bevel 3 — Clone no Drive (link se existir, botão se não) */}
           <div className="flex flex-col gap-1">
-            <div className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]">
+            <div className="concave-3d flex items-center justify-center px-2 py-2.5 min-h-[42px]">
               {cloneUrl ? (
                 <a
                   href={cloneUrl}
@@ -505,11 +533,25 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
                   style={{ color: "#15803d" }}
                 >
                   <CheckCircle2 className="h-3 w-3 shrink-0" />
-                  {doc.copiedName ?? "arquivo copiado"}
+                  {doc.copiedName ?? "clonado"}
                 </a>
+              ) : doc.sourcePdfDriveId ? (
+                <button
+                  onClick={handleClonarDrive}
+                  disabled={clonando}
+                  className="btn-3d-soft inline-flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest disabled:opacity-60"
+                  style={{ color: NAVY }}
+                >
+                  {clonando ? (
+                    <span className="animate-spin text-[11px]">⟳</span>
+                  ) : (
+                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+                  )}
+                  {clonando ? "Clonando…" : "Clonar"}
+                </button>
               ) : (
                 <span className="text-[10px]" style={{ color: MUTED }}>
-                  Não gerado
+                  Sem fonte
                 </span>
               )}
             </div>

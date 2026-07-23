@@ -464,13 +464,21 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           let copiedDriveId: string | undefined;
           let clientExamesFolderId: string | undefined;
 
-          // 6. Garantir estrutura de pastas do paciente — deve vir ANTES da cópia
+          // 6. Garantir estrutura de pastas do paciente — deve vir ANTES da cópia.
+          // ensureClientFolderStructure exige (clientName, cpf) — buscar no banco pelo clientId.
           try {
-            const structure = await ensureClientFolderStructure(clientId);
+            const [clientRow] = await db
+              .select({ name: clientsTable.name, cpf: clientsTable.cpf })
+              .from(clientsTable)
+              .where(eq(clientsTable.id, clientId))
+              .limit(1);
+            if (!clientRow) throw new Error(`Cliente id=${clientId} não encontrado`);
+            const structure = await ensureClientFolderStructure(clientRow.name, clientRow.cpf ?? "");
+            const subs = structure.subfolders as Record<string, string>;
             clientExamesFolderId =
               folder.type === "sangue"
-                ? (structure as Record<string, unknown>).exames as string | undefined
-                : (structure as Record<string, unknown>).imagens as string | undefined;
+                ? (subs["EXAMES"] ?? subs["Exames"])
+                : (subs["IMAGENS"] ?? subs["Imagens"]);
             logLine(`    Pasta do paciente resolvida: ${clientExamesFolderId ?? "(não encontrada)"}`);
           } catch (structErr) {
             logLine(`    AVISO estrutura Drive: ${structErr instanceof Error ? structErr.message : String(structErr)}`);
