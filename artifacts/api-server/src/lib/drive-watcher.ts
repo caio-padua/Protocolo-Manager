@@ -136,7 +136,8 @@ async function autoCreateClient(name: string): Promise<number> {
     .insert(clientsTable)
     .values({
       name: name.trim(),
-      status: "ativo",
+      status: "active",
+      empresaId: 5,
     })
     .returning({ id: clientsTable.id });
   return row.id;
