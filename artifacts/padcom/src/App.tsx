@@ -111,6 +111,7 @@ import ExperienciaCliente from "@/pages/experiencia-cliente";
 import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
 import AgentesHub from "@/pages/agentes/index";
+import ProcedenciaExames from "@/pages/procedencia-exames";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -224,6 +225,7 @@ function Router() {
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
             <Route path="/exames" component={() => <Exames />} />
             <Route path="/exames-cliente" component={ExamesCliente} />
+            <Route path="/procedencia-exames" component={ProcedenciaExames} />
             <Route path="/importar-drive">
               <CollaboratorGate>
                 <ImportarDrive />

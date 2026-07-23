@@ -58,6 +58,7 @@ import {
   Globe,
   Bot,
   Radar,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -97,6 +98,7 @@ const navigation: NavEntry[] = [
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
       { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
+      { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
       { name: "Importação do Drive (ao vivo)", href: "/importar-drive", icon: DownloadCloud },
       { name: "Experiência do Cliente", href: "/experiencia-cliente", icon: Sparkles },
     ],
