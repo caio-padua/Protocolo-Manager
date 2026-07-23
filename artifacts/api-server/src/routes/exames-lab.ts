@@ -363,6 +363,39 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
   }
 });
 
+// ---- GET /exames-lab/resultados?clientId= — BULK: todos os analitos do cliente ----
+// Permite ao front carregar documentos + analitos em 2 chamadas (N+1 evitado).
+router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
+  try {
+    const clientId = req.query.clientId ? Number(req.query.clientId) : null;
+    if (!clientId || Number.isNaN(clientId)) {
+      res.status(400).json({ error: "clientId obrigatorio" });
+      return;
+    }
+    const results = await db
+      .select({
+        id: examResultsTable.id,
+        examDocumentId: examResultsTable.examDocumentId,
+        analyteCode: examResultsTable.analyteCode,
+        analyteNameRaw: examResultsTable.analyteNameRaw,
+        valueRaw: examResultsTable.valueRaw,
+        unitRaw: examResultsTable.unitRaw,
+        valueCanonical: examResultsTable.valueCanonical,
+        unitCanonical: examResultsTable.unitCanonical,
+        status: examResultsTable.status,
+        collectionDate: examResultsTable.collectionDate,
+        unitConverted: examResultsTable.unitConverted,
+      })
+      .from(examResultsTable)
+      .where(eq(examResultsTable.clientId, clientId))
+      .orderBy(examResultsTable.examDocumentId, examResultsTable.id);
+    res.json(results);
+  } catch (err) {
+    console.error("[ExamesLab] Erro ao listar resultados bulk:", (err as Error).message);
+    res.status(500).json({ error: "Erro ao listar resultados" });
+  }
+});
+
 // ---- GET /exames-lab/documentos/:id — detalhe + resultados ----
 router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => {
   try {
