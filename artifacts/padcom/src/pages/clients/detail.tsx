@@ -174,6 +174,11 @@ export default function ClientDetail() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            <Link href={`/clients/${client.id}/prontuario`}>
+              <Button className="btn-3d">
+                <FileText className="w-4 h-4 mr-2" /> PRONTUÁRIO
+              </Button>
+            </Link>
             <Link href={`/clients/${client.id}/edit`}>
               <Button className="btn-3d-soft">
                 <Pencil className="w-4 h-4 mr-2" /> EDITAR

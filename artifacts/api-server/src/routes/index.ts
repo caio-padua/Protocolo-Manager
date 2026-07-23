@@ -81,6 +81,8 @@ import agentesWppRouter from "./agentes-wpp";
 import agentesIntegracoesRouter from "./agentes-integracoes";
 import agentesQuickrepliesRouter from "./agentes-quickreplies";
 import whatsappInboundRouter from "./whatsapp-inbound";
+import prontuarioRouter from "./prontuario";
+import driveWatcherRouter from "./drive-watcher";
 
 const router: IRouter = Router();
 
@@ -194,5 +196,7 @@ router.use(agentesChatRouter);
 router.use(agentesWppRouter);
 router.use(agentesIntegracoesRouter);
 router.use(agentesQuickrepliesRouter);
+router.use(prontuarioRouter);
+router.use(driveWatcherRouter);
 
 export default router;

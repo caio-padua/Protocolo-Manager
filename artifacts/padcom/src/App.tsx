@@ -100,6 +100,8 @@ import ImportarDrive from "@/pages/importar-drive";
 import Atestados from "@/pages/arsenal/atestados";
 import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
 import ModelosDocumento from "@/pages/arsenal/modelos";
+import DriveWatcher from "@/pages/arsenal/drive-watcher";
+import Prontuario from "@/pages/prontuario";
 import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
 import PortfolioClinico from "@/pages/portfolio-clinico";
@@ -146,6 +148,7 @@ function Router() {
             
             <Route path="/clients" component={Clients} />
             <Route path="/clients/new" component={NewClient} />
+            <Route path="/clients/:id/prontuario" component={Prontuario} />
             <Route path="/clients/:id/edit" component={EditClient} />
             <Route path="/clients/:id" component={ClientDetail} />
             
@@ -268,6 +271,7 @@ function Router() {
             <Route path="/arsenal/atestados" component={Atestados} />
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
             <Route path="/arsenal/modelos" component={ModelosDocumento} />
+            <Route path="/arsenal/drive-watcher" component={DriveWatcher} />
             <Route path="/juridico/contratos" component={ContratosJuridicos} />
             <Route path="/experiencia-cliente" component={ExperienciaCliente} />
 
