@@ -354,8 +354,42 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
         .where(eq(clientsTable.id, cid));
       if (rows[0]) names.set(cid, rows[0].name);
     }
+
+    // dados do watcher (original_name, renamed_to, copied_drive_id, copied_name)
+    // drive_watcher_files nao tem schema Drizzle — raw SQL
+    type WatcherRow = {
+      exam_document_id: number;
+      original_name: string | null;
+      renamed_to: string | null;
+      copied_drive_id: string | null;
+      copied_name: string | null;
+    };
+    const watcherMap = new Map<number, WatcherRow>();
+    if (docs.length > 0) {
+      const docIds = docs.map((d) => d.id);
+      // docIds são inteiros vindos do banco — sql.raw é seguro aqui
+      const { rows: wRows } = await db.execute<WatcherRow>(
+        sql.raw(`SELECT exam_document_id, original_name, renamed_to, copied_drive_id, copied_name
+                 FROM drive_watcher_files
+                 WHERE exam_document_id IN (${docIds.join(",")})`)
+      );
+      for (const w of wRows) {
+        if (w.exam_document_id) watcherMap.set(w.exam_document_id, w);
+      }
+    }
+
     res.json(
-      docs.map((d) => ({ ...d, clientName: names.get(d.clientId) ?? `Cliente ${d.clientId}` })),
+      docs.map((d) => {
+        const w = watcherMap.get(d.id);
+        return {
+          ...d,
+          clientName: names.get(d.clientId) ?? `Cliente ${d.clientId}`,
+          originalName: w?.original_name ?? null,
+          renamedTo: w?.renamed_to ?? null,
+          copiedDriveId: w?.copied_drive_id ?? null,
+          copiedName: w?.copied_name ?? null,
+        };
+      }),
     );
   } catch (err) {
     console.error("[ExamesLab] Erro ao listar documentos:", (err as Error).message);

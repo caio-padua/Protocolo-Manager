@@ -47,6 +47,14 @@ export interface DocRow {
   conf2Name: string | null;
   conf2Cargo: string | null;
   conf2At: string | null;
+  /** Dados do watcher: nome original do arquivo no Drive antes da renomeação */
+  originalName: string | null;
+  /** Nome canônico após renomeação automática (ex: 26.07.23 EXAME SANGUE ...) */
+  renamedTo: string | null;
+  /** ID do arquivo copiado com nome canônico na mesma pasta do Drive */
+  copiedDriveId: string | null;
+  /** Nome do arquivo copiado */
+  copiedName: string | null;
 }
 
 export interface AnalyteResult {
@@ -155,53 +163,96 @@ function driveLink(id: string | null): string | null {
   return id ? `https://drive.google.com/file/d/${id}/view` : null;
 }
 
-// ── Linha de analito (grade fixa: 4 colunas) ─────────────────────────────────
+// ── Linha de analito (grade fixa: 6 colunas) ─────────────────────────────────
+// Col 1: Nome + badge Histórico + data de coleta
+// Col 2: Valor
+// Col 3: Un. Lab (extraída do laudo)
+// Col 4: Un. Canônica (padrão do sistema)
+// Col 5: Conversão (↔ se convertida, ✓ se igual, — se sem canônica)
+// Col 6: Status
+const GRID_COLS = "1.6fr 68px 58px 62px 32px 80px";
+
+function fmtDateShort(iso: string | null | undefined): string {
+  if (!iso) return "";
+  // iso pode ser YYYY-MM-DD ou DD/MM/YY
+  const d = new Date(iso);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+  return iso;
+}
+
 function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
-  const stCfg = ANALYTE_STATUS[a.status ?? ""];
-  const valor  = a.valueCanonical ?? a.valueRaw ?? "—";
-  const unid   = a.unitCanonical ?? a.unitRaw ?? "—";
+  const stCfg    = ANALYTE_STATUS[a.status ?? ""];
+  const valor    = a.valueCanonical ?? a.valueRaw ?? "—";
+  const unLab    = a.unitRaw ?? "—";
+  const unCanon  = a.unitCanonical ?? null;
+
+  // Ícone de conversão
+  let convIcon = "—";
+  let convColor = MUTED;
+  if (unCanon) {
+    if (a.unitConverted) {
+      convIcon = "↔"; convColor = "#1d4ed8";
+    } else {
+      convIcon = "✓"; convColor = "#15803d";
+    }
+  }
 
   return (
     <div
-      className={`grid items-center gap-x-3 px-3 py-1.5 ${last ? "" : "border-b"}`}
-      style={{
-        gridTemplateColumns: "1fr 72px 72px 90px",
-        borderColor: "rgba(209,195,165,0.25)",
-      }}
+      className={`grid items-start gap-x-2 px-3 py-1.5 ${last ? "" : "border-b"}`}
+      style={{ gridTemplateColumns: GRID_COLS, borderColor: "rgba(209,195,165,0.25)" }}
     >
-      {/* Col 1 — Nome do analito */}
-      <span className="truncate text-[11px] font-semibold" style={{ color: NAVY }}>
-        {a.analyteNameRaw}
-        {a.analyteCode && (
-          <span className="ml-1.5 text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
-            {a.analyteCode}
-          </span>
-        )}
-        {a.isHistory && (
-          <span
-            className="ml-1.5 inline-block rounded-[3px] px-1 py-px text-[7px] font-black uppercase tracking-widest leading-none"
-            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
-          >
-            Histórico
-          </span>
-        )}
+      {/* Col 1 — Nome + badge + data */}
+      <span className="min-w-0">
+        <span className="block truncate text-[11px] font-semibold leading-tight" style={{ color: NAVY }}>
+          {a.analyteNameRaw}
+          {a.analyteCode && (
+            <span className="ml-1 text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
+              {a.analyteCode}
+            </span>
+          )}
+        </span>
+        <span className="flex flex-wrap items-center gap-1 mt-0.5">
+          {a.isHistory && (
+            <span
+              className="inline-block rounded-[3px] px-1 py-px text-[7px] font-black uppercase tracking-widest leading-none"
+              style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+            >
+              Histórico
+            </span>
+          )}
+          {a.collectionDate && (
+            <span className="text-[8px]" style={{ color: MUTED }}>
+              {fmtDateShort(a.collectionDate)}
+            </span>
+          )}
+        </span>
       </span>
 
       {/* Col 2 — Valor */}
-      <span className="text-right text-[11px] font-mono font-bold tabular-nums" style={{ color: NAVY }}>
+      <span className="text-right text-[11px] font-mono font-bold tabular-nums leading-tight pt-0.5" style={{ color: valor === "—" ? MUTED : NAVY }}>
         {valor}
-        {a.unitConverted && (
-          <span className="ml-1 text-[8px] font-black" style={{ color: "#1d4ed8" }}>↔</span>
-        )}
       </span>
 
-      {/* Col 3 — Unidade */}
-      <span className="text-[10px] text-left" style={{ color: MUTED }}>
-        {unid}
+      {/* Col 3 — Un. Lab (extraída) */}
+      <span className="text-[9px] leading-tight pt-0.5" style={{ color: MUTED }}>
+        {unLab}
       </span>
 
-      {/* Col 4 — Status */}
-      <span className="flex items-center justify-start gap-1">
+      {/* Col 4 — Un. Canônica */}
+      <span className="text-[9px] font-semibold leading-tight pt-0.5" style={{ color: unCanon ? NAVY : MUTED }}>
+        {unCanon ?? "—"}
+      </span>
+
+      {/* Col 5 — Conversão */}
+      <span className="text-center text-[11px] font-black leading-tight pt-0.5" style={{ color: convColor }}>
+        {convIcon}
+      </span>
+
+      {/* Col 6 — Status */}
+      <span className="flex items-center gap-1 pt-0.5">
         {stCfg ? (
           <>
             <stCfg.Icon className="h-3 w-3 shrink-0" style={{ color: stCfg.cor }} />
@@ -237,9 +288,10 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
   const statusCfg = DOC_STATUS[doc.status] ?? { label: doc.status, cor: "#94a3b8" };
   const dUrl      = driveLink(doc.sourcePdfDriveId);
 
-  // Detecção de renomeação
-  const nomeOrig   = doc.sourcePath ? basename(doc.sourcePath) : null;
-  const renomeado  = Boolean(nomeOrig && nomeOrig !== doc.fileName);
+  // Proveniência: prioridade watcher > sourcePath > fileName
+  const nomeOrig  = doc.originalName ?? (doc.sourcePath ? basename(doc.sourcePath) : null) ?? doc.fileName;
+  const nomeRen   = doc.renamedTo ?? doc.fileName;
+  const cloneUrl  = doc.copiedDriveId ? driveLink(doc.copiedDriveId) : null;
 
   // Extração OK
   const extraidoOk = doc.status === "conferido_1" || doc.status === "conferido";
@@ -369,20 +421,47 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
           )}
         </div>
 
-        {/* Renomeação: concave-3d */}
-        {renomeado && (
-          <div className="concave-3d flex flex-wrap items-center gap-2 px-3 py-2">
-            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
-              Nome de origem:
+        {/* Proveniência: SEMPRE visível (mesmo se vazio) */}
+        <div className="concave-3d px-3 py-2 space-y-1">
+          {/* Linha 1: nome de origem → renomeado */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
+              Nome de importação:
             </span>
-            <span className="text-[11px]" style={{ color: "#4a5d75" }}>{nomeOrig}</span>
-            <ArrowRight className="h-3 w-3 shrink-0" style={{ color: GOLD }} />
-            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
+            <span className="text-[10px] truncate max-w-[200px]" style={{ color: "#4a5d75" }}>
+              {nomeOrig || "—"}
+            </span>
+            <ArrowRight className="h-2.5 w-2.5 shrink-0" style={{ color: GOLD }} />
+            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
               Renomeado para:
             </span>
-            <span className="text-[11px] font-bold" style={{ color: NAVY }}>{doc.fileName}</span>
+            <span className="text-[10px] font-bold truncate max-w-[240px]" style={{ color: NAVY }}>
+              {nomeRen || "—"}
+            </span>
           </div>
-        )}
+          {/* Linha 2: clone no Drive */}
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
+              Clone no Drive:
+            </span>
+            {cloneUrl ? (
+              <a
+                href={cloneUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] font-bold no-underline"
+                style={{ color: "#15803d" }}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                Sim — {doc.copiedName ?? "arquivo copiado"}
+              </a>
+            ) : (
+              <span className="text-[10px]" style={{ color: MUTED }}>
+                Não gerado
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── ZONA 3: META GRID (grid-cols-3 fixo) ─────────────────────────────── */}
@@ -470,16 +549,13 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       {/* ── ZONA 4: ANALITOS ─────────────────────────────────────────────────── */}
       {analitos.length > 0 && (
         <div className="mx-4 mb-3">
-          {/* Header da grade */}
+          {/* Header da grade — 6 colunas */}
           <div
             className="grid border-b px-3 py-1"
-            style={{
-              gridTemplateColumns: "1fr 72px 72px 90px",
-              borderColor: "rgba(209,195,165,0.4)",
-            }}
+            style={{ gridTemplateColumns: GRID_COLS, borderColor: "rgba(209,195,165,0.4)" }}
           >
-            {["Analito extraído", "Valor", "Unidade", "Status"].map((h) => (
-              <span key={h} className="text-[8px] font-black uppercase tracking-[0.2em]" style={{ color: MUTED }}>
+            {["Analito extraído · data", "Valor", "Un. Lab", "Un. Canônica", "↔", "Status"].map((h) => (
+              <span key={h} className="text-[8px] font-black uppercase tracking-[0.15em]" style={{ color: MUTED }}>
                 {h}
               </span>
             ))}
