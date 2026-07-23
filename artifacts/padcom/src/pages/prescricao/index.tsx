@@ -1085,6 +1085,41 @@ export default function PrescricaoPage(
                         ))}
                       </div>
                     )}
+
+                    {/* Cópia visual para o paciente — gerada pelo Motor Único */}
+                    {(emitResult as any).pacientePdfMotorUnico && (
+                      <div className="mt-3 rounded-md border border-cyan-300 bg-cyan-50 p-3">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wide text-cyan-800 flex items-center gap-1 mb-2">
+                          <FileSignature className="w-3.5 h-3.5" />
+                          Cópia visual do paciente — Motor Único PAXTER
+                        </h3>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-cyan-900">
+                              {(emitResult as any).pacientePdfMotorUnico.fileName}
+                            </p>
+                            <p className="text-xs text-cyan-700">
+                              Modelo: {(emitResult as any).pacientePdfMotorUnico.modeloUsado}
+                              {" · "}
+                              Motor: {(emitResult as any).pacientePdfMotorUnico.tipoMotor}
+                              {(emitResult as any).pacientePdfMotorUnico.emailSent
+                                ? " · E-mail enviado ao paciente"
+                                : " · E-mail não enviado"}
+                            </p>
+                          </div>
+                          {(emitResult as any).pacientePdfMotorUnico.driveUrl && (
+                            <a
+                              href={(emitResult as any).pacientePdfMotorUnico.driveUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-semibold text-cyan-700 hover:underline flex items-center gap-1"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />Ver no Drive
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </>

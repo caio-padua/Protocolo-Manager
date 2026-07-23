@@ -19,6 +19,8 @@ import { ensurePharmacyDayFolder, uploadFileToDrive } from "../lib/google-drive"
 import { sendWhatsapp } from "../lib/whatsapp";
 import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
 import { handleSncrAlert } from "../lib/sncr-alerts";
+// ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
+import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
 
 const router: IRouter = Router();
 
@@ -310,6 +312,57 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
     });
   }
 
+  // 2.5) MOTOR ÚNICO — cópia visual assinada para o PACIENTE (best-effort).
+  //      O M3 acima gera o PDF regulatório que vai para a farmácia.
+  //      O motor único gera o PDF visual (modelo ativo do banco) que vai ao paciente.
+  let pacientePdfMotorUnico: {
+    fileName: string;
+    driveUrl: string | null;
+    emailSent: boolean;
+    modeloUsado: string;
+    tipoMotor: string;
+  } | null = null;
+
+  try {
+    // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
+    // o paciente recebe UMA receita visual completa com todas as substâncias).
+    const formulasParaMotor = items.map((it) => ({
+      nome:      it.name,
+      ativos:    it.ativos ?? undefined,
+      posologia: it.posologia ?? undefined,
+      via:       it.via ?? undefined,
+      forma:     it.observacao ?? undefined,
+      dose:      it.dose ?? undefined,
+    }));
+
+    const emailDestinatarios: string[] = ["drcaiohenriquepadua@gmail.com"];
+    if (body.clientEmail) emailDestinatarios.push(body.clientEmail);
+
+    const motorResult = await emitirReceituarioPdf({
+      patient: {
+        nome:          body.clientName,
+        cpf:           body.clientCpf ?? undefined,
+        telefone:      body.clientPhone ?? undefined,
+        email:         body.clientEmail ?? undefined,
+      },
+      formulas:    formulasParaMotor,
+      tipoReceita: "especial",
+      emailTo:     emailDestinatarios,
+    });
+
+    pacientePdfMotorUnico = {
+      fileName:    motorResult.fileName,
+      driveUrl:    motorResult.driveUrl,
+      emailSent:   motorResult.emailSent,
+      modeloUsado: motorResult.modeloUsado,
+      tipoMotor:   motorResult.tipoMotor,
+    };
+    req.log.info({ fileName: motorResult.fileName, tipoMotor: motorResult.tipoMotor }, "prescriptions/emit: cópia motor único gerada para o paciente");
+  } catch (motorErr) {
+    // Falha na cópia visual NÃO cancela a emissão regulatória M3
+    req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
+  }
+
   // 3) WhatsApp às FARMÁCIAS (best-effort, uma mensagem por farmácia).
   //    A receita é roteada à farmácia de manipulação, não ao cliente.
   const pharmacyDispatches: Array<{
@@ -382,10 +435,12 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
   }
 
   res.status(201).json({
-    prescriptionId: prescription.id,
-    recipes: emittedRecipes,
+    prescriptionId:      prescription.id,
+    recipes:             emittedRecipes,
     sncrAlerts,
     pharmacyDispatches,
+    // Cópia visual para o paciente gerada pelo motor único (null se falhou)
+    pacientePdfMotorUnico,
   });
 });
 
