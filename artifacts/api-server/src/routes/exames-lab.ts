@@ -28,7 +28,7 @@ import {
 } from "../lib/exam-extraction/zones";
 import { getSetting } from "../lib/secure-settings";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
-import { extractExamFromText } from "../lib/exam-extraction/extract";
+import { extractExamFromText, extractExamFromMedia } from "../lib/exam-extraction/extract";
 import {
   persistExtractedResults,
   finalizeDocument,
@@ -2112,6 +2112,70 @@ router.get("/exames-lab/documento/:docId/arquivo", async (req: Request, res: Res
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/documento/:docId/arquivo falhou");
     return res.status(500).json({ error: "Falha ao baixar o arquivo" });
+  }
+});
+
+// ============================================================================
+// Re-extração manual de um documento (POST /exames-lab/documento/:docId/reextrair)
+// Baixa o PDF do Drive → Gemini vision multimodal → apaga resultados antigos → persiste.
+// ============================================================================
+router.post("/exames-lab/documento/:docId/reextrair", async (req: Request, res: Response) => {
+  try {
+    const docId = Number(req.params.docId);
+    if (!Number.isFinite(docId)) return res.status(400).json({ error: "docId inválido" });
+
+    const docs = await db
+      .select({
+        id: examDocumentsTable.id,
+        clientId: examDocumentsTable.clientId,
+        driveId: examDocumentsTable.sourcePdfDriveId,
+        fileName: examDocumentsTable.fileName,
+      })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, docId))
+      .limit(1);
+
+    if (docs.length === 0) return res.status(404).json({ error: "Documento não encontrado" });
+    const doc = docs[0];
+    if (!doc.driveId) return res.status(422).json({ error: "Documento sem arquivo no Drive — re-extração impossível" });
+
+    // Baixar o arquivo do Drive
+    const buffer = await driveDownloadFile(doc.driveId);
+
+    // Gemini vision multimodal: lê pixels, não texto — funciona em PDFs escaneados
+    const result = await extractExamFromMedia(buffer, "application/pdf");
+
+    // Apagar resultados antigos deste documento
+    await db.delete(examResultsTable).where(eq(examResultsTable.examDocumentId, docId));
+
+    // Atualizar metadados do documento (lab, data de coleta, modelo usado)
+    await finalizeDocument(docId, result.data, result.modelUsed);
+
+    // Persistir novos analitos
+    const summary = await persistExtractedResults({
+      documentId: docId,
+      clientId: doc.clientId,
+      extracted: result.data,
+    });
+
+    req.log?.info(
+      { docId, analytes: result.data.analytes.length, model: result.modelUsed },
+      "Re-extração concluída",
+    );
+
+    return res.json({
+      ok: true,
+      analytes: result.data.analytes.length,
+      modelUsed: result.modelUsed,
+      escalated: result.escalated,
+      confidence: result.data.confidence,
+      labName: result.data.labName,
+      collectionDate: result.data.collectionDate,
+      summary,
+    });
+  } catch (e) {
+    req.log?.error({ err: e }, "POST /exames-lab/documento/:docId/reextrair falhou");
+    return res.status(500).json({ error: "Falha na re-extração" });
   }
 });
 

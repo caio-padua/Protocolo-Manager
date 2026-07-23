@@ -8,8 +8,7 @@ import {
   uploadFileToDrive,
   ensureClientFolderStructure,
 } from "./google-drive.js";
-import { extractPdfText } from "./exam-extraction/pdf-text.js";
-import { extractExamFromText } from "./exam-extraction/extract.js";
+import { extractExamFromMedia } from "./exam-extraction/extract.js";
 import {
   persistExtractedResults,
   finalizeDocument,
@@ -388,14 +387,11 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           const newName = buildNewName(file.name, clientName, folder.type, todayStr);
           logLine(`    Renomeado para: ${newName}`);
 
-          // 5. Extrair conteúdo (PDF de sangue → motor de extração)
+          // 5. Extrair conteúdo (PDF de sangue → motor de extração por visão multimodal)
           let examDocId: number | undefined;
           if (folder.type === "sangue" && file.name.toLowerCase().endsWith(".pdf")) {
             try {
-              const pdfResult = await extractPdfText(buffer);
-              const pdfText = pdfResult.text;
-
-              // Inserir documento
+              // Inserir documento primeiro (idempotente por hash)
               const [docRow] = await db
                 .insert(examDocumentsTable)
                 .values({
@@ -414,13 +410,14 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
 
               if (docRow) {
                 examDocId = docRow.id;
-                const extracted = await extractExamFromText(pdfText, { clientName });
-                if (extracted && extracted.results.length > 0) {
-                  await persistExtractedResults(docRow.id, clientId, extracted);
-                  await finalizeDocument(docRow.id, extracted);
-                  logLine(`    Extração: ${extracted.results.length} analito(s) extraído(s)`);
+                // Gemini vision multimodal: lê o PDF como imagem, incluindo PDFs escaneados
+                const result = await extractExamFromMedia(buffer, "application/pdf");
+                if (result.data.analytes.length > 0) {
+                  await finalizeDocument(docRow.id, result.data, result.modelUsed);
+                  await persistExtractedResults({ documentId: docRow.id, clientId, extracted: result.data });
+                  logLine(`    Extração (vision): ${result.data.analytes.length} analito(s) extraído(s)`);
                 } else {
-                  logLine(`    Extração: nenhum analito encontrado`);
+                  logLine(`    Extração (vision): nenhum analito encontrado (confiança=${result.data.confidence})`);
                 }
               } else {
                 logLine(`    Documento já existia (hash duplicado) — pulando`);

@@ -211,9 +211,11 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
 // Segue grade-imaginaria.md: 5 zonas com linhas-guia fixas
 const MAX_ROWS = 10;
 
-function DocumentoCard({ doc, analitos }: { doc: DocRow; analitos: AnalyteResult[] }) {
+function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: AnalyteResult[]; onRefresh: () => void }) {
   const [verTodos, setVerTodos] = useState(false);
   const [baixando, setBaixando] = useState(false);
+  const [reextrai, setReextrai] = useState(false);
+  const [reextraiMsg, setReextraiMsg] = useState("");
 
   const calha     = CALHA_CFG[doc.origin ?? ""] ?? CALHA_DEFAULT;
   const kindCfg   = KIND_CFG[doc.examKind ?? ""] ?? KIND_DEFAULT;
@@ -244,10 +246,29 @@ function DocumentoCard({ doc, analitos }: { doc: DocRow; analitos: AnalyteResult
       const url  = URL.createObjectURL(blob);
       Object.assign(document.createElement("a"), { href: url, download: doc.fileName }).click();
       URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Falha ao baixar: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBaixando(false);
     }
   }, [doc.id, doc.fileName, doc.sourcePdfDriveId, baixando]);
+
+  const handleReextrair = useCallback(async (onDone: () => void) => {
+    if (reextrai || !doc.sourcePdfDriveId) return;
+    setReextrai(true);
+    setReextraiMsg("Enviando PDF ao Gemini — pode levar 30–90s…");
+    try {
+      const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}/reextrair`, { method: "POST" });
+      const json = await r.json() as { ok?: boolean; analytes?: number; error?: string; modelUsed?: string };
+      if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
+      setReextraiMsg(`Extração concluída — ${json.analytes ?? 0} analito(s) encontrado(s) via ${json.modelUsed ?? "Gemini"}`);
+      setTimeout(() => { onDone(); setReextraiMsg(""); }, 1500);
+    } catch (e) {
+      setReextraiMsg(`Falha: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setReextrai(false);
+    }
+  }, [doc.id, doc.sourcePdfDriveId, reextrai]);
 
   return (
     <div
@@ -397,8 +418,32 @@ function DocumentoCard({ doc, analitos }: { doc: DocRow; analitos: AnalyteResult
       )}
 
       {analitos.length === 0 && doc.status !== "processando" && (
-        <div className="concave-3d mx-4 mb-3 px-3 py-2 text-[11px]" style={{ color: MUTED }}>
-          Nenhum analito extraído neste documento.
+        <div className="mx-4 mb-3 space-y-2">
+          <div className="concave-3d px-3 py-2 text-[11px]" style={{ color: MUTED }}>
+            Nenhum analito extraído neste documento.
+          </div>
+          {doc.sourcePdfDriveId && (
+            <div className="space-y-1.5">
+              <Button
+                className="btn-3d-soft w-full inline-flex items-center justify-center gap-2 text-[11px]"
+                onClick={() => void handleReextrair(onRefresh)}
+                disabled={reextrai}
+              >
+                {reextrai
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Zap className="h-3.5 w-3.5" />}
+                {reextrai ? "Processando…" : "Re-extrair com IA (Gemini Vision)"}
+              </Button>
+              {reextraiMsg && (
+                <div
+                  className="concave-3d px-3 py-1.5 text-[10px] font-semibold text-center"
+                  style={{ color: reextraiMsg.startsWith("Falha") ? "#dc2626" : "#15803d" }}
+                >
+                  {reextraiMsg}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -621,6 +666,7 @@ export default function ProcedenciaDocumentosBloco({ clientId, comCabecalho = fa
                 key={doc.id}
                 doc={doc}
                 analitos={porDoc.get(doc.id) ?? []}
+                onRefresh={carregar}
               />
             ))}
           </div>
