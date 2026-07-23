@@ -150,7 +150,13 @@ function Router() {
             <Route path="/clients/new" component={NewClient} />
             <Route path="/clients/:id/prontuario" component={Prontuario} />
             <Route path="/clients/:id/edit" component={EditClient} />
-            <Route path="/clients/:id" component={ClientDetail} />
+            <Route path="/clients/:id" component={({ params }: { params?: { id?: string } }) => {
+              const id = params?.id;
+              if (id && /^\d+$/.test(id)) {
+                window.location.replace(`/cockpit-cliente?cliente=${id}&aba=cadastro`);
+              }
+              return null;
+            }} />
             
             <Route path="/substances" component={Substances} />
 

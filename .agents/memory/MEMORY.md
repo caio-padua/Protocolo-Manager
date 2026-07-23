@@ -1,3 +1,4 @@
+- [Cockpit unificado — padrão de fusão](cockpit-unificado-fusao.md) — sticky header+nav como bloco único; redirect /clients/:id → cockpit; accordion protocolos; 3 abas transplantadas; clients/detail.tsx preservado.
 - [Drive-watcher + planilha comparativa de analitos](drive-watcher-analitos.md) — importação automática a cada 4h; extractPdfText retorna objeto .text; PlanilhaComparativa pivot no prontuário.
 - [Receituário manuscrito: linha ACIMA, label ABAIXO](receituario-manuscrito-layout.md) — borderBottom no span superior; label no span inferior; prop manuscrito deve ser passado explicitamente no IdentBoxV2.
 - [Motor Único de Receituário](motor-unico-receituario.md) — emitirReceituarioPdf() despacha para faixas_paxter (Puppeteer) ou classico_anvisa (pdf-lib); tabela receituario_modelos governa o ativo; certMeta injetado no HTML.
