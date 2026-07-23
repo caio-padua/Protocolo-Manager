@@ -30,7 +30,9 @@ import Dieta from "@/pages/dieta";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import Cockpit from "@/pages/cockpit";
-import CockpitCliente from "@/pages/cockpit-cliente";
+import CockpitShell from "@/pages/cockpit-cliente/CockpitShell";
+import type { AbaId } from "@/pages/cockpit-cliente/CockpitTabs";
+const CockpitCliente = CockpitShell; // alias para rotas legadas
 import CockpitAnamnese from "@/pages/cockpit-anamnese";
 import Cartorio from "@/pages/cartorio";
 import Exames from "@/pages/exames";
@@ -157,13 +159,25 @@ function Router() {
               }
               return null;
             }} />
-            <Route path="/cockpit/:clientId" component={({ params }: { params?: { clientId?: string } }) => {
+            {/* Cockpit v2: picker vazio */}
+            <Route path="/cockpit" component={() => <CockpitShell />} />
+            {/* Cockpit v2: cliente + aba (deep-link) */}
+            <Route path="/cockpit/:clientId/:aba" component={({ params }: { params?: { clientId?: string; aba?: string } }) => {
               const id = params?.clientId && /^\d+$/.test(params.clientId) ? Number(params.clientId) : null;
-              // key={params.clientId} força remontagem completa ao trocar de cliente.
-              // Sem isso, useState não re-inicializa ao navegar de /cockpit/A para /cockpit/B.
-              // React Query mantém o cache, então não há custo extra de rede na troca.
-              return <CockpitCliente key={params?.clientId ?? "sem-cliente"} initialClientId={id} />;
+              const aba = (params?.aba as AbaId) ?? "prescricao";
+              return <CockpitShell key={params?.clientId ?? "sem-cliente"} initialClientId={id} initialAba={aba} />;
             }} />
+            {/* Cockpit v2: cliente sem aba → redireciona para aba padrão */}
+            <Route path="/cockpit/:clientId" component={({ params }: { params?: { clientId?: string } }) => {
+              const id = params?.clientId;
+              if (id && /^\d+$/.test(id)) {
+                return <Redirect to={`/cockpit/${id}/prescricao`} replace />;
+              }
+              return <CockpitShell />;
+            }} />
+            {/* Redirect legado: /cockpit-cliente → /cockpit */}
+            <Route path="/cockpit-cliente"><Redirect to="/cockpit" replace /></Route>
+            <Route path="/cockpit-cliente/:rest*"><Redirect to="/cockpit" replace /></Route>
             
             <Route path="/substances" component={Substances} />
 
