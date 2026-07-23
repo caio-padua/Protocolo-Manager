@@ -231,23 +231,49 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
         </span>
       </span>
 
-      {/* Col 2 — Valor */}
-      <span className="text-right text-[11px] font-mono font-bold tabular-nums leading-tight pt-0.5" style={{ color: valor === "—" ? MUTED : NAVY }}>
-        {valor}
+      {/* Col 2 — Valor (canônico se convertido, raw caso contrário) */}
+      <span className="text-right leading-tight pt-0.5 min-w-0">
+        <span className="block text-[11px] font-mono font-bold tabular-nums" style={{ color: valor === "—" ? MUTED : NAVY }}>
+          {valor}
+        </span>
+        {/* Sub-linha: valor original quando houve conversão */}
+        {a.unitConverted && a.valueRaw && a.valueRaw !== valor && (
+          <span
+            className="block text-right text-[8px] tabular-nums"
+            style={{ color: "#1d4ed8" }}
+            title="Valor original do laudo antes da conversão"
+          >
+            orig: {a.valueRaw}
+          </span>
+        )}
       </span>
 
-      {/* Col 3 — Un. Lab (extraída) */}
-      <span className="text-[9px] leading-tight pt-0.5" style={{ color: MUTED }}>
-        {unLab}
+      {/* Col 3 — Un. Lab (extraída do laudo, unidade original) */}
+      <span className="text-[9px] leading-tight pt-0.5 min-w-0">
+        <span className="block" style={{ color: a.unitConverted ? "#1d4ed8" : MUTED }}>
+          {unLab}
+        </span>
       </span>
 
-      {/* Col 4 — Un. Canônica */}
-      <span className="text-[9px] font-semibold leading-tight pt-0.5" style={{ color: unCanon ? NAVY : MUTED }}>
-        {unCanon ?? "—"}
+      {/* Col 4 — Un. Canônica (padrão do sistema) */}
+      <span className="text-[9px] font-semibold leading-tight pt-0.5 min-w-0">
+        <span className="block" style={{ color: unCanon ? NAVY : MUTED }}>
+          {unCanon ?? "—"}
+        </span>
       </span>
 
-      {/* Col 5 — Conversão */}
-      <span className="text-center text-[11px] font-black leading-tight pt-0.5" style={{ color: convColor }}>
+      {/* Col 5 — Ícone de conversão */}
+      <span
+        className="text-center text-[12px] font-black leading-tight pt-0.5"
+        style={{ color: convColor }}
+        title={
+          a.unitConverted
+            ? `Convertido: ${a.unitRaw ?? "?"} → ${a.unitCanonical ?? "?"}`
+            : unCanon
+              ? "Unidade já canônica"
+              : "Sem conversão catalogada"
+        }
+      >
         {convIcon}
       </span>
 
@@ -421,46 +447,80 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
           )}
         </div>
 
-        {/* Proveniência: SEMPRE visível (mesmo se vazio) */}
-        <div className="concave-3d px-3 py-2 space-y-1">
-          {/* Linha 1: nome de origem → renomeado */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
-              Nome de importação:
-            </span>
-            <span className="text-[10px] truncate max-w-[200px]" style={{ color: "#4a5d75" }}>
-              {nomeOrig || "—"}
-            </span>
-            <ArrowRight className="h-2.5 w-2.5 shrink-0" style={{ color: GOLD }} />
-            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
-              Renomeado para:
-            </span>
-            <span className="text-[10px] font-bold truncate max-w-[240px]" style={{ color: NAVY }}>
-              {nomeRen || "—"}
-            </span>
-          </div>
-          {/* Linha 2: clone no Drive */}
-          <div className="flex items-center gap-2">
-            <span className="text-[8px] font-black uppercase tracking-[0.18em] shrink-0" style={{ color: MUTED }}>
-              Clone no Drive:
-            </span>
-            {cloneUrl ? (
-              <a
-                href={cloneUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[10px] font-bold no-underline"
-                style={{ color: "#15803d" }}
+        {/* ── ZONA 2: PROVENIÊNCIA — 3 insert-bevels separados ── */}
+        {/* Padrão: valor dentro do bevel + label/subtítulo ABAIXO do bevel    */}
+        <div className="grid grid-cols-3 gap-3 mx-4 mb-4">
+
+          {/* Bevel 1 — Nome de importação (original do Drive) */}
+          <div className="flex flex-col gap-1">
+            <div
+              className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]"
+              title={nomeOrig || "—"}
+            >
+              <span
+                className="line-clamp-2 text-[10px] leading-snug"
+                style={{ color: nomeOrig ? "#4a5d75" : MUTED }}
               >
-                <CheckCircle2 className="h-3 w-3" />
-                Sim — {doc.copiedName ?? "arquivo copiado"}
-              </a>
-            ) : (
-              <span className="text-[10px]" style={{ color: MUTED }}>
-                Não gerado
+                {nomeOrig || "—"}
               </span>
-            )}
+            </div>
+            <span
+              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
+              style={{ color: MUTED }}
+            >
+              Nome de importação
+            </span>
           </div>
+
+          {/* Bevel 2 — Renomeado para (nome canônico PAXTER) */}
+          <div className="flex flex-col gap-1">
+            <div
+              className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]"
+              title={nomeRen || "—"}
+            >
+              <span
+                className="line-clamp-2 text-[10px] font-bold leading-snug"
+                style={{ color: nomeRen !== nomeOrig ? NAVY : MUTED }}
+              >
+                {nomeRen || "—"}
+              </span>
+            </div>
+            <span
+              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
+              style={{ color: MUTED }}
+            >
+              Renomeado para
+            </span>
+          </div>
+
+          {/* Bevel 3 — Clone no Drive (link se existir) */}
+          <div className="flex flex-col gap-1">
+            <div className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]">
+              {cloneUrl ? (
+                <a
+                  href={cloneUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-bold no-underline line-clamp-2"
+                  style={{ color: "#15803d" }}
+                >
+                  <CheckCircle2 className="h-3 w-3 shrink-0" />
+                  {doc.copiedName ?? "arquivo copiado"}
+                </a>
+              ) : (
+                <span className="text-[10px]" style={{ color: MUTED }}>
+                  Não gerado
+                </span>
+              )}
+            </div>
+            <span
+              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
+              style={{ color: MUTED }}
+            >
+              Clone no Drive
+            </span>
+          </div>
+
         </div>
       </div>
 

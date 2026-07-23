@@ -2338,4 +2338,87 @@ router.post(
   },
 );
 
+// ─── SIMULAÇÃO: conversão de unidade ─────────────────────────────────────────
+// Cria um documento e analito fictícios com conversão de unidade explícita.
+// Hemoglobina: laudo em g/L (150) → sistema converte para g/dL (15).
+// Confirma visualmente que o motor ↔ age sobre a diferença de unidade.
+// Idempotente: roda duas vezes sem duplicar.
+router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) => {
+  try {
+    const clientId = Number(req.query.clientId ?? 3747);
+    const DEMO_HASH = "demo-conversao-hemoglobina-v1";
+
+    // 1. Documento fictício (idempotente por hash)
+    const existing = await db
+      .select({ id: examDocumentsTable.id })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.hash, DEMO_HASH))
+      .limit(1);
+
+    let docId: number;
+    if (existing.length > 0) {
+      docId = existing[0].id;
+    } else {
+      const [newDoc] = await db
+        .insert(examDocumentsTable)
+        .values({
+          clientId,
+          empresaId: 5,
+          hash: DEMO_HASH,
+          fileName: "DEMO — Conversão de Unidade g_L para g_dL.pdf",
+          labName: "Laboratório Demonstração PAXTER",
+          collectionDate: "2026-07-23",
+          examKind: "lab",
+          origin: "demo",
+          status: "recebido",
+          confidence: "1",
+          modelUsed: "demo-deterministico",
+        })
+        .returning({ id: examDocumentsTable.id });
+      docId = newDoc.id;
+    }
+
+    // 2. Analitos de demonstração (limpa antes para ser idempotente)
+    await db.execute(
+      sql`DELETE FROM exam_results WHERE exam_document_id = ${docId}`
+    );
+
+    // 3 analitos de demonstração mostrando 3 cenários possíveis
+    await db.execute(sql`
+      INSERT INTO exam_results
+        (exam_document_id, client_id, analyte_name_raw, analyte_code,
+         value_raw, unit_raw, value_canonical, unit_canonical, unit_converted,
+         ref_low, ref_high, status, collection_date, is_history)
+      VALUES
+        -- Cenário A: lab reportou g/L, sistema converteu para g/dL (motor agiu)
+        (${docId}, ${clientId}, 'Hemoglobina', 'HEMOGLOBINA',
+         '150', 'g/L', '15.0', 'g/dL', TRUE,
+         '13', '17', 'dentro', '2026-07-23', FALSE),
+        -- Cenário B: lab reportou g/dL, mesma unidade canônica (sem conversão)
+        (${docId}, ${clientId}, 'Hemoglobina Glicada HbA1c', 'HEMOGLOBINA-GLICADA-HBA1C',
+         '5.2', '%', '5.2', '%', FALSE,
+         '4', '5.6', 'normal', '2026-07-23', FALSE),
+        -- Cenário C: unidade desconhecida (sem catálogo = sem conversão, sinaliza revisão)
+        (${docId}, ${clientId}, 'Ferritina', 'FERRITINA',
+         '85', 'ng/mL', NULL, NULL, FALSE,
+         '12', '150', 'normal', '2026-07-23', FALSE)
+    `);
+
+    return res.json({
+      ok: true,
+      docId,
+      clientId,
+      message: "Demo criado. Abra a Procedência de Exames e selecione o cliente para ver a conversão.",
+      cenarios: [
+        { analito: "Hemoglobina", unitRaw: "g/L", unitCanonical: "g/dL", valueRaw: "150", valueCanonical: "15.0", convertido: true },
+        { analito: "HbA1c", unitRaw: "%", unitCanonical: "%", valueRaw: "5.2", valueCanonical: "5.2", convertido: false },
+        { analito: "Ferritina", unitRaw: "ng/mL", unitCanonical: null, convertido: false, obs: "unidade sem catálogo" },
+      ],
+    });
+  } catch (e) {
+    req.log.error({ err: e }, "POST /exames-lab/demo-conversao falhou");
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
 export default router;

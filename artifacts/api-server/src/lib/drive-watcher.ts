@@ -162,15 +162,22 @@ function buildNewName(
   const dd = dateStr.slice(8, 10);
   const datePrefix = `${yy}.${mm}.${dd}`;
 
-  const nomeSlug = clientName
+  const tipo = folderType === "sangue" ? "EXAME SANGUE" : "EXAME IMAGEM";
+
+  let nomeSlug = clientName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9 ]/g, "")
     .trim()
     .toUpperCase()
-    .slice(0, 32);
+    .slice(0, 40);
 
-  const tipo = folderType === "sangue" ? "EXAME SANGUE" : "EXAME IMAGEM";
+  // Evitar duplicata: se o nome do cliente já contém "EXAME SANGUE" ou
+  // "EXAME IMAGEM" (filename usado como fallback de nome), remover o prefixo
+  // para não gerar "26.07.23 EXAME SANGUE EXAME SANGUE 2606.pdf"
+  const tipoRegex = /^(EXAME\s+SANGUE|EXAME\s+IMAGEM|LAUDO\s+COMPLETO|LAUDO\s+)\s*/i;
+  nomeSlug = nomeSlug.replace(tipoRegex, "").trim().slice(0, 32) || nomeSlug.slice(0, 32);
+
   return `${datePrefix} ${tipo} ${nomeSlug}${ext}`;
 }
 
@@ -451,37 +458,32 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
             } catch { /* duplicado */ }
           }
 
-          // 5b. Criar cópia com nome canônico na mesma pasta de origem (sandbox)
-          // O arquivo original fica intocado; a cópia recebe o nome padrao
-          // YY.MM.DD EXAME SANGUE NOME CLIENTE para facilitar auditoria.
+          // 5b. Copiar para a pasta pessoal EXAMES do paciente no Drive (destino principal).
+          // Fallback: pasta vigiada de origem (sandbox de auditoria) caso o paciente
+          // ainda não tenha estrutura de pastas configurada no Drive.
           let copiedDriveId: string | undefined;
-          try {
-            const copied = await driveCopyFileInFolder(file.id, folder.id, newName);
-            copiedDriveId = copied.fileId;
-            logLine(`    Cópia canônica criada no Drive: ${newName} (id=${copied.fileId})`);
-          } catch (copyErr) {
-            logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
-          }
+          let clientExamesFolderId: string | undefined;
 
-          // 6. Tentar subir ao Drive do paciente (best-effort)
+          // 6. Garantir estrutura de pastas do paciente — deve vir ANTES da cópia
           try {
             const structure = await ensureClientFolderStructure(clientId);
-            const targetFolder =
+            clientExamesFolderId =
               folder.type === "sangue"
-                ? (structure as Record<string, unknown>).exames
-                : (structure as Record<string, unknown>).imagens;
-            if (targetFolder) {
-              await uploadFileToDrive(
-                buffer,
-                newName,
-                "application/pdf",
-                targetFolder as string,
-                { allowDuplicates: false },
-              );
-              logLine(`    Upload ao Drive do paciente: OK`);
-            }
-          } catch (driveErr) {
-            logLine(`    AVISO Drive upload: ${driveErr instanceof Error ? driveErr.message : String(driveErr)}`);
+                ? (structure as Record<string, unknown>).exames as string | undefined
+                : (structure as Record<string, unknown>).imagens as string | undefined;
+            logLine(`    Pasta do paciente resolvida: ${clientExamesFolderId ?? "(não encontrada)"}`);
+          } catch (structErr) {
+            logLine(`    AVISO estrutura Drive: ${structErr instanceof Error ? structErr.message : String(structErr)}`);
+          }
+
+          const copyDestFolder = clientExamesFolderId ?? folder.id;
+          const copyDestLabel = clientExamesFolderId ? "pasta pessoal do paciente" : "pasta vigiada (fallback)";
+          try {
+            const copied = await driveCopyFileInFolder(file.id, copyDestFolder, newName);
+            copiedDriveId = copied.fileId;
+            logLine(`    Cópia canônica criada na ${copyDestLabel}: ${newName} (id=${copied.fileId})`);
+          } catch (copyErr) {
+            logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
           }
 
           // 7. Marcar como processado (inclui id da cópia canônica se criada)
