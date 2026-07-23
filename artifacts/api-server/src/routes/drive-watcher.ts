@@ -61,4 +61,18 @@ router.post("/drive-watcher/process", async (req, res): Promise<void> => {
   res.status(202).json({ ok: true, message: "Processamento iniciado em background" });
 });
 
+// GET /api/drive-watcher/inspect-pdf/:fileId  — mostra texto extraído do PDF (diagnóstico)
+router.get("/drive-watcher/inspect-pdf/:fileId", async (req, res): Promise<void> => {
+  try {
+    const { driveDownloadFile } = await import("../lib/google-drive.js");
+    const { extractPdfText } = await import("../lib/exam-extraction/pdf-text.js");
+    const buffer = await driveDownloadFile(req.params.fileId);
+    const result = await extractPdfText(buffer);
+    const text = result.text;
+    res.json({ ok: true, length: text.length, pageCount: result.pageCount, text: text.slice(0, 3000) });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

@@ -110,16 +110,23 @@ async function upsertFile(params: {
  * 2. "NOME_EXAME.ext"   → separa pelo primeiro "_"
  * 3. Usa o nome inteiro (sem extensão) como candidato
  */
-export function extractNameFromFilename(filename: string): string {
+// UUID puro: 8-4-4-4-12 hex (sem espaços = não é nome de paciente)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function extractNameFromFilename(filename: string): string | null {
   const noExt = filename.replace(/\.[^/.]+$/, "").trim();
+  // UUID puro → sem nome no filename
+  if (UUID_RE.test(noExt)) return null;
   // Separador " - "
-  if (noExt.includes(" - ")) return noExt.split(" - ")[0].trim();
-  // Separador "_"
-  if (noExt.includes("_")) return noExt.split("_")[0].trim();
+  if (noExt.includes(" - ")) return noExt.split(" - ")[0].trim() || null;
+  // Separador "_"  (ex: "JOAO_SILVA_hemograma.pdf")
+  if (noExt.includes("_")) return noExt.split("_")[0].trim() || null;
   // Tudo antes de parênteses (ex: "João Silva (Hemograma).pdf")
   const paren = noExt.match(/^([^(]+)/);
-  if (paren) return paren[1].trim();
-  return noExt;
+  const candidate = paren?.[1]?.trim();
+  // Se o "candidato" parece só números/hifens/maiúsculas sem vogal = código, não nome
+  if (candidate && /^[A-Z0-9\-]{6,}$/.test(candidate)) return null;
+  return candidate || null;
 }
 
 // ─── Criação automática de paciente ──────────────────────────────────────────
@@ -303,28 +310,75 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
         logLine(`  Processando: ${file.name}`);
 
         try {
-          // 1. Identificar paciente
-          const candidateName = extractNameFromFilename(file.name);
-          const resolved = resolveClient(clients, candidateName, null);
+          // 1. Download do arquivo (necessário antes da extração de nome do PDF)
+          const buffer = await driveDownloadFile(file.id);
+
+          // 2. Identificar paciente
+          let candidateName: string | null = extractNameFromFilename(file.name);
+
+          // Se o filename não tem nome (UUID etc.), tenta extrair do conteúdo do PDF
+          if (!candidateName && file.name.toLowerCase().endsWith(".pdf")) {
+            try {
+              const rawResult = await extractPdfText(buffer);
+              const rawText = rawResult.text;
+              // Tenta múltiplos padrões de lab brasileiro (Lavoisier/DASA, Fleury, Hermes Pardini, etc.)
+              const namePatterns = [
+                // Lavoisier/DASA: "NOME\nGênero:"
+                /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\n(?:Gênero|Genero):/,
+                // Fleury: "Nome do Paciente: NOME"
+                /(?:nome do paciente|paciente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
+                // Linha antes de CPF: "NOME\nCPF:"
+                /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\nCPF:/i,
+                // Genérico: "Nome: NOME" ou "Paciente: NOME"
+                /(?:paciente|nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
+              ];
+              for (const pat of namePatterns) {
+                const match = rawText.match(pat);
+                if (match?.[1]) {
+                  const candidate = match[1].trim();
+                  // Rejeita se parecer um título médico ou linha de cabeçalho
+                  if (!/^(dr|dra|medico|enfermeiro|laboratorio|resultado|material)/i.test(candidate)) {
+                    candidateName = candidate;
+                    logLine(`    Nome extraído do PDF: "${candidateName}"`);
+                    break;
+                  }
+                }
+              }
+            } catch { /* PDF não legível — continua sem nome */ }
+          }
+
           let clientId: number;
           let clientName: string;
           let autoCreated = false;
 
-          if (resolved) {
-            clientId = resolved.id;
-            clientName = resolved.name;
-            logLine(`    Paciente identificado: ${clientName} (id=${clientId})`);
+          if (candidateName) {
+            const resolved = resolveClient(clients, candidateName, null);
+            if (resolved && resolved.id) {
+              clientId = resolved.id;
+              clientName = resolved.name ?? candidateName;
+              logLine(`    Paciente identificado: ${clientName} (id=${clientId})`);
+            } else {
+              // Auto-criar paciente com o nome extraído
+              clientId = await autoCreateClient(candidateName);
+              clientName = candidateName;
+              autoCreated = true;
+              _state.clientsCreated.push(candidateName);
+              logLine(`    Paciente NÃO encontrado — criado automaticamente: "${candidateName}" (id=${clientId})`);
+            }
           } else {
-            // Auto-criar paciente com o nome extraído
-            clientId = await autoCreateClient(candidateName);
-            clientName = candidateName;
-            autoCreated = true;
-            _state.clientsCreated.push(candidateName);
-            logLine(`    Paciente NÃO encontrado — criado automaticamente: "${candidateName}" (id=${clientId})`);
+            // Sem nome identificável — arquiva como pendente de revisão manual
+            logLine(`    Nome de paciente não identificado — marcado para revisão manual`);
+            await upsertFile({
+              fileId: file.id,
+              folderId: folder.id,
+              folderType: folder.type,
+              originalName: file.name,
+              status: "pendente_revisao",
+              errorMsg: "Nome do paciente não identificado no filename nem no conteúdo do PDF",
+            });
+            _state.filesError++;
+            continue;
           }
-
-          // 2. Download do arquivo
-          const buffer = await driveDownloadFile(file.id);
 
           // 3. Hash para idempotência
           const hash = createHash("sha256").update(buffer).digest("hex");
@@ -337,7 +391,8 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           let examDocId: number | undefined;
           if (folder.type === "sangue" && file.name.toLowerCase().endsWith(".pdf")) {
             try {
-              const pdfText = await extractPdfText(buffer);
+              const pdfResult = await extractPdfText(buffer);
+              const pdfText = pdfResult.text;
 
               // Inserir documento
               const [docRow] = await db
