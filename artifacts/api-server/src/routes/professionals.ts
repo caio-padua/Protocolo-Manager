@@ -70,6 +70,16 @@ router.get("/professionals", async (_req, res): Promise<void> => {
   res.json(professionals.map((p) => formatProfessional(p, names.areas, names.specialties)));
 });
 
+// GET /api/professionals/:id — busca um profissional por ID
+router.get("/professionals/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+  const [professional] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, id));
+  if (!professional) { res.status(404).json({ error: "Profissional não encontrado" }); return; }
+  const names = await loadTaxonomyNames();
+  res.json(formatProfessional(professional, names.areas, names.specialties));
+});
+
 // ---- Catalogo de areas e especializacoes (somente leitura) ----
 
 router.get("/professional-areas", async (req, res): Promise<void> => {

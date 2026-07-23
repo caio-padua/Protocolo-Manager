@@ -4,7 +4,7 @@
 // Usado tanto no preview da tela (scale 0.55) quanto na impressão (1:1)
 // Spec: specs/receituario-designer-v2.md
 // ─────────────────────────────────────────────────────────────────────────────
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { type ReceituarioConfig } from "@/lib/arabesques/receituario-config";
 import { ArabesqueBand } from "@/lib/arabesques/ArabesqueBand";
 
@@ -347,7 +347,36 @@ function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia,
 
 // ── Bloco de certificado ──────────────────────────────────────────────────────
 function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
+  const [certMeta, setCertMeta] = useState<{
+    titular: string | null; cpf: string | null;
+    validade: string | null; emissor: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/cert/metadata`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d) => { if (d?.ok) setCertMeta(d); })
+      .catch(() => {});
+  }, []);
+
   if (!cfg.certificadoMostrar) return null;
+
+  // Extrai só o nome do CN ICP-Brasil ("NOME:cpf" → "NOME")
+  const cnRaw = certMeta?.titular ?? "";
+  const cnName = cnRaw.includes("CN=")
+    ? cnRaw.split("CN=")[1]?.split(",")[0]?.split(":")[0]?.trim()
+    : cnRaw.split(":")[0]?.trim();
+  const assinante = cnName
+    ? `${cnName} — CPF: ${certMeta?.cpf ?? "—"}`
+    : "NOME DO MÉDICO — CPF: •••.•••.•••-••";
+  const emissorCN = certMeta?.emissor?.includes("CN=")
+    ? certMeta.emissor.split("CN=")[1]?.split(",")[0]?.trim()
+    : certMeta?.emissor ?? null;
+  const certLabel = emissorCN ? `ICP-Brasil — ${emissorCN}` : "ICP-Brasil — AR Demonstrativo";
+  const validadeStr = certMeta?.validade
+    ? new Date(certMeta.validade).toLocaleDateString("pt-BR") + " — padrão PAdES"
+    : "00/00/0000 — padrão PAdES";
+
   return (
     <div style={{
       border: "0.5px solid #ddd", borderRadius: 2, padding: "4mm",
@@ -358,10 +387,10 @@ function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
         Documento Assinado Eletronicamente
       </div>
       {[
-        ["Assinante", "NOME DO MÉDICO — CPF: •••.•••.•••-••"],
-        ["Certificado", "ICP-Brasil — AR Demonstrativo"],
-        ["Assinado em", "00/00/0000, 00:00:00 — padrão PAdES"],
-        ["Verificação", "exemplo.validar.parxis/demo"],
+        ["Assinante", assinante],
+        ["Certificado", certLabel],
+        ["Validade", validadeStr],
+        ["Verificação", "validar.iti.gov.br / PAXTER"],
       ].map(([k, v]) => (
         <div key={k} style={{ fontSize: 5.5, marginBottom: 2, display: "flex", gap: 4 }}>
           <span style={{ fontWeight: 700, color: "#666", minWidth: 24 }}>{k}:</span>
