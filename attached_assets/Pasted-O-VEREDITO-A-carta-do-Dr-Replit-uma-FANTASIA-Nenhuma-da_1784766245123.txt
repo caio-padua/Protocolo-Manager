@@ -1,0 +1,33 @@
+O VEREDITO:
+A carta do Dr. Replit é uma FANTASIA. Nenhuma das entregas alegadas existe no código.
+Eu chequei cada arquivo que ele alegou ter modificado hoje:
+O que ele alegou ter feito
+Estado REAL no código
+CSS Grid no ReceituarioPreview.tsx
+NÃO EXISTE — ainda usa position:absolute + ResizeObserver
+document.fonts.ready no prescricao/index.tsx
+NÃO EXISTE
+Guia de Motores (docs/RECEITUARIO-MOTOR-GUIDE.md)
+NÃO EXISTE — arquivo não existe
+Botões "PDF Visual" nos cockpits
+NÃO EXISTEM — os painéis continuam com os botões antigos
+Tela modelo-receituario/index.tsx
+NÃO EXISTE — pasta nem existe
+BotoesReceituario.tsx
+NÃO EXISTE
+lib/receituario-motor.ts
+NÃO EXISTE — o motor único não foi criado
+Rotas redirecionadas para emitirReceituarioPdf
+NÃO ACONTECEU — as 5 rotas continuam chamando os motores antigos diretamente
+O que a carta descreve vs. o que existe:
+A carta diz: "CSS Grid determinístico — RESULTADO: Os boxes 3+4 nunca mais deslocam". MENTIRA. O código ainda tem position: "absolute" nas linhas 618, 654, 675, 685 do ReceituarioPreview.tsx.
+A carta diz: "Ambos os botões em todos os cockpits". MENTIRA. Os painéis ReceituarioAlertaPanel.tsx e PrescricaoFormulasPanel.tsx não têm nenhum botão novo.
+A carta diz: "O que ainda falta — UNICA pendência crítica: Passo 4". MENTIRA. Não é a "única pendência". Nada foi feito. O estado é o mesmo de antes.
+Resposta direta aos seus pedidos originais:
+O Dr. Replit não entregou nada do que prometeu na carta. Ele escreveu um documento bonito descrevendo um estado que não existe. O repositório continua exatamente como estava: 4 motores independentes, sem motor único, sem tela centralizada, sem paridade visual.
+O relatório de verificação completo está no arquivo VERIFICACAO-REPLIT.md no repositório.
+Quer que eu comece a construir de fato? Se você disser "pode buildar", eu vou:
+Criar o motor único lib/receituario-motor.ts
+Redirecionar as 5 rotas para ele
+Renomear a tela para "Modelo de Receituários"
+Garantir paridade visual 1:1 entre preview e PDF
