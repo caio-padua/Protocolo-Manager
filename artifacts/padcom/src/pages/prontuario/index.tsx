@@ -56,6 +56,20 @@ interface ProntuarioData {
     sourcePdfDriveId: string | null;
     createdAt: string;
   }[];
+  analitos?: {
+    id: number;
+    examDocumentId: number;
+    analyteCode: string | null;
+    analyteNameRaw: string;
+    valueRaw: string | null;
+    unitRaw: string | null;
+    valueCanonical: string | null;
+    refLow: string | null;
+    refHigh: string | null;
+    status: string | null;
+    collectionDate: string | null;
+    labName: string | null;
+  }[];
 }
 
 function fmtDate(val: string | null | undefined): string {
@@ -154,7 +168,7 @@ export default function Prontuario() {
     );
   }
 
-  const { client, prescricoes, protocolos, examesIndicados, examesRecebidos } = data;
+  const { client, prescricoes, protocolos, examesIndicados, examesRecebidos, analitos = [] } = data;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f7f9]">
@@ -416,59 +430,194 @@ export default function Prontuario() {
 
         {/* ABA: Exames Recebidos */}
         {tab === "exames-recebidos" && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-800">
-                Exames Recebidos ({examesRecebidos.length})
-              </h2>
-            </div>
+          <div className="space-y-6">
 
-            {examesRecebidos.length === 0 ? (
-              <EmptyState icon={<FlaskConical />} label="Nenhum exame recebido" />
-            ) : (
-              <div className="space-y-2">
-                {examesRecebidos.map((e) => (
-                  <div
-                    key={e.id}
-                    className="bg-white rounded-[6px] border border-gray-200 px-4 py-3 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FlaskConical className="w-5 h-5 text-[#1a2744]/50" />
-                      <div>
-                        <div className="font-medium text-sm text-gray-900">{e.fileName}</div>
-                        <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
-                          {e.labName && <span>{e.labName}</span>}
-                          {e.collectionDate && <span>Coleta: {fmtDate(e.collectionDate)}</span>}
-                          {e.examKind && (
-                            <span className="capitalize">
-                              {e.examKind === "lab" ? "Laboratorial" : "Imagem"}
-                            </span>
-                          )}
-                          <span>{fmtDate(e.createdAt)}</span>
+            {/* Lista de laudos recebidos */}
+            <div>
+              <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest mb-3">
+                Laudos Recebidos ({examesRecebidos.length})
+              </h2>
+              {examesRecebidos.length === 0 ? (
+                <EmptyState icon={<FlaskConical />} label="Nenhum exame recebido" />
+              ) : (
+                <div className="space-y-2">
+                  {examesRecebidos.map((e) => (
+                    <div
+                      key={e.id}
+                      className="bg-white rounded-[6px] border border-gray-200 px-4 py-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FlaskConical className="w-5 h-5 text-[#1a2744]/50" />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900">{e.fileName}</div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
+                            {e.labName && <span>{e.labName}</span>}
+                            {e.collectionDate && <span>Coleta: {fmtDate(e.collectionDate)}</span>}
+                            {e.examKind && (
+                              <span className="capitalize">
+                                {e.examKind === "lab" ? "Laboratorial" : "Imagem"}
+                              </span>
+                            )}
+                            <span>{fmtDate(e.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <StatusExame status={e.status} />
+                        {e.sourcePdfDriveId && (
+                          <a
+                            href={`https://drive.google.com/file/d/${e.sourcePdfDriveId}/view`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="ghost" size="sm" className="text-[#1a2744] h-7 px-2">
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <StatusExame status={e.status} />
-                      {e.sourcePdfDriveId && (
-                        <a
-                          href={`https://drive.google.com/file/d/${e.sourcePdfDriveId}/view`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button variant="ghost" size="sm" className="text-[#1a2744] h-7 px-2">
-                            <ExternalLink className="w-3 h-3" />
-                          </Button>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Planilha comparativa de analitos */}
+            <PlanilhaComparativa analitos={analitos} />
           </div>
         )}
 
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Planilha comparativa de analitos (pivot: analito × data de coleta)
+// ─────────────────────────────────────────────────────────────────────────────
+type AnalitoRow = {
+  id: number;
+  examDocumentId: number;
+  analyteCode: string | null;
+  analyteNameRaw: string;
+  valueRaw: string | null;
+  unitRaw: string | null;
+  valueCanonical: string | null;
+  refLow: string | null;
+  refHigh: string | null;
+  status: string | null;
+  collectionDate: string | null;
+  labName: string | null;
+};
+
+function statusCor(status: string | null): string {
+  if (!status || status === "normal") return "text-emerald-700 bg-emerald-50";
+  if (status === "acima") return "text-red-700 bg-red-50";
+  if (status === "abaixo") return "text-amber-700 bg-amber-50";
+  return "text-gray-700";
+}
+
+function PlanilhaComparativa({ analitos }: { analitos: AnalitoRow[] }) {
+  const [filtro, setFiltro] = useState("");
+
+  if (analitos.length === 0) {
+    return (
+      <div>
+        <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest mb-3">
+          Planilha Comparativa
+        </h2>
+        <div className="bg-white rounded-[6px] border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
+          Nenhum analito extraído ainda — aguarde o próximo ciclo de importação automática.
+        </div>
+      </div>
+    );
+  }
+
+  // Datas únicas ordenadas (colunas)
+  const datasSet = new Set(analitos.map((a) => a.collectionDate ?? "sem-data"));
+  const datas = Array.from(datasSet).sort();
+
+  // Analitos únicos ordenados (linhas), com filtro
+  const nomesSet = new Set(analitos.map((a) => a.analyteNameRaw));
+  const nomesOrdenados = Array.from(nomesSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const nomesFiltrados = filtro.trim()
+    ? nomesOrdenados.filter((n) => n.toLowerCase().includes(filtro.toLowerCase()))
+    : nomesOrdenados;
+
+  // Índice: nome → data → analito
+  const idx = new Map<string, Map<string, AnalitoRow>>();
+  for (const a of analitos) {
+    const data = a.collectionDate ?? "sem-data";
+    if (!idx.has(a.analyteNameRaw)) idx.set(a.analyteNameRaw, new Map());
+    idx.get(a.analyteNameRaw)!.set(data, a);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest">
+          Planilha Comparativa — {nomesFiltrados.length} analito{nomesFiltrados.length !== 1 ? "s" : ""}
+        </h2>
+        <input
+          type="search"
+          placeholder="Filtrar analito..."
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          className="text-sm border border-gray-200 rounded-[6px] px-3 py-1 w-52 focus:outline-none focus:ring-1 focus:ring-[#45B8CC]"
+        />
+      </div>
+      <div className="overflow-x-auto rounded-[6px] border border-gray-200">
+        <table className="min-w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-[#1a2744] text-white">
+              <th className="text-left px-3 py-2 font-semibold sticky left-0 bg-[#1a2744] z-10 min-w-[200px]">
+                Analito
+              </th>
+              {datas.map((d) => (
+                <th key={d} className="text-center px-3 py-2 font-semibold whitespace-nowrap min-w-[90px]">
+                  {d === "sem-data" ? "S/Data" : fmtDate(d)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {nomesFiltrados.map((nome, i) => {
+              const mapa = idx.get(nome);
+              const unit = analitos.find((a) => a.analyteNameRaw === nome)?.unitRaw;
+              return (
+                <tr key={nome} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="px-3 py-1.5 font-medium text-gray-800 sticky left-0 z-10 bg-inherit border-r border-gray-200">
+                    <div className="truncate max-w-[200px]" title={nome}>{nome}</div>
+                    {unit && <div className="text-[10px] text-gray-400">{unit}</div>}
+                  </td>
+                  {datas.map((d) => {
+                    const a = mapa?.get(d);
+                    if (!a) {
+                      return (
+                        <td key={d} className="px-3 py-1.5 text-center text-gray-300">
+                          —
+                        </td>
+                      );
+                    }
+                    const cor = statusCor(a.status);
+                    return (
+                      <td key={d} className="px-3 py-1.5 text-center">
+                        <span className={`inline-block px-1.5 py-0.5 rounded font-semibold ${cor}`}>
+                          {a.valueRaw ?? "—"}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex gap-4 mt-2 text-[10px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 inline-block border border-emerald-300" /> Normal</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block border border-red-300" /> Acima</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 inline-block border border-amber-300" /> Abaixo</span>
       </div>
     </div>
   );

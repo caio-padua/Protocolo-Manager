@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, clientsTable, protocolsTable, examRequestPdfsTable, examDocumentsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { db, clientsTable, protocolsTable, examRequestPdfsTable, examDocumentsTable, examResultsTable } from "@workspace/db";
+import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 // ============================================================================
@@ -96,6 +96,27 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
       .orderBy(desc(examDocumentsTable.createdAt))
       .limit(100);
 
+    // 6. Analitos extraídos — planilha comparativa por data de coleta
+    const analitos = await db
+      .select({
+        id: examResultsTable.id,
+        examDocumentId: examResultsTable.examDocumentId,
+        analyteCode: examResultsTable.analyteCode,
+        analyteNameRaw: examResultsTable.analyteNameRaw,
+        valueRaw: examResultsTable.valueRaw,
+        unitRaw: examResultsTable.unitRaw,
+        valueCanonical: examResultsTable.valueCanonical,
+        refLow: examResultsTable.refLow,
+        refHigh: examResultsTable.refHigh,
+        status: examResultsTable.status,
+        collectionDate: examResultsTable.collectionDate,
+        labName: examResultsTable.labName,
+      })
+      .from(examResultsTable)
+      .where(eq(examResultsTable.clientId, clientId))
+      .orderBy(examResultsTable.collectionDate, examResultsTable.analyteNameRaw)
+      .limit(2000);
+
     res.json({
       client: {
         id: client.id,
@@ -111,6 +132,7 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
       protocolos,
       examesIndicados,
       examesRecebidos,
+      analitos,
     });
   } catch (err) {
     req.log.error({ err: err instanceof Error ? err.message : String(err) }, "prontuario: erro");
