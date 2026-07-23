@@ -153,9 +153,13 @@ function Router() {
             <Route path="/clients/:id" component={({ params }: { params?: { id?: string } }) => {
               const id = params?.id;
               if (id && /^\d+$/.test(id)) {
-                window.location.replace(`/cockpit-cliente?cliente=${id}&aba=cadastro`);
+                return <Redirect to={`/cockpit/${id}`} replace />;
               }
               return null;
+            }} />
+            <Route path="/cockpit/:clientId" component={({ params }: { params?: { clientId?: string } }) => {
+              const id = params?.clientId && /^\d+$/.test(params.clientId) ? Number(params.clientId) : null;
+              return <CockpitCliente initialClientId={id} />;
             }} />
             
             <Route path="/substances" component={Substances} />

@@ -136,13 +136,17 @@ function lerAbaInicial(): AbaId {
   return "prescricao";
 }
 
-export default function CockpitCliente() {
+export default function CockpitCliente({ initialClientId }: { initialClientId?: number | null } = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const apiBase = import.meta.env.VITE_API_URL || "/api";
 
   // ── Seleção de cliente + aba ─────────────────────────────────────────────
-  const [clienteId, setClienteIdState] = useState<number | null>(lerClienteInicial);
+  // initialClientId: vem da URL /cockpit/:clientId (zero reload)
+  // lerClienteInicial: fallback para ?cliente= ou localStorage
+  const [clienteId, setClienteIdState] = useState<number | null>(
+    initialClientId ?? lerClienteInicial
+  );
   const [aba, setAbaState] = useState<AbaId>(lerAbaInicial);
   const [expandedProtocol, setExpandedProtocol] = useState<number | null>(null);
 
