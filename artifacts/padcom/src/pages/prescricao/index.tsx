@@ -13,6 +13,7 @@ import {
   type Tomada, type FormulaSeed, type Protocolo, type SelectedFormula,
 } from "./data";
 import { useQuery } from "@tanstack/react-query";
+import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
 import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
@@ -51,17 +52,23 @@ interface PatientData {
 }
 
 interface ClientData {
+  id: number;
   name: string;
   cpf: string | null;
   phone: string | null;
   email: string | null;
   birthDate: string | null;
+  status?: string | null;
+  deletedAt?: string | null;
 }
 
 export default function PrescricaoPage(
   { clientId, embedded }: { clientId?: number; embedded?: boolean } = {},
 ) {
   const [patient, setPatient] = useState<PatientData>({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
+  // ── Seletor padrão de cliente (A-Z + busca) ──────────────────────────────
+  const [clientes, setClientes] = useState<ClientPickerOption[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [duracao, setDuracao] = useState("30");
   const [cid, setCid] = useState("");
   const [selected, setSelected] = useState<SelectedFormula[]>([]);
@@ -96,6 +103,43 @@ export default function PrescricaoPage(
       dataNascimento: clientData.birthDate ?? "",
     });
   }, [clientData]);
+
+  // Standalone: carrega lista de clientes para o ClientPicker (A-Z + busca)
+  useEffect(() => {
+    if (clientId) return; // modo embutido — picker não é necessário
+    fetch(`${BASE}/api/clients?limit=5000`)
+      .then((r) => r.json())
+      .then((d) => {
+        const arr: ClientData[] = Array.isArray(d) ? d : (d.clients ?? []);
+        setClientes(
+          arr.map((c) => ({
+            id: c.id,
+            name: c.name ?? "",
+            cpf: c.cpf ?? null,
+            status: c.status ?? "active",
+            deletedAt: c.deletedAt ?? null,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [clientId]);
+
+  // Auto-fill: quando o médico seleciona um cliente no picker, busca os dados completos
+  useEffect(() => {
+    if (!selectedClientId) return;
+    fetch(`${BASE}/api/clients/${selectedClientId}`)
+      .then((r) => r.json())
+      .then((c: ClientData) => {
+        setPatient({
+          nome: c.name ?? "",
+          cpf: c.cpf ?? "",
+          telefone: c.phone ?? "",
+          email: c.email ?? "",
+          dataNascimento: c.birthDate ?? "",
+        });
+      })
+      .catch(() => {});
+  }, [selectedClientId]);
 
   // Roteamento p/ farmácias + emissão
   const { toast } = useToast();
@@ -560,6 +604,7 @@ export default function PrescricaoPage(
       <section className="no-print panel-3d p-5">
         <BlockTitle icon={User} color="text-primary">Dados do Cliente</BlockTitle>
         {clientId ? (
+          /* ── MODO EMBUTIDO (cockpit) — exibe nome fixo do cliente ─────── */
           <div className="mt-4">
             <div className="text-lg font-semibold text-foreground">{patient.nome || "Carregando cliente…"}</div>
             <div className="text-xs text-muted-foreground">
@@ -569,12 +614,33 @@ export default function PrescricaoPage(
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-4">
-            <input className={`md:col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
-            <input className={inputCls} placeholder="CPF" value={patient.cpf} onChange={(e) => setPatient({ ...patient, cpf: e.target.value })} />
-            <input className={inputCls} placeholder="Telefone" value={patient.telefone} onChange={(e) => setPatient({ ...patient, telefone: e.target.value })} />
-            <input className={inputCls} placeholder="E-mail" value={patient.email} onChange={(e) => setPatient({ ...patient, email: e.target.value })} />
-            <input type="date" className={inputCls} value={patient.dataNascimento} onChange={(e) => setPatient({ ...patient, dataNascimento: e.target.value })} />
+          /* ── MODO STANDALONE — seletor padrão A-Z + campos editáveis ─── */
+          <div className="mt-4 space-y-3">
+            {/* ClientPicker — barra A-Z + busca por nome ou CPF */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                Selecionar Cliente
+              </label>
+              <ClientPicker
+                clientes={clientes}
+                value={selectedClientId}
+                onChange={(id) => {
+                  setSelectedClientId(id);
+                  if (!id) setPatient({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
+                }}
+                placeholder="Busque por nome ou CPF…"
+                className="w-full"
+              />
+            </div>
+
+            {/* Campos editáveis — preenchidos automaticamente ao selecionar, editáveis */}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+              <input className={`md:col-span-2 ${inputCls}`} placeholder="Nome completo" value={patient.nome} onChange={(e) => setPatient({ ...patient, nome: e.target.value })} />
+              <input className={inputCls} placeholder="CPF" value={patient.cpf} onChange={(e) => setPatient({ ...patient, cpf: e.target.value })} />
+              <input className={inputCls} placeholder="Telefone" value={patient.telefone} onChange={(e) => setPatient({ ...patient, telefone: e.target.value })} />
+              <input className={inputCls} placeholder="E-mail" value={patient.email} onChange={(e) => setPatient({ ...patient, email: e.target.value })} />
+              <input type="date" className={inputCls} value={patient.dataNascimento} onChange={(e) => setPatient({ ...patient, dataNascimento: e.target.value })} />
+            </div>
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
