@@ -17,7 +17,10 @@ type ClienteItem = { id: number; name: string; cpf?: string | null };
 
 export default function ProcedenciaExamesPage() {
   const [busca, setBusca]         = useState("");
-  const [clienteId, setClienteId] = useState<number | null>(null);
+  const [clienteId, setClienteId] = useState<number | null>(() => {
+    const p = new URLSearchParams(window.location.search).get("c");
+    return p ? Number(p) : null;
+  });
   const [clienteNome, setClienteNome] = useState("");
   const [aberto, setAberto]       = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

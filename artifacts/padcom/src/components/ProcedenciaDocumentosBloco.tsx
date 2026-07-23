@@ -142,41 +142,61 @@ function ClassificationPanel({ activeOrigin }: { activeOrigin: string | null }) 
   const key = activeOrigin ?? "";
   return (
     <div
-      className="bevel-3d flex-shrink-0 flex flex-col p-2.5 gap-0.5"
-      style={{ minWidth: 158, maxWidth: 175 }}
+      className="bevel-3d flex-shrink-0 overflow-hidden"
+      style={{ minWidth: 150, maxWidth: 164 }}
     >
+      {/* Faixa-título compacta */}
       <div
-        className="text-[7.5px] font-black uppercase tracking-[0.22em] pb-1.5 mb-1"
-        style={{ color: GOLD, borderBottom: "1px solid rgba(154,123,50,0.22)" }}
+        className="px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.24em]"
+        style={{
+          color: GOLD,
+          borderBottom: "1px solid rgba(154,123,50,0.2)",
+          background: "rgba(154,123,50,0.04)",
+        }}
       >
-        Canal de Entrada
+        Origem do arquivo
       </div>
-      {TODOS_CANAIS.map(({ key: k, label, Icon }) => {
+
+      {/* Canais — altura fixa por linha */}
+      {TODOS_CANAIS.map(({ key: k, label, Icon }, i) => {
         const active = key === k;
         const cfg = CALHA_CFG[k];
+        const isLast = i === TODOS_CANAIS.length - 1;
         return (
           <div
             key={k}
-            className="flex items-center gap-1.5 rounded-[3px] px-1.5 py-[3px]"
-            style={{ background: active ? "rgba(22,40,74,0.08)" : "transparent" }}
+            className="flex items-center gap-2 px-2.5"
+            style={{
+              height: 26,
+              background: active ? "rgba(22,40,74,0.09)" : "transparent",
+              borderBottom: isLast ? "none" : "1px solid rgba(209,195,165,0.15)",
+            }}
           >
             {active ? (
               <span className={`${cfg?.led ?? "paxter-led paxter-led-breathe paxter-led-amber"} flex-shrink-0`} />
             ) : (
-              <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ background: "rgba(100,124,151,0.18)" }} />
+              <span
+                className="h-[5px] w-[5px] rounded-full flex-shrink-0"
+                style={{ background: "rgba(100,124,151,0.2)" }}
+              />
             )}
             <Icon
-              className="h-2.5 w-2.5 flex-shrink-0"
-              style={{ color: active ? NAVY : MUTED, opacity: active ? 1 : 0.38 }}
+              className="h-[9px] w-[9px] flex-shrink-0"
+              style={{ color: active ? NAVY : "rgba(100,124,151,0.38)" }}
             />
             <span
-              className="text-[8.5px] truncate"
-              style={{ color: active ? NAVY : MUTED, fontWeight: active ? 700 : 400 }}
+              className="truncate flex-1 text-[8px]"
+              style={{ color: active ? NAVY : "rgba(100,124,151,0.5)", fontWeight: active ? 800 : 400 }}
             >
               {label}
             </span>
             {active && (
-              <CheckCircle2 className="ml-auto h-2.5 w-2.5 flex-shrink-0" style={{ color: "#15803d" }} />
+              <span
+                className="flex-shrink-0 rounded-[2px] px-1 py-[1px] text-[6px] font-black uppercase tracking-widest"
+                style={{ background: "rgba(21,128,61,0.13)", color: "#15803d" }}
+              >
+                ativo
+              </span>
             )}
           </div>
         );
@@ -201,12 +221,40 @@ const DOC_STATUS: Record<string, { label: string; cor: string }> = {
   erro:        { label: "Erro",          cor: "#dc2626" },
 };
 
-// Status do analito → cor + ícone
-const ANALYTE_STATUS: Record<string, { cor: string; Icon: typeof CheckCircle2 }> = {
-  dentro:      { cor: "#15803d", Icon: CheckCircle2  },
-  acima:       { cor: "#dc2626", Icon: ArrowUp       },
-  abaixo:      { cor: "#1d4ed8", Icon: ArrowDown     },
-  conferencia: { cor: "#d97706", Icon: AlertTriangle },
+// ── Bevel Célula — componente reutilizável para insert-bevels de altura FIXA ──
+// Altura sempre 44px; conteúdo truncado; label abaixo, uniforme.
+function BevelCelula({
+  label,
+  conteudo,
+  cor,
+  bold = false,
+}: {
+  label: string;
+  conteudo: string;
+  cor: string;
+  bold?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-[5px]">
+      <div
+        className="concave-3d flex h-[44px] items-center px-3 overflow-hidden"
+        title={conteudo}
+      >
+        <span
+          className="line-clamp-2 text-[10px] leading-snug"
+          style={{ color: cor, fontWeight: bold ? 700 : 400 }}
+        >
+          {conteudo}
+        </span>
+      </div>
+      <span
+        className="text-center text-[7.5px] font-black uppercase tracking-[0.2em]"
+        style={{ color: MUTED }}
+      >
+        {label}
+      </span>
+    </div>
+  );
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -234,14 +282,23 @@ function driveLink(id: string | null): string | null {
   return id ? `https://drive.google.com/file/d/${id}/view` : null;
 }
 
-// ── Linha de analito (grade fixa: 6 colunas) ─────────────────────────────────
-// Col 1: Nome + badge Histórico + data de coleta
-// Col 2: Valor
-// Col 3: Un. Lab (extraída do laudo)
-// Col 4: Un. Canônica (padrão do sistema)
-// Col 5: Conversão (↔ se convertida, ✓ se igual, — se sem canônica)
-// Col 6: Status
-const GRID_COLS = "1.6fr 68px 58px 62px 32px 80px";
+// ── Grade de analitos — 7 colunas FIXAS (TDAH: largura fixa, sempre texto) ──
+// Col 1: Exame (nome canônico + extraído)
+// Col 2: Coleta (data + badge HIST se histórico)
+// Col 3: Valor Lab (valor bruto do laudo)
+// Col 4: Un. Lab (unidade bruta)
+// Col 5: Val. Padrão (convertido=azul / =verde / S/cat.=muted)
+// Col 6: Un. Padrão (canônica)
+// Col 7: Situação (sempre texto — Normal/Acima/Abaixo/Revisar/S/ ref.)
+const GRID_COLS = "minmax(128px,1.5fr) 58px 58px 50px 62px 50px 72px";
+
+const STATUS_ANALITO: Record<string, { label: string; cor: string }> = {
+  dentro:      { label: "Normal",  cor: "#15803d" },
+  acima:       { label: "Acima",   cor: "#dc2626" },
+  abaixo:      { label: "Abaixo",  cor: "#1d4ed8" },
+  conferencia: { label: "Revisar", cor: "#d97706" },
+};
+const STATUS_DEFAULT = { label: "S/ ref.", cor: MUTED };
 
 function fmtDateShort(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -254,44 +311,53 @@ function fmtDateShort(iso: string | null | undefined): string {
 }
 
 function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
-  const stCfg   = ANALYTE_STATUS[a.status ?? ""];
-  const valor   = a.valueCanonical ?? a.valueRaw ?? "—";
-  const unLab   = a.unitRaw ?? "—";
-  const unCanon = a.unitCanonical ?? null;
-
-  // K3: nome canônico do catálogo; fallback = code; último fallback = nome extraído
+  // ── Col 1: nome ──────────────────────────────────────────────────────────────
   const canonName = a.canonicalName
     ?? (a.analyteCode ? a.analyteCode.replace(/-/g, " ") : null)
     ?? a.analyteNameRaw;
-  // Só exibe "como foi extraído" quando difere do canônico (evita repetição)
-  const showExtracted = !!a.analyteNameRaw
-    && canonName.toLowerCase() !== a.analyteNameRaw.toLowerCase();
+  const showExtracted =
+    !!a.analyteNameRaw && canonName.toLowerCase() !== a.analyteNameRaw.toLowerCase();
 
-  // K4: quando houve conversão de unidade, Col 3 mostra "leitura original" (origVal + origUnit)
-  // em vez de sub-linha abaixo do valor → alinhamento vertical mantido
-  const col3Convertido = a.unitConverted && a.valueRaw && a.valueRaw !== valor;
+  // ── Col 2: data de coleta + badge HIST ───────────────────────────────────────
+  const dataColeta = fmtDateShort(a.collectionDate);
 
-  // Ícone / cor de conversão
-  let convIcon  = "—";
-  let convColor = MUTED;
-  if (unCanon) {
-    convIcon  = a.unitConverted ? "→" : "✓";
-    convColor = a.unitConverted ? "#1d4ed8" : "#15803d";
+  // ── Col 3: valor bruto do laudo ──────────────────────────────────────────────
+  const valorLab = a.valueRaw ?? "—";
+
+  // ── Col 4: unidade bruta ─────────────────────────────────────────────────────
+  const unLab = a.unitRaw ?? "—";
+
+  // ── Col 5: valor padrão ──────────────────────────────────────────────────────
+  // Convertido (azul) | Mesmo padrão "=" (verde) | Sem catálogo (muted)
+  let valPad: string; let valPadColor: string;
+  if (!a.unitCanonical) {
+    valPad = "S/ cat."; valPadColor = MUTED;
+  } else if (a.unitConverted) {
+    valPad = a.valueCanonical ?? "—"; valPadColor = "#1d4ed8";
+  } else {
+    valPad = "="; valPadColor = "#15803d";
   }
+
+  // ── Col 6: unidade padrão ────────────────────────────────────────────────────
+  const unPad      = a.unitCanonical ?? "S/ cat.";
+  const unPadColor = a.unitCanonical ? NAVY : MUTED;
+
+  // ── Col 7: situação — SEMPRE mostra texto ────────────────────────────────────
+  const stLbl = STATUS_ANALITO[a.status ?? ""] ?? STATUS_DEFAULT;
 
   return (
     <div
-      className={`grid items-start gap-x-2 px-3 py-1.5 ${last ? "" : "border-b"}`}
+      className={`grid items-center gap-x-2 px-3 py-[5px] ${last ? "" : "border-b"}`}
       style={{
         gridTemplateColumns: GRID_COLS,
-        borderColor: "rgba(209,195,165,0.25)",
-        borderLeft: a.unitConverted ? "2px solid rgba(29,78,216,0.28)" : undefined,
+        borderColor: "rgba(209,195,165,0.22)",
+        borderLeft: a.unitConverted ? "2px solid rgba(29,78,216,0.22)" : "2px solid transparent",
       }}
     >
-      {/* Col 1 — Nome canônico (linha 1) + como foi extraído (linha 2, só se diferente) */}
-      <span className="min-w-0">
+      {/* Col 1 — Nome canônico + nome extraído (sem prefixo) */}
+      <span className="min-w-0 leading-none">
         <span
-          className="block truncate text-[11px] font-bold leading-tight"
+          className="block truncate text-[10.5px] font-bold"
           style={{ color: NAVY }}
           title={canonName}
         >
@@ -299,89 +365,70 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
         </span>
         {showExtracted && (
           <span
-            className="block truncate text-[9px] italic leading-snug"
+            className="block truncate text-[8.5px] italic mt-px"
             style={{ color: MUTED }}
-            title={`Extraído do laudo: ${a.analyteNameRaw}`}
+            title={a.analyteNameRaw}
           >
-            ext: {a.analyteNameRaw}
+            {a.analyteNameRaw}
           </span>
         )}
-        <span className="flex flex-wrap items-center gap-1 mt-0.5">
-          {a.isHistory && (
-            <span
-              className="inline-block rounded-[3px] px-1 py-px text-[7px] font-black uppercase tracking-widest leading-none"
-              style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
-            >
-              Histórico
-            </span>
-          )}
-          {a.collectionDate && (
-            <span className="text-[8px]" style={{ color: MUTED }}>
-              {fmtDateShort(a.collectionDate)}
-            </span>
-          )}
-        </span>
       </span>
 
-      {/* Col 2 — Valor canônico (sem sub-linha — K4 Kaizen-001) */}
-      <span className="text-right leading-tight pt-0.5 min-w-0">
-        <span
-          className="block text-[11px] font-mono font-bold tabular-nums"
-          style={{ color: valor === "—" ? MUTED : NAVY }}
-        >
-          {valor}
-        </span>
-      </span>
-
-      {/* Col 3 — Un. Lab / Leitura original (K4: se convertido mostra "origVal origUnit" em azul) */}
-      <span className="text-[9px] leading-tight pt-0.5 min-w-0">
-        {col3Convertido ? (
+      {/* Col 2 — Coleta (data + badge HIST se histórico) */}
+      <span className="min-w-0 leading-none text-center">
+        {a.isHistory && (
           <span
-            className="block font-mono tabular-nums"
-            style={{ color: "#5b7cb8" }}
-            title="Leitura original do laudo antes da conversão de unidade"
+            className="block mx-auto w-fit rounded-[2px] px-1 py-px text-[6.5px] font-black uppercase tracking-widest leading-none mb-px"
+            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
           >
-            {a.valueRaw} {unLab}
-          </span>
-        ) : (
-          <span className="block" style={{ color: a.unitConverted ? "#1d4ed8" : MUTED }}>
-            {unLab}
+            HIST
           </span>
         )}
-      </span>
-
-      {/* Col 4 — Un. Canônica */}
-      <span className="text-[9px] font-semibold leading-tight pt-0.5 min-w-0">
-        <span className="block" style={{ color: unCanon ? NAVY : MUTED }}>
-          {unCanon ?? "—"}
+        <span className="block text-[8.5px] tabular-nums" style={{ color: MUTED }}>
+          {dataColeta || (a.isHistory ? "—" : "Atual")}
         </span>
       </span>
 
-      {/* Col 5 — Símbolo de conversão (→ para convertido; ✓ para mesma unidade; — sem catálogo) */}
+      {/* Col 3 — Valor Lab (bruto, direto do laudo) */}
       <span
-        className="text-center text-[12px] font-black leading-tight pt-0.5"
-        style={{ color: convColor }}
+        className="text-right text-[10.5px] font-mono font-bold tabular-nums"
+        style={{ color: valorLab === "—" ? MUTED : NAVY }}
+      >
+        {valorLab}
+      </span>
+
+      {/* Col 4 — Un. Lab */}
+      <span className="text-[8.5px] truncate" style={{ color: MUTED }}>
+        {unLab}
+      </span>
+
+      {/* Col 5 — Val. Padrão */}
+      <span
+        className="text-right text-[10.5px] font-mono font-bold tabular-nums"
+        style={{ color: valPadColor }}
         title={
           a.unitConverted
             ? `Convertido: ${a.unitRaw ?? "?"} → ${a.unitCanonical ?? "?"}`
-            : unCanon ? "Unidade já canônica" : "Sem conversão catalogada"
+            : a.unitCanonical ? "Unidade já no padrão canônico" : "Sem catálogo de unidades"
         }
       >
-        {convIcon}
+        {valPad}
       </span>
 
-      {/* Col 6 — Status */}
-      <span className="flex items-center gap-1 pt-0.5">
-        {stCfg ? (
-          <>
-            <stCfg.Icon className="h-3 w-3 shrink-0" style={{ color: stCfg.cor }} />
-            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: stCfg.cor }}>
-              {a.status}
-            </span>
-          </>
-        ) : (
-          <span className="text-[9px]" style={{ color: MUTED }}>—</span>
-        )}
+      {/* Col 6 — Un. Padrão */}
+      <span className="text-[8.5px] truncate" style={{ color: unPadColor }}>
+        {unPad}
+      </span>
+
+      {/* Col 7 — Situação (campo fixo, sempre texto) */}
+      <span
+        className="text-center text-[7.5px] font-black uppercase tracking-widest rounded-[3px] px-1 py-[3px] truncate"
+        style={{
+          color: stLbl.cor,
+          background: stLbl.cor === MUTED ? "rgba(100,124,151,0.08)" : `${stLbl.cor}18`,
+        }}
+      >
+        {stLbl.label}
       </span>
     </div>
   );
@@ -552,103 +599,88 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         {/* Painel de Classificação — esquerda, bevel saliente, canais fixos */}
         <ClassificationPanel activeOrigin={doc.origin} />
 
-        {/* Direita: título + 3 bevels de proveniência */}
+        {/* Direita: título + 6 bevels em 2 linhas (TDAH: todos mesma altura fixa) */}
         <div className="flex-1 min-w-0 space-y-2">
-          <div className="flex items-start gap-2">
-            <kindCfg.Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: kindCfg.cor }} />
-            <p className="text-[13px] font-bold leading-snug" style={{ color: NAVY, wordBreak: "break-word" }}>
-              {doc.fileName}
+
+          {/* Título: ícone + nome canônico PAXTER (arquivo renomeado pelo sistema) */}
+          <div
+            className="flex items-center gap-2"
+            title={nomeOrig ? `Arquivo original: ${nomeOrig}` : undefined}
+          >
+            <kindCfg.Icon className="h-4 w-4 shrink-0" style={{ color: kindCfg.cor }} />
+            <p className="truncate text-[12.5px] font-bold leading-snug" style={{ color: NAVY }}>
+              {nomeRen || doc.fileName}
             </p>
           </div>
 
-          {/* PROVENIÊNCIA — 3 insert-bevels (Nome de importação / Renomeado para / Clone no Drive) */}
+          {/* LINHA 1 de bevels: Nome PAXTER | Laboratório | Drive */}
           <div className="grid grid-cols-3 gap-2">
-
-          {/* Bevel 1 — Nome de importação (original do Drive) */}
-          <div className="flex flex-col gap-1">
-            <div
-              className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]"
-              title={nomeOrig || "—"}
-            >
-              <span
-                className="line-clamp-2 text-[10px] leading-snug"
-                style={{ color: nomeOrig ? "#4a5d75" : MUTED }}
-              >
-                {nomeOrig || "—"}
+            {/* Bevel A — Nome canônico PAXTER */}
+            <BevelCelula
+              label="Arquivo PAXTER"
+              conteudo={nomeRen || doc.fileName}
+              cor={NAVY}
+              bold
+            />
+            {/* Bevel B — Laboratório */}
+            <BevelCelula
+              label="Laboratório"
+              conteudo={doc.labName || "—"}
+              cor={doc.labName ? NAVY : MUTED}
+            />
+            {/* Bevel C — Clone / Drive */}
+            <div className="flex flex-col gap-[5px]">
+              <div className="concave-3d flex h-[44px] items-center justify-center px-2 overflow-hidden">
+                {cloneUrl ? (
+                  <a
+                    href={cloneUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[9.5px] font-bold no-underline"
+                    style={{ color: "#15803d" }}
+                  >
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    Cópia no Drive
+                  </a>
+                ) : doc.sourcePdfDriveId ? (
+                  <button
+                    onClick={handleClonarDrive}
+                    disabled={clonando}
+                    className="btn-3d-soft inline-flex items-center gap-1 px-2 py-1 text-[8.5px] font-black uppercase tracking-widest disabled:opacity-60"
+                    style={{ color: NAVY }}
+                  >
+                    {clonando ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <ArrowRight className="h-2.5 w-2.5" />}
+                    {clonando ? "Clonando…" : "Clonar"}
+                  </button>
+                ) : (
+                  <span className="text-[9px]" style={{ color: MUTED }}>Sem Drive</span>
+                )}
+              </div>
+              <span className="text-center text-[7.5px] font-black uppercase tracking-[0.2em]" style={{ color: MUTED }}>
+                Clone no Drive
               </span>
             </div>
-            <span
-              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
-              style={{ color: MUTED }}
-            >
-              Nome de importação
-            </span>
           </div>
 
-          {/* Bevel 2 — Renomeado para (nome canônico PAXTER) */}
-          <div className="flex flex-col gap-1">
-            <div
-              className="concave-3d flex items-center px-3 py-2.5 min-h-[42px]"
-              title={nomeRen || "—"}
-            >
-              <span
-                className="line-clamp-2 text-[10px] font-bold leading-snug"
-                style={{ color: nomeRen !== nomeOrig ? NAVY : MUTED }}
-              >
-                {nomeRen || "—"}
-              </span>
-            </div>
-            <span
-              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
-              style={{ color: MUTED }}
-            >
-              Renomeado para
-            </span>
+          {/* LINHA 2 de bevels: Data Coleta | Recebido em | Conferido em */}
+          <div className="grid grid-cols-3 gap-2">
+            <BevelCelula
+              label="Data de Coleta"
+              conteudo={doc.collectionDate ? fmtData(doc.collectionDate) : "—"}
+              cor={doc.collectionDate ? NAVY : MUTED}
+            />
+            <BevelCelula
+              label="Recebido em"
+              conteudo={fmtData(doc.createdAt)}
+              cor={NAVY}
+            />
+            <BevelCelula
+              label="Conferido em"
+              conteudo={doc.conferredAt ? fmtData(doc.conferredAt) : "—"}
+              cor={doc.conferredAt ? "#15803d" : MUTED}
+            />
           </div>
 
-          {/* Bevel 3 — Clone no Drive (link se existir, botão se não) */}
-          <div className="flex flex-col gap-1">
-            <div className="concave-3d flex items-center justify-center px-2 py-2.5 min-h-[42px]">
-              {cloneUrl ? (
-                <a
-                  href={cloneUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[10px] font-bold no-underline line-clamp-2"
-                  style={{ color: "#15803d" }}
-                >
-                  <CheckCircle2 className="h-3 w-3 shrink-0" />
-                  {doc.copiedName ?? "clonado"}
-                </a>
-              ) : doc.sourcePdfDriveId ? (
-                <button
-                  onClick={handleClonarDrive}
-                  disabled={clonando}
-                  className="btn-3d-soft inline-flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest disabled:opacity-60"
-                  style={{ color: NAVY }}
-                >
-                  {clonando ? (
-                    <span className="animate-spin text-[11px]">⟳</span>
-                  ) : (
-                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-                  )}
-                  {clonando ? "Clonando…" : "Clonar"}
-                </button>
-              ) : (
-                <span className="text-[10px]" style={{ color: MUTED }}>
-                  Sem fonte
-                </span>
-              )}
-            </div>
-            <span
-              className="text-center text-[8px] font-black uppercase tracking-[0.2em]"
-              style={{ color: MUTED }}
-            >
-              Clone no Drive
-            </span>
-          </div>
-
-          </div>{/* fecha grid-cols-3 gap-2 */}
         </div>{/* fecha coluna direita flex-1 */}
       </div>{/* fecha flex gap-3 px-4 (ZONA 2) */}
 
@@ -737,13 +769,25 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       {/* ── ZONA 4: ANALITOS ─────────────────────────────────────────────────── */}
       {analitos.length > 0 && (
         <div className="mx-4 mb-3">
-          {/* Header da grade — 6 colunas */}
+          {/* Header da grade — 7 colunas TDAH */}
           <div
-            className="grid border-b px-3 py-1"
+            className="grid border-b px-3 py-[5px]"
             style={{ gridTemplateColumns: GRID_COLS, borderColor: "rgba(209,195,165,0.4)" }}
           >
-            {["Analito extraído · data", "Valor", "Un. Lab", "Un. Canônica", "↔", "Status"].map((h) => (
-              <span key={h} className="text-[8px] font-black uppercase tracking-[0.15em]" style={{ color: MUTED }}>
+            {[
+              { h: "Exame",        align: "left"   },
+              { h: "Coleta",       align: "center" },
+              { h: "Valor Lab",    align: "right"  },
+              { h: "Un. Lab",      align: "left"   },
+              { h: "Val. Padrão",  align: "right"  },
+              { h: "Un. Padrão",   align: "left"   },
+              { h: "Situação",     align: "center" },
+            ].map(({ h, align }) => (
+              <span
+                key={h}
+                className="text-[7.5px] font-black uppercase tracking-[0.16em]"
+                style={{ color: MUTED, textAlign: align as "left" | "center" | "right" }}
+              >
                 {h}
               </span>
             ))}
