@@ -7,6 +7,7 @@ import {
   driveDownloadFile,
   uploadFileToDrive,
   ensureClientFolderStructure,
+  driveCopyFileInFolder,
 } from "./google-drive.js";
 import { extractExamFromMedia } from "./exam-extraction/extract.js";
 import {
@@ -80,23 +81,28 @@ async function upsertFile(params: {
   errorMsg?: string;
   renamedTo?: string;
   examDocumentId?: number;
+  copiedDriveId?: string;
+  copiedName?: string;
 }): Promise<void> {
   await db.execute(sql`
     INSERT INTO drive_watcher_files
-      (file_id, folder_id, folder_type, original_name, client_id, client_name_raw, status, error_msg, renamed_to, exam_document_id)
+      (file_id, folder_id, folder_type, original_name, client_id, client_name_raw, status, error_msg, renamed_to, exam_document_id, copied_drive_id, copied_name)
     VALUES
       (${params.fileId}, ${params.folderId}, ${params.folderType}, ${params.originalName},
        ${params.clientId ?? null}, ${params.clientNameRaw ?? null},
        ${params.status ?? "pendente"}, ${params.errorMsg ?? null},
-       ${params.renamedTo ?? null}, ${params.examDocumentId ?? null})
+       ${params.renamedTo ?? null}, ${params.examDocumentId ?? null},
+       ${params.copiedDriveId ?? null}, ${params.copiedName ?? null})
     ON CONFLICT (file_id) DO UPDATE SET
-      status         = EXCLUDED.status,
-      error_msg      = EXCLUDED.error_msg,
-      renamed_to     = COALESCE(EXCLUDED.renamed_to, drive_watcher_files.renamed_to),
-      client_id      = COALESCE(EXCLUDED.client_id, drive_watcher_files.client_id),
-      client_name_raw = COALESCE(EXCLUDED.client_name_raw, drive_watcher_files.client_name_raw),
+      status           = EXCLUDED.status,
+      error_msg        = EXCLUDED.error_msg,
+      renamed_to       = COALESCE(EXCLUDED.renamed_to, drive_watcher_files.renamed_to),
+      client_id        = COALESCE(EXCLUDED.client_id, drive_watcher_files.client_id),
+      client_name_raw  = COALESCE(EXCLUDED.client_name_raw, drive_watcher_files.client_name_raw),
       exam_document_id = COALESCE(EXCLUDED.exam_document_id, drive_watcher_files.exam_document_id),
-      processed_at   = CASE WHEN EXCLUDED.status IN ('processado','erro','ignorado') THEN NOW() ELSE drive_watcher_files.processed_at END
+      copied_drive_id  = COALESCE(EXCLUDED.copied_drive_id, drive_watcher_files.copied_drive_id),
+      copied_name      = COALESCE(EXCLUDED.copied_name, drive_watcher_files.copied_name),
+      processed_at     = CASE WHEN EXCLUDED.status IN ('processado','erro','ignorado') THEN NOW() ELSE drive_watcher_files.processed_at END
   `);
 }
 
@@ -445,6 +451,18 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
             } catch { /* duplicado */ }
           }
 
+          // 5b. Criar cópia com nome canônico na mesma pasta de origem (sandbox)
+          // O arquivo original fica intocado; a cópia recebe o nome padrao
+          // YY.MM.DD EXAME SANGUE NOME CLIENTE para facilitar auditoria.
+          let copiedDriveId: string | undefined;
+          try {
+            const copied = await driveCopyFileInFolder(file.id, folder.id, newName);
+            copiedDriveId = copied.fileId;
+            logLine(`    Cópia canônica criada no Drive: ${newName} (id=${copied.fileId})`);
+          } catch (copyErr) {
+            logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
+          }
+
           // 6. Tentar subir ao Drive do paciente (best-effort)
           try {
             const structure = await ensureClientFolderStructure(clientId);
@@ -466,7 +484,7 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
             logLine(`    AVISO Drive upload: ${driveErr instanceof Error ? driveErr.message : String(driveErr)}`);
           }
 
-          // 7. Marcar como processado
+          // 7. Marcar como processado (inclui id da cópia canônica se criada)
           await upsertFile({
             fileId: file.id,
             folderId: folder.id,
@@ -477,6 +495,8 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
             clientNameRaw: candidateName,
             status: "processado",
             examDocumentId: examDocId,
+            copiedDriveId,
+            copiedName: copiedDriveId ? newName : undefined,
           });
 
           _state.filesProcessed++;

@@ -314,6 +314,7 @@ export async function persistExtractedResults(
           status: histStatus,
           collectionDate: histIso,
           labName: lab,
+          isHistory: true,
         })
         .onConflictDoNothing()
         .returning({ id: examResultsTable.id });

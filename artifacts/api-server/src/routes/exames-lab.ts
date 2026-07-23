@@ -385,6 +385,7 @@ router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
         status: examResultsTable.status,
         collectionDate: examResultsTable.collectionDate,
         unitConverted: examResultsTable.unitConverted,
+        isHistory: examResultsTable.isHistory,
       })
       .from(examResultsTable)
       .where(eq(examResultsTable.clientId, clientId))
@@ -393,6 +394,24 @@ router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[ExamesLab] Erro ao listar resultados bulk:", (err as Error).message);
     res.status(500).json({ error: "Erro ao listar resultados" });
+  }
+});
+
+// ---- PATCH /exames-lab/documento/:id — editar metadados (labName, collectionDate) ----
+router.patch("/exames-lab/documento/:id", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
+    const body = req.body as { labName?: string | null; collectionDate?: string | null };
+    const patch: { labName?: string | null; collectionDate?: string | null } = {};
+    if ("labName" in body) patch.labName = body.labName ?? null;
+    if ("collectionDate" in body) patch.collectionDate = body.collectionDate ?? null;
+    if (!Object.keys(patch).length) { res.json({ ok: true }); return; }
+    await db.update(examDocumentsTable).set(patch).where(eq(examDocumentsTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "[ExamesLab] Erro ao atualizar documento");
+    res.status(500).json({ error: "Erro ao atualizar documento" });
   }
 });
 
@@ -598,6 +617,18 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       });
     }
 
+    // Determina se uma coluna e inteiramente historica (todos os resultados
+    // dela vieram do historico interno de outro laudo, nao de exame proprio).
+    const colIsHistory = new Map<string, boolean>();
+    for (const r of rows) {
+      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+      if (!r.isHistory) {
+        colIsHistory.set(key, false);          // qualquer nao-historico torna a coluna real
+      } else if (!colIsHistory.has(key)) {
+        colIsHistory.set(key, true);           // primeiro encontrado: assume historico
+      }
+    }
+
     // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
     const columnKeys: string[] = [];
     const columns: Array<{
@@ -607,6 +638,7 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
       confLevel: "ia" | "c1" | "c2" | null;
       conferenteName: string | null;
       conferenteCargo: string | null;
+      isHistory: boolean;
     }> = [];
     for (const r of rows) {
       const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
@@ -620,6 +652,7 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
           confLevel: seal?.confLevel ?? null,
           conferenteName: seal?.conferenteName ?? null,
           conferenteCargo: seal?.conferenteCargo ?? null,
+          isHistory: colIsHistory.get(key) ?? false,
         });
       }
     }

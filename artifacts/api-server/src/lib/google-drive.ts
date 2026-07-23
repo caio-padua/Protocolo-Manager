@@ -628,6 +628,25 @@ export async function driveDownloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(res.data as ArrayBuffer);
 }
 
+/**
+ * Cria uma CÓPIA de um arquivo no Drive dentro de uma pasta, com novo nome.
+ * O arquivo original fica intocado (sandbox). Usado pelo watcher para criar
+ * a cópia canônica (YY.MM.DD EXAME SANGUE NOME) sem renomear o original.
+ */
+export async function driveCopyFileInFolder(
+  sourceFileId: string,
+  targetFolderId: string,
+  newName: string,
+): Promise<{ fileId: string }> {
+  const drive = await getUncachableDriveClient();
+  const res = await drive.files.copy({
+    fileId: sourceFileId,
+    requestBody: { name: newName, parents: [targetFolderId] },
+    fields: "id",
+  });
+  return { fileId: res.data.id! };
+}
+
 export async function shareWithClient(fileOrFolderId: string, clientEmail: string): Promise<void> {
   const drive = await getUncachableDriveClient();
   try {

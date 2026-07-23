@@ -85,7 +85,12 @@ async function callGemini(text: string, model: string): Promise<ExtractedExam> {
   return runExamGemini(`${EXTRACTION_PROMPT}\n\n=== TEXTO DO LAUDO ===\n${text}`, model);
 }
 
-const MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotografada/escaneada ou PDF sem texto). Faça a LEITURA ÓPTICA do arquivo e extraia os dados conforme as regras acima.`;
+const MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotografada/escaneada ou PDF sem texto). Faça a LEITURA ÓPTICA do arquivo e extraia os dados conforme as regras acima.
+
+ATENÇÃO ESPECIAL para PDFs visuais:
+- LABORATÓRIO: O nome do laboratório (ex.: "DASA", "Fleury", "Hermes Pardini", "Sabin", "CAASP", "DB Diagnostics") aparece no CANTO SUPERIOR ESQUERDO, no TIMBRE do papel, no RODAPÉ ou numa URL de validação (ex.: "valida.dasa.com.br" → "DASA"). NUNCA deixe labName nulo se houver qualquer marca gráfica ou texto de identificação visível.
+- DATA DE COLETA: Localize o campo "DATA COLETA", "Data da Coleta" ou "Coleta em" — essa é a data REAL do exame. Campos como "DATA LAUDO" ou "Emissão" são datas secundárias.
+- HISTÓRICO: Muitos laudos brasileiros incluem na mesma página resultados de coletas ANTERIORES do mesmo paciente (aparece como coluna extra com data passada). Extraia CADA resultado histórico em "history" do analito correspondente, com a data exata da coleta anterior.`;
 
 /** Extrai um laudo LABORATORIAL diretamente de uma imagem ou PDF escaneado (visão). */
 export async function extractExamFromMedia(

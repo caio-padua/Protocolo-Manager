@@ -61,6 +61,8 @@ export interface AnalyteResult {
   status: string | null;
   collectionDate: string | null;
   unitConverted: boolean;
+  /** Resultado extraído do histórico interno do laudo (coleta anterior impressa no PDF) */
+  isHistory?: boolean;
 }
 
 // ── Calhas (canais de entrada) ─────────────────────────────────────────────────
@@ -175,6 +177,14 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
             {a.analyteCode}
           </span>
         )}
+        {a.isHistory && (
+          <span
+            className="ml-1.5 inline-block rounded-[3px] px-1 py-px text-[7px] font-black uppercase tracking-widest leading-none"
+            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+          >
+            Histórico
+          </span>
+        )}
       </span>
 
       {/* Col 2 — Valor */}
@@ -217,6 +227,11 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
   const [reextrai, setReextrai] = useState(false);
   const [reextraiMsg, setReextraiMsg] = useState("");
 
+  // Lab name editável (corrige quando a IA não reconheceu o laboratório)
+  const [labEditando, setLabEditando] = useState(false);
+  const [labValor, setLabValor] = useState(doc.labName ?? "");
+  const [labSalvando, setLabSalvando] = useState(false);
+
   const calha     = CALHA_CFG[doc.origin ?? ""] ?? CALHA_DEFAULT;
   const kindCfg   = KIND_CFG[doc.examKind ?? ""] ?? KIND_DEFAULT;
   const statusCfg = DOC_STATUS[doc.status] ?? { label: doc.status, cor: "#94a3b8" };
@@ -252,6 +267,24 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       setBaixando(false);
     }
   }, [doc.id, doc.fileName, doc.sourcePdfDriveId, baixando]);
+
+  const handleSalvarLab = useCallback(async () => {
+    setLabSalvando(true);
+    try {
+      const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labName: labValor.trim() || null }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setLabEditando(false);
+      onRefresh();
+    } catch (e) {
+      alert(`Falha ao salvar laboratório: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLabSalvando(false);
+    }
+  }, [doc.id, labValor, onRefresh]);
 
   const handleReextrair = useCallback(async (onDone: () => void) => {
     if (reextrai || !doc.sourcePdfDriveId) return;
@@ -357,24 +390,81 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         className="grid grid-cols-3 gap-0 border-t border-b mx-4 mb-3"
         style={{ borderColor: "rgba(209,195,165,0.35)" }}
       >
-        {[
-          { label: "Laboratório", valor: doc.labName ?? "—" },
-          { label: "Data de coleta", valor: fmtData(doc.collectionDate) },
-          { label: "Entrada no sistema", valor: fmtHora(doc.createdAt) },
-        ].map((m, i) => (
-          <div
-            key={m.label}
-            className={`px-3 py-2 ${i < 2 ? "border-r" : ""}`}
-            style={{ borderColor: "rgba(209,195,165,0.35)" }}
-          >
-            <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
-              {m.label}
-            </div>
-            <div className="text-[11px] font-bold" style={{ color: NAVY }}>
-              {m.valor}
-            </div>
+        {/* Célula 1 — Laboratório (editável quando IA não detectou) */}
+        <div className="px-3 py-2 border-r" style={{ borderColor: "rgba(209,195,165,0.35)" }}>
+          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
+            Laboratório
           </div>
-        ))}
+          {labEditando ? (
+            <div className="flex items-center gap-1 mt-0.5">
+              <input
+                type="text"
+                value={labValor}
+                onChange={(e) => setLabValor(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSalvarLab();
+                  if (e.key === "Escape") setLabEditando(false);
+                }}
+                autoFocus
+                className="concave-3d min-w-0 flex-1 px-1.5 py-0.5 text-[11px] font-bold outline-none"
+                style={{ color: NAVY }}
+                placeholder="Nome do laboratório"
+              />
+              <Button
+                size="sm"
+                className="btn-3d-soft h-5 px-1.5 text-[9px] font-black"
+                onClick={() => void handleSalvarLab()}
+                disabled={labSalvando}
+              >
+                OK
+              </Button>
+              <button
+                type="button"
+                className="px-1 text-[10px]"
+                style={{ color: MUTED }}
+                onClick={() => setLabEditando(false)}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div
+              className="group flex cursor-pointer items-center gap-1"
+              title="Clique para corrigir o nome do laboratório"
+              onClick={() => setLabEditando(true)}
+            >
+              <span className="text-[11px] font-bold" style={{ color: labValor || doc.labName ? NAVY : MUTED }}>
+                {labValor || doc.labName || "—"}
+              </span>
+              <span
+                className="text-[9px] opacity-0 transition-opacity group-hover:opacity-100"
+                style={{ color: GOLD }}
+              >
+                ✎
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Célula 2 — Data de coleta */}
+        <div className="px-3 py-2 border-r" style={{ borderColor: "rgba(209,195,165,0.35)" }}>
+          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
+            Data de coleta
+          </div>
+          <div className="text-[11px] font-bold" style={{ color: NAVY }}>
+            {fmtData(doc.collectionDate)}
+          </div>
+        </div>
+
+        {/* Célula 3 — Entrada no sistema */}
+        <div className="px-3 py-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
+            Entrada no sistema
+          </div>
+          <div className="text-[11px] font-bold" style={{ color: NAVY }}>
+            {fmtHora(doc.createdAt)}
+          </div>
+        </div>
       </div>
 
       {/* ── ZONA 4: ANALITOS ─────────────────────────────────────────────────── */}
@@ -404,7 +494,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
 
           {/* Ver mais / menos */}
           {temMais && (
-            <button
+            <Button
               type="button"
               onClick={() => setVerTodos((v) => !v)}
               className="btn-3d-soft mt-2 w-full py-1.5 text-[10px] font-black uppercase tracking-widest"
@@ -412,7 +502,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
               {verTodos
                 ? `Mostrar menos`
                 : `Ver todos (${analitos.length - MAX_ROWS} analitos restantes)`}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -477,15 +567,12 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         style={{ borderColor: "rgba(209,195,165,0.4)" }}
       >
         {dUrl ? (
-          <a
-            href={dUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-3d inline-flex items-center gap-2 no-underline"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Abrir no Drive
-          </a>
+          <Button asChild className="btn-3d">
+            <a href={dUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 no-underline">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Abrir no Drive
+            </a>
+          </Button>
         ) : (
           <Button className="btn-3d opacity-40 cursor-not-allowed" disabled>
             <ExternalLink className="h-3.5 w-3.5" />

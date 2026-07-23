@@ -91,6 +91,10 @@ export const examResultsTable = pgTable(
     unitConverted: boolean("unit_converted").notNull().default(false),
     collectionDate: date("collection_date", { mode: "string" }),
     labName: text("lab_name"),
+    // true quando este resultado veio do HISTORICO dentro do proprio laudo
+    // (o laboratorio imprime resultados de coletas anteriores no mesmo PDF).
+    // Distingue do resultado real da data de coleta daquele documento.
+    isHistory: boolean("is_history").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

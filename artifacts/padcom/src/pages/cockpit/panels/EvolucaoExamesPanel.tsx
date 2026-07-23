@@ -93,6 +93,8 @@ interface EvolucaoColumn {
   confLevel: "ia" | "c1" | "c2" | null;
   conferenteName: string | null;
   conferenteCargo: string | null;
+  /** true quando TODOS os resultados desta coluna vieram do histórico interno de outro laudo */
+  isHistory?: boolean;
 }
 interface EvolucaoAnalyte {
   key: string;
@@ -265,6 +267,14 @@ function ColunaCabecalho({
       <span className="mt-1 max-w-[60px] truncate text-[9px] font-semibold leading-tight" style={{ color: GOLD }}>
         {c.lab ?? "Lab. —"}
       </span>
+      {c.isHistory && (
+        <span
+          className="mt-0.5 inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
+          style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+        >
+          Histórico
+        </span>
+      )}
       <span className="mt-0.5 text-[8px] font-medium leading-tight text-[#8a97a9]">
         {c.conferenteName ? (
           c.confLevel === "c2" ? "Conferido" : "Lançado"
