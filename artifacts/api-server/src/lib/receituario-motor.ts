@@ -101,10 +101,10 @@ export async function garantirTabelaTokens(): Promise<void> {
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
 
+import { brtISODate } from "./brt";
+
 function hoje(): string {
-  const now = new Date();
-  const brt = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  return brt.toISOString().split("T")[0];
+  return brtISODate();
 }
 
 function slugNome(nome: string): string {

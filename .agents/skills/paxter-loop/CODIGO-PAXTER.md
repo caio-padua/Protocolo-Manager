@@ -111,6 +111,25 @@ retrabalho e quebra integridade (caso-origem: cobrança real do Asaas criada sob
 que o CPF verdadeiro do titular já constava no `replit.md` e no certificado A1). Esta lei é a aplicação
 prática dos Art. 19 (verificar na fonte) e Art. 20 (proibida a fantasia) ao ato de criar dados de teste.
 
+**Art. 69** TODA CONSTRUÇÃO É TESTADA E PROVADA (promulgado a pedido do CEO em 24/07/2026). Nenhuma
+funcionalidade é declarada pronta sem PROVA objetiva de que funciona. Quatro níveis obrigatórios:
+
+1. **SMOKE** — ao menos um curl/fetch que devolva o código HTTP esperado (200/201) na rota criada.
+2. **DADO** — o banco de dados confirma o efeito (SELECT que mostre a linha criada/alterada).
+3. **VISUAL** — screenshot do sistema mostrando a funcionalidade ao usuário final (quando há tela).
+4. **LOG** — o log do servidor mostra a execução sem erro (linha INFO, sem WARN/ERROR inesperado).
+
+Regras derivadas:
+- Proibido anunciar "feito" sem executar os níveis aplicáveis e mostrar o resultado ao CEO.
+- O motor de extração de exames só é declarado funcionando quando: (a) um PDF real foi enviado,
+  (b) o banco mostra `status='recebido'` com `raw_json` preenchido, (c) a Evolução do cliente exibe
+  ao menos um analito extraído.
+- Fuso horário (BRT): qualquer nova funcionalidade que gere data/hora de nome de arquivo ou exibição
+  ao usuário DEVE importar de `lib/brt.ts` (NUNCA usar `new Date()` nu para isso); o teste inclui
+  confirmar que a data gerada bate com a hora de Brasília (UTC-3), não UTC.
+- Cada construção registra seu resultado de teste em resposta ao CEO com tabela: Nível | Esperado |
+  Obtido | Passou. Resultado "Passou: NÃO" bloqueia a entrega até ser resolvido.
+
 ---
 
 ## TÍTULO IV — DA EQUIPE FIXA
@@ -382,6 +401,7 @@ split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encan
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 24/07/2026 | Art. 69 (Título III) | Toda construção é testada e provada, promulgado a pedido do CEO: 4 níveis obrigatórios (SMOKE/DADO/VISUAL/LOG); proibido declarar "feito" sem prova objetiva; motor de exames só declarado funcionando com PDF real+banco+Evolução; data/hora de arquivo/exibição SEMPRE via `lib/brt.ts`; resultado de teste em tabela Nível/Esperado/Obtido/Passou na resposta ao CEO; "Passou: NÃO" bloqueia entrega. |
 | 28/06/2026 | Art. 66 v2 + Padrao 19/20 (skill) | E-mail Paxter v2 aprovado pelo CEO: fundo "terno" navy MAIS claro (fallback #0a1430 + gradiente + brilho dourado + tramado) substitui o #05080f "muito escuro". A lista de substancias: o CEO TESTOU cartoes e na mesma data DESCARTOU — preferiu a TABELA com COLUNAS ALINHADAS na vertical (SUBSTANCIA \| DOSE \| SESSAO \| FREQUENCIA \| STATUS), dose so em miligramagem (motor remove "/ N ml"), sessao "4/12", frequencia "a cada N dias", status em pilula, coluna omitida se ninguem tiver o dado. Fonte unica `messaging/substance-table.ts` (`blocoTabelaSubstancias`); `substance-cards.ts` removido. Registrado como Padrao 20 (atualizado: TABELA) + Padrao 19 na skill `skill-layout-paxter`. Previa viva: `GET /api/brand/email-preview`; envio de teste dev-only: `POST /api/brand/email-test {to}`. Memoria: `email-paxter-v2-terno-tabela`. |
 | 28/06/2026 | Art. 68 (Título III) | Dado real antes de fixture, promulgado pelo "freio de mão" do CEO: antes de criar qualquer dado de teste/exemplo (fixture/mock), o agente verifica se já existe o dado REAL no sistema e o usa; fixture só é permitido para validação puramente visual de layout (renderização), nunca para provar fluxo de negócio. Operar o sistema de verdade vence simulação. |
 | 28/06/2026 | Art. 67 (Título III) | Autonomia na opção óbvia, a pedido do CEO: quando há uma opção claramente mais robusta/eficiente/sólida e o CEO já sinalizou que quer "o melhor", o agente segue direto por ela (anunciando a escolha), sem parar para perguntar. Exceções que ainda exigem pergunta: ação destrutiva/irreversível (apagar dado, dinheiro real), mudar decisão travada do CEO (Art. 21), ou escopo/arquitetura ambíguo com trade-off real. |

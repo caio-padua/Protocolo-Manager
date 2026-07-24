@@ -5,12 +5,10 @@ import { and, eq, isNull, inArray } from "drizzle-orm";
 import { sendGmailMessage, isGmailConnected } from "./google-gmail";
 import { uploadFileToDrive, ensurePharmacyDayFolder, sharePharmacyFolder } from "./google-drive";
 import { logger } from "./logger";
+import { brtISODate } from "./brt";
 
 function todayBR(): string {
-  const now = new Date();
-  // BRT = UTC-3
-  const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-  return brt.toISOString().slice(0, 10);
+  return brtISODate();
 }
 
 // Formata a data DO LOTE (string ISO YYYY-MM-DD = mesmo formato de batchDate)

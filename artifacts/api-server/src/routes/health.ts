@@ -144,4 +144,21 @@ router.get("/healthz", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// ── GET /api/brt — diagnóstico público do fuso de Brasília ─────────────────
+// Sem autenticação — serve para confirmar que o servidor está usando BRT certo.
+import { brtDateStr, brtISODate, brtDisplayDate, brtDateTime } from "../lib/brt";
+
+router.get("/brt", (_req, res) => {
+  const utcNow = new Date();
+  res.json({
+    utc: utcNow.toISOString(),
+    brt_arquivo: brtDateStr(),
+    brt_banco: brtISODate(),
+    brt_tela: brtDisplayDate(),
+    brt_log: brtDateTime(),
+    offset_horas: -3,
+    fuso: "America/Sao_Paulo",
+  });
+});
+
 export default router;

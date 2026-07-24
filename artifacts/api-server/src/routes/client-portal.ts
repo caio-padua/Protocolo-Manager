@@ -10,15 +10,10 @@ import {
 } from "../lib/google-drive";
 import { createPortalToken, verifyPortalToken } from "../lib/portal-token";
 import { startExamIngestion } from "./exames-lab";
+import { brtDateStr } from "../lib/brt";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-
-/** Data atual em BRT (UTC-3), formato YY.MM.DD. Evita o bug de UTC avançar o dia. */
-function brtDateStr(): string {
-  const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  return `${String(now.getUTCFullYear()).slice(2)}.${String(now.getUTCMonth() + 1).padStart(2, "0")}.${String(now.getUTCDate()).padStart(2, "0")}`;
-}
 
 /**
  * Converte data digitada pelo usuário (DD/MM/AAAA ou DD/MM/AA) para YY.MM.DD.

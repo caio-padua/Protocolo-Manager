@@ -1,3 +1,4 @@
+- [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (público, sem auth).
 - [Cockpit v2 — arquitetura de componentes](cockpit-v2-arquitetura.md) — CockpitShell+lazy panels; URL=fonte de verdade; key={clientId} no Route; useListClients→useCockpitSearch; index.tsx monolito preservado.
 - [Cockpit unificado — padrão de fusão](cockpit-unificado-fusao.md) — sticky header+nav como bloco único; redirect /clients/:id → cockpit; accordion protocolos; 3 abas transplantadas; clients/detail.tsx preservado.
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas; 5 rotas corrigidas.
