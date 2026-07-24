@@ -8,6 +8,7 @@ import {
   ensureEmpresaClientesFolder,
   listDriveFolder,
   moveAllItemsToFolder,
+  trashDriveItem,
 } from "../lib/google-drive";
 import { logger } from "../lib/logger";
 
@@ -255,6 +256,27 @@ router.post("/admin/drive/migrar-clientes", async (req: Request, res: Response):
       });
   } catch (err) {
     logger.error({ err: (err as Error).message }, "[AdminDrive] Erro ao migrar clientes");
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/admin/drive/trash-item
+ * Move um arquivo ou pasta para a lixeira do Drive.
+ * Body: { fileId: string }
+ */
+router.post("/admin/drive/trash-item", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileId } = req.body;
+    if (!fileId || typeof fileId !== "string") {
+      res.status(400).json({ error: "fileId obrigatório" });
+      return;
+    }
+    await trashDriveItem(fileId);
+    logger.info({ fileId }, "[AdminDrive] item movido para lixeira");
+    res.json({ ok: true, fileId, status: "trashed" });
+  } catch (err) {
+    logger.error({ err: (err as Error).message }, "[AdminDrive] Erro ao mover para lixeira");
     res.status(500).json({ error: (err as Error).message });
   }
 });

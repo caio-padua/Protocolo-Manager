@@ -1660,6 +1660,15 @@ export async function listDriveFolder(
   return res.data.files || [];
 }
 
+// Move um arquivo/pasta para a lixeira do Drive.
+export async function trashDriveItem(fileId: string): Promise<void> {
+  const drive = await getUncachableDriveClient();
+  await drive.files.update({
+    fileId,
+    requestBody: { trashed: true },
+  });
+}
+
 // Move todos os itens de uma pasta para outra.
 // Útil para migrar conteúdo do CLIENTES global para o CLIENTES por empresa.
 export async function moveAllItemsToFolder(
