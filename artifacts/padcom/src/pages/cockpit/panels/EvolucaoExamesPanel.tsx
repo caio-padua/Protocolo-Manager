@@ -4,7 +4,6 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Bot,
   AlertTriangle,
   MousePointerClick,
   FlaskConical,
@@ -52,8 +51,11 @@ import { ConsoleExamesTool } from "@/components/ConsoleExamesTool";
 const NAVY = "#16294a";
 const MUTED = "#647c97";
 const GOLD = "#b8924d";
-const NOME_BG = "#e9ecf1";
-const PIN_BG = "#eef1f6";
+// Pedido do CEO (24/07/2026): coluna congelada SEM "painel" cinza atrás.
+const NOME_BG = "#fbfaf4";
+// O fundo continua existindo (senão as colunas rolando vazam por baixo),
+// mas na MESMA cor creme do painel — invisível a olho nu.
+const PIN_BG = "#fbfaf4";
 
 // Larguras FIXAS: o cálculo do "grudar" das colunas fixadas depende disso.
 const NAME_W = 200; // coluna do nome (congelada à esquerda)
@@ -298,25 +300,32 @@ function ColunaCabecalho({
       >
         {ano(c.date)}
       </span>
-      <span className="mt-1 max-w-[60px] truncate text-[9px] font-semibold leading-tight" style={{ color: GOLD }}>
-        {c.lab ?? "Lab. —"}
+      {/* Pedido do CEO (24/07/2026): posição NUNCA muda com presença/ausência de
+          informação. Cada linha abaixo tem ALTURA FIXA e sempre mostra TEXTO
+          (nada de símbolo, nada de traço mínimo). */}
+      <span
+        className="mt-1 flex h-[12px] max-w-[60px] items-center truncate text-[9px] font-semibold leading-none"
+        style={{ color: c.lab ? GOLD : "#9aa6b6" }}
+        title={c.lab ?? "Laboratório não identificado no laudo"}
+      >
+        {c.lab ?? "Lab. não identificado"}
       </span>
-      {c.isHistory && (
-        <span
-          className="mt-0.5 inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
-          style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
-        >
-          Histórico
-        </span>
-      )}
-      <span className="mt-0.5 text-[8px] font-medium leading-tight text-[#8a97a9]">
-        {c.conferenteName ? (
-          c.confLevel === "c2" ? "Conferido" : "Lançado"
+      <span className="mt-0.5 flex h-[13px] items-center">
+        {c.isHistory ? (
+          <span
+            className="inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
+            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+          >
+            Histórico
+          </span>
         ) : (
-          <span className="inline-flex items-center gap-0.5">
-            <Bot className="h-2.5 w-2.5" /> Aguardando
+          <span className="text-[7px] font-semibold uppercase tracking-widest leading-none text-[#b3bccb]">
+            Do laudo
           </span>
         )}
+      </span>
+      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
+        {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
       </span>
     </div>
   );
@@ -776,17 +785,20 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
 
-      {/* controles */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#16294a]/10 pb-3">
-        {/* SINALIZAR FAIXA — 5 botões fixos por POSIÇÃO, em up bevel (saliente).
-            Filtra por zone.key (below→above), não por nome: os nomes custom de
-            cada exame ficam só no gráfico individual, sem poluir a planilha. */}
-        <div className="bevel-3d flex flex-wrap items-center gap-1.5 rounded-[7px] px-2.5 py-2">
-          <span className="mr-1 text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Sinalizar faixa:</span>
+      {/* CONTROLES — reforma TDAH-friendly (pedido do CEO 24/07/2026):
+          duas subdivisões lado a lado, cada uma com TÍTULO em up-bevel e os
+          botões empilhados embaixo, TODOS do mesmo tamanho, alinhados nas
+          mesmas linhas imaginárias vertical e horizontal. */}
+      <div className="mb-3 flex flex-wrap items-start gap-4 border-b border-[#16294a]/10 pb-3">
+        {/* SUBDIVISÃO 1 — FAIXAS DE EXAMES (filtro por posição, below→above) */}
+        <div className="flex flex-col items-stretch gap-1.5">
+          <span className="bevel-3d rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+            Faixas de Exames
+          </span>
           <button
             type="button"
             onClick={() => setZonaAcesa(null)}
-            className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
+            className={`h-[30px] w-[190px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
             style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
           >
             Todas
@@ -798,7 +810,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                 key={f.key}
                 type="button"
                 onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                className={`h-[30px] w-[190px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
                 style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
               >
                 {f.label}
@@ -806,29 +818,41 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
             );
           })}
         </div>
-        <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
+
+        {/* SUBDIVISÃO 2 — GRÁFICOS (onde os gráficos aparecem) */}
+        <div className="flex flex-col items-stretch gap-1.5">
+          <span className="bevel-3d rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+            Gráficos
+          </span>
+          {LAYOUTS.map((l) => {
+            const ativo = layout === l.id;
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => setLayout(l.id)}
+                className={`h-[30px] w-[190px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+              >
+                {l.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* SUBDIVISÃO 3 — EXIBIÇÃO (toggle da faixinha de cor) */}
+        <div className="flex flex-col items-stretch gap-1.5">
+          <span className="bevel-3d rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+            Exibição
+          </span>
+          <div className="flex h-[30px] items-center px-1">
+            <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
+          </div>
+        </div>
       </div>
 
-      {/* toggle de LAYOUT (requisito 7) */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-wide text-[#647c97]">Gráficos:</span>
-        {LAYOUTS.map((l) => {
-          const ativo = layout === l.id;
-          return (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => setLayout(l.id)}
-              className={`rounded-[5px] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-              style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-            >
-              {l.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+      {/* INSTRUÇÕES em relevo CÔNCAVO (inset bevel — pedido do CEO 24/07/2026) */}
+      <div className="concave-3d mb-3 flex flex-wrap items-center gap-4 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
         <span className="flex items-center gap-1">
           <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
         </span>
