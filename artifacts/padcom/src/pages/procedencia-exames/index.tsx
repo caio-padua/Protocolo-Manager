@@ -4,8 +4,8 @@
 // Motor: ProcedenciaDocumentosBloco (unificado)
 // Pedido CEO 23/07/2026.
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { MapPin, Search, UserRound, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { MapPin, Search, UserRound, X, Loader2 } from "lucide-react";
 import { useListClients } from "@workspace/api-client-react";
 import ProcedenciaDocumentosBloco from "@/components/ProcedenciaDocumentosBloco";
 
@@ -16,30 +16,33 @@ const CREAM = "hsl(40 33% 96%)";
 type ClienteItem = { id: number; name: string; cpf?: string | null };
 
 export default function ProcedenciaExamesPage() {
-  const [busca, setBusca]         = useState("");
-  const [clienteId, setClienteId] = useState<number | null>(() => {
+  const [busca, setBusca]           = useState("");
+  const [debouncedBusca, setDeb]    = useState("");
+  const [clienteId, setClienteId]   = useState<number | null>(() => {
     const p = new URLSearchParams(window.location.search).get("c");
     return p ? Number(p) : null;
   });
   const [clienteNome, setClienteNome] = useState("");
-  const [aberto, setAberto]       = useState(false);
+  const [aberto, setAberto]         = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropRef  = useRef<HTMLDivElement>(null);
 
-  const { data: clientes, isLoading } = useListClients();
+  // Debounce: 300ms após parar de digitar, dispara busca server-side
+  useEffect(() => {
+    const t = setTimeout(() => setDeb(busca.trim()), 300);
+    return () => clearTimeout(t);
+  }, [busca]);
 
-  const filtrados = useMemo<ClienteItem[]>(() => {
-    const lista = [...(clientes ?? [])].sort((a, b) =>
-      a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
-    );
-    const q = busca.trim().toLowerCase();
-    if (!q) return lista;
-    return lista.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.cpf ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))
-    );
-  }, [clientes, busca]);
+  // Busca server-side: mínimo 2 chars; sem texto = lista vazia no dropdown
+  const searchParam = debouncedBusca.length >= 2 ? { search: debouncedBusca } : undefined;
+  const { data: clientes, isLoading, isFetching } = useListClients(searchParam);
+
+  // Resultado já vem filtrado do servidor; ordenar alfabeticamente
+  const filtrados: ClienteItem[] = debouncedBusca.length >= 2
+    ? [...(clientes ?? [])].sort((a, b) =>
+        a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
+      )
+    : [];
 
   function selecionar(c: ClienteItem) {
     setClienteId(c.id);
@@ -68,18 +71,6 @@ export default function ProcedenciaExamesPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Agrupamento A-Z
-  const grupos = useMemo(() => {
-    if (busca.trim()) return null;
-    const mapa = new Map<string, ClienteItem[]>();
-    for (const c of filtrados) {
-      const letra = c.name[0]?.toUpperCase() ?? "#";
-      const lista = mapa.get(letra) ?? [];
-      lista.push(c);
-      mapa.set(letra, lista);
-    }
-    return [...mapa.entries()];
-  }, [filtrados, busca]);
 
   return (
     <div className="min-h-screen font-sans" style={{ background: CREAM }}>
@@ -127,11 +118,10 @@ export default function ProcedenciaExamesPage() {
                 ref={inputRef}
                 className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-slate-400"
                 style={{ color: NAVY }}
-                placeholder={isLoading ? "Carregando clientes…" : "Buscar por nome ou CPF…"}
+                placeholder="Digite 2+ letras para buscar…"
                 value={busca}
                 onChange={(e) => { setBusca(e.target.value); setAberto(true); }}
                 onFocus={() => setAberto(true)}
-                disabled={isLoading}
               />
               {(busca || clienteNome) && (
                 <button type="button" onClick={limpar} className="shrink-0">
@@ -140,14 +130,23 @@ export default function ProcedenciaExamesPage() {
               )}
             </div>
 
-            {/* Dropdown A-Z */}
-            {aberto && filtrados.length > 0 && (
+            {/* Dropdown de resultados (server-side, mín. 2 chars) */}
+            {aberto && busca.trim().length >= 2 && (
               <div
                 ref={dropRef}
                 className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-[6px] shadow-xl border"
                 style={{ background: "#fff", borderColor: "#d8cfbc" }}
               >
-                {busca.trim() ? (
+                {isFetching ? (
+                  <div className="flex items-center gap-2 px-4 py-3 text-[12px]" style={{ color: "#94a3b8" }}>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Buscando…
+                  </div>
+                ) : filtrados.length === 0 ? (
+                  <div className="px-4 py-3 text-[12px]" style={{ color: "#94a3b8" }}>
+                    Nenhum cliente encontrado para "{debouncedBusca}"
+                  </div>
+                ) : (
                   filtrados.slice(0, 80).map((c) => (
                     <button
                       key={c.id}
@@ -159,29 +158,6 @@ export default function ProcedenciaExamesPage() {
                       <span className="font-semibold">{c.name}</span>
                       {c.cpf && <span className="ml-2 text-[11px] text-slate-400">{c.cpf}</span>}
                     </button>
-                  ))
-                ) : (
-                  grupos?.map(([letra, itens]) => (
-                    <div key={letra}>
-                      <div
-                        className="sticky top-0 px-4 py-1 text-[10px] font-black uppercase tracking-[0.25em]"
-                        style={{ background: "#f5f0e8", color: GOLD }}
-                      >
-                        {letra}
-                      </div>
-                      {itens.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          className="w-full px-4 py-2.5 text-left text-[13px] hover:bg-amber-50 border-b last:border-0 transition-colors"
-                          style={{ color: NAVY, borderColor: "#f0ebe0" }}
-                          onMouseDown={() => selecionar(c)}
-                        >
-                          <span className="font-semibold">{c.name}</span>
-                          {c.cpf && <span className="ml-2 text-[11px] text-slate-400">{c.cpf}</span>}
-                        </button>
-                      ))}
-                    </div>
                   ))
                 )}
               </div>

@@ -291,6 +291,9 @@ export async function startExamIngestion(params: {
       hash,
       fileName: params.fileName,
       status: "processando",
+      // BUG-FIX: persistir o Drive ID imediatamente — se o servidor reiniciar
+      // durante o setImmediate, o ID ainda estará no banco para recuperação.
+      sourcePdfDriveId: params.sourcePdfDriveId ?? null,
       ...(params.empresaId != null ? { empresaId: params.empresaId } : {}),
     })
     .returning({ id: examDocumentsTable.id });
@@ -320,14 +323,29 @@ export async function startExamIngestion(params: {
  * 2. Se nao tem → tenta achar o arquivo na pasta EXAMES do cliente no Drive.
  * 3. Se nao acha → marca como erro com mensagem orientando o reenvio.
  */
+/** Extrai o prefixo YY.MM.DD do nome do arquivo, se existir. */
+function extractDatePrefixFromFileName(fileName: string): string | null {
+  const m = fileName.match(/^(\d{2}\.\d{2}\.\d{2})\s/);
+  return m ? m[1] : null;
+}
+
 export async function recoverStuckDocuments(): Promise<void> {
   const cutoffMs = Date.now() - 5 * 60 * 1000;
+  // BUG-FIX: também recupera docs em "erro" recentes (últimos 7 dias) —
+  // podem ser erros de restart, não erros definitivos de PDF inválido.
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const stuck = await db
     .select()
     .from(examDocumentsTable)
     .where(
       and(
-        eq(examDocumentsTable.status, "processando"),
+        or(
+          eq(examDocumentsTable.status, "processando"),
+          and(
+            eq(examDocumentsTable.status, "erro"),
+            sql`${examDocumentsTable.createdAt} > ${sevenDaysAgo}`,
+          ),
+        ),
         sql`${examDocumentsTable.createdAt} < ${new Date(cutoffMs).toISOString()}`,
       ),
     );
@@ -383,6 +401,14 @@ export async function recoverStuckDocuments(): Promise<void> {
       if (buffer) {
         const capturedBuffer = buffer;
         const capturedDriveId = resolvedDriveId;
+        // BUG-FIX: extrair userDateStr do nome do arquivo salvo no banco
+        // para que, após a extração, o renomeio da data no Drive funcione.
+        const capturedUserDateStr = extractDatePrefixFromFileName(doc.fileName);
+        // Resetar para "processando" antes do re-dispatch (era "erro")
+        await db
+          .update(examDocumentsTable)
+          .set({ status: "processando", ...(capturedDriveId ? { sourcePdfDriveId: capturedDriveId } : {}) })
+          .where(eq(examDocumentsTable.id, doc.id));
         setImmediate(() => {
           void processExamDocument({
             documentId: doc.id,
@@ -391,9 +417,10 @@ export async function recoverStuckDocuments(): Promise<void> {
             fileName: doc.fileName,
             sourcePdfDriveId: capturedDriveId,
             notify: true,
+            userDateStr: capturedUserDateStr,
           });
         });
-        logger.info({ docId: doc.id }, "[ExamesLab] Documento recuperado — processamento re-disparado");
+        logger.info({ docId: doc.id, userDateStr: capturedUserDateStr }, "[ExamesLab] Documento recuperado — processamento re-disparado");
       } else {
         await markDocumentError(
           doc.id,
