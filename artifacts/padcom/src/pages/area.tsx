@@ -1639,10 +1639,14 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 // ---------------------------------------------------------------------------
 // ENVIAR DOCUMENTO
 // ---------------------------------------------------------------------------
+// Tipos de arquivo que são exames clínicos — exigem campo "Data do Exame"
+const TYPES_NEED_DATE = ["exame_sangue", "ultrassom", "tomografia", "ressonancia", "densitometria", "laudo", "outro"];
+
 function EnviarTab({ client }: { client: ClientInfo }) {
   const [fileType, setFileType]       = useState("");
   const [bodyRegion, setBodyRegion]   = useState("");
   const [description, setDescription] = useState("");
+  const [examDate, setExamDate]       = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading]     = useState(false);
   const [error, setError]             = useState("");
@@ -1650,6 +1654,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
+  const needsDate      = TYPES_NEED_DATE.includes(fileType);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile || !fileType) return;
@@ -1661,16 +1666,17 @@ function EnviarTab({ client }: { client: ClientInfo }) {
       formData.append("fileType", fileType);
       if (bodyRegion) formData.append("bodyRegion", bodyRegion);
       if (description) formData.append("description", description);
+      if (examDate) formData.append("examDate", examDate);
       const res = await fetch(`${API_BASE}/api/client-portal/upload`, { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erro ao enviar"); return; }
       setDone(data);
     } catch { setError("Erro de conexão. Tente novamente."); }
     finally { setUploading(false); }
-  }, [selectedFile, fileType, bodyRegion, description, client.token]);
+  }, [selectedFile, fileType, bodyRegion, description, examDate, client.token]);
 
   const reset = () => {
-    setFileType(""); setBodyRegion(""); setDescription(""); setSelectedFile(null); setDone(null); setError("");
+    setFileType(""); setBodyRegion(""); setDescription(""); setExamDate(""); setSelectedFile(null); setDone(null); setError("");
   };
 
   if (done) {
@@ -1711,6 +1717,25 @@ function EnviarTab({ client }: { client: ClientInfo }) {
             {FILE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
+
+        {needsDate && (
+          <div>
+            <label className="block text-primary text-xs font-black uppercase tracking-widest mb-1.5">
+              DATA DO EXAME <span className="text-accent">(DD/MM/AAAA)</span>
+            </label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="Ex: 26/06/2026"
+              value={examDate}
+              onChange={(e) => setExamDate(formatDateInput(e.target.value))}
+              className="concave-3d w-full h-12 px-4 text-primary text-lg font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#c2a05a] rounded-lg"
+            />
+            <p className="text-muted-foreground text-[10px] mt-1">
+              Se o sistema encontrar uma data diferente no arquivo, usará a data extraída.
+            </p>
+          </div>
+        )}
 
         {showBodyRegion && (
           <div>

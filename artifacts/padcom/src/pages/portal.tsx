@@ -65,10 +65,13 @@ export default function Portal() {
   const [fileType, setFileType] = useState("");
   const [bodyRegion, setBodyRegion] = useState("");
   const [description, setDescription] = useState("");
+  const [examDate, setExamDate] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ fileName: string; folder: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const TYPES_NEED_DATE = ["exame_sangue", "ultrassom", "tomografia", "ressonancia", "densitometria", "laudo", "outro"];
 
   const handleIdentify = useCallback(async () => {
     const cleanCpf = cpf.replace(/\D/g, "");
@@ -120,6 +123,7 @@ export default function Portal() {
       formData.append("fileType", fileType);
       if (bodyRegion) formData.append("bodyRegion", bodyRegion);
       if (description) formData.append("description", description);
+      if (examDate) formData.append("examDate", examDate);
 
       const res = await fetch(`${API_BASE}/api/client-portal/upload`, {
         method: "POST",
@@ -144,13 +148,14 @@ export default function Portal() {
     } finally {
       setUploading(false);
     }
-  }, [selectedFile, fileType, bodyRegion, description, client]);
+  }, [selectedFile, fileType, bodyRegion, description, examDate, client]);
 
   const handleNewUpload = useCallback(() => {
     setStep("upload");
     setFileType("");
     setBodyRegion("");
     setDescription("");
+    setExamDate("");
     setSelectedFile(null);
     setUploadResult(null);
     setError("");
@@ -170,6 +175,7 @@ export default function Portal() {
   }, []);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
+  const needsDate      = TYPES_NEED_DATE.includes(fileType);
 
   return (
     <div className="min-h-screen bg-[#0d1830] flex flex-col">
@@ -294,6 +300,31 @@ export default function Portal() {
                       ))}
                     </select>
                   </div>
+
+                  {needsDate && (
+                    <div>
+                      <label className="block text-[#9fb2d2] text-xs font-semibold uppercase tracking-wider mb-1.5">
+                        DATA DO EXAME <span className="text-[#c2a05a]">(DD/MM/AAAA)</span>
+                      </label>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="Ex: 26/06/2026"
+                        value={examDate}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+                          let fmt = digits;
+                          if (digits.length > 4) fmt = digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
+                          else if (digits.length > 2) fmt = digits.slice(0, 2) + "/" + digits.slice(2);
+                          setExamDate(fmt);
+                        }}
+                        className="w-full h-12 bg-[#0b1426] border border-[#223358] rounded-md px-4 text-white text-lg font-mono placeholder:text-[#5a6f96] focus:outline-none focus:ring-2 focus:ring-[#c2a05a] focus:border-transparent"
+                      />
+                      <p className="text-[#5a6f96] text-[10px] mt-1">
+                        Se o sistema encontrar uma data diferente no arquivo, usará a data extraída.
+                      </p>
+                    </div>
+                  )}
 
                   {showBodyRegion && (
                     <div>

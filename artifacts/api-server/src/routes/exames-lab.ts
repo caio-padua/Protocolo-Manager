@@ -42,6 +42,7 @@ import {
   removeDiacritics,
   driveDownloadFile,
   driveCopyFileInFolder,
+  renameDriveFile,
 } from "../lib/google-drive";
 import {
   runTriagemBackfill,
@@ -113,6 +114,21 @@ export interface IngestJobInput {
   sourcePdfDriveId?: string | null;
   /** true = enviar aviso "exame recebido" (e-mail + WhatsApp) ao concluir */
   notify?: boolean;
+  /**
+   * Prefixo de data YY.MM.DD que o usuário forneceu no formulário de upload.
+   * Após a extração por IA, se a data real do exame diferir, o arquivo no
+   * Drive é renomeado automaticamente (5d: data extraída prevalece).
+   */
+  userDateStr?: string | null;
+}
+
+/** Converte data do exame DD/MM/AAAA (retornada pela IA) para prefixo YY.MM.DD. */
+function collectionDateToPrefix(brDate: string | null | undefined): string | null {
+  if (!brDate) return null;
+  const m = brDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy.slice(2)}.${mm}.${dd}`;
 }
 
 /** Processa 1 documento: texto -> IA -> banco -> Drive -> aviso. */
@@ -123,6 +139,33 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     const { data, modelUsed } = await extractExamFromText(pdfText.text);
 
     await finalizeDocument(documentId, data, modelUsed);
+
+    // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
+    // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
+    if (
+      job.userDateStr &&
+      job.sourcePdfDriveId &&
+      data.collectionDate
+    ) {
+      const extractedPrefix = collectionDateToPrefix(data.collectionDate);
+      if (extractedPrefix && extractedPrefix !== job.userDateStr) {
+        const correctedName = fileName.replace(job.userDateStr, extractedPrefix);
+        try {
+          await renameDriveFile(job.sourcePdfDriveId, correctedName);
+          await db
+            .update(examDocumentsTable)
+            .set({ fileName: correctedName })
+            .where(eq(examDocumentsTable.id, documentId));
+          console.log(
+            `[ExamesLab] doc ${documentId}: data corrigida no Drive: "${job.userDateStr}" → "${extractedPrefix}" → ${correctedName}`,
+          );
+        } catch (renameErr: any) {
+          console.error(
+            `[ExamesLab] doc ${documentId}: falha ao renomear no Drive: ${renameErr.message}`,
+          );
+        }
+      }
+    }
     const summary = await persistExtractedResults({
       documentId,
       clientId,

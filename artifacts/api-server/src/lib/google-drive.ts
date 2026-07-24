@@ -145,6 +145,19 @@ async function renameFolder(drive: any, folderId: string, newName: string): Prom
   });
 }
 
+/**
+ * Renomeia um arquivo (não pasta) no Drive.
+ * Usado pelo motor de upload do portal para corrigir o nome depois da
+ * extração por IA encontrar a data real do exame.
+ */
+export async function renameDriveFile(fileId: string, newName: string): Promise<void> {
+  const drive = await getUncachableDriveClient();
+  await drive.files.update({
+    fileId,
+    requestBody: { name: newName },
+  });
+}
+
 async function findOldClientFolder(drive: any, rootId: string, cpf: string, _clientName: string): Promise<string | null> {
   const cpfDigits = cpf.replace(/\D/g, "").padStart(11, "0");
   const formattedCpf = formatCpfDisplay(cpf);

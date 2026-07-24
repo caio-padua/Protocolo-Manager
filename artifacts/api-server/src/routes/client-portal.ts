@@ -14,6 +14,37 @@ import { startExamIngestion } from "./exames-lab";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+/** Data atual em BRT (UTC-3), formato YY.MM.DD. Evita o bug de UTC avançar o dia. */
+function brtDateStr(): string {
+  const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  return `${String(now.getUTCFullYear()).slice(2)}.${String(now.getUTCMonth() + 1).padStart(2, "0")}.${String(now.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Converte data digitada pelo usuário (DD/MM/AAAA ou DD/MM/AA) para YY.MM.DD.
+ * Retorna null se o formato não for reconhecido.
+ */
+function parseUserExamDate(examDate: string): string | null {
+  const digits = examDate.replace(/\D/g, "");
+  if (digits.length === 8) {
+    // DDMMAAAA
+    const dd = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+    const yy = digits.slice(6, 8);
+    if (Number(dd) > 31 || Number(mm) > 12) return null;
+    return `${yy}.${mm}.${dd}`;
+  }
+  if (digits.length === 6) {
+    // DDMMAA
+    const dd = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+    const yy = digits.slice(4, 6);
+    if (Number(dd) > 31 || Number(mm) > 12) return null;
+    return `${yy}.${mm}.${dd}`;
+  }
+  return null;
+}
+
 const FILE_TYPE_TO_FOLDER: Record<string, string> = {
   "exame_sangue": "EXAMES",
   "ultrassom": "EXAMES",
@@ -108,7 +139,7 @@ router.post(
   upload.single("file"),
   async (req: Request, res: Response) => {
     try {
-      const { token, fileType, bodyRegion, description } = req.body;
+      const { token, fileType, bodyRegion, description, examDate } = req.body;
       const file = req.file;
 
       if (!token || !fileType || !file) {
@@ -144,8 +175,10 @@ router.post(
         return;
       }
 
-      const now = new Date();
-      const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+      // 5a: data digitada pelo usuário (DD/MM/AAAA) → YY.MM.DD.
+      // Fallback: data atual em BRT (UTC-3) — corrige bug de UTC avançar o dia.
+      const userDateStr = examDate ? parseUserExamDate(String(examDate)) : null;
+      const dateStr = userDateStr ?? brtDateStr();
       const clientNameClean = removeDiacritics(client.name).toUpperCase();
       const regionPart = bodyRegion ? ` ${bodyRegion.toUpperCase()}` : "";
       const ext = file.originalname.includes(".")
@@ -182,6 +215,7 @@ router.post(
             fileName,
             sourcePdfDriveId: result.fileId,
             notify: true,
+            userDateStr: userDateStr ?? dateStr,
           });
           console.log(
             `[Portal] Exame encaminhado ao motor: doc ${ingestion.documentId}${ingestion.duplicate ? " (duplicado, ja processado)" : ""}`,
