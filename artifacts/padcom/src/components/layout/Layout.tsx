@@ -109,8 +109,6 @@ const navigation: NavEntry[] = [
       { name: "Exames do Cliente", href: "/exames-cliente", icon: TestTube },
       { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
       { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
-      { name: "Importação do Drive", href: "/importar-drive", icon: DownloadCloud },
-      { name: "Vigilância Drive", href: "/arsenal/drive-watcher", icon: Radar },
       { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },

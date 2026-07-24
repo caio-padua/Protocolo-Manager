@@ -10,12 +10,14 @@ import {
   driveCopyFileInFolder,
 } from "./google-drive.js";
 import { extractExamFromMedia } from "./exam-extraction/extract.js";
+import { extractPdfText } from "./exam-extraction/pdf-text.js";
 import {
   persistExtractedResults,
   finalizeDocument,
   markDocumentError,
 } from "./exam-extraction/persist.js";
 import { normalizeName, loadClients, resolveClient } from "./drive-import/matcher.js";
+import { saveInternalCopy, hasInternalCopy } from "./exam-file-store.js";
 import { logger } from "./logger.js";
 
 // ============================================================================
@@ -28,8 +30,8 @@ import { logger } from "./logger.js";
 export const WATCHED_FOLDERS = [
   {
     id: "1Nytg2IccYs5Bw6p1U8tF1X9K-MgTzRdW",
-    type: "sangue" as const,
-    label: "Exames de Sangue",
+    type: "misto" as const,
+    label: "EXAMES CLIENTES (SANGUE IMAGEM OUTROS)",
     driveSubfolder: "EXAMES",
   },
   {
@@ -39,6 +41,8 @@ export const WATCHED_FOLDERS = [
     driveSubfolder: "IMAGENS",
   },
 ];
+
+export type FolderKind = (typeof WATCHED_FOLDERS)[number]["type"];
 
 // ─── DB helpers (tabela raw criada no boot) ───────────────────────────────────
 
@@ -59,6 +63,8 @@ async function ensureTable(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await db.execute(sql`ALTER TABLE drive_watcher_files ADD COLUMN IF NOT EXISTS copied_drive_id TEXT`);
+  await db.execute(sql`ALTER TABLE drive_watcher_files ADD COLUMN IF NOT EXISTS copied_name TEXT`);
 }
 
 async function getKnownFileIds(): Promise<Set<string>> {
@@ -153,7 +159,6 @@ async function autoCreateClient(name: string): Promise<number> {
 function buildNewName(
   originalName: string,
   clientName: string,
-  folderType: "sangue" | "imagem",
   dateStr: string,           // YYYY-MM-DD
 ): string {
   const ext = (originalName.match(/\.[^/.]+$/) ?? [".pdf"])[0].toLowerCase();
@@ -161,8 +166,6 @@ function buildNewName(
   const mm = dateStr.slice(5, 7);
   const dd = dateStr.slice(8, 10);
   const datePrefix = `${yy}.${mm}.${dd}`;
-
-  const tipo = folderType === "sangue" ? "EXAME SANGUE" : "EXAME IMAGEM";
 
   let nomeSlug = clientName
     .normalize("NFD")
@@ -172,13 +175,30 @@ function buildNewName(
     .toUpperCase()
     .slice(0, 40);
 
-  // Evitar duplicata: se o nome do cliente já contém "EXAME SANGUE" ou
-  // "EXAME IMAGEM" (filename usado como fallback de nome), remover o prefixo
-  // para não gerar "26.07.23 EXAME SANGUE EXAME SANGUE 2606.pdf"
+  // Evitar duplicata: se o "nome do cliente" veio do filename e contém tipo de exame
   const tipoRegex = /^(EXAME\s+SANGUE|EXAME\s+IMAGEM|LAUDO\s+COMPLETO|LAUDO\s+)\s*/i;
-  nomeSlug = nomeSlug.replace(tipoRegex, "").trim().slice(0, 32) || nomeSlug.slice(0, 32);
+  nomeSlug = nomeSlug.replace(tipoRegex, "").trim().slice(0, 40) || nomeSlug.slice(0, 40);
 
-  return `${datePrefix} ${tipo} ${nomeSlug}${ext}`;
+  return `${datePrefix} ${nomeSlug}${ext}`;
+}
+
+/**
+ * Dupla checagem da data do laudo (criticidade médica):
+ * aceita DD/MM/AAAA extraída do CONTEÚDO; rejeita futura ou > 5 anos atrás.
+ * Retorna ISO YYYY-MM-DD ou null se inválida.
+ */
+export function validateExamDate(brDate: string | null | undefined): string | null {
+  if (!brDate) return null;
+  const m = brDate.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const iso = `${yyyy}-${mm}-${dd}`;
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (isNaN(d.getTime())) return null;
+  const now = Date.now();
+  if (d.getTime() > now + 24 * 3600 * 1000) return null;                 // futura
+  if (d.getTime() < now - 5 * 365 * 24 * 3600 * 1000) return null;       // > 5 anos
+  return iso;
 }
 
 // ─── Estado em memória do worker ─────────────────────────────────────────────
@@ -221,7 +241,7 @@ function logLine(msg: string): void {
 
 export interface ScanResult {
   folderId: string;
-  folderType: "sangue" | "imagem";
+  folderType: FolderKind;
   label: string;
   totalFiles: number;
   newFiles: { id: string; name: string }[];
@@ -287,11 +307,11 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    let totalProcessed = 0;
+    // ── Coletar a fila de arquivos novos de todas as pastas vigiadas ──────────
+    type QueueItem = { file: { id: string; name: string }; folder: (typeof WATCHED_FOLDERS)[number] };
+    const queue: QueueItem[] = [];
 
     for (const folder of WATCHED_FOLDERS) {
-      if (totalProcessed >= maxFiles) break;
-
       logLine(`Escaneando pasta: ${folder.label}`);
       let children: Awaited<ReturnType<typeof driveListChildren>>;
       try {
@@ -307,226 +327,242 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
       _state.filesNew += newFiles.length;
       logLine(`  ${files.length} arquivo(s) encontrado(s), ${newFiles.length} novo(s)`);
 
-      for (const file of newFiles) {
-        if (totalProcessed >= maxFiles) break;
+      for (const f of newFiles) {
+        if (queue.length >= maxFiles) break;
+        queue.push({ file: { id: f.id, name: f.name }, folder });
+        known.add(f.id);
+      }
+    }
 
-        // Registra como pendente
+    // ── Processar um arquivo (Onda A: extração ANTES do renomeio p/ data do laudo) ──
+    const processOne = async ({ file, folder }: QueueItem): Promise<void> => {
+      await upsertFile({
+        fileId: file.id,
+        folderId: folder.id,
+        folderType: folder.type,
+        originalName: file.name,
+        status: "pendente",
+      });
+      logLine(`  Processando: ${file.name}`);
+
+      try {
+        // 1. Download do arquivo
+        const buffer = await driveDownloadFile(file.id);
+        const isPdf = file.name.toLowerCase().endsWith(".pdf");
+
+        // 2. Identificar paciente
+        let candidateName: string | null = extractNameFromFilename(file.name);
+
+        if (!candidateName && isPdf) {
+          try {
+            const rawResult = await extractPdfText(buffer);
+            const rawText = rawResult.text;
+            const namePatterns = [
+              /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\n(?:Gênero|Genero):/,
+              /(?:nome do paciente|paciente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
+              /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\nCPF:/i,
+              /(?:paciente|nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
+            ];
+            for (const pat of namePatterns) {
+              const match = rawText.match(pat);
+              if (match?.[1]) {
+                const candidate = match[1].trim();
+                if (!/^(dr|dra|medico|enfermeiro|laboratorio|resultado|material)/i.test(candidate)) {
+                  candidateName = candidate;
+                  logLine(`    Nome extraído do PDF: "${candidateName}"`);
+                  break;
+                }
+              }
+            }
+          } catch { /* PDF não legível — continua sem nome */ }
+        }
+
+        let clientId: number;
+        let clientName: string;
+
+        if (candidateName) {
+          const outcome = resolveClient(clients, candidateName);
+          if (outcome.kind === "matched") {
+            clientId = outcome.client.id;
+            clientName = outcome.client.name ?? candidateName;
+            logLine(`    Paciente identificado: ${clientName} (id=${clientId})`);
+          } else {
+            clientId = await autoCreateClient(candidateName);
+            clientName = candidateName;
+            _state.clientsCreated.push(candidateName);
+            logLine(`    Paciente NÃO encontrado — criado automaticamente: "${candidateName}" (id=${clientId})`);
+          }
+        } else {
+          logLine(`    Nome de paciente não identificado — marcado para revisão manual`);
+          await upsertFile({
+            fileId: file.id,
+            folderId: folder.id,
+            folderType: folder.type,
+            originalName: file.name,
+            status: "pendente_revisao",
+            errorMsg: "Nome do paciente não identificado no filename nem no conteúdo do PDF",
+          });
+          _state.filesError++;
+          return;
+        }
+
+        // 3. Hash para idempotência
+        const hash = createHash("sha256").update(buffer).digest("hex");
+
+        // 4. Extrair conteúdo ANTES do renomeio (pasta mista: PDF tenta sangue primeiro).
+        //    A data de coleta extraída do CONTEÚDO alimenta o nome (dupla checagem).
+        const tryBlood = isPdf && (folder.type === "misto" || (folder.type as string) === "sangue");
+        let extraction: Awaited<ReturnType<typeof extractExamFromMedia>> | null = null;
+        if (tryBlood) {
+          try {
+            extraction = await extractExamFromMedia(buffer, "application/pdf");
+          } catch (extractErr) {
+            logLine(`    AVISO extração: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
+          }
+        }
+        const analytes = extraction?.data.analytes.length ?? 0;
+        const isBlood = analytes > 0;
+
+        // Dupla checagem da data (criticidade médica)
+        const laudoDate = validateExamDate(extraction?.data.collectionDate);
+        const effectiveDate = laudoDate ?? todayStr;
+        if (extraction && !laudoDate) {
+          logLine(`    AVISO data: data do laudo ausente/inválida ("${extraction.data.collectionDate ?? "—"}") — usando data de hoje`);
+        } else if (laudoDate) {
+          logLine(`    Data validada pelo conteúdo do laudo: ${laudoDate}`);
+        }
+
+        // 5. Nomenclatura: aa.mm.dd NOME PACIENTE.ext
+        const newName = buildNewName(file.name, clientName, effectiveDate);
+        logLine(`    Renomeado para: ${newName}`);
+
+        // 6. Registrar documento (idempotente por hash) e persistir resultados
+        // A4: 0 analitos só vira "imagem" se a extensão for de imagem ou o nome sugerir imagem;
+        // PDF sem analitos e sem indício de imagem fica "lab" (falha de extração não mascarada).
+        const nameSuggestsImage = /\b(usg|ultrass?om?|rx|raio|rmn|resson|tc\b|tomo|densito|doppler|mamogra|eco|imagem|angio)/i.test(file.name);
+        const examKind = isBlood ? "lab" : (!isPdf || nameSuggestsImage ? "imagem" : "lab");
+        let examDocId: number | undefined;
+        try {
+          const [docRow] = await db
+            .insert(examDocumentsTable)
+            .values({
+              clientId,
+              empresaId: 5,
+              hash,
+              fileName: newName,
+              examKind,
+              origin: "drive-watcher",
+              status: "recebido",
+              sourcePdfDriveId: file.id,
+              sourcePath: file.name,
+            })
+            .onConflictDoNothing()
+            .returning({ id: examDocumentsTable.id });
+
+          if (docRow) {
+            examDocId = docRow.id;
+            if (isBlood && extraction) {
+              await finalizeDocument(docRow.id, extraction.data, extraction.modelUsed);
+              await persistExtractedResults({ documentId: docRow.id, clientId, extracted: extraction.data });
+              logLine(`    Extração (vision): ${analytes} analito(s) extraído(s)`);
+            } else if (tryBlood) {
+              logLine(`    Extração (vision): nenhum analito — registrado como "${examKind}"`);
+            }
+            // Onda B: cópia interna (cofre do sistema)
+            const mime = isPdf ? "application/pdf" : `image/${(file.name.match(/\.(\w+)$/)?.[1] ?? "png").replace("jpg", "jpeg")}`;
+            const saved = await saveInternalCopy({ documentId: docRow.id, fileName: newName, mimeType: mime, buffer });
+            if (saved) logLine(`    Cópia interna gravada no cofre do sistema (doc=${docRow.id})`);
+          } else {
+            logLine(`    Documento já existia (hash duplicado) — garantindo cópia interna`);
+            const existing = await db
+              .select({ id: examDocumentsTable.id })
+              .from(examDocumentsTable)
+              .where(eq(examDocumentsTable.hash, hash))
+              .limit(1);
+            if (existing[0]) {
+              examDocId = existing[0].id;
+              const already = await hasInternalCopy(existing[0].id);
+              if (!already) {
+                const mime = isPdf ? "application/pdf" : "image/png";
+                await saveInternalCopy({ documentId: existing[0].id, fileName: newName, mimeType: mime, buffer });
+              }
+            }
+          }
+        } catch (docErr) {
+          logLine(`    AVISO documento: ${docErr instanceof Error ? docErr.message : String(docErr)}`);
+        }
+
+        // 7. Copiar para a pasta pessoal do paciente no Drive (destino principal)
+        let copiedDriveId: string | undefined;
+        let clientExamesFolderId: string | undefined;
+        try {
+          const [clientRow] = await db
+            .select({ name: clientsTable.name, cpf: clientsTable.cpf })
+            .from(clientsTable)
+            .where(eq(clientsTable.id, clientId))
+            .limit(1);
+          if (!clientRow) throw new Error(`Cliente id=${clientId} não encontrado`);
+          const structure = await ensureClientFolderStructure(clientRow.name, clientRow.cpf ?? "");
+          const subs = structure.subfolders as Record<string, string>;
+          clientExamesFolderId = isBlood || isPdf
+            ? (subs["EXAMES"] ?? subs["Exames"])
+            : (subs["IMAGENS"] ?? subs["Imagens"]);
+          logLine(`    Pasta do paciente resolvida: ${clientExamesFolderId ?? "(não encontrada)"}`);
+        } catch (structErr) {
+          logLine(`    AVISO estrutura Drive: ${structErr instanceof Error ? structErr.message : String(structErr)}`);
+        }
+
+        const copyDestFolder = clientExamesFolderId ?? folder.id;
+        const copyDestLabel = clientExamesFolderId ? "pasta pessoal do paciente" : "pasta vigiada (fallback)";
+        try {
+          const copied = await driveCopyFileInFolder(file.id, copyDestFolder, newName);
+          copiedDriveId = copied.fileId;
+          logLine(`    Cópia canônica criada na ${copyDestLabel}: ${newName} (id=${copied.fileId})`);
+        } catch (copyErr) {
+          logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
+        }
+
+        // 8. Marcar como processado
         await upsertFile({
           fileId: file.id,
           folderId: folder.id,
           folderType: folder.type,
           originalName: file.name,
-          status: "pendente",
+          renamedTo: newName,
+          clientId,
+          clientNameRaw: candidateName,
+          status: "processado",
+          examDocumentId: examDocId,
+          copiedDriveId,
+          copiedName: copiedDriveId ? newName : undefined,
         });
-        known.add(file.id);
 
-        logLine(`  Processando: ${file.name}`);
-
-        try {
-          // 1. Download do arquivo (necessário antes da extração de nome do PDF)
-          const buffer = await driveDownloadFile(file.id);
-
-          // 2. Identificar paciente
-          let candidateName: string | null = extractNameFromFilename(file.name);
-
-          // Se o filename não tem nome (UUID etc.), tenta extrair do conteúdo do PDF
-          if (!candidateName && file.name.toLowerCase().endsWith(".pdf")) {
-            try {
-              const rawResult = await extractPdfText(buffer);
-              const rawText = rawResult.text;
-              // Tenta múltiplos padrões de lab brasileiro (Lavoisier/DASA, Fleury, Hermes Pardini, etc.)
-              const namePatterns = [
-                // Lavoisier/DASA: "NOME\nGênero:"
-                /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\n(?:Gênero|Genero):/,
-                // Fleury: "Nome do Paciente: NOME"
-                /(?:nome do paciente|paciente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
-                // Linha antes de CPF: "NOME\nCPF:"
-                /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\nCPF:/i,
-                // Genérico: "Nome: NOME" ou "Paciente: NOME"
-                /(?:paciente|nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
-              ];
-              for (const pat of namePatterns) {
-                const match = rawText.match(pat);
-                if (match?.[1]) {
-                  const candidate = match[1].trim();
-                  // Rejeita se parecer um título médico ou linha de cabeçalho
-                  if (!/^(dr|dra|medico|enfermeiro|laboratorio|resultado|material)/i.test(candidate)) {
-                    candidateName = candidate;
-                    logLine(`    Nome extraído do PDF: "${candidateName}"`);
-                    break;
-                  }
-                }
-              }
-            } catch { /* PDF não legível — continua sem nome */ }
-          }
-
-          let clientId: number;
-          let clientName: string;
-          let autoCreated = false;
-
-          if (candidateName) {
-            const resolved = resolveClient(clients, candidateName, null);
-            if (resolved && resolved.id) {
-              clientId = resolved.id;
-              clientName = resolved.name ?? candidateName;
-              logLine(`    Paciente identificado: ${clientName} (id=${clientId})`);
-            } else {
-              // Auto-criar paciente com o nome extraído
-              clientId = await autoCreateClient(candidateName);
-              clientName = candidateName;
-              autoCreated = true;
-              _state.clientsCreated.push(candidateName);
-              logLine(`    Paciente NÃO encontrado — criado automaticamente: "${candidateName}" (id=${clientId})`);
-            }
-          } else {
-            // Sem nome identificável — arquiva como pendente de revisão manual
-            logLine(`    Nome de paciente não identificado — marcado para revisão manual`);
-            await upsertFile({
-              fileId: file.id,
-              folderId: folder.id,
-              folderType: folder.type,
-              originalName: file.name,
-              status: "pendente_revisao",
-              errorMsg: "Nome do paciente não identificado no filename nem no conteúdo do PDF",
-            });
-            _state.filesError++;
-            continue;
-          }
-
-          // 3. Hash para idempotência
-          const hash = createHash("sha256").update(buffer).digest("hex");
-
-          // 4. Nomenclatura: novo nome de arquivo
-          const newName = buildNewName(file.name, clientName, folder.type, todayStr);
-          logLine(`    Renomeado para: ${newName}`);
-
-          // 5. Extrair conteúdo (PDF de sangue → motor de extração por visão multimodal)
-          let examDocId: number | undefined;
-          if (folder.type === "sangue" && file.name.toLowerCase().endsWith(".pdf")) {
-            try {
-              // Inserir documento primeiro (idempotente por hash)
-              const [docRow] = await db
-                .insert(examDocumentsTable)
-                .values({
-                  clientId,
-                  empresaId: 5,
-                  hash,
-                  fileName: newName,
-                  examKind: "lab",
-                  origin: "drive-watcher",
-                  status: "recebido",
-                  sourcePdfDriveId: file.id,
-                  sourcePath: file.name,
-                })
-                .onConflictDoNothing()
-                .returning({ id: examDocumentsTable.id });
-
-              if (docRow) {
-                examDocId = docRow.id;
-                // Gemini vision multimodal: lê o PDF como imagem, incluindo PDFs escaneados
-                const result = await extractExamFromMedia(buffer, "application/pdf");
-                if (result.data.analytes.length > 0) {
-                  await finalizeDocument(docRow.id, result.data, result.modelUsed);
-                  await persistExtractedResults({ documentId: docRow.id, clientId, extracted: result.data });
-                  logLine(`    Extração (vision): ${result.data.analytes.length} analito(s) extraído(s)`);
-                } else {
-                  logLine(`    Extração (vision): nenhum analito encontrado (confiança=${result.data.confidence})`);
-                }
-              } else {
-                logLine(`    Documento já existia (hash duplicado) — pulando`);
-              }
-            } catch (extractErr) {
-              logLine(`    AVISO extração: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
-            }
-          } else {
-            // Imagem ou PDF não-sangue: registra sem extração
-            try {
-              await db
-                .insert(examDocumentsTable)
-                .values({
-                  clientId,
-                  empresaId: 5,
-                  hash,
-                  fileName: newName,
-                  examKind: "imagem",
-                  origin: "drive-watcher",
-                  status: "recebido",
-                  sourcePdfDriveId: file.id,
-                  sourcePath: file.name,
-                })
-                .onConflictDoNothing();
-            } catch { /* duplicado */ }
-          }
-
-          // 5b. Copiar para a pasta pessoal EXAMES do paciente no Drive (destino principal).
-          // Fallback: pasta vigiada de origem (sandbox de auditoria) caso o paciente
-          // ainda não tenha estrutura de pastas configurada no Drive.
-          let copiedDriveId: string | undefined;
-          let clientExamesFolderId: string | undefined;
-
-          // 6. Garantir estrutura de pastas do paciente — deve vir ANTES da cópia.
-          // ensureClientFolderStructure exige (clientName, cpf) — buscar no banco pelo clientId.
-          try {
-            const [clientRow] = await db
-              .select({ name: clientsTable.name, cpf: clientsTable.cpf })
-              .from(clientsTable)
-              .where(eq(clientsTable.id, clientId))
-              .limit(1);
-            if (!clientRow) throw new Error(`Cliente id=${clientId} não encontrado`);
-            const structure = await ensureClientFolderStructure(clientRow.name, clientRow.cpf ?? "");
-            const subs = structure.subfolders as Record<string, string>;
-            clientExamesFolderId =
-              folder.type === "sangue"
-                ? (subs["EXAMES"] ?? subs["Exames"])
-                : (subs["IMAGENS"] ?? subs["Imagens"]);
-            logLine(`    Pasta do paciente resolvida: ${clientExamesFolderId ?? "(não encontrada)"}`);
-          } catch (structErr) {
-            logLine(`    AVISO estrutura Drive: ${structErr instanceof Error ? structErr.message : String(structErr)}`);
-          }
-
-          const copyDestFolder = clientExamesFolderId ?? folder.id;
-          const copyDestLabel = clientExamesFolderId ? "pasta pessoal do paciente" : "pasta vigiada (fallback)";
-          try {
-            const copied = await driveCopyFileInFolder(file.id, copyDestFolder, newName);
-            copiedDriveId = copied.fileId;
-            logLine(`    Cópia canônica criada na ${copyDestLabel}: ${newName} (id=${copied.fileId})`);
-          } catch (copyErr) {
-            logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
-          }
-
-          // 7. Marcar como processado (inclui id da cópia canônica se criada)
-          await upsertFile({
-            fileId: file.id,
-            folderId: folder.id,
-            folderType: folder.type,
-            originalName: file.name,
-            renamedTo: newName,
-            clientId,
-            clientNameRaw: candidateName,
-            status: "processado",
-            examDocumentId: examDocId,
-            copiedDriveId,
-            copiedName: copiedDriveId ? newName : undefined,
-          });
-
-          _state.filesProcessed++;
-          totalProcessed++;
-
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          logLine(`    ERRO: ${msg}`);
-          await upsertFile({
-            fileId: file.id,
-            folderId: folder.id,
-            folderType: folder.type,
-            originalName: file.name,
-            status: "erro",
-            errorMsg: msg,
-          });
-          _state.filesError++;
-        }
+        _state.filesProcessed++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logLine(`    ERRO: ${msg}`);
+        await upsertFile({
+          fileId: file.id,
+          folderId: folder.id,
+          folderType: folder.type,
+          originalName: file.name,
+          status: "erro",
+          errorMsg: msg,
+        });
+        _state.filesError++;
       }
-    }
+    };
+
+    // ── Onda D: pool de concorrência = 2 (rápido sem travar o servidor) ────────
+    const CONCURRENCY = 2;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+      while (cursor < queue.length) {
+        const item = queue[cursor++];
+        await processOne(item);
+      }
+    });
+    await Promise.all(workers);
   } catch (fatal) {
     logLine(`ERRO FATAL: ${fatal instanceof Error ? fatal.message : String(fatal)}`);
   } finally {

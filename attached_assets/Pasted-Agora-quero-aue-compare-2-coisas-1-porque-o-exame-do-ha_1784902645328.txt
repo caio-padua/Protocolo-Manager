@@ -1,0 +1,27 @@
+Agora quero aue compare 2 coisas: 1 porque o exame do hassan la extracao foi feita correta x 2 porque o meu exme por upload a extracao nao foi feita corretamente ?
+
+informação 3 - eu havia criado um pasta chamada (exames pacientes sangue) com o link: https://drive.google.com/drive/folders/1Nytg2IccYs5Bw6p1U8tF1X9K-MgTzRdW
+
+informacao 4 - quando coloquei o arquivo de forma manual nesta pasta exames sangue paciente a extracao foi feita, porque ?
+
+informacao 5 - quero que todo arquivo colocado ali - o sistema faca 2 coisas : 5a procure a pasta do paciente na pasta clientes (instituto padua) 5b se ele achou verifica se tem a subpasta exames 5c e faz a copia deste examne la dentro 5d ao fazer a copia ele renomeia com o padrao que definimos 5e o padrao é aa.mm.dd nome paciente 5f ele faz o estudo data que o cliente digitou e a data da realizacao do exame dentro dele e renomeia o exame com a data corrreta (mas o sistema precisa realmente analisar os dados com criterio oois um erro pode fazer o medico errar um diagnóstico)
+
+informacao 6 - o sistema precisa criar 2 comaninhos paralelos e simultaneos , criar e o exame renomeado na respectiva pasta exame do paciente na pasta cliente (instituto padua) pois hoje o sistema tem somente o instituto padua. E o 2 caminhao paralelo é fazer com que esse exame seja colocado em um determinado arquivo ou repertório e armazenado internamente dentro do sistema em uma fila com diversos exames onde o sistema saiba localizá-lo de forma rápida e precisa parênteses você precisa saber como fazer isso para que o exame fique armazenado dentro do nosso sistema. E ao clicar nos botões que já existem de download ele tem as duas opções de fazer o download do sistema interno e você tem que colocar o link em um campo em insert bevel (na tela na parte inferior) do painel de extracao e nos outros motorees e telas um insert bevel onde ele seja visivel e temha um botao para copiar e colar este link (forma do sistema ser forcaso a achar a localizacao exata ( se isso exisitisse o sistema nao erraria mais correto ?) de onde ele está armazenado no Google Drive.
+
+infomacao 7 comomo sistema faz com em todas as vias dê q captação de exames ?
+
+via de colocae na pasta
+7a pasta clientes (instituto padua)
+7b upload de areas dos clientes (portal, experiencia cliente, area cliente, e verifique outras telas dos clientes que tem upload de exames tanto de sangue comonde outros)
+7c ferramentas internas de upload como cockpit consulta e cadastro do cliente e te pergunto exisktem outras ?
+
+a pergunta 7 é como o sistema faz a internalização ou transplante dele para dentro do sistema e automatico ? Qual o tempo de cada local e via ? Tem como otimozar isso ? Quais as melhores forma de teconologia de sistemas atuais pra isso acontecer ?
+
+Pergunta 8 tem um painel Que ja existe onde podemos ter um log ou o que o sistema fez em tempo real para analisar em colunar em tela de onde veio comomfoi estraido ontempo entre a inclusao e captacao para extraca etc quero toda auditoria do que o sistema faz porque ? Se voce tivesse feito isso localizariamos o erro.
+
+pergunta 8a nao quero criar uma tela nova quero que voce analise qual tela existe pois ha varias que ja podem abosrver esta tela de log ?
+
+perfumta 9 - quero que o sistema nao fique lento mas qie a extracao seja muito rapida.
+
+pergunta 10 voce consegue criar em todas as ateas do cliente naquela faixinha que corre da esquerda para direita onde tem
+Icones um botao onde ele tambem consuga ver a mesma evolucao que eu vejo ma tela ? Porem nao recrie use a mesma tela que eu temho para nao recriar algo que ja existe, poremsabendo que ele vai acessar cia computador desktop e celulares de todoa os tipos entao analise e faca com cuidado

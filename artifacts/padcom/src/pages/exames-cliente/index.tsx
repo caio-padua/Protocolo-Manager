@@ -15,10 +15,16 @@ import {
   Stamp,
   Bot,
   ShieldCheck,
+  Radar,
+  DownloadCloud,
+  ChevronDown,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
+import { DriveLinksField } from "@/components/ProcedenciaDocumentosBloco";
 import { ClientPicker } from "@/components/ClientPicker";
 import { getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
+import DriveWatcherPanel from "@/components/exames/DriveWatcherPanel";
+import ImportarDrivePanel from "@/components/exames/ImportarDrivePanel";
 
 // ===========================================================================
 // EXAMES DO CLIENTE — Trajetoria do Exame Uploadado (spec
@@ -253,6 +259,10 @@ export default function ExamesCliente() {
   // ---- Evolucao ----
   const [evolucao, setEvolucao] = useState<EvolucaoData | null>(null);
   const [carregandoEvolucao, setCarregandoEvolucao] = useState(false);
+
+  // ---- Seções fundidas do Drive (colapsáveis) ----
+  const [vigilanciaAberta, setVigilanciaAberta] = useState(false);
+  const [importacaoAberta, setImportacaoAberta] = useState(false);
 
   useEffect(() => {
     fetch(`${BASE}/api/clients`)
@@ -652,6 +662,9 @@ export default function ExamesCliente() {
               {detalhe.status === "conferido" && statusChip("conferido")}
             </div>
 
+            {/* Link do Drive copiável (sob demanda) */}
+            <DriveLinksField documentId={detalhe.id} />
+
             {detalhe.results.length > 0 ? (
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
@@ -791,6 +804,44 @@ export default function ExamesCliente() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---- 4. VIGILÂNCIA DO DRIVE (fundida de /arsenal/drive-watcher) ---- */}
+      <section className="panel-3d p-5">
+        <button
+          type="button"
+          onClick={() => setVigilanciaAberta((v) => !v)}
+          className="flex w-full items-center justify-between"
+        >
+          <BlockTitle icon={Radar}>4. Vigilância do Drive</BlockTitle>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${vigilanciaAberta ? "rotate-180" : ""}`}
+          />
+        </button>
+        {vigilanciaAberta && (
+          <div className="mt-2">
+            <DriveWatcherPanel embedded />
+          </div>
+        )}
+      </section>
+
+      {/* ---- 5. IMPORTAÇÃO DO DRIVE (fundida de /importar-drive) ---- */}
+      <section className="panel-3d p-5">
+        <button
+          type="button"
+          onClick={() => setImportacaoAberta((v) => !v)}
+          className="flex w-full items-center justify-between"
+        >
+          <BlockTitle icon={DownloadCloud}>5. Importação do Drive</BlockTitle>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform ${importacaoAberta ? "rotate-180" : ""}`}
+          />
+        </button>
+        {importacaoAberta && (
+          <div className="mt-2">
+            <ImportarDrivePanel embedded />
           </div>
         )}
       </section>

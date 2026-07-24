@@ -12,11 +12,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Bot,
-  CheckCircle2, CloudDownload, ExternalLink, FileImage,
+  CheckCircle2, CloudDownload, Copy, ExternalLink, FileImage,
   FileText, FlaskConical, FolderOpen, FolderSync, Globe,
   Loader2, MapPin, RefreshCw, Upload, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getCollabToken } from "@/lib/collab-auth";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const NAVY  = "#16284a";
@@ -247,6 +248,166 @@ function BevelCelula({
   );
 };
 
+// ── Campo de Link do Drive (insert-bevel côncavo, sob demanda) ─────────────────
+// Busca GET /api/exames-lab/documento/:id/links ao expandir. Exibe driveUrl
+// selecionável + botões Copiar / Abrir / Baixar cópia interna. Regra de Ouro:
+// nunca substitui os botões existentes — é um campo ADICIONAL.
+interface DriveLinksResp {
+  fileName?: string | null;
+  driveUrl?: string | null;
+  sourceDriveUrl?: string | null;
+  copiedDriveUrl?: string | null;
+  hasInternal?: boolean;
+}
+
+export function DriveLinksField({ documentId }: { documentId: number }) {
+  const [aberto, setAberto]     = useState(false);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro]         = useState("");
+  const [links, setLinks]       = useState<DriveLinksResp | null>(null);
+  const [copiado, setCopiado]   = useState(false);
+
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    setErro("");
+    try {
+      const token = getCollabToken();
+      const r = await fetch(`${BASE}/api/exames-lab/documento/${documentId}/links`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = (await r.json()) as DriveLinksResp;
+      setLinks(j);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCarregando(false);
+    }
+  }, [documentId]);
+
+  const toggle = useCallback(() => {
+    setAberto((v) => {
+      const proximo = !v;
+      if (proximo && !links && !carregando) void buscar();
+      return proximo;
+    });
+  }, [links, carregando, buscar]);
+
+  const driveUrl = links?.driveUrl ?? links?.copiedDriveUrl ?? links?.sourceDriveUrl ?? null;
+
+  const [baixando, setBaixando] = useState(false);
+  const baixarInterno = useCallback(async () => {
+    setBaixando(true);
+    try {
+      const token = getCollabToken();
+      const r = await fetch(`${BASE}/api/exames-lab/documento/${documentId}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), {
+        href: url,
+        download: links?.fileName ?? `documento-${documentId}`,
+      });
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBaixando(false);
+    }
+  }, [documentId, links]);
+
+  const copiar = useCallback(async () => {
+    if (!driveUrl) return;
+    try {
+      await navigator.clipboard.writeText(driveUrl);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      /* clipboard indisponível */
+    }
+  }, [driveUrl]);
+
+  return (
+    <div className="mx-4 mb-3">
+      <button
+        type="button"
+        onClick={toggle}
+        className="btn-3d-soft inline-flex items-center gap-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.2em]"
+        style={{ color: NAVY }}
+      >
+        <ExternalLink className="h-3 w-3" />
+        {aberto ? "Ocultar link do Drive" : "Link do Drive"}
+      </button>
+
+      {aberto && (
+        <div className="concave-3d mt-2 p-3 space-y-2">
+          {carregando ? (
+            <div className="flex items-center gap-2 text-[11px]" style={{ color: MUTED }}>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando link…
+            </div>
+          ) : erro ? (
+            <div className="flex items-center gap-2 text-[11px] font-semibold" style={{ color: "#dc2626" }}>
+              <AlertTriangle className="h-3.5 w-3.5" /> Falha ao buscar link: {erro}
+            </div>
+          ) : (
+            <>
+              <div className="text-[8px] font-black uppercase tracking-[0.22em]" style={{ color: GOLD }}>
+                Link completo do Drive
+              </div>
+              <div className="concave-3d px-2.5 py-2">
+                <span
+                  className="block break-all select-all text-[11px] font-medium leading-snug"
+                  style={{ color: driveUrl ? NAVY : MUTED, fontFamily: "Inter, sans-serif" }}
+                >
+                  {driveUrl ?? "Sem link do Drive para este documento"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={copiar}
+                  disabled={!driveUrl}
+                  className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] disabled:opacity-40"
+                  style={{ color: copiado ? "#15803d" : NAVY }}
+                >
+                  {copiado ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copiado ? "Copiado" : "Copiar"}
+                </button>
+                {driveUrl && (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] no-underline"
+                    style={{ color: NAVY }}
+                  >
+                    <ExternalLink className="h-3 w-3" /> Abrir
+                  </a>
+                )}
+                {links?.hasInternal && (
+                  <button
+                    type="button"
+                    onClick={() => void baixarInterno()}
+                    disabled={baixando}
+                    className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] disabled:opacity-40"
+                    style={{ color: "#15803d" }}
+                  >
+                    {baixando ? <Loader2 className="h-3 w-3 animate-spin" /> : <CloudDownload className="h-3 w-3" />}
+                    Baixar cópia interna
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtData(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -275,7 +436,7 @@ function driveLink(id: string | null): string | null {
 // ── Extração inteligente de nome de laboratório a partir do nome do arquivo ────
 // Usado como fallback quando a IA não detectou o laboratório no conteúdo do PDF.
 // Tenta reconhecer marcas conhecidas de laboratórios brasileiros no nome do arquivo.
-const LAB_PATTERNS: Array<[RegExp, string]> = [
+const LAB_PATTERNS: Array<[RegExp, string | null]> = [
   [/fleury/i,            "Fleury"],
   [/delboni/i,           "Delboni Auriemo"],
   [/sabin/i,             "Sabin Diagnósticos"],
@@ -919,6 +1080,9 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
           </span>
         </div>
       )}
+
+      {/* ── LINK DO DRIVE COPIÁVEL (sob demanda) ──────────────────────────────── */}
+      <DriveLinksField documentId={doc.id} />
 
       {/* ── ZONA 5: AÇÕES ─────────────────────────────────────────────────────── */}
       <div

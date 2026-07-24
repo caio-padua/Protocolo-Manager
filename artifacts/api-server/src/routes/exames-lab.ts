@@ -27,6 +27,8 @@ import {
   type Zone,
 } from "../lib/exam-extraction/zones";
 import { getSetting } from "../lib/secure-settings";
+import { saveInternalCopy, hasInternalCopy, getInternalCopy } from "../lib/exam-file-store";
+import { requireCollaborator } from "./collaborator";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
 import { extractExamFromText, extractExamFromMedia } from "../lib/exam-extraction/extract";
 import {
@@ -69,6 +71,16 @@ import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 
 const router: IRouter = Router();
+
+/** Deduz o mime-type pela extensão do nome do arquivo. */
+export function guessMime(fileName: string): string {
+  const ext = (fileName.match(/\.(\w+)$/)?.[1] ?? "").toLowerCase();
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  return "application/octet-stream";
+}
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -283,6 +295,19 @@ export async function startExamIngestion(params: {
     );
   if (existing.length > 0) {
     const existingDoc = existing[0];
+    // Onda B: garantir cópia interna mesmo em duplicado
+    setImmediate(() => {
+      void hasInternalCopy(existingDoc.id).then(async (ok) => {
+        if (!ok) {
+          await saveInternalCopy({
+            documentId: existingDoc.id,
+            fileName: params.fileName,
+            mimeType: guessMime(params.fileName),
+            buffer: params.buffer,
+          });
+        }
+      }).catch(() => {});
+    });
     // Se ja concluido ou ainda processando, retorna como duplicado sem fazer nada.
     if (existingDoc.status !== "erro") {
       return { documentId: existingDoc.id, duplicate: true };
@@ -330,6 +355,16 @@ export async function startExamIngestion(params: {
       ...(params.empresaId != null ? { empresaId: params.empresaId } : {}),
     })
     .returning({ id: examDocumentsTable.id });
+
+  // Onda B: cópia interna no cofre do sistema (fire-and-forget)
+  setImmediate(() => {
+    void saveInternalCopy({
+      documentId: doc.id,
+      fileName: params.fileName,
+      mimeType: guessMime(params.fileName),
+      buffer: params.buffer,
+    });
+  });
 
   setImmediate(() => {
     void processExamDocument({
@@ -2755,6 +2790,100 @@ router.post("/exames-lab/recovery", async (req: Request, res: Response) => {
   } catch (e) {
     req.log.error({ err: e }, "POST /exames-lab/recovery falhou");
     return res.status(500).json({ error: "Falha ao iniciar recovery" });
+  }
+});
+
+// ============================================================================
+// Onda B — Cofre interno + links do Drive
+// ============================================================================
+
+// GET /exames-lab/documento/:id/download — serve a CÓPIA INTERNA (cofre do sistema)
+router.get("/exames-lab/documento/:id/download", requireCollaborator, async (req: Request, res: Response) => {
+  try {
+    const docId = Number(req.params.id);
+    if (!Number.isFinite(docId)) return res.status(400).json({ error: "id inválido" });
+    const copy = await getInternalCopy(docId);
+    if (!copy) {
+      return res.status(404).json({ error: "Este documento não tem cópia interna no cofre do sistema." });
+    }
+    const fname = copy.fileName.replace(/[\r\n"]/g, "");
+    const disp = req.query.inline === "1" ? "inline" : "attachment";
+    res.setHeader("Content-Type", copy.mimeType);
+    res.setHeader("Content-Disposition", `${disp}; filename*=UTF-8''${encodeURIComponent(fname)}`);
+    return res.send(copy.bytes);
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/documento/:id/download falhou");
+    return res.status(500).json({ error: "Falha ao baixar a cópia interna" });
+  }
+});
+
+// GET /exames-lab/documento/:id/links — links do Drive + disponibilidade interna
+router.get("/exames-lab/documento/:id/links", requireCollaborator, async (req: Request, res: Response) => {
+  try {
+    const docId = Number(req.params.id);
+    if (!Number.isFinite(docId)) return res.status(400).json({ error: "id inválido" });
+    const docs = await db
+      .select({
+        sourcePdfDriveId: examDocumentsTable.sourcePdfDriveId,
+        fileName: examDocumentsTable.fileName,
+      })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, docId))
+      .limit(1);
+    if (docs.length === 0) return res.status(404).json({ error: "Documento não encontrado" });
+
+    // Cópia renomeada feita pelo watcher (se veio da pasta vigiada)
+    const watcherRows = await db.execute(sql`
+      SELECT copied_drive_id FROM drive_watcher_files
+      WHERE exam_document_id = ${docId} AND copied_drive_id IS NOT NULL
+      LIMIT 1
+    `);
+    const wArr = (watcherRows as unknown as { rows: { copied_drive_id: string }[] }).rows ?? [];
+    const copiedId = wArr[0]?.copied_drive_id ?? null;
+    const srcId = docs[0].sourcePdfDriveId;
+    const toUrl = (id: string | null) => (id ? `https://drive.google.com/file/d/${id}/view` : null);
+
+    return res.json({
+      fileName: docs[0].fileName,
+      driveUrl: toUrl(copiedId ?? srcId),
+      sourceDriveUrl: toUrl(srcId),
+      copiedDriveUrl: toUrl(copiedId),
+      hasInternal: await hasInternalCopy(docId),
+    });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/documento/:id/links falhou");
+    return res.status(500).json({ error: "Falha ao montar links" });
+  }
+});
+
+// ============================================================================
+// Onda C — Auditoria em tempo real (linha do tempo por documento)
+// ============================================================================
+router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const rows = await db.execute(sql`
+      SELECT d.id, d.file_name, d.origin, d.status, d.exam_kind,
+             d.created_at, w.processed_at, d.source_pdf_drive_id,
+             c.name AS client_name,
+             CASE WHEN w.processed_at IS NOT NULL
+                  THEN GREATEST(EXTRACT(EPOCH FROM (w.processed_at - d.created_at))::int, 0)
+                  ELSE NULL END AS elapsed_s,
+             (SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = d.id) AS analitos
+      FROM exam_documents d
+      LEFT JOIN clients c ON c.id = d.client_id
+      LEFT JOIN LATERAL (
+        SELECT processed_at FROM drive_watcher_files
+        WHERE exam_document_id = d.id AND processed_at IS NOT NULL
+        ORDER BY processed_at DESC LIMIT 1
+      ) w ON TRUE
+      ORDER BY d.created_at DESC
+      LIMIT ${limit}
+    `);
+    return res.json({ eventos: rows.rows });
+  } catch (e) {
+    req.log?.error({ err: e }, "GET /exames-lab/auditoria falhou");
+    return res.status(500).json({ error: "Falha ao carregar auditoria" });
   }
 });
 

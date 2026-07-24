@@ -13,6 +13,7 @@ import { ParxisWordmark } from "@/components/layout/paxter-fx/ParxisWordmark";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -217,6 +218,13 @@ export default function Area() {
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
+        {tab === "evolucao"   && (
+          <div className="-mx-4 overflow-x-auto">
+            <div className="min-w-0 px-4">
+              <EvolucaoExamesPanel clientId={client.id} />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Mini-painel VERTICAL — largura 58px, altura automática igual à nav */}

@@ -33,6 +33,46 @@ type DocError   = {
 
 type MonitorData = { stats: StatusStat[]; pendentes: DocError[] };
 
+type AuditRow = {
+  id: number;
+  file_name: string | null;
+  origin: string | null;
+  status: string;
+  exam_kind: string | null;
+  created_at: string | null;
+  processed_at: string | null;
+  client_name: string | null;
+  elapsed_s: number | null;
+  analitos: number | null;
+  source_pdf_drive_id: string | null;
+};
+
+function fmtElapsed(s: number | null): string {
+  if (s == null || Number.isNaN(s)) return "—";
+  const total = Math.round(s);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function fmtDataHora(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+const AUDIT_STATUS: Record<string, { label: string; bg: string; cor: string }> = {
+  concluido:   { label: "Processado",  bg: "#dcfce7", cor: "#166534" },
+  processado:  { label: "Processado",  bg: "#dcfce7", cor: "#166534" },
+  conferido:   { label: "Processado",  bg: "#dcfce7", cor: "#166534" },
+  erro:        { label: "Erro",        bg: "#fee2e2", cor: "#991b1b" },
+  processando: { label: "Processando", bg: "#fef3c7", cor: "#92400e" },
+};
+
 function statFor(stats: StatusStat[], key: string): number {
   return stats.find((s) => s.status === key)?.total ?? 0;
 }
@@ -48,6 +88,7 @@ export default function MonitorMotorPage() {
   const [data, setData]         = useState<MonitorData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [recovery, setRecovery] = useState<"idle" | "running" | "ok" | "err">("idle");
+  const [audit, setAudit]       = useState<AuditRow[]>([]);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -70,6 +111,29 @@ export default function MonitorMotorPage() {
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
+
+  const carregarAudit = useCallback(async () => {
+    try {
+      const token = getCollabToken();
+      const r = await fetch("/api/exames-lab/auditoria?limit=50", {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!r.ok) throw new Error("Falha na API");
+      const json = await r.json();
+      setAudit(Array.isArray(json) ? json : (json?.eventos ?? json?.rows ?? []));
+    } catch {
+      /* mantém dados anteriores */
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregarAudit();
+    const t = setInterval(() => { void carregarAudit(); }, 5000);
+    return () => clearInterval(t);
+  }, [carregarAudit]);
 
   async function acionarRecovery() {
     setRecovery("running");
@@ -312,6 +376,112 @@ export default function MonitorMotorPage() {
                     ))}
                   </tbody>
                 </table>
+              )}
+            </div>
+
+            {/* AUDITORIA EM TEMPO REAL — polling 5s */}
+            <div className="panel-3d overflow-hidden">
+              <div
+                className="flex items-center gap-2 px-5 py-3"
+                style={{
+                  background: "linear-gradient(90deg,#1e3668 0%,#16294a 100%)",
+                  borderBottom: "2px solid rgba(231,205,143,0.22)",
+                }}
+              >
+                <Activity className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
+                <span className="text-[11px] font-black uppercase tracking-[0.22em]" style={{ color: "#e7cd8f" }}>
+                  Auditoria em Tempo Real
+                </span>
+                <span className="ml-auto text-[10px] text-slate-400">
+                  atualiza a cada 5s · {audit.length} registro{audit.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {audit.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Clock className="mx-auto h-8 w-8" style={{ color: "#94a3b8" }} />
+                  <p className="mt-2 text-[12px] font-semibold" style={{ color: "#64748b" }}>
+                    Nenhum documento registrado ainda.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]" style={{ color: NAVY }}>
+                    <thead>
+                      <tr
+                        className="text-[10px] font-black uppercase tracking-[0.18em]"
+                        style={{ background: "rgba(231,205,143,0.08)", color: "#64748b" }}
+                      >
+                        <th className="px-4 py-2 text-left">Arquivo</th>
+                        <th className="px-4 py-2 text-left">Cliente</th>
+                        <th className="px-4 py-2 text-left">Origem</th>
+                        <th className="px-4 py-2 text-left">Status</th>
+                        <th className="px-4 py-2 text-right">Analitos</th>
+                        <th className="px-4 py-2 text-left">Recebido em</th>
+                        <th className="px-4 py-2 text-left">Extraído em</th>
+                        <th className="px-4 py-2 text-right">Tempo</th>
+                        <th className="px-4 py-2 text-left">Link Drive</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {audit.map((a) => {
+                        const st = AUDIT_STATUS[a.status] ?? { label: a.status, bg: "#e2e8f0", cor: "#475569" };
+                        return (
+                          <tr
+                            key={a.id}
+                            className="border-t hover:bg-amber-50 transition-colors"
+                            style={{ borderColor: "#f0ebe0" }}
+                          >
+                            <td className="px-4 py-2.5 max-w-[200px] truncate text-[11px]" style={{ color: "#475569" }} title={a.file_name ?? ""}>
+                              {a.file_name ?? "—"}
+                            </td>
+                            <td className="px-4 py-2.5 max-w-[140px] truncate font-semibold">
+                              {a.client_name ?? "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-[11px]" style={{ color: "#64748b" }}>
+                              {a.origin ?? "—"}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span
+                                className="text-[10px] font-black uppercase tracking-[0.12em] px-2 py-0.5 rounded-[4px]"
+                                style={{ background: st.bg, color: st.cor }}
+                              >
+                                {st.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums">
+                              {a.analitos ?? 0}
+                            </td>
+                            <td className="px-4 py-2.5 text-[11px] tabular-nums" style={{ color: "#64748b" }}>
+                              {fmtDataHora(a.created_at)}
+                            </td>
+                            <td className="px-4 py-2.5 text-[11px] tabular-nums" style={{ color: "#64748b" }}>
+                              {fmtDataHora(a.processed_at)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono tabular-nums" style={{ color: "#64748b" }}>
+                              {fmtElapsed(a.elapsed_s)}
+                            </td>
+                            <td className="px-4 py-2.5 text-[11px]">
+                              {a.source_pdf_drive_id ? (
+                                <a
+                                  href={`https://drive.google.com/file/d/${a.source_pdf_drive_id}/view`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-semibold hover:underline"
+                                  style={{ color: GOLD }}
+                                >
+                                  Abrir Drive
+                                </a>
+                              ) : (
+                                <span style={{ color: "#94a3b8" }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
