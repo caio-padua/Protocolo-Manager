@@ -345,15 +345,15 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
           .orderBy(desc(examDocumentsTable.id))
       : await base.where(and(tenantFilter, notIgnored)).orderBy(desc(examDocumentsTable.id));
 
-    // nome do cliente para exibicao
+    // nome do cliente + pasta Drive para exibicao
     const clientIds = [...new Set(docs.map((d) => d.clientId))];
-    const names = new Map<number, string>();
+    const clientInfo = new Map<number, { name: string; driveFolderId: string | null }>();
     for (const cid of clientIds) {
       const rows = await db
-        .select({ id: clientsTable.id, name: clientsTable.name })
+        .select({ id: clientsTable.id, name: clientsTable.name, driveFolderId: clientsTable.driveFolderId })
         .from(clientsTable)
         .where(eq(clientsTable.id, cid));
-      if (rows[0]) names.set(cid, rows[0].name);
+      if (rows[0]) clientInfo.set(cid, { name: rows[0].name, driveFolderId: rows[0].driveFolderId ?? null });
     }
 
     // dados do watcher (original_name, renamed_to, copied_drive_id, copied_name)
@@ -384,7 +384,8 @@ router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
         const w = watcherMap.get(d.id);
         return {
           ...d,
-          clientName: names.get(d.clientId) ?? `Cliente ${d.clientId}`,
+          clientName: clientInfo.get(d.clientId)?.name ?? `Cliente ${d.clientId}`,
+          clientDriveFolderId: clientInfo.get(d.clientId)?.driveFolderId ?? null,
           originalName: w?.original_name ?? null,
           renamedTo: w?.renamed_to ?? null,
           copiedDriveId: w?.copied_drive_id ?? null,

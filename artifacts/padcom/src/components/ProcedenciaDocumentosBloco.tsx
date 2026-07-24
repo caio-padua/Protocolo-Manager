@@ -55,6 +55,8 @@ export interface DocRow {
   copiedDriveId: string | null;
   /** Nome do arquivo copiado */
   copiedName: string | null;
+  /** ID da pasta raiz do cliente no Google Drive (coluna drive_folder_id da tabela clients) */
+  clientDriveFolderId?: string | null;
 }
 
 export interface AnalyteResult {
@@ -229,8 +231,8 @@ function BevelCelula({
         title={conteudo}
       >
         <span
-          className="line-clamp-2 text-[10px] leading-snug"
-          style={{ color: cor, fontWeight: bold ? 700 : 400 }}
+          className="line-clamp-2 text-[11px] leading-snug font-semibold tabular-nums"
+          style={{ color: cor, fontWeight: bold ? 700 : 600, fontFamily: "Inter, sans-serif" }}
         >
           {conteudo}
         </span>
@@ -337,8 +339,8 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
   const canonName = a.canonicalName
     ?? (a.analyteCode ? a.analyteCode.replace(/-/g, " ") : null)
     ?? a.analyteNameRaw;
-  const showExtracted =
-    !!a.analyteNameRaw && canonName.toLowerCase() !== a.analyteNameRaw.toLowerCase();
+  // CEO: nome extraído sempre visível abaixo do canônico (auditabilidade)
+  const showExtracted = !!a.analyteNameRaw;
 
   // ── Col 2: data de coleta + badge HIST ───────────────────────────────────────
   const dataColeta = fmtDateShort(a.collectionDate);
@@ -396,18 +398,27 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
         )}
       </span>
 
-      {/* Col 2 — Coleta (data + badge HIST se histórico) */}
-      <span className="min-w-0 leading-none text-center">
-        {a.isHistory && (
-          <span
-            className="block mx-auto w-fit rounded-[2px] px-1 py-px text-[6.5px] font-black uppercase tracking-widest leading-none mb-px"
-            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
-          >
-            HIST
+      {/* Col 2 — Coleta: badge HIST ou ATUAL inline com a data */}
+      <span className="min-w-0 flex flex-col items-center justify-center gap-px leading-none">
+        <span className="inline-flex items-center gap-1">
+          {a.isHistory ? (
+            <span
+              className="shrink-0 rounded-[2px] px-1 py-px text-[6.5px] font-black uppercase tracking-widest leading-none"
+              style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+            >
+              HIST
+            </span>
+          ) : (
+            <span
+              className="shrink-0 rounded-[2px] px-1 py-px text-[6.5px] font-black uppercase tracking-widest leading-none"
+              style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+            >
+              ATUAL
+            </span>
+          )}
+          <span className="text-[10px] tabular-nums" style={{ color: MUTED }}>
+            {dataColeta || "—"}
           </span>
-        )}
-        <span className="block text-[10px] tabular-nums" style={{ color: MUTED }}>
-          {dataColeta || (a.isHistory ? "—" : "Atual")}
         </span>
       </span>
 
@@ -577,62 +588,77 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
     >
 
       {/* ── ZONA 1: TOP BAR — bevel-3d saliente (padrão skill-layout-paxter) */}
-      {/* Contém: tipo de exame · status · confiança IA · auditor(es) */}
-      <div
-        className="bevel-3d flex flex-wrap items-center gap-2 px-4 py-2"
-      >
-        {/* Tipo de exame */}
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest" style={{ color: NAVY }}>
+      {/* Layout: [TIPO] [AUDITORES sempre visíveis] [ml-auto: %IA STATUS Extraído] */}
+      <div className="bevel-3d flex flex-wrap items-center gap-2 px-4 py-2">
+
+        {/* Tipo de exame — SEMPRE presente */}
+        <span
+          className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest"
+          style={{ color: NAVY }}
+        >
           <kindCfg.Icon className="h-3.5 w-3.5" style={{ color: kindCfg.cor }} />
           {kindCfg.label}
         </span>
 
-        {/* Confiança IA */}
-        {confianca !== null && (
-          <span
-            className="concave-3d inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
-            style={{ color: MUTED }}
-          >
-            <Bot className="h-2.5 w-2.5" />
-            {confianca}%
-          </span>
-        )}
+        {/* Separador visual */}
+        <span className="h-4 w-px" style={{ background: "rgba(22,40,74,0.18)" }} />
 
-        {/* Auditores — ficam no topo, ao lado do tipo */}
-        {doc.conf1Name && (
+        {/* ── AUDITORES — campo SEMPRE visível (placeholder quando não conferido) ── */}
+        {doc.conf1Name ? (
           <span
             className="concave-3d inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold"
             style={{ color: "#1d4ed8" }}
-            title={doc.conf1At ? `Conferido em ${fmtHora(doc.conf1At)}` : "Conferência C1"}
+            title={doc.conf1At ? `C1 — ${fmtHora(doc.conf1At)}` : "Conferência C1"}
           >
             ✓ {doc.conf1Name}{doc.conf1Cargo ? ` · ${doc.conf1Cargo}` : ""}
+          </span>
+        ) : (
+          <span
+            className="concave-3d inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-medium"
+            style={{ color: MUTED }}
+          >
+            Não conferido
           </span>
         )}
         {doc.conf2Name && (
           <span
             className="concave-3d inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold"
             style={{ color: "#15803d" }}
-            title={doc.conf2At ? `Conferido em ${fmtHora(doc.conf2At)}` : "Conferência C2"}
+            title={doc.conf2At ? `C2 — ${fmtHora(doc.conf2At)}` : "Conferência C2"}
           >
             ✓✓ {doc.conf2Name}{doc.conf2Cargo ? ` · ${doc.conf2Cargo}` : ""}
           </span>
         )}
 
-        {/* Status — sempre no extremo direito */}
-        <span
-          className="concave-3d ml-auto inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-widest"
-          style={{ color: statusCfg.cor }}
-        >
-          {statusCfg.label}
-        </span>
+        {/* ml-auto empurra o grupo direito para o extremo */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Confiança IA — extremo direito */}
+          {confianca !== null && (
+            <span
+              className="concave-3d inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
+              style={{ color: MUTED }}
+            >
+              <Bot className="h-2.5 w-2.5" />
+              {confianca}%
+            </span>
+          )}
 
-        {/* Extraído com sucesso */}
-        {extraidoOk && (
-          <span className="bevel-3d-ok inline-flex items-center gap-1 px-2.5 py-1 text-[9px]">
-            <Zap className="h-2.5 w-2.5" />
-            Extraído
+          {/* Status do documento */}
+          <span
+            className="concave-3d inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-widest"
+            style={{ color: statusCfg.cor }}
+          >
+            {statusCfg.label}
           </span>
-        )}
+
+          {/* Extraído com sucesso */}
+          {extraidoOk && (
+            <span className="bevel-3d-ok inline-flex items-center gap-1 px-2.5 py-1 text-[9px]">
+              <Zap className="h-2.5 w-2.5" />
+              Extraído
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── ZONA 2: PAINEL DE CLASSIFICAÇÃO (esq) + TÍTULO E PROVENIÊNCIA (dir) — K2 Kaizen-001 */}
@@ -865,7 +891,34 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         </div>
       )}
 
-      {/* Auditores movidos para ZONA 1 (top bar) — bloco removido do rodapé */}
+      {/* ── PASTA DRIVE DO PACIENTE — sempre visível quando há driveFolderId ── */}
+      {doc.clientDriveFolderId ? (
+        <div
+          className="mx-4 mb-3 flex items-center gap-2 concave-3d px-3 py-2"
+        >
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" style={{ color: "#9a7b32" }} />
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: MUTED }}>
+            Pasta Drive do Paciente
+          </span>
+          <a
+            href={`https://drive.google.com/drive/folders/${doc.clientDriveFolderId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest no-underline hover:underline"
+            style={{ color: "#9a7b32" }}
+          >
+            <ExternalLink className="h-2.5 w-2.5" />
+            Abrir no Drive
+          </a>
+        </div>
+      ) : (
+        <div className="mx-4 mb-3 concave-3d px-3 py-2 flex items-center gap-2">
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" style={{ color: MUTED }} />
+          <span className="text-[9px] font-medium" style={{ color: MUTED }}>
+            Pasta Drive não configurada para este paciente
+          </span>
+        </div>
+      )}
 
       {/* ── ZONA 5: AÇÕES ─────────────────────────────────────────────────────── */}
       <div
