@@ -100,7 +100,14 @@ const navigation: NavEntry[] = [
       { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
       { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
       { name: "Importação do Drive (ao vivo)", href: "/importar-drive", icon: DownloadCloud },
-      { name: "Experiência do Cliente", href: "/experiencia-cliente", icon: Sparkles },
+    ],
+  },
+  {
+    name: "Área do Cliente",
+    icon: Smartphone,
+    children: [
+      { name: "Experiência do Cliente (Admin Preview)", href: "/experiencia-cliente", icon: Sparkles },
+      { name: "Área do Paciente (Direto)", href: "/area", icon: Users },
     ],
   },
   {

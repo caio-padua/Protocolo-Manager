@@ -9,6 +9,7 @@ import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
 import { refreshCertCache } from "./lib/cert-source";
+import { recoverStuckDocuments } from "./routes/exames-lab";
 
 const rawPort = process.env["PORT"];
 
@@ -53,4 +54,10 @@ app.listen(port, (err) => {
     .then(() => seedFaixasSexo())
     .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
     .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
+
+  // Recupera documentos de exame que ficaram presos em "processando"
+  // por reinicializacao do servidor durante a extracao por IA.
+  recoverStuckDocuments().catch((e) =>
+    logger.error({ err: e }, "[ExamesLab] Falha na recuperacao de documentos presos"),
+  );
 });

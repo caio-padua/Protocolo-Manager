@@ -41,9 +41,11 @@ import {
   uploadFileToDrive,
   removeDiacritics,
   driveDownloadFile,
+  driveListChildren,
   driveCopyFileInFolder,
   renameDriveFile,
 } from "../lib/google-drive";
+import { logger } from "../lib/logger";
 import {
   runTriagemBackfill,
   loadCatalogFull,
@@ -264,6 +266,7 @@ export async function startExamIngestion(params: {
   sourcePdfDriveId?: string | null;
   notify?: boolean;
   empresaId?: number | null;
+  userDateStr?: string | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
   const hash = createHash("sha256").update(params.buffer).digest("hex");
 
@@ -300,10 +303,108 @@ export async function startExamIngestion(params: {
       fileName: params.fileName,
       sourcePdfDriveId: params.sourcePdfDriveId ?? null,
       notify: params.notify ?? false,
+      userDateStr: params.userDateStr ?? null,
     });
   });
 
   return { documentId: doc.id, duplicate: false };
+}
+
+/**
+ * Executado no boot do servidor: recupera documentos que ficaram presos no
+ * status "processando" por causa de reinicializacao do servidor durante a
+ * extracao (o setImmediate morreu junto com o processo anterior).
+ *
+ * Estrategia:
+ * 1. Se o doc ja tem source_pdf_drive_id → baixa do Drive e reprocessa.
+ * 2. Se nao tem → tenta achar o arquivo na pasta EXAMES do cliente no Drive.
+ * 3. Se nao acha → marca como erro com mensagem orientando o reenvio.
+ */
+export async function recoverStuckDocuments(): Promise<void> {
+  const cutoffMs = Date.now() - 5 * 60 * 1000;
+  const stuck = await db
+    .select()
+    .from(examDocumentsTable)
+    .where(
+      and(
+        eq(examDocumentsTable.status, "processando"),
+        sql`${examDocumentsTable.createdAt} < ${new Date(cutoffMs).toISOString()}`,
+      ),
+    );
+
+  if (stuck.length === 0) return;
+
+  logger.info({ count: stuck.length }, "[ExamesLab] Recuperando documentos presos em 'processando'");
+
+  for (const doc of stuck) {
+    try {
+      let buffer: Buffer | null = null;
+      let resolvedDriveId: string | null = doc.sourcePdfDriveId ?? null;
+
+      if (resolvedDriveId) {
+        buffer = await driveDownloadFile(resolvedDriveId);
+      } else {
+        const clients = await db
+          .select()
+          .from(clientsTable)
+          .where(eq(clientsTable.id, doc.clientId));
+        const client = clients[0];
+        if (client) {
+          try {
+            const structure = await ensureClientFolderStructure(client.name, client.cpf);
+            const examesFolderId = structure.subfolders["EXAMES"];
+            if (examesFolderId) {
+              const files = await driveListChildren(examesFolderId);
+              const baseName = doc.fileName.replace(/\.[^.]+$/, "");
+              const found = files.find(
+                (f) =>
+                  f.name.replace(/\.[^.]+$/, "") === baseName ||
+                  f.name.includes(baseName) ||
+                  baseName.includes(f.name.replace(/\.[^.]+$/, "")),
+              );
+              if (found) {
+                resolvedDriveId = found.id;
+                buffer = await driveDownloadFile(found.id);
+                logger.info(
+                  { docId: doc.id, fileId: found.id, name: found.name },
+                  "[ExamesLab] Arquivo encontrado no Drive do cliente",
+                );
+              }
+            }
+          } catch (driveErr) {
+            logger.warn(
+              { err: (driveErr as Error).message, docId: doc.id },
+              "[ExamesLab] Falha ao buscar no Drive do cliente",
+            );
+          }
+        }
+      }
+
+      if (buffer) {
+        const capturedBuffer = buffer;
+        const capturedDriveId = resolvedDriveId;
+        setImmediate(() => {
+          void processExamDocument({
+            documentId: doc.id,
+            clientId: doc.clientId,
+            buffer: capturedBuffer,
+            fileName: doc.fileName,
+            sourcePdfDriveId: capturedDriveId,
+            notify: true,
+          });
+        });
+        logger.info({ docId: doc.id }, "[ExamesLab] Documento recuperado — processamento re-disparado");
+      } else {
+        await markDocumentError(
+          doc.id,
+          "Servidor reiniciado durante a extração e o arquivo não foi encontrado no Drive. Por favor reenvie o documento pelo portal.",
+        );
+        logger.warn({ docId: doc.id }, "[ExamesLab] Documento marcado como erro — arquivo não recuperável");
+      }
+    } catch (err) {
+      logger.error({ err: (err as Error).message, docId: doc.id }, "[ExamesLab] Falha na recuperação do documento");
+    }
+  }
 }
 
 // ---- POST /exames-lab/ingest — Modo Duplo (upload avulso por seletor) ----
