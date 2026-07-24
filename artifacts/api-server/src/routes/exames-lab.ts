@@ -271,8 +271,9 @@ export async function startExamIngestion(params: {
   const hash = createHash("sha256").update(params.buffer).digest("hex");
 
   // Idempotencia POR PACIENTE: mesmo arquivo em outro cliente gera doc proprio.
+  // EXCECAO: se o doc existente tem status='erro', reprocessa em vez de ignorar.
   const existing = await db
-    .select({ id: examDocumentsTable.id })
+    .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
     .from(examDocumentsTable)
     .where(
       and(
@@ -281,7 +282,39 @@ export async function startExamIngestion(params: {
       ),
     );
   if (existing.length > 0) {
-    return { documentId: existing[0].id, duplicate: true };
+    const existingDoc = existing[0];
+    // Se ja concluido ou ainda processando, retorna como duplicado sem fazer nada.
+    if (existingDoc.status !== "erro") {
+      return { documentId: existingDoc.id, duplicate: true };
+    }
+    // Se estava com erro: atualiza o Drive ID (se novo disponivel), reseta para
+    // processando e dispara a extracao novamente.
+    logger.info(
+      { docId: existingDoc.id },
+      "[ExamesLab] Duplicado com status=erro — reprocessando em vez de ignorar",
+    );
+    await db
+      .update(examDocumentsTable)
+      .set({
+        status: "processando",
+        ...(params.sourcePdfDriveId
+          ? { sourcePdfDriveId: params.sourcePdfDriveId }
+          : {}),
+      })
+      .where(eq(examDocumentsTable.id, existingDoc.id));
+    setImmediate(() => {
+      void processExamDocument({
+        documentId: existingDoc.id,
+        clientId: params.clientId,
+        buffer: params.buffer,
+        fileName: params.fileName,
+        sourcePdfDriveId:
+          params.sourcePdfDriveId ?? null,
+        notify: params.notify ?? false,
+        userDateStr: params.userDateStr ?? null,
+      });
+    });
+    return { documentId: existingDoc.id, duplicate: false };
   }
 
   const [doc] = await db
