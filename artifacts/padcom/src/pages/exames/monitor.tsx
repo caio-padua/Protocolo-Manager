@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Loader2,
   Play,
+  RotateCcw,
+  Cpu,
 } from "lucide-react";
 
 const NAVY  = "#16294a";
@@ -33,6 +35,15 @@ type DocError   = {
 
 type MonitorData = { stats: StatusStat[]; pendentes: DocError[] };
 
+type LlmStep = {
+  provider: string;
+  model: string;
+  ok: boolean;
+  analitos?: number;
+  ms?: number;
+  error?: string;
+};
+
 type AuditRow = {
   id: number;
   file_name: string | null;
@@ -45,6 +56,9 @@ type AuditRow = {
   elapsed_s: number | null;
   analitos: number | null;
   source_pdf_drive_id: string | null;
+  reprocessamento_count: number | null;
+  reprocessado_at: string | null;
+  llm_pipeline: LlmStep[] | null;
 };
 
 function fmtElapsed(s: number | null): string {
@@ -85,10 +99,11 @@ const STATUS_LABELS: Record<string, { label: string; cor: string; icone: typeof 
 };
 
 export default function MonitorMotorPage() {
-  const [data, setData]         = useState<MonitorData | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [recovery, setRecovery] = useState<"idle" | "running" | "ok" | "err">("idle");
-  const [audit, setAudit]       = useState<AuditRow[]>([]);
+  const [data, setData]             = useState<MonitorData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [recovery, setRecovery]     = useState<"idle" | "running" | "ok" | "err">("idle");
+  const [audit, setAudit]           = useState<AuditRow[]>([]);
+  const [reprocessando, setReprocessando] = useState<Record<number, boolean>>({});
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -134,6 +149,24 @@ export default function MonitorMotorPage() {
     const t = setInterval(() => { void carregarAudit(); }, 5000);
     return () => clearInterval(t);
   }, [carregarAudit]);
+
+  async function reprocessarDoc(id: number) {
+    setReprocessando((prev) => ({ ...prev, [id]: true }));
+    try {
+      const token = getCollabToken();
+      await fetch(`/api/exames-lab/reprocessar/${id}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      // Atualiza monitor e auditoria após reprocessar
+      void carregar();
+      void carregarAudit();
+    } catch {
+      /* silencioso — monitor refaz o status */
+    } finally {
+      setReprocessando((prev) => ({ ...prev, [id]: false }));
+    }
+  }
 
   async function acionarRecovery() {
     setRecovery("running");
@@ -362,7 +395,7 @@ export default function MonitorMotorPage() {
                             <span className="text-[10px] text-red-500 font-semibold">Sem ID</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-4 py-2.5 flex items-center gap-2">
                           <Link
                             href={`/procedencia-exames?c=${d.client_id}`}
                             className="flex items-center gap-1 text-[10px] font-semibold"
@@ -371,6 +404,19 @@ export default function MonitorMotorPage() {
                             Ver
                             <ChevronRight className="h-3 w-3" />
                           </Link>
+                          <button
+                            type="button"
+                            disabled={reprocessando[d.id]}
+                            onClick={() => void reprocessarDoc(d.id)}
+                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded disabled:opacity-50"
+                            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" }}
+                            title="Reprocessar este documento com a IA agora"
+                          >
+                            {reprocessando[d.id]
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <RotateCcw className="h-3 w-3" />}
+                            Reprocessar
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -417,6 +463,8 @@ export default function MonitorMotorPage() {
                         <th className="px-4 py-2 text-left">Origem</th>
                         <th className="px-4 py-2 text-left">Status</th>
                         <th className="px-4 py-2 text-right">Analitos</th>
+                        <th className="px-4 py-2 text-left">IAs</th>
+                        <th className="px-4 py-2 text-center">Reprocessamentos</th>
                         <th className="px-4 py-2 text-left">Recebido em</th>
                         <th className="px-4 py-2 text-left">Extraído em</th>
                         <th className="px-4 py-2 text-right">Tempo</th>
@@ -451,6 +499,33 @@ export default function MonitorMotorPage() {
                             </td>
                             <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums">
                               {a.analitos ?? 0}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {a.llm_pipeline && a.llm_pipeline.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {a.llm_pipeline.map((step, i) => (
+                                    <span
+                                      key={i}
+                                      className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-[3px]"
+                                      style={{
+                                        background: step.ok ? "#dcfce7" : "#fee2e2",
+                                        color: step.ok ? "#166534" : "#991b1b",
+                                      }}
+                                      title={`${step.provider}: ${step.analitos ?? 0} analitos, ${step.ms ?? 0}ms${step.error ? ` — ${step.error}` : ""}`}
+                                    >
+                                      <Cpu className="h-2.5 w-2.5" />
+                                      {step.provider}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-center font-mono tabular-nums text-[11px]" style={{ color: "#64748b" }}>
+                              {a.reprocessamento_count
+                                ? <span className="font-bold" style={{ color: GOLD }}>{a.reprocessamento_count}×</span>
+                                : <span style={{ color: "#94a3b8" }}>—</span>}
                             </td>
                             <td className="px-4 py-2.5 text-[11px] tabular-nums" style={{ color: "#64748b" }}>
                               {fmtDataHora(a.created_at)}

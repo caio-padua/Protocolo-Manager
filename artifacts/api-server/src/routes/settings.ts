@@ -278,21 +278,33 @@ interface ExamesConfig {
   triagemAtiva: boolean;
   autoCriarDescoberto: boolean;
   autoAbsorverApelidoAltaConfianca: boolean;
+  // Motor Multi-IA: cada flag ativa o respectivo provedor na cadeia de extração.
+  // Gemini = provedor primário (default true). Claude/OpenAI = encadeados opcionalmente.
+  llmGeminiAtivo: boolean;
+  llmClaudeAtivo: boolean;
+  llmOpenaiAtivo: boolean;
 }
 
-// Cada chave ausente => padrao SEGURO/ligado (true).
+// Cada chave ausente => padrao SEGURO/ligado (true) para os existentes;
+// novos LLMs secundários default FALSE (nao ativar sem config explícita).
 async function examesPayload(): Promise<ExamesConfig> {
-  const [ev, ta, ac, aa] = await Promise.all([
+  const [ev, ta, ac, aa, lg, lc, lo] = await Promise.all([
     getSetting("exames.exigirValidacaoHumana"),
     getSetting("exames.triagemAtiva"),
     getSetting("exames.autoCriarDescoberto"),
     getSetting("exames.autoAbsorverApelidoAltaConfianca"),
+    getSetting("exames.llmGeminiAtivo"),
+    getSetting("exames.llmClaudeAtivo"),
+    getSetting("exames.llmOpenaiAtivo"),
   ]);
   return {
     exigirValidacaoHumana: ev === null ? true : ev === "true",
     triagemAtiva: ta === null ? true : ta === "true",
     autoCriarDescoberto: ac === null ? true : ac === "true",
     autoAbsorverApelidoAltaConfianca: aa === null ? true : aa === "true",
+    llmGeminiAtivo: lg === null ? true : lg === "true",
+    llmClaudeAtivo: lc === null ? false : lc === "true",
+    llmOpenaiAtivo: lo === null ? false : lo === "true",
   };
 }
 
@@ -306,6 +318,9 @@ router.put("/settings/exames", requireCollaborator, async (req, res): Promise<vo
     triagemAtiva: "exames.triagemAtiva",
     autoCriarDescoberto: "exames.autoCriarDescoberto",
     autoAbsorverApelidoAltaConfianca: "exames.autoAbsorverApelidoAltaConfianca",
+    llmGeminiAtivo: "exames.llmGeminiAtivo",
+    llmClaudeAtivo: "exames.llmClaudeAtivo",
+    llmOpenaiAtivo: "exames.llmOpenaiAtivo",
   };
   // aceita atualizacao parcial: so grava as chaves booleanas enviadas.
   let tocou = false;

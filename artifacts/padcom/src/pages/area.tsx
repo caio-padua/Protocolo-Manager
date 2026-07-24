@@ -219,10 +219,9 @@ export default function Area() {
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
         {tab === "evolucao"   && (
-          <div className="-mx-4 overflow-x-auto">
-            <div className="min-w-0 px-4">
-              <EvolucaoExamesPanel clientId={client.id} />
-            </div>
+          <div className="space-y-6">
+            <EvolucaoExamesPanel clientId={client.id} />
+            <PlanilhaComparativaPortal clientId={client.id} />
           </div>
         )}
       </main>
@@ -1645,6 +1644,251 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 }
 
 // ---------------------------------------------------------------------------
+// PLANILHA COMPARATIVA DE ANALITOS (inline — mesma lógica do Prontuário)
+// ---------------------------------------------------------------------------
+type AnalitoRow = {
+  id: number;
+  analyteNameRaw: string;
+  valueRaw: string | null;
+  unitRaw: string | null;
+  status: string | null;
+  collectionDate: string | null;
+};
+
+function statusCor(status: string | null): string {
+  if (!status || status === "normal") return "text-emerald-700 bg-emerald-50";
+  if (status === "acima") return "text-red-700 bg-red-50";
+  if (status === "abaixo") return "text-amber-700 bg-amber-50";
+  return "text-gray-700";
+}
+
+function fmtDatePlanilha(val: string | null | undefined): string {
+  if (!val) return "—";
+  const d = new Date(val);
+  if (Number.isNaN(d.getTime())) return val;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
+function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
+  const [analitos, setAnalitos] = useState<AnalitoRow[]>([]);
+  const [filtro, setFiltro] = useState("");
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!ativo) return;
+        // A rota retorna { rows } ou array direto de exam_results
+        const raw: Record<string, unknown>[] = Array.isArray(json)
+          ? json
+          : (json?.rows ?? json?.analitos ?? []);
+        setAnalitos(
+          raw.map((r) => ({
+            id: Number(r.id),
+            analyteNameRaw: String(r.analyte_name_raw ?? r.analyteNameRaw ?? ""),
+            valueRaw: r.value_raw != null ? String(r.value_raw) : null,
+            unitRaw: r.unit_raw != null ? String(r.unit_raw) : null,
+            status: r.status != null ? String(r.status) : null,
+            collectionDate: r.collection_date != null ? String(r.collection_date) : null,
+          })),
+        );
+      })
+      .catch(() => {})
+      .finally(() => { if (ativo) setCarregando(false); });
+    return () => { ativo = false; };
+  }, [clientId]);
+
+  if (carregando) {
+    return (
+      <div className="py-10 text-center text-muted-foreground text-sm">
+        <Clock className="mx-auto w-5 h-5 mb-2 animate-pulse" />
+        Carregando planilha…
+      </div>
+    );
+  }
+  if (analitos.length === 0) {
+    return (
+      <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
+        Nenhum analito disponível ainda. Envie um exame para que o motor faça a extração.
+      </div>
+    );
+  }
+
+  const datasSet = new Set(analitos.map((a) => a.collectionDate ?? "sem-data"));
+  const datas = Array.from(datasSet).sort();
+  const nomesSet = new Set(analitos.map((a) => a.analyteNameRaw));
+  const nomesOrdenados = Array.from(nomesSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const nomesFiltrados = filtro.trim()
+    ? nomesOrdenados.filter((n) => n.toLowerCase().includes(filtro.toLowerCase()))
+    : nomesOrdenados;
+  const idx = new Map<string, Map<string, AnalitoRow>>();
+  for (const a of analitos) {
+    const data = a.collectionDate ?? "sem-data";
+    if (!idx.has(a.analyteNameRaw)) idx.set(a.analyteNameRaw, new Map());
+    idx.get(a.analyteNameRaw)!.set(data, a);
+  }
+
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden">
+      <div className="login-card-topbar px-5 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FlaskConical className="w-4 h-4 text-accent" />
+          <span className="text-primary font-black text-xs uppercase tracking-widest">
+            Planilha Comparativa — {nomesFiltrados.length} analito{nomesFiltrados.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <input
+          type="search"
+          placeholder="Filtrar analito…"
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          className="concave-3d text-xs px-3 py-1 w-44 focus:outline-none rounded-lg"
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-primary/90 text-white">
+              <th className="text-left px-3 py-2 font-black uppercase tracking-wider sticky left-0 bg-primary/90 z-10 min-w-[180px]">
+                Analito
+              </th>
+              {datas.map((d) => (
+                <th key={d} className="text-center px-3 py-2 font-black whitespace-nowrap min-w-[80px]">
+                  {d === "sem-data" ? "S/Data" : fmtDatePlanilha(d)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {nomesFiltrados.map((nome, i) => {
+              const mapa = idx.get(nome);
+              const unit = analitos.find((a) => a.analyteNameRaw === nome)?.unitRaw;
+              return (
+                <tr key={nome} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="px-3 py-1.5 font-semibold text-primary sticky left-0 z-10 bg-inherit border-r border-border/30">
+                    <div className="truncate max-w-[180px]" title={nome}>{nome}</div>
+                    {unit && <div className="text-[10px] text-muted-foreground">{unit}</div>}
+                  </td>
+                  {datas.map((d) => {
+                    const a = mapa?.get(d);
+                    if (!a) return <td key={d} className="px-3 py-1.5 text-center text-muted-foreground">—</td>;
+                    return (
+                      <td key={d} className="px-3 py-1.5 text-center">
+                        <span className={`inline-block px-1.5 py-0.5 rounded font-semibold ${statusCor(a.status)}`}>
+                          {a.valueRaw ?? "—"}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex gap-4 px-4 py-2 text-[10px] text-muted-foreground border-t border-border/30">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 inline-block border border-emerald-300" /> Normal</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block border border-red-300" /> Acima</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 inline-block border border-amber-300" /> Abaixo</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// STATUS AO VIVO APÓS UPLOAD (polling do status do exame enviado)
+// ---------------------------------------------------------------------------
+function UploadStatusPoller({
+  fileName,
+  clientId,
+  onReset,
+}: {
+  fileName: string;
+  clientId: number;
+  token: string;
+  onReset: () => void;
+}) {
+  const [fase, setFase] = useState<"processando" | "concluido" | "timeout">("processando");
+  const [analitos, setAnalitos] = useState<number | null>(null);
+
+  useEffect(() => {
+    let tentativas = 0;
+    const MAX = 36; // ~3 minutos (36 × 5s)
+    let baseline: number | null = null;
+
+    async function checar() {
+      try {
+        const r = await fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`);
+        if (!r.ok) return;
+        const json = await r.json();
+        const raw: unknown[] = Array.isArray(json) ? json : (json?.rows ?? json?.analitos ?? []);
+        const count = raw.length;
+        if (baseline === null) {
+          baseline = count;
+          return;
+        }
+        if (count > baseline) {
+          setAnalitos(count - baseline);
+          setFase("concluido");
+          return;
+        }
+      } catch {}
+      tentativas++;
+      if (tentativas >= MAX) setFase("timeout");
+    }
+
+    void checar();
+    const t = setInterval(() => { void checar(); }, 5000);
+    return () => clearInterval(t);
+  }, [clientId]);
+
+  const isProcessing = fase === "processando";
+  const isDone = fase === "concluido";
+
+  return (
+    <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4">
+      <div className={`w-16 h-16 rounded-full flex items-center justify-center border-2 ${
+        isDone ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
+      }`}>
+        {isDone
+          ? <CheckCircle className="w-8 h-8 text-green-500" />
+          : <Clock className={`w-8 h-8 text-blue-400 ${isProcessing ? "animate-pulse" : ""}`} />}
+      </div>
+
+      <h2 className="text-primary font-black text-lg uppercase">
+        {isDone ? "EXAME PROCESSADO!" : fase === "timeout" ? "ARQUIVO RECEBIDO" : "PROCESSANDO…"}
+      </h2>
+
+      <p className="text-accent text-sm">
+        {isDone
+          ? `Extração concluída — ${analitos ?? ""} analito${analitos !== 1 ? "s" : ""} identificado${analitos !== 1 ? "s" : ""} pela IA.`
+          : fase === "timeout"
+            ? "O arquivo está na fila de processamento. Os resultados aparecerão em breve na aba EVOLUÇÃO."
+            : "A inteligência artificial está lendo o seu exame. Aguarde alguns instantes…"}
+      </p>
+
+      <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
+        <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
+        <p className="text-primary text-sm font-mono truncate">{fileName}</p>
+      </div>
+
+      {isProcessing && (
+        <div className="w-full bg-border/30 rounded-full h-1.5 overflow-hidden">
+          <div className="h-full bg-accent rounded-full animate-[pulse_2s_ease-in-out_infinite] w-1/2" />
+        </div>
+      )}
+
+      <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
+        ENVIAR OUTRO ARQUIVO
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ENVIAR DOCUMENTO
 // ---------------------------------------------------------------------------
 // Tipos de arquivo que são exames clínicos — exigem campo "Data do Exame"
@@ -1688,22 +1932,12 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   };
 
   if (done) {
-    return (
-      <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4">
-        <div className="w-16 h-16 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center">
-          <CheckCircle className="w-8 h-8 text-green-500" />
-        </div>
-        <h2 className="text-primary font-black text-lg uppercase">ARQUIVO ENVIADO!</h2>
-        <p className="text-accent text-sm">Seu arquivo foi recebido e será processado pela equipe.</p>
-        <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
-          <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
-          <p className="text-primary text-sm font-mono truncate">{done.fileName}</p>
-        </div>
-        <button onClick={reset} className="btn-3d w-full h-12 text-sm font-black uppercase tracking-wider">
-          ENVIAR OUTRO ARQUIVO
-        </button>
-      </div>
-    );
+    return <UploadStatusPoller
+      fileName={done.fileName}
+      clientId={client.id}
+      token={client.token}
+      onReset={reset}
+    />;
   }
 
   return (

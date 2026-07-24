@@ -31,6 +31,9 @@ import { saveInternalCopy, hasInternalCopy, getInternalCopy } from "../lib/exam-
 import { requireCollaborator } from "./collaborator";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
 import { extractExamFromText, extractExamFromMedia } from "../lib/exam-extraction/extract";
+import { extractExamWithClaude, CLAUDE_MODEL_NAME } from "../lib/exam-extraction/extract-anthropic";
+import { extractExamWithOpenAI, OPENAI_MODEL } from "../lib/exam-extraction/extract-openai";
+import type { ExtractedExam } from "../lib/exam-extraction/schema";
 import {
   persistExtractedResults,
   finalizeDocument,
@@ -145,14 +148,150 @@ function collectionDateToPrefix(brDate: string | null | undefined): string | nul
   return `${yyyy.slice(2)}.${mm}.${dd}`;
 }
 
-/** Processa 1 documento: texto -> IA -> banco -> Drive -> aviso. */
+// ─── Tipos para o pipeline multi-IA ──────────────────────────────────────────
+interface LlmStep {
+  provider: string;
+  model: string;
+  ok: boolean;
+  analitos?: number;
+  ms?: number;
+  error?: string;
+}
+
+/** Mescla analitos de dois resultados (union por nome normalizado). */
+function mergeExtractions(base: ExtractedExam, extra: ExtractedExam): ExtractedExam {
+  const baseNames = new Set(
+    (base.tests ?? []).map((t) => (t.name ?? "").toLowerCase().trim()),
+  );
+  const novos = (extra.tests ?? []).filter(
+    (t) => !baseNames.has((t.name ?? "").toLowerCase().trim()),
+  );
+  return { ...base, tests: [...(base.tests ?? []), ...novos] };
+}
+
+/** Persiste resultado + pipeline multi-IA no banco (raw SQL para evitar db push). */
+async function finalizeDocumentWithPipeline(
+  documentId: number,
+  extracted: ExtractedExam,
+  modelUsed: string,
+  pipeline: LlmStep[],
+): Promise<void> {
+  await finalizeDocument(documentId, extracted, modelUsed);
+  // Grava pipeline em coluna adicionada via ALTER TABLE (fora do schema Drizzle)
+  await db.execute(sql`
+    UPDATE exam_documents
+    SET llm_pipeline = ${JSON.stringify(pipeline)}::jsonb
+    WHERE id = ${documentId}
+  `);
+}
+
+/** Processa 1 documento: texto -> IA(s) -> banco -> Drive -> aviso. */
 export async function processExamDocument(job: IngestJobInput): Promise<void> {
   const { documentId, clientId, buffer, fileName } = job;
   try {
     const pdfText = await extractPdfText(buffer);
-    const { data, modelUsed } = await extractExamFromText(pdfText.text);
 
-    await finalizeDocument(documentId, data, modelUsed);
+    // Lê configuração de LLMs ativos (fire todos em paralelo para latência mínima)
+    const [geminiSetting, claudeSetting, openaiSetting] = await Promise.all([
+      getSetting("exames.llmGeminiAtivo"),
+      getSetting("exames.llmClaudeAtivo"),
+      getSetting("exames.llmOpenaiAtivo"),
+    ]);
+    const llmGeminiAtivo = geminiSetting === null ? true : geminiSetting === "true";
+    const llmClaudeAtivo = claudeSetting === null ? false : claudeSetting === "true";
+    const llmOpenaiAtivo = openaiSetting === null ? false : openaiSetting === "true";
+
+    const llmPipeline: LlmStep[] = [];
+    let mergedData: ExtractedExam | null = null;
+    let primaryModel = "gemini-2.5-flash";
+
+    // ── Passo 1: Gemini ──────────────────────────────────────────────────────
+    if (llmGeminiAtivo) {
+      const t0 = Date.now();
+      try {
+        const { data, modelUsed } = await extractExamFromText(pdfText.text);
+        primaryModel = modelUsed;
+        mergedData = data;
+        llmPipeline.push({
+          provider: "gemini",
+          model: modelUsed,
+          ok: true,
+          analitos: data.tests?.length ?? 0,
+          ms: Date.now() - t0,
+        });
+      } catch (err: any) {
+        llmPipeline.push({
+          provider: "gemini",
+          model: "gemini-2.5-flash",
+          ok: false,
+          error: err.message,
+          ms: Date.now() - t0,
+        });
+      }
+    }
+
+    // ── Passo 2: Claude (encadeado se ativo) ─────────────────────────────────
+    if (llmClaudeAtivo) {
+      const claudeResult = await extractExamWithClaude(pdfText.text);
+      if (claudeResult) {
+        if (mergedData) {
+          mergedData = mergeExtractions(mergedData, claudeResult.data);
+        } else {
+          mergedData = claudeResult.data;
+          primaryModel = CLAUDE_MODEL_NAME;
+        }
+        llmPipeline.push({
+          provider: "claude",
+          model: CLAUDE_MODEL_NAME,
+          ok: true,
+          analitos: claudeResult.data.tests?.length ?? 0,
+          ms: claudeResult.ms,
+        });
+      } else {
+        llmPipeline.push({
+          provider: "claude",
+          model: CLAUDE_MODEL_NAME,
+          ok: false,
+          error: "Não disponível (verifique AI_INTEGRATIONS_ANTHROPIC_*)",
+        });
+      }
+    }
+
+    // ── Passo 3: OpenAI (encadeado se ativo) ─────────────────────────────────
+    if (llmOpenaiAtivo) {
+      const openaiResult = await extractExamWithOpenAI(pdfText.text);
+      if (openaiResult) {
+        if (mergedData) {
+          mergedData = mergeExtractions(mergedData, openaiResult.data);
+        } else {
+          mergedData = openaiResult.data;
+          primaryModel = OPENAI_MODEL;
+        }
+        llmPipeline.push({
+          provider: "openai",
+          model: OPENAI_MODEL,
+          ok: true,
+          analitos: openaiResult.data.tests?.length ?? 0,
+          ms: openaiResult.ms,
+        });
+      } else {
+        llmPipeline.push({
+          provider: "openai",
+          model: OPENAI_MODEL,
+          ok: false,
+          error: "Não disponível (verifique AI_INTEGRATIONS_OPENAI_API_KEY)",
+        });
+      }
+    }
+
+    if (!mergedData) {
+      throw new Error("Nenhum LLM ativo conseguiu processar o documento");
+    }
+
+    const data = mergedData;
+    const modelUsed = primaryModel;
+
+    await finalizeDocumentWithPipeline(documentId, data, modelUsed, llmPipeline);
 
     // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
     // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
@@ -2880,10 +3019,111 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
       ORDER BY d.created_at DESC
       LIMIT ${limit}
     `);
-    return res.json({ eventos: rows.rows });
+    // Adiciona colunas de auditoria multi-IA (adicionadas via ALTER TABLE)
+    const rows2 = await db.execute(sql`
+      SELECT id, reprocessamento_count, reprocessado_at, llm_pipeline
+      FROM exam_documents
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `);
+    // Mescla colunas extras por id
+    const extraMap = new Map<number, Record<string, unknown>>();
+    for (const r of (rows2 as unknown as { rows: Record<string, unknown>[] }).rows) {
+      extraMap.set(Number(r.id), r);
+    }
+    const eventos = (rows as unknown as { rows: Record<string, unknown>[] }).rows.map((row) => ({
+      ...row,
+      ...(extraMap.get(Number(row.id)) ?? {}),
+    }));
+    return res.json({ eventos });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/auditoria falhou");
     return res.status(500).json({ error: "Falha ao carregar auditoria" });
+  }
+});
+
+// ─── Reprocessamento individual por ID ────────────────────────────────────────
+// POST /api/exames-lab/reprocessar/:id
+// Reinicia o pipeline de extração de IA para 1 documento específico.
+// Busca o buffer do cofre interno (preferência) ou do Google Drive.
+// Incrementa reprocessamento_count e grava reprocessado_at = NOW().
+router.post("/exames-lab/reprocessar/:id", requireCollaborator, async (req: Request, res: Response) => {
+  const docId = Number(req.params.id);
+  if (!docId || Number.isNaN(docId)) {
+    return res.status(400).json({ error: "ID inválido" });
+  }
+  try {
+    const docs = await db
+      .select()
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, docId))
+      .limit(1);
+    if (!docs.length) return res.status(404).json({ error: "Documento não encontrado" });
+    const doc = docs[0];
+
+    // Tenta obter o arquivo: cofre interno → Drive
+    let buffer: Buffer | null = null;
+    const copy = await getInternalCopy(docId);
+    if (copy) {
+      buffer = copy.buffer;
+    } else if (doc.sourcePdfDriveId) {
+      try {
+        buffer = await driveDownloadFile(doc.sourcePdfDriveId);
+      } catch (driveErr: any) {
+        logger.warn({ driveErr: driveErr.message, docId }, "reprocessar: falha ao baixar do Drive");
+      }
+    }
+
+    if (!buffer) {
+      return res.status(422).json({
+        error: "Arquivo original não encontrado no cofre interno nem no Drive. Reprocessamento impossível.",
+      });
+    }
+
+    // Incrementa contador e muda status para processando (raw SQL — colunas via ALTER TABLE)
+    await db.execute(sql`
+      UPDATE exam_documents
+      SET status = 'processando',
+          reprocessamento_count = COALESCE(reprocessamento_count, 0) + 1,
+          reprocessado_at = NOW()
+      WHERE id = ${docId}
+    `);
+
+    // Fire-and-forget: reprocessa em background
+    void processExamDocument({
+      documentId: docId,
+      clientId: doc.clientId,
+      buffer,
+      fileName: doc.fileName ?? "documento.pdf",
+    }).catch((err: Error) => {
+      logger.error({ err: err.message, docId }, "Falha no reprocessamento manual");
+    });
+
+    return res.json({ ok: true, message: "Reprocessamento iniciado em background" });
+  } catch (e: any) {
+    req.log?.error({ err: e }, "POST /exames-lab/reprocessar/:id falhou");
+    return res.status(500).json({ error: "Erro interno ao iniciar reprocessamento" });
+  }
+});
+
+// ─── Status público de documento (usado pelo portal do cliente) ───────────────
+// GET /api/exames-lab/doc-status/:documentId — sem auth, retorna apenas status
+router.get("/exames-lab/doc-status/:documentId", async (req: Request, res: Response) => {
+  const docId = Number(req.params.documentId);
+  if (!docId || Number.isNaN(docId)) return res.status(400).json({ error: "ID inválido" });
+  try {
+    const rows = await db.execute(sql`
+      SELECT d.id, d.status,
+             (SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = d.id) AS analitos
+      FROM exam_documents d
+      WHERE d.id = ${docId}
+      LIMIT 1
+    `);
+    const row = (rows as unknown as { rows: unknown[] }).rows[0];
+    if (!row) return res.status(404).json({ error: "Não encontrado" });
+    return res.json(row);
+  } catch {
+    return res.status(500).json({ error: "Erro interno" });
   }
 });
 

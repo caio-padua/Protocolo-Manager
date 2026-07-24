@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FlaskConical, ShieldCheck, Lock } from "lucide-react";
+import { FlaskConical, ShieldCheck, Lock, Brain } from "lucide-react";
 import { ConsoleShell, BlockTitle, ExplainRow } from "../comunicacao/_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { usePermissoes } from "@/lib/permissoes";
@@ -11,6 +11,9 @@ interface ExamesConfig {
   triagemAtiva: boolean;
   autoCriarDescoberto: boolean;
   autoAbsorverApelidoAltaConfianca: boolean;
+  llmGeminiAtivo: boolean;
+  llmClaudeAtivo: boolean;
+  llmOpenaiAtivo: boolean;
 }
 
 type ChaveConfig = keyof ExamesConfig;
@@ -217,6 +220,62 @@ export default function ConfigExames() {
         Quando a <strong>triagem automática</strong> está desligada, as duas chaves seguintes não
         têm efeito: tudo vai direto para a fila da Sala de Triagem.
       </ExplainRow>
+
+      {/* MOTOR MULTI-IA */}
+      <section className="panel-3d px-5 py-4">
+        <BlockTitle icon={Brain}>Motor Multi-IA (cadeia de extração)</BlockTitle>
+        <p className="text-[11px] text-[#647c97] mb-3 leading-relaxed">
+          Quando ativados, os provedores são chamados em cadeia <strong>Gemini → Claude → OpenAI</strong>.
+          Os analitos extraídos por cada IA são <strong>somados</strong> (união sem duplicata).
+          O histórico de quais IAs processaram cada documento fica visível na coluna "IAs" do Monitor.
+        </p>
+        {carregando || !cfg ? (
+          <div className="py-4 text-center text-[12px] text-[#647c97]">Carregando…</div>
+        ) : (
+          <div className="space-y-3">
+            {([
+              {
+                chave: "llmGeminiAtivo" as ChaveConfig,
+                titulo: "Gemini (provedor primário)",
+                ligado: "Gemini está ativo e é o primeiro a processar cada documento. Recomendado sempre ligado.",
+                desligado: "Gemini desativado. Apenas os demais provedores marcados serão usados.",
+              },
+              {
+                chave: "llmClaudeAtivo" as ChaveConfig,
+                titulo: "Claude — Anthropic (provedor secundário)",
+                ligado: "Claude processa após o Gemini e seus analitos são adicionados ao resultado final.",
+                desligado: "Claude não participa da cadeia. Exige que AI_INTEGRATIONS_ANTHROPIC_* esteja configurado.",
+              },
+              {
+                chave: "llmOpenaiAtivo" as ChaveConfig,
+                titulo: "OpenAI GPT-4o (provedor terciário)",
+                ligado: "OpenAI processa após Gemini e Claude. Exige AI_INTEGRATIONS_OPENAI_API_KEY configurado.",
+                desligado: "OpenAI não participa da cadeia.",
+              },
+            ] as const).map((it) => {
+              const on = cfg[it.chave];
+              return (
+                <div key={it.chave} className="concave-3d flex items-start gap-4 px-4 py-3">
+                  <div className="pt-0.5">
+                    <Toggle
+                      on={on}
+                      onClick={() => void flip(it.chave)}
+                      disabled={salvando}
+                      label={it.titulo}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-bold text-[#16294a]">{it.titulo}</div>
+                    <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#647c97]">
+                      {on ? it.ligado : it.desligado}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
       </>
       )}
     </ConsoleShell>
