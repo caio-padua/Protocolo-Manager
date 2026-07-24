@@ -14,6 +14,9 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  FileUp,
+  Upload,
+  CheckCircle,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -505,6 +508,10 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   const [erro, setErro] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [mostrarFaixas, setMostrarFaixas] = useState(true);
+  // ── Upload admin de PDF ──────────────────────────────────────────────────
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; txt: string } | null>(null);
   const [zonaAcesa, setZonaAcesa] = useState<string | null>(null);
   const [fixadas, setFixadas] = useState<string[]>([]);
   const [layout, setLayout] = useState<LayoutMode>("lado");
@@ -523,6 +530,30 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       })
       .finally(() => setCarregando(false));
   }, []);
+
+  const handleAdminUpload = useCallback(async () => {
+    if (!uploadFile || uploading) return;
+    setUploading(true);
+    setUploadMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      fd.append("clientId", String(clientId));
+      const r = await fetch(`${BASE}/api/exames-lab/ingest`, { method: "POST", body: fd });
+      const json = await r.json();
+      if (r.ok) {
+        setUploadMsg({ ok: true, txt: json.duplicate ? "Exame já existia (duplicata detectada)." : "Exame recebido! O motor Gemini vai processar em ~60-90 segundos." });
+        setUploadFile(null);
+        setTimeout(() => carregar(clientId), 5000);
+      } else {
+        setUploadMsg({ ok: false, txt: json.error ?? "Erro ao enviar exame." });
+      }
+    } catch {
+      setUploadMsg({ ok: false, txt: "Falha de conexão ao enviar o arquivo." });
+    } finally {
+      setUploading(false);
+    }
+  }, [uploadFile, uploading, clientId, carregar]);
 
   useEffect(() => {
     setSelecionados([]);
@@ -581,8 +612,54 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       </div>
     );
   }
+  // ── Widget de upload admin (reutilizado no estado vazio e no topo do painel) ──
+  const uploadWidget = (
+    <div className="bevel-3d flex flex-col gap-3 rounded-md p-4">
+      <div className="flex items-center gap-2">
+        <FileUp className="h-4 w-4 text-[#45B8CC]" />
+        <span className="text-xs font-bold uppercase tracking-wide text-[#16294a]">Enviar PDF de Exame</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="btn-3d-soft cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-[#16294a]">
+          {uploadFile ? uploadFile.name.slice(0, 40) : "Selecionar PDF…"}
+          <input
+            type="file"
+            accept="application/pdf"
+            className="sr-only"
+            onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadMsg(null); }}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={handleAdminUpload}
+          disabled={!uploadFile || uploading}
+          className="btn-3d rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-40"
+          style={{ background: "#45B8CC" }}
+        >
+          {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="inline h-3 w-3 mr-1" />Enviar</>}
+        </button>
+        {uploadFile && !uploading && (
+          <button type="button" onClick={() => { setUploadFile(null); setUploadMsg(null); }} className="text-xs text-[#647c97] hover:text-red-500">
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {uploadMsg && (
+        <p className={`flex items-center gap-1.5 text-xs ${uploadMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
+          {uploadMsg.ok ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+          {uploadMsg.txt}
+        </p>
+      )}
+    </div>
+  );
+
   if (columnsRaw.length === 0 || analytes.length === 0) {
-    return <p className="py-6 text-sm text-[#647c97]">Nenhum exame para este cliente ainda.</p>;
+    return (
+      <div className="flex flex-col gap-4 py-4">
+        <p className="text-sm text-[#647c97]">Nenhum exame para este cliente ainda.</p>
+        {uploadWidget}
+      </div>
+    );
   }
 
   // --------- Região de gráficos (reusada em todos os layouts) ---------
@@ -842,6 +919,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   // ----------------------------- montagem por layout -----------------------------
   return (
     <div>
+      <div className="mb-4">{uploadWidget}</div>
       {layout === "topo" && selecionados.length > 0 && (
         <section className="panel-3d mb-5 p-4">
           {cabecalhoGraficos}
