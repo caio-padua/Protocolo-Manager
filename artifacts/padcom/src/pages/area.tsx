@@ -1644,34 +1644,52 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 }
 
 // ---------------------------------------------------------------------------
-// PLANILHA COMPARATIVA DE ANALITOS (inline — mesma lógica do Prontuário)
+// PLANILHA COMPARATIVA — usa EXATAMENTE o mesmo payload { columns, analytes }
+// da rota GET /api/exames-lab/evolucao/:clientId que alimenta o EvolucaoExamesPanel
+// interno. Classificação por zone.color (5 faixas oficiais) — PADRÃO ÚNICO.
 // ---------------------------------------------------------------------------
-type AnalitoRow = {
-  id: number;
-  analyteNameRaw: string;
-  valueRaw: string | null;
-  unitRaw: string | null;
-  status: string | null;
-  collectionDate: string | null;
-};
 
-function statusCor(status: string | null): string {
-  if (!status || status === "normal") return "text-emerald-700 bg-emerald-50";
-  if (status === "acima") return "text-red-700 bg-red-50";
-  if (status === "abaixo") return "text-amber-700 bg-amber-50";
-  return "text-gray-700";
+// Tipos espelhando EvolucaoExamesPanel (evita importar o painel admin aqui)
+interface PZone { key: string; name: string; color: string; }
+interface PCell {
+  value: string | null;
+  valueNum: number | null;
+  unit: string | null;
+  status: string | null;
+  documentId: number;
+  zone: PZone | null;
+}
+interface PAnalyte {
+  key: string;
+  name: string;
+  unit: string | null;
+  zones: { key: string; name: string; color: string }[] | null;
+  cells: Record<string, PCell>;
+}
+interface PColumn { key: string; date: string | null; lab: string | null; }
+interface PEvolucaoData { columns: PColumn[]; analytes: PAnalyte[]; }
+
+function fmtDatePlanilha(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : iso;
 }
 
-function fmtDatePlanilha(val: string | null | undefined): string {
-  if (!val) return "—";
-  const d = new Date(val);
-  if (Number.isNaN(d.getTime())) return val;
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+// Legenda dinâmica: recolhe as zonas únicas de todos os analitos carregados
+function legendaZonas(analytes: PAnalyte[]): { name: string; color: string }[] {
+  const seen = new Map<string, string>();
+  for (const a of analytes) {
+    if (!a.zones) continue;
+    for (const z of a.zones) {
+      if (!seen.has(z.name)) seen.set(z.name, z.color);
+    }
+  }
+  return Array.from(seen.entries()).map(([name, color]) => ({ name, color }));
 }
 
 function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
-  const [analitos, setAnalitos] = useState<AnalitoRow[]>([]);
-  const [filtro, setFiltro] = useState("");
+  const [data, setData]         = useState<PEvolucaoData | null>(null);
+  const [filtro, setFiltro]     = useState("");
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -1679,23 +1697,7 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
     setCarregando(true);
     fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!ativo) return;
-        // A rota retorna { rows } ou array direto de exam_results
-        const raw: Record<string, unknown>[] = Array.isArray(json)
-          ? json
-          : (json?.rows ?? json?.analitos ?? []);
-        setAnalitos(
-          raw.map((r) => ({
-            id: Number(r.id),
-            analyteNameRaw: String(r.analyte_name_raw ?? r.analyteNameRaw ?? ""),
-            valueRaw: r.value_raw != null ? String(r.value_raw) : null,
-            unitRaw: r.unit_raw != null ? String(r.unit_raw) : null,
-            status: r.status != null ? String(r.status) : null,
-            collectionDate: r.collection_date != null ? String(r.collection_date) : null,
-          })),
-        );
-      })
+      .then((json: PEvolucaoData | null) => { if (ativo) setData(json); })
       .catch(() => {})
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
@@ -1709,7 +1711,7 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
       </div>
     );
   }
-  if (analitos.length === 0) {
+  if (!data || data.analytes.length === 0) {
     return (
       <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
         Nenhum analito disponível ainda. Envie um exame para que o motor faça a extração.
@@ -1717,27 +1719,22 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
     );
   }
 
-  const datasSet = new Set(analitos.map((a) => a.collectionDate ?? "sem-data"));
-  const datas = Array.from(datasSet).sort();
-  const nomesSet = new Set(analitos.map((a) => a.analyteNameRaw));
-  const nomesOrdenados = Array.from(nomesSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const nomesFiltrados = filtro.trim()
-    ? nomesOrdenados.filter((n) => n.toLowerCase().includes(filtro.toLowerCase()))
-    : nomesOrdenados;
-  const idx = new Map<string, Map<string, AnalitoRow>>();
-  for (const a of analitos) {
-    const data = a.collectionDate ?? "sem-data";
-    if (!idx.has(a.analyteNameRaw)) idx.set(a.analyteNameRaw, new Map());
-    idx.get(a.analyteNameRaw)!.set(data, a);
-  }
+  const { columns, analytes } = data;
+
+  const analitosFiltrados = filtro.trim()
+    ? analytes.filter((a) => a.name.toLowerCase().includes(filtro.toLowerCase()))
+    : analytes;
+
+  const legenda = legendaZonas(analytes);
 
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
+      {/* Cabeçalho */}
       <div className="login-card-topbar px-5 py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FlaskConical className="w-4 h-4 text-accent" />
           <span className="text-primary font-black text-xs uppercase tracking-widest">
-            Planilha Comparativa — {nomesFiltrados.length} analito{nomesFiltrados.length !== 1 ? "s" : ""}
+            Planilha Comparativa — {analitosFiltrados.length} analito{analitosFiltrados.length !== 1 ? "s" : ""}
           </span>
         </div>
         <input
@@ -1748,6 +1745,8 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
           className="concave-3d text-xs px-3 py-1 w-44 focus:outline-none rounded-lg"
         />
       </div>
+
+      {/* Tabela-pivô */}
       <div className="overflow-x-auto">
         <table className="min-w-full text-xs border-collapse">
           <thead>
@@ -1755,45 +1754,85 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
               <th className="text-left px-3 py-2 font-black uppercase tracking-wider sticky left-0 bg-primary/90 z-10 min-w-[180px]">
                 Analito
               </th>
-              {datas.map((d) => (
-                <th key={d} className="text-center px-3 py-2 font-black whitespace-nowrap min-w-[80px]">
-                  {d === "sem-data" ? "S/Data" : fmtDatePlanilha(d)}
+              {columns.map((col) => (
+                <th key={col.key} className="text-center px-3 py-2 font-black whitespace-nowrap min-w-[80px]">
+                  {fmtDatePlanilha(col.date)}
+                  {col.lab && (
+                    <div className="text-[9px] font-normal opacity-75 truncate max-w-[76px]">{col.lab}</div>
+                  )}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {nomesFiltrados.map((nome, i) => {
-              const mapa = idx.get(nome);
-              const unit = analitos.find((a) => a.analyteNameRaw === nome)?.unitRaw;
-              return (
-                <tr key={nome} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-3 py-1.5 font-semibold text-primary sticky left-0 z-10 bg-inherit border-r border-border/30">
-                    <div className="truncate max-w-[180px]" title={nome}>{nome}</div>
-                    {unit && <div className="text-[10px] text-muted-foreground">{unit}</div>}
-                  </td>
-                  {datas.map((d) => {
-                    const a = mapa?.get(d);
-                    if (!a) return <td key={d} className="px-3 py-1.5 text-center text-muted-foreground">—</td>;
+            {analitosFiltrados.map((analyte, i) => (
+              <tr key={analyte.key} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                {/* Coluna do nome — fixa à esquerda */}
+                <td className="px-3 py-1.5 font-semibold text-primary sticky left-0 z-10 bg-inherit border-r border-border/30">
+                  <div className="truncate max-w-[176px]" title={analyte.name}>{analyte.name}</div>
+                  {analyte.unit && (
+                    <div className="text-[10px] text-muted-foreground">{analyte.unit}</div>
+                  )}
+                </td>
+                {/* Uma célula por coluna de data — coloring via zone.color (5 faixas) */}
+                {columns.map((col) => {
+                  const cell: PCell | undefined = analyte.cells[col.key];
+                  if (!cell || cell.value == null) {
                     return (
-                      <td key={d} className="px-3 py-1.5 text-center">
-                        <span className={`inline-block px-1.5 py-0.5 rounded font-semibold ${statusCor(a.status)}`}>
-                          {a.valueRaw ?? "—"}
-                        </span>
+                      <td key={col.key} className="px-3 py-1.5 text-center text-muted-foreground text-[11px]">
+                        —
                       </td>
                     );
-                  })}
-                </tr>
-              );
-            })}
+                  }
+                  const cor = cell.zone?.color ?? null;
+                  const faixaNome = cell.zone?.name ?? null;
+                  return (
+                    <td key={col.key} className="px-2 py-1.5 text-center">
+                      {/* Célula com borda esquerda colorida na cor da faixa (padrão idêntico ao EvolucaoExamesPanel) */}
+                      <span
+                        className="inline-block px-2 py-0.5 rounded text-[11px] font-bold text-primary"
+                        style={
+                          cor
+                            ? {
+                                borderLeft: `3px solid ${cor}`,
+                                background: `${cor}18`,
+                              }
+                            : { borderLeft: "3px solid #c8d3e0", background: "#f4f6fa" }
+                        }
+                        title={faixaNome ?? undefined}
+                      >
+                        {cell.value}
+                        {cell.unit && ` ${cell.unit}`}
+                      </span>
+                      {faixaNome && (
+                        <div className="text-[9px] text-muted-foreground mt-0.5 uppercase tracking-wide">
+                          {faixaNome}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-      <div className="flex gap-4 px-4 py-2 text-[10px] text-muted-foreground border-t border-border/30">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 inline-block border border-emerald-300" /> Normal</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block border border-red-300" /> Acima</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 inline-block border border-amber-300" /> Abaixo</span>
-      </div>
+
+      {/* Legenda dinâmica — cores reais das 5 faixas configuradas */}
+      {legenda.length > 0 && (
+        <div className="flex flex-wrap gap-3 px-4 py-2 text-[10px] text-muted-foreground border-t border-border/30">
+          <span className="font-black uppercase tracking-wider text-primary/60 self-center">FAIXAS:</span>
+          {legenda.map((z) => (
+            <span key={z.name} className="flex items-center gap-1">
+              <span
+                className="w-3 h-3 rounded inline-block border"
+                style={{ background: `${z.color}30`, borderColor: z.color }}
+              />
+              {z.name}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
