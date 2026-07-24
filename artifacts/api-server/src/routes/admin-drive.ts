@@ -302,21 +302,31 @@ router.post("/admin/ingest-client-exam/:clientId", async (req: Request, res: Res
     const rootFolderId = (client as any).driveFolderId ?? (client as any).drive_folder_id;
     if (!rootFolderId) { res.status(400).json({ error: "Cliente sem pasta Drive configurada" }); return; }
 
-    // Listar subpastas para achar EXAMES
+    // Listar TODAS as subpastas da raiz e coletar PDFs em todas elas
     const rootChildren = await driveListChildren(rootFolderId);
-    const examesFolder = rootChildren.find(
-      c => c.mimeType === "application/vnd.google-apps.folder" &&
-           c.name.toUpperCase().includes("EXAME")
-    );
-    if (!examesFolder) { res.status(404).json({ error: "Pasta EXAMES não encontrada no Drive do cliente" }); return; }
+    const subFolders = rootChildren.filter(c => c.mimeType === "application/vnd.google-apps.folder");
 
-    // Listar PDFs dentro de EXAMES
-    const examesChildren = await driveListChildren(examesFolder.id);
-    const pdfs = examesChildren.filter(c => c.mimeType === "application/pdf");
-    if (pdfs.length === 0) { res.json({ message: "Nenhum PDF encontrado na pasta EXAMES", examesFolderId: examesFolder.id }); return; }
+    // Também checar PDFs diretamente na raiz
+    const rootPdfs = rootChildren.filter(c => c.mimeType === "application/pdf");
+
+    const allPdfs: Array<{ id: string; name: string; folder: string }> = rootPdfs.map(f => ({ ...f, folder: "RAIZ" }));
+
+    // Vasculhar todas as subpastas em paralelo
+    await Promise.all(subFolders.map(async (folder) => {
+      try {
+        const children = await driveListChildren(folder.id);
+        const pdfsHere = children.filter(c => c.mimeType === "application/pdf");
+        pdfsHere.forEach(f => allPdfs.push({ id: f.id, name: f.name, folder: folder.name }));
+      } catch (_) { /* ignora pastas inacessíveis */ }
+    }));
+
+    if (allPdfs.length === 0) {
+      res.json({ message: "Nenhum PDF encontrado em nenhuma subpasta do cliente", rootFolderId });
+      return;
+    }
 
     const results: any[] = [];
-    for (const pdf of pdfs) {
+    for (const pdf of allPdfs) {
       try {
         const buffer = await driveDownloadFile(pdf.id);
         const ingestion = await startExamIngestion({
@@ -326,14 +336,14 @@ router.post("/admin/ingest-client-exam/:clientId", async (req: Request, res: Res
           sourcePdfDriveId: pdf.id,
           notify: false,
         });
-        results.push({ file: pdf.name, driveId: pdf.id, ...ingestion });
+        results.push({ file: pdf.name, folder: pdf.folder, driveId: pdf.id, ...ingestion });
       } catch (e: any) {
-        results.push({ file: pdf.name, driveId: pdf.id, error: e.message });
+        results.push({ file: pdf.name, folder: pdf.folder, driveId: pdf.id, error: (e as Error).message });
       }
     }
 
-    logger.info({ clientId, count: pdfs.length }, "[AdminIngest] ingestão via Drive concluída");
-    res.json({ clientId, examesFolderId: examesFolder.id, results });
+    logger.info({ clientId, count: allPdfs.length }, "[AdminIngest] ingestão ampla via Drive concluída");
+    res.json({ clientId, rootFolderId, totalPdfs: allPdfs.length, results });
   } catch (err: any) {
     logger.error({ err: err.message }, "[AdminIngest] erro");
     res.status(500).json({ error: err.message });
