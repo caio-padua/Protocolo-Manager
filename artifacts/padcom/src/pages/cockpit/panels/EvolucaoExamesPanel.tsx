@@ -403,6 +403,41 @@ function CartaoGrafico({
     return { min: min - folga, max: max + folga };
   }, [data, zones]);
 
+  // Estatísticas do período (pedido do CEO 24/07/2026 — igual ao mockup):
+  // Mínimo, Máximo, Média, Variação % e Última Coleta.
+  const stats = useMemo(() => {
+    if (!data.length) return null;
+    let min = data[0];
+    let max = data[0];
+    let soma = 0;
+    for (const d of data) {
+      if (d.valor < min.valor) min = d;
+      if (d.valor > max.valor) max = d;
+      soma += d.valor;
+    }
+    const primeiro = data[0];
+    const ultimoP = data[data.length - 1];
+    const variacao =
+      primeiro.valor !== 0 ? ((ultimoP.valor - primeiro.valor) / Math.abs(primeiro.valor)) * 100 : null;
+    const media = soma / data.length;
+    const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
+    return {
+      min,
+      max,
+      media: fmt(media),
+      variacao: variacao == null ? null : `${variacao >= 0 ? "+" : "−"}${Math.abs(variacao).toFixed(0)}%`,
+      variacaoPositiva: variacao != null && variacao >= 0,
+      desde: primeiro.data,
+      ultimaColeta: ultimoP.data,
+      fmt,
+    };
+  }, [data]);
+
+  // Rolagem interna: cada ponto ganha no MÍNIMO 64 pixels de largura — as
+  // datas nunca se espremem; se não couber, rola da esquerda para a direita.
+  const LARGURA_POR_PONTO = 64;
+  const larguraMinimaGrafico = Math.max(data.length * LARGURA_POR_PONTO, 320);
+
   return (
     <section className="panel-3d p-3">
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -426,15 +461,35 @@ function CartaoGrafico({
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRemover}
-          title="Tirar este gráfico"
-          className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
-          style={{ background: "rgba(22,41,74,0.06)" }}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-start gap-2">
+          {/* Situação atual em selo + valor grande (igual ao mockup) */}
+          {ultimo && (
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: corUltimo }} />
+                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: corUltimo }}>
+                  {rotuloUltimo}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-[20px] font-black leading-tight" style={{ color: GOLD }}>
+                  {ultimo.valor}
+                </span>
+                {analyte.unit && <span className="text-[10px] font-semibold text-[#647c97]">{analyte.unit}</span>}
+              </div>
+              <span className="text-[8px] font-semibold uppercase tracking-wide text-[#8a97a9]">Valor atual</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onRemover}
+            title="Tirar este gráfico"
+            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
+            style={{ background: "rgba(22,41,74,0.06)" }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {data.length === 0 ? (
@@ -442,8 +497,10 @@ function CartaoGrafico({
           Sem valores numéricos para desenhar o gráfico deste exame.
         </div>
       ) : (
-        <div className="screen-3d p-2">
-          <div style={{ width: "100%", height: 220 }}>
+        <div className="screen-tv-3d p-2">
+          {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,41,74,0.10)" />
@@ -493,6 +550,39 @@ function CartaoGrafico({
                 />
               </LineChart>
             </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ESTATÍSTICAS do período (igual ao mockup validado pelo CEO):
+          Mínimo, Máximo, Média, Variação e Última Coleta em mini-telas. */}
+      {stats && (
+        <div className="mt-2 grid grid-cols-5 gap-1.5">
+          <div className="screen-3d flex flex-col items-center px-1 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Mínimo</span>
+            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.min.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.min.data}</span>
+          </div>
+          <div className="screen-3d flex flex-col items-center px-1 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Máximo</span>
+            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.max.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.max.data}</span>
+          </div>
+          <div className="screen-3d flex flex-col items-center px-1 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Média</span>
+            <span className="text-[12px] font-black leading-tight" style={{ color: GOLD }}>{stats.media}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">período todo</span>
+          </div>
+          <div className="screen-3d flex flex-col items-center px-1 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Variação</span>
+            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.variacao ?? "—"}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">desde {stats.desde}</span>
+          </div>
+          <div className="screen-3d flex flex-col items-center px-1 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Última coleta</span>
+            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.ultimaColeta}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{data.length} coletas</span>
           </div>
         </div>
       )}
