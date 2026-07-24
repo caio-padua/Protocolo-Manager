@@ -1631,3 +1631,59 @@ export async function ensureEmpresaFolder(
   const folderName = cnpj ? `${cleanName} ${cnpj}` : cleanName;
   return findOrCreateFolder(drive, folderName, rootFolderId);
 }
+
+// Cria/localiza "CLIENTES (NOME DA EMPRESA)" dentro da pasta da empresa.
+// Nomenclatura: "CLIENTES (NOME FANTASIA)" — ex.: "CLIENTES (INSTITUTO PADUA)"
+// Idempotente: pode ser chamado quantas vezes quiser.
+export async function ensureEmpresaClientesFolder(
+  nomeFantasia: string,
+  empresaFolderId: string,
+): Promise<string> {
+  const drive = await getUncachableDriveClient();
+  const cleanName = nomeFantasia.toUpperCase().replace(/-/g, " ").trim();
+  const folderName = `CLIENTES (${cleanName})`;
+  return findOrCreateFolder(drive, folderName, empresaFolderId);
+}
+
+// Lista todos os itens (pastas + arquivos) dentro de uma pasta do Drive.
+export async function listDriveFolder(
+  folderId: string,
+): Promise<Array<{ id: string; name: string; mimeType: string }>> {
+  const drive = await getUncachableDriveClient();
+  const q = `'${folderId}' in parents and trashed=false`;
+  const res = await drive.files.list({
+    q,
+    fields: "files(id, name, mimeType)",
+    spaces: "drive",
+    pageSize: 1000,
+  });
+  return res.data.files || [];
+}
+
+// Move todos os itens de uma pasta para outra.
+// Útil para migrar conteúdo do CLIENTES global para o CLIENTES por empresa.
+export async function moveAllItemsToFolder(
+  sourceParentId: string,
+  destinationFolderId: string,
+): Promise<{ moved: Array<{ id: string; name: string }>; errors: string[] }> {
+  const drive = await getUncachableDriveClient();
+  const items = await listDriveFolder(sourceParentId);
+  const moved: Array<{ id: string; name: string }> = [];
+  const errors: string[] = [];
+
+  for (const item of items) {
+    try {
+      await drive.files.update({
+        fileId: item.id,
+        addParents: destinationFolderId,
+        removeParents: sourceParentId,
+        fields: "id, parents",
+      });
+      moved.push({ id: item.id, name: item.name });
+    } catch (err: any) {
+      errors.push(`${item.name}: ${err.message}`);
+    }
+  }
+
+  return { moved, errors };
+}

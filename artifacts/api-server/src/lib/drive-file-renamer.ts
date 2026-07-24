@@ -218,6 +218,55 @@ function formatDateReverse(dateStr: string): string {
   return `${yy}.${mm}.${dd}`;
 }
 
+// Extrai a data do EXAME a partir do texto do PDF (DD/MM/YYYY ou DD-MM-YYYY).
+// Prioriza palavras-contexto clínicas ("coleta", "data do exame", "realizado",
+// "emissao", "data"). Cai no fallback (primeira data encontrada) se não achar.
+// Retorna YY.MM.DD ou string vazia.
+function extractExamDateFromText(text: string): string {
+  if (!text) return "";
+
+  // Padrões com contexto (ordem de prioridade)
+  const contextPatterns: RegExp[] = [
+    /data\s+da\s+coleta\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /data\s+do\s+exame\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /data\s+de\s+coleta\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /realizado\s+em\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /data\s+de\s+emiss[aã]o\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /emiss[aã]o\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /data\s+de\s+realiza[cç][aã]o\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /coleta\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+    /data\s*:?\s*(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/i,
+  ];
+
+  for (const pattern of contextPatterns) {
+    const m = text.match(pattern);
+    if (m) {
+      const dd = m[1].padStart(2, "0");
+      const mm = m[2].padStart(2, "0");
+      const yyyy = m[3];
+      const d = new Date(`${yyyy}-${mm}-${dd}`);
+      if (!isNaN(d.getTime())) {
+        const yy = yyyy.slice(-2);
+        return `${yy}.${mm}.${dd}`;
+      }
+    }
+  }
+
+  // Fallback: primeira data no formato DD/MM/YYYY encontrada no texto
+  const fallback = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+  if (fallback) {
+    const dd = fallback[1].padStart(2, "0");
+    const mm = fallback[2].padStart(2, "0");
+    const yyyy = fallback[3];
+    const d = new Date(`${yyyy}-${mm}-${dd}`);
+    if (!isNaN(d.getTime())) {
+      return `${yyyy.slice(-2)}.${mm}.${dd}`;
+    }
+  }
+
+  return "";
+}
+
 const TMP_DIR = "/tmp/pdf-ocr";
 
 let _ocrWorker: any = null;
@@ -446,8 +495,6 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
         for (const file of (files.data.files || [])) {
           try {
             const fileName = file.name || "";
-            const fileDate = file.createdTime || file.modifiedTime || "";
-            const datePrefix = formatDateReverse(fileDate);
             const knownExts = /\.(pdf|jpg|jpeg|png|gif|bmp|tiff|tif|webp|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|odt|ods|heic|mp4|mov)$/i;
             const extMatch = fileName.match(knownExts);
             const ext = extMatch ? extMatch[0].toLowerCase() : "";
@@ -456,10 +503,17 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
             let newName = "";
 
             if (subName === "EXAMES") {
+              // Para EXAMES: extrai o texto do PDF e tenta obter a data do próprio exame.
+              // Só usa createdTime como último recurso (CEO: data = data do exame, não de upload).
               let textContent = "";
               if (file.mimeType === "application/pdf") {
                 textContent = await extractPdfText(drive, file.id!);
               }
+              // Tenta extrair data do texto; cai no createdTime se não encontrar
+              const examDateFromText = extractExamDateFromText(textContent);
+              const fallbackDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = examDateFromText || formatDateReverse(fallbackDate);
+
               const classification = classifyExamFromText(textContent, fileName);
               const examLabel = classification.bodyPart && !classification.type.includes(classification.bodyPart)
                 ? `${classification.type} ${classification.bodyPart}`
@@ -468,6 +522,8 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
                 ? `${datePrefix} ${examLabel} ${cleanClientName}${ext}`
                 : `${examLabel} ${cleanClientName}${ext}`;
             } else if (subName === "PROTOCOLOS") {
+              const fileDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = formatDateReverse(fileDate);
               let textContent = "";
               if (file.mimeType === "application/pdf") {
                 textContent = await extractPdfText(drive, file.id!);
@@ -477,18 +533,26 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
                 ? `${datePrefix} ${protoLabel} ${cleanClientName}${ext}`
                 : `${protoLabel} ${cleanClientName}${ext}`;
             } else if (subName === "RECEITAS") {
+              const fileDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = formatDateReverse(fileDate);
               newName = datePrefix
                 ? `${datePrefix} RECEITA ${cleanClientName}${ext}`
                 : `RECEITA ${cleanClientName}${ext}`;
             } else if (subName === "ATESTADOS") {
+              const fileDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = formatDateReverse(fileDate);
               newName = datePrefix
                 ? `${datePrefix} ATESTADO ${cleanClientName}${ext}`
                 : `ATESTADO ${cleanClientName}${ext}`;
             } else if (subName === "LAUDOS") {
+              const fileDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = formatDateReverse(fileDate);
               newName = datePrefix
                 ? `${datePrefix} LAUDO ${cleanClientName}${ext}`
                 : `LAUDO ${cleanClientName}${ext}`;
             } else if (subName === "CONTRATOS") {
+              const fileDate = file.createdTime || file.modifiedTime || "";
+              const datePrefix = formatDateReverse(fileDate);
               newName = datePrefix
                 ? `${datePrefix} CONTRATO ${cleanClientName}${ext}`
                 : `CONTRATO ${cleanClientName}${ext}`;
