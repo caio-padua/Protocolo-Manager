@@ -73,6 +73,7 @@ import cadernosJuridicosRouter from "./cadernos-juridicos";
 import receituarioRouter from "./receituario";
 import receituarioModelosRouter from "./receituario-modelos";
 import adminPreviewRouter from "./admin-preview";
+import adminDriveRouter from "./admin-drive";
 import padteamRouter from "./padteam";
 import agentesRouter from "./agentes";
 import agentesChatRouter from "./agentes-chat";
@@ -113,6 +114,9 @@ router.use(whatsappInboundRouter);
 // Webhooks do Trello (HEAD+POST de validação e eventos de cards).
 // Devem vir ANTES do portão — Trello não envia token de colaborador.
 router.use(agentesTrelloRouter);
+
+// Admin Drive: rota interna de admin, sem sessão de colaborador.
+router.use(adminDriveRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas

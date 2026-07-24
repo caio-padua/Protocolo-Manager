@@ -1617,3 +1617,17 @@ export async function migrateExistingCadastros(): Promise<{
   console.log(`[Drive] Migracao concluida: ${migrated} migrados, ${alreadyNew} ja no layout novo, ${noData} sem dados, ${skipped} ignorados, ${errors.length} erros`);
   return { migrated, skipped, alreadyNew, noData, errors, details };
 }
+
+// ── EMPRESAS: pasta raiz por empresa no Drive ─────────────────────────────────
+// Pasta-pai configurada pelo CEO: 12QD1LsvJuPK3jC6-lqXSbPeiry9ocUob
+// Nomenclatura: "[NOME FANTASIA MAIÚSCULO SEM TRAÇO] [CNPJ XX.XXX.XXX/XXXX-XX]"
+export async function ensureEmpresaFolder(
+  nomeFantasia: string,
+  cnpj: string | null,
+  rootFolderId: string,
+): Promise<string> {
+  const drive = await getUncachableDriveClient();
+  const cleanName = nomeFantasia.toUpperCase().replace(/-/g, " ").trim();
+  const folderName = cnpj ? `${cleanName} ${cnpj}` : cleanName;
+  return findOrCreateFolder(drive, folderName, rootFolderId);
+}
