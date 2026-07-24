@@ -2685,4 +2685,44 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
   }
 });
 
+// ---- GET /exames-lab/monitor — status global do motor ----
+router.get("/exames-lab/monitor", async (req: Request, res: Response) => {
+  try {
+    const stats = await db.execute(sql`
+      SELECT status, COUNT(*)::int AS total
+      FROM exam_documents
+      GROUP BY status
+      ORDER BY status
+    `);
+    const pendentes = await db.execute(sql`
+      SELECT d.id, d.client_id, d.status, d.file_name, d.created_at, d.source_pdf_drive_id,
+             c.name AS client_name
+      FROM exam_documents d
+      LEFT JOIN clients c ON d.client_id = c.id
+      WHERE d.status IN ('erro', 'processando')
+      ORDER BY d.created_at DESC
+      LIMIT 60
+    `);
+    return res.json({ stats: stats.rows, pendentes: pendentes.rows });
+  } catch (e) {
+    req.log.error({ err: e }, "GET /exames-lab/monitor falhou");
+    return res.status(500).json({ error: "Falha ao carregar monitor" });
+  }
+});
+
+// ---- POST /exames-lab/recovery — acionar recovery manual ----
+router.post("/exames-lab/recovery", async (req: Request, res: Response) => {
+  try {
+    setImmediate(() => {
+      recoverStuckDocuments().catch((e) =>
+        logger.error({ err: e }, "recovery manual falhou")
+      );
+    });
+    return res.json({ ok: true, message: "Recovery iniciado em background" });
+  } catch (e) {
+    req.log.error({ err: e }, "POST /exames-lab/recovery falhou");
+    return res.status(500).json({ error: "Falha ao iniciar recovery" });
+  }
+});
+
 export default router;

@@ -36,6 +36,8 @@ const CockpitCliente = CockpitShell; // alias para rotas legadas
 import CockpitAnamnese from "@/pages/cockpit-anamnese";
 import Cartorio from "@/pages/cartorio";
 import Exames from "@/pages/exames";
+import ExamesHub from "@/pages/exames-hub";
+import ExamesMonitor from "@/pages/exames/monitor";
 import CadastroExames from "@/pages/cadastros/exames";
 import CadastroConfigExames from "@/pages/cadastros/config-exames";
 import CadastroConsoleExames from "@/pages/cadastros/console-exames";
@@ -223,6 +225,8 @@ function Router() {
             <Route path="/modelo-receituario" component={ModeloReceituario} />
             <Route path="/portfolio-clinico" component={PortfolioClinico} />
             <Route path="/consulta"><Redirect to="/cockpit" /></Route>
+            <Route path="/exames-hub" component={ExamesHub} />
+            <Route path="/exames/monitor" component={ExamesMonitor} />
             <Route path="/exames" component={() => <Exames />} />
             <Route path="/exames-cliente" component={ExamesCliente} />
             <Route path="/procedencia-exames" component={ProcedenciaExames} />

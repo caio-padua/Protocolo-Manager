@@ -59,6 +59,8 @@ import {
   Bot,
   Radar,
   MapPin,
+  Activity,
+  Microscope,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -97,9 +99,22 @@ const navigation: NavEntry[] = [
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
       { name: "Mega Anamnese", href: "/mega-anamnese", icon: Brain },
       { name: "Revisão de Anamneses", href: "/anamnese/revisao", icon: ClipboardListIcon },
-      { name: "Exames do Cliente", href: "/exames-cliente", icon: FlaskConical },
+    ],
+  },
+  {
+    name: "Exames",
+    icon: Microscope,
+    children: [
+      { name: "Hub de Exames", href: "/exames-hub", icon: Microscope },
+      { name: "Exames do Cliente", href: "/exames-cliente", icon: TestTube },
       { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
-      { name: "Importação do Drive (ao vivo)", href: "/importar-drive", icon: DownloadCloud },
+      { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
+      { name: "Importação do Drive", href: "/importar-drive", icon: DownloadCloud },
+      { name: "Vigilância Drive", href: "/arsenal/drive-watcher", icon: Radar },
+      { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
+      { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
+      { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
+      { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
     ],
   },
   {
@@ -114,7 +129,6 @@ const navigation: NavEntry[] = [
     name: "Órgãos de Prescrição",
     icon: ClipboardList,
     children: [
-      { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
       { name: "Prescrição", href: "/prescricao", icon: ClipboardList },
       { name: "Fórmulas & Substâncias", href: "/substances", icon: Beaker },
       { name: "Dieta", href: "/dieta", icon: Salad },
@@ -132,7 +146,6 @@ const navigation: NavEntry[] = [
       { name: "Encaminhamentos", href: "/arsenal/encaminhamentos", icon: Send },
       { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
       { name: "Receituário Automático", href: "/receituario-automatico", icon: Calendar },
-      { name: "Vigilância Drive", href: "/arsenal/drive-watcher", icon: Radar },
     ],
   },
   {
@@ -184,9 +197,6 @@ const navigation: NavEntry[] = [
       { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
-      { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
-      { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
-      { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },

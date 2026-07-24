@@ -151,3 +151,4 @@
 - [Motor Receituário V2 ANVISA 4-boxes](receituario-motor-v2-anvisa.md) — generateReceituarioPdfV2 valido; rota POST /api/receituario/emitir-prescricao; medico=id 6, clinica=id 8 auto-carregados; emailSent+driveUrl confirmados em prod.
 - [Drive watcher — cópia vai para pasta pessoal do paciente](drive-watcher-copia-pasta-paciente.md) — ensureClientFolderStructure DEVE rodar antes de driveCopyFileInFolder; destino primário=EXAMES do paciente (fallback=pasta vigiada); registros antigos têm copiedName=None (processados antes do fix).
 - [drive_watcher_files — PK é file_id (sem coluna id)](drive-watcher-files-pk.md) — tabela usa file_id TEXT como PK; SELECT id falha; UPDATE usa WHERE file_id; ensureClientFolderStructure exige (name, cpf) não clientId — assinatura errada silenciou o clone desde o início.
+- [Menu EXAMES unificado (Hub + Monitor)](menu-exames-unificado.md) — 10 módulos num grupo só; hub=/exames-hub; monitor=/exames/monitor; bearer via getCollabToken().
