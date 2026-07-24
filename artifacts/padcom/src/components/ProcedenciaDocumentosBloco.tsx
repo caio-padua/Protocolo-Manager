@@ -138,69 +138,57 @@ const TODOS_CANAIS: Array<{ key: string; label: string; Icon: typeof Globe }> = 
   { key: "demo",          label: "Demonstração",        Icon: Bot       },
 ];
 
+// ClassificationPanel — padrão Paxter
+// Todos os canais visíveis com mesmo peso visual. Ativo = bevel-3d saliente (skeuomórfico).
+// Inativo = linha plana, texto NAVY cheio (sem dimming, sem opacidade reduzida).
 function ClassificationPanel({ activeOrigin }: { activeOrigin: string | null }) {
   const key = activeOrigin ?? "";
   return (
     <div
-      className="bevel-3d flex-shrink-0 overflow-hidden"
-      style={{ minWidth: 150, maxWidth: 164 }}
+      className="concave-3d flex-shrink-0 overflow-hidden"
+      style={{ minWidth: 158, maxWidth: 172 }}
     >
-      {/* Faixa-título compacta */}
+      {/* Rótulo da seção */}
       <div
-        className="px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.24em]"
-        style={{
-          color: GOLD,
-          borderBottom: "1px solid rgba(154,123,50,0.2)",
-          background: "rgba(154,123,50,0.04)",
-        }}
+        className="px-2.5 py-[5px] text-[7px] font-black uppercase tracking-[0.22em]"
+        style={{ color: GOLD, borderBottom: "1px solid rgba(154,123,50,0.2)" }}
       >
         Origem do arquivo
       </div>
 
-      {/* Canais — altura fixa por linha */}
-      {TODOS_CANAIS.map(({ key: k, label, Icon }, i) => {
-        const active = key === k;
-        const cfg = CALHA_CFG[k];
-        const isLast = i === TODOS_CANAIS.length - 1;
-        return (
-          <div
-            key={k}
-            className="flex items-center gap-2 px-2.5"
-            style={{
-              height: 26,
-              background: active ? "rgba(22,40,74,0.09)" : "transparent",
-              borderBottom: isLast ? "none" : "1px solid rgba(209,195,165,0.15)",
-            }}
-          >
-            {active ? (
-              <span className={`${cfg?.led ?? "paxter-led paxter-led-breathe paxter-led-amber"} flex-shrink-0`} />
-            ) : (
-              <span
-                className="h-[5px] w-[5px] rounded-full flex-shrink-0"
-                style={{ background: "rgba(100,124,151,0.2)" }}
-              />
-            )}
-            <Icon
-              className="h-[9px] w-[9px] flex-shrink-0"
-              style={{ color: active ? NAVY : "rgba(100,124,151,0.38)" }}
-            />
-            <span
-              className="truncate flex-1 text-[8px]"
-              style={{ color: active ? NAVY : "rgba(100,124,151,0.5)", fontWeight: active ? 800 : 400 }}
+      {/* Canais — ativo = bevel-3d saliente; inativo = linha plana, texto cheio */}
+      <div className="p-1 space-y-[3px]">
+        {TODOS_CANAIS.map(({ key: k, label, Icon }) => {
+          const active = key === k;
+          const cfg = CALHA_CFG[k];
+          return active ? (
+            <div
+              key={k}
+              className="bevel-3d flex items-center gap-1.5 px-2 py-[5px]"
             >
-              {label}
-            </span>
-            {active && (
-              <span
-                className="flex-shrink-0 rounded-[2px] px-1 py-[1px] text-[6px] font-black uppercase tracking-widest"
-                style={{ background: "rgba(21,128,61,0.13)", color: "#15803d" }}
-              >
-                ativo
+              <span className={`${cfg?.led ?? "paxter-led paxter-led-breathe paxter-led-amber"} flex-shrink-0`} />
+              <Icon className="h-[9px] w-[9px] flex-shrink-0" style={{ color: NAVY }} />
+              <span className="truncate flex-1 text-[8.5px] font-black" style={{ color: NAVY }}>
+                {label}
               </span>
-            )}
-          </div>
-        );
-      })}
+            </div>
+          ) : (
+            <div
+              key={k}
+              className="flex items-center gap-1.5 px-2 py-[4px]"
+            >
+              <span
+                className="h-[4px] w-[4px] rounded-full flex-shrink-0"
+                style={{ background: "rgba(22,40,74,0.18)" }}
+              />
+              <Icon className="h-[9px] w-[9px] flex-shrink-0" style={{ color: NAVY }} />
+              <span className="truncate flex-1 text-[8.5px] font-medium" style={{ color: NAVY }}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -282,6 +270,40 @@ function driveLink(id: string | null): string | null {
   return id ? `https://drive.google.com/file/d/${id}/view` : null;
 }
 
+// ── Extração inteligente de nome de laboratório a partir do nome do arquivo ────
+// Usado como fallback quando a IA não detectou o laboratório no conteúdo do PDF.
+// Tenta reconhecer marcas conhecidas de laboratórios brasileiros no nome do arquivo.
+const LAB_PATTERNS: Array<[RegExp, string]> = [
+  [/fleury/i,            "Fleury"],
+  [/delboni/i,           "Delboni Auriemo"],
+  [/sabin/i,             "Sabin Diagnósticos"],
+  [/hermes\s*pardini/i,  "Hermes Pardini"],
+  [/lavoisier/i,         "Lavoisier"],
+  [/einstein/i,          "Einstein"],
+  [/dasa/i,              "DASA"],
+  [/diagnos/i,           "Diagnósticos da América"],
+  [/labmax/i,            "Labmax"],
+  [/amil/i,              "Amil"],
+  [/laboratoriomm/i,     "Laboratório MM"],
+  [/synlab/i,            "Synlab"],
+  [/cerpe/i,             "CERPE"],
+  [/lema/i,              "LEMA"],
+  [/blumenau/i,          "Laboratório Blumenau"],
+  [/lab\s*padua/i,       "Lab Pádua"],
+  [/padua/i,             "Clínica Pádua"],
+  [/resultado/i,         null],  // nome genérico, não é laboratório
+  [/exame/i,             null],  // idem
+];
+
+function guessLabFromFileName(fileName: string | null): string | null {
+  if (!fileName) return null;
+  const name = fileName.toUpperCase();
+  for (const [pattern, lab] of LAB_PATTERNS) {
+    if (pattern.test(name)) return lab;  // null = padrão genérico, ignorar
+  }
+  return null;
+}
+
 // ── Grade de analitos — 7 colunas FIXAS (TDAH: largura fixa, sempre texto) ──
 // Col 1: Exame (nome canônico + extraído)
 // Col 2: Coleta (data + badge HIST se histórico)
@@ -290,7 +312,7 @@ function driveLink(id: string | null): string | null {
 // Col 5: Val. Padrão (convertido=azul / =verde / S/cat.=muted)
 // Col 6: Un. Padrão (canônica)
 // Col 7: Situação (sempre texto — Normal/Acima/Abaixo/Revisar/S/ ref.)
-const GRID_COLS = "minmax(128px,1.5fr) 58px 58px 50px 62px 50px 72px";
+const GRID_COLS = "minmax(150px,1.5fr) 68px 72px 56px 76px 58px 84px";
 
 const STATUS_ANALITO: Record<string, { label: string; cor: string }> = {
   dentro:      { label: "Normal",  cor: "#15803d" },
@@ -357,7 +379,7 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
       {/* Col 1 — Nome canônico + nome extraído (sem prefixo) */}
       <span className="min-w-0 leading-none">
         <span
-          className="block truncate text-[10.5px] font-bold"
+          className="block truncate text-[12.5px] font-bold"
           style={{ color: NAVY }}
           title={canonName}
         >
@@ -365,7 +387,7 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
         </span>
         {showExtracted && (
           <span
-            className="block truncate text-[8.5px] italic mt-px"
+            className="block truncate text-[10px] italic mt-px"
             style={{ color: MUTED }}
             title={a.analyteNameRaw}
           >
@@ -384,27 +406,27 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
             HIST
           </span>
         )}
-        <span className="block text-[8.5px] tabular-nums" style={{ color: MUTED }}>
+        <span className="block text-[10px] tabular-nums" style={{ color: MUTED }}>
           {dataColeta || (a.isHistory ? "—" : "Atual")}
         </span>
       </span>
 
       {/* Col 3 — Valor Lab (bruto, direto do laudo) */}
       <span
-        className="text-right text-[10.5px] font-mono font-bold tabular-nums"
+        className="text-right text-[12.5px] font-mono font-bold tabular-nums"
         style={{ color: valorLab === "—" ? MUTED : NAVY }}
       >
         {valorLab}
       </span>
 
       {/* Col 4 — Un. Lab */}
-      <span className="text-[8.5px] truncate" style={{ color: MUTED }}>
+      <span className="text-[10px] truncate" style={{ color: MUTED }}>
         {unLab}
       </span>
 
       {/* Col 5 — Val. Padrão */}
       <span
-        className="text-right text-[10.5px] font-mono font-bold tabular-nums"
+        className="text-right text-[12.5px] font-mono font-bold tabular-nums"
         style={{ color: valPadColor }}
         title={
           a.unitConverted
@@ -416,13 +438,13 @@ function AnalytoRow({ a, last }: { a: AnalyteResult; last: boolean }) {
       </span>
 
       {/* Col 6 — Un. Padrão */}
-      <span className="text-[8.5px] truncate" style={{ color: unPadColor }}>
+      <span className="text-[10px] truncate" style={{ color: unPadColor }}>
         {unPad}
       </span>
 
       {/* Col 7 — Situação (campo fixo, sempre texto) */}
       <span
-        className="text-center text-[7.5px] font-black uppercase tracking-widest rounded-[3px] px-1 py-[3px] truncate"
+        className="text-center text-[9px] font-black uppercase tracking-widest rounded-[3px] px-1 py-[3px] truncate"
         style={{
           color: stLbl.cor,
           background: stLbl.cor === MUTED ? "rgba(100,124,151,0.08)" : `${stLbl.cor}18`,
@@ -554,23 +576,15 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       style={{ borderLeft: `4px solid ${kindCfg.cor}` }}
     >
 
-      {/* ── ZONA 1: TOP BAR — tipo + status + confiança (K2: origem saiu para ClassificationPanel) */}
+      {/* ── ZONA 1: TOP BAR — bevel-3d saliente (padrão skill-layout-paxter) */}
+      {/* Contém: tipo de exame · status · confiança IA · auditor(es) */}
       <div
-        className="flex flex-wrap items-center gap-2 px-4 py-2"
-        style={{ borderBottom: "1px solid rgba(209,195,165,0.4)" }}
+        className="bevel-3d flex flex-wrap items-center gap-2 px-4 py-2"
       >
         {/* Tipo de exame */}
-        <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px]">
-          <kindCfg.Icon className="h-3 w-3" style={{ color: kindCfg.cor }} />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest" style={{ color: NAVY }}>
+          <kindCfg.Icon className="h-3.5 w-3.5" style={{ color: kindCfg.cor }} />
           {kindCfg.label}
-        </span>
-
-        {/* Status */}
-        <span
-          className="concave-3d ml-auto inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-widest"
-          style={{ color: statusCfg.cor }}
-        >
-          {statusCfg.label}
         </span>
 
         {/* Confiança IA */}
@@ -583,6 +597,34 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
             {confianca}%
           </span>
         )}
+
+        {/* Auditores — ficam no topo, ao lado do tipo */}
+        {doc.conf1Name && (
+          <span
+            className="concave-3d inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold"
+            style={{ color: "#1d4ed8" }}
+            title={doc.conf1At ? `Conferido em ${fmtHora(doc.conf1At)}` : "Conferência C1"}
+          >
+            ✓ {doc.conf1Name}{doc.conf1Cargo ? ` · ${doc.conf1Cargo}` : ""}
+          </span>
+        )}
+        {doc.conf2Name && (
+          <span
+            className="concave-3d inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold"
+            style={{ color: "#15803d" }}
+            title={doc.conf2At ? `Conferido em ${fmtHora(doc.conf2At)}` : "Conferência C2"}
+          >
+            ✓✓ {doc.conf2Name}{doc.conf2Cargo ? ` · ${doc.conf2Cargo}` : ""}
+          </span>
+        )}
+
+        {/* Status — sempre no extremo direito */}
+        <span
+          className="concave-3d ml-auto inline-flex items-center px-2.5 py-1 text-[9px] font-black uppercase tracking-widest"
+          style={{ color: statusCfg.cor }}
+        >
+          {statusCfg.label}
+        </span>
 
         {/* Extraído com sucesso */}
         {extraidoOk && (
@@ -622,10 +664,10 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
               cor={NAVY}
               bold
             />
-            {/* Bevel B — Laboratório */}
+            {/* Bevel B — Laboratório (com fallback inteligente: AI → filename → "Desconhecido") */}
             <BevelCelula
               label="Laboratório"
-              conteudo={doc.labName || "—"}
+              conteudo={doc.labName || guessLabFromFileName(doc.renamedTo ?? doc.fileName) || "Desconhecido"}
               cor={doc.labName ? NAVY : MUTED}
             />
             {/* Bevel C — Clone / Drive */}
@@ -670,8 +712,8 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
               cor={doc.collectionDate ? NAVY : MUTED}
             />
             <BevelCelula
-              label="Recebido em"
-              conteudo={fmtData(doc.createdAt)}
+              label="Entrada no Sistema"
+              conteudo={fmtHora(doc.createdAt)}
               cor={NAVY}
             />
             <BevelCelula
@@ -684,86 +726,64 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         </div>{/* fecha coluna direita flex-1 */}
       </div>{/* fecha flex gap-3 px-4 (ZONA 2) */}
 
-      {/* ── ZONA 3: META GRID (grid-cols-3 fixo) ─────────────────────────────── */}
+      {/* ── ZONA 3: EDITOR DE LABORATÓRIO (lab detectado pela IA ou corrigido manualmente) ── */}
+      {/* Datas removidas daqui — estão nos bevels da ZONA 2 (sem duplicação) */}
       <div
-        className="grid grid-cols-3 gap-0 border-t border-b mx-4 mb-3"
+        className="flex items-center gap-2 border-t mx-4 mb-3 pt-2"
         style={{ borderColor: "rgba(209,195,165,0.35)" }}
       >
-        {/* Célula 1 — Laboratório (editável quando IA não detectou) */}
-        <div className="px-3 py-2 border-r" style={{ borderColor: "rgba(209,195,165,0.35)" }}>
-          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
-            Laboratório
-          </div>
-          {labEditando ? (
-            <div className="flex items-center gap-1 mt-0.5">
-              <input
-                type="text"
-                value={labValor}
-                onChange={(e) => setLabValor(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleSalvarLab();
-                  if (e.key === "Escape") setLabEditando(false);
-                }}
-                autoFocus
-                className="concave-3d min-w-0 flex-1 px-1.5 py-0.5 text-[11px] font-bold outline-none"
-                style={{ color: NAVY }}
-                placeholder="Nome do laboratório"
-              />
-              <Button
-                size="sm"
-                className="btn-3d-soft h-5 px-1.5 text-[9px] font-black"
-                onClick={() => void handleSalvarLab()}
-                disabled={labSalvando}
-              >
-                OK
-              </Button>
-              <button
-                type="button"
-                className="px-1 text-[10px]"
-                style={{ color: MUTED }}
-                onClick={() => setLabEditando(false)}
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <div
-              className="group flex cursor-pointer items-center gap-1"
-              title="Clique para corrigir o nome do laboratório"
-              onClick={() => setLabEditando(true)}
+        <span className="text-[8px] font-black uppercase tracking-[0.2em] flex-shrink-0" style={{ color: MUTED }}>
+          Laboratório
+        </span>
+        {labEditando ? (
+          <>
+            <input
+              type="text"
+              value={labValor}
+              onChange={(e) => setLabValor(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSalvarLab();
+                if (e.key === "Escape") setLabEditando(false);
+              }}
+              autoFocus
+              className="concave-3d min-w-0 flex-1 px-2 py-1 text-[11px] font-bold outline-none"
+              style={{ color: NAVY }}
+              placeholder="Nome do laboratório"
+            />
+            <Button
+              size="sm"
+              className="btn-3d-soft h-6 px-2 text-[9px] font-black"
+              onClick={() => void handleSalvarLab()}
+              disabled={labSalvando}
             >
-              <span className="text-[11px] font-bold" style={{ color: labValor || doc.labName ? NAVY : MUTED }}>
-                {labValor || doc.labName || "—"}
-              </span>
-              <span
-                className="text-[9px] opacity-0 transition-opacity group-hover:opacity-100"
-                style={{ color: GOLD }}
-              >
-                ✎
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Célula 2 — Data de coleta */}
-        <div className="px-3 py-2 border-r" style={{ borderColor: "rgba(209,195,165,0.35)" }}>
-          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
-            Data de coleta
+              OK
+            </Button>
+            <button
+              type="button"
+              className="px-1 text-[10px]"
+              style={{ color: MUTED }}
+              onClick={() => setLabEditando(false)}
+            >
+              ✕
+            </button>
+          </>
+        ) : (
+          <div
+            className="group flex cursor-pointer items-center gap-1"
+            title="Clique para corrigir o nome do laboratório"
+            onClick={() => setLabEditando(true)}
+          >
+            <span className="text-[11px] font-bold" style={{ color: doc.labName ? NAVY : MUTED }}>
+              {doc.labName || guessLabFromFileName(doc.renamedTo ?? doc.fileName) || "Desconhecido"}
+            </span>
+            <span
+              className="text-[9px] opacity-0 transition-opacity group-hover:opacity-100"
+              style={{ color: GOLD }}
+            >
+              ✎
+            </span>
           </div>
-          <div className="text-[11px] font-bold" style={{ color: NAVY }}>
-            {fmtData(doc.collectionDate)}
-          </div>
-        </div>
-
-        {/* Célula 3 — Entrada no sistema */}
-        <div className="px-3 py-2">
-          <div className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: MUTED }}>
-            Entrada no sistema
-          </div>
-          <div className="text-[11px] font-bold" style={{ color: NAVY }}>
-            {fmtHora(doc.createdAt)}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── ZONA 4: ANALITOS ─────────────────────────────────────────────────── */}
@@ -785,7 +805,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
             ].map(({ h, align }) => (
               <span
                 key={h}
-                className="text-[7.5px] font-black uppercase tracking-[0.16em]"
+                className="text-[9px] font-black uppercase tracking-[0.14em]"
                 style={{ color: MUTED, textAlign: align as "left" | "center" | "right" }}
               >
                 {h}
@@ -845,29 +865,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
         </div>
       )}
 
-      {/* Conferência C1/C2 */}
-      {(doc.conf1Name || doc.conf2Name) && (
-        <div className="mx-4 mb-3 flex flex-wrap gap-2">
-          {doc.conf1Name && (
-            <span
-              className="concave-3d px-2.5 py-1 text-[9px]"
-              style={{ color: "#1d4ed8" }}
-            >
-              C1 · {doc.conf1Name}{doc.conf1Cargo ? ` (${doc.conf1Cargo})` : ""}
-              {doc.conf1At ? ` — ${fmtHora(doc.conf1At)}` : ""}
-            </span>
-          )}
-          {doc.conf2Name && (
-            <span
-              className="concave-3d px-2.5 py-1 text-[9px]"
-              style={{ color: "#15803d" }}
-            >
-              C2 · {doc.conf2Name}{doc.conf2Cargo ? ` (${doc.conf2Cargo})` : ""}
-              {doc.conf2At ? ` — ${fmtHora(doc.conf2At)}` : ""}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Auditores movidos para ZONA 1 (top bar) — bloco removido do rodapé */}
 
       {/* ── ZONA 5: AÇÕES ─────────────────────────────────────────────────────── */}
       <div
