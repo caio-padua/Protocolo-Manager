@@ -56,6 +56,14 @@ function getSheetsClient() {
   return getOAuth2Client().then(auth => google.sheets({ version: "v4", auth }));
 }
 
+export function getGoogleSheetsClient() {
+  return getSheetsClient();
+}
+
+export function getGoogleDriveClientRaw() {
+  return getUncachableDriveClient();
+}
+
 const CLIENT_SUBFOLDERS = [
   "CADASTRO",
   "PATOLOGIAS",
