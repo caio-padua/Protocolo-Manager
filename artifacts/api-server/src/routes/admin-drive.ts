@@ -285,6 +285,33 @@ router.post("/admin/drive/trash-item", async (req: Request, res: Response): Prom
 });
 
 /**
+ * POST /api/admin/ingest-drive-file
+ * Baixa um arquivo Drive pelo ID e ingere como exame do cliente.
+ * Body: { clientId, driveFileId, fileName? }
+ */
+router.post("/admin/ingest-drive-file", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { clientId, driveFileId, fileName } = req.body as { clientId: number; driveFileId: string; fileName?: string };
+    if (!clientId || !driveFileId) { res.status(400).json({ error: "clientId e driveFileId são obrigatórios" }); return; }
+
+    const buffer = await driveDownloadFile(driveFileId);
+    const ingestion = await startExamIngestion({
+      clientId: Number(clientId),
+      buffer,
+      fileName: fileName ?? driveFileId,
+      sourcePdfDriveId: driveFileId,
+      notify: false,
+    });
+
+    logger.info({ clientId, driveFileId, ...ingestion }, "[AdminIngest] ingestão por fileId");
+    res.json({ clientId, driveFileId, ...ingestion });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "[AdminIngest] erro ingest-drive-file");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/admin/ingest-client-exam/:clientId
  * Rota administrativa (sem auth — fica antes do collaboratorGuard).
  * Lista a pasta EXAMES do cliente no Drive, baixa cada PDF e
