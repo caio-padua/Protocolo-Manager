@@ -379,8 +379,6 @@ function CartaoGrafico({
 
   const zones = analyte.zones;
   const ultimo = data.length > 0 ? data[data.length - 1] : null;
-  const corUltimo = ultimo?.cor ?? MUTED;
-  const rotuloUltimo = ultimo?.zona ? ZONE_ROTULO[ultimo.zona] ?? ultimo.zona : "—";
   const tend = analyte.trend ? TEND[analyte.trend] : TEND.estavel;
 
   // Domínio do eixo Y: engloba valores + limites finitos das zonas.
@@ -438,6 +436,14 @@ function CartaoGrafico({
   const LARGURA_POR_PONTO = 64;
   const larguraMinimaGrafico = Math.max(data.length * LARGURA_POR_PONTO, 320);
 
+  // Ponto sob o mouse (pedido do CEO 24/07/2026): NADA de janelinha em cima
+  // do gráfico — o valor aparece na barra inferior, mudando conforme o mouse
+  // passeia pela linha. Sem mouse = última coleta.
+  const [ponteiro, setPonteiro] = useState<(typeof data)[number] | null>(null);
+  const pontoAtivo = ponteiro ?? ultimo;
+  const corAtiva = pontoAtivo?.cor ?? MUTED;
+  const rotuloAtivo = pontoAtivo?.zona ? ZONE_ROTULO[pontoAtivo.zona] ?? pontoAtivo.zona : "—";
+
   return (
     <section className="panel-3d p-3">
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -451,7 +457,6 @@ function CartaoGrafico({
           <div>
             <div className="text-[13px] font-bold leading-tight text-[#16294a]">{analyte.name}</div>
             <div className="flex items-center gap-2">
-              {ultimo && <span className="text-[15px] font-bold text-[#16294a]">{ultimo.valor}</span>}
               {analyte.unit && <span className="text-[10px] text-[#647c97]">{analyte.unit}</span>}
               {analyte.refLow && analyte.refHigh && (
                 <span className="text-[10px] text-[#647c97]">
@@ -462,24 +467,6 @@ function CartaoGrafico({
           </div>
         </div>
         <div className="flex items-start gap-2">
-          {/* Situação atual em selo + valor grande (igual ao mockup) */}
-          {ultimo && (
-            <div className="flex flex-col items-end">
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full" style={{ background: corUltimo }} />
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: corUltimo }}>
-                  {rotuloUltimo}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-[20px] font-black leading-tight" style={{ color: GOLD }}>
-                  {ultimo.valor}
-                </span>
-                {analyte.unit && <span className="text-[10px] font-semibold text-[#647c97]">{analyte.unit}</span>}
-              </div>
-              <span className="text-[8px] font-semibold uppercase tracking-wide text-[#8a97a9]">Valor atual</span>
-            </div>
-          )}
           <button
             type="button"
             onClick={onRemover}
@@ -499,10 +486,18 @@ function CartaoGrafico({
       ) : (
         <div className="screen-tv-3d p-2">
           {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
-          <div className="overflow-x-auto">
+          <div className="scroll-gold overflow-x-auto pb-1">
             <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
+              <LineChart
+                data={data}
+                margin={{ top: 12, right: 16, left: 0, bottom: 4 }}
+                onMouseMove={(st) => {
+                  const i = st?.activeTooltipIndex;
+                  setPonteiro(typeof i === "number" && data[i] ? data[i] : null);
+                }}
+                onMouseLeave={() => setPonteiro(null)}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,41,74,0.10)" />
                 {/* CINCO faixas oficiais do IHE como fundo do gráfico */}
                 {zones?.map((z) => (
@@ -529,24 +524,36 @@ function CartaoGrafico({
                   width={44}
                   domain={[dominio.min, dominio.max]}
                 />
+                {/* SEM janelinha em cima do gráfico (pedido do CEO): o Tooltip
+                    fica invisível — serve só para acender o ponto ativo e
+                    alimentar a barra inferior. Cursor = linha-guia dourada. */}
                 <Tooltip
-                  contentStyle={{
-                    background: "#fff",
-                    border: "1px solid rgba(184,146,77,0.5)",
-                    borderRadius: 8,
-                    color: NAVY,
-                    fontSize: 12,
-                  }}
-                  labelStyle={{ color: GOLD }}
-                  formatter={(v: number | string) => [`${v} ${analyte.unit ?? ""}`.trim(), "Valor"]}
+                  content={() => null}
+                  cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }}
                 />
                 <Line
                   type="linear"
                   dataKey="valor"
                   stroke={NAVY}
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: GOLD, stroke: "#fff", strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: GOLD, stroke: "#fff", strokeWidth: 2 }}
+                  dot={false}
+                  activeDot={(props: { cx?: number; cy?: number }) => {
+                    const { cx, cy } = props;
+                    if (cx == null || cy == null) return <g />;
+                    // QUADRADINHO dourado — só aparece sob o mouse.
+                    return (
+                      <rect
+                        x={cx - 5}
+                        y={cy - 5}
+                        width={10}
+                        height={10}
+                        rx={2}
+                        fill={GOLD}
+                        stroke="#fff"
+                        strokeWidth={2}
+                      />
+                    );
+                  }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -587,16 +594,21 @@ function CartaoGrafico({
         </div>
       )}
 
-      {/* RODAPÉ: situação atual + tendência na BOLINHA (requisito 5) */}
+      {/* RODAPÉ VIVO: mostra o ponto sob o mouse (ou a última coleta);
+          é a ÚNICA referência de faixa do cartão — sem janelinha no gráfico. */}
       <div className="mt-2 flex items-center gap-2">
-        {ultimo && (
+        {pontoAtivo && (
           <div className="concave-3d flex flex-1 items-center gap-2 px-3 py-2">
-            <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: corUltimo }} />
-            <span className="text-[13px] font-bold leading-tight" style={{ color: corUltimo }}>
-              {rotuloUltimo}
+            <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: corAtiva }} />
+            <span className="text-[13px] font-bold leading-tight" style={{ color: corAtiva }}>
+              {rotuloAtivo}
             </span>
-            <span className="ml-auto text-[11px] font-semibold text-[#647c97]">
-              {ultimo.valor} {analyte.unit ?? ""}
+            <span className="text-[10px] font-semibold text-[#8a97a9]">
+              {ponteiro ? pontoAtivo.data : `última · ${pontoAtivo.data}`}
+            </span>
+            <span className="ml-auto text-[14px] font-black" style={{ color: GOLD }}>
+              {pontoAtivo.valor}
+              <span className="ml-1 text-[10px] font-semibold text-[#647c97]">{analyte.unit ?? ""}</span>
             </span>
           </div>
         )}
