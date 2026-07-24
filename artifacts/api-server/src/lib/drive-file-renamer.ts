@@ -396,10 +396,8 @@ export async function diagnosePdfContent(maxFiles: number = 5): Promise<Array<{
   const auth = await getOAuth2Client();
   const drive = google.drive({ version: "v3", auth });
 
-  const rootQ = `mimeType='application/vnd.google-apps.folder' and name='CLIENTES' and trashed=false`;
-  const rootRes = await drive.files.list({ q: rootQ, fields: "files(id)", spaces: "drive" });
-  const rootId = rootRes.data.files?.[0]?.id;
-  if (!rootId) throw new Error("Pasta CLIENTES nao encontrada");
+  // ID fixo de "CLIENTES (INSTITUTO PADUA)" — única empresa ativa.
+  const rootId = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 
   const clientFolders = await drive.files.list({
     q: `mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`,
@@ -452,10 +450,9 @@ export async function renameAllClientFiles(): Promise<RenameReport> {
   const auth = await getOAuth2Client();
   const drive = google.drive({ version: "v3", auth });
 
-  const rootQ = `mimeType='application/vnd.google-apps.folder' and name='CLIENTES' and trashed=false`;
-  const rootRes = await drive.files.list({ q: rootQ, fields: "files(id)", spaces: "drive" });
-  const rootId = rootRes.data.files?.[0]?.id;
-  if (!rootId) throw new Error("Pasta CLIENTES nao encontrada");
+  // ID fixo de "CLIENTES (INSTITUTO PADUA)" — única empresa ativa.
+  // Nunca buscar "CLIENTES" globalmente (outras empresas têm pasta com esse nome).
+  const rootId = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 
   const clientFolders = await drive.files.list({
     q: `mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`,

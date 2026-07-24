@@ -172,38 +172,15 @@ async function findOldClientFolder(drive: any, rootId: string, cpf: string, _cli
   return null;
 }
 
-async function ensureRootFolder(drive: any): Promise<string> {
-  const clientesId = await findFolder(drive, "CLIENTES");
-  const pacientesId = await findFolder(drive, "PACIENTES");
+// ID fixo da pasta "CLIENTES (INSTITUTO PADUA)" — única empresa ativa (24/07/2026).
+// Quando outra empresa for ativada, passar drive_clientes_folder_id da empresa
+// como parâmetro rootFolderId em ensureClientFolderStructure().
+const ACTIVE_CLIENTES_FOLDER_ID = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 
-  if (clientesId && pacientesId) {
-    const legacyChildren = await listAllChildren(drive, pacientesId);
-    for (const child of legacyChildren) {
-      try {
-        await moveFile(drive, child.id, pacientesId, clientesId);
-        console.log(`[Drive] Migrado ${child.name} de PACIENTES para CLIENTES`);
-      } catch (err: any) {
-        console.error(`[Drive] Erro ao migrar ${child.name}:`, err.message);
-      }
-    }
-    try {
-      await drive.files.update({ fileId: pacientesId, requestBody: { trashed: true } });
-      console.log("[Drive] Pasta PACIENTES antiga movida para lixeira");
-    } catch (err: any) {
-      console.error("[Drive] Erro ao mover PACIENTES para lixeira:", err.message);
-    }
-    return clientesId;
-  }
-
-  if (clientesId) return clientesId;
-
-  if (pacientesId) {
-    await renameFolder(drive, pacientesId, "CLIENTES");
-    console.log("[Drive] Pasta PACIENTES renomeada para CLIENTES");
-    return pacientesId;
-  }
-
-  return createFolder(drive, "CLIENTES");
+async function ensureRootFolder(_drive: any, rootFolderId?: string): Promise<string> {
+  // Usa o ID explícito quando fornecido (multi-empresa futuro).
+  // Para a empresa ativa, usa a constante gravada na sessão de 24/07/2026.
+  return rootFolderId ?? ACTIVE_CLIENTES_FOLDER_ID;
 }
 
 export async function ensureClientFolderStructure(clientName: string, cpf: string): Promise<{

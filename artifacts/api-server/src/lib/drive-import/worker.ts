@@ -38,7 +38,9 @@ import {
 //  - Porteiro anti-lixo: so vira exame o que for exame (senao doc "ignorado").
 // ============================================================================
 
-const DEFAULT_ROOT = "1kZJ4x2c-UyT4FBz5j8EvY8jYLJ0BUs1J";
+// ID de "CLIENTES (INSTITUTO PADUA)" — única empresa ativa (24/07/2026).
+// Antigo ID "1kZJ4x2c..." era a pasta raiz global CLIENTES já migrada.
+const DEFAULT_ROOT = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 const MAX_DEPTH = 3;
 
 /** Subpastas que sabidamente NAO guardam exames (nao gastar leitura/IA nelas). */
