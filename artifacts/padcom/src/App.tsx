@@ -129,7 +129,7 @@ registerCollabTokenGetter();
 function Router() {
   return (
     <Switch>
-      <Route path="/portal" component={Portal} />
+      <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
