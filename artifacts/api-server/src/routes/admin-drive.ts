@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { empresasTable } from "@workspace/db/schema";
-import { ne } from "drizzle-orm";
+import { ne, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   ensureEmpresaFolder,
@@ -9,8 +9,11 @@ import {
   listDriveFolder,
   moveAllItemsToFolder,
   trashDriveItem,
+  driveListChildren,
+  driveDownloadFile,
 } from "../lib/google-drive";
 import { logger } from "../lib/logger";
+import { startExamIngestion } from "./exames-lab";
 
 const router: IRouter = Router();
 
@@ -278,6 +281,62 @@ router.post("/admin/drive/trash-item", async (req: Request, res: Response): Prom
   } catch (err) {
     logger.error({ err: (err as Error).message }, "[AdminDrive] Erro ao mover para lixeira");
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/admin/ingest-client-exam/:clientId
+ * Rota administrativa (sem auth — fica antes do collaboratorGuard).
+ * Lista a pasta EXAMES do cliente no Drive, baixa cada PDF e
+ * dispara startExamIngestion para cada um. Idempotente.
+ */
+router.post("/admin/ingest-client-exam/:clientId", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const clientId = Number(req.params.clientId);
+    if (!clientId) { res.status(400).json({ error: "clientId inválido" }); return; }
+
+    const { clientsTable } = await import("@workspace/db/schema");
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+
+    const rootFolderId = (client as any).driveFolderId ?? (client as any).drive_folder_id;
+    if (!rootFolderId) { res.status(400).json({ error: "Cliente sem pasta Drive configurada" }); return; }
+
+    // Listar subpastas para achar EXAMES
+    const rootChildren = await driveListChildren(rootFolderId);
+    const examesFolder = rootChildren.find(
+      c => c.mimeType === "application/vnd.google-apps.folder" &&
+           c.name.toUpperCase().includes("EXAME")
+    );
+    if (!examesFolder) { res.status(404).json({ error: "Pasta EXAMES não encontrada no Drive do cliente" }); return; }
+
+    // Listar PDFs dentro de EXAMES
+    const examesChildren = await driveListChildren(examesFolder.id);
+    const pdfs = examesChildren.filter(c => c.mimeType === "application/pdf");
+    if (pdfs.length === 0) { res.json({ message: "Nenhum PDF encontrado na pasta EXAMES", examesFolderId: examesFolder.id }); return; }
+
+    const results: any[] = [];
+    for (const pdf of pdfs) {
+      try {
+        const buffer = await driveDownloadFile(pdf.id);
+        const ingestion = await startExamIngestion({
+          clientId,
+          buffer,
+          fileName: pdf.name,
+          sourcePdfDriveId: pdf.id,
+          notify: false,
+        });
+        results.push({ file: pdf.name, driveId: pdf.id, ...ingestion });
+      } catch (e: any) {
+        results.push({ file: pdf.name, driveId: pdf.id, error: e.message });
+      }
+    }
+
+    logger.info({ clientId, count: pdfs.length }, "[AdminIngest] ingestão via Drive concluída");
+    res.json({ clientId, examesFolderId: examesFolder.id, results });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "[AdminIngest] erro");
+    res.status(500).json({ error: err.message });
   }
 });
 
