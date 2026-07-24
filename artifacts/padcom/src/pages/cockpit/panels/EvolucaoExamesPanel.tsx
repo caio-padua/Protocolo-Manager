@@ -303,12 +303,28 @@ function ColunaCabecalho({
       {/* Pedido do CEO (24/07/2026): posição NUNCA muda com presença/ausência de
           informação. Cada linha abaixo tem ALTURA FIXA e sempre mostra TEXTO
           (nada de símbolo, nada de traço mínimo). */}
-      <span
-        className="mt-1 flex h-[12px] max-w-[60px] items-center truncate text-[9px] font-semibold leading-none"
-        style={{ color: c.lab ? GOLD : "#9aa6b6" }}
-        title={c.lab ?? "Laboratório não identificado no laudo"}
-      >
-        {c.lab ?? "Lab. não identificado"}
+      {/* Pedido do CEO (24/07/2026): nome do laboratório SEMPRE na mesma cor
+          (Fleury, Delboni, qualquer um = ouro, sem variar). Quando NÃO
+          identificado: mesmo layoutzinho, outra cor, COM moldura em volta,
+          e o texto é "Indefinido". */}
+      <span className="mt-1 flex h-[14px] items-center">
+        {c.lab ? (
+          <span
+            className="max-w-[60px] truncate text-[9px] font-semibold leading-none"
+            style={{ color: GOLD }}
+            title={c.lab}
+          >
+            {c.lab}
+          </span>
+        ) : (
+          <span
+            className="max-w-[60px] truncate rounded-[3px] px-1 text-[9px] font-semibold leading-[12px]"
+            style={{ color: "#8a97a9", border: "1px solid #c3ccd8" }}
+            title="Laboratório não identificado no laudo"
+          >
+            Indefinido
+          </span>
+        )}
       </span>
       <span className="mt-0.5 flex h-[13px] items-center">
         {c.isHistory ? (
