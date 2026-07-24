@@ -9,8 +9,8 @@ import {
   MousePointerClick,
   FlaskConical,
   X,
-  Pin,
-  PinOff,
+  Square,
+  SquareCheck,
   ChevronDown,
   ChevronRight,
   Check,
@@ -130,6 +130,15 @@ function dataCurta(iso: string | null): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : iso;
 }
+// Pedido do CEO (24/07/2026): laboratórios escrevem "inferior a 7" / "superior a 34"
+// e o texto longo deforma a célula. Exibimos com símbolo: "< 7" e "> 34".
+function exibirValor(v: string): string {
+  return v
+    .replace(/inferior\s+a\s*/gi, "< ")
+    .replace(/superior\s+a\s*/gi, "> ")
+    .replace(/menor\s+que\s*/gi, "< ")
+    .replace(/maior\s+que\s*/gi, "> ");
+}
 function toNum(s: string | null): number | null {
   if (s == null) return null;
   const n = Number(String(s).replace(",", "."));
@@ -170,6 +179,10 @@ function Cela({
   left: number;
   mostrarFaixas: boolean;
 }) {
+  // A máscara do vão (gap) e o brilho da faixa acesa COEXISTEM no mesmo
+  // boxShadow (lista separada por vírgula) — espalhar um depois do outro
+  // apagaria o brilho das colunas fixadas.
+  const mascaraVao = sticky ? `${GAP}px 0 0 0 ${PIN_BG}` : null;
   const stickyStyle = sticky
     ? { position: "sticky" as const, left, zIndex: 1, background: PIN_BG }
     : {};
@@ -177,7 +190,7 @@ function Cela({
     return (
       <div
         className="flex shrink-0 items-center justify-center py-1.5 text-[12px] text-[#b3bccb]"
-        style={{ width: COL_W, ...stickyStyle }}
+        style={{ width: COL_W, ...stickyStyle, ...(mascaraVao ? { boxShadow: mascaraVao } : {}) }}
       >
         —
       </div>
@@ -194,13 +207,16 @@ function Cela({
       }`}
       style={{
         width: COL_W,
-        ...(acesa
-          ? { boxShadow: `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}`, transition: "box-shadow .15s" }
-          : { transition: "box-shadow .15s" }),
+        transition: "box-shadow .15s",
+        // brilho da faixa acesa + máscara do vão convivem na MESMA lista:
+        boxShadow:
+          [acesa ? `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}` : null, mascaraVao]
+            .filter(Boolean)
+            .join(", ") || undefined,
         ...stickyStyle,
         ...(sticky ? {} : temZona ? { background: `${cor}14` } : {}),
       }}
-      title={`${cell.value} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}${
+      title={`${exibirValor(cell.value)} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}${
         cell.unitConverted ? " · unidade revisada (convertida para a padrão)" : ""
       }`}
     >
@@ -208,10 +224,10 @@ function Cela({
       {temZona && <span className="absolute left-0 top-0 h-full w-[5px]" style={{ background: cor }} />}
       {/* número SEMPRE navy forte e nítido */}
       <span
-        className={atual ? "text-[13px] font-black" : "text-[12px] font-bold"}
+        className={`whitespace-nowrap ${atual ? "text-[13px] font-black" : "text-[12px] font-bold"}`}
         style={{ color: NAVY, paddingLeft: temZona ? 6 : 0 }}
       >
-        {cell.value}
+        {exibirValor(cell.value)}
       </span>
       {/* selo "revisado": unidade diferente foi convertida para a padrão na varredura */}
       {cell.unitConverted && (
@@ -244,13 +260,20 @@ function ColunaCabecalho({
   left: number;
 }) {
   const stickyStyle = sticky
-    ? { position: "sticky" as const, left, zIndex: 3, background: PIN_BG }
+    ? {
+        position: "sticky" as const,
+        left,
+        zIndex: 3,
+        background: PIN_BG,
+        boxShadow: `${GAP}px 0 0 0 ${PIN_BG}`,
+      }
     : {};
   return (
     <div
       className="flex shrink-0 flex-col items-center px-0.5 text-center"
       style={{ width: COL_W, ...stickyStyle }}
     >
+      {/* QUADRADINHO fixa a coluna (pedido do CEO 24/07/2026: era alfinete) */}
       <button
         type="button"
         onClick={(e) => {
@@ -258,15 +281,23 @@ function ColunaCabecalho({
           onFixar();
         }}
         title={fixada ? "Soltar coluna" : "Fixar coluna para comparar"}
-        className="mb-0.5 flex h-4 w-4 items-center justify-center rounded-[3px]"
+        className="mb-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px]"
         style={fixada ? { color: GOLD } : { color: "#9aa6b6" }}
       >
-        {fixada ? <Pin className="h-3 w-3" fill={GOLD} /> : <PinOff className="h-3 w-3" />}
+        {fixada ? <SquareCheck className="h-3 w-3" /> : <Square className="h-3 w-3" />}
       </button>
-      <span className={`text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}>
+      {/* Dia/mês e ano na MESMA fonte e mesmo design; alturas fixas garantem a
+          linha horizontal imaginária igual em todas as colunas. */}
+      <span
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+      >
         {diaMes(c.date)}
       </span>
-      <span className="text-[9px] font-bold leading-none text-[#8a97a9]">{ano(c.date)}</span>
+      <span
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+      >
+        {ano(c.date)}
+      </span>
       <span className="mt-1 max-w-[60px] truncate text-[9px] font-semibold leading-tight" style={{ color: GOLD }}>
         {c.lab ?? "Lab. —"}
       </span>
@@ -478,12 +509,13 @@ function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => 
       aria-pressed={ligado}
       className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
     >
+      {/* Interruptor RETANGULAR (padrão da skill de layout; era redondo) */}
       <span
-        className="relative inline-flex h-[20px] w-[38px] items-center rounded-full transition-colors"
+        className="relative inline-flex h-[20px] w-[38px] items-center rounded-[4px] transition-colors"
         style={{ background: ligado ? GOLD : "#c9cdd6", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.35)" }}
       >
         <span
-          className="absolute h-[15px] w-[15px] rounded-full bg-white transition-all"
+          className="absolute h-[14px] w-[14px] rounded-[3px] bg-white transition-all"
           style={{ left: ligado ? 20 : 3, boxShadow: "0 1px 2px rgba(0,0,0,0.4)" }}
         />
       </span>
@@ -493,12 +525,13 @@ function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => 
 }
 
 // --------------------------------------------------- bloco editável (F5) ------
-type LayoutMode = "lado" | "topo" | "sanfona" | "fixo";
+type LayoutMode = "lado" | "topo" | "sanfona" | "fixo" | "linha";
 const LAYOUTS: { id: LayoutMode; label: string }[] = [
   { id: "lado", label: "Ao lado" },
   { id: "topo", label: "Topo largura total" },
   { id: "sanfona", label: "Sanfona" },
   { id: "fixo", label: "Fixo (rodapé)" },
+  { id: "linha", label: "Abaixo da linha" },
 ];
 
 // ============================================================== PAINEL ========
@@ -800,7 +833,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
         </span>
         <span className="flex items-center gap-1">
-          <Pin className="h-3.5 w-3.5" /> Alfinete no cabeçalho fixa a coluna
+          <Square className="h-3.5 w-3.5" /> Quadradinho no cabeçalho fixa a coluna
         </span>
       </div>
 
@@ -808,10 +841,12 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
         <div className="min-w-max">
           {/* cabeçalho */}
-          <div className="flex items-end gap-2 pb-2">
+          {/* items-start: todas as datas nascem na MESMA linha horizontal imaginária,
+              independente do que cada coluna tem embaixo (selo Histórico, status). */}
+          <div className="flex items-start gap-2 pb-2">
             <div
-              className="sticky left-0 z-[4] flex shrink-0 items-end px-2 py-1"
-              style={{ width: NAME_W, background: NOME_BG }}
+              className="sticky left-0 z-[4] flex shrink-0 items-end self-stretch px-2 py-1"
+              style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
             >
               <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">
                 Exame (congelado)
@@ -842,8 +877,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
               const selecionada = selecionados.includes(a.key);
               const tend = a.trend ? TEND[a.trend] : TEND.estavel;
               return (
+                <div key={a.key}>
                 <div
-                  key={a.key}
                   role="button"
                   tabIndex={0}
                   onClick={() => alternar(a.key)}
@@ -858,8 +893,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                 >
                   {/* nome congelado em UP-BEVEL (requisito 3) */}
                   <div
-                    className="sticky left-0 z-[3] flex shrink-0 flex-col justify-center"
-                    style={{ width: NAME_W, background: NOME_BG }}
+                    className="sticky left-0 z-[3] flex shrink-0 flex-col justify-center self-stretch"
+                    style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
                   >
                     <div className="bevel-3d mx-1 flex flex-col justify-center rounded-[6px] px-2 py-1">
                       <div className="flex items-center gap-1.5">
@@ -901,6 +936,21 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                     <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
                     <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
                   </div>
+                </div>
+                {/* LAYOUT "Abaixo da linha": o gráfico abre logo embaixo da linha
+                    do exame clicado (pedido do CEO 24/07/2026). O wrapper é
+                    sticky à esquerda para o gráfico ficar visível mesmo com a
+                    planilha rolada para o lado. */}
+                {layout === "linha" && selecionada && (
+                  <div className="sticky left-0 py-2" style={{ width: "max(320px, min(760px, calc(100vw - 340px)))" }}>
+                    <CartaoGrafico
+                      analyte={a}
+                      columns={columnsRaw}
+                      ordem={selecionados.indexOf(a.key) + 1}
+                      onRemover={() => alternar(a.key)}
+                    />
+                  </div>
+                )}
                 </div>
               );
             })}
