@@ -15,6 +15,7 @@
  * GET  /api/receituario/alertas              — slots próximos (Cockpit)
  */
 import { Router } from "express";
+import { getCertInfo } from "../lib/pdf-signer.js";
 import {
   db,
   receitasAgendadasTable,
@@ -61,6 +62,26 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Documento não encontrado" });
       return;
     }
+    let certMeta = null;
+    try {
+      const info = getCertInfo();
+      const cnFull = info.subject.split(",").find((p: string) => p.trim().startsWith("CN="))?.replace(/CN=/, "").trim() ?? "";
+      const titular = cnFull.split(":")[0].trim();
+      const issuerCN = info.issuer.split(",").find((p: string) => p.trim().startsWith("CN="))?.replace(/CN=/, "").trim() ?? info.issuer;
+      certMeta = {
+        titular,
+        cpf: info.cpf,
+        serial: ("00" + info.serial).slice(-20).toUpperCase(),
+        validFrom: info.validFrom,
+        validTo:   info.validTo,
+        issuer:    issuerCN,
+        algoritmo: "SHA-256 com RSA (2048 bits)",
+        padrao:    "PAdES — PDF Advanced Electronic Signatures",
+        tipo:      "Certificado Digital A1",
+        raiz:      "ICP-Brasil (ITI — Instituto de Tecnologia da Informação)",
+      };
+    } catch { /* best-effort: cert metadata não bloqueia validação */ }
+
     res.json({
       paciente:    row.paciente,
       medico:      row.medico,
@@ -69,6 +90,7 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
       dataEmissao: row.data_emissao,
       arquivo:     row.arquivo,
       driveUrl:    row.drive_url ?? null,
+      certMeta,
     });
   } catch (e) {
     req.log.error({ err: e instanceof Error ? e.message : String(e) }, "receituario/consulta: erro");

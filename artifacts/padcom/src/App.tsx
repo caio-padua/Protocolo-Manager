@@ -105,6 +105,7 @@ import Atestados from "@/pages/arsenal/atestados";
 import Encaminhamentos from "@/pages/arsenal/encaminhamentos";
 import ModelosDocumento from "@/pages/arsenal/modelos";
 import DriveWatcher from "@/pages/arsenal/drive-watcher";
+import PreviewValidacao from "@/pages/arsenal/preview-validacao";
 import Prontuario from "@/pages/prontuario";
 import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
@@ -305,6 +306,7 @@ function Router() {
             <Route path="/arsenal/encaminhamentos" component={Encaminhamentos} />
             <Route path="/arsenal/modelos" component={ModelosDocumento} />
             <Route path="/arsenal/drive-watcher" component={DriveWatcher} />
+            <Route path="/arsenal/preview-validacao" component={PreviewValidacao} />
             <Route path="/juridico/contratos" component={ContratosJuridicos} />
             <Route path="/experiencia-cliente" component={ExperienciaCliente} />
 
