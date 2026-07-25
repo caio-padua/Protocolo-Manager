@@ -32,6 +32,18 @@ programação de aplicações; PDF = formato de documento portátil).
 
 **Art. 6º** Explicar cada passo como se fosse a primeira vez; nunca supor conhecimento prévio.
 
+**Art. 6º-A** COMO O CEO PEDE — GUIA DE INTERPRETAÇÃO (promulgado a pedido do CEO em 25/07/2026):
+(a) PRINT É EVIDÊNCIA: quando o CEO anexa uma captura de tela, ela é a fonte-da-verdade do problema —
+reproduzir o cenário EXATO do print (mesmo estado: coluna fixada, rolagem, tema) antes de diagnosticar
+e antes de declarar corrigido; (b) PROVA ANTES DA RESPOSTA: nenhum "corrigido" sem ver o resultado
+renderizado com os próprios olhos (captura de tela real) — anunciar como feito o que não foi conferido
+viola o Art. 47 e gera retrabalho; (c) PEDIDOS NUMERADOS: quando o CEO escreve "pedido 2", cada pedido
+numerado é uma entrega independente — responder a TODOS, um bloco por pedido; (d) DESCRIÇÃO VISUAL POR
+ANALOGIA: o CEO descreve design por comparação física ("retângulo sobreposto num painel liso",
+"cortina", "ponto médio") — traduzir a analogia em geometria (altura, alinhamento, camada) e confirmar
+com captura; (e) VOZ: fala ditada traz fonética imperfeita e pouca pontuação — interpretar pelo
+contexto, sem comentar (Art. 3º).
+
 ---
 
 ## TÍTULO II — DO FORMATO DA RESPOSTA (DENSIDADE B)
