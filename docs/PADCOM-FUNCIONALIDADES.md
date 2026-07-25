@@ -1,0 +1,96 @@
+# PADCOM — Funcionalidades e Estrutura Detalhada
+
+> Dono durável do detalhe de funcionalidades movido do `replit.md` em 25/07/2026 (autorização do CEO).
+> Apontado pelo MAPA DA MEMORIA do `replit.md`. Removido de lá != perdido.
+
+## Project Structure
+
+### Frontend (`artifacts/padcom`)
+- **Dashboard** — overview
+- **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado/pais. New fields: instagram, comoConheceu. Google Drive setup creates: folder structure (CLIENTES root → NOME CPF: xxx.xxx.xxx-xx → 15 subpastas), Google Sheet (CADASTRO + METADADOS tabs with folder IDs)
+- **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
+- **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
+- **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download, auto-upload to Google Drive (PROTOCOLOS folder), manual "Enviar ao Drive" button
+- **RAS FAP** (antigo "RAS Físico") — Printable landscape PDF (spreadsheet format) for nurse manual control / paper audit (FAP = Formulário de Auditoria de Procedimentos). Gerado por **pdfkit** em `artifacts/api-server/src/lib/ras-fap.ts` (export `gerarRasFapPdf`); `generatePhysicalRASPdf` em `pdf-signer.ts` é só o adaptador (PhysicalRASData → DadosRasFap). Motor da grade COPIADO IDÊNTICO do `rasFap.ts` do IHE (agenda global, SEM contínuo cruzando páginas com lacunas, célula "N/total", consolidação por semana ISO no 1º dia previsto). Regras visuais do CEO: 5 colunas de substância FIXAS por folha (sobras EM BRANCO), moldura grossa só na caixa externa, wordmark serif "RAS", assinaturas em caixas + carimbo (CRM/COREN), padding até 20 linhas/página. Accessed from protocol detail page (button "RAS FAP (Imprimir)"). Demo: `GET /api/ras-fap-demo`. Auto-uploads to client Drive PROTOCOLOS folder. Filename: `YY.MM.DD RAS FAP NOME (TITULO).pdf`
+- **Estoque** — stock management with critical/low alerts
+- **Financeiro** — payments tracking with PIX/credit/debit/boleto/cash methods, installments for credit cards, card identification labels, running balance with total pago/pendente
+- **Profissionais** — staff management
+- **Substâncias** — comprehensive substance catalog with expandable detail cards showing health benefits, body system impact bars, longevity/sleep/energy/performance info
+
+### API Server (`artifacts/api-server`)
+- All routes under `/api/` prefix
+- Vite proxy configured in padcom: `/api` → port 8080
+- Digital signature: A1 certificate at `certs/assinatura.pfx` (CPF 293.274.948-06)
+
+### Database (`lib/db`)
+- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, ras_evolutivo, stock, payments, validation_codes, nursing_assessments, task_cards, client_ratings
+- Locations: Clínica Tatuapé, Clínica Mooca, Nurse Care Domiciliar
+- `location_professionals` junction table
+
+### RAS Evolutivo System (Phase 1 — Schema)
+- **Professionals roles**: `role` field — medico_01, medico_02, enfermeira_01, enfermeira_02, adm_01, adm_02, financeiro_01, financeiro_02
+- **Client validation**: `validationPassword` (permanent password set at protocol closing) + existing `validation_codes` (daily codes). Client validates with either.
+- **Client Drive**: `driveFolderId`, `examRequestsFolderId` (subfolder "Exames Solicitados" ID)
+- **`nursing_assessments`**: Enfermeira 01 fills after each application — weeklyQuestion, alertColor (green/yellow/red), observation, adherenceLevel (alta/media/baixa), tolerance (excelente/boa/regular/ruim), symptoms, needsTeamContact, startTime/endTime
+- **`task_cards`**: Internal cards + Trello sync — types: welcome_adm, welcome_enf, followup, alert, payment_nf, monthly_review, exam_reminder, final_session. assignedRole maps to professional role. trelloCardId/trelloListId for sync.
+- **`client_ratings`**: Client rates nurse 0-5 stars, selects nurse from dropdown, ratingSource (post_application / post_contact). Rating ≤3 triggers management alert.
+- **`ras_evolutivo`**: Per-session PDF data — sessionNumber, totalSessions, progressPercent, substances (jsonb), alertColor, adherence, tolerance, weeklyObservation, sessionHistory (last 3 sessions), designatedDoctor, isAntepenultimate/isUltimate flags, examReminderSent, consultationReminder, validationCode, validatedByClient/validatedAt, pdfUrl/drivePdfId
+- **Alert color rules**: Green → history only. Yellow → card for enfermeira_02. Red → card for enfermeira_02 AND medico_02.
+- **Automated triggers**: Payment done → card financeiro_02. Every 30 days → card enf_02 + medico_02. Antepenúltima sessão → exam reminder to client (email+WhatsApp, "Exames Solicitados" subfolder). Última sessão → card enf_02 + adm_02 (consultation with designated doctor).
+- **Trello**: API integration (not Replit connector — none available). Cards sync bidirectionally via trelloCardId.
+
+### Substances Schema
+- `procedureType`: "iv" (endovenoso, 30min), "im" (intramuscular, 15min), "implant" (implante, 1h)
+- `durationMinutes`: default duration per procedure type
+- `description`, `mainFunction`, `perceivedEffects`, `timeToEffect`: clinical info
+- `starRating`: 1-5 efficacy rating
+- `bodySystemEffects`: JSON with effects per body system (cardiovascular, neurologico, metabolismo, hepatico, imunologico, dermatologico, muscular, endocrino, longevidade, etc.)
+- Health/Wellness fields: `longevityBenefit`, `qualityOfLifeImpact`, `sleepBenefit`, `energyBenefit`, `libidoBenefit`, `physicalPerformance`, `muscleStrength`, `mentalClarity`, `skinHairNails`, `immuneSupport`, `contraindications`, `scientificEvidence`, `categoryType`
+
+### Key Features
+- **Lançador**: Single-page guided protocol creation with up to 10 substance slots (per-substance start date, frequency, dose). Tela de resumo tem dois botões de lançamento: "Confirmar e Lançar Protocolo" (cria e vai ao detalhe) e o atalho "Lançar + Gerar RAS FAP" (cria → valida/gera sessões → gera o RAS FAP paisagem → baixa para impressão + envia ao Drive do cliente → vai ao detalhe). O RAS FAP só tem linhas de sessão depois da validação, por isso o atalho valida antes de gerar.
+- **Weekly consolidation**: Sessions grouped by week (Mon-Sun), one visit per week per client
+- **ICS integration**: Download ICS files per session or per week; Google Calendar deep links
+- **WhatsApp reminders**: Pre-formatted messages sent to client's phone
+- **A1 ICP-Brasil signature**: Multi-page PDF with RAS + substance info sheets + consent terms, digitally signed with PKCS#7
+- **Protocolo Completo PDF**: 8-10 page comprehensive protocol document with: cover page (PADCOM branding, client/doctor info, protocol value), benefits matrix (star ratings + 8 benefit categories per substance), substance fact sheets (description, function, body system effects, contraindications), TCLE per procedure type (IV/IM/SC/Implant), LGPD clause, session timeline grid, financial summary (payments, installments, balance), ICP-Brasil digital signature. Auto-uploads to Google Drive + emails to client. Route: `GET /api/protocols/:id/document-pdf`
+- **Per-substance confirmation**: Each substance in a session confirmed individually (DISP/PROX badges)
+- **Color-coded session cards**: Green=completed, Amber=partially confirmed, Blue=today, Red=missed, Gray=cancelled
+- **Substance pills with visual state**: Applied substances show green ring + checkmark; pending show DISP/PROX badge
+- **TDAH-friendly UI**: Color-coded, high contrast, clear visual hierarchy throughout
+- **Validation codes**: 6-digit alphanumeric codes for client identity verification
+- **Procedure types**: IM (15min), IV (30min), Implant (1h)
+- **Automated emails via Gmail API** (Replit Google Integration — OAuth):
+  - Subject format: `Clinica Padua | Aplicacao Endovenosa | A7K3M2`
+  - Pre-session: validation code, substance list, schedule info (HTML template)
+  - First-session emails: Include detailed substance benefit info (longevity, sleep, energy, performance, etc.)
+  - Post-session: completed substances + signed RAS PDF attachment via MIME multipart
+  - Weekly batch: `/api/email/send-weekly-reminders`
+  - Uses `google-gmail` connector via Replit integrations
+- **Google Calendar sync** (Replit Google Integration — OAuth):
+  - Per-session: `/api/google-calendar/sync-session/:id`
+  - Per-week: `/api/google-calendar/sync-week`
+  - Duration auto-set: IV=30min, IM=15min, Implant=60min
+  - Connected calendars include: AGENDA GERAL, AGENDA MEDICO, AGENDA ENFERMAGEM
+- **Google Drive integration** (Replit Google Integration — OAuth):
+  - Client folder structure: `PACIENTES/[CLIENT NAME] [CPF]/` with 15 subfolders
+  - Subfolders: CADASTRO (with CADASTROS ANTIGOS), PATOLOGIAS, EXAMES, AVALIACOES, RECEITAS, PROTOCOLOS, FINANCEIRO, CONTRATOS, ATESTADOS, LAUDOS, TERMOS, FOTO PERFIL, IMAGENS, PESQUISA, OUVIDORIA
+  - Protocol PDF naming: `YY.MM.DD PROTOCOLO NOME DO CLIENTE.pdf`
+  - RAS PDF naming: `DD.MM.YY RAS NOME DO CLIENTE CPF.pdf`
+  - **File renaming**: `POST /api/google-drive/rename-files` (async fire-and-forget). Pattern: `YY.MM.DD TIPO [AREA] NOME_CLIENTE.ext`. Date from Drive `createdTime`. Classification priority: COMPLEX_EXAM (densitometria, biopsia, etc.) > IMAGING (USG, RMN, TC, etc.) > LAB → "EXAME". Text extraction: pdf-parse v2 first, OCR fallback via tesseract.js. Body part appended only if not redundant with type.
+  - **PDF diagnostics**: `GET /api/google-drive/diagnose-pdfs?max=N` — extracts text + classifies without renaming
+  - Idempotent: won't recreate existing folders
+  - Auto-share view-only with client email
+  - Setup per-client: `/api/google-drive/setup-client/:clientId`
+  - Upload protocol/RAS to Drive: `/api/google-drive/upload-protocol/:clientId`, `/api/google-drive/upload-ras/:clientId`
+
+### Client Upload Portal (`/portal`)
+- **Public-facing** responsive mobile-first page (no admin sidebar)
+- **Identification**: CPF + data de nascimento → HMAC token (30min TTL, signed with SESSION_SECRET)
+- **Security**: Generic error messages (no CPF enumeration), token-bound uploads (prevents IDOR)
+- **Upload types**: Exame de Sangue, Ultrassom, Tomografia, Ressonância, Densitometria, Laudo, Comprovante de Pagamento, Foto/Imagem, Receita, Atestado, Outro
+- **Body region dropdown**: Shown only for imaging exams (USG, TC, RMN, Densitometria)
+- **File naming**: `YY.MM.DD TIPO [REGION] NOME_CLIENTE.ext`
+- **Folder routing**: Type maps to Drive subfolder (exames→EXAMES, laudo→LAUDOS, comprovante→FINANCEIRO, foto→IMAGENS, etc.)
+- **API endpoints**: `POST /api/client-portal/identify`, `POST /api/client-portal/upload` (multipart, requires token)
+- **Link distribution**: Via WhatsApp to each client

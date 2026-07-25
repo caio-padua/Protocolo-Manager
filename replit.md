@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca: **Padcon Conect** (com 1 N). Tagline: "Motor Clinico | Protocolos Injetaveis".
+Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca interna do produto: **Padcon Conect** (com 1 N); marca VISIVEL ao cliente: **PAXTER** (Clinical Intelligence System). Tagline: "Motor Clinico | Protocolos Injetaveis".
 
 Agente da plataforma: **Dr. Replit Paxter** (renomeado de Dr. Replit Manager em 18/06/2026, decisao do CEO Dr. Caio). Sistema de design proprio documentado na skill `skill-layout-paxter`.
 
@@ -14,10 +14,12 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 
 | Conhecimento | Dono (arquivo) | Quando consultar |
 |---|---|---|
-| Método de trabalho, conduta, decisões de diretriz | `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (arquitetura viva em artigos) | Antes de toda tarefa não-trivial |
+| Método de trabalho, conduta, decisões de diretriz, COMO O CEO PEDE (Art. 6º-A) | `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (arquitetura viva em artigos) | Antes de toda tarefa não-trivial |
 | Loop Especificar→Construir→Revisar | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
 | Sistema de design (3D, tokens, padrões, controles) | `.agents/skills/skill-layout-paxter/SKILL.md` + `references/` | Antes de criar/redesenhar QUALQUER tela |
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
+| Funcionalidades e estrutura detalhada (telas, rotas, schemas, integrações Google, portal do cliente) | `docs/PADCOM-FUNCIONALIDADES.md` | Ao mexer numa funcionalidade existente |
+| Conceito Raiz — sistemas primos IHE x Manager (deduplicação `id_ihe`, dívidas técnicas Onda 1) | `docs/CONCEITO-RAIZ-PRIMOS.md` | Em qualquer onda de integração/transmutação |
 | Alvo escrito de cada funcionalidade | `specs/<nome>.md` | Ao especificar/construir uma onda |
 | Cartas para outros primos (IHE, Claude, Manus) | `cartas/` (índice em `cartas/INDEX.md`) | Ao comunicar outro sistema/agente |
 | Pack portável das skills (semear/certificar primos) | `paxter-pack/` (README, SEED, MANIFEST) + `scripts` `paxter:pack`/`paxter:audit` | Ao criar um sistema novo ou auditar um existente |
@@ -29,150 +31,38 @@ vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anu
 
 ## Branding
 
-- **Nome**: Padcon Conect (1 N — decisao de marca)
-- **Paleta principal**: Verde-petroleo (#3D7A7A / hsl(180,30%,28%)), Ciano (#45B8CC / hsl(187,72%,48%)), Branco
-- **Estilo visual**: Bordas quadradas (radius 6px), cards com borda lateral colorida, MAIUSCULO nos labels KPI, elegante/empirico, sem infantilidades
-- **Logo**: SVG no sidebar (PadconLogo component) — "Pad" branco + "con" ciano + "CONECT" subtitulo
-- **Sidebar**: Verde-petroleo escuro, menu com bordas finas, item ativo com destaque ciano
-- **TDAH-friendly**: Cores fortes e contrastantes, labels em uppercase com tracking expandido, hierarquia visual clara
+- **Marca visível ao cliente**: PAXTER (Clinical Intelligence System) — chrome navy + ouro; símbolo = PaxterSymbolGlass; wordmark = arte oficial (nunca texto digitado). Detalhe na skill `skill-layout-paxter` e nas memórias `paxter-*`.
+- **Exceção**: receituário emite como Instituto Padua.
+- **Estilo visual**: linguagem 3D skeuomórfica (bevel/well/painel 3D), bordas 6px, MAIUSCULO nos labels KPI, TDAH-friendly (alto contraste, hierarquia clara), sem infantilidades.
+- **Status**: verde = concluído (emerald preservado); cor de status NUNCA trocada em massa.
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
+- **Monorepo**: pnpm workspaces; Node.js 24; TypeScript 5.9
 - **Frontend**: React + Vite + TailwindCSS + shadcn/ui
-- **API framework**: Express 5
+- **API**: Express 5; validação Zod (`zod/v4`) + `drizzle-zod`; codegen Orval (OpenAPI); build esbuild (ESM)
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (ESM bundle)
-- **PDF**: pdf-lib (generation) + node-forge (A1 ICP-Brasil digital signature) + pdf-parse v2 (text extraction via `PDFParse.getText()`) + tesseract.js (OCR fallback for scanned PDFs, uses `pdftoppm` for PDF→PNG conversion)
+- **PDF**: pdf-lib (geração) + pdfkit (RAS FAP) + node-forge (assinatura A1 ICP-Brasil) + pdf-parse v2 (`PDFParse.getText()`) + tesseract.js (OCR fallback, `pdftoppm` para PDF→PNG) + Puppeteer/Chromium Nix (receituário faixas)
 
 ## Key Commands
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+- `pnpm run typecheck` — typecheck completo (pré-quebrado em tipos gerados; validar por runtime/curl/screenshot)
+- `pnpm --filter @workspace/padcom exec tsc -p tsconfig.json --noEmit` — typecheck só do frontend
+- `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks e schemas Zod do OpenAPI
+- Schema de banco: tabelas novas via SQL direto (nunca `db push` em tabela populada — ver memórias)
 
-## Project Structure
+## Estrutura (resumo)
 
-### Frontend (`artifacts/padcom`)
-- **Dashboard** — overview
-- **Clientes** — CRUD de clientes with Google Drive folder setup button, edit form with CEP auto-fill (ViaCEP), address decomposed into CEP/logradouro/numero/complemento/bairro/cidade/estado/pais. New fields: instagram, comoConheceu. Google Drive setup creates: folder structure (CLIENTES root → NOME CPF: xxx.xxx.xxx-xx → 15 subpastas), Google Sheet (CADASTRO + METADADOS tabs with folder IDs)
-- **Protocolos** — lista + detalhe + **Lançador** (guided single-page protocol creation)
-- **Agenda** — weekly session view with ICS download, Google Calendar sync, WhatsApp reminders, color-coded status cards
-- **RAS** — Registro de Administração de Substâncias with A1 ICP-Brasil digital signature PDF download, auto-upload to Google Drive (PROTOCOLOS folder), manual "Enviar ao Drive" button
-- **RAS FAP** (antigo "RAS Físico") — Printable landscape PDF (spreadsheet format) for nurse manual control / paper audit (FAP = Formulário de Auditoria de Procedimentos). Gerado por **pdfkit** em `artifacts/api-server/src/lib/ras-fap.ts` (export `gerarRasFapPdf`); `generatePhysicalRASPdf` em `pdf-signer.ts` é só o adaptador (PhysicalRASData → DadosRasFap). Motor da grade COPIADO IDÊNTICO do `rasFap.ts` do IHE (agenda global, SEM contínuo cruzando páginas com lacunas, célula "N/total", consolidação por semana ISO no 1º dia previsto). Regras visuais do CEO: 5 colunas de substância FIXAS por folha (sobras EM BRANCO), moldura grossa só na caixa externa, wordmark serif "RAS", assinaturas em caixas + carimbo (CRM/COREN), padding até 20 linhas/página. Accessed from protocol detail page (button "RAS FAP (Imprimir)"). Demo: `GET /api/ras-fap-demo`. Auto-uploads to client Drive PROTOCOLOS folder. Filename: `YY.MM.DD RAS FAP NOME (TITULO).pdf`
-- **Estoque** — stock management with critical/low alerts
-- **Financeiro** — payments tracking with PIX/credit/debit/boleto/cash methods, installments for credit cards, card identification labels, running balance with total pago/pendente
-- **Profissionais** — staff management
-- **Substâncias** — comprehensive substance catalog with expandable detail cards showing health benefits, body system impact bars, longevity/sleep/energy/performance info
-
-### API Server (`artifacts/api-server`)
-- All routes under `/api/` prefix
-- Vite proxy configured in padcom: `/api` → port 8080
-- Digital signature: A1 certificate at `certs/assinatura.pfx` (CPF 293.274.948-06)
-
-### Database (`lib/db`)
-- Tables: clients, substances, professionals, locations, protocols, protocol_items, sessions, substance_applications, ras, ras_evolutivo, stock, payments, validation_codes, nursing_assessments, task_cards, client_ratings
-- Locations: Clínica Tatuapé, Clínica Mooca, Nurse Care Domiciliar
-- `location_professionals` junction table
-
-### RAS Evolutivo System (Phase 1 — Schema)
-- **Professionals roles**: `role` field — medico_01, medico_02, enfermeira_01, enfermeira_02, adm_01, adm_02, financeiro_01, financeiro_02
-- **Client validation**: `validationPassword` (permanent password set at protocol closing) + existing `validation_codes` (daily codes). Client validates with either.
-- **Client Drive**: `driveFolderId`, `examRequestsFolderId` (subfolder "Exames Solicitados" ID)
-- **`nursing_assessments`**: Enfermeira 01 fills after each application — weeklyQuestion, alertColor (green/yellow/red), observation, adherenceLevel (alta/media/baixa), tolerance (excelente/boa/regular/ruim), symptoms, needsTeamContact, startTime/endTime
-- **`task_cards`**: Internal cards + Trello sync — types: welcome_adm, welcome_enf, followup, alert, payment_nf, monthly_review, exam_reminder, final_session. assignedRole maps to professional role. trelloCardId/trelloListId for sync.
-- **`client_ratings`**: Client rates nurse 0-5 stars, selects nurse from dropdown, ratingSource (post_application / post_contact). Rating ≤3 triggers management alert.
-- **`ras_evolutivo`**: Per-session PDF data — sessionNumber, totalSessions, progressPercent, substances (jsonb), alertColor, adherence, tolerance, weeklyObservation, sessionHistory (last 3 sessions), designatedDoctor, isAntepenultimate/isUltimate flags, examReminderSent, consultationReminder, validationCode, validatedByClient/validatedAt, pdfUrl/drivePdfId
-- **Alert color rules**: Green → history only. Yellow → card for enfermeira_02. Red → card for enfermeira_02 AND medico_02.
-- **Automated triggers**: Payment done → card financeiro_02. Every 30 days → card enf_02 + medico_02. Antepenúltima sessão → exam reminder to client (email+WhatsApp, "Exames Solicitados" subfolder). Última sessão → card enf_02 + adm_02 (consultation with designated doctor).
-- **Trello**: API integration (not Replit connector — none available). Cards sync bidirectionally via trelloCardId.
-
-### Substances Schema
-- `procedureType`: "iv" (endovenoso, 30min), "im" (intramuscular, 15min), "implant" (implante, 1h)
-- `durationMinutes`: default duration per procedure type
-- `description`, `mainFunction`, `perceivedEffects`, `timeToEffect`: clinical info
-- `starRating`: 1-5 efficacy rating
-- `bodySystemEffects`: JSON with effects per body system (cardiovascular, neurologico, metabolismo, hepatico, imunologico, dermatologico, muscular, endocrino, longevidade, etc.)
-- Health/Wellness fields: `longevityBenefit`, `qualityOfLifeImpact`, `sleepBenefit`, `energyBenefit`, `libidoBenefit`, `physicalPerformance`, `muscleStrength`, `mentalClarity`, `skinHairNails`, `immuneSupport`, `contraindications`, `scientificEvidence`, `categoryType`
-
-### Key Features
-- **Lançador**: Single-page guided protocol creation with up to 10 substance slots (per-substance start date, frequency, dose). Tela de resumo tem dois botões de lançamento: "Confirmar e Lançar Protocolo" (cria e vai ao detalhe) e o atalho "Lançar + Gerar RAS FAP" (cria → valida/gera sessões → gera o RAS FAP paisagem → baixa para impressão + envia ao Drive do cliente → vai ao detalhe). O RAS FAP só tem linhas de sessão depois da validação, por isso o atalho valida antes de gerar.
-- **Weekly consolidation**: Sessions grouped by week (Mon-Sun), one visit per week per client
-- **ICS integration**: Download ICS files per session or per week; Google Calendar deep links
-- **WhatsApp reminders**: Pre-formatted messages sent to client's phone
-- **A1 ICP-Brasil signature**: Multi-page PDF with RAS + substance info sheets + consent terms, digitally signed with PKCS#7
-- **Protocolo Completo PDF**: 8-10 page comprehensive protocol document with: cover page (PADCOM branding, client/doctor info, protocol value), benefits matrix (star ratings + 8 benefit categories per substance), substance fact sheets (description, function, body system effects, contraindications), TCLE per procedure type (IV/IM/SC/Implant), LGPD clause, session timeline grid, financial summary (payments, installments, balance), ICP-Brasil digital signature. Auto-uploads to Google Drive + emails to client. Route: `GET /api/protocols/:id/document-pdf`
-- **Per-substance confirmation**: Each substance in a session confirmed individually (DISP/PROX badges)
-- **Color-coded session cards**: Green=completed, Amber=partially confirmed, Blue=today, Red=missed, Gray=cancelled
-- **Substance pills with visual state**: Applied substances show green ring + checkmark; pending show DISP/PROX badge
-- **TDAH-friendly UI**: Color-coded, high contrast, clear visual hierarchy throughout
-- **Validation codes**: 6-digit alphanumeric codes for client identity verification
-- **Procedure types**: IM (15min), IV (30min), Implant (1h)
-- **Automated emails via Gmail API** (Replit Google Integration — OAuth):
-  - Subject format: `Clinica Padua | Aplicacao Endovenosa | A7K3M2`
-  - Pre-session: validation code, substance list, schedule info (HTML template)
-  - First-session emails: Include detailed substance benefit info (longevity, sleep, energy, performance, etc.)
-  - Post-session: completed substances + signed RAS PDF attachment via MIME multipart
-  - Weekly batch: `/api/email/send-weekly-reminders`
-  - Uses `google-gmail` connector via Replit integrations
-- **Google Calendar sync** (Replit Google Integration — OAuth):
-  - Per-session: `/api/google-calendar/sync-session/:id`
-  - Per-week: `/api/google-calendar/sync-week`
-  - Duration auto-set: IV=30min, IM=15min, Implant=60min
-  - Connected calendars include: AGENDA GERAL, AGENDA MEDICO, AGENDA ENFERMAGEM
-- **Google Drive integration** (Replit Google Integration — OAuth):
-  - Client folder structure: `PACIENTES/[CLIENT NAME] [CPF]/` with 15 subfolders
-  - Subfolders: CADASTRO (with CADASTROS ANTIGOS), PATOLOGIAS, EXAMES, AVALIACOES, RECEITAS, PROTOCOLOS, FINANCEIRO, CONTRATOS, ATESTADOS, LAUDOS, TERMOS, FOTO PERFIL, IMAGENS, PESQUISA, OUVIDORIA
-  - Protocol PDF naming: `YY.MM.DD PROTOCOLO NOME DO CLIENTE.pdf`
-  - RAS PDF naming: `DD.MM.YY RAS NOME DO CLIENTE CPF.pdf`
-  - **File renaming**: `POST /api/google-drive/rename-files` (async fire-and-forget). Pattern: `YY.MM.DD TIPO [AREA] NOME_CLIENTE.ext`. Date from Drive `createdTime`. Classification priority: COMPLEX_EXAM (densitometria, biopsia, etc.) > IMAGING (USG, RMN, TC, etc.) > LAB → "EXAME". Text extraction: pdf-parse v2 first, OCR fallback via tesseract.js. Body part appended only if not redundant with type.
-  - **PDF diagnostics**: `GET /api/google-drive/diagnose-pdfs?max=N` — extracts text + classifies without renaming
-  - Idempotent: won't recreate existing folders
-  - Auto-share view-only with client email
-  - Setup per-client: `/api/google-drive/setup-client/:clientId`
-  - Upload protocol/RAS to Drive: `/api/google-drive/upload-protocol/:clientId`, `/api/google-drive/upload-ras/:clientId`
-
-### Client Upload Portal (`/portal`)
-- **Public-facing** responsive mobile-first page (no admin sidebar)
-- **Identification**: CPF + data de nascimento → HMAC token (30min TTL, signed with SESSION_SECRET)
-- **Security**: Generic error messages (no CPF enumeration), token-bound uploads (prevents IDOR)
-- **Upload types**: Exame de Sangue, Ultrassom, Tomografia, Ressonância, Densitometria, Laudo, Comprovante de Pagamento, Foto/Imagem, Receita, Atestado, Outro
-- **Body region dropdown**: Shown only for imaging exams (USG, TC, RMN, Densitometria)
-- **File naming**: `YY.MM.DD TIPO [REGION] NOME_CLIENTE.ext`
-- **Folder routing**: Type maps to Drive subfolder (exames→EXAMES, laudo→LAUDOS, comprovante→FINANCEIRO, foto→IMAGENS, etc.)
-- **API endpoints**: `POST /api/client-portal/identify`, `POST /api/client-portal/upload` (multipart, requires token)
-- **Link distribution**: Via WhatsApp to each client
+- `artifacts/padcom` — frontend administrativo + Área do Cliente (Vite proxy `/api` → porta 8080)
+- `artifacts/api-server` — todas as rotas sob `/api/`; certificado A1 em `certs/assinatura.pfx`
+- `artifacts/parxis-site` — site institucional PARXIS
+- `lib/db` — schema Drizzle (clientes, protocolos, sessões, exames, catálogo, financeiro, etc.)
+- Detalhe tela-a-tela, rotas e integrações: `docs/PADCOM-FUNCIONALIDADES.md`
 
 ## Working Language
-- UI and user communication in Portuguese (Brazil)
-- Term: "cliente" (not "paciente")
 
-## CONCEITO RAIZ — Sistemas Primos Independentes (IHE x Manager)
-
-Decisao do CEO (Dr. Caio), registrada em 14/06/2026. Vale como regra para todas as ondas de integracao/transmutacao.
-
-1. IHE (Integrative Health Engine) e Padcon Conect (Manager) sao sistemas PRIMOS: independentes, cada um dono dos seus proprios dados, que colaboram por interface — nunca fundidos.
-
-2. Na transmutacao/integracao, NADA entra com prefixo de origem nem coluna/tag de origem. O dado, ao entrar num sistema, passa a ser nativo dele.
-
-3. "Separar os gemeos siameses": mesmo com dor no coracao, desacoplar tudo que hoje esta conjugado entre os dois sistemas.
-
-4. Colaboracao maxima: cada Dr (agente) pensa 10 passos a frente em possiveis conflitos e erros antes de agir.
-
-5. Esta decisao SUBSTITUI a premissa anterior da CARTA_02 (que pedia TAG de origem e import unificado). A nova diretriz e: primos independentes, sem tag de origem.
-
-6. EXCECAO ao item 2 (decisao do CEO em 15/06/2026): as tabelas-deposito do catalogo `catalogo_formulas`, `catalogo_injetaveis` e `catalogo_implantes` usam a coluna `id_ihe` (id de origem do IHE) como chave unica de deduplicacao. Motivo: nessas tres colecoes nenhum campo de negocio e unico (codigo_semantico se repete), entao so o id de origem garante 0 perda de dado (54 formulas / 305 injetaveis / 32 implantes). As demais colecoes mantem chave de negocio nativa (catalogo_itens=codigo_padcom, catalogo_blends=codigo_blend, periodos_dia=sigla) e os pacientes deduplicam por chave natural, sem id de origem.
-
-6-A. EXTENSAO da excecao (Onda 1 motor/exames — aprovada pelo CEO em 15/06/2026, apos auditoria do commit 5ca1888d): mais 5 colecoes usam `id_ihe` como chave de deduplicacao porque nenhum campo de negocio e unico nelas (verificado por teste de unicidade): `catalogo_doencas`, `motor_regras` (regra_id repete 3x), `anamnese_questionario` (pergunta_id Q030 duplica), `mapa_anamnese_motor`, `catalogo_endovenosos` (soros repetem codigo). As demais 8 colecoes da Onda 1 mantem chave de negocio nativa: catalogo_exames=codigo_exame, catalogo_analitos=codigo, catalogo_blocos=codigo_bloco, catalogo_bloco_exames=(bloco_id+nome_exame+grau), direcao_favoravel_exame=nome_exame, catalogo_sintomas=codigo_semantico, catalogo_cid10=codigo, motor_decisao_clinica=caso_id. `catalogo_exames` guarda a linha crua inteira em coluna jsonb `dados` (zero perda das 68 colunas de origem).
-
-6-B. DIVIDAS TECNICAS da Onda 1 (registradas pelo CEO em 15/06/2026 para a proxima onda; NAO bloqueiam a Onda 1): (1) vinculo bloco<->exame hoje e por TEXTO (nome_exame) — migrar para chave estrangeira (FK) por id antes de o motor consumir em producao; (2) campos sim/nao vieram como TEXTO — converter para booleano ao montar a tela; (3) a consulta do motor por doenca pede o numero `id_ihe` — adicionar busca por nome/codigo.
+- UI e comunicação com usuário em Português (Brasil)
+- Termo: "cliente" (não "paciente")
 
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
@@ -182,7 +72,7 @@ Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO
 
 Art. 37  Conclusao primeiro; explicacao depois.
 
-Art. 38  A TABELA e a base, o carro-chefe de toda resposta: ela carrega o dado para o CEO bater o olho e entender num relance. A numeracao (1, 1.1) NAO narra paragrafo: serve so para AGRUPAR um assunto fechado, como esqueleto. A parede linear de "1.1 uma frase por linha" deixa de ser o carro-chefe e fica proibida como portadora principal do conteudo. Densidade canonica "B", definida em 15/06/2026.
+Art. 38  A TABELA e a base, o carro-chefe de toda resposta: ela carrega o dado para o CEO bater o olho e entender num relance. A numeracao (1, 1.1) NAO narra paragrafo: serve so para AGRUPAR um assunto fechado, como esqueleto. A parede linear de "1.1 uma frase por linha" deixa de ser o carro-chefe e fica proibida como portadora principal do conteudo.
 
 Art. 39  Todo bloco de informacao e uma TABELA emoldurada, com titulo auto explicativo, linha de cabecalho, primeira linha em tom pastel e colunas alinhadas verticalmente.
 
@@ -214,8 +104,8 @@ Art. 49  Nao misturar OPERAR (uso clinico real) com ARQUITETAR (construir com ag
 
 Art. 50  Nao mudar uma decisao do CEO sem avisar; se o CEO errar, corrigir com fundamento.
 
-Art. 51  Comunicacao visual no Canvas (decisao do CEO em 16/06/2026): quando o assunto for fluxo, comparacao de opcoes, arquitetura ou "antes x depois", o agente deve oferecer/desenhar um ORGANOGRAMA (blueprint) no Canvas — caixas + setas, cores da marca (verde-petroleo/ciano para sistema, verde para resultado, laranja para o item novo/proposto), faixas separando cada caminho, e uma nota-resumo. Ao terminar, sempre chamar presentArtifact com os ids das formas. Esta pratica complementa a Densidade B (tabela continua sendo o carro-chefe do texto). Vale para todos os repositorios/agentes do CEO.
+Art. 51  Canvas: assunto de fluxo/comparacao/arquitetura -> ORGANOGRAMA (blueprint) com caixas + setas e cores da marca; ao terminar, presentArtifact. Complementa a Densidade B.
 
-Art. 52  Organizacao do Canvas em ENTREGAS numeradas (decisao do CEO em 19/06/2026; atualizado em 25/06/2026 de 10 para 5 entregas por coluna): cada pedido/demanda que usa o Canvas e uma ENTREGA com um selo numerado no canto superior esquerdo. As entregas ficam empilhadas uma embaixo da outra, comecando pelo canto superior esquerdo do Canvas; no maximo 5 entregas por coluna; a 6a inicia uma nova coluna a direita (espacamento fixo) e assim por diante. Respeitar os limites (superior/inferior/esquerdo/direito) e nunca sobrepor entregas existentes; ao terminar, chamar presentArtifact. Preferencia do CEO (25/06/2026): priorizar TELAS (mockups de tela de verdade) no Canvas; organograma so quando o assunto for fluxo/comparacao.
+Art. 52  Canvas em ENTREGAS numeradas (selo no canto superior esquerdo), empilhadas do canto superior esquerdo, maximo 5 por coluna, 6a inicia nova coluna a direita; nunca sobrepor entregas. Preferencia (25/06/2026): priorizar TELAS (mockups reais); organograma so para fluxo/comparacao.
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
