@@ -328,11 +328,12 @@ function ColunaCabecalho({
           (Fleury, Delboni, qualquer um = ouro, sem variar). Quando NÃO
           identificado: mesmo layoutzinho, outra cor, COM moldura em volta,
           e o texto é "Indefinido". */}
-      {/* LAB — badge pastel, cor única por laboratório */}
-      <span className="mt-1 flex h-[14px] items-center">
+      {/* LAB — badge pastel largura FIXA (w-full = mesma largura da coluna);
+          todos os labs ficam alinhados verticalmente independente do nome. */}
+      <span className="mt-1 flex h-[14px] w-full items-center">
         {c.lab ? (
           <span
-            className="max-w-[60px] truncate rounded-[3px] px-1 py-0.5 text-[8px] font-black leading-none"
+            className="w-full truncate rounded-[3px] px-1 py-0.5 text-center text-[8px] font-black leading-none"
             style={{ background: labPastel(c.lab).bg, color: labPastel(c.lab).color, border: `1px solid ${labPastel(c.lab).border}` }}
             title={c.lab}
           >
@@ -340,7 +341,7 @@ function ColunaCabecalho({
           </span>
         ) : (
           <span
-            className="max-w-[60px] truncate rounded-[3px] px-1 py-0.5 text-[8px] font-black leading-none"
+            className="w-full truncate rounded-[3px] px-1 py-0.5 text-center text-[8px] font-black leading-none"
             style={{ background: "#f1f5f9", color: "#8a97a9", border: "1px solid #c3ccd8" }}
             title="Laboratório não identificado no laudo"
           >
@@ -368,29 +369,9 @@ function ColunaCabecalho({
         )}
       </span>
 
-      {/* STATUS DE CONFERÊNCIA — painel bevel-3d que preenche a coluna,
-          alinhado centralmente (items-center na coluna pai). Dot colorido
-          + rótulo em uppercase. 3 estados: Aguardando / Lançado / Conferido */}
-      {(() => {
-        const rotulo: keyof typeof STATUS_CFG = c.conferenteName
-          ? c.confLevel === "c2" ? "Conferido" : "Lançado"
-          : "Aguardando";
-        const s = STATUS_CFG[rotulo];
-        return (
-          <div
-            className="bevel-3d mt-1 flex w-full items-center justify-center gap-0.5 rounded-[3px] px-1 py-[3px]"
-            style={{ background: s.bg, border: `1px solid ${s.border}` }}
-          >
-            <span className="h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: s.dot }} />
-            <span
-              className="text-[6.5px] font-black uppercase tracking-widest leading-none"
-              style={{ color: s.color }}
-            >
-              {rotulo}
-            </span>
-          </div>
-        );
-      })()}
+      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
+        {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
+      </span>
     </div>
   );
 }
@@ -1054,15 +1035,6 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           </div>
         </div>
 
-        {/* PAINEL 3 — EXIBIÇÃO */}
-        <div className="concave-3d rounded-[6px] px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Exibição
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
-          </div>
-        </div>
 
       </div>
 
@@ -1083,13 +1055,13 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           {/* items-start: todas as datas nascem na MESMA linha horizontal imaginária,
               independente do que cada coluna tem embaixo (selo Histórico, status). */}
           <div className="flex items-start gap-2 pb-2">
+            {/* Toggle "Faixinha de cor" no canto esquerdo do cabeçalho,
+                no lugar do antigo rótulo "Exame (congelado)". */}
             <div
               className="sticky left-0 z-[4] flex shrink-0 items-end self-stretch px-2 py-1"
               style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
             >
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#647c97]">
-                Exame (congelado)
-              </span>
+              <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
             </div>
             {orderedColumns.list.map((c, idx) => {
               const isPinned = idx < orderedColumns.pinCols.length;
