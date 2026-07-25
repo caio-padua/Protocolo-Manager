@@ -601,60 +601,64 @@ function CartaoGrafico({
         </div>
       )}
 
-      {/* RODAPÉ VIVO — 4 peças: [VALOR concave] [DATA concave] ... [TENDÊNCIA bevel] [SITUAÇÃO bevel].
-          Atualiza enquanto o mouse passeia; sem mouse = última coleta.
-          flex-wrap-reverse: quando o cartão for estreito e não couber tudo numa linha,
-          a ÚLTIMA peça (SITUAÇÃO) SOBE para uma linha acima — nunca estoura para fora. */}
-      <div className="mt-2 flex flex-wrap-reverse items-stretch gap-1.5">
-        {/* 1 — VALOR: inset bevel esquerdo, LARGO; numero e unidade LADO A
-            LADO, em PRETO (pedido do CEO 25/07/2026). */}
-        <div className="concave-3d flex min-w-[120px] flex-col items-center justify-center px-3 py-1.5">
-          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
-            {ponteiro ? "no ponto" : "última"}
-          </span>
-          <span className="flex items-baseline gap-1">
-            <span className="text-[17px] font-black leading-tight text-[#16294a]">
-              {pontoAtivo?.valor ?? "—"}
+      {/* RODAPÉ VIVO — 2 grupos que se espremem lado a lado.
+          Grupo esquerdo: VALOR + DATA (encolhem juntos).
+          Grupo direito: SITUAÇÃO + TENDÊNCIA com flex-wrap-reverse interno —
+          TENDÊNCIA é o último item, então É ELA que sobe (não SITUAÇÃO) quando
+          o grupo direito apertar. SITUAÇÃO nunca sai do lugar. */}
+      <div className="mt-2 flex items-stretch justify-between gap-1.5">
+
+        {/* GRUPO ESQUERDO — VALOR + DATA encolhíveis */}
+        <div className="flex min-w-0 items-stretch gap-1.5">
+          {/* VALOR */}
+          <div className="concave-3d flex flex-col items-center justify-center px-2 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
+              {ponteiro ? "no ponto" : "última"}
             </span>
-            {analyte.unit && (
-              <span className="text-[10px] font-semibold text-[#16294a]">{analyte.unit}</span>
-            )}
-          </span>
+            <span className="flex items-baseline gap-0.5">
+              <span className="text-[16px] font-black leading-tight text-[#16294a]">
+                {pontoAtivo?.valor ?? "—"}
+              </span>
+              {analyte.unit && (
+                <span className="text-[10px] font-semibold text-[#16294a]">{analyte.unit}</span>
+              )}
+            </span>
+          </div>
+          {/* DATA */}
+          <div className="concave-3d flex flex-col items-center justify-center px-2 py-1.5">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
+            <span className="text-[11px] font-bold leading-tight text-[#16294a]">
+              {pontoAtivo?.data || "—"}
+            </span>
+          </div>
         </div>
 
-        {/* 2 — DATA: inset bevel DELIMITADO (largura propria, nao esticada) */}
-        <div className="concave-3d flex min-w-[104px] flex-col items-center justify-center px-3 py-1.5">
-          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
-          <span className="text-[12px] font-bold leading-tight text-[#16294a]">
-            {pontoAtivo?.data || "—"}
-          </span>
+        {/* GRUPO DIREITO — SITUAÇÃO + TENDÊNCIA.
+            flex-wrap-reverse: quando apertar, TENDÊNCIA (último) sobe para
+            uma linha acima A DIREITA de SITUAÇÃO — nunca estoura. */}
+        <div className="flex flex-wrap-reverse items-stretch justify-end gap-1.5">
+          {/* SITUAÇÃO — fica no lugar */}
+          <div
+            className="bevel-3d flex flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+            style={{ border: `2px solid ${corAtiva}` }}
+          >
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+            <span className="text-[11px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
+              {rotuloAtivo}
+            </span>
+          </div>
+          {/* TENDÊNCIA — sobe quando não couber */}
+          <div
+            className="bevel-3d flex flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+            style={{ border: `2px solid ${tend.hex}` }}
+          >
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
+            <span className="text-[11px] font-black uppercase leading-tight" style={{ color: tend.hex }}>
+              {tend.rotulo}
+            </span>
+          </div>
         </div>
 
-        {/* respiro entre as pecas concavas e as salientes */}
-        <div className="min-w-[8px] flex-1" />
-
-        {/* 3 — TENDÊNCIA: bevel saliente, SEM setinha (so a palavra) */}
-        <div
-          className="bevel-3d flex min-w-[64px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
-          style={{ border: `2px solid ${tend.hex}` }}
-        >
-          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
-          <span className="text-[11px] font-black uppercase leading-tight" style={{ color: tend.hex }}>
-            {tend.rotulo}
-          </span>
-        </div>
-
-        {/* SITUAÇÃO: última peça — flex-wrap-reverse faz ela SUBIR para uma
-            linha acima quando o cartão for estreito (não estoura para fora). */}
-        <div
-          className="bevel-3d flex min-w-[80px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
-          style={{ border: `2px solid ${corAtiva}` }}
-        >
-          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
-          <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
-            {rotuloAtivo}
-          </span>
-        </div>
       </div>
     </section>
   );
