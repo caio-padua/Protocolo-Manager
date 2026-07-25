@@ -1,5 +1,17 @@
-[phases.setup]
-nixPkgs = ["nodejs_24", "pnpm"]
+# Nixpacks — build do monorepo pnpm no Railway.
+# O contexto de build e SEMPRE a raiz do repositorio (Root Directory = "/"),
+# porque os pacotes de artifacts/* dependem de lib/* via "workspace:*" e do
+# catalogo declarado em pnpm-workspace.yaml. Isolar a pasta do pacote quebra
+# o install.
+#
+# A fase de setup fica com o autodetect do Nixpacks: ele ve o pnpm-lock.yaml e
+# provisiona o pnpm sozinho. Fixar nixPkgs na mao arrisca derrubar esse setup.
+
+[variables]
+NIXPACKS_NODE_VERSION = "24"
 
 [phases.install]
-cmds = ["pnpm install --frozen-lockfile"]
+# --prod=false e obrigatorio: o Railway define NODE_ENV=production, e o pnpm
+# pula devDependencies nesse modo — mas o vite (build dos frontends) e o
+# esbuild (build do api-server) vivem justamente em devDependencies.
+cmds = ["pnpm install --frozen-lockfile --prod=false"]

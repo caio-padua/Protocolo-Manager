@@ -1,9 +1,21 @@
+# Servico Railway: @workspace/parxis-site (site publico PARXIS)
+#
+# Root Directory = "/" (raiz do repo). Config-as-code path:
+#   artifacts/parxis-site/railway.toml
+
 [build]
 builder = "nixpacks"
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && BASE_PATH=/ pnpm --filter @workspace/parxis-site run build"
+buildCommand = "pnpm --filter @workspace/parxis-site run build"
+watchPatterns = [
+  "artifacts/parxis-site/**",
+  "lib/**",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "nixpacks.toml",
+]
 
 [deploy]
-startCommand = "BASE_PATH=/ pnpm --filter @workspace/parxis-site run serve"
-healthcheckTimeout = 60
+startCommand = "pnpm --filter @workspace/parxis-site run serve"
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

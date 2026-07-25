@@ -1,9 +1,24 @@
+# Servico Railway: @workspace/padcom (frontend admin)
+#
+# Root Directory = "/" (raiz do repo). Config-as-code path:
+#   artifacts/padcom/railway.toml
+#
+# Requer a variavel VITE_API_SERVER_URL apontando para a URL publica do
+# api-server: o "vite preview" faz proxy de /api para la (ver vite.config.ts).
+
 [build]
 builder = "nixpacks"
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && BASE_PATH=/ pnpm --filter @workspace/padcom run build"
+buildCommand = "pnpm --filter @workspace/padcom run build"
+watchPatterns = [
+  "artifacts/padcom/**",
+  "lib/**",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "nixpacks.toml",
+]
 
 [deploy]
-startCommand = "BASE_PATH=/ pnpm --filter @workspace/padcom run serve"
-healthcheckTimeout = 60
+startCommand = "pnpm --filter @workspace/padcom run serve"
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
