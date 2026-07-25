@@ -245,6 +245,27 @@ function Cela({
   );
 }
 
+// ─── paleta pastel por laboratório ─────────────────────────────────────────
+function labPastel(lab: string): { bg: string; color: string; border: string } {
+  const k = lab.toLowerCase();
+  if (k.includes("fleury"))   return { bg: "#dbeafe", color: "#1e3a8a", border: "#93c5fd" };
+  if (k.includes("delboni"))  return { bg: "#dcfce7", color: "#14532d", border: "#86efac" };
+  if (k.includes("pardini") || k.includes("hermes"))
+                               return { bg: "#ede9fe", color: "#4c1d95", border: "#c4b5fd" };
+  if (k.includes("synlab"))   return { bg: "#ffedd5", color: "#7c2d12", border: "#fdba74" };
+  if (k.includes("lavoisier"))return { bg: "#ccfbf1", color: "#134e4a", border: "#5eead4" };
+  if (k.includes("einstein")) return { bg: "#fce7f3", color: "#831843", border: "#f9a8d4" };
+  if (k.includes("alta"))     return { bg: "#fef9c3", color: "#713f12", border: "#fde047" };
+  return                             { bg: "#f1f5f9", color: "#334155", border: "#94a3b8" };
+}
+
+// ─── config visual do status de conferência ────────────────────────────────
+const STATUS_CFG = {
+  Conferido:  { bg: "#dcfce7", color: "#166534", border: "#86efac", dot: "#22c55e" },
+  Lançado:    { bg: "#dbeafe", color: "#1e40af", border: "#93c5fd", dot: "#3b82f6" },
+  Aguardando: { bg: "#f1f5f9", color: "#64748b", border: "#cbd5e1", dot: "#94a3b8" },
+} as const;
+
 // ---------------------------------------------------------- cabeçalho coluna --
 function ColunaCabecalho({
   c,
@@ -307,28 +328,30 @@ function ColunaCabecalho({
           (Fleury, Delboni, qualquer um = ouro, sem variar). Quando NÃO
           identificado: mesmo layoutzinho, outra cor, COM moldura em volta,
           e o texto é "Indefinido". */}
+      {/* LAB — badge pastel, cor única por laboratório */}
       <span className="mt-1 flex h-[14px] items-center">
         {c.lab ? (
           <span
-            className="max-w-[60px] truncate text-[9px] font-semibold leading-none"
-            style={{ color: GOLD }}
+            className="max-w-[60px] truncate rounded-[3px] px-1 py-0.5 text-[8px] font-black leading-none"
+            style={{ background: labPastel(c.lab).bg, color: labPastel(c.lab).color, border: `1px solid ${labPastel(c.lab).border}` }}
             title={c.lab}
           >
             {c.lab}
           </span>
         ) : (
           <span
-            className="max-w-[60px] truncate rounded-[3px] px-1 text-[9px] font-semibold leading-[12px]"
-            style={{ color: "#8a97a9", border: "1px solid #c3ccd8" }}
+            className="max-w-[60px] truncate rounded-[3px] px-1 py-0.5 text-[8px] font-black leading-none"
+            style={{ background: "#f1f5f9", color: "#8a97a9", border: "1px solid #c3ccd8" }}
             title="Laboratório não identificado no laudo"
           >
             Indefinido
           </span>
         )}
       </span>
+
+      {/* DO LAUDO / HISTÓRICO — mesma moldura, intensidades diferentes */}
       <span className="mt-0.5 flex h-[13px] items-center">
         {c.isHistory ? (
-          /* HISTÓRICO — mesma moldura, porém tom apagado/muted */
           <span
             className="inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
             style={{ background: "#fefce8", color: "#a16207", border: "1px solid #fde68a" }}
@@ -336,7 +359,6 @@ function ColunaCabecalho({
             Histórico
           </span>
         ) : (
-          /* DO LAUDO — mesma moldura, tom mais intenso/vibrante */
           <span
             className="inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
             style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
@@ -345,9 +367,30 @@ function ColunaCabecalho({
           </span>
         )}
       </span>
-      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
-        {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
-      </span>
+
+      {/* STATUS DE CONFERÊNCIA — painel bevel-3d que preenche a coluna,
+          alinhado centralmente (items-center na coluna pai). Dot colorido
+          + rótulo em uppercase. 3 estados: Aguardando / Lançado / Conferido */}
+      {(() => {
+        const rotulo: keyof typeof STATUS_CFG = c.conferenteName
+          ? c.confLevel === "c2" ? "Conferido" : "Lançado"
+          : "Aguardando";
+        const s = STATUS_CFG[rotulo];
+        return (
+          <div
+            className="bevel-3d mt-1 flex w-full items-center justify-center gap-0.5 rounded-[3px] px-1 py-[3px]"
+            style={{ background: s.bg, border: `1px solid ${s.border}` }}
+          >
+            <span className="h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: s.dot }} />
+            <span
+              className="text-[6.5px] font-black uppercase tracking-widest leading-none"
+              style={{ color: s.color }}
+            >
+              {rotulo}
+            </span>
+          </div>
+        );
+      })()}
     </div>
   );
 }
