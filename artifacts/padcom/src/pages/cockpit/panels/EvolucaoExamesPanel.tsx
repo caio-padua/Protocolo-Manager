@@ -642,26 +642,25 @@ function CartaoGrafico({
             ele fica menor que 2×66+gap, flex-wrap-reverse dispara e
             TENDÊNCIA sobe ACIMA de SITUAÇÃO pela linha imaginária comum. */}
         <div className="flex min-w-0 flex-wrap-reverse items-stretch justify-end gap-1.5">
-          {/* TENDÊNCIA — 66px; quando não couber, flex-wrap-reverse a move
-              para cima ACIMA de SITUAÇÃO (ela sobe, não SITUAÇÃO). */}
+          {/* TENDÊNCIA — sem cor: borda neutra, texto preto, só 1ª letra
+              maiúscula. Cores ficam reservadas para SITUAÇÃO. */}
           <div
             className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
-            style={{ border: `2px solid ${tend.hex}` }}
+            style={{ border: `2px solid #b0bec5` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
-            <span className="text-[11px] font-black uppercase leading-tight" style={{ color: tend.hex }}>
+            <span className="text-[11px] font-black capitalize leading-tight text-[#16294a]">
               {tend.rotulo}
             </span>
           </div>
-          {/* SITUAÇÃO — MAIS LARGA (80px) e ÚLTIMA da direita: é a mais
-              importante. Com flex-wrap-reverse, TENDÊNCIA (anterior) sobe;
-              SITUAÇÃO fica sempre ancorada na ponta direita. */}
+          {/* SITUAÇÃO — MAIS LARGA (80px), ÚLTIMA da direita, TODA EM
+              MAIÚSCULAS, cor cheia (borda + texto). A mais importante. */}
           <div
             className="bevel-3d flex w-[80px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${corAtiva}` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
-            <span className="text-[11px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
+            <span className="text-[11px] font-bold uppercase leading-tight" style={{ color: corAtiva }}>
               {rotuloAtivo}
             </span>
           </div>
