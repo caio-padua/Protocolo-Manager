@@ -594,7 +594,7 @@ function CartaoGrafico({
             <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">desde {stats.desde}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Vs. anterior</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Meta</span>
             <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.deltaAnterior ?? "—"}</span>
             <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{data.length} coletas</span>
           </div>
@@ -608,10 +608,12 @@ function CartaoGrafico({
           o grupo direito apertar. SITUAÇÃO nunca sai do lugar. */}
       <div className="mt-2 flex items-stretch justify-between gap-1.5">
 
-        {/* GRUPO ESQUERDO — VALOR + DATA encolhíveis */}
-        <div className="flex min-w-0 items-stretch gap-1.5">
-          {/* VALOR */}
-          <div className="concave-3d flex flex-col items-center justify-center px-2 py-1.5">
+        {/* GRUPO ESQUERDO — VALOR + DATA em LARGURA FIXA (não muda conforme
+            o ponto hovered). Regra: dimensionado para o maior valor esperado
+            (~6 dígitos + unidade). Nunca encolhe nem cresce. */}
+        <div className="flex shrink-0 items-stretch gap-1.5">
+          {/* VALOR — largura fixa 108px */}
+          <div className="concave-3d flex w-[108px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
               {ponteiro ? "no ponto" : "última"}
             </span>
@@ -624,8 +626,8 @@ function CartaoGrafico({
               )}
             </span>
           </div>
-          {/* DATA */}
-          <div className="concave-3d flex flex-col items-center justify-center px-2 py-1.5">
+          {/* DATA — largura fixa 80px */}
+          <div className="concave-3d flex w-[80px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
             <span className="text-[11px] font-bold leading-tight text-[#16294a]">
               {pontoAtivo?.data || "—"}
@@ -633,13 +635,14 @@ function CartaoGrafico({
           </div>
         </div>
 
-        {/* GRUPO DIREITO — SITUAÇÃO + TENDÊNCIA.
-            flex-wrap-reverse: quando apertar, TENDÊNCIA (último) sobe para
-            uma linha acima A DIREITA de SITUAÇÃO — nunca estoura. */}
-        <div className="flex flex-wrap-reverse items-stretch justify-end gap-1.5">
-          {/* SITUAÇÃO — fica no lugar */}
+        {/* GRUPO DIREITO — SITUAÇÃO + TENDÊNCIA, ambas com a MESMA largura
+            fixa para alinhamento vertical perfeito quando TENDÊNCIA sobe.
+            flex-wrap-reverse: TENDÊNCIA (último) sobe DIRETAMENTE acima de
+            SITUAÇÃO, alinhadas pela linha imaginária vertical comum. */}
+        <div className="flex shrink-0 flex-wrap-reverse items-stretch justify-end gap-1.5">
+          {/* SITUAÇÃO — ancora, nunca sai do lugar */}
           <div
-            className="bevel-3d flex flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+            className="bevel-3d flex w-[76px] flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${corAtiva}` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
@@ -647,9 +650,10 @@ function CartaoGrafico({
               {rotuloAtivo}
             </span>
           </div>
-          {/* TENDÊNCIA — sobe quando não couber */}
+          {/* TENDÊNCIA — mesma largura de SITUAÇÃO: quando sobe, fica
+              perfeitamente alinhada acima dela pela linha imaginária. */}
           <div
-            className="bevel-3d flex flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+            className="bevel-3d flex w-[76px] flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${tend.hex}` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
