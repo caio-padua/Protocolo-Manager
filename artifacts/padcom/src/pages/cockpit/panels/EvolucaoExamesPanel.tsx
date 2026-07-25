@@ -415,10 +415,14 @@ function CartaoGrafico({
     }
     const primeiro = data[0];
     const ultimoP = data[data.length - 1];
+    const penultimo = data.length > 1 ? data[data.length - 2] : null;
     const variacao =
       primeiro.valor !== 0 ? ((ultimoP.valor - primeiro.valor) / Math.abs(primeiro.valor)) * 100 : null;
     const media = soma / data.length;
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
+    // Delta contra a coleta ANTERIOR (substitui "Última Coleta" — pedido do
+    // CEO 25/07/2026: informação clinicamente mais útil).
+    const deltaAnterior = penultimo ? ultimoP.valor - penultimo.valor : null;
     return {
       min,
       max,
@@ -426,7 +430,8 @@ function CartaoGrafico({
       variacao: variacao == null ? null : `${variacao >= 0 ? "+" : "−"}${Math.abs(variacao).toFixed(0)}%`,
       variacaoPositiva: variacao != null && variacao >= 0,
       desde: primeiro.data,
-      ultimaColeta: ultimoP.data,
+      deltaAnterior:
+        deltaAnterior == null ? null : `${deltaAnterior >= 0 ? "+" : "−"}${fmt(Math.abs(deltaAnterior))}`,
       fmt,
     };
   }, [data]);
@@ -484,7 +489,11 @@ function CartaoGrafico({
           Sem valores numéricos para desenhar o gráfico deste exame.
         </div>
       ) : (
-        <div className="screen-tv-3d p-2">
+        <div className="screen-tv-3d relative p-2">
+          {/* VIDRO CONVEXO (TV antiga): lamina de vidro abaulada encaixada no
+              inset bevel, mais alta que a moldura; pointer-events desligado
+              para o hover do grafico continuar funcionando. */}
+          <span aria-hidden className="glass-crt" />
           {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
           <div className="scroll-gold overflow-x-auto pb-1">
             <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 220 }}>
@@ -569,16 +578,16 @@ function CartaoGrafico({
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Mínimo</span>
             <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.min.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.min.data}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.min.data === "—" ? "sem data" : stats.min.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Máximo</span>
             <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.max.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.max.data}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.max.data === "—" ? "sem data" : stats.max.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Média</span>
-            <span className="text-[12px] font-black leading-tight" style={{ color: GOLD }}>{stats.media}</span>
+            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.media}</span>
             <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">período todo</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
@@ -587,8 +596,8 @@ function CartaoGrafico({
             <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">desde {stats.desde}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Última coleta</span>
-            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.ultimaColeta}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Vs. anterior</span>
+            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.deltaAnterior ?? "—"}</span>
             <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{data.length} coletas</span>
           </div>
         </div>
@@ -598,48 +607,51 @@ function CartaoGrafico({
           [VALOR concave] [DATA concave] ... [FAIXA bevel] [TEND bevel]
           Atualiza enquanto o mouse passeia; sem mouse = última coleta. */}
       <div className="mt-2 flex items-stretch gap-1.5">
-        {/* 1 — VALOR: inset bevel esquerdo */}
-        <div className="concave-3d flex min-w-[64px] flex-col items-center justify-center px-2 py-1.5">
+        {/* 1 — VALOR: inset bevel esquerdo, LARGO; numero e unidade LADO A
+            LADO, em PRETO (pedido do CEO 25/07/2026). */}
+        <div className="concave-3d flex min-w-[120px] flex-col items-center justify-center px-3 py-1.5">
           <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
             {ponteiro ? "no ponto" : "última"}
           </span>
-          <span className="text-[17px] font-black leading-tight" style={{ color: GOLD }}>
-            {pontoAtivo?.valor ?? "—"}
+          <span className="flex items-baseline gap-1">
+            <span className="text-[17px] font-black leading-tight text-[#16294a]">
+              {pontoAtivo?.valor ?? "—"}
+            </span>
+            {analyte.unit && (
+              <span className="text-[10px] font-semibold text-[#16294a]">{analyte.unit}</span>
+            )}
           </span>
-          {analyte.unit && (
-            <span className="text-[8px] font-semibold text-[#647c97]">{analyte.unit}</span>
-          )}
         </div>
 
-        {/* 2 — DATA: inset bevel centro */}
-        <div className="concave-3d flex flex-1 flex-col items-center justify-center px-2 py-1.5">
+        {/* 2 — DATA: inset bevel DELIMITADO (largura propria, nao esticada) */}
+        <div className="concave-3d flex min-w-[104px] flex-col items-center justify-center px-3 py-1.5">
           <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
           <span className="text-[12px] font-bold leading-tight text-[#16294a]">
-            {pontoAtivo?.data ?? "—"}
+            {pontoAtivo?.data || "—"}
           </span>
         </div>
 
-        {/* 3 — FAIXA: bevel saliente direito */}
+        {/* respiro entre as pecas concavas e as salientes */}
+        <div className="flex-1" />
+
+        {/* 3 — FAIXA: bevel saliente, SEM quadradinho colorido */}
         <div
           className="bevel-3d flex min-w-[80px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
           style={{ border: `2px solid ${corAtiva}` }}
         >
           <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
-          <div className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: corAtiva }} />
-            <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
-              {rotuloAtivo}
-            </span>
-          </div>
+          <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
+            {rotuloAtivo}
+          </span>
         </div>
 
-        {/* 4 — TENDÊNCIA: bevel saliente, ao lado da faixa */}
+        {/* 4 — TENDÊNCIA: bevel saliente, SEM setinha em cima (so a palavra) */}
         <div
-          className="bevel-3d flex min-w-[52px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+          className="bevel-3d flex min-w-[64px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
           style={{ border: `2px solid ${tend.hex}` }}
         >
-          <tend.Icon className="h-4 w-4" style={{ color: tend.hex }} />
-          <span className="text-[7px] font-black uppercase leading-none" style={{ color: tend.hex }}>
+          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
+          <span className="text-[11px] font-black uppercase leading-tight" style={{ color: tend.hex }}>
             {tend.rotulo}
           </span>
         </div>
