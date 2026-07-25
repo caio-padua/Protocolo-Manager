@@ -826,6 +826,26 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   // Offset de "grudar" de cada coluna fixada: depois do nome (200) + gap.
   const stickyLeft = (displayIndex: number) => NAME_W + GAP + displayIndex * (COL_W + GAP);
 
+  // Largura da ZONA CONGELADA (nome + colunas fixadas + vãos). A cortina da
+  // zona congelada usa isso para pintar um bloco opaco contínuo sob os
+  // elementos fixados, aparando TUDO que desliza por baixo (células, sombras
+  // e neon), inclusive nos vãos e no respiro entre linhas.
+  const zonaFixadaW = NAME_W + GAP + orderedColumns.pinCols.length * (COL_W + GAP);
+
+  // Cortina-base da zona congelada: filha sticky de largura ZERO (não mexe no
+  // layout; marginRight anula o gap do flex) com um bloco opaco transbordando
+  // para a direita. Fica em z:10 — abaixo do nome (z:30) e das células
+  // fixadas (z:20), acima de toda a esteira que rola (z auto).
+  const CortinaZona = ({ extra = 0 }: { extra?: number }) => (
+    <div
+      aria-hidden
+      className="sticky left-0 z-[10] shrink-0 self-stretch"
+      style={{ width: 0, marginRight: -GAP, willChange: "transform" }}
+    >
+      <div style={{ width: zonaFixadaW, height: `calc(100% + ${extra}px)`, background: PIN_BG }} />
+    </div>
+  );
+
   const alternar = (key: string) =>
     setSelecionados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   const fixar = (key: string) =>
@@ -1072,6 +1092,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
               acima de TODAS as linhas de dados (panel-3d-sub com GPU layer
               que vem depois no DOM). */}
           <div className="relative z-[30] flex items-start gap-2 pb-2">
+            {/* cortina da zona congelada no cabeçalho */}
+            <CortinaZona extra={8} />
             {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
                 células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
             <div
@@ -1125,6 +1147,10 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                   className="panel-3d-sub flex cursor-pointer items-center gap-2 py-2 pr-2"
                   style={selecionada ? { outline: `2px solid ${GOLD}`, outlineOffset: "-2px" } : undefined}
                 >
+                  {/* cortina da zona congelada: apara células, sombras e neon
+                      que deslizam por baixo do nome e das colunas fixadas,
+                      inclusive no respiro de 8px entre as linhas (extra) */}
+                  <CortinaZona extra={8} />
                   {/* nome congelado em UP-BEVEL (requisito 3) */}
                   <div
                     className="sticky left-0 z-[30] flex shrink-0 flex-col justify-center self-stretch"
