@@ -144,6 +144,7 @@ const navigation: NavEntry[] = [
       { name: "Encaminhamentos", href: "/arsenal/encaminhamentos", icon: Send },
       { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
       { name: "Receituário Automático", href: "/receituario-automatico", icon: Calendar },
+      { name: "Validação de Receituário", href: "/consulta-receituario", icon: ShieldCheck },
     ],
   },
   {

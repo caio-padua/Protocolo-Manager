@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
+import { ShieldCheck, ShieldX, ExternalLink, QrCode, Loader2, FileText } from "lucide-react";
+import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
 interface ConsultaData {
   paciente: string;
@@ -11,133 +13,245 @@ interface ConsultaData {
   driveUrl: string | null;
 }
 
+const campos: { label: string; key: keyof ConsultaData; mono?: boolean }[] = [
+  { label: "PACIENTE",       key: "paciente" },
+  { label: "MÉDICO",         key: "medico" },
+  { label: "CRM",            key: "crm", mono: true },
+  { label: "CLÍNICA",        key: "clinica" },
+  { label: "DATA DE EMISSÃO", key: "dataEmissao" },
+  { label: "ARQUIVO",        key: "arquivo", mono: true },
+];
+
 export default function ConsultaReceituario() {
   const search = useSearch();
   const token = new URLSearchParams(search).get("token") ?? "";
 
-  const [data, setData] = useState<ConsultaData | null>(null);
+  const [data, setData]       = useState<ConsultaData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
-      setError("Token não informado. Verifique o QR code da receita.");
+      setError("Token não informado. Utilize o QR code impresso na prescrição.");
       setLoading(false);
       return;
     }
     fetch(`/api/receituario/consulta?token=${encodeURIComponent(token)}`)
       .then(r => r.ok ? r.json() as Promise<ConsultaData> : Promise.reject(r.status))
       .then(d => { setData(d); setLoading(false); })
-      .catch(() => { setError("Documento não encontrado ou token inválido."); setLoading(false); });
+      .catch(() => {
+        setError("Documento não encontrado ou token inválido. Verifique o QR code da prescrição.");
+        setLoading(false);
+      });
   }, [token]);
 
   const dataFormatada = data?.dataEmissao
-    ? new Date(data.dataEmissao + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+    ? new Date(data.dataEmissao + "T12:00:00").toLocaleDateString("pt-BR", {
+        day: "2-digit", month: "long", year: "numeric",
+      })
     : "—";
 
+  const dadosFormatados: Record<keyof ConsultaData, string> = data
+    ? { ...data, dataEmissao: dataFormatada }
+    : {} as Record<keyof ConsultaData, string>;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", display: "flex", flexDirection: "column", alignItems: "center", fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="dark min-h-screen flex flex-col" style={{ background: "linear-gradient(180deg,#0d1a2d 0%,#07101f 100%)" }}>
 
-      {/* Cabeçalho PAXTER */}
-      <div style={{ background: "#16284a", width: "100%", padding: "18px 24px", textAlign: "center", borderBottom: "2px solid #c9a24e" }}>
-        <div style={{ color: "#c9a24e", fontSize: "22px", fontWeight: "700", letterSpacing: "4px" }}>PAXTER</div>
-        <div style={{ color: "#45B8CC", fontSize: "12px", marginTop: "4px", letterSpacing: "1px" }}>Motor Clínico · Receituário Digital</div>
-      </div>
-
-      {/* Corpo */}
-      <div style={{ maxWidth: "480px", width: "100%", padding: "28px 16px" }}>
-
-        {loading && (
-          <div style={{ textAlign: "center", color: "#64748b", padding: "40px 0", fontSize: "15px" }}>
-            Carregando documento...
-          </div>
-        )}
-
-        {error && (
-          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "8px", padding: "20px", color: "#dc2626", textAlign: "center", fontSize: "14px" }}>
-            <div style={{ fontWeight: "700", marginBottom: "6px" }}>Documento não encontrado</div>
-            {error}
-          </div>
-        )}
-
-        {data && (
-          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
-
-            {/* Header do card */}
-            <div style={{ background: "#16284a", padding: "14px 18px" }}>
-              <div style={{ color: "#c9a24e", fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "4px" }}>
-                Receituário Digital Verificado
-              </div>
-              <div style={{ color: "#94a3b8", fontSize: "11px" }}>
-                Token: <span style={{ color: "#45B8CC", fontWeight: "600", fontFamily: "monospace" }}>{token.toUpperCase()}</span>
-              </div>
+      {/* ── CABEÇALHO PAXTER ─────────────────────────────────────── */}
+      <header className="w-full flex flex-col items-center py-7 px-4"
+        style={{ borderBottom: "1px solid rgba(201,162,78,0.18)" }}>
+        <div className="flex items-center gap-3 mb-1">
+          <PaxterSymbolGlass size={44} tone="dark" />
+          <div>
+            <div
+              className="text-[22px] font-black tracking-[0.35em] uppercase"
+              style={{
+                fontFamily: "'Cinzel','Playfair Display',serif",
+                background: "linear-gradient(135deg,#6f5421 0%,#f6e6a8 22%,#c9a24e 55%,#f1dd9a 78%,#927235 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              PAXTER
             </div>
+            <div className="text-[10px] tracking-[0.22em] uppercase mt-0.5"
+              style={{ color: "rgba(201,162,78,0.65)" }}>
+              Motor Clínico · Receituário Digital
+            </div>
+          </div>
+        </div>
+      </header>
 
-            {/* Dados */}
-            <div style={{ padding: "18px" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
-                <tbody>
-                  {[
-                    ["Paciente", data.paciente],
-                    ["Médico", data.medico],
-                    ["CRM", data.crm],
-                    ["Clínica", data.clinica],
-                    ["Data de emissão", dataFormatada],
-                    ["Arquivo", data.arquivo],
-                  ].map(([label, value]) => (
-                    <tr key={label} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "8px 0 8px 0", color: "#64748b", width: "130px", fontSize: "12px", verticalAlign: "top" }}>{label}</td>
-                      <td style={{ padding: "8px 0 8px 8px", fontWeight: label === "Paciente" ? "700" : "400", color: "#1e293b", fontSize: label === "Arquivo" ? "11px" : "14px" }}>{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* ── ÁREA DE CONTEÚDO ─────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col items-center justify-start px-4 py-8">
+        <div className="w-full max-w-[480px] flex flex-col gap-4">
 
-              {/* Selo ICP-Brasil */}
-              <div style={{ marginTop: "16px", padding: "10px 12px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-                <div style={{ width: "10px", height: "10px", background: "#22c55e", borderRadius: "50%", flexShrink: 0, marginTop: "2px" }} />
-                <div style={{ fontSize: "12px", color: "#15803d", lineHeight: "1.5" }}>
-                  Documento assinado digitalmente via <strong>ICP-Brasil / PAdES</strong>.<br />
-                  Autenticidade verificável em{" "}
-                  <a href="https://validar.iti.gov.br" target="_blank" rel="noreferrer" style={{ color: "#15803d", fontWeight: "600" }}>
-                    validar.iti.gov.br
-                  </a>
+          {/* CARREGANDO */}
+          {loading && (
+            <div className="panel-3d p-10 flex flex-col items-center gap-4">
+              <Loader2 size={36} className="animate-spin" style={{ color: "#c9a24e" }} />
+              <p className="text-sm tracking-wide" style={{ color: "rgba(201,162,78,0.70)" }}>
+                Verificando documento...
+              </p>
+            </div>
+          )}
+
+          {/* ERRO */}
+          {error && !loading && (
+            <>
+              {/* Selo de status — inválido */}
+              <div className="panel-3d p-5 flex flex-col items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="paxter-led paxter-led-red paxter-led-on" />
+                  <ShieldX size={28} style={{ color: "#f87171" }} />
+                  <span className="text-base font-black tracking-[0.18em] uppercase"
+                    style={{ color: "#f87171", fontFamily: "'Cinzel',serif" }}>
+                    Documento Inválido
+                  </span>
+                </div>
+                <p className="text-xs text-center leading-relaxed mt-1"
+                  style={{ color: "rgba(248,113,113,0.80)" }}>
+                  {error}
+                </p>
+              </div>
+
+              {/* Instrução de uso */}
+              <div className="concave-3d p-4 flex items-start gap-3">
+                <QrCode size={22} className="shrink-0 mt-0.5" style={{ color: "rgba(201,162,78,0.60)" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.50)" }}>
+                  Escaneie o QR code impresso no rodapé da prescrição ou acesse
+                  o link completo fornecido pelo médico prescritor.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* SUCESSO */}
+          {data && !loading && (
+            <>
+              {/* ── SELO: DOCUMENTO VERIFICADO ─────────────────────── */}
+              <div className="bevel-3d-ok p-5 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="paxter-led paxter-led-green paxter-led-on" />
+                  <ShieldCheck size={26} style={{ color: "#4ade80" }} />
+                  <span className="text-base font-black tracking-[0.20em] uppercase"
+                    style={{ color: "#4ade80", fontFamily: "'Cinzel',serif" }}>
+                    Documento Verificado
+                  </span>
+                </div>
+                <div className="mt-1 px-3 py-1 rounded" style={{ background: "rgba(0,0,0,0.30)" }}>
+                  <span className="text-[10px] tracking-widest uppercase"
+                    style={{ color: "rgba(255,255,255,0.40)" }}>token</span>
+                  {" "}
+                  <span className="font-mono text-sm font-bold"
+                    style={{ color: "#f6e6a8", letterSpacing: "0.15em" }}>
+                    {token.toUpperCase()}
+                  </span>
                 </div>
               </div>
 
-              {/* Botão Drive */}
+              {/* ── DADOS DA PRESCRIÇÃO ─────────────────────────────── */}
+              <div className="panel-3d overflow-hidden">
+                {/* Header do painel */}
+                <div className="px-5 py-3 flex items-center gap-2"
+                  style={{ borderBottom: "1px solid rgba(201,162,78,0.18)" }}>
+                  <FileText size={14} style={{ color: "rgba(201,162,78,0.70)" }} />
+                  <span className="text-[10px] font-bold tracking-[0.22em] uppercase"
+                    style={{ color: "rgba(201,162,78,0.70)", fontFamily: "'Cinzel',serif" }}>
+                    Dados da Prescrição
+                  </span>
+                </div>
+
+                {/* Linhas de dados */}
+                <div className="px-5 py-4 flex flex-col gap-3">
+                  {campos.map(({ label, key, mono }) => {
+                    const valor = key === "dataEmissao"
+                      ? dataFormatada
+                      : String(dadosFormatados[key] ?? "—");
+                    return (
+                      <div key={key} className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold tracking-[0.25em] uppercase"
+                          style={{ color: "rgba(201,162,78,0.55)" }}>
+                          {label}
+                        </span>
+                        <span
+                          className={mono ? "font-mono text-[12px]" : "text-[14px]"}
+                          style={{
+                            color: key === "paciente"
+                              ? "#f6e6a8"
+                              : "rgba(255,255,255,0.88)",
+                            fontWeight: key === "paciente" ? 700 : 400,
+                            fontFamily: key === "paciente"
+                              ? "'Cormorant Garamond','Georgia',serif"
+                              : undefined,
+                            fontSize: key === "paciente" ? "15px" : undefined,
+                          }}
+                        >
+                          {valor}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── SELO ICP-BRASIL ─────────────────────────────────── */}
+              <div className="concave-3d px-5 py-4 flex items-start gap-3">
+                <span className="paxter-led paxter-led-green paxter-led-on shrink-0 mt-1" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold leading-snug"
+                    style={{ color: "#4ade80" }}>
+                    Assinado digitalmente via ICP-Brasil / PAdES
+                  </span>
+                  <span className="text-[11px] leading-relaxed"
+                    style={{ color: "rgba(255,255,255,0.50)" }}>
+                    Autenticidade verificável em{" "}
+                    <a
+                      href="https://validar.iti.gov.br"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline underline-offset-2 hover:opacity-80 transition-opacity"
+                      style={{ color: "#4ade80" }}
+                    >
+                      validar.iti.gov.br
+                    </a>
+                  </span>
+                </div>
+              </div>
+
+              {/* ── BOTÃO GOOGLE DRIVE ─────────────────────────────── */}
               {data.driveUrl ? (
                 <a
                   href={data.driveUrl}
                   target="_blank"
                   rel="noreferrer"
-                  style={{
-                    display: "block", marginTop: "18px",
-                    background: "#16284a", color: "#c9a24e",
-                    padding: "14px", borderRadius: "6px",
-                    textAlign: "center", textDecoration: "none",
-                    fontWeight: "700", fontSize: "14px",
-                    letterSpacing: "0.5px", border: "1px solid #c9a24e",
-                  }}
+                  className="btn-3d w-full flex items-center justify-center gap-2 py-4 px-6 text-sm font-bold tracking-[0.14em] uppercase no-underline"
+                  style={{ fontFamily: "'Cinzel',serif" }}
                 >
+                  <ExternalLink size={16} />
                   Abrir Receituário no Google Drive
                 </a>
               ) : (
-                <div style={{ marginTop: "18px", padding: "12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", color: "#64748b", fontSize: "13px", textAlign: "center" }}>
+                <div className="concave-3d px-5 py-4 text-center text-[12px]"
+                  style={{ color: "rgba(255,255,255,0.45)" }}>
                   O PDF foi enviado por e-mail ao médico prescritor.
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
+      </main>
 
-            {/* Rodapé do card */}
-            <div style={{ background: "#f8fafc", borderTop: "1px solid #e2e8f0", padding: "10px 18px", textAlign: "center" }}>
-              <div style={{ fontSize: "10px", color: "#94a3b8", letterSpacing: "0.5px" }}>
-                PAXTER Clinical Intelligence System · Receituário Assinado ICP-Brasil
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* ── RODAPÉ ───────────────────────────────────────────────── */}
+      <footer className="w-full flex flex-col items-center py-5"
+        style={{ borderTop: "1px solid rgba(201,162,78,0.12)" }}>
+        <p className="text-[9px] tracking-[0.30em] uppercase text-center"
+          style={{ color: "rgba(201,162,78,0.35)" }}>
+          PAXTER Clinical Intelligence System · Receituário Assinado ICP-Brasil
+        </p>
+      </footer>
     </div>
   );
 }
