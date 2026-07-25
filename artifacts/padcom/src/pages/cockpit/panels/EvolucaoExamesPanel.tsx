@@ -1053,10 +1053,10 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       {/* planilha com rolagem lateral; nome + colunas fixadas grudam à esquerda */}
       <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
         <div className="min-w-max">
-          {/* cabeçalho */}
-          {/* items-start: todas as datas nascem na MESMA linha horizontal imaginária,
-              independente do que cada coluna tem embaixo (selo Histórico, status). */}
-          <div className="flex items-start gap-2 pb-2">
+          {/* cabeçalho — z-[30] + relative: garante que o header row pinta
+              acima de TODAS as linhas de dados (panel-3d-sub com GPU layer
+              que vem depois no DOM). */}
+          <div className="relative z-[30] flex items-start gap-2 pb-2">
             {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
                 células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
             <div
@@ -1112,8 +1112,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
                 >
                   {/* nome congelado em UP-BEVEL (requisito 3) */}
                   <div
-                    className="sticky left-0 z-[3] flex shrink-0 flex-col justify-center self-stretch"
-                    style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
+                    className="sticky left-0 z-[30] flex shrink-0 flex-col justify-center self-stretch"
+                    style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}`, willChange: "transform" }}
                   >
                     <div className="bevel-3d mx-1 flex flex-col justify-center rounded-[6px] px-2 py-1">
                       <div className="flex items-center gap-1.5">
