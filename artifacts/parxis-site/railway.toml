@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && BASE_PATH=/ pnpm --filter @workspace/parxis-site run build"
+
+[deploy]
+startCommand = "BASE_PATH=/ pnpm --filter @workspace/parxis-site run serve"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
