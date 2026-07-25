@@ -185,13 +185,15 @@ function Cela({
   // boxShadow (lista separada por vírgula) — espalhar um depois do outro
   // apagaria o brilho das colunas fixadas.
   const mascaraVao = sticky ? `${GAP}px 0 0 0 ${PIN_BG}` : null;
+  // zIndex: 20 garante que colunas fixadas pintam ACIMA de qualquer stacking
+  // context criado por concave-3d / panel-3d-sub nas linhas que rolam por baixo.
   const stickyStyle = sticky
-    ? { position: "sticky" as const, left, zIndex: 1, background: PIN_BG }
+    ? { position: "sticky" as const, left, zIndex: 20, background: PIN_BG }
     : {};
   if (!cell || cell.value == null) {
     return (
       <div
-        className="flex shrink-0 items-center justify-center py-1.5 text-[12px] text-[#b3bccb]"
+        className="flex shrink-0 items-center justify-center overflow-hidden py-1.5 text-[12px] text-[#b3bccb]"
         style={{ width: COL_W, ...stickyStyle, ...(mascaraVao ? { boxShadow: mascaraVao } : {}) }}
       >
         —
@@ -1055,13 +1057,19 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
           {/* items-start: todas as datas nascem na MESMA linha horizontal imaginária,
               independente do que cada coluna tem embaixo (selo Histórico, status). */}
           <div className="flex items-start gap-2 pb-2">
-            {/* Toggle "Faixinha de cor" no canto esquerdo do cabeçalho,
-                no lugar do antigo rótulo "Exame (congelado)". */}
+            {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
+                células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
             <div
-              className="sticky left-0 z-[4] flex shrink-0 items-end self-stretch px-2 py-1"
+              className="sticky left-0 z-[25] flex shrink-0 items-end self-stretch px-2 py-1"
               style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
             >
-              <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
+              <div className="bevel-3d flex w-full items-center rounded-[6px] px-2 py-1.5">
+                <Toggle
+                  ligado={mostrarFaixas}
+                  onToggle={() => setMostrarFaixas((v) => !v)}
+                  texto="Faixinha de cor"
+                />
+              </div>
             </div>
             {orderedColumns.list.map((c, idx) => {
               const isPinned = idx < orderedColumns.pinCols.length;
