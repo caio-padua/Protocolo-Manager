@@ -472,17 +472,6 @@ function CartaoGrafico({
           </div>
         </div>
         <div className="flex items-start gap-2">
-          {/* SITUAÇÃO no topo (pedido do CEO 25/07/2026): fica ao lado do nome
-              do exame, perto do botão de fechar — saiu do rodapé. */}
-          <div
-            className="bevel-3d flex min-w-[80px] flex-col items-center justify-center rounded-[5px] px-2 py-1"
-            style={{ border: `2px solid ${corAtiva}` }}
-          >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
-            <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
-              {rotuloAtivo}
-            </span>
-          </div>
           <button
             type="button"
             onClick={onRemover}
@@ -612,10 +601,10 @@ function CartaoGrafico({
         </div>
       )}
 
-      {/* RODAPÉ VIVO — 3 peças (rodada 8): [VALOR concave] [DATA concave] ...
-          [TENDÊNCIA bevel]. A SITUAÇÃO subiu para o cabeçalho do cartão.
+      {/* RODAPÉ VIVO — 4 peças: [VALOR concave] [DATA concave] ... [TENDÊNCIA bevel] [SITUAÇÃO bevel].
           Atualiza enquanto o mouse passeia; sem mouse = última coleta.
-          flex-wrap-reverse: se apertar, a última peça sobe em vez de estourar. */}
+          flex-wrap-reverse: quando o cartão for estreito e não couber tudo numa linha,
+          a ÚLTIMA peça (SITUAÇÃO) SOBE para uma linha acima — nunca estoura para fora. */}
       <div className="mt-2 flex flex-wrap-reverse items-stretch gap-1.5">
         {/* 1 — VALOR: inset bevel esquerdo, LARGO; numero e unidade LADO A
             LADO, em PRETO (pedido do CEO 25/07/2026). */}
@@ -655,8 +644,17 @@ function CartaoGrafico({
           </span>
         </div>
 
-        {/* SITUAÇÃO subiu para o cabecalho do cartao (pedido do CEO
-            25/07/2026) — o rodape termina na TENDÊNCIA. */}
+        {/* SITUAÇÃO: última peça — flex-wrap-reverse faz ela SUBIR para uma
+            linha acima quando o cartão for estreito (não estoura para fora). */}
+        <div
+          className="bevel-3d flex min-w-[80px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+          style={{ border: `2px solid ${corAtiva}` }}
+        >
+          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+          <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
+            {rotuloAtivo}
+          </span>
+        </div>
       </div>
     </section>
   );
@@ -938,69 +936,75 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
 
-      {/* CONTROLES — reforma rodada 8 (pedido do CEO 25/07/2026): cada
-          categoria e uma LINHA HORIZONTAL, uma embaixo da outra — titulo em
-          up-bevel a esquerda e os botoes correndo na horizontal. */}
+      {/* CONTROLES — rodada 8 final (pedido do CEO 25/07/2026): cada categoria
+          é um PAINEL com título na linha de cima e botões embaixo, na horizontal.
+          Os três painéis ficam EMPILHADOS verticalmente (um abaixo do outro). */}
       <div className="mb-3 flex flex-col gap-2 border-b border-[#16294a]/10 pb-3">
-        {/* LINHA 1 — FAIXAS DE EXAMES (filtro por posição, below→above) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="bevel-3d w-[150px] rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+
+        {/* PAINEL 1 — FAIXAS DE EXAMES */}
+        <div className="concave-3d rounded-[6px] px-3 py-2">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
             Faixas de Exames
-          </span>
-          <button
-            type="button"
-            onClick={() => setZonaAcesa(null)}
-            className={`h-[30px] min-w-[92px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
-            style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-          >
-            Todas
-          </button>
-          {FAIXAS_POSICAO.map((f) => {
-            const ativo = zonaAcesa === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                className={`h-[30px] min-w-[122px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setZonaAcesa(null)}
+              className={`h-[28px] min-w-[72px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
+              style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+            >
+              Todas
+            </button>
+            {FAIXAS_POSICAO.map((f) => {
+              const ativo = zonaAcesa === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setZonaAcesa(ativo ? null : f.key)}
+                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* LINHA 2 — GRÁFICOS (onde os gráficos aparecem) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="bevel-3d w-[150px] rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+        {/* PAINEL 2 — GRÁFICOS */}
+        <div className="concave-3d rounded-[6px] px-3 py-2">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
             Gráficos
-          </span>
-          {LAYOUTS.map((l) => {
-            const ativo = layout === l.id;
-            return (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => setLayout(l.id)}
-                className={`h-[30px] min-w-[122px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-              >
-                {l.label}
-              </button>
-            );
-          })}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {LAYOUTS.map((l) => {
+              const ativo = layout === l.id;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLayout(l.id)}
+                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                >
+                  {l.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* LINHA 3 — EXIBIÇÃO (toggle da faixinha de cor) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="bevel-3d w-[150px] rounded-[6px] px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+        {/* PAINEL 3 — EXIBIÇÃO */}
+        <div className="concave-3d rounded-[6px] px-3 py-2">
+          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
             Exibição
-          </span>
-          <div className="flex h-[30px] items-center px-1">
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             <Toggle ligado={mostrarFaixas} onToggle={() => setMostrarFaixas((v) => !v)} texto="Faixinha de cor" />
           </div>
         </div>
+
       </div>
 
       {/* INSTRUÇÕES em relevo CÔNCAVO (inset bevel — pedido do CEO 24/07/2026) */}
