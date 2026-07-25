@@ -627,8 +627,8 @@ function CartaoGrafico({
               )}
             </span>
           </div>
-          {/* DATA — 62px fixos; datas "DD/MM/AA" cabem sem sobra */}
-          <div className="concave-3d flex w-[62px] flex-col items-center justify-center py-1.5">
+          {/* DATA — 70px fixos; datas "DD/MM/AA" cabem com um pouco de ar */}
+          <div className="concave-3d flex w-[70px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
             <span className="text-[11px] font-bold leading-tight text-[#16294a]">
               {pontoAtivo?.data || "—"}
@@ -642,18 +642,8 @@ function CartaoGrafico({
             ele fica menor que 2×66+gap, flex-wrap-reverse dispara e
             TENDÊNCIA sobe ACIMA de SITUAÇÃO pela linha imaginária comum. */}
         <div className="flex min-w-0 flex-wrap-reverse items-stretch justify-end gap-1.5">
-          {/* SITUAÇÃO — ancora à direita */}
-          <div
-            className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
-            style={{ border: `2px solid ${corAtiva}` }}
-          >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
-            <span className="text-[11px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
-              {rotuloAtivo}
-            </span>
-          </div>
-          {/* TENDÊNCIA — mesmo w-[66px]; shrink-0 para não deformar o texto;
-              flex-wrap-reverse do pai a move para cima quando não couber. */}
+          {/* TENDÊNCIA — 66px; quando não couber, flex-wrap-reverse a move
+              para cima ACIMA de SITUAÇÃO (ela sobe, não SITUAÇÃO). */}
           <div
             className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${tend.hex}` }}
@@ -661,6 +651,18 @@ function CartaoGrafico({
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
             <span className="text-[11px] font-black uppercase leading-tight" style={{ color: tend.hex }}>
               {tend.rotulo}
+            </span>
+          </div>
+          {/* SITUAÇÃO — MAIS LARGA (80px) e ÚLTIMA da direita: é a mais
+              importante. Com flex-wrap-reverse, TENDÊNCIA (anterior) sobe;
+              SITUAÇÃO fica sempre ancorada na ponta direita. */}
+          <div
+            className="bevel-3d flex w-[80px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
+            style={{ border: `2px solid ${corAtiva}` }}
+          >
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+            <span className="text-[11px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
+              {rotuloAtivo}
             </span>
           </div>
         </div>
