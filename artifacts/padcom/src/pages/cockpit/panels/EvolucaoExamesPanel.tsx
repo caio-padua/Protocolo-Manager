@@ -328,14 +328,19 @@ function ColunaCabecalho({
       </span>
       <span className="mt-0.5 flex h-[13px] items-center">
         {c.isHistory ? (
+          /* HISTÓRICO — mesma moldura, porém tom apagado/muted */
           <span
             className="inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
-            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
+            style={{ background: "#fefce8", color: "#a16207", border: "1px solid #fde68a" }}
           >
             Histórico
           </span>
         ) : (
-          <span className="text-[7px] font-semibold uppercase tracking-widest leading-none text-[#b3bccb]">
+          /* DO LAUDO — mesma moldura, tom mais intenso/vibrante */
+          <span
+            className="inline-block rounded-[3px] px-1 py-0.5 text-[7px] font-black uppercase tracking-widest leading-none"
+            style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
+          >
             Do laudo
           </span>
         )}
