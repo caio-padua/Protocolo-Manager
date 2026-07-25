@@ -11,4 +11,6 @@ Regra: numa planilha de linhas flex (`items-center`) com colunas fixadas por `po
 
 **Why:** máscara por box-shadow (`8px 0 0 0 bg`) só cobre o vão lateral; não cobre altura nem sombras/neon das células roladas (screen-3d tem sombra de 26px que vaza entre linhas).
 
+**Armadilha:** TODO elemento sticky da zona congelada (inclusive o CABEÇALHO da coluna fixada) precisa de z-index ACIMA da cortina-base — cabeçalho com z baixo (3) some atrás da cortina (z:10), apagando quadradinho/data/lab. Regra: cortina-base = z mais baixo da zona; tudo que é sticky fica acima dela.
+
 **How to apply:** EvolucaoExamesPanel (Cela + CortinaZona). Para testar por screenshot, pré-fixar coluna + scrollTo via efeito temporário com query param (screenshot não clica nem rola).

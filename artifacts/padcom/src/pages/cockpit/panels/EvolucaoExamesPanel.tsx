@@ -299,13 +299,16 @@ function ColunaCabecalho({
   sticky: boolean;
   left: number;
 }) {
+  // z:20 — ACIMA da cortina da zona congelada (z:10); senão o quadradinho,
+  // a data e o laboratório da coluna fixada somem atrás da cortina.
   const stickyStyle = sticky
     ? {
         position: "sticky" as const,
         left,
-        zIndex: 3,
+        zIndex: 20,
         background: PIN_BG,
         boxShadow: `${GAP}px 0 0 0 ${PIN_BG}`,
+        willChange: "transform" as const,
       }
     : {};
   return (
@@ -1097,10 +1100,13 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
             {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
                 células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
             <div
-              className="sticky left-0 z-[25] flex shrink-0 items-end self-stretch px-2 py-1"
+              className="sticky left-0 z-[25] flex shrink-0 self-stretch"
               style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
             >
-              <div className="bevel-3d flex w-full items-center rounded-[6px] px-2 py-1.5">
+              {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
+                  (mesma altura do cabeçalho das colunas), cobrindo o fundo
+                  liso; o toggle fica no ponto MÉDIO deste painel. */}
+              <div className="bevel-3d mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
                 <Toggle
                   ligado={mostrarFaixas}
                   onToggle={() => setMostrarFaixas((v) => !v)}
