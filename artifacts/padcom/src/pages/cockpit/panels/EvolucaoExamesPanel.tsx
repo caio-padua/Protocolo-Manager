@@ -188,7 +188,16 @@ function Cela({
   // zIndex: 20 garante que colunas fixadas pintam ACIMA de qualquer stacking
   // context criado por concave-3d / panel-3d-sub nas linhas que rolam por baixo.
   const stickyStyle = sticky
-    ? { position: "sticky" as const, left, zIndex: 20, background: PIN_BG }
+    ? {
+        position: "sticky" as const,
+        left,
+        zIndex: 20,
+        background: PIN_BG,
+        // Mesma solução do nome do exame: força camada GPU própria para a
+        // célula fixada, impedindo que as células que rolam por baixo (e o
+        // neon delas) apareçam através dela.
+        willChange: "transform" as const,
+      }
     : {};
   if (!cell || cell.value == null) {
     return (
