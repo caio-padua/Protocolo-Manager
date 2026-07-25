@@ -594,27 +594,48 @@ function CartaoGrafico({
         </div>
       )}
 
-      {/* RODAPÉ VIVO: mostra o ponto sob o mouse (ou a última coleta);
-          é a ÚNICA referência de faixa do cartão — sem janelinha no gráfico. */}
-      <div className="mt-2 flex items-center gap-2">
-        {pontoAtivo && (
-          <div className="concave-3d flex flex-1 items-center gap-2 px-3 py-2">
-            <span className="inline-block h-3 w-3 shrink-0 rounded-[3px]" style={{ background: corAtiva }} />
-            <span className="text-[13px] font-bold leading-tight" style={{ color: corAtiva }}>
+      {/* RODAPÉ VIVO — 4 peças na mesma altura (pedido CEO 25/07/2026):
+          [VALOR concave] [DATA concave] ... [FAIXA bevel] [TEND bevel]
+          Atualiza enquanto o mouse passeia; sem mouse = última coleta. */}
+      <div className="mt-2 flex items-stretch gap-1.5">
+        {/* 1 — VALOR: inset bevel esquerdo */}
+        <div className="concave-3d flex min-w-[64px] flex-col items-center justify-center px-2 py-1.5">
+          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
+            {ponteiro ? "no ponto" : "última"}
+          </span>
+          <span className="text-[17px] font-black leading-tight" style={{ color: GOLD }}>
+            {pontoAtivo?.valor ?? "—"}
+          </span>
+          {analyte.unit && (
+            <span className="text-[8px] font-semibold text-[#647c97]">{analyte.unit}</span>
+          )}
+        </div>
+
+        {/* 2 — DATA: inset bevel centro */}
+        <div className="concave-3d flex flex-1 flex-col items-center justify-center px-2 py-1.5">
+          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
+          <span className="text-[12px] font-bold leading-tight text-[#16294a]">
+            {pontoAtivo?.data ?? "—"}
+          </span>
+        </div>
+
+        {/* 3 — FAIXA: bevel saliente direito */}
+        <div
+          className="bevel-3d flex min-w-[80px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
+          style={{ border: `2px solid ${corAtiva}` }}
+        >
+          <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+          <div className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: corAtiva }} />
+            <span className="text-[12px] font-bold leading-tight capitalize" style={{ color: corAtiva }}>
               {rotuloAtivo}
             </span>
-            <span className="text-[10px] font-semibold text-[#8a97a9]">
-              {ponteiro ? pontoAtivo.data : `última · ${pontoAtivo.data}`}
-            </span>
-            <span className="ml-auto text-[14px] font-black" style={{ color: GOLD }}>
-              {pontoAtivo.valor}
-              <span className="ml-1 text-[10px] font-semibold text-[#647c97]">{analyte.unit ?? ""}</span>
-            </span>
           </div>
-        )}
+        </div>
+
+        {/* 4 — TENDÊNCIA: bevel saliente, ao lado da faixa */}
         <div
-          className="bevel-3d flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full"
-          title={`Tendência: ${tend.rotulo}`}
+          className="bevel-3d flex min-w-[52px] flex-col items-center justify-center rounded-[5px] px-2 py-1.5"
           style={{ border: `2px solid ${tend.hex}` }}
         >
           <tend.Icon className="h-4 w-4" style={{ color: tend.hex }} />
