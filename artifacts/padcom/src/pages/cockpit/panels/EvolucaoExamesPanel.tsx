@@ -181,39 +181,46 @@ function Cela({
   left: number;
   mostrarFaixas: boolean;
 }) {
-  // A máscara do vão (gap) e o brilho da faixa acesa COEXISTEM no mesmo
-  // boxShadow (lista separada por vírgula) — espalhar um depois do outro
-  // apagaria o brilho das colunas fixadas.
+  // A máscara do vão (gap) fecha o corredor de 8px à direita da CORTINA
+  // fixada, para a esteira não aparecer entre colunas fixadas.
   const mascaraVao = sticky ? `${GAP}px 0 0 0 ${PIN_BG}` : null;
-  // zIndex: 20 garante que colunas fixadas pintam ACIMA de qualquer stacking
-  // context criado por concave-3d / panel-3d-sub nas linhas que rolam por baixo.
-  const stickyStyle = sticky
-    ? {
-        position: "sticky" as const,
+  // CORTINA fixada: a linha é mais ALTA que a caixinha da célula (o painel do
+  // nome tem ~56px). Sem uma cortina de altura TOTAL (self-stretch), a esteira
+  // que rola por baixo aparecia nas faixas acima/abaixo da caixinha. A cortina
+  // é sticky, opaca, z:20 e com camada GPU própria; a caixinha visual fica
+  // DENTRO dela, centralizada, sem sticky próprio.
+  const cortina = (miolo: React.ReactNode) => (
+    <div
+      className="flex shrink-0 items-center self-stretch"
+      style={{
+        width: COL_W,
+        position: "sticky",
         left,
         zIndex: 20,
         background: PIN_BG,
-        // Mesma solução do nome do exame: força camada GPU própria para a
-        // célula fixada, impedindo que as células que rolam por baixo (e o
-        // neon delas) apareçam através dela.
-        willChange: "transform" as const,
-      }
-    : {};
+        willChange: "transform",
+        ...(mascaraVao ? { boxShadow: mascaraVao } : {}),
+      }}
+    >
+      {miolo}
+    </div>
+  );
   if (!cell || cell.value == null) {
-    return (
+    const vazio = (
       <div
-        className="flex shrink-0 items-center justify-center overflow-hidden py-1.5 text-[12px] text-[#b3bccb]"
-        style={{ width: COL_W, ...stickyStyle, ...(mascaraVao ? { boxShadow: mascaraVao } : {}) }}
+        className="flex w-full shrink-0 items-center justify-center py-1.5 text-[12px] text-[#b3bccb]"
+        style={{ width: COL_W }}
       >
         —
       </div>
     );
+    return sticky ? cortina(vazio) : vazio;
   }
   const cor = cell.zone?.color ?? MUTED;
   // A faixinha (tarja + tint) só aparece quando o toggle "Faixinha de cor" está
   // ligado. Desligado, fica só o número navy nítido, sem cor de faixa.
   const temZona = !!cell.zone && mostrarFaixas;
-  return (
+  const caixinha = (
     <div
       className={`relative shrink-0 overflow-hidden rounded-[4px] py-1.5 text-center ${
         atual ? "screen-3d" : "concave-3d"
@@ -221,13 +228,11 @@ function Cela({
       style={{
         width: COL_W,
         transition: "box-shadow .15s",
-        // brilho da faixa acesa + máscara do vão convivem na MESMA lista:
-        boxShadow:
-          [acesa ? `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}` : null, mascaraVao]
-            .filter(Boolean)
-            .join(", ") || undefined,
-        ...stickyStyle,
-        ...(sticky ? {} : temZona ? { background: `${cor}14` } : {}),
+        // brilho da faixa acesa (na cortina fixada, o brilho fica contido
+        // porque a cortina vizinha também é opaca e está na mesma camada):
+        boxShadow: acesa ? `0 0 0 2px ${cor}, 0 0 12px 3px ${cor}` : undefined,
+        ...(temZona && !sticky ? { background: `${cor}14` } : {}),
+        ...(sticky ? { background: PIN_BG } : {}),
       }}
       title={`${exibirValor(cell.value)} ${cell.unit ?? ""} · ${cell.zone ? ZONE_ROTULO[cell.zone.name] ?? cell.zone.name : "conferência"}${
         cell.unitConverted ? " · unidade revisada (convertida para a padrão)" : ""
@@ -254,6 +259,7 @@ function Cela({
       )}
     </div>
   );
+  return sticky ? cortina(caixinha) : caixinha;
 }
 
 // ─── paleta pastel por laboratório ─────────────────────────────────────────
