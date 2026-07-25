@@ -608,26 +608,27 @@ function CartaoGrafico({
           o grupo direito apertar. SITUAÇÃO nunca sai do lugar. */}
       <div className="mt-2 flex items-stretch justify-between gap-1.5">
 
-        {/* GRUPO ESQUERDO — VALOR + DATA em LARGURA FIXA (não muda conforme
-            o ponto hovered). Regra: dimensionado para o maior valor esperado
-            (~6 dígitos + unidade). Nunca encolhe nem cresce. */}
+        {/* GRUPO ESQUERDO — VALOR + DATA em LARGURA FIXA equilibrada.
+            VALOR: 82px (valor + unidade, até ~6 chars numéricos).
+            DATA: 62px (datas no formato DD/MM/AA cabem bem).
+            shrink-0 no wrapper → os boxes nunca oscilam ao mudar de ponto. */}
         <div className="flex shrink-0 items-stretch gap-1.5">
-          {/* VALOR — largura fixa 108px */}
-          <div className="concave-3d flex w-[108px] flex-col items-center justify-center py-1.5">
+          {/* VALOR — 82px fixos */}
+          <div className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
               {ponteiro ? "no ponto" : "última"}
             </span>
-            <span className="flex items-baseline gap-0.5">
-              <span className="text-[16px] font-black leading-tight text-[#16294a]">
+            <span className="flex items-baseline gap-0.5 tabular-nums">
+              <span className="text-[15px] font-black leading-tight text-[#16294a]">
                 {pontoAtivo?.valor ?? "—"}
               </span>
               {analyte.unit && (
-                <span className="text-[10px] font-semibold text-[#16294a]">{analyte.unit}</span>
+                <span className="text-[9px] font-semibold text-[#16294a]">{analyte.unit}</span>
               )}
             </span>
           </div>
-          {/* DATA — largura fixa 80px */}
-          <div className="concave-3d flex w-[80px] flex-col items-center justify-center py-1.5">
+          {/* DATA — 62px fixos; datas "DD/MM/AA" cabem sem sobra */}
+          <div className="concave-3d flex w-[62px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
             <span className="text-[11px] font-bold leading-tight text-[#16294a]">
               {pontoAtivo?.data || "—"}
@@ -635,14 +636,15 @@ function CartaoGrafico({
           </div>
         </div>
 
-        {/* GRUPO DIREITO — SITUAÇÃO + TENDÊNCIA, ambas com a MESMA largura
-            fixa para alinhamento vertical perfeito quando TENDÊNCIA sobe.
-            flex-wrap-reverse: TENDÊNCIA (último) sobe DIRETAMENTE acima de
-            SITUAÇÃO, alinhadas pela linha imaginária vertical comum. */}
-        <div className="flex shrink-0 flex-wrap-reverse items-stretch justify-end gap-1.5">
-          {/* SITUAÇÃO — ancora, nunca sai do lugar */}
+        {/* GRUPO DIREITO — SITUAÇÃO + TENDÊNCIA, mesma largura (alinhamento
+            vertical perfeito ao empilhar). SEM shrink-0 no wrapper: quando
+            o cartão estreitar, o flex externo comprime este grupo; quando
+            ele fica menor que 2×66+gap, flex-wrap-reverse dispara e
+            TENDÊNCIA sobe ACIMA de SITUAÇÃO pela linha imaginária comum. */}
+        <div className="flex min-w-0 flex-wrap-reverse items-stretch justify-end gap-1.5">
+          {/* SITUAÇÃO — ancora à direita */}
           <div
-            className="bevel-3d flex w-[76px] flex-col items-center justify-center rounded-[5px] py-1.5"
+            className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${corAtiva}` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
@@ -650,10 +652,10 @@ function CartaoGrafico({
               {rotuloAtivo}
             </span>
           </div>
-          {/* TENDÊNCIA — mesma largura de SITUAÇÃO: quando sobe, fica
-              perfeitamente alinhada acima dela pela linha imaginária. */}
+          {/* TENDÊNCIA — mesmo w-[66px]; shrink-0 para não deformar o texto;
+              flex-wrap-reverse do pai a move para cima quando não couber. */}
           <div
-            className="bevel-3d flex w-[76px] flex-col items-center justify-center rounded-[5px] py-1.5"
+            className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${tend.hex}` }}
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
