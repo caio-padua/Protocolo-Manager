@@ -20,10 +20,12 @@ credito oficial da PADCON Platform no rodape.
    1.5. Subtitulos identicos nos dois temas em posicao e tamanho; so muda a cor.
 2. RODAPE (painel inferior sticky) — REVISADO pelo CEO em 26/07/2026:
    2.1. Mesma ALTURA nos dois temas, e faixa ESTREITA (52px).
-   2.2. Conteudo = APENAS a referencia do PADCON: "Desenvolvido pela" + arte oficial
-        PADCON Platform (`public/brand/padcon-platform-word.png`, inclui o subtitulo
-        "Advanced Systems Architecture" na propria arte). Sem wordmark PADAXOR no rodape,
-        sem linhas extras de texto.
+   2.2. Conteudo = APENAS a referencia do PADCON, em UMA linha horizontal alinhada a DIREITA:
+        "Desenvolvido pela" + PADCON (recorte `padcon-word-line.png`) + Platform
+        (recorte `padcon-platform-line.png`), lado a lado, nunca empilhados.
+   2.3. Subtitulo "Advanced Systems Architecture" NAO renderizado no rodape (decisao UX
+        26/07/2026: assinatura discreta e forte, sem texto miudo que dilui credibilidade).
+        Sem wordmark PADAXOR no rodape.
 3. PAINEL VERDE (DOCUMENTO VERIFICADO):
    3.1. MESMA proporcao de relevo 3D e mesma altura nos dois temas (mesmo padding, mesmo translateY).
    3.2. Sombra NAO pode invadir/escurecer o painel de baixo: reduzir o alcance vertical da sombra

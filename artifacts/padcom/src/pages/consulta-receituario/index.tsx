@@ -203,7 +203,7 @@ export default function ConsultaReceituario() {
 
         {/* ── CONTEÚDO ─────────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col items-center justify-start px-4 py-10">
-          <div className="w-full max-w-[480px] flex flex-col gap-4">
+          <div className="w-full max-w-[480px] flex flex-col gap-6">
 
             {/* CARREGANDO */}
             {loading && (
@@ -572,7 +572,7 @@ export default function ConsultaReceituario() {
         </main>
 
         {/* ── RODAPÉ — sticky, ESTREITO, só a referência PADCON (2 temas) ── */}
-        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex items-center justify-center gap-2 px-4 h-[52px]">
+        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex items-center justify-end gap-2.5 pr-8 pl-4 h-[52px]">
           <span
             className="text-[8px] tracking-[0.18em] uppercase leading-none"
             style={{ color: theme === "dark" ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.34)" }}
@@ -580,10 +580,16 @@ export default function ConsultaReceituario() {
             Desenvolvido pela
           </span>
           <img
-            src="/brand/padcon-platform-word.png"
-            alt="PADCON Platform — Advanced Systems Architecture"
+            src="/brand/padcon-word-line.png"
+            alt="PADCON"
             draggable={false}
-            style={{ height: 32, width: "auto", objectFit: "contain" }}
+            style={{ height: 15, width: "auto", objectFit: "contain" }}
+          />
+          <img
+            src="/brand/padcon-platform-line.png"
+            alt="Platform"
+            draggable={false}
+            style={{ height: 13, width: "auto", objectFit: "contain", marginBottom: -1 }}
           />
         </footer>
 
