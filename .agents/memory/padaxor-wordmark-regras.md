@@ -49,5 +49,6 @@ Linha 2: "Motor Clínico · Protocolos Injetáveis" — #6f86ad, tracking 0.22em
 
 PNG oficial com canvas maior que o desenho: renderizar por `height` fixa faz a letra sair
 minuscula (821px de canvas para 225px de letra). Derivar versao `-trim` (magick -trim +repage)
-e permitido (nao e filtro), o original permanece intacto. Rodape da consulta usa o mesmo PNG
-do header (menor) + arte PADCON Platform; credito "Desenvolvido pela PADCOM" texto puro e proibido.
+e permitido (nao e filtro), o original permanece intacto. Rodape da consulta (revisao CEO 26/07/2026): faixa ESTREITA (52px) com APENAS "Desenvolvido pela" +
+arte PADCON Platform (padcon-platform-word.png) — sem wordmark PADAXOR no rodape; credito
+"Desenvolvido pela PADCOM" em texto puro e proibido.

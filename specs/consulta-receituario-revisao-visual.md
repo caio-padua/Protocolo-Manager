@@ -18,13 +18,12 @@ credito oficial da PADCON Platform no rodape.
         (viola a regra "wordmark e ativo grafico fechado, nunca texto digitado").
    1.4. Simbolo PaxterSymbolGlass no MESMO lugar e tamanho nos dois temas; so muda `tone`.
    1.5. Subtitulos identicos nos dois temas em posicao e tamanho; so muda a cor.
-2. RODAPE (painel inferior sticky):
-   2.1. Mesma ALTURA nos dois temas.
-   2.2. Wordmark PADAXOR do rodape = mesmo PNG transparente (altura menor), substituindo o texto CSS.
-   2.3. Credito do desenvolvedor corrigido: a marca e PADCON Platform (arte oficial anexada pelo CEO,
-        fundo removido -> `public/brand/padcon-platform.png`), com o subtitulo oficial
-        "Advanced Systems Architecture". Sai o texto preguicoso "Desenvolvido pela PADCOM".
-        Formato: logo PADCON pequena + linha "Advanced Systems Architecture · Assinatura A1 ICP-Brasil".
+2. RODAPE (painel inferior sticky) — REVISADO pelo CEO em 26/07/2026:
+   2.1. Mesma ALTURA nos dois temas, e faixa ESTREITA (52px).
+   2.2. Conteudo = APENAS a referencia do PADCON: "Desenvolvido pela" + arte oficial
+        PADCON Platform (`public/brand/padcon-platform-word.png`, inclui o subtitulo
+        "Advanced Systems Architecture" na propria arte). Sem wordmark PADAXOR no rodape,
+        sem linhas extras de texto.
 3. PAINEL VERDE (DOCUMENTO VERIFICADO):
    3.1. MESMA proporcao de relevo 3D e mesma altura nos dois temas (mesmo padding, mesmo translateY).
    3.2. Sombra NAO pode invadir/escurecer o painel de baixo: reduzir o alcance vertical da sombra

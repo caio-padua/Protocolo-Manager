@@ -571,64 +571,20 @@ export default function ConsultaReceituario() {
           </div>
         </main>
 
-        {/* ── RODAPÉ — sticky, ALTURA FIXA e mesma marca nos 2 temas ── */}
-        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex flex-col items-center justify-center gap-1.5 px-4 h-[104px]">
-          {/* Linha 1 — wordmark oficial PADAXOR (mesmo PNG do cabeçalho, menor) */}
-          <div className="flex items-center gap-3">
-            <div
-              className="h-px flex-1 max-w-[48px]"
-              style={{ background: "rgba(201,162,78,0.35)" }}
-            />
-            <img
-              src="/brand/padaxor-wordmark-trim.png"
-              alt="PADAXOR"
-              draggable={false}
-              style={{ height: 12, width: "auto", objectFit: "contain" }}
-            />
-            <div
-              className="h-px flex-1 max-w-[48px]"
-              style={{ background: "rgba(201,162,78,0.35)" }}
-            />
-          </div>
-
-          {/* Linha 2 — subtítulo do PADAXOR */}
-          <p
-            className="text-[9px] tracking-[0.24em] uppercase text-center leading-none"
-            style={{
-              fontFamily: "'Cinzel',serif",
-              color: theme === "dark" ? "rgba(201,162,78,0.55)" : "rgba(138,109,47,0.70)",
-            }}
+        {/* ── RODAPÉ — sticky, ESTREITO, só a referência PADCON (2 temas) ── */}
+        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex items-center justify-center gap-2 px-4 h-[52px]">
+          <span
+            className="text-[8px] tracking-[0.18em] uppercase leading-none"
+            style={{ color: theme === "dark" ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.34)" }}
           >
-            Motor Clínico · Protocolos Injetáveis
-          </p>
-
-          {/* Linha separadora */}
-          <div
-            className="h-px w-24"
-            style={{ background: "rgba(201,162,78,0.22)" }}
+            Desenvolvido pela
+          </span>
+          <img
+            src="/brand/padcon-platform-word.png"
+            alt="PADCON Platform — Advanced Systems Architecture"
+            draggable={false}
+            style={{ height: 32, width: "auto", objectFit: "contain" }}
           />
-
-          {/* Linha 3 — crédito oficial: arte PADCON Platform + subtítulo oficial */}
-          <div className="flex items-center gap-2">
-            <span
-              className="text-[8px] tracking-[0.18em] uppercase leading-none"
-              style={{ color: theme === "dark" ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.34)" }}
-            >
-              Desenvolvido pela
-            </span>
-            <img
-              src="/brand/padcon-platform-word.png"
-              alt="PADCON Platform — Advanced Systems Architecture"
-              draggable={false}
-              style={{ height: 34, width: "auto", objectFit: "contain" }}
-            />
-          </div>
-          <p
-            className="text-[7.5px] tracking-[0.20em] uppercase text-center leading-none"
-            style={{ color: theme === "dark" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.28)" }}
-          >
-            Advanced Systems Architecture · Assinatura A1 ICP-Brasil
-          </p>
         </footer>
 
       </div>{/* /z-10 */}
