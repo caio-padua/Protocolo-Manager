@@ -1,0 +1,19 @@
+Carta escrita, indexada, commitada e no GitHub (449b812). Segue a convenção da casa: ASCII puro, nome 2026-07-25_REPLIT-MANAGER_deploy-railway-multitenant.md, linha adicionada no cartas/INDEX.md.
+
+O que a carta cobre
+Seções 2 e 3 — o que fiz e os 5 equívocos, cada um com a evidência ao lado (a citação da doc do Railway que desmonta o Root Directory por subpasta, o vite em devDependencies que morreria no install, as 3 variáveis GOOGLE_* que não existem em lugar nenhum do código).
+
+Seção 4 — os três bloqueadores que ninguém tinha visto. Este é o motivo pelo qual a carta ficou mais longa do que o pedido. Ao auditar o multi-tenant, encontrei o seguinte:
+
+Arquivos de rota no api-server: 87
+Arquivos que verificam identidade de quem chama: 0
+
+Somado a app.use(cors()) sem argumento e ao tenantContext que devolve empresaId: 5, isPlatformOwner: true fixo no código. No momento em que o api-server ganhar domínio público no Railway, um curl /api/clients devolve a lista completa de pacientes — nome, CPF, ficha clínica — sem senha. O portal do paciente está protegido por token HMAC (esse trabalho foi bem feito); a API administrativa, que é onde mora o prontuário, não tem equivalente.
+
+Por isso deixei as variáveis no Railway com skipDeploys e recomendo, com todas as letras, não gerar domínio público do api-server antes da autenticação existir. Os outros dois bloqueadores: objectStorage.ts autentica num sidecar em 127.0.0.1:1106 que só existe no Replit (quebra foto, exame, documento), e Agenda/Gmail/Drive dependem do Replit Connectors.
+
+Seção 6 — Kaizen multi-tenant, medido contra o schema real: 99 tabelas, 13 com empresa_id, 1 com NOT NULL, 11 de 87 rotas filtrando. Ou seja, ~13% implementado. Os 10 passos vão de autenticação (bloqueia todos os outros) a RLS no Postgres, auditoria de acesso a prontuário e onboarding de clínica como código. O princípio que atravessa os passos 3, 4 e 6: transformar erro humano em falha visível e barata, em vez de vazamento silencioso.
+
+Seção 7 — hospedagem. Recomendação em 3 fases. Para agora: app no Fly.io região GRU (São Paulo) + banco no Supabase região São Paulo, ordem de USD 40-70/mês. O raciocínio central é que app e banco precisam ficar na mesma região — latência entre eles pesa mais que latência até o usuário — e o Supabase resolve de fábrica três buracos de uma vez: RLS (passo 3 do Kaizen), autenticação (bloqueador 4.A) e storage S3 (bloqueador 4.B). Railway fica como staging, que já está pago e configurado. AWS sa-east-1 fica para quando a exigência vier de contrato, não de engenharia.
+
+Dois avisos de honestidade que deixei explícitos na carta: os preços são ordem de grandeza para dimensionar a decisão, não cotação — nuvem muda preço e região com frequência e minha base tem data de corte, então confirme antes de decidir. E o prazo de guarda de prontuário do CFM eu marquei para conferir com o jurídico em vez de afirmar de memória.

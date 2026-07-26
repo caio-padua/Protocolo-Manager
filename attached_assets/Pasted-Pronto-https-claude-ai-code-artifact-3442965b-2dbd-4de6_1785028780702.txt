@@ -1,0 +1,24 @@
+Pronto: https://claude.ai/code/artifact/3442965b-2dbd-4de6-a5a9-ad0603701e0e
+
+A página é privada (só você vê, até compartilhar). Funciona em claro e escuro, e no celular.
+
+Traduzi a carta inteira em analogias de coisas que você conhece:
+
+A mudança de sede. O sistema hoje mora no Replit, está mudando para o Railway. Os arquivos que o Dr. Replit Manager escreveu são a lista de instruções para a transportadora.
+
+O erro principal. A instrução mandava levar só a sala de exames — mas os equipamentos dela dependem do almoxarifado central, que ficaria para trás. O caminhão chega, e nada liga. Tem um diagrama lado a lado mostrando o que chegaria no plano antigo e o que chega agora.
+
+O erro silencioso. As caixas de ferramenta estavam marcadas como "só para a obra", então a transportadora deixaria elas. Só que é no destino que os armários são montados.
+
+As chaves. Três chaves da lista abrem portas que não existem no seu sistema — você perderia horas criando credenciais no Google à toa. E faltava a chave do cofre onde ficam as senhas do Asaas, Twilio e certificado digital.
+
+O perigo. É a seção com moldura vermelha, e é a que importa: 87 portas de entrada, 0 com tranca. A analogia é deixar os prontuários em cima do balcão da recepção — e a recepção dar para a calçada. Mostro o comando literal que um estranho digitaria e o que ele receberia de volta. E mostro que o portal do paciente tem tranca, feita corretamente — o que prova que dá para fazer; só não fizeram no lado administrativo.
+
+De casa para prédio. Multi-tenant explicado como transformar a casa em prédio de apartamentos. A barra mostra 13 de 99 fichas com o número do apartamento anotado. E o conserto mais importante: hoje a separação depende de cada funcionário lembrar de conferir o apartamento, em 87 lugares. O certo é ter porteiro no térreo — quem esquece não recebe nada, em vez de receber a correspondência do vizinho.
+
+Onde hospedar. O princípio primeiro: sistema e banco precisam ser vizinhos de porta, não de cidade. Depois a tabela das três fases, com a recomendação de agora (Fly.io + Supabase, os dois em São Paulo, US$ 40–70/mês) e por que o Supabase resolve três problemas de uma vez.
+
+No fim, os 7 passos na ordem — os dois primeiros marcados como barreira.
+
+Uma observação: a seção do perigo é a única com moldura vermelha na página inteira. Foi de propósito. Se você só ler uma parte, leia aquela antes de clicar em Deploy.
+
