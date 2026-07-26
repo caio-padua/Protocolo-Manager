@@ -1,0 +1,74 @@
+Não é "qualquer pessoa com acesso ao repositório". É qualquer pessoa na internet. Sem login, sem convite. Abre github.com/caio-padua/Protocolo-Manager e baixa:
+
+artifacts/api-server/certs/assinatura.pfx
+attached_assets/CAIO_HENRIQUE_FERNANDES_PADUA_29327494806_...pfx
+O segundo tem seu nome completo e seu CPF no nome do arquivo. Um .pfx publicado na internet tem que ser tratado como comprometido — não é probabilidade, é procedimento.
+
+O Dr. Replit escreveu "qualquer pessoa com acesso ao repositório pode baixá-los". Ele não sabia que "com acesso" significa todo mundo.
+
+Faça isto agora, nesta ordem
+1. Deixar o repositório privado — 30 segundos, faça antes de ler o resto
+
+github.com/caio-padua/Protocolo-Manager
+  → Settings → role até o fim → Danger Zone
+  → "Change repository visibility" → Change to private → confirma
+Isso não conserta o histórico, mas para o sangramento agora. É um clique e não mexe em nada do git que vocês estão tentando resolver. Faça o mesmo no parxis-core-protocol, que também está público.
+
+2. Certificado A1 — agora é C, não é mais escolha
+
+O Dr. Replit te ofereceu A, B ou C. Com o repositório público, A e B deixaram de ser suficientes. Ligue para a autoridade certificadora e inicie a revogação e reemissão. Custa dinheiro e burocracia, e eu não gosto de te dar essa notícia sabendo da sua situação — mas um certificado que assina documento clínico com validade jurídica, publicado na internet, não tem meio-termo.
+
+Enquanto o novo não sai, o antigo continua funcionando para você operar. A revogação é o que impede alguém de usá-lo depois.
+
+3. Só depois disso, o merge do Git
+
+O que está acontecendo no Git
+O painel mostra 9↓ 4↑. Tradução: o GitHub tem 9 commits que o Replit não tem (os meus), e o Replit tem 4 que o GitHub não tem (os dele). Os dois lados andaram ao mesmo tempo. O git se recusa a empurrar por cima — corretamente, senão alguém perde trabalho.
+
+O plano dele de 7 cliques funciona. Vou dizer o que eu mudo, e por quê.
+
+Ele manda clicar sempre em Accept Current Change, o que descarta a minha versão dos arquivos em conflito — incluindo o meu basicAuth.ts. Poderia me incomodar, mas não me incomoda, por um motivo prático: nada se perde de verdade. Meus commits continuam no histórico do git, e depois que o código dele chegar ao GitHub eu consigo comparar linha a linha e devolver as melhorias que valerem a pena, com visibilidade total.
+
+O objetivo agora não é ganhar o merge. É acabar com a cegueira — colocar o código dele onde eu consiga finalmente ver.
+
+Duas ressalvas ao plano dele:
+
+No .gitignore, aceite os DOIS lados (ou confira depois que *.pfx, *.p12 e certs/ continuam lá). Se essa linha sumir no merge, a proteção que acabamos de colocar evapora.
+Ninguém pode force-push nem apagar o repositório remoto para "resolver". O plano dele não propõe isso — estou registrando para o caso de alguém sugerir no meio do caminho.
+O que você manda para ele
+Dr. Replit Manager,
+PRIORIDADE ZERO, e muda sua análise: o Dr. Code verificou pela API do
+GitHub e o repositório Protocolo-Manager está PÚBLICO ("private": false).
+Não é "quem tem acesso ao repositório" — é qualquer pessoa na internet.
+Os dois .pfx estão publicados abertamente, um deles com meu nome e CPF.
+Decisão do certificado: OPÇÃO C. Já vou iniciar a revogação e reemissão
+com a autoridade certificadora. Não é mais escolha.
+Ordem de execução:
+1. Eu deixo o repositório privado agora (Settings > Danger Zone)
+2. Inicio a revogação do certificado
+3. SÓ DEPOIS fazemos o merge
+Sobre o merge: aprovado o seu plano de 7 cliques, com duas ressalvas
+do Dr. Code:
+  a) No .gitignore, garanta que *.pfx, *.p12 e certs/ sobrevivam ao
+     merge. Se sumirem, perdemos a proteção que acabamos de por.
+  b) Nada de force-push nem de recriar o repositório remoto. Os commits
+     dele precisam continuar no histórico.
+Sobre "Accept Current Change" nos arquivos de implementação: aceito,
+porque o urgente é o seu código chegar ao GitHub para o Dr. Code
+finalmente conseguir auditar. Depois que chegar, vocês dois comparam
+basicAuth.ts e securityConfig.ts e ele devolve o que valer a pena —
+com o código na frente, não por descrição.
+Ainda quero sua resposta às 6 perguntas da carta dele
+(cartas/2026-07-26_REPLIT-PAXTER_auditoria-bilhetagem-tela-ceo.md),
+principalmente a 5: se você já tinha outro desenho para a bilhetagem,
+quero ver os dois e decidir.
+E me mande a sua carta completa. A que eu colei no chat foi cortada no
+meio da Seção D — o Dr. Code nunca viu o final da bilhetagem nem a
+Seção E inteira. E o arquivo cartas/carta-dr-code-deploy-bilhetagem-
+26jul2026.md não está no GitHub.
+Sobre a pergunta que você fez
+Não, eu não consegui ver os repositórios do Dr. Replit no GitHub. Nada do que ele construiu nas Ondas 2, 3 e 4 chegou lá — verifiquei arquivo por arquivo. E a carta completa dele também não. Estou trabalhando com a descrição dele, não com o código, e disse isso na carta que escrevi.
+
+É por isso que o merge importa mais do que quem "ganha" nele.
+
+Uma última coisa, e é a que mais me incomoda: o repositório está público desde 13 de junho. São seis semanas. Não sei se alguém pegou o certificado, e é honesto dizer que ninguém consegue saber. Mas você precisa saber que a janela não foi de horas.
