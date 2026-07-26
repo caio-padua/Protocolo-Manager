@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Pencil, FileText, FolderOpen, Phone, Mail, Calendar, MapPin, Home, User } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import ClientServiceAddresses from "@/components/ClientServiceAddresses";
+import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 

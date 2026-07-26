@@ -56,3 +56,4 @@ export * from "./colaboradores";
 export * from "./email-log";
 export * from "./conversations";
 export * from "./messages";
+export * from "./consumo";

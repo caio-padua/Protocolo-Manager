@@ -1,10 +1,25 @@
+# Servico Railway: @workspace/api-server
+#
+# Root Directory do servico deve ser "/" (raiz do repo) — monorepo compartilhado.
+# Este arquivo NAO e encontrado sozinho: o Railway nao procura o config dentro do
+# Root Directory. E preciso apontar, em Settings > Config-as-code:
+#   artifacts/api-server/railway.toml
+
 [build]
 builder = "nixpacks"
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build"
+buildCommand = "pnpm --filter @workspace/api-server run build"
+watchPatterns = [
+  "artifacts/api-server/**",
+  "lib/**",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "nixpacks.toml",
+]
 
 [deploy]
+# Executado a partir da raiz do repositorio.
 startCommand = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
 healthcheckPath = "/api/healthz"
-healthcheckTimeout = 100
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
