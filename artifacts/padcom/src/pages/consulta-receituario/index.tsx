@@ -168,28 +168,40 @@ export default function ConsultaReceituario() {
           <div className="flex items-center gap-3">
             <PaxterSymbolGlass size={40} tone="dark" />
 
-            {/* Coluna: wordmark PNG + subtítulo */}
-            <div className="flex flex-col justify-center" style={{ gap: 2 }}>
-              {/* Arte oficial PADAXOR — mixBlendMode:screen apaga o fundo preto; PNG ~1079×200px */}
+            {/* Coluna: wordmark PNG (fundo removido) + 2 linhas de subtítulo do sistema */}
+            <div className="flex flex-col justify-center" style={{ gap: 1 }}>
+              {/* Arte oficial PADAXOR — PNG com fundo transparente, sem blend */}
               <img
-                src="/brand/padaxor-wordmark.png"
+                src="/brand/padaxor-wordmark-nobg.png"
                 alt="PADAXOR"
                 draggable={false}
                 style={{
-                  height: 48,
+                  height: 44,
                   width: "auto",
                   display: "block",
-                  mixBlendMode: "screen",
-                  filter: "brightness(1.12) contrast(1.05) saturate(1.1)",
+                  objectFit: "contain",
                 }}
               />
-              {/* Subtítulo oficial do PADCON */}
+              {/* Subtítulo linha 1 — exatamente como em entrada.tsx l.121 */}
               <span
-                className="text-[8.5px] tracking-[0.26em] uppercase leading-none"
+                className="uppercase leading-none"
                 style={{
-                  color: "rgba(201,162,78,0.65)",
-                  fontFamily: "'Cinzel', serif",
-                  marginTop: 1,
+                  fontSize: "8px",
+                  letterSpacing: "0.40em",
+                  color: "#8aa0c4",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                Clinical Intelligence System
+              </span>
+              {/* Subtítulo linha 2 — exatamente como em entrada.tsx l.124 */}
+              <span
+                className="uppercase leading-none"
+                style={{
+                  fontSize: "7.5px",
+                  letterSpacing: "0.22em",
+                  color: "#6f86ad",
+                  fontFamily: "Inter, sans-serif",
                 }}
               >
                 Motor Clínico · Protocolos Injetáveis
