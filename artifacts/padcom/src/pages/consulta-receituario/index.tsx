@@ -60,16 +60,33 @@ function IcpBrasilSvg({ size = 64 }: { size?: number }) {
 }
 
 /* ── Cabeçalho de painel (Padrão 3 da skill) — placa bevel saliente ─── */
-function PanelHeader({ icon: Icon, label }: {
+function PanelHeader({ icon: Icon, label, dark = false }: {
   icon: React.ElementType;
   label: string;
+  dark?: boolean;
 }) {
   return (
-    <div className="bevel-3d px-4 py-2.5 flex items-center gap-2.5 rounded-t-[6px]">
-      <Icon size={13} style={{ color: "rgba(201,162,78,0.80)" }} />
+    <div
+      className="px-4 py-2.5 flex items-center gap-2.5 rounded-t-[6px]"
+      style={dark ? {
+        /* Dark: placa com fundo navy intenso + borda ouro suave — contraste real */
+        background: "linear-gradient(180deg,#1e3a5f 0%,#162f50 100%)",
+        borderBottom: "1px solid rgba(201,162,78,0.22)",
+        boxShadow: "inset 0 2px 0 rgba(255,255,255,0.08), 0 4px 8px rgba(0,0,0,0.40)",
+      } : {
+        /* Light: placa bevel clássica creme-ouro saliente */
+        background: "linear-gradient(180deg,#ffffff 0%,#f8f5ec 55%,#efe8d6 100%)",
+        border: "1px solid rgba(184,146,77,0.45)",
+        boxShadow: "inset 0 3px 0 rgba(255,255,255,0.98), inset 0 -4px 8px rgba(0,53,58,0.10), 0 6px 12px -4px rgba(7,22,43,0.28)",
+      }}
+    >
+      <Icon size={13} style={{ color: dark ? "rgba(201,162,78,0.90)" : "rgba(201,162,78,0.80)" }} />
       <span
         className="text-[10px] font-black tracking-[0.26em] uppercase"
-        style={{ fontFamily: "'Cinzel',serif", color: "rgba(201,162,78,0.85)" }}
+        style={{
+          fontFamily: "'Cinzel',serif",
+          color: dark ? "rgba(201,162,78,0.95)" : "rgba(201,162,78,0.85)",
+        }}
       >
         {label}
       </span>
@@ -156,39 +173,43 @@ export default function ConsultaReceituario() {
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* ── CABEÇALHO PADAXOR — SEMPRE NAVY, sticky ────────────────── */}
+        {/* ── CABEÇALHO — mesmo panel-3d da área do cliente, sticky ────── */}
         <header
-          className="sticky top-0 z-50 w-full flex items-center justify-between px-5 py-3 relative"
-          style={{
-            background: "linear-gradient(180deg,#0e1a34 0%,#16284a 100%)",
-            borderBottom: "1px solid rgba(201,162,78,0.28)",
-            boxShadow: "0 2px 20px rgba(0,0,0,0.40)",
-          }}
+          className="panel-3d sticky top-0 z-50 w-full flex items-center justify-between px-5 py-3"
+          style={{ borderRadius: 0 }}
         >
-          {/* Esquerda: símbolo + wordmark oficial */}
+          {/* Esquerda: símbolo + wordmark + subtítulos */}
           <div className="flex items-center gap-3">
-            <PaxterSymbolGlass size={40} tone="dark" />
+            <PaxterSymbolGlass
+              size={40}
+              tone={theme === "dark" ? "dark" : "light"}
+              sharp
+            />
 
-            {/* Coluna: wordmark oficial + 2 linhas de subtítulo do sistema */}
             <div className="flex flex-col justify-center" style={{ gap: 3 }}>
-              {/*
-                PNG original fundo preto + mix-blend-mode:screen no wrapper CSS.
-                Preto × screen sobre navy = navy (invisível). Ouro × screen = ouro puro.
-                Zero filtro na <img>. Proporção 1865×374 preservada.
-              */}
-              <PadaxorLogo variant="screen" maxWidth={200} />
+              {/* Tema escuro → PNG com screen blend sobre navy (funciona)
+                  Tema claro  → CSS wordmark Cinzel ouro (PNG+screen sobre creme ficaria apagado) */}
+              {theme === "dark" ? (
+                <PadaxorLogo variant="screen" maxWidth={180} />
+              ) : (
+                <PadaxorWordmark size="text-[20px]" />
+              )}
 
-              {/* Subtítulo linha 1 — entrada.tsx l.121 */}
               <span
                 className="uppercase leading-none"
-                style={{ fontSize: "7.5px", letterSpacing: "0.40em", color: "#8aa0c4" }}
+                style={{
+                  fontSize: "7.5px", letterSpacing: "0.40em",
+                  color: theme === "dark" ? "#8aa0c4" : "rgba(138,109,47,0.70)",
+                }}
               >
                 Clinical Intelligence System
               </span>
-              {/* Subtítulo linha 2 — entrada.tsx l.124 */}
               <span
                 className="uppercase leading-none"
-                style={{ fontSize: "7px", letterSpacing: "0.22em", color: "#6f86ad" }}
+                style={{
+                  fontSize: "7px", letterSpacing: "0.22em",
+                  color: theme === "dark" ? "#6f86ad" : "rgba(138,109,47,0.52)",
+                }}
               >
                 Motor Clínico · Protocolos Injetáveis
               </span>
@@ -253,8 +274,18 @@ export default function ConsultaReceituario() {
                 <div
                   className="bevel-3d bevel-3d-ok p-6 flex flex-col items-center gap-3 rounded-[8px]"
                   style={{
-                    /* sombra amplificada = impressão de GRANDE ALTURA sobre o tecido */
-                    boxShadow: [
+                    boxShadow: theme === "dark" ? [
+                      /* Dark: topo sutil + green glow mais intenso embaixo */
+                      "inset 0 2px 0 rgba(74,222,128,0.20)",
+                      "inset 0 -8px 14px rgba(0,60,30,0.50)",
+                      "0 2px 0 rgba(0,0,0,0.20)",
+                      "0 6px 0 rgba(0,0,0,0.22)",
+                      "0 12px 0 rgba(0,0,0,0.20)",
+                      "0 24px 32px -4px rgba(0,0,0,0.70)",
+                      "0 40px 64px -8px rgba(0,0,0,0.50)",
+                      "0 64px 96px -12px rgba(74,222,128,0.30)",
+                    ].join(",") : [
+                      /* Light: topo branco brilhante + green glow suave */
                       "inset 0 4px 0 rgba(255,255,255,0.98)",
                       "inset 0 -8px 14px rgba(0,100,50,0.12)",
                       "0 2px 0 rgba(0,0,0,0.08)",
@@ -302,7 +333,7 @@ export default function ConsultaReceituario() {
 
                 {/* ── 2. DADOS DA PRESCRIÇÃO ──────────────────────────── */}
                 <div className="panel-3d overflow-hidden">
-                  <PanelHeader icon={FileText} label="Dados da Prescrição" />
+                  <PanelHeader icon={FileText} label="Dados da Prescrição" dark={theme === "dark"} />
                   <div className="px-5 py-4 flex flex-col gap-3">
                     {([
                       { label: "PACIENTE",               value: data.paciente,  gold: true,  mono: false },
@@ -339,7 +370,7 @@ export default function ConsultaReceituario() {
                 {/* ── 3. CREDENCIAL DO ASSINANTE ─────────────────────── */}
                 {data.certMeta && (
                   <div className="panel-3d overflow-hidden">
-                    <PanelHeader icon={BadgeCheck} label="Credencial do Assinante" />
+                    <PanelHeader icon={BadgeCheck} label="Credencial do Assinante" dark={theme === "dark"} />
                     <div className="px-5 py-4 flex flex-col gap-2.5">
                       {([
                         { label: "TITULAR DO CERTIFICADO", value: data.certMeta.titular, bold: true,  highlight: false },
@@ -381,7 +412,7 @@ export default function ConsultaReceituario() {
                 {/* ── 4. LACRE DIGITAL ──────────────────────────────── */}
                 {data.certMeta && (
                   <div className="panel-3d overflow-hidden">
-                    <PanelHeader icon={Lock} label="Lacre Digital do Documento" />
+                    <PanelHeader icon={Lock} label="Lacre Digital do Documento" dark={theme === "dark"} />
                     <div className="px-5 py-4 flex flex-col gap-3">
                       <div className="flex flex-col gap-0.5">
                         <span
@@ -450,7 +481,7 @@ export default function ConsultaReceituario() {
 
                 {/* ── 5. SELO ICP-BRASIL ─────────────────────────────── */}
                 <div className="panel-3d overflow-hidden">
-                  <PanelHeader icon={Award} label="Infraestrutura de Chaves Públicas Brasileira" />
+                  <PanelHeader icon={Award} label="Infraestrutura de Chaves Públicas Brasileira" dark={theme === "dark"} />
                   <div
                     className="flex flex-col items-center px-5 py-5 gap-4"
                     style={{
@@ -563,7 +594,7 @@ export default function ConsultaReceituario() {
         </main>
 
         {/* ── RODAPÉ ELEGANTE ──────────────────────────────────────── */}
-        <footer className="footer-brand-band w-full flex flex-col items-center gap-2 py-6 px-4">
+        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex flex-col items-center gap-2 py-4 px-4">
           {/* Linha 1 — marca principal */}
           <div className="flex items-center gap-3">
             <div
