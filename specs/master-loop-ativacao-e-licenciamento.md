@@ -89,8 +89,11 @@ gerar dado real hoje.
    e `APP_ENCRYPTION_KEY` (as duas ultimas com `openssl rand -hex 32`).
 6. Rodar as migrations do Drizzle no banco novo. O banco nasce vazio — nenhum
    `railway.toml` faz isso sozinho. Considerar `preDeployCommand`.
-7. Deletar os servicos `@workspace/mockup-sandbox` e `@workspace/api-client-react`
-   no Railway.
+7. Remover `@workspace/mockup-sandbox` e `@workspace/api-client-react` **do
+   deploy Railway** — nao criar servico para eles. **NAO deletar do
+   repositorio**: sao ferramenta de trabalho do canvas e do codegen dentro do
+   Replit, e apagar arquivo viola a Regra de Ouro da casa. (Correcao R1 do
+   Dr. Replit Manager, aceita.)
 8. Publicar os tres servicos e confirmar que respondem.
 
 ### Casos extremos
@@ -122,9 +125,15 @@ Fazer funcionar fora do Replit o que hoje so funciona dentro dele.
    (`127.0.0.1:1106`, em `src/lib/objectStorage.ts`) por armazenamento
    S3-compativel. Foto de paciente, exame, documento da Fabrica e anexos voltam
    a funcionar.
-2. Reescrever `google-calendar.ts`, `google-gmail.ts` e `google-drive.ts` para
-   OAuth proprio do Google, com refresh token guardado por empresa no cofre
-   (`secure_settings`). Sair de `REPLIT_CONNECTORS_HOSTNAME` / `REPL_IDENTITY`.
+2. `google-calendar.ts`, `google-gmail.ts` e `google-drive.ts` ganham OAuth
+   proprio do Google, com refresh token guardado por empresa no cofre
+   (`secure_settings`).
+   **Trilho paralelo com bandeira, nao substituicao** (correcao R2 do Dr.
+   Replit Manager, aceita e melhor que a proposta original): o codigo detecta
+   se `REPLIT_CONNECTORS_HOSTNAME` esta disponivel e usa; se nao estiver, usa
+   o OAuth proprio. Assim o ambiente de desenvolvimento no Replit continua
+   funcionando enquanto o Railway ganha o caminho novo. Reescrever direto
+   quebraria o ambiente onde o CEO trabalha hoje.
 3. Isolar os jobs agendados. Hoje `app.ts` dispara `setInterval` no escopo do
    modulo e `lib/cron.ts` registra tres `cron.schedule`. Com mais de uma
    replica, tudo executa em duplicado — mensagem dupla ao paciente e cobranca
@@ -157,6 +166,15 @@ venda dos proximos 60 dias — tem prioridade sobre a Onda 4.
    - `empresa_id` — de quem e o consumo
    - `custo_unitario` — congelado no momento do evento, nunca recalculado
    - `chave_idempotencia` — impede que repeticao de chamada vire cobranca dupla
+
+   **Condicoes de execucao** (Dr. Replit Manager, Q4 — aceitas):
+   - SQL direto, **nunca** `db push` em tabela populada.
+   - No Postgres, `NULL` nao colide em indice UNIQUE. Logo a chave de
+     idempotencia exige indice unico **parcial** (`WHERE chave IS NOT NULL`)
+     mais guarda de existencia na aplicacao. Indice unico sozinho nao garante
+     idempotencia — linha antiga sem chave passa batido.
+   - Backfill de `empresa_id` com default 5 (Instituto Padua), igual foi feito
+     nas 35 tabelas clinicas da Onda A.
 2. Registro de consumo **append-only**: linha de consumo nunca e alterada nem
    apagada. A fatura e a soma de um periodo. Contador que incrementa nao serve —
    nao se audita.
@@ -169,6 +187,16 @@ venda dos proximos 60 dias — tem prioridade sobre a Onda 4.
    - duvidas de paciente respondidas pela IA
    - lembretes de dose entregues no horario
    - estimativa de tempo de secretaria economizado (parametro configuravel)
+
+   **Acrescentados pelo Dr. Replit Manager (Q7) — dado que ja existe gravado,
+   o painel e leitura e nao infraestrutura nova:**
+   - laudos de exame lidos, extraidos e arquivados sem digitacao
+     (`drive_watcher_files` + documentos de exame)
+   - anamneses concluidas pelo proprio paciente (anamnese v2) — tempo de
+     consultorio economizado antes da consulta
+   - agendamentos e reagendamentos espelhados no Google Agenda sem secretaria
+   - documentos com validade juridica emitidos (A1 / ZapSign)
+   - orcamentos gerados no Console Clinico
 
 ### Casos extremos
 - Backfill: eventos antigos sem `empresa_id` recebem o do Instituto Padua.
@@ -242,8 +270,16 @@ esta na maquina do cliente.
    `runSeedSiteContent`). Dado clinico fica no banco de cada clinica; o
    conhecimento fica no repositorio.
 
+5. **Extrair os agentes de dentro do api-server.** Alerta do Dr. Replit Manager
+   (Q2), aceito e critico: hoje os times de IA vivem DENTRO do api-server —
+   rotas `agentes*`, tabelas `agente_*`. Isso nao e "nao copiar uma pasta", e
+   separacao de servico de verdade. Se ficar como esta, **o primeiro clone
+   leva a IA junto por inercia de monorepo** — e o ativo sai de casa sem
+   ninguem decidir. Esta tarefa tem que ter dono e prazo proprios.
+
 ### Linhas vermelhas
 - Nenhum prompt e nenhuma definicao de agente pode ser copiado para o clone.
+- Nao criar clone nenhum antes do requisito 5 estar concluido.
 
 ### Definicao de PRONTO
 - Documento em `specs/` listando arquivo por arquivo o que fica de cada lado.
@@ -308,6 +344,14 @@ que seja a ideia.
 ---
 
 **Referencias obrigatorias antes de comecar:**
+- `docs/dr-replit/PARA_MANAGER/RESPOSTA_MANAGER_MASTER_MIND_26.07.26.md`
+  — resposta do Dr. Replit Manager as sete perguntas. **Esta spec ja foi
+  revisada com base nela**: as correcoes R1 (nao deletar do repositorio) e R2
+  (Google por bandeira, nao por substituicao) foram aceitas, junto com as
+  condicoes tecnicas da Q4, os cinco indicadores novos do painel (Q7) e o
+  alerta da Q2 sobre os agentes viverem dentro do api-server.
+- **As leis da casa**, apontadas por ele: `replit.md` e `.agents/memory/`.
+  Ler antes de tocar em schema ou em tela.
 - `docs/dr-replit/PARA_MANAGER/MASTER_MIND_PAXTER_PLANO_DE_TRABALHO_26.07.25.md`
 - `docs/dr-replit/PARA_MANAGER/ARQUITETURA_LICENCIAMENTO_E_MEDICAO_26.07.25.md`
 - `cartas/2026-07-25_REPLIT-MANAGER_deploy-railway-multitenant.md`
