@@ -155,35 +155,50 @@ export default function ConsultaReceituario() {
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* ── CABEÇALHO PADAXOR — FIXO (sticky), conteúdo desliza por baixo ── */}
+        {/* ── CABEÇALHO PADAXOR — SEMPRE NAVY, sticky ────────────────── */}
         <header
-          className="sticky top-0 z-50 w-full flex flex-col items-center py-5 px-4 relative"
+          className="sticky top-0 z-50 w-full flex items-center justify-between px-5 py-3 relative"
           style={{
-            borderBottom: "1px solid rgba(201,162,78,0.22)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            background: theme === "dark"
-              ? "rgba(11,20,38,0.92)"
-              : "rgba(244,240,234,0.92)",
+            background: "linear-gradient(180deg,#0e1a34 0%,#16284a 100%)",
+            borderBottom: "1px solid rgba(201,162,78,0.28)",
+            boxShadow: "0 2px 20px rgba(0,0,0,0.40)",
           }}
         >
-          {/* Toggle claro/escuro — canto superior direito */}
-          <div className="absolute top-4 right-4">
-            <ThemeToggle theme={theme} onToggle={toggle} />
-          </div>
+          {/* Esquerda: símbolo + wordmark oficial */}
+          <div className="flex items-center gap-3">
+            <PaxterSymbolGlass size={40} tone="dark" />
 
-          <div className="flex items-center gap-3 mb-1">
-            <PaxterSymbolGlass size={44} tone={theme === "dark" ? "dark" : "light"} />
-            <div>
-              <PadaxorWordmark />
-              <div
-                className="text-[10px] tracking-[0.22em] uppercase mt-0.5"
-                style={{ color: "rgba(201,162,78,0.65)" }}
+            {/* Coluna: wordmark PNG + subtítulo */}
+            <div className="flex flex-col justify-center" style={{ gap: 2 }}>
+              {/* Arte oficial PADAXOR — mixBlendMode:screen apaga o fundo preto; PNG ~1079×200px */}
+              <img
+                src="/brand/padaxor-wordmark.png"
+                alt="PADAXOR"
+                draggable={false}
+                style={{
+                  height: 48,
+                  width: "auto",
+                  display: "block",
+                  mixBlendMode: "screen",
+                  filter: "brightness(1.12) contrast(1.05) saturate(1.1)",
+                }}
+              />
+              {/* Subtítulo oficial do PADCON */}
+              <span
+                className="text-[8.5px] tracking-[0.26em] uppercase leading-none"
+                style={{
+                  color: "rgba(201,162,78,0.65)",
+                  fontFamily: "'Cinzel', serif",
+                  marginTop: 1,
+                }}
               >
                 Motor Clínico · Protocolos Injetáveis
-              </div>
+              </span>
             </div>
           </div>
+
+          {/* Direita: toggle claro/escuro */}
+          <ThemeToggle theme={theme} onToggle={toggle} />
         </header>
 
         {/* ── CONTEÚDO ─────────────────────────────────────────────── */}
