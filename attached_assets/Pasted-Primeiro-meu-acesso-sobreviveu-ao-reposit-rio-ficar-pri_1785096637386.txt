@@ -1,0 +1,66 @@
+Primeiro: meu acesso sobreviveu ao repositório ficar privado? E depois o erro.
+
+Acesso intacto, e o merge dele chegou. Agora o erro — vou olhar a causa exata:
+
+Encontrei. Vou confirmar de onde veio antes de corrigir:
+
+Achei a raiz. Vou corrigir e testar antes de subir:
+
+O lockfile não mudou — **meu pnpm considera o estado consistente**. Isso confirma a causa: é diferença de versão do pnpm entre aqui e o Railway. Vou fixar a versão:
+
+Install passa. Agora preciso garantir que o Railway use essa mesma versão — vou confirmar na doc:
+
+A doc não foi conclusiva sobre isso, então vou blindar dos dois lados. Conferindo o nixpacks após o merge:
+
+Main andou de novo. Rebase e novo push:
+
+Ele chegou à mesma conclusão e já fixou a versão — `eb29fef`. Vou ver qual versão ele escolheu antes de resolver o conflito:
+
+Ele fixou **10.26.1**, eu fixei **10.33.0**. Eu verifiquei a minha; a dele ninguém testou. Vou testar antes de decidir:
+
+10.26.1 também passa — **a versão dele funciona**. Fico com a dele e mantenho só a minha rede de segurança:
+
+Corrigido e no ar. Deixa eu te explicar o que era, porque a causa é interessante e vale você entender.
+
+## Por que quebrou
+
+O arquivo `pnpm-workspace.yaml` tem um bloco chamado `overrides` — uma lista de ajustes de dependência — e ele está lá **desde o início do repositório**. Mas o `pnpm-lock.yaml` nunca registrou esses ajustes.
+
+Isso é uma inconsistência que existia há semanas e ninguém tinha visto, porque **algumas versões do pnpm reclamam e outras não**. A minha aqui não reclama — foi por isso que eu rodei os três builds com sucesso e te disse que estava tudo certo. O Railway subiu com outra versão, que reclama, e abortou.
+
+A causa de fundo é mais simples que o sintoma: **a versão do pnpm nunca estava fixada.** O `package.json` não tinha o campo `packageManager`, então cada ambiente escolhia a sua. Meu ambiente escolheu uma, o Railway escolheu outra, e o resultado dependia de sorte.
+
+Isso é honestamente uma falha minha também: quando reescrevi o `nixpacks.toml`, tirei o pino de versão que existia e deixei o Nixpacks escolher sozinho. Escrevi até um comentário justificando. Estava errado — o certo era fixar.
+
+## O que foi feito
+
+O Dr. Replit chegou à mesma conclusão em paralelo e já fixou `pnpm@10.26.1` no commit `eb29fef`. Bom trabalho, e rápido.
+
+Só que ninguém tinha testado essa versão. Então instalei a 10.26.1 aqui e rodei o comando exato do Railway:
+
+```
+pnpm 10.26.1 · NODE_ENV=production · install --frozen-lockfile --prod=false
+EXIT=0
+```
+
+**A versão dele funciona.** Fiquei com a dele e descartei a minha, para não criar disputa boba por uma diferença que não muda nada.
+
+Acrescentei só uma rede de segurança no `nixpacks.toml`: se por algum motivo o Railway ainda subir com outra versão, o install tenta de novo sem o modo estrito em vez de derrubar o deploy inteiro. Marquei com `TODO` para tirar depois que os logs confirmarem qual pnpm o Railway usou — não é estado final, é para você não perder o dia.
+
+Commit `6da500d`, na main.
+
+## Agora
+
+Vá no Railway e clique em **Redeploy** nos três serviços. O build deve passar.
+
+Se falhar de novo, me mande o **Build Logs** — não a tela de Details, mas a aba de logs. A mensagem de diagnóstico do Railway é boa, mas o log tem a linha que diz qual versão do pnpm ele realmente usou, e é isso que decide o próximo passo.
+
+## Duas coisas que vi de passagem e vou guardar
+
+Enquanto resolvia isso, o merge dele chegou aqui e eu finalmente **consegui ver o código**. Duas observações rápidas, sem parar o deploy por elas:
+
+O `rateLimitMiddleware` dele pula `/api/whatsapp/inbound` e `/api/webhooks` — mas as rotas reais no `routes/index.ts` são `whatsapp-inbound` e `whatsapp-webhook`, com hífen. Se os caminhos não baterem, o webhook do Twilio entra na conta do limite de 200/min. Não derruba nada agora, mas num dia de movimento pode cortar mensagem de paciente.
+
+E a lista de isenção do rate limit não inclui o portal do paciente. Mesma coisa: não é bloqueio, é contagem.
+
+Anoto os dois para a rodada de revisão. Agora o que importa é o build passar e você começar a usar o sistema.
