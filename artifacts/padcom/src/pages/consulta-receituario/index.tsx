@@ -155,10 +155,17 @@ export default function ConsultaReceituario() {
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* ── CABEÇALHO PADAXOR ────────────────────────────────────── */}
+        {/* ── CABEÇALHO PADAXOR — FIXO (sticky), conteúdo desliza por baixo ── */}
         <header
-          className="w-full flex flex-col items-center py-7 px-4 relative"
-          style={{ borderBottom: "1px solid rgba(201,162,78,0.18)" }}
+          className="sticky top-0 z-50 w-full flex flex-col items-center py-5 px-4 relative"
+          style={{
+            borderBottom: "1px solid rgba(201,162,78,0.22)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            background: theme === "dark"
+              ? "rgba(11,20,38,0.92)"
+              : "rgba(244,240,234,0.92)",
+          }}
         >
           {/* Toggle claro/escuro — canto superior direito */}
           <div className="absolute top-4 right-4">
@@ -557,15 +564,15 @@ export default function ConsultaReceituario() {
             />
           </div>
 
-          {/* Linha 2 — frase arquitetural em inglês */}
+          {/* Linha 2 — subtítulo oficial do PADCON (Motor Clínico · Protocolos Injetáveis) */}
           <p
-            className="text-[9px] tracking-[0.28em] uppercase text-center"
+            className="text-[9px] tracking-[0.24em] uppercase text-center"
             style={{
               fontFamily: "'Cinzel',serif",
-              color: theme === "dark" ? "rgba(201,162,78,0.50)" : "rgba(138,109,47,0.65)",
+              color: theme === "dark" ? "rgba(201,162,78,0.55)" : "rgba(138,109,47,0.70)",
             }}
           >
-            Clinical Intelligence System · Injectable Protocols Engine
+            Motor Clínico · Protocolos Injetáveis
           </p>
 
           {/* Linha separadora */}
