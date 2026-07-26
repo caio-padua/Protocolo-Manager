@@ -2,15 +2,32 @@
 // PUPPETEER CAPTURE — Renderiza HTML server-side e retorna PNG base64
 // Usa Chromium embutido do puppeteer (instalado em ~/.cache/puppeteer)
 // ─────────────────────────────────────────────────────────────────────────────
+import { existsSync } from "node:fs";
 import puppeteer from "puppeteer";
+
+// Chromium provisionado pelo replit.nix. Esse caminho so existe dentro do
+// Replit — em Railway/Docker ele nao esta presente.
+const NIX_CHROMIUM =
+  "/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium";
+
+/**
+ * Resolve o binario do Chromium conforme o ambiente:
+ * PUPPETEER_EXECUTABLE_PATH tem prioridade, depois o Chromium do Nix e, se
+ * nenhum existir, `undefined` faz o puppeteer usar o Chromium que ele baixa.
+ */
+function resolveExecutablePath(): string | undefined {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (fromEnv) return fromEnv;
+  if (existsSync(NIX_CHROMIUM)) return NIX_CHROMIUM;
+  return undefined;
+}
 
 /**
  * Recebe HTML completo, renderiza em headless Chromium, tira screenshot
  * do elemento #receituario e retorna PNG base64.
  */
 export async function htmlToPngBase64(html: string): Promise<string> {
-  // Usa o Chromium do sistema Nix (instaldo via replit.nix)
-  const executablePath = "/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium";
+  const executablePath = resolveExecutablePath();
 
   const browser = await puppeteer.launch({
     headless: true,
