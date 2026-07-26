@@ -29,11 +29,20 @@ max-width: [conforme contexto — ex: 210px no header mobile];
 
 **Why:** A geometria das letras (vazados do P e R, chanfros, profundidade 3D, reflexos ouro) é personalizada. Qualquer filtro ou redimensionamento forçado destrói o efeito visual. Regra confirmada pelo Dr. Claude em 26/07/2026.
 
-## Subtítulo oficial (duas linhas — copiado de entrada.tsx)
+## Subtítulo oficial (REVISADO pelo CEO em 26/07/2026 — regra definitiva)
+
+PROIBIDO (o CEO ODEIA e mandou nunca mais usar): os subtítulos empilhados antigos
+em uppercase alongado — "CLINICAL INTELLIGENCE SYSTEM" tracking 0.40em azulado +
+"MOTOR CLÍNICO · PROTOCOLOS INJETÁVEIS" tracking 0.22em. Nunca mais renderizar
+essas linhas nesse formato em NENHUMA tela.
+
+CORRETO: UMA única frase sob o wordmark PADAXOR:
 
 ```
-Linha 1: "Clinical Intelligence System"  — #8aa0c4, tracking 0.40em, uppercase
-Linha 2: "Motor Clínico · Protocolos Injetáveis" — #6f86ad, tracking 0.22em, uppercase
+"Clinical Intelligence System" — Cormorant Garamond serif, 600, 11px,
+tracking curto 0.10em (nao alongado), cor ouro (#d9b45f escuro / #8a6d2f claro),
+text-shadow sutil, CENTRALIZADA no ponto medio do wordmark (flex-col items-center).
+Mesmo espirito visual do "Platform" da arte PADCON.
 ```
 
 ## Header sticky (consulta-receituario)

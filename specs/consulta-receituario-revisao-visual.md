@@ -17,7 +17,12 @@ credito oficial da PADCON Platform no rodape.
    1.3. Componente CSS `PadaxorWordmark` (texto Cinzel) DEIXA de ser usado no cabecalho
         (viola a regra "wordmark e ativo grafico fechado, nunca texto digitado").
    1.4. Simbolo PaxterSymbolGlass no MESMO lugar e tamanho nos dois temas; so muda `tone`.
-   1.5. Subtitulos identicos nos dois temas em posicao e tamanho; so muda a cor.
+   1.5. Subtitulo (REVISADO CEO 26/07/2026): UMA unica frase "Clinical Intelligence System"
+        em serifa dourada (Cormorant Garamond, tracking curto 0.10em, mesmo espirito do
+        "Platform" da arte PADCON), CENTRALIZADA sob o wordmark PADAXOR.
+        A linha "Motor Clinico · Protocolos Injetaveis" foi REMOVIDA.
+        PROIBIDO voltar aos subtitulos empilhados uppercase alongados (CEO odeia).
+        Bloco todo centralizado no ponto medio vertical da faixa (h-72px, items-center).
 2. RODAPE (painel inferior sticky) — REVISADO pelo CEO em 26/07/2026:
    2.1. Mesma ALTURA nos dois temas, e faixa ESTREITA (52px).
    2.2. Conteudo = APENAS a referencia do PADCON, em UMA linha horizontal alinhada a DIREITA:

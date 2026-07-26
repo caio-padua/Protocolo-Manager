@@ -166,7 +166,7 @@ export default function ConsultaReceituario() {
               sharp
             />
 
-            <div className="flex flex-col justify-center" style={{ gap: 3 }}>
+            <div className="flex flex-col items-center justify-center" style={{ gap: 4 }}>
               {/* Wordmark = ativo gráfico fechado (PNG transparente oficial).
                   MESMO arquivo nos 2 temas. Zero filtro, zero blend (regra Dr. Claude 26/07/2026). */}
               <img
@@ -176,23 +176,22 @@ export default function ConsultaReceituario() {
                 style={{ height: 20, width: "auto", objectFit: "contain" }}
               />
 
+              {/* Frase única — serifa dourada (mesmo espírito do "Platform"),
+                  centralizada sob o wordmark, tracking curto (ordem CEO 26/07/2026) */}
               <span
-                className="uppercase leading-none"
+                className="leading-none text-center"
                 style={{
-                  fontSize: "7.5px", letterSpacing: "0.40em",
-                  color: theme === "dark" ? "#8aa0c4" : "rgba(138,109,47,0.70)",
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  letterSpacing: "0.10em",
+                  color: theme === "dark" ? "#d9b45f" : "#8a6d2f",
+                  textShadow: theme === "dark"
+                    ? "0 1px 1px rgba(0,0,0,0.55)"
+                    : "0 1px 0 rgba(255,255,255,0.65)",
                 }}
               >
                 Clinical Intelligence System
-              </span>
-              <span
-                className="uppercase leading-none"
-                style={{
-                  fontSize: "7px", letterSpacing: "0.22em",
-                  color: theme === "dark" ? "#6f86ad" : "rgba(138,109,47,0.52)",
-                }}
-              >
-                Motor Clínico · Protocolos Injetáveis
               </span>
             </div>
           </div>
