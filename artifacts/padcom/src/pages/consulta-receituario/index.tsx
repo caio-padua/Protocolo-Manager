@@ -7,6 +7,7 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { PadaxorLogo } from "@/components/brand/PadaxorLogo";
 
 /* ── Tipos ───────────────────────────────────────────────────────────── */
 interface CertMeta {
@@ -168,36 +169,23 @@ export default function ConsultaReceituario() {
           <div className="flex items-center gap-3">
             <PaxterSymbolGlass size={40} tone="dark" />
 
-            {/* Coluna: wordmark PNG transparente + 2 linhas de subtítulo */}
+            {/* Coluna: wordmark oficial + 2 linhas de subtítulo do sistema */}
             <div className="flex flex-col justify-center" style={{ gap: 3 }}>
               {/*
-                REGRA (Dr. Claude 26/07/2026):
-                - Nunca filtro, nunca mix-blend-mode, nunca altura fixa
-                - width: 100%, height: auto, object-fit: contain
-                - Proporção original SEMPRE preservada
+                PNG original fundo preto + mix-blend-mode:screen no wrapper CSS.
+                Preto × screen sobre navy = navy (invisível). Ouro × screen = ouro puro.
+                Zero filtro na <img>. Proporção 1865×374 preservada.
               */}
-              <img
-                src="/brand/padaxor-wordmark-nobg.png"
-                alt="PADAXOR"
-                draggable={false}
-                style={{
-                  width: "100%",
-                  maxWidth: "210px",
-                  height: "auto",
-                  display: "block",
-                  objectFit: "contain",
-                  userSelect: "none",
-                  WebkitUserDrag: "none" as React.CSSProperties["WebkitUserDrag"],
-                }}
-              />
-              {/* Subtítulo linha 1 — copiado de entrada.tsx l.121 */}
+              <PadaxorLogo variant="screen" maxWidth={200} />
+
+              {/* Subtítulo linha 1 — entrada.tsx l.121 */}
               <span
                 className="uppercase leading-none"
                 style={{ fontSize: "7.5px", letterSpacing: "0.40em", color: "#8aa0c4" }}
               >
                 Clinical Intelligence System
               </span>
-              {/* Subtítulo linha 2 — copiado de entrada.tsx l.124 */}
+              {/* Subtítulo linha 2 — entrada.tsx l.124 */}
               <span
                 className="uppercase leading-none"
                 style={{ fontSize: "7px", letterSpacing: "0.22em", color: "#6f86ad" }}

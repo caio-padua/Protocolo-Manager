@@ -1,0 +1,37 @@
+.padaxor-logo {
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  width: 100%;
+  max-width: var(--padaxor-max-width, 280px);
+  line-height: 0;
+}
+
+/* Variante "screen": fundo preto desaparece sobre navy via mix-blend-mode.
+   Matematicamente: preto (0,0,0) × screen = navy de baixo → invisível.
+   Ouro (200,160,50) × screen = ouro brilhante. Zero degradação de arte. */
+.padaxor-logo--screen {
+  mix-blend-mode: screen;
+  background: transparent;
+}
+
+.padaxor-logo--black {
+  background: #000000;
+}
+
+.padaxor-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  image-rendering: auto;
+
+  /*
+   * NUNCA aplicar:
+   * filter · hue-rotate · saturate · brightness
+   * contrast · drop-shadow · blur · mix-blend-mode inline
+   */
+}
