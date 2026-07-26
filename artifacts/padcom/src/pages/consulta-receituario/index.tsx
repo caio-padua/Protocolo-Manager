@@ -7,7 +7,6 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { PadaxorLogo } from "@/components/brand/PadaxorLogo";
 
 /* ── Tipos ───────────────────────────────────────────────────────────── */
 interface CertMeta {
@@ -94,25 +93,6 @@ function PanelHeader({ icon: Icon, label, dark = false }: {
   );
 }
 
-/* ── Wordmark PADAXOR ────────────────────────────────────────────────── */
-function PadaxorWordmark({ size = "text-[22px]" }: { size?: string }) {
-  return (
-    <span
-      className={`${size} font-black tracking-[0.35em] uppercase`}
-      style={{
-        fontFamily: "'Cinzel','Playfair Display',serif",
-        background:
-          "linear-gradient(135deg,#6f5421 0%,#f6e6a8 22%,#c9a24e 55%,#f1dd9a 78%,#927235 100%)",
-        WebkitBackgroundClip: "text",
-        WebkitTextFillColor: "transparent",
-        backgroundClip: "text",
-      }}
-    >
-      PADAXOR
-    </span>
-  );
-}
-
 /* ── Componente principal ────────────────────────────────────────────── */
 export default function ConsultaReceituario() {
   const search = useSearch();
@@ -173,12 +153,12 @@ export default function ConsultaReceituario() {
       {/* ── CONTEÚDO sobre o terno (z=10) ────────────────────────── */}
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* ── CABEÇALHO — mesmo panel-3d da área do cliente, sticky ────── */}
+        {/* ── CABEÇALHO — panel-3d sticky, ALTURA FIXA e MESMA marca nos 2 temas ── */}
         <header
-          className="panel-3d sticky top-0 z-50 w-full flex items-center justify-between px-5 py-3"
+          className="panel-3d sticky top-0 z-50 w-full flex items-center justify-between px-5 h-[72px]"
           style={{ borderRadius: 0 }}
         >
-          {/* Esquerda: símbolo + wordmark + subtítulos */}
+          {/* Esquerda: símbolo + wordmark oficial + subtítulos — layout idêntico nos 2 temas */}
           <div className="flex items-center gap-3">
             <PaxterSymbolGlass
               size={40}
@@ -187,13 +167,14 @@ export default function ConsultaReceituario() {
             />
 
             <div className="flex flex-col justify-center" style={{ gap: 3 }}>
-              {/* Tema escuro → PNG com screen blend sobre navy (funciona)
-                  Tema claro  → CSS wordmark Cinzel ouro (PNG+screen sobre creme ficaria apagado) */}
-              {theme === "dark" ? (
-                <PadaxorLogo variant="screen" maxWidth={180} />
-              ) : (
-                <PadaxorWordmark size="text-[20px]" />
-              )}
+              {/* Wordmark = ativo gráfico fechado (PNG transparente oficial).
+                  MESMO arquivo nos 2 temas. Zero filtro, zero blend (regra Dr. Claude 26/07/2026). */}
+              <img
+                src="/brand/padaxor-wordmark-trim.png"
+                alt="PADAXOR"
+                draggable={false}
+                style={{ height: 20, width: "auto", objectFit: "contain" }}
+              />
 
               <span
                 className="uppercase leading-none"
@@ -274,26 +255,23 @@ export default function ConsultaReceituario() {
                 <div
                   className="bevel-3d bevel-3d-ok p-6 flex flex-col items-center gap-3 rounded-[8px]"
                   style={{
+                    /* MESMA estrutura de relevo nos 2 temas (mesmas camadas/alcances);
+                       so as CORES mudam. Alcance vertical curto: a sombra morre antes
+                       do painel seguinte (gap de 16px do flex gap-4). */
                     boxShadow: theme === "dark" ? [
-                      /* Dark: topo sutil + green glow mais intenso embaixo */
-                      "inset 0 2px 0 rgba(74,222,128,0.20)",
-                      "inset 0 -8px 14px rgba(0,60,30,0.50)",
+                      "inset 0 3px 0 rgba(74,222,128,0.20)",
+                      "inset 0 -6px 10px rgba(0,60,30,0.45)",
                       "0 2px 0 rgba(0,0,0,0.20)",
-                      "0 6px 0 rgba(0,0,0,0.22)",
-                      "0 12px 0 rgba(0,0,0,0.20)",
-                      "0 24px 32px -4px rgba(0,0,0,0.70)",
-                      "0 40px 64px -8px rgba(0,0,0,0.50)",
-                      "0 64px 96px -12px rgba(74,222,128,0.30)",
+                      "0 5px 0 rgba(0,0,0,0.18)",
+                      "0 10px 14px -6px rgba(0,0,0,0.55)",
+                      "0 14px 18px -10px rgba(74,222,128,0.30)",
                     ].join(",") : [
-                      /* Light: topo branco brilhante + green glow suave */
-                      "inset 0 4px 0 rgba(255,255,255,0.98)",
-                      "inset 0 -8px 14px rgba(0,100,50,0.12)",
+                      "inset 0 3px 0 rgba(255,255,255,0.98)",
+                      "inset 0 -6px 10px rgba(0,100,50,0.12)",
                       "0 2px 0 rgba(0,0,0,0.08)",
-                      "0 6px 0 rgba(0,0,0,0.10)",
-                      "0 12px 0 rgba(0,0,0,0.08)",
-                      "0 24px 32px -4px rgba(0,0,0,0.42)",
-                      "0 40px 64px -8px rgba(0,0,0,0.28)",
-                      "0 64px 96px -12px rgba(74,222,128,0.18)",
+                      "0 5px 0 rgba(0,0,0,0.09)",
+                      "0 10px 14px -6px rgba(0,0,0,0.32)",
+                      "0 14px 18px -10px rgba(74,222,128,0.20)",
                     ].join(","),
                     transform: "translateY(-4px)",
                   }}
@@ -593,24 +571,29 @@ export default function ConsultaReceituario() {
           </div>
         </main>
 
-        {/* ── RODAPÉ ELEGANTE ──────────────────────────────────────── */}
-        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex flex-col items-center gap-2 py-4 px-4">
-          {/* Linha 1 — marca principal */}
+        {/* ── RODAPÉ — sticky, ALTURA FIXA e mesma marca nos 2 temas ── */}
+        <footer className="footer-brand-band sticky bottom-0 z-40 w-full flex flex-col items-center justify-center gap-1.5 px-4 h-[104px]">
+          {/* Linha 1 — wordmark oficial PADAXOR (mesmo PNG do cabeçalho, menor) */}
           <div className="flex items-center gap-3">
             <div
               className="h-px flex-1 max-w-[48px]"
               style={{ background: "rgba(201,162,78,0.35)" }}
             />
-            <PadaxorWordmark size="text-[13px]" />
+            <img
+              src="/brand/padaxor-wordmark-trim.png"
+              alt="PADAXOR"
+              draggable={false}
+              style={{ height: 12, width: "auto", objectFit: "contain" }}
+            />
             <div
               className="h-px flex-1 max-w-[48px]"
               style={{ background: "rgba(201,162,78,0.35)" }}
             />
           </div>
 
-          {/* Linha 2 — subtítulo oficial do PADCON (Motor Clínico · Protocolos Injetáveis) */}
+          {/* Linha 2 — subtítulo do PADAXOR */}
           <p
-            className="text-[9px] tracking-[0.24em] uppercase text-center"
+            className="text-[9px] tracking-[0.24em] uppercase text-center leading-none"
             style={{
               fontFamily: "'Cinzel',serif",
               color: theme === "dark" ? "rgba(201,162,78,0.55)" : "rgba(138,109,47,0.70)",
@@ -621,16 +604,30 @@ export default function ConsultaReceituario() {
 
           {/* Linha separadora */}
           <div
-            className="h-px w-24 my-0.5"
+            className="h-px w-24"
             style={{ background: "rgba(201,162,78,0.22)" }}
           />
 
-          {/* Linha 3 — infra */}
+          {/* Linha 3 — crédito oficial: arte PADCON Platform + subtítulo oficial */}
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[8px] tracking-[0.18em] uppercase leading-none"
+              style={{ color: theme === "dark" ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.34)" }}
+            >
+              Desenvolvido pela
+            </span>
+            <img
+              src="/brand/padcon-platform-word.png"
+              alt="PADCON Platform — Advanced Systems Architecture"
+              draggable={false}
+              style={{ height: 34, width: "auto", objectFit: "contain" }}
+            />
+          </div>
           <p
-            className="text-[8px] tracking-[0.18em] uppercase text-center"
+            className="text-[7.5px] tracking-[0.20em] uppercase text-center leading-none"
             style={{ color: theme === "dark" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.28)" }}
           >
-            Desenvolvido pela PADCOM · Assinatura A1 ICP-Brasil
+            Advanced Systems Architecture · Assinatura A1 ICP-Brasil
           </p>
         </footer>
 

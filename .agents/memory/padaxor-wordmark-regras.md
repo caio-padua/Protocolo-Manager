@@ -11,7 +11,10 @@ description: Como renderizar o wordmark PADAXOR corretamente em qualquer tela do
 
 | Arquivo | Uso |
 |---|---|
-| `padaxor-wordmark-nobg.png` | Header/navbar sobre fundo escuro ou personalizado |
+| `padaxor-wordmark-nobg.png` | Original transparente (canvas 1916x821 com MUITA margem transparente) |
+| `padaxor-wordmark-trim.png` | Derivado sem margens (1740x225) — USE ESTE em header/rodape com altura fixa |
+| `padcon-platform.png` | Logo completa PADCON Platform (fundo removido, trim) — credito do desenvolvedor |
+| `padcon-platform-word.png` | So o bloco de texto PADCON Platform + Advanced Systems Architecture — rodape |
 | (futuro) `padaxor-logo-black.png` | Tela de abertura com fundo preto |
 
 ## Regras de renderização (obrigatórias)
@@ -40,3 +43,11 @@ Linha 2: "Motor Clínico · Protocolos Injetáveis" — #6f86ad, tracking 0.22em
 - Wordmark: PNG transparente, maxWidth 210px, sem filtros
 - Subtítulo: duas linhas (acima)
 - Toggle: `ThemeToggle` no canto direito
+
+
+## Licao (26/07/2026)
+
+PNG oficial com canvas maior que o desenho: renderizar por `height` fixa faz a letra sair
+minuscula (821px de canvas para 225px de letra). Derivar versao `-trim` (magick -trim +repage)
+e permitido (nao e filtro), o original permanece intacto. Rodape da consulta usa o mesmo PNG
+do header (menor) + arte PADCON Platform; credito "Desenvolvido pela PADCOM" texto puro e proibido.
