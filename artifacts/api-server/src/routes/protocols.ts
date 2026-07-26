@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable } from "@workspace/db";
@@ -25,6 +26,7 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+router.use(moduleGuard("protocolos"));
 
 async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelect) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));

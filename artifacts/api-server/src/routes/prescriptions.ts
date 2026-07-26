@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import {
   db,
   prescriptionsTable,
@@ -23,6 +24,7 @@ import { handleSncrAlert } from "../lib/sncr-alerts";
 import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
 
 const router: IRouter = Router();
+router.use(moduleGuard("protocolos"));
 
 function todayBR(): string {
   const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);

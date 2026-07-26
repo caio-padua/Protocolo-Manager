@@ -1,9 +1,10 @@
 import express, { type Express } from "express";
-import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
+import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
+import { basicAuthMiddleware } from "./middleware/basicAuth";
 
 const app: Express = express();
 
@@ -26,28 +27,46 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+// Ordem obrigatória:
+// 1. CORS primeiro — o preflight OPTIONS não carrega credencial;
+//    se o Basic Auth vier antes, o padcom leva 401 no preflight.
+// 2. Helmet — cabeçalhos de segurança HTTP.
+// 3. Body parsers — antes do Basic Auth para poder ler webhooks.
+// 4. Basic Auth — porta de entrada única do sistema.
+// 5. Rate limit — após o Basic Auth (rotas do paciente já passaram pelo bypass).
+// 6. Tenant context — só para as rotas autenticadas.
+app.use(corsMiddleware);
+app.use(helmetMiddleware);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(basicAuthMiddleware);
+app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
+
+// ─── IS_CLONE: bloqueia rotas de IA quando é clone de clínica ───────────────
+// Um clone NÃO deve ter acesso aos agentes de IA do PADAXOR Central.
+// Rotas de IA vivem em /api/agentes/* e /api/agentes-chat/*.
+// LINHA VERMELHA: nunca criar clone até separação física da IA (ver Onda 4).
+if (process.env.IS_CLONE === "true") {
+  app.use("/api/agentes", (_req, res) => {
+    res.status(503).json({
+      error: "Módulo de IA não disponível nesta instância.",
+      hint: "Os agentes de IA são exclusivos da plataforma central PADAXOR.",
+    });
+  });
+  app.use("/api/agentes-chat", (_req, res) => {
+    res.status(503).json({
+      error: "Módulo de IA não disponível nesta instância.",
+      hint: "Os agentes de IA são exclusivos da plataforma central PADAXOR.",
+    });
+  });
+}
 
 app.use("/api", router);
 
-// ─── Vigilância Drive: execução automática ────────────────────────────────
-// Roda a cada 4 horas sem intervenção manual. Primeira rodada 2 min após boot.
-import { processWatchedFolders, getWatcherState } from "./lib/drive-watcher.js";
-
-const DRIVE_WATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos — CEO K5 Kaizen-001
-
-function runDriveWatcher() {
-  if (getWatcherState().running) return; // já em andamento
-  processWatchedFolders({ maxFiles: 50 }).catch((e: unknown) =>
-    logger.error({ err: e instanceof Error ? e.message : String(e) }, "drive-watcher: erro no cron")
-  );
-}
-
-setTimeout(runDriveWatcher, 2 * 60 * 1000);              // primeira execução em 2 min
-void runDriveWatcher();                                    // rodar imediatamente no boot
-setInterval(runDriveWatcher, DRIVE_WATCH_INTERVAL_MS);   // recorrente a cada 5min
+// Drive Watcher e cron jobs removidos do api-server (Onda 2).
+// Agora vivem exclusivamente no api-worker para evitar duplicação
+// com múltiplas réplicas Railway. Ver: artifacts/api-worker/src/worker.ts
 
 export default app;

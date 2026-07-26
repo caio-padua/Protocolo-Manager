@@ -35,8 +35,10 @@ import { htmlToPngBase64 } from "../lib/puppeteer-capture";
 // ── MOTOR ÚNICO: todas as novas emissões passam por aqui ────────────────────
 import { emitirReceituarioPdf, garantirTabelaTokens } from "../lib/receituario-motor.js";
 import { sql } from "drizzle-orm";
+import { moduleGuard } from "../middleware/moduleGuard";
 
 const router = Router();
+router.use(moduleGuard("protocolos"));
 
 // ── ROTA PÚBLICA — consulta de receituário por token (sem autenticação) ──────
 // GET /api/receituario/consulta?token=12C9AA79

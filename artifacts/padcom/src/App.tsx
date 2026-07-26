@@ -113,6 +113,7 @@ import PortfolioClinico from "@/pages/portfolio-clinico";
 import ExperienciaCliente from "@/pages/experiencia-cliente";
 import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
+import ProvaDeValor from "@/pages/prova-de-valor";
 import AgentesHub from "@/pages/agentes/index";
 import ProcedenciaExames from "@/pages/procedencia-exames";
 
@@ -298,6 +299,7 @@ function Router() {
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />
+            <Route path="/prova-de-valor" component={ProvaDeValor} />
             <Route path="/padteam/nova" component={NovaDemanda} />
             <Route path="/padteam" component={PadteamHub} />
             <Route path="/agentes" component={AgentesHub} />

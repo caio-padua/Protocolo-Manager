@@ -9,6 +9,7 @@
 // Opção B (override manual): PATCH grava ativoManual; ativo efetivo nunca dispara
 // lembrete vazio (ativo = temFormulas && ativoManual !== false).
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import {
   db,
   lembretesPrescricaoTable,
@@ -23,6 +24,7 @@ import { templateLembretePrescricao, montarSaudacao } from "../lib/lembrete-temp
 import { partsParaTimezone } from "../lib/lembrete-periodo";
 
 const router: IRouter = Router();
+router.use(moduleGuard("comunicacao"));
 
 const TIMEZONE = "America/Sao_Paulo";
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;

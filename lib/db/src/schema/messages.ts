@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, pgTable, serial, text, timestamp, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,10 @@ export const agente_messages = pgTable("agente_messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  // Onda 3 — colunas de medição e billing
+  empresaId: integer("empresa_id"),
+  custoUnitario: numeric("custo_unitario", { precision: 10, scale: 4 }),
+  chaveIdempotencia: text("chave_idempotencia"),
 });
 
 export const insertAgenteMessageSchema = createInsertSchema(agente_messages).omit({

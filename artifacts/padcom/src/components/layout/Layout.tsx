@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
 import {
@@ -61,6 +61,7 @@ import {
   MapPin,
   Activity,
   Microscope,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -213,6 +214,7 @@ const navigation: NavEntry[] = [
     icon: Network,
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
+      { name: "Prova de Valor", href: "/prova-de-valor", icon: TrendingUp },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
       { name: "Hierarquia", href: "/hierarquia", icon: Network },
@@ -222,6 +224,42 @@ const navigation: NavEntry[] = [
 ];
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";
+
+// ─── Filtro de menu por módulos ativos ────────────────────────────────────────
+// Mapeia cada grupo do menu para o módulo que o habilita (null = universal).
+const GRUPO_MODULO: Record<string, string | null> = {
+  "Agenda & Recepção":             "agenda",
+  "O Ato Médico":                  null,     // cockpit e anamnese têm acesso universal
+  "Exames":                        "exames_lab",
+  "Área do Cliente":               null,
+  "Órgãos de Prescrição":         "protocolos",
+  "Arsenal Clínico":               "protocolos",
+  "Cadastros Clínicos":            null,
+  "Financeiro":                    "financeiro",
+  "Comunicação":                   "comunicacao",
+  "Configurações & Administração": null,
+  "Estrutura & Governança":        null,
+};
+
+function filtrarNavegacao(
+  nav: NavEntry[],
+  modulosAtivos: Set<string> | null
+): NavEntry[] {
+  // Null = módulos não carregados ainda → mostrar tudo (fail-open)
+  if (modulosAtivos === null) return nav;
+
+  return nav.reduce<NavEntry[]>((acc, item) => {
+    if (isGroup(item)) {
+      const modulo = GRUPO_MODULO[item.name] ?? null;
+      // Grupo sem módulo = universal; com módulo = mostrar só se ativo
+      if (modulo !== null && !modulosAtivos.has(modulo)) return acc;
+      acc.push(item);
+    } else {
+      acc.push(item); // Folhas (Dashboard, etc.) sempre visíveis
+    }
+    return acc;
+  }, []);
+}
 
 // Mapa href de menu -> ferramentaId da matriz de Governanca. So os itens aqui
 // sao gateados por papel; os demais aparecem sempre (fluxo aberto). Um href sem
@@ -269,6 +307,42 @@ export function Layout({ children }: LayoutProps) {
     const ferramentaId = HREF_FERRAMENTA[href];
     return ferramentaId ? pode(ferramentaId) : true;
   };
+
+  // ─── Menu dinâmico: busca /api/menu para filtrar por módulos ativos ────────
+  // null = carregando (fail-open: mostra tudo); Set = módulos confirmados pelo servidor.
+  const [modulosAtivos, setModulosAtivos] = useState<Set<string> | null>(null);
+  const menuFetched = useRef(false);
+
+  useEffect(() => {
+    if (menuFetched.current) return;
+    menuFetched.current = true;
+
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("padcom_collab_token")
+        : null;
+
+    fetch("/api/menu", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { items?: { moduloRequerido?: string | null }[] } | null) => {
+        if (!data?.items) return;
+        // Extrai os módulos com acesso permitido
+        const ativos = new Set<string>();
+        for (const item of data.items) {
+          if (item.moduloRequerido) ativos.add(item.moduloRequerido);
+        }
+        setModulosAtivos(ativos);
+      })
+      .catch(() => {
+        // Fail-open: se a API falhar, não filtrar nada
+        setModulosAtivos(new Set());
+      });
+  }, []);
+
+  // Navegação filtrada pelos módulos que o servidor autorizou
+  const navFiltrada = filtrarNavegacao(navigation, modulosAtivos);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -334,7 +408,7 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Navegacao */}
           <nav className="flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
-            {navigation.map((item) => {
+            {navFiltrada.map((item) => {
               const Icon = item.icon;
 
               if (isGroup(item)) {

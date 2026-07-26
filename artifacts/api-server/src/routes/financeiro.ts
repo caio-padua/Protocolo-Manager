@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { db, paymentsTable, clientsTable, financialGoalsTable } from "@workspace/db";
 import {
@@ -17,6 +18,7 @@ import { asaasListCharges } from "../lib/asaas";
 // ===========================================================================
 
 const router: IRouter = Router();
+router.use(moduleGuard("financeiro"));
 
 // Status do Asaas que contam como "pago/recebido".
 const ASAAS_PAID = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
@@ -14,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+router.use(moduleGuard("agenda"));
 
 async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));

@@ -137,6 +137,13 @@ Comando: `pnpm run paxter:audit-clones`
 { "status": "ok", "version": "2026.07.26-001", "ts": "2026-07-26T..." }
 ```
 
+**LINHA VERMELHA ABSOLUTA — separação física da IA:**
+A flag `IS_CLONE=true` DESLIGA a IA no clone (rota retorna 503), mas NÃO ESCONDE O CÓDIGO. O licenciado recebe o repositório clonado e pode ler todos os arquivos — incluindo os prompts, as chaves de modelo e a lógica dos agentes. Portanto:
+
+> **Nenhum clone de licenciado é criado enquanto a separação física dos times de IA não existir** (repositório dedicado da Central Padaxor, sem os arquivos de IA no repositório do clone).
+
+A separação física é decisão do CEO, requer ordem explícita por escrito e está fora do escopo desta onda.
+
 ---
 
 ## Casos extremos a tratar

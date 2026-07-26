@@ -1,10 +1,12 @@
 /**
  * PAXTER — Agentes × WhatsApp Proativo (Onda F)
  * Envia resumo de conversa por WhatsApp ao fim do Chat Pro.
+ * moduleGuard: comunicacao
  * Usa Twilio já configurado — graceful degradation se não configurado.
  */
 
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
@@ -13,6 +15,7 @@ import { logger } from "../lib/logger";
 import { logIntegracao } from "./agentes-integracoes";
 
 const router: IRouter = Router();
+router.use(moduleGuard("comunicacao"));
 
 // ─── GET /agentes-wpp/status ──────────────────────────────────────────────────
 router.get("/agentes-wpp/status", async (_req, res): Promise<void> => {

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable } from "@workspace/db";
@@ -23,6 +24,7 @@ import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
+router.use(moduleGuard("ras"));
 
 function formatRAS(r: typeof rasTable.$inferSelect) {
   return {

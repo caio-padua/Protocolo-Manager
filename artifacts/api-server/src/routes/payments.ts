@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, paymentsTable, clientsTable } from "@workspace/db";
@@ -10,6 +11,7 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+router.use(moduleGuard("financeiro"));
 
 async function formatPayment(payment: typeof paymentsTable.$inferSelect) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, payment.clientId));

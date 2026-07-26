@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { isTelegramConfigured } from "../lib/telegram";
 import { isWhatsappConfigured } from "../lib/whatsapp";
 import { isGupshupConfigured } from "../lib/gupshup";
@@ -17,6 +18,7 @@ import { requireCollaborator } from "./collaborator.js";
 // Console de Comunicacao — status REAL de cada canal (so booleanos; nunca
 // expoe valor de token/secret). Leitura livre (sem escrita, sem dado sensivel).
 const router: IRouter = Router();
+router.use(moduleGuard("comunicacao"));
 
 router.get("/comunicacao/status", async (req, res) => {
   const status = {

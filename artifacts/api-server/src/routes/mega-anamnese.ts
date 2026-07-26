@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { sql, eq, and, isNull, asc } from "drizzle-orm";
 import {
   db,
@@ -13,6 +14,7 @@ import { ObjectStorageService } from "../lib/objectStorage.js";
 import { gerarFalaMp3 } from "../lib/anamnese-tts.js";
 
 const router: IRouter = Router();
+router.use(moduleGuard("anamnese"));
 const objectStorage = new ObjectStorageService();
 
 // ---- Blocos com contagem ----

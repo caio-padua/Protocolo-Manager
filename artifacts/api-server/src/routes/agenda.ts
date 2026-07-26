@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Response } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and, or, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../lib/agenda-booking.js";
 
 const router: IRouter = Router();
+router.use(moduleGuard("agenda"));
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

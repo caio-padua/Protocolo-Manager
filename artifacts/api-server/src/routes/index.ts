@@ -76,6 +76,7 @@ import adminPreviewRouter from "./admin-preview";
 import adminDriveRouter from "./admin-drive";
 import adminSheetsRouter from "./admin-sheets";
 import padteamRouter from "./padteam";
+import provaDeValorRouter from "./prova-de-valor";
 import agentesRouter from "./agentes";
 import agentesChatRouter from "./agentes-chat";
 import agentesTrelloRouter from "./agentes-trello";
@@ -85,6 +86,7 @@ import agentesQuickrepliesRouter from "./agentes-quickreplies";
 import whatsappInboundRouter from "./whatsapp-inbound";
 import prontuarioRouter from "./prontuario";
 import driveWatcherRouter from "./drive-watcher";
+import menuRouter from "./menu";
 
 const router: IRouter = Router();
 
@@ -197,6 +199,7 @@ router.use(adminPreviewRouter);
 router.use(dominiosRouter);
 router.use(dominiosComercialRouter);
 router.use(padteamRouter);
+router.use(provaDeValorRouter);
 router.use(agentesRouter);
 router.use(agentesChatRouter);
 router.use(agentesWppRouter);
@@ -204,5 +207,6 @@ router.use(agentesIntegracoesRouter);
 router.use(agentesQuickrepliesRouter);
 router.use(prontuarioRouter);
 router.use(driveWatcherRouter);
+router.use(menuRouter);
 
 export default router;

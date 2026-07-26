@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startCronJobs } from "./lib/cron";
+// startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
@@ -32,7 +32,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startCronJobs();
+  // startCronJobs() removido — roda no api-worker (evita duplicação com múltiplas réplicas)
   aquecerBannersAnimados();
   refreshCertCache().catch((e) =>
     logger.error({ err: e }, "Falha ao carregar cache do certificado"),

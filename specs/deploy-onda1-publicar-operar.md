@@ -35,7 +35,14 @@ Colocar o sistema no ar no Railway com uma porta travada (senha única), seguran
 - Toda requisição ao `/api/*` sem cabeçalho `Authorization: Basic <credenciais>` corretas recebe `401 Unauthorized` com cabeçalho `WWW-Authenticate: Basic realm="Padaxor"`.
 - A verificação usa comparação segura (`timingSafeEqual` do módulo nativo `crypto` do Node.js) para evitar ataque de tempo (quando um atacante mede quanto tempo a comparação demora).
 - O middleware é aplicado ANTES de qualquer rota, em `app.ts`, como `app.use(basicAuthMiddleware)`.
-- EXCEÇÃO ÚNICA: `GET /api/healthz` não requer auth (para a Railway verificar saúde do serviço).
+- Exceções — rotas que NÃO requerem Basic Auth (têm trava própria ou são provedores externos):
+
+| Categoria | Prefixos de path | Motivo |
+|---|---|---|
+| Health check | `/api/health`, `/api/healthz` | Railway precisa verificar o serviço sem credencial |
+| Portal do paciente | `/api/area-paciente`, `/api/client-portal`, `/api/anamnese-portal`, `/api/anamnese-v2`, `/api/client-photo`, `/api/client-registration`, `/api/scheduling`, `/api/ical` | Trava própria por token HMAC — paciente nunca terá Basic Auth no browser |
+| Webhooks externos | `/api/brand`, `/api/webhooks`, `/api/whatsapp/inbound`, `/api/whatsapp/status`, `/api/asaas` | Autenticados pela assinatura do próprio provedor (Twilio X-Twilio-Signature, ZapSign header secreto, Asaas token) |
+
 - NÃO aplicar ao frontend padcom (Vite serve o frontend sem auth próprio; o frontend acessa o `/api` com as mesmas credenciais do usuário logado no browser).
 
 **1.1.b CORS fechado (controle de origem)**
@@ -126,14 +133,14 @@ Documentar isso no `.env.railway.example` e no `docs/dr-replit/PARA_MANAGER/GUIA
 
 | Critério | Como verificar |
 |---|---|
-| `GET /api/healthz` sem auth → 200 | `curl https://<dominio-railway>/api/healthz` → `{"status":"ok"}` |
-| `GET /api/clientes` sem auth → 401 | `curl https://<dominio-railway>/api/clientes` → 401 |
-| `GET /api/clientes` com auth correta → 200 | `curl -u drcaio:<senha> https://<dominio-railway>/api/clientes` → lista |
-| CORS rejeitando origem estranha → 403 | `curl -H "Origin: https://malicioso.com" ...` → 403 ou sem cabeçalho CORS |
-| Helmet: cabeçalho `X-Frame-Options` presente | `curl -I` → ver `X-Frame-Options: SAMEORIGIN` |
-| Rate limit: 201ª requisição → 429 | Script de teste simples em loop |
-| Boot sem `ADMIN_PASSWORD` → falha imediata | Testar localmente com variável removida |
-| Migration roda no boot sem erro | Log do boot mostra "migrations aplicadas: N" |
+| `GET /api/healthz` sem auth → 200 | `curl http://localhost:80/api/healthz` → `{"status":"ok"}` |
+| `GET /api/clientes` sem auth → 401 | `curl http://localhost:80/api/clientes` → 401 com `WWW-Authenticate: Basic realm="Padaxor"` |
+| `GET /api/clientes` com auth correta → 200 | `curl -u drcaio:<senha> http://localhost:80/api/clientes` → lista de clientes |
+| Portal do paciente sem auth → acessível | `curl http://localhost:80/api/area-paciente/login` → não retorna 401 (pode retornar 400 ou 404 mas nunca 401 de Basic Auth) |
+| Webhook Asaas sem auth → acessível | `curl -X POST http://localhost:80/api/asaas/webhook` → não retorna 401 de Basic Auth |
+| CORS rejeitando origem estranha | `curl -H "Origin: https://malicioso.com" http://localhost:80/api/clientes` → resposta sem `Access-Control-Allow-Origin` |
+| Helmet: cabeçalho de segurança presente | `curl -I http://localhost:80/api/healthz` → ver `X-Frame-Options` e `X-Content-Type-Options` |
+| Boot sem `ADMIN_PASSWORD` → falha imediata | Remover variável e reiniciar → log FATAL e servidor não sobe |
 
 ---
 

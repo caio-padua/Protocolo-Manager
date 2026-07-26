@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { moduleGuard } from "../middleware/moduleGuard";
 import {
   db,
   clientsTable,
@@ -25,6 +26,7 @@ import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { sendWhatsapp } from "../lib/whatsapp";
 
 const router = Router();
+router.use(moduleGuard("cockpit"));
 
 // ============================================================================
 // COCKPIT DA CONSULTA — ONDA E do Master Loop Paxter.

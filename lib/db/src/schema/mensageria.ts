@@ -4,6 +4,7 @@ import {
   serial,
   timestamp,
   integer,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -39,6 +40,10 @@ export const mensageriaLembreteTable = pgTable("mensageria_lembrete", {
   enviadoEm: timestamp("enviado_em", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  // Onda 3 — colunas de medição e billing
+  empresaId: integer("empresa_id"),
+  custoUnitario: numeric("custo_unitario", { precision: 10, scale: 4 }),
+  chaveIdempotencia: text("chave_idempotencia"),
 });
 
 export const insertMensageriaLembreteSchema = createInsertSchema(mensageriaLembreteTable).omit({
