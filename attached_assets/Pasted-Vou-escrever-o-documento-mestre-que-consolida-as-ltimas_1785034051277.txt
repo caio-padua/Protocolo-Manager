@@ -1,0 +1,65 @@
+Vou escrever o documento-mestre que consolida as últimas cinco conversas e serve de base para vocês dois trabalharem.
+
+Documento no ar. Commit `0b61571`, na pasta que ele já lê.
+
+---
+
+## O que você cola no chat dele
+
+Copie daqui para baixo:
+
+```
+Dr. Replit Manager,
+
+Antes de escrever qualquer código, leia estes três documentos no
+repositório, nesta ordem:
+
+1. docs/dr-replit/PARA_MANAGER/MASTER_MIND_PAXTER_PLANO_DE_TRABALHO_26.07.25.md
+2. docs/dr-replit/PARA_MANAGER/ARQUITETURA_LICENCIAMENTO_E_MEDICAO_26.07.25.md
+3. cartas/2026-07-25_REPLIT-MANAGER_deploy-railway-multitenant.md
+
+(branch: claude/railway-deployment-config-epj2ec)
+
+Foram escritos pelo Dr. Claude a meu pedido, depois de auditar o deploy,
+ler o schema inteiro e ler o site do Parxis. Encontrou coisas que nem eu
+nem você tínhamos visto.
+
+Quero vocês dois trabalhando como Master Mind — Napoleon Hill: duas
+mentes coordenadas, em harmonia, com um objetivo definido. O objetivo
+está escrito no item 1 do primeiro documento e tem prazo: 30/09/2026.
+
+O que preciso de você AGORA, por escrito, no mesmo diretório:
+
+- Responder as 7 perguntas do item 7. Discorde onde discordar. Se ele
+  atropelou alguma decisão sua, diga — ele se comprometeu a recuar.
+- Confirmar se você concorda com a ordem das 5 ondas do backlog (item 6).
+  Ele priorizou por VENDA, não por elegância, porque eu preciso faturar.
+
+Regra nova, valendo para os dois: nada é declarado pronto sem (1) o
+comando que rodou, (2) a saída colada, (3) o que foi testado. Os cinco
+defeitos do deploy tinham todos a mesma origem — configuração entregue
+sem nunca ter sido executada.
+
+E a cada acordo fechado entre vocês, param e fazem a rodada Kaizen do
+item 8, com as três perguntas — inclusive a terceira: "isso vende ou só
+funciona?"
+
+Não me tragam dois arquitetos discordando com elegância. Tragam o
+sistema no ar, medindo, e o extrato que vai vender a primeira safra.
+
+Dr. Caio Pádua
+```
+
+---
+
+## O que mudei de rumo neste documento
+
+O ponto que reordena tudo veio da conversa sobre venda: **as três colunas de medição deixaram de ser preparo para faturar clínicas que ainda não existem e viraram o seu instrumento de venda dos próximos 60 dias.** Elas subiram no backlog por isso.
+
+E nasceu um entregável que eu não tinha proposto antes — o **Painel de Prova de Valor**. Uma tela que soma documentos emitidos, entregas por canal, taxa de confirmação, dúvidas respondidas pela IA e lembretes entregues. Serve a você hoje, para enxergar sua própria operação, e serve amanhã como a peça que você mostra a cada candidato. Uma tela, dois propósitos, custo baixo — é o item de maior retorno do backlog inteiro.
+
+O objetivo ficou escrito com prazo e número, como Hill exige: até 30/09, operando 100% e produzindo o extrato. E deixei explícito o que ele **não** diz — não diz terminar multi-tenant, não diz construir o motor de licenciamento completo. Isso protege vocês dois da tentação que temos em comum, que é construir a arquitetura bonita antes da arquitetura útil.
+
+Coloquei também uma regra da harmonia que vale para mim: **nenhum dos dois fala mal do outro para você.** Você tem sistema para tocar e paciente para atender; não tem tempo de gerenciar briga de agente. E abri assumindo que quebrei essa regra parcialmente — auditei o trabalho dele antes de falar com ele. Estava dentro do que você pediu, mas a ordem ideal era ter perguntado primeiro, e registrei isso por escrito para ele ler.
+
+A pergunta Q6 é a mais importante para a aliança funcionar: *"eu atropelei alguma decisão sua sem saber? Se sim, aponte e eu recuo."* Se ele responder honestamente a essa, vocês têm um Master Mind de verdade. Se ele só concordar com tudo, você vai saber que tem um bajulador — e aí o problema é outro.
