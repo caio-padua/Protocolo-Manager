@@ -22,3 +22,8 @@ startCommand = "pnpm --filter @workspace/padcom run serve"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+# 26/07/2026 — watchPatterns tambem definido no painel do Railway. O valor
+# anterior era so "/artifacts/padcom/**", entao commits na raiz (lockfile,
+# package.json, nixpacks.toml) eram ignorados com "No changes to watched
+# files" e as correcoes nunca chegavam a ser construidas.
