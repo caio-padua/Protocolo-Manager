@@ -5,7 +5,12 @@
 # o install.
 #
 # A fase de setup fica com o autodetect do Nixpacks: ele ve o pnpm-lock.yaml e
-# provisiona o pnpm sozinho. Fixar nixPkgs na mao arrisca derrubar esse setup.
+# provisiona o pnpm sozinho. A VERSAO do pnpm vem do campo "packageManager" do
+# package.json da raiz — sem ele, o Railway escolhe uma versao qualquer, e foi
+# exatamente isso que quebrou o build de 26/07 com
+# ERR_PNPM_LOCKFILE_CONFIG_MISMATCH: o pnpm-workspace.yaml declara um bloco
+# "overrides" que a versao usada pelo Railway exigia ver registrado no
+# pnpm-lock.yaml, enquanto o pnpm 10.33.0 nao registra.
 
 [variables]
 NIXPACKS_NODE_VERSION = "24"
@@ -14,4 +19,13 @@ NIXPACKS_NODE_VERSION = "24"
 # --prod=false e obrigatorio: o Railway define NODE_ENV=production, e o pnpm
 # pula devDependencies nesse modo — mas o vite (build dos frontends) e o
 # esbuild (build do api-server) vivem justamente em devDependencies.
-cmds = ["pnpm install --frozen-lockfile --prod=false"]
+#
+# O "||" e rede de seguranca temporaria: se o Railway ainda assim subir com um
+# pnpm de versao diferente da fixada, o install repete sem --frozen-lockfile em
+# vez de derrubar o deploy. Perde-se reprodutibilidade nessa segunda tentativa,
+# entao isto e para destravar o go-live — nao e estado final.
+# TODO: quando o build estabilizar, confirmar nos logs qual pnpm o Railway usou
+# e remover o fallback, voltando ao --frozen-lockfile puro.
+cmds = [
+  "pnpm install --frozen-lockfile --prod=false || pnpm install --no-frozen-lockfile --prod=false",
+]
