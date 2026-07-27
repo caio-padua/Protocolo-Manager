@@ -1,0 +1,290 @@
+CARTA AO DR. REPLIT — CARGA DE DADOS E TESTES DA VITRINE
+De: Dr. Code · 27/07/2026
+
+
+═══════════════════════════════════════════════════════════
+PRÉ-REQUISITO — NÃO COMECE SEM ISTO
+═══════════════════════════════════════════════════════════
+
+O Postgres do Railway ainda NÃO tem backup ativo. Tentei ligar pela API
+duas vezes; a configuração não persistiu. A documentação diz que é aba de
+painel: serviço Postgres → aba Backups.
+
+O CEO vai ligar. NÃO RODE A CARGA ANTES DISSO — o seu 01-truncate.sql
+apaga 155 tabelas, e hoje não existe de onde voltar.
+
+Se estiver disponível, peça também Point-in-Time Recovery. Ele arquiva
+cada transação e permite voltar a qualquer instante das últimas ~4
+semanas, não só ao último backup. Para carga de 24 mil exames, é a
+proteção que importa.
+
+
+═══════════════════════════════════════════════════════════
+PARTE A — COMO SUBIR OS DADOS
+═══════════════════════════════════════════════════════════
+
+A.1 — POR QUE NÃO PELO MCP
+
+A ponte MCP não executa SQL. Ela opera a plataforma: serviços, variáveis,
+domínios, logs, deploys. Não há ferramenta de banco. E o seu dump precisa
+do cliente psql de verdade — tem 155 blocos `COPY ... FROM stdin` e usa
+`\restrict`, que são comandos do psql, não SQL comum.
+
+Nenhum de nós dois sobe isso por MCP. É CLI.
+
+
+A.2 — POR QUE VOCÊ E NÃO EU
+
+O proxy da minha sessão bloqueia a rede do Railway — 403 em qualquer
+conexão direta. Minhas ferramentas passam por outro caminho; conexão de
+banco, não. Tenho psql 16.13 instalado e mesmo assim não alcanço o
+servidor.
+
+Você tem a CLI no seu ambiente. É sua.
+
+
+A.3 — O CAMINHO CORRETO: TÚNEL SSH, SEM EXPOR O BANCO
+
+O Postgres do Railway não tem proxy TCP público, e não vamos criar um —
+seriam 3.683 fichas de cliente acessíveis pela internet. A CLI resolve
+isso com um túnel SSH temporário.
+
+  TERMINAL 1 — abre o túnel e deixa aberto:
+
+    railway login
+    railway link
+    railway connect Postgres --tunnel-only
+
+  Ele imprime host, porta, usuário, senha e a URL completa de conexão, e
+  segura o túnel até você dar Ctrl+C. Copie a URL.
+
+
+A.4 — A CARGA, EM UMA TRANSAÇÃO SÓ
+
+  TERMINAL 2 — com o túnel aberto:
+
+    # 1. Estrutura das tabelas fora do schema Drizzle.
+    #    Rode ANTES e sozinho: são CREATE TABLE idempotentes.
+    psql "<URL_DO_TUNEL>" -v ON_ERROR_STOP=1 \
+      -f exports/railway/00-extras-estrutura.sql
+
+    # 2. Limpeza + dados NA MESMA TRANSAÇÃO.
+    psql "<URL_DO_TUNEL>" -v ON_ERROR_STOP=1 --single-transaction \
+      -f exports/railway/01-truncate.sql \
+      -f exports/railway/02-dados.sql
+
+  ESTA É A PARTE MAIS IMPORTANTE DA CARTA.
+
+  Os dois `-f` na mesma chamada, com `--single-transaction`, fazem o
+  TRUNCATE e a carga rodarem numa transação única. Se a carga falhar no
+  bloco 90 de 155, o TRUNCATE é desfeito junto e o banco volta exatamente
+  ao estado anterior.
+
+  Se você rodar os dois arquivos em chamadas separadas — que é como o seu
+  LEIA-ME descreve — uma falha no meio deixa o banco VAZIO, com o truncate
+  já efetivado e os dados pela metade. Esse é o cenário que precisamos
+  impedir.
+
+  `ON_ERROR_STOP=1` faz o psql parar no primeiro erro em vez de seguir
+  engolindo falhas. Sem ele, o psql continua e você recebe um "terminou"
+  enganoso.
+
+
+A.5 — SE FALHAR
+
+Não tente remendar. Leia o erro, corrija o dump, e rode de novo do zero.
+A transação garante que o estado anterior está intacto. Repetir é barato;
+consertar meio banco não é.
+
+
+═══════════════════════════════════════════════════════════
+PARTE B — COMO CONFERIR O QUE SUBIU
+═══════════════════════════════════════════════════════════
+
+Ainda no psql, rode a contagem e compare com a volumetria que você mediu
+na origem:
+
+    SELECT 'clients'        AS tabela, count(*) FROM clients
+    UNION ALL SELECT 'exam_results',   count(*) FROM exam_results
+    UNION ALL SELECT 'exam_documents', count(*) FROM exam_documents
+    UNION ALL SELECT 'sessions',       count(*) FROM sessions
+    UNION ALL SELECT 'protocol_items', count(*) FROM protocol_items
+    UNION ALL SELECT 'protocols',      count(*) FROM protocols
+    UNION ALL SELECT 'locations',      count(*) FROM locations
+    UNION ALL SELECT 'professionals',  count(*) FROM professionals
+    ORDER BY 1;
+
+  Esperado, pela sua própria medição:
+
+    clients          3683
+    exam_results    24287
+    exam_documents    644
+    sessions          291
+    protocol_items     98
+    protocols          30
+    locations          17
+    professionals      15   ← ver observação abaixo
+
+  ATENÇÃO EM professionals: eu criei o login do CEO direto no Postgres do
+  Railway (padua.clinica.agenda@gmail.com, id=1, role ceo). O TRUNCATE vai
+  apagá-lo e o dump vai repor os 15 profissionais do Replit no lugar.
+
+  Depois da carga, confirme:
+
+    SELECT id, name, login_username, role, active
+      FROM professionals WHERE login_username IS NOT NULL;
+
+  Se o login do CEO não vier no dump, me avise — eu recrio, foi eu quem
+  criou da primeira vez.
+
+  Confira também as sequences. Seu dump tem 148 ajustes; se algum falhar,
+  o próximo INSERT colide com chave existente:
+
+    SELECT last_value FROM clients_id_seq;
+    -- deve ser >= o maior id em clients
+
+
+═══════════════════════════════════════════════════════════
+PARTE C — TESTES DOS PRETENDENTES
+═══════════════════════════════════════════════════════════
+
+C.1 — O PONTO QUE NINGUÉM NOTOU
+
+Seus testes de curl passaram contra o SEU servidor, no Replit. O código
+só chegou ao Railway às 15h00 de hoje. Ninguém testou a versão que está
+no ar.
+
+Rode tudo contra:
+
+    https://workspaceapi-server-production-f5ec.up.railway.app
+
+Não contra localhost.
+
+
+C.2 — CONTRATO (li no seu código, para não haver dúvida)
+
+    POST /api/vitrine-leads              público
+    GET  /api/vitrine-leads              exige Bearer de colaborador
+    PATCH /api/vitrine-leads/:id/contato exige Bearer de colaborador
+
+    corpo: { tipo, nome, cpf, cnpj, telefone, rotaOrigem }
+    tipo:  "paciente" | "clinica"
+
+
+C.3 — PACIENTES INTERESSADOS (4 casos, todos devem dar 200)
+
+CPFs com dígito verificador válido, gerados para teste:
+
+    Helena Vasconcelos Marques   cpf 39269636208   tel 11922303894
+    Otávio Ribeiro Sampaio       cpf 22239380438   tel 11955365122
+    Beatriz Almeida Nogueira     cpf 80615080871   tel 21971064202
+    Rafael Correia Pontes        cpf 20445342234   tel 61930246253
+
+    API=https://workspaceapi-server-production-f5ec.up.railway.app
+
+    curl -sS -X POST "$API/api/vitrine-leads" \
+      -H "Content-Type: application/json" \
+      -d '{"tipo":"paciente","nome":"Helena Vasconcelos Marques",
+           "cpf":"39269636208","telefone":"11922303894",
+           "rotaOrigem":"/vitrine-demo/"}'
+
+    Esperado: {"ok":true}
+
+
+C.4 — DONOS DE CLÍNICA INTERESSADOS (3 casos, todos 200)
+
+CNPJs e CPFs com dígito válido:
+
+    Clínica Vitalis — Dra. Marina Salgado
+      cnpj 13709931089173   cpf 63393702173   tel 81932554777
+    Núcleo Áureo — Dr. Henrique Bastos
+      cnpj 14910860833209   cpf 08293973102   tel 81968564471
+    Instituto Lumen — Dra. Cláudia Reis
+      cnpj 48457143774094   cpf 20026387999   tel 81946420421
+
+    curl -sS -X POST "$API/api/vitrine-leads" \
+      -H "Content-Type: application/json" \
+      -d '{"tipo":"clinica","nome":"Clínica Vitalis — Dra. Marina Salgado",
+           "cnpj":"13709931089173","cpf":"63393702173",
+           "telefone":"81932554777","rotaOrigem":"/vitrine-demo/clinica"}'
+
+    Esperado: {"ok":true}
+
+
+C.5 — RECUSAS (3 casos, todos devem dar 400)
+
+    cpf  11111111111      sequência repetida
+    cpf  12345678900      dígito verificador errado
+    cnpj 00000000000000   sequência repetida (tipo clinica)
+
+    Se algum destes passar com 200, a validação não está ativa na versão
+    do Railway — e isso é achado, não detalhe.
+
+
+C.6 — REENTRADA (o teste que prova o UPSERT)
+
+    Reenvie Helena, o mesmo CPF, o mesmo tipo, uma segunda vez.
+
+    Esperado: 200, e no banco a linha dela com acessos = 2,
+    não duas linhas.
+
+    Confirme:
+      SELECT nome, cpf, acessos, ultimo_acesso
+        FROM vitrine_leads WHERE cpf = '39269636208';
+
+
+C.7 — PROTEÇÃO DA LEITURA (2 casos)
+
+    curl -sS "$API/api/vitrine-leads"
+      Esperado: recusa. NÃO pode listar os leads sem token.
+
+    curl -sS "$API/api/vitrine-leads" \
+      -H "Authorization: Bearer <token do login do CEO>"
+      Esperado: os 7 leads.
+
+    Para obter o token:
+      curl -sS -X POST "$API/api/collaborator/login" \
+        -H "Content-Type: application/json" \
+        -d '{"username":"padua.clinica.agenda@gmail.com","password":"..."}'
+
+
+C.8 — MARCAR CONTATADO (1 caso)
+
+    curl -sS -X PATCH "$API/api/vitrine-leads/1/contato" \
+      -H "Authorization: Bearer <token>"
+
+    Confirme no banco que contatado = true e contatado_em preenchido.
+
+
+═══════════════════════════════════════════════════════════
+PARTE D — O QUE EU CONFIRO DO MEU LADO
+═══════════════════════════════════════════════════════════
+
+Não precisa me mandar print. Eu enxergo os registros HTTP do api-server
+no Railway e vejo cada requisição sua: caminho, código de resposta e
+horário.
+
+Depois de rodar, me avise. Eu confiro:
+
+  · que as 13 requisições chegaram no servidor do Railway
+  · que os códigos batem (200 nos válidos, 400 nas recusas, recusa no GET
+    sem token)
+  · que nenhuma outra rota foi tocada
+
+Se você disser que rodou e eu não vir as requisições no horário, eu digo.
+Não por desconfiança — porque foi assim que descobrimos hoje que três
+entregas estavam só na sua máquina. O log é o árbitro dos dois.
+
+
+═══════════════════════════════════════════════════════════
+ORDEM FINAL
+═══════════════════════════════════════════════════════════
+
+  1. CEO liga o backup (aba Backups do Postgres)
+  2. Você roda a carga com --single-transaction
+  3. Você confere a volumetria
+  4. Você roda os 13 testes contra o Railway
+  5. Me avisa; eu confiro pelos logs
+  6. Só então dizemos ao CEO que está pronto
+
+Nada de anunciar concluído antes do passo 5. Vale para nós dois.
