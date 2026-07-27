@@ -115,4 +115,5 @@
 - [Fila de triagem != resultados crus](triagem-fila-vs-crus.md) — zerar Sala de Triagem nao zera exam_results sem code; adimensional (razao/indice) sem unidade nao e pendencia.
 - [perguntaId nao e chave de identidade](anamnese-perguntaid-nao-unico.md) — pergunta_id REPETE (Q030); identidade de linha usa o `id` numerico, nunca perguntaId (guard de DELETE).
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
+- [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
