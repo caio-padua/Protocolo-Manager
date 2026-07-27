@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/vitrine-demo/"
+title = "Vitrine PAXTER — Demonstração Pública"
+version = "1.0.0"
+id = "artifacts/vitrine-demo"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/vitrine-demo/" ]
+localPort = 18694
+
+[services.development]
+run = "pnpm --filter @workspace/vitrine-demo run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vitrine-demo", "run", "build" ]
+publicDir = "artifacts/vitrine-demo/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18694"
+BASE_PATH = "/vitrine-demo/"
