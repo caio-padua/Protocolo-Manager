@@ -52,6 +52,8 @@ async function ensureTables(): Promise<void> {
   // Migração aditiva para bancos que criaram a tabela na versão anterior.
   await db.execute(sql`ALTER TABLE vitrine_leads ADD COLUMN IF NOT EXISTS nome TEXT`);
   await db.execute(sql`ALTER TABLE vitrine_leads ALTER COLUMN data_nascimento DROP NOT NULL`);
+  // Rastreio opcional de campanha (site institucional PARXIS/Lovable).
+  await db.execute(sql`ALTER TABLE vitrine_leads ADD COLUMN IF NOT EXISTS utm JSONB`);
   tablesReady = true;
 }
 
@@ -92,6 +94,18 @@ function cnpjValido(cnpj: string): boolean {
 function nomeValido(nome: string): boolean {
   const limpo = nome.trim();
   return limpo.length >= 3 && limpo.length <= 120;
+}
+
+/** UTM opcional: só chaves utm_* conhecidas, valores string curtos. */
+const UTM_CHAVES = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
+function utmSanitizado(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, string> = {};
+  for (const k of UTM_CHAVES) {
+    const v = (raw as Record<string, unknown>)[k];
+    if (typeof v === "string" && v.trim().length > 0) out[k] = v.trim().slice(0, 200);
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 // ─── Rate limit simples em memória (por IP) para o POST público ─────────────
@@ -154,17 +168,25 @@ router.post("/vitrine-leads", async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const rotaOrigem = typeof req.body?.rotaOrigem === "string" ? req.body.rotaOrigem.slice(0, 200) : null;
+    // rotaOrigem (nosso nome) ou source (nome usado pelo site institucional): mesmo campo.
+    const rotaOrigem =
+      typeof req.body?.rotaOrigem === "string" && req.body.rotaOrigem.trim()
+        ? req.body.rotaOrigem.slice(0, 200)
+        : typeof req.body?.source === "string" && req.body.source.trim()
+          ? req.body.source.slice(0, 200)
+          : null;
+    const utm = utmSanitizado(req.body?.utm);
     const userAgent = (req.get("user-agent") || "").slice(0, 300) || null;
 
     // UPSERT: reentrada do mesmo CPF no mesmo tipo conta acesso, não duplica.
     await db.execute(sql`
-      INSERT INTO vitrine_leads (tipo, nome, cpf, cnpj, telefone, rota_origem, user_agent)
-      VALUES (${tipo}, ${nome}, ${cpf}, ${tipo === "clinica" ? cnpj : null}, ${telefone}, ${rotaOrigem}, ${userAgent})
+      INSERT INTO vitrine_leads (tipo, nome, cpf, cnpj, telefone, rota_origem, user_agent, utm)
+      VALUES (${tipo}, ${nome}, ${cpf}, ${tipo === "clinica" ? cnpj : null}, ${telefone}, ${rotaOrigem}, ${userAgent}, ${utm ? JSON.stringify(utm) : null}::jsonb)
       ON CONFLICT (tipo, cpf) DO UPDATE SET
         nome = EXCLUDED.nome,
         telefone = EXCLUDED.telefone,
         cnpj = COALESCE(EXCLUDED.cnpj, vitrine_leads.cnpj),
+        utm = COALESCE(EXCLUDED.utm, vitrine_leads.utm),
         acessos = vitrine_leads.acessos + 1,
         ultimo_acesso = NOW()
     `);
