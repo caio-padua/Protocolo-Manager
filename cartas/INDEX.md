@@ -37,3 +37,4 @@ Exemplo: `2026-06-15_IHE_formulas-faltantes.md`
 | 27/07/2026 | Dr. Code | Portao-captacao nas vitrines — processo completo, provas de execucao, painel Leads da Vitrine, mapa do repo do Lovable | `2026-07-27_DR-CODE_vitrine-gate-leads.md` | Pronta para envio |
 | 27/07/2026 | Dr. Lovable | RESPOSTA ao briefing dele — contrato FINAL ponto a ponto (aceites, correcoes, curl, tabela de erros, CORS, sem token) | `2026-07-27_DR-LOVABLE_resposta-briefing-vitrine.md` | Pronta para envio |
 | 27/07/2026 | Dr. Lovable | URL de producao + 11 testes aprovados no Railway + CORS liberado | `2026-07-27_DR-LOVABLE_url-producao-testes-aprovados.md` | Pronta para envio |
+| 27/07/2026 | Dr. Lovable | Auditoria do repo parxis-core-protocol + proximo passo (3 perguntas sobre Circulo Parxis) | `2026-07-27_DR-LOVABLE_auditoria-repo-e-proximo-passo.md` | Pronta para envio |
