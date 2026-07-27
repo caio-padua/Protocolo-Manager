@@ -19,6 +19,7 @@ import {
   verifyPassword,
   type CollaboratorClaims,
 } from "../lib/collaborator-auth.js";
+import { destinoPorPerfil } from "../lib/role-destino.js";
 
 const router: IRouter = Router();
 
@@ -177,7 +178,18 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
   const token = createCollaboratorToken({ professionalId: prof.id, role: prof.role });
   res.json({
     token,
-    professional: { id: prof.id, name: prof.name, role: prof.role },
+    professional: {
+      id: prof.id,
+      name: prof.name,
+      role: prof.role,
+      category: prof.category,
+      isPrimaryDoctor: prof.isPrimaryDoctor,
+    },
+    // Destino pronto para o site publico redirecionar (mapa em lib/role-destino.ts).
+    destino: destinoPorPerfil({
+      isPrimaryDoctor: prof.isPrimaryDoctor,
+      category: prof.category,
+    }),
   });
 });
 
