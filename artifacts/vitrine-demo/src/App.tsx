@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { VitrineDemo } from "@/pages/VitrineDemo";
+import { VitrineClinica } from "@/pages/VitrineClinica";
 
 const queryClient = new QueryClient();
 
@@ -11,6 +12,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={VitrineDemo} />
+      <Route path="/clinica" component={VitrineClinica} />
       <Route component={NotFound} />
     </Switch>
   );

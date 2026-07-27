@@ -32,7 +32,7 @@ import { LOCKUP_STYLE, PaxterWord } from "../components/paxter/paxterLockup";
    Página pública, SÓ LEITURA, dados de EXEMPLO, sem login, sem PII real.
 ---------------------------------------------------------------------------- */
 
-const VITRINE_STYLE = `
+export const VITRINE_STYLE = `
 .suit-navy-bg{
   background-color:#0f1d36;
   background-image:
@@ -103,7 +103,7 @@ function Segmentos({ feitas, total }: { feitas: number; total: number }) {
   );
 }
 
-function AppPreview() {
+export function AppPreview() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("protocolos");
   return (
     <div className="device mx-auto w-[260px]">
