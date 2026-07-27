@@ -281,3 +281,9 @@ id = "k8NPBUxvMcXX6VWPHj7x1"
 uri = "file://exports/TEXTO PARA DESENVOLVIMENTO SITE PARXIS.txt"
 type = "text"
 title = "TEXTO PARA DESENVOLVIMENTO SITE PARXIS"
+
+[[outputs]]
+id = "nU2H4cVDQYMqQSUsbp84-"
+uri = "file://exports/carga-railway-20260727.zip"
+type = "unspecified"
+title = "Carga de dados para o Railway (27/07/2026)"
