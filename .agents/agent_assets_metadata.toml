@@ -287,3 +287,15 @@ id = "nU2H4cVDQYMqQSUsbp84-"
 uri = "file://exports/carga-railway-20260727.zip"
 type = "unspecified"
 title = "Carga de dados para o Railway (27/07/2026)"
+
+[[outputs]]
+id = "IkQMKpGSM72LLPDDT2K65"
+uri = "file://cartas/2026-07-27_DR-LOVABLE_vitrine-gate-leads.md"
+type = "text"
+title = "Carta ao Dr. Lovable — Portao de acesso + captacao de leads"
+
+[[outputs]]
+id = "wwYhtWgZsatYUp_gCAynk"
+uri = "file://cartas/2026-07-27_DR-CODE_vitrine-gate-leads.md"
+type = "text"
+title = "Carta ao Dr. Code — Processo completo da onda portao-captacao"
