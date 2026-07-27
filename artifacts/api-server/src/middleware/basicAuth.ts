@@ -46,6 +46,7 @@ const BYPASS_PREFIXES = [
   "/api/whatsapp/inbound",
   "/api/whatsapp/status",
   "/api/asaas",
+  "/api/vitrine-leads", // POST público (captação); GET/PATCH com requireCollaborator interno
 ];
 
 function isPublicPath(path: string): boolean {

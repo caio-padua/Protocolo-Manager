@@ -215,6 +215,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "CEO Command Center", href: "/ceo/command-center", icon: Crown },
       { name: "Prova de Valor", href: "/prova-de-valor", icon: TrendingUp },
+      { name: "Leads da Vitrine", href: "/vitrine-leads", icon: Sparkles },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
       { name: "Hierarquia", href: "/hierarquia", icon: Network },

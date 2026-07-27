@@ -115,6 +115,7 @@ import ExperienciaCliente from "@/pages/experiencia-cliente";
 import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
 import ProvaDeValor from "@/pages/prova-de-valor";
+import VitrineLeads from "@/pages/vitrine-leads";
 import AgentesHub from "@/pages/agentes/index";
 import ProcedenciaExames from "@/pages/procedencia-exames";
 
@@ -302,6 +303,7 @@ function Router() {
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />
             <Route path="/prova-de-valor" component={ProvaDeValor} />
+            <Route path="/vitrine-leads" component={VitrineLeads} />
             <Route path="/padteam/nova" component={NovaDemanda} />
             <Route path="/padteam" component={PadteamHub} />
             <Route path="/agentes" component={AgentesHub} />

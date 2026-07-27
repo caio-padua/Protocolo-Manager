@@ -33,3 +33,5 @@ Exemplo: `2026-06-15_IHE_formulas-faltantes.md`
 | 27/07/2026 | Dr. Code | planos do cliente (Circulos PAXTER) — inventario do que ja existe | cartas/2026-07-27_DR-CODE_planos-cliente-circulos-paxter.md |
 | 27/07/2026 | Dr. Code | Entrada do Licenciado (visao de desejo) construida — duas entradas CEO x licenciado, modulos travados, promocao 48h, 10% indicacao | `2026-07-27_DR-CODE_entrada-licenciado-visao-desejo.md` | Pronta para envio |
 | 27/07/2026 | Dr. Code | Vitrine B2B para clinicas — segunda tela de apresentacao (/vitrine-demo/clinica), reuso do AppPreview, sem precos, pendencias de canal comercial | `2026-07-27_DR-CODE_vitrine-clinica-b2b.md` | Pronta para envio |
+| 27/07/2026 | Dr. Lovable | Portao de acesso + captacao de leads — contrato POST /api/vitrine-leads, rotas a criar no site PARXIS, regras do portao | `2026-07-27_DR-LOVABLE_vitrine-gate-leads.md` | Pronta para envio |
+| 27/07/2026 | Dr. Code | Portao-captacao nas vitrines — processo completo, provas de execucao, painel Leads da Vitrine, mapa do repo do Lovable | `2026-07-27_DR-CODE_vitrine-gate-leads.md` | Pronta para envio |
