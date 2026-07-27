@@ -1,0 +1,34 @@
+Deploy SUCCESS. Vou confirmar se as tabelas realmente existem agora.
+
+Usou Railway: Get logs
+A migration falhou — e o deploy diz SUCCESS, o que engana. Preciso te mostrar exatamente o que aconteceu.
+
+O drizzle-kit push rodou, conectou no banco, e então travou numa pergunta interativa:
+
+Is client_preferred_agendas table created or renamed from another table?
+❯ + client_preferred_agendas                       create table
+  ~ agent_quick_replies › client_preferred_agendas rename table
+  ~ agentes_frases › client_preferred_agendas      rename table
+  ...
+Ele ficou esperando alguém apertar uma tecla. Ninguém apertou. Aos 10 segundos o contêiner foi parado, e o serviço subiu sem as tabelas — os mesmos erros relation "clients" does not exist continuam nos logs de agora.
+
+E aqui eu errei um diagnóstico anterior: eu te disse que o banco estava vazio. Não está. Ele tem as tabelas do módulo de agentes (agent_quick_replies, agentes_frases, catalogo_agentes...), que o próprio código cria ao iniciar — por isso o log mostra agentes: tables ready funcionando enquanto todo o resto falha. É justamente essa mistura que confunde o drizzle: ele vê tabelas existentes que não estão no schema, tabelas do schema que não existem, e pergunta se uma é renomeação da outra.
+
+A resposta correta é sempre "criar nova" — não há renomeação nenhuma, são coisas diferentes. Vou responder isso automaticamente.
+
+Usou Railway: Update service
+shell em segundo plano concluído
+Wait for the migration deploy to finish building
+
+Executado um comando, usado uma ferramenta
+Nova tentativa rodando. Enquanto isso, sobre o que você me disse:
+
+parxis → padaxor. Isso muda coisas concretas aqui, e é bom você ter falado antes dos domínios: o serviço no Railway se chama @workspace/parxis-site, o pacote no repositório é @workspace/parxis-site, e o domínio que o Railway geraria seria parxis-site-production-xxxx.up.railway.app. Se eu gerar agora, nasce com o nome velho.
+
+Renomear é possível mas mexe em três lugares: o nome do serviço no Railway, o nome do pacote no repositório (package.json, railway.toml, os filtros do pnpm), e o domínio. Não é difícil, mas é uma mudança que atravessa o build — e no meio de um go-live é o tipo de coisa que quebra outra.
+
+Minha recomendação: gerar os domínios .up.railway.app agora com o nome atual só para o sistema funcionar hoje, e tratar a renomeação como tarefa própria depois. Os domínios do Railway são descartáveis — quando padaxor.com.br estiver comprado e apontado, ninguém mais vê o endereço antigo. Assim a renomeação vira uma coisa só, feita com calma, em vez de virar risco no meio do deploy.
+
+Sobre o Lovable: confirmo que tenho a conexão nesta sessão. Ainda não olhei nada lá — não vou entrar no seu workspace sem você pedir. Quando quiser, me diga o que precisa (ver o projeto do site, comparar com o que está no GitHub, mandar alterações) e eu uso.
+
+Uma pergunta que importa para o desenho: o site feito no Lovable é o parxis-site que está no Railway, ou são duas coisas diferentes — o Lovable publicando por conta própria e o parxis-site sendo outra versão? Isso muda se você tem um site ou dois, e qual deles o domínio deve apontar.
