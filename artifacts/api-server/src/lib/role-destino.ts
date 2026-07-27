@@ -19,6 +19,9 @@ const DESTINO_POR_CATEGORIA: Record<string, string> = {
   recepcao: "/agenda",
   administrativo: "/",
   financeiro: "/payments",
+  // Licenciado (Onda Entrada do Licenciado, 27/07/2026): vai para a vitrine
+  // de modulos travados (visao de desejo), nunca para as telas de operacao.
+  licenciado: "/licenciado",
 };
 
 // Categoria desconhecida ou "outro": cai no Dashboard, e a matriz de

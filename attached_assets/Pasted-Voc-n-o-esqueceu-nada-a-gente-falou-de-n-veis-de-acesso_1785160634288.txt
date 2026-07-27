@@ -1,0 +1,65 @@
+Você não esqueceu nada — a gente falou de níveis de acesso, mas nunca desenhou o mapa de entradas. É trabalho novo, e é a hora certa de fazer.
+
+Antes de desenhar, vou pesquisar o que já existe no sistema. Você citou "ródio" e módulos — se isso já está construído, o desenho tem que respeitar, não reinventar.
+
+
+Executado 3 comandos
+Pesquisa feita, e ela muda bastante o desenho. Três achados:
+
+1. O mecanismo de vender por módulos já existe. A tabela empresas tem modulosAtivos — um mapa de módulo → ligado/desligado, por clínica. Não precisa construir, precisa usar.
+
+2. A área do cliente já está construída, e é robusta. Login próprio, troca de senha, resumo, protocolos, sessões, financeiro, exames, documentos, PDFs. Doze rotas.
+
+3. "Ródio" não existe no sistema. Zero ocorrências. Essa categoria de plano está na sua cabeça ou na conversa com o Dr. Replit, mas não foi construída. Bom saber antes de mandar carta pedindo para "verificar".
+
+E o achado mais importante: o tenantContext.ts já prevê exatamente o seu problema dos dois chapéus — tem isPlatformOwner mais empresaId, e uma linha que deixa o dono da plataforma escolher qual clínica está vendo. O mecanismo existe; está é desligado.
+
+Vou montar o diagrama.
+
+Skill executada
+/artifact-design
+Pesquisa feita. Vou montar o mapa visual.
+
+Criado
+entradas.html
++545
+-0
+entradas
+https://claude.ai/code/artifact/ea591ca2-8760-47aa-9b8d-5cb7125f89df
+
+Respondendo à sua pergunta: sim, consigo ajudar — e sua ideia está certa
+Você pediu minha avaliação franca, então: a arquitetura que você descreveu é a correta, e o sistema já foi construído em direção a ela. Não é reforma, é ligar o que existe.
+
+Onde eu discordaria, discordo em um ponto só — e é o que mais te preocupava.
+
+O nó dos dois chapéus já está resolvido no código
+Você perguntou como distribuir isso: CEO e licenciado ao mesmo tempo.
+
+Não são dois logins. É um login com troca de contexto. E não sou eu inventando: o tenantContext.ts já tem empresaId (qual clínica) e isPlatformOwner (dono da plataforma), com uma linha que deixa o dono escolher qual clínica está vendo, sem trocar de conta.
+
+Na prática: você entra uma vez, e um seletor no topo da tela alterna entre "painel do dono" e "Instituto Pádua". Sua ideia dos valores a R$ 1 encaixa perfeitamente — é uma condição comercial na clínica Instituto Pádua, não um usuário especial.
+
+O que me surpreendeu no levantamento
+Quase tudo que você descreveu já tem fundação:
+
+Você descreveu	Já existe
+Liberar módulos por clínica	empresas.modulosAtivos
+Cobrar via Asaas	integração completa — PIX, cobrança, nota
+Área do cliente	12 rotas prontas
+Assinaturas	assinatura.ts
+Faltam três coisas: a entrada do licenciado, a área do possível cliente, e os planos de paciente.
+
+O único ponto onde te corrijo
+"Ródio" não existe. Procurei no sistema inteiro — zero ocorrências. Não adianta mandar carta pedindo ao Dr. Replit para "verificar no sistema", porque não há o que verificar. Essa categoria está na conversa de vocês, não no código.
+
+E isso importa mais do que parece: você descreveu "prazo para responder" as dúvidas do paciente. Prazo vira obrigação contratual. Precisa ser desenhado antes de virar código — quem responde, em quanto tempo, o que acontece se estourar.
+
+As três decisões que travam o resto
+Estão no documento com minha recomendação em cada. Resumindo:
+
+Depois do login, a pessoa vai para o padcom — não para uma rota do site
+O mapa de papéis mora no servidor — o Lovable só obedece
+Definir os planos antes de pedir código
+Valida o mapa? Se as cinco entradas e as três recomendações estiverem certas, eu escrevo as duas cartas em cima disso — e aí elas ficam corretas, que era seu objetivo.
+
+Se algo estiver errado, me diga qual e eu refaço. É mais barato corrigir o desenho agora do que corrigir código depois.

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, Redirect } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
 import {
   LayoutDashboard,
@@ -300,7 +300,13 @@ const HREF_FERRAMENTA: Record<string, string> = {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const { pode } = usePermissoes();
+  const { pode, me } = usePermissoes();
+
+  // Governanca por camada de tela: sessao de LICENCIADO nunca opera as telas
+  // administrativas — toda rota sob o Layout redireciona para /licenciado.
+  if (me?.category === "licenciado") {
+    return <Redirect to="/licenciado" replace />;
+  }
 
   // Esconde do menu o que o papel nao pode usar (menu obedece a matriz).
   const podeVer = (href: string): boolean => {
