@@ -8,18 +8,22 @@ como funciona e o que ficou pronto para os proximos passos.
 
 ---
 
-## 1. DECISAO DO CEO
+## 1. DECISAO DO CEO (ATUALIZADA 27/07/2026 apos a sua carta de minimizacao)
 
-O login da vitrine E a captacao de lead. Paciente: CPF + nascimento + telefone.
-Dono de clinica: CNPJ + CPF + nascimento + telefone. A entrada destrava a tela e vira
-uma linha no painel administrativo de verificacao. Sem precos, sem cobranca, texto honesto.
+O login da vitrine E a captacao de lead. Voce pediu para remover CPF e nascimento;
+o CEO decidiu MANTER CPF e CNPJ e acatou o resto: nascimento removido, nome adicionado.
+Campos finais: paciente = nome + CPF + telefone; clinica = nome + CNPJ + CPF + telefone.
+A entrada destrava a tela e vira uma linha no painel administrativo de verificacao.
+Sem precos, sem cobranca, texto honesto. Leads de teste (curl) foram apagados do banco.
+A coluna data_nascimento permanece na tabela SEM uso (Regra de Ouro: nunca DROP),
+agora aceitando nulo.
 
 ## 2. O QUE FOI CONSTRUIDO (tudo verificado por execucao real)
 
 ### 2.1 Backend (artifacts/api-server)
 - Novo arquivo src/routes/vitrine-leads.ts:
   - Tabela vitrine_leads criada por SQL direto (lazy ensureTables), sem db push.
-  - Colunas: id, tipo, cpf, cnpj, data_nascimento, telefone, rota_origem, user_agent,
+  - Colunas: id, tipo, nome, cpf, cnpj, data_nascimento (sem uso, aceita nulo), telefone, rota_origem, user_agent,
     acessos, ultimo_acesso, contatado, contatado_em, observacao, criado_em.
   - UNIQUE (tipo, cpf) + UPSERT: reentrada soma acessos em vez de duplicar.
   - Validacao de digito verificador de CPF e CNPJ no servidor.
@@ -36,7 +40,7 @@ uma linha no painel administrativo de verificacao. Sem precos, sem cobranca, tex
 
 ### 2.3 Painel administrativo (artifacts/padcom)
 - Nova pagina src/pages/vitrine-leads.tsx: KPIs (pacientes, clinicas, sem contato),
-  filtro por tipo, tabela com CPF/CNPJ/nascimento/telefone/acessos/ultimo acesso,
+  filtro por tipo, tabela com nome/CPF/CNPJ/telefone/acessos/ultimo acesso,
   botao Contatado/Pendente via PATCH.
 - Rota /vitrine-leads em App.tsx; menu "Leads da Vitrine" no grupo Estrutura & Governanca.
 

@@ -7,8 +7,9 @@ import { VITRINE_STYLE } from "../pages/VitrineDemo";
 
 /* ----------------------------------------------------------------------------
    PORTA DE ACESSO DA VITRINE — o "login" É a captação de lead.
-   Paciente: CPF + data de nascimento + telefone.
-   Clínica:  CNPJ + CPF do interessado + data de nascimento + telefone.
+   Paciente: nome + CPF + telefone.
+   Clínica:  nome + CNPJ + CPF do responsável + telefone.
+   (Data de nascimento removida em 27/07/2026 — minimização de dados, LGPD.)
    Ao validar no servidor (POST /api/vitrine-leads), libera a tela e guarda
    a liberação no aparelho (localStorage). Sem senha real — é demonstração
    pública com captação comercial.
@@ -43,26 +44,12 @@ function mascaraCnpj(v: string): string {
     .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
 }
 
-function mascaraData(v: string): string {
-  const d = v.replace(/\D+/g, "").slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-}
-
 function mascaraTelefone(v: string): string {
   const d = v.replace(/\D+/g, "").slice(0, 11);
   if (d.length <= 2) return d;
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
-
-function dataBrParaIso(br: string): string | null {
-  const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, dd, mm, aaaa] = m;
-  return `${aaaa}-${mm}-${dd}`;
 }
 
 function Campo({
@@ -93,9 +80,9 @@ const INPUT_STYLE = {
 } as const;
 
 export function AcessoGate({ tipo, onLiberar }: { tipo: Tipo; onLiberar: () => void }) {
+  const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
   const [cnpj, setCnpj] = useState("");
-  const [nasc, setNasc] = useState("");
   const [tel, setTel] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -108,9 +95,8 @@ export function AcessoGate({ tipo, onLiberar }: { tipo: Tipo; onLiberar: () => v
 
   async function enviar() {
     setErro(null);
-    const iso = dataBrParaIso(nasc);
-    if (!iso) {
-      setErro("Preencha a data de nascimento completa (dia/mês/ano).");
+    if (nome.trim().length < 3) {
+      setErro("Preencha o seu nome completo.");
       return;
     }
     setEnviando(true);
@@ -120,9 +106,9 @@ export function AcessoGate({ tipo, onLiberar }: { tipo: Tipo; onLiberar: () => v
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tipo,
+          nome: nome.trim(),
           cpf,
           cnpj: tipo === "clinica" ? cnpj : undefined,
-          dataNascimento: iso,
           telefone: tel,
           rotaOrigem: window.location.pathname,
         }),
@@ -166,6 +152,16 @@ export function AcessoGate({ tipo, onLiberar }: { tipo: Tipo; onLiberar: () => v
           <div className="mb-5 text-[12px] leading-snug text-slate-300">{subtitulo}</div>
 
           <div className="flex flex-col gap-3.5">
+            <Campo rotulo="Nome completo" icone={<ShieldCheck className="h-3.5 w-3.5" />}>
+              <input
+                className={INPUT_CLS}
+                style={INPUT_STYLE}
+                autoComplete="name"
+                placeholder="O seu nome"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+              />
+            </Campo>
             {tipo === "clinica" && (
               <Campo rotulo="CNPJ da clínica" icone={<Building2 className="h-3.5 w-3.5" />}>
                 <input
@@ -191,17 +187,6 @@ export function AcessoGate({ tipo, onLiberar }: { tipo: Tipo; onLiberar: () => v
                 placeholder="000.000.000-00"
                 value={cpf}
                 onChange={(e) => setCpf(mascaraCpf(e.target.value))}
-              />
-            </Campo>
-            <Campo rotulo="Data de nascimento" icone={<ShieldCheck className="h-3.5 w-3.5" />}>
-              <input
-                className={INPUT_CLS}
-                style={INPUT_STYLE}
-                inputMode="numeric"
-                autoComplete="bday"
-                placeholder="dd/mm/aaaa"
-                value={nasc}
-                onChange={(e) => setNasc(mascaraData(e.target.value))}
               />
             </Campo>
             <Campo rotulo="Telefone com DDD" icone={<Phone className="h-3.5 w-3.5" />}>

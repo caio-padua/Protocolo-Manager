@@ -11,9 +11,9 @@ import { getCollabToken } from "@/lib/collab-auth";
 type Lead = {
   id: number;
   tipo: "paciente" | "clinica";
+  nome: string | null;
   cpf: string;
   cnpj: string | null;
-  data_nascimento: string;
   telefone: string;
   rota_origem: string | null;
   acessos: number;
@@ -35,10 +35,6 @@ function fmtTel(d: string) {
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return d;
-}
-function fmtDataBr(iso: string) {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 function fmtDataHora(iso: string) {
   return iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -149,9 +145,9 @@ export default function VitrineLeads() {
           <thead>
             <tr className="border-b text-left text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               <th className="px-3 py-2.5">Tipo</th>
+              <th className="px-3 py-2.5">Nome</th>
               <th className="px-3 py-2.5">CPF</th>
               <th className="px-3 py-2.5">CNPJ</th>
-              <th className="px-3 py-2.5">Nascimento</th>
               <th className="px-3 py-2.5">Telefone</th>
               <th className="px-3 py-2.5">Acessos</th>
               <th className="px-3 py-2.5">Último acesso</th>
@@ -170,9 +166,9 @@ export default function VitrineLeads() {
                     {l.tipo === "clinica" ? "Clínica" : "Paciente"}
                   </span>
                 </td>
+                <td className="px-3 py-2.5 font-medium">{l.nome || "—"}</td>
                 <td className="px-3 py-2.5 font-mono text-[13px]">{fmtCpf(l.cpf)}</td>
                 <td className="px-3 py-2.5 font-mono text-[13px]">{fmtCnpj(l.cnpj)}</td>
-                <td className="px-3 py-2.5">{fmtDataBr(l.data_nascimento)}</td>
                 <td className="px-3 py-2.5">{fmtTel(l.telefone)}</td>
                 <td className="px-3 py-2.5 text-center">{l.acessos}</td>
                 <td className="px-3 py-2.5">{fmtDataHora(l.ultimo_acesso)}</td>

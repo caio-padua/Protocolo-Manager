@@ -2,9 +2,10 @@
  * PAXTER — Vitrine Leads Router
  *
  * Captação de futuros clientes nas vitrines públicas de demonstração:
- *   - Paciente (vitrine /vitrine-demo/):    CPF + data de nascimento + telefone
- *   - Dono de clínica (/vitrine-demo/clinica): CNPJ + CPF do interessado +
- *     data de nascimento + telefone
+ *   - Paciente (vitrine /vitrine-demo/):       nome + CPF + telefone
+ *   - Dono de clínica (/vitrine-demo/clinica): nome + CNPJ + CPF + telefone
+ * Data de nascimento removida em 27/07/2026 (minimização de dados, LGPD);
+ * a coluna permanece por preservação (Regra de Ouro), apenas sem uso.
  *
  * O "login" da vitrine É a captação: os dados liberam a tela e viram lead
  * para contato comercial posterior. Tabela via raw SQL (CREATE TABLE IF NOT
@@ -29,9 +30,10 @@ async function ensureTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS vitrine_leads (
       id              SERIAL PRIMARY KEY,
       tipo            TEXT NOT NULL CHECK (tipo IN ('paciente','clinica')),
+      nome            TEXT,
       cpf             TEXT NOT NULL,
       cnpj            TEXT,
-      data_nascimento TEXT NOT NULL,
+      data_nascimento TEXT,
       telefone        TEXT NOT NULL,
       rota_origem     TEXT,
       user_agent      TEXT,
@@ -47,6 +49,9 @@ async function ensureTables(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS vitrine_leads_tipo_cpf_uq
       ON vitrine_leads (tipo, cpf)
   `);
+  // Migração aditiva para bancos que criaram a tabela na versão anterior.
+  await db.execute(sql`ALTER TABLE vitrine_leads ADD COLUMN IF NOT EXISTS nome TEXT`);
+  await db.execute(sql`ALTER TABLE vitrine_leads ALTER COLUMN data_nascimento DROP NOT NULL`);
   tablesReady = true;
 }
 
@@ -83,16 +88,10 @@ function cnpjValido(cnpj: string): boolean {
   return dv(cnpj.slice(0, 12)) === Number(cnpj[12]) && dv(cnpj.slice(0, 13)) === Number(cnpj[13]);
 }
 
-/** Data de nascimento AAAA-MM-DD, plausível (idade entre 14 e 110 anos).
- *  Rejeita datas impossíveis (ex.: 31/02) comparando o round-trip UTC. */
-function nascimentoValido(iso: string): boolean {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return false;
-  const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const d = new Date(Date.UTC(ano, mes - 1, dia));
-  if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return false;
-  const agora = new Date().getFullYear();
-  return agora - ano >= 14 && agora - ano <= 110;
+/** Nome completo plausível: mínimo 3 caracteres úteis, máximo 120. */
+function nomeValido(nome: string): boolean {
+  const limpo = nome.trim();
+  return limpo.length >= 3 && limpo.length <= 120;
 }
 
 // ─── Rate limit simples em memória (por IP) para o POST público ─────────────
@@ -133,21 +132,21 @@ router.post("/vitrine-leads", async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: "Tipo inválido. Use 'paciente' ou 'clinica'." });
       return;
     }
+    const nome = typeof req.body?.nome === "string" ? req.body.nome.trim().slice(0, 120) : "";
     const cpf = soDigitos(req.body?.cpf);
     const cnpj = soDigitos(req.body?.cnpj);
-    const dataNascimento = typeof req.body?.dataNascimento === "string" ? req.body.dataNascimento : "";
     const telefone = soDigitos(req.body?.telefone);
 
+    if (!nomeValido(nome)) {
+      res.status(400).json({ error: "Preencha o nome completo." });
+      return;
+    }
     if (!cpfValido(cpf)) {
       res.status(400).json({ error: "CPF inválido. Confira os 11 dígitos." });
       return;
     }
     if (tipo === "clinica" && !cnpjValido(cnpj)) {
       res.status(400).json({ error: "CNPJ inválido. Confira os 14 dígitos." });
-      return;
-    }
-    if (!nascimentoValido(dataNascimento)) {
-      res.status(400).json({ error: "Data de nascimento inválida." });
       return;
     }
     if (!telefoneValido(telefone)) {
@@ -160,11 +159,11 @@ router.post("/vitrine-leads", async (req: Request, res: Response): Promise<void>
 
     // UPSERT: reentrada do mesmo CPF no mesmo tipo conta acesso, não duplica.
     await db.execute(sql`
-      INSERT INTO vitrine_leads (tipo, cpf, cnpj, data_nascimento, telefone, rota_origem, user_agent)
-      VALUES (${tipo}, ${cpf}, ${tipo === "clinica" ? cnpj : null}, ${dataNascimento}, ${telefone}, ${rotaOrigem}, ${userAgent})
+      INSERT INTO vitrine_leads (tipo, nome, cpf, cnpj, telefone, rota_origem, user_agent)
+      VALUES (${tipo}, ${nome}, ${cpf}, ${tipo === "clinica" ? cnpj : null}, ${telefone}, ${rotaOrigem}, ${userAgent})
       ON CONFLICT (tipo, cpf) DO UPDATE SET
+        nome = EXCLUDED.nome,
         telefone = EXCLUDED.telefone,
-        data_nascimento = EXCLUDED.data_nascimento,
         cnpj = COALESCE(EXCLUDED.cnpj, vitrine_leads.cnpj),
         acessos = vitrine_leads.acessos + 1,
         ultimo_acesso = NOW()

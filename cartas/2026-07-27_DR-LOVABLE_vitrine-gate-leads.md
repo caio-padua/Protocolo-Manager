@@ -13,9 +13,10 @@ O CEO Dr. Caio decidiu: toda vitrine publica de demonstracao passa a ter um port
 que E a propria captacao de lead. Nao existe formulario de contato separado: a pessoa se
 identifica para destravar a tela, e essa identificacao ja vira um lead no painel administrativo.
 
-Regras do portao:
-- Paciente entra com: CPF + data de nascimento + telefone.
-- Dono de clinica entra com: CNPJ + CPF do responsavel + data de nascimento + telefone.
+Regras do portao (ATUALIZADO 27/07/2026 — minimizacao de dados, LGPD):
+- Paciente entra com: nome + CPF + telefone.
+- Dono de clinica entra com: nome + CNPJ + CPF do responsavel + telefone.
+- Data de nascimento foi REMOVIDA dos dois portoes (minimizacao de dados).
 - CPF e CNPJ sao validados por digito verificador no servidor (nao aceita numero inventado).
 - Sem precos na vitrine. Sem cobranca. Texto honesto: os dados servem para liberar a
   demonstracao e para contato comercial.
@@ -36,9 +37,9 @@ Content-Type: application/json
 Body:
 {
   "tipo": "paciente" | "clinica",        // obrigatorio
+  "nome": "Maria da Silva",               // obrigatorio, 3 a 120 caracteres
   "cpf": "52998224725",                   // obrigatorio, com ou sem mascara
   "cnpj": "11222333000181",               // obrigatorio SE tipo=clinica
-  "dataNascimento": "1985-03-10",         // obrigatorio, formato ISO AAAA-MM-DD
   "telefone": "11988887777",              // obrigatorio, 10 ou 11 digitos
   "rotaOrigem": "/parxis/apresentacao"    // opcional, qual pagina disparou
 }
@@ -46,22 +47,24 @@ Body:
 Respostas:
 - 200 { "ok": true }                      -> libera a tela
 - 400 { "error": "CPF invalido..." }      -> mostra a mensagem ao usuario
-- Validacao no servidor: digito verificador de CPF e CNPJ, data valida, telefone 10-11 digitos.
+- 429 { "error": "Muitas tentativas..." } -> limite de 10 envios por minuto por IP
+- Validacao no servidor: digito verificador de CPF e CNPJ, nome 3-120, telefone 10-11 digitos.
+- NAO envie dataNascimento: o campo foi removido do contrato em 27/07/2026.
 
 IMPORTANTE: o dominio publico do Manager sera informado pelo CEO quando a publicacao
 (deploy) estiver no ar. Em desenvolvimento use o dominio Replit que o CEO te passar.
 
 ## 4. ROTAS QUE VOCE PRECISA CRIAR NO SITE PARXIS
 
-| Rota sugerida            | Publico        | Conteudo                                            |
-|--------------------------|----------------|-----------------------------------------------------|
-| /demonstracao            | paciente       | Portao (CPF+nascimento+telefone) -> vitrine paciente |
-| /demonstracao/clinica    | dono de clinica| Portao (CNPJ+CPF+nascimento+telefone) -> vitrine B2B |
+| Rota sugerida            | Publico        | Conteudo                                          |
+|--------------------------|----------------|---------------------------------------------------|
+| /demonstracao            | paciente       | Portao (nome+CPF+telefone) -> vitrine paciente     |
+| /demonstracao/clinica    | dono de clinica| Portao (nome+CNPJ+CPF+telefone) -> vitrine B2B     |
 
 Comportamento esperado do portao (igual ao meu AcessoGate):
 1. Mascaras de digitacao: CPF 000.000.000-00, CNPJ 00.000.000/0000-00,
-   data dd/mm/aaaa, telefone (11) 90000-0000.
-2. Ao enviar: converter data para ISO e postar no endpoint acima.
+   telefone (11) 90000-0000. Nome e texto livre (3 a 120 caracteres).
+2. Ao enviar: postar no endpoint acima.
 3. Se ok=true: gravar liberacao em localStorage (chave por tipo) e mostrar a vitrine.
    Visitante que ja liberou nao ve o portao de novo no mesmo navegador.
 4. Se erro 400: mostrar a mensagem retornada, sem limpar os campos.
