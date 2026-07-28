@@ -47,6 +47,7 @@ const BYPASS_PREFIXES = [
   "/api/whatsapp/status",
   "/api/asaas",
   "/api/vitrine-leads", // POST público (captação); GET/PATCH com requireCollaborator interno
+  "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
 ];
 
 function isPublicPath(path: string): boolean {
