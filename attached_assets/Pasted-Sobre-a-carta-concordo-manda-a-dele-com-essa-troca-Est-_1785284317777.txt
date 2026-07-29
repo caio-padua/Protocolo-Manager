@@ -1,0 +1,40 @@
+Sobre a carta: concordo, manda a dele com essa troca. Está correta e a correção é cirúrgica. Assunto fechado.
+
+Mas ele não rodou o curl — e é o teste que separa as duas metades. Insista nisso.
+
+Enquanto isso, vou testar sozinho a premissa que ninguém checou: a aplicação lê o mesmo banco onde eu escrevo? Os seeds rodam no boot da aplicação e relatam o que ela enxerga.
+
+Usou Railway: Get logs
+site_content já tinha 11 linhas antes da carga — não distingue nada. Preciso olhar como a aplicação se conecta, não o que ela semeia.
+
+Checked how the running app builds its DB connection
+Mesma variável, mesma conexão. A aplicação lê o mesmo banco. Hipótese morta.
+
+E agora chego no que deveria ter visto antes: a auditoria registra login_fail igual nos dois casos — usuário não encontrado e senha errada produzem exatamente o mesmo registro. Eu venho afirmando "é a senha" sem ter como distinguir.
+
+Vou instrumentar a rota para separar os dois. Sem registrar senha em texto — só o que é preciso.
+
+
+Executado 4 comandos, editado 2 arquivos
++15
+-2
+Instrumentei a rota. PR #3 agora tem dois commits:
+
+1. A auditoria passa a dizer por que recusou. Até agora ela gravava o mesmo registro para três situações diferentes — usuário inexistente, usuário inativo, senha errada. Por isso a investigação travou: eu venho afirmando "é a senha" sem ter como distinguir de "não achou o usuário".
+
+Passa a gravar:
+
+motivo    usuario_nao_encontrado | usuario_inativo | senha_incorreta
+senhaLen  comprimento da senha recebida
+A senha nunca é registrada — só o tamanho. Isso basta para pegar espaço extra, campo cortado, ou valor diferente do que você digitou. E a resposta ao navegador continua genérica, sem revelar se o usuário existe.
+
+2. O /me liberado do Basic Auth — a revalidação de sessão que faltava.
+
+Preciso do seu aval para mesclar
+É mudança em código de autenticação em produção. https://github.com/caio-padua/Protocolo-Manager/pull/3
+
+Depois do merge o Railway reconstrói sozinho, você tenta entrar uma vez, e eu leio o motivo exato. Aí acaba o chute.
+
+Sobre os três agentes não acertarem: você tem razão, e a parte que me cabe é esta — eu passei quatro tentativas testando palpites (espaço colado, caractere estranho, senha nova) quando o instrumento que responde à pergunta não existia. Devia ter construído o instrumento primeiro. É o que estou fazendo agora.
+
+Se preferir não mexer em código de autenticação, o caminho alternativo continua sendo o curl do Dr. Replit — mesma resposta, sem alterar nada. Mas ele precisa rodar de verdade.
