@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { createHash } from "node:crypto";
 import {
   db,
   professionalsTable,
@@ -174,6 +175,12 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
             ? "usuario_inativo"
             : "senha_incorreta",
         senhaLen: password.length,
+        // Impressao digital da senha recebida: 12 primeiros hex do SHA-256.
+        // NAO e a senha e nao se reverte — serve para comparar com hashes de
+        // candidatos calculados fora, e assim identificar transformacao no
+        // caminho (maiuscula/minuscula, acento, caractere invisivel) sem
+        // nunca guardar o texto. Diagnostico temporario.
+        senhaFp: createHash("sha256").update(password).digest("hex").slice(0, 12),
       },
       ip: clientIp(req),
     });
