@@ -1,0 +1,239 @@
+Implemente um teste de integração no meu api-server simulando dois cadastros com o mesmo login (case-insensitive) e confirmando que o segundo é recusado e que o login usa a linha correta.
+
+Não consigo implementar isso daqui — este ambiente só tem acesso ao repositório do site (padaxor.lovable.app). O api-server é outro repositório, em outro host (Railway), com outra stack e outro banco. Não tenho arquivos, credenciais nem permissão para editá-lo.
+
+Quem pode implementar é o Dr. Code, que trabalha no repo do api-server. Abaixo está a carta pronta para você enviar a ele — inclui código completo, pronto para colar.
+
+Carta ao Dr. Code — teste de integração para o índice único de login_username
+
+Dr. Code, junto com o índice único em lower(login_username), precisamos de um teste de integração que prove três coisas:
+
+
+
+
+
+o banco recusa o segundo cadastro com o mesmo login (mesmo em caixa diferente);
+
+
+
+o POST /api/collaborator/login autentica contra a linha real, não uma sombra;
+
+
+
+o login é case-insensitive.
+
+Requisitos
+
+
+
+
+
+Postgres real (não pg-mem — precisa respeitar UNIQUE INDEX ... (lower(...))).
+
+
+
+Banco de teste isolado (schema dedicado, ou container efêmero via testcontainers, ou banco padaxor_test limpo entre runs).
+
+
+
+Vitest ou Jest + Supertest, rodando contra a app Express/Fastify sem subir porta.
+
+Migração que o teste assume aplicada
+
+CREATE UNIQUE INDEX IF NOT EXISTS professionals_login_username_lower_uidx
+  ON professionals (lower(login_username));
+
+Arquivo: tests/integration/collaborator-login.spec.ts
+
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import request from "supertest";
+import { app } from "../../src/app";           // ajustar ao seu entrypoint
+import { db, pool } from "../../src/db";        // ajustar ao seu client
+import { hashPassword } from "../../src/auth";  // mesma função usada em produção
+
+const USERNAME = "caio";
+const PASSWORD_A = "senha-correta-A";
+const PASSWORD_B = "senha-errada-B";
+
+async function insertProfessional(username: string, password: string) {
+  const hash = await hashPassword(password);
+  return pool.query(
+    `INSERT INTO professionals (login_username, password_hash, name)
+     VALUES ($1, $2, $3) RETURNING id`,
+    [username, hash, "Test User"],
+  );
+}
+
+beforeEach(async () => {
+  await pool.query(`DELETE FROM professionals WHERE lower(login_username) = lower($1)`, [USERNAME]);
+});
+
+afterAll(async () => {
+  await pool.end();
+});
+
+describe("professionals: unique login_username (case-insensitive)", () => {
+  it("aceita o primeiro cadastro", async () => {
+    const res = await insertProfessional(USERNAME, PASSWORD_A);
+    expect(res.rows[0].id).toBeTruthy();
+
+    const count = await pool.query(
+      `SELECT count(*)::int AS n FROM professionals WHERE lower(login_username) = $1`,
+      [USERNAME],
+    );
+    expect(count.rows[0].n).toBe(1);
+  });
+
+  it("recusa um segundo cadastro com o mesmo login em caixa diferente", async () => {
+    await insertProfessional(USERNAME, PASSWORD_A);
+
+    await expect(insertProfessional("Caio", PASSWORD_B)).rejects.toMatchObject({
+      code: "23505", // unique_violation
+    });
+
+    const count = await pool.query(
+      `SELECT count(*)::int AS n FROM professionals WHERE lower(login_username) = $1`,
+      [USERNAME],
+    );
+    expect(count.rows[0].n).toBe(1);
+  });
+});
+
+describe("POST /api/collaborator/login", () => {
+  beforeEach(async () => {
+    await insertProfessional(USERNAME, PASSWORD_A);
+  });
+
+  it("200 + token com credenciais corretas", async () => {
+    const res = await request(app)
+      .post("/api/collaborator/login")
+      .send({ username: USERNAME, password: PASSWORD_A });
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toEqual(expect.any(String));
+  });
+
+  it("401 com senha errada — prova que autentica contra a linha real, não uma sombra", async () => {
+    const res = await request(app)
+      .post("/api/collaborator/login")
+      .send({ username: USERNAME, password: PASSWORD_B });
+
+    expect(res.status).toBe(401);
+    expect(res.body.token).toBeUndefined();
+  });
+
+  it("é case-insensitive: 'CAIO' com a senha correta entra", async () => {
+    const res = await request(app)
+      .post("/api/collaborator/login")
+      .send({ username: "CAIO", password: PASSWORD_A });
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toEqual(expect.any(String));
+  });
+
+  it("400 quando o corpo está incompleto", async () => {
+    const res = await request(app)
+      .post("/api/collaborator/login")
+      .send({ username: "", password: "" });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+Notas para o Dr. Code
+
+
+
+
+
+Ajustar imports (../../src/app, ../../src/db, ../../src/auth) aos caminhos reais do api-server.
+
+
+
+Se o cadastro passar por uma rota HTTP (ex.: POST /api/professionals) em vez de INSERT direto, troque insertProfessional por um request(app).post(...) equivalente — o teste da segunda inserção deve esperar 409 Conflict retornado a partir do erro 23505, e o handler precisa traduzir o unique_violation em 409 (mapeamento que sugiro adicionar no mesmo PR).
+
+
+
+Rodar em CI antes do deploy, com um Postgres do mesmo minor do de produção.
+
+
+
+Se preferir isolamento por schema em vez de DELETE no beforeEach, cada worker do Vitest pode criar seu próprio schema e apontar search_path para ele — mais rápido e sem risco de vazar dado entre testes.
+
+Assim que rodar verde, publica-se o índice + o teste no mesmo PR. O ORDER BY asc(id) fica só como defesa em profundidade.
+
+Se quiser, também posso preparar a versão em Jest, ou a variante usando testcontainers para subir um Postgres efêmero por run — é só dizer.Deste lado (só o frontend) consigo fazer bastante coisa útil e concreta. Aqui vai o cardápio, do mais alto impacto para o menor — sem enfeite, tudo executável no repo do site:
+
+
+
+1. Correlation-ID em toda chamada ao api-server (alto impacto, baixo esforço)
+
+Passo a gerar um `X-Request-Id` (UUID v4) no `authFetch` e mando junto em todo `POST /api/collaborator/login`, `/api/vitrine-*`, etc. No toast de erro 401, exibo os 8 primeiros caracteres. O Dr. Code consegue então casar 1-para-1 "usuário reclamou às 14:32, ID `a1b2c3d4`" com uma linha exata do log do servidor. Fim das reclamações sem rastro.
+
+
+
+2. Diagnóstico de login em modo dev/hidden (alto impacto)
+
+Uma tela `/login/diag` (não linkada, só quem sabe a URL) que roda em sequência: `GET /api/health` → `POST /api/collaborator/login` com credencial de teste → mede latência de cada etapa → mostra headers da resposta (menos o token). Vira ferramenta de triagem: quando o CEO relatar problema, ele abre a URL e manda print. Substitui "está lento?" / "voltou o erro?" por dados.
+
+
+
+3. Contrato formal do endpoint (`openapi.yaml`) versionado no repo (médio impacto, alto valor de longo prazo)
+
+Especifico `POST /api/collaborator/login` — request, response, todos os códigos de erro (400, 401, 409, 423, 429, 500), formato de erro padronizado (`{code, message, requestId}`), TTL do token. O Dr. Code implementa contra o spec; o site consome contra o mesmo spec; divergência vira erro de CI. Elimina a categoria "site esperava X, servidor mandou Y".
+
+
+
+4. Banner de degradação automático (médio impacto)
+
+Health check silencioso a cada 30s contra `GET /api/health`. Se der timeout ou 5xx duas vezes seguidas, aparece uma faixa discreta no topo do `/login`: "Serviço em manutenção — tente novamente em instantes." Evita o cenário "usuário digita senha 5x achando que errou, quando o servidor está fora".
+
+
+
+5. Detecção de lockout / brute-force no cliente (médio impacto, UX)
+
+Se o mesmo `username` recebe 401 três vezes em 60s, o botão trava por 30s com contagem regressiva visível e o toast muda para "Muitas tentativas — aguarde 30 segundos. Se o problema persistir, credenciais podem estar erradas." Reduz pressão no api-server e sinaliza ao usuário que o problema pode não ser a senha.
+
+
+
+6. Página `/status` pública para os médicos (médio impacto)
+
+Já existe `src/routes/status.tsx` interna. Expando: mostra "Site: ok / API: ok / Login: ok" com timestamps. Quando o Dr. Code fizer deploy do índice único, o médico consegue verificar sem abrir chamado.
+
+
+
+7. Test harness E2E contra o Railway real (alto impacto para regressão)
+
+Suíte Playwright que roda contra `https://workspacepadcom-production.up.railway.app` em CI: cria usuário-teste via API admin, tenta cadastrar duplicata (espera 409 depois que o índice único subir), loga com sucesso, loga com senha errada (espera 401 e requestId no header), loga case-insensitive. É o mesmo teste que o Dr. Code está fazendo dentro dele — mas do lado de fora, provando o comportamento observável ponta-a-ponta. Serve como "canário": se ele quebrar amanhã, algo mudou no servidor.
+
+
+
+8. Postmortem estruturado do incidente `caio` (baixo esforço, alto valor institucional)
+
+Documento em `docs/incidents/2026-07-caio-login-401.md` com: linha do tempo, causa raiz (duplicata + `LIMIT 1` não-determinístico), correção (índice único + `ORDER BY`), lições, teste que agora previne. Vira memória do sistema — daqui a 6 meses, alguém encontra o padrão em outra tabela e evita repetir.
+
+
+
+9. Feature flag no frontend para o api-server v2 (preventivo)
+
+Quando o Dr. Code publicar o fix, ele pode subir sem risco: `VITE_API_BASE_URL_CANARY` aponta 5% dos logins para a versão nova; se erro sobe, volta pra 100% na antiga. Um toggle no arquivo de env, sem redeploy do frontend.
+
+
+
+---
+
+
+
+Minha recomendação de ordem de execução, se você aprovar todas:
+
+- Hoje: (1) Correlation-ID + (4) banner de degradação. Baixo risco, alto ganho imediato.
+
+- Depois que o Dr. Code confirmar a URL do `/api/health`: (2) diag + (6) status público + (7) suíte E2E.
+
+- Junto com o próximo PR do Dr. Code: (3) openapi.yaml em coautoria.
+
+- Quando estabilizar: (5) lockout cliente + (8) postmortem + (9) feature flag.
+
+
+
+Diz quais você quer que eu implemente e em que ordem. Consigo tocar 1, 4 e 8 já nesta rodada sem esperar nada do api-server.
