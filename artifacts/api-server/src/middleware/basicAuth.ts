@@ -49,6 +49,7 @@ const BYPASS_PREFIXES = [
   "/api/vitrine-leads",    // POST público (captação); GET/PATCH com requireCollaborator interno
   "/api/vitrine-contatos", // POST público (formulário de contato da homepage Parxis/Lovable); GET/PATCH com requireCollaborator interno
   "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
+  "/api/collaborator/me",    // revalidação da sessão pelo navegador; exige Bearer via requireCollaborator
 ];
 
 function isPublicPath(path: string): boolean {
