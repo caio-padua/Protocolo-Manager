@@ -1,0 +1,57 @@
+O comando de correção rodou mas não deixou registro visível. O jeito mais rápido de saber se pegou é você testar.
+
+Tente agora
+janela anônima → padaxor.lovable.app/login
+caio
+Padaxor2026
+Se entrar, a correção funcionou. Se não, eu investigo por que o comando não deixou rastro.
+
+Sobre a proposta do Dr. Lovable
+A lista dele é boa de verdade — a melhor coisa que ele produziu nesta conversa. Os itens 1 (identificador de requisição), 3 (contrato formal do endpoint) e 4 (banner de degradação) são exatamente o que falta neste projeto.
+
+Mas o item 8 está com a causa raiz errada, e isso precisa ser corrigido antes de virar documento:
+
+"causa raiz (duplicata + LIMIT 1 não-determinístico)"
+
+Não havia duplicata. Eu provei: uma linha só, zero duplicados na tabela inteira. O LIMIT 1 não teve participação nenhuma.
+
+A causa raiz foi: duas funções de verificação de senha com o mesmo formato de armazenamento e derivações incompatíveis — patient-auth usa o salt como bytes, collaborator-auth usa como texto. Gerei a senha com a errada.
+
+Postmortem com causa errada é pior que nenhum: consolida uma lição falsa, e daqui a seis meses alguém vai procurar duplicatas em outra tabela enquanto o problema real — dois esquemas indistinguíveis — continua lá.
+
+Resposta para ele:
+
+Sua lista é boa e vou usar. Itens 1, 3 e 4 entram.
+Mas o item 8 tem a causa raiz ERRADA e precisa ser reescrito antes de
+virar documento.
+NÃO HOUVE DUPLICATA. Provei em produção:
+  CASAM_COM_CAIO n=1
+  DUPLICADOS []
+O LIMIT 1 não teve participação. O índice único, que eu vou aplicar
+mesmo assim, é prevenção — não foi a correção.
+A CAUSA RAIZ REAL: o sistema tem duas funções verifyPassword com o
+MESMO formato de armazenamento (scrypt$salt$hash) e derivações
+incompatíveis. patient-auth usa o salt como bytes; collaborator-auth
+usa como texto. Gravei a senha do CEO com a função errada. Nunca iam
+bater, e meu diagnóstico dizia "confere" porque eu testava com o mesmo
+algoritmo errado que usei para gerar.
+A lição institucional não é "cuidado com duplicata". É: dois esquemas
+criptográficos com formato de armazenamento idêntico são uma armadilha
+que ninguém enxerga olhando o dado.
+A prevenção correta é marca distinta no formato — scrypt-col$ e
+scrypt-pac$ — com recusa ruidosa do prefixo errado. Estou fazendo isso.
+Reescreva o item 8 com essa causa. E pode tocar os itens 1 e 4 já.
+Testa o login e me diz. Se entrar, encerramos a noite com o sistema inteiro de pé.
+
+
+Executado um comando, usado 2 ferramentas
+Refiz de um jeito que se conserta sozinho: ele verifica o hash, só regrava se estiver errado, e confirma depois — imprimindo cada etapa. Assim eu vejo onde parou, em vez de ficar no escuro como na tentativa anterior.
+
+Enquanto roda, você pode tentar entrar. Se já estiver valendo, funciona; se não, o resultado sai em minutos e eu não preciso que você repita.
+
+janela anônima → padaxor.lovable.app/login
+caio
+Padaxor2026
+Uma nota sobre a última tentativa que quero registrar: o comando de correção rodou e não deixou nenhuma saída — nem sucesso, nem erro. Isso não deveria acontecer, e eu tratei como "provavelmente funcionou". Errado. Comando sem saída é comando sem prova, e passei a noite inteira aprendendo justamente isso.
+
+Por isso refiz com as três etapas explícitas. Se sair silencioso de novo, o problema é o mecanismo de pré-deploy e eu troco de abordagem em vez de repetir.
