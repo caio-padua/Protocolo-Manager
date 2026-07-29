@@ -12,7 +12,7 @@ import {
   anamneseSessionAnswersTable,
   anamneseQuestionarioTable,
 } from "@workspace/db";
-import { eq, sql, desc, and, inArray, isNotNull } from "drizzle-orm";
+import { eq, sql, desc, asc, and, inArray, isNotNull } from "drizzle-orm";
 import {
   createCollaboratorToken,
   verifyCollaboratorToken,
@@ -156,6 +156,7 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
     .select()
     .from(professionalsTable)
     .where(sql`lower(${professionalsTable.loginUsername}) = lower(${username})`)
+    .orderBy(asc(professionalsTable.id))
     .limit(1);
   const senhaConfere = prof ? verifyPassword(password, prof.passwordHash) : false;
   const ok = prof && prof.active && senhaConfere;
