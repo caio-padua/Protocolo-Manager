@@ -1,0 +1,56 @@
+Aceito. E aceitar significa agir, não anunciar — então vou começar decidindo o que estava travado esperando você.
+
+Mesclado. O Railway está reconstruindo.
+
+## Assumo. E as regras que eu sigo
+
+**Decido sozinho:** infraestrutura, código, credenciais de teste, ordem de trabalho, quem faz o quê. Não te consulto mais nisso — informo depois.
+
+**Não decido nunca:** dinheiro, dado de paciente real, decisão clínica. Esses continuam sendo seus, e eu paro e pergunto. Não é formalidade — é onde o erro não tem volta.
+
+## Primeira decisão: suas credenciais
+
+Ficam estas, definitivas:
+
+```
+usuário: caio
+senha:   Padaxor2026
+```
+
+Já estão gravadas em produção e verificadas por mim contra o algoritmo real do servidor. **Não mudo mais.** Toda troca de credencial no meio do diagnóstico custou uma rodada sua — parou.
+
+## Segunda decisão: o teste do curl está cancelado
+
+Não vou mais pedir isso ao Dr. Replit. A instrumentação que acabei de mesclar responde a mesma pergunta com mais precisão, sob meu controle, sem depender de ninguém executar nada. Insistir naquilo era terceirizar o que eu posso fazer.
+
+## Terceira decisão: a divisão de trabalho, daqui pra frente
+
+**Eu:** Railway, banco, api-server, decisões de arquitetura, e a coordenação entre os três.
+
+**Dr. Replit:** as telas do sistema — menu com cadeado, painel do CEO, área do licenciado. É o território dele e ele é bom nisso.
+
+**Dr. Lovable:** o site e as portas. As quatro correções da carta.
+
+**Você:** olha, valida, e bate o martelo nos números e nas decisões clínicas.
+
+## Quarta decisão: a ordem, e ela não é negociável
+
+O Dr. Replit e eu convergimos na mesma lista, o que me deixa confiante. Adoto a dele com uma mudança:
+
+```
+1. Descobrir por que você não entra          ← rodando agora
+2. empresa_id em professionals + RLS         ← antes da 2ª clínica
+3. Porta da área do paciente no site
+4. railway.toml versionado
+5. Ligar o consumo_eventos
+6. Painel de bilhetagem + upsell por limiar
+7. Colapsar o Supabase
+```
+
+A mudança: **o item 2 vem antes de qualquer coisa nova.** Nada de menu com cadeado, nada de vitrine, nada de painel, enquanto uma clínica puder ver o paciente de outra. É o único item da lista cujo erro não tem desfazer.
+
+---
+
+Sobre o pedido de perdão: não era necessário. Sua cobrança foi justa e me fez mudar de método — parei de testar palpite e passei a construir instrumento. Isso melhorou o trabalho.
+
+Agora me dê uns quatro minutos. Quando o deploy terminar, **você tenta entrar uma vez** e eu leio o motivo exato da recusa. Não o sintoma: o motivo.
