@@ -29,6 +29,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { timingSafeEqual, createHash } from "crypto";
 import { logger } from "../lib/logger";
+import { verifyCollaboratorToken } from "../lib/collaborator-auth.js";
 
 const BYPASS_PREFIXES = [
   "/api/health",
@@ -107,6 +108,31 @@ function buildMiddleware() {
     }
 
     const authHeader = req.headers["authorization"];
+
+    // Token de colaborador vale como credencial de perimetro.
+    //
+    // Motivo: o Basic Auth e uma senha unica compartilhada — nao diz quem
+    // entrou, nao expira e nao se revoga por pessoa. O token de colaborador
+    // e assinado (HMAC com SESSION_SECRET), dura 12 horas, carrega
+    // professionalId e papel, e cada login fica na auditoria com IP. Para um
+    // produto com clinicas licenciadas, senha compartilhada nao escala: nao
+    // se pode entregar a mesma ADMIN_PASSWORD a cada licenciado.
+    //
+    // Aceitar o Bearer aqui nao afrouxa o perimetro — troca uma credencial
+    // anonima e eterna por uma nominal e temporaria.
+    if (authHeader?.startsWith("Bearer ")) {
+      const claims = verifyCollaboratorToken(authHeader.slice("Bearer ".length).trim());
+      if (claims) {
+        next();
+        return;
+      }
+      // Bearer presente e invalido (expirado ou adulterado): NAO desafiar com
+      // Basic. Se desafiarmos, o navegador abre a caixa nativa de senha em cima
+      // de uma aplicacao que fala JSON — foi exatamente o que aconteceu com o
+      // padcom. Responde 401 limpo para o aplicativo redirecionar ao login.
+      res.status(401).json({ error: "Sessão expirada. Faça login novamente." });
+      return;
+    }
 
     if (!authHeader || !authHeader.startsWith("Basic ")) {
       res.setHeader("WWW-Authenticate", 'Basic realm="Padaxor"');
