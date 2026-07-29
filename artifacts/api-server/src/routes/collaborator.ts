@@ -156,13 +156,25 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
     .from(professionalsTable)
     .where(sql`lower(${professionalsTable.loginUsername}) = lower(${username})`)
     .limit(1);
-  const ok = prof && prof.active && verifyPassword(password, prof.passwordHash);
+  const senhaConfere = prof ? verifyPassword(password, prof.passwordHash) : false;
+  const ok = prof && prof.active && senhaConfere;
   if (!ok) {
+    // Distingue as tres causas de recusa. A resposta ao cliente continua
+    // generica; isto e so para a auditoria, que e interna.
+    // Nunca registrar a senha — apenas o comprimento recebido.
     await recordAudit({
       professionalId: null,
       professionalName: null,
       action: "login_fail",
-      detail: { username },
+      detail: {
+        username,
+        motivo: !prof
+          ? "usuario_nao_encontrado"
+          : !prof.active
+            ? "usuario_inativo"
+            : "senha_incorreta",
+        senhaLen: password.length,
+      },
       ip: clientIp(req),
     });
     // Mensagem generica: nao revela se o usuario existe.
