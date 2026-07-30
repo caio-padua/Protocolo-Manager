@@ -116,12 +116,12 @@ ITENS = [
     # ---- P1: destrava produto
     (11, "Tela de login dentro do padaxor",
      "Tela propria chamando /api/collaborator/login e setCollabSession. O encanamento ja existe em collab-auth.ts.",
-     "Dr. Replit", "5", "A FAZER", "P1 alto", "3h",
-     "Resolve travessia de sessao, caixa nativa e 'encerrar sessao' de uma vez."),
+     "Dr. Replit", "5", "CONCLUIDO", "P1 alto", "feito",
+     "Entregue 30/07 no commit 3a38349, conferido: pages/login/index.tsx criado e CollaboratorGate passou a redirecionar."),
     (12, "Site vira botao, nao segundo login",
      "O login do site aponta para a tela do sistema em vez de autenticar por conta propria.",
-     "Dr. Lovable", "11", "AGUARDANDO", "P1 alto", "1h",
-     "Elimina o segundo formulario de autenticacao e o fluxo de conta no site."),
+     "Dr. Lovable", "11", "A FAZER", "P1 alto", "1h",
+     "LIBERADO em 30/07: a tela do item 11 existe. Elimina o segundo formulario de autenticacao."),
     (13, "DNS do padaxor.com.br no Cloudflare",
      "Trocar os servidores de nome no Registro.br pelos do Cloudflare.",
      "Dr. Caio", "—", "A FAZER", "P1 alto", "15min",
@@ -132,8 +132,8 @@ ITENS = [
      "Depende do passo do Cloudflare."),
     (15, "Marca PAXTER para PADAXOR no painel",
      "O painel do sistema ainda exibe PAXTER na identidade visual.",
-     "Dr. Replit", "—", "A FAZER", "P1 alto", "1h",
-     "Nome oficial: PADAXOR. Motor: PAWARDS. PADCOM e outra empresa."),
+     "Dr. Replit", "—", "CONCLUIDO", "P1 alto", "parcial",
+     "Titulo da aba e do aplicativo entregues 30/07 no commit 3a38349. As telas internas seguem no item 38."),
     (16, "Porta da area do paciente",
      "O site nao tem entrada para /api/area-paciente, que tem 12 rotas prontas no servidor.",
      "Dr. Lovable", "—", "A FAZER", "P1 alto", "4h",
@@ -224,6 +224,19 @@ ITENS = [
      "Ainda sem frente atribuida nesta fase.",
      "Dr. Manus", "—", "AGUARDANDO", "P3 baixo", "—",
      "Perfil: executa missao inteira de ponta a ponta. Candidato natural: item 32 ou 33."),
+
+    # ---- 37 em diante: itens trazidos pela fila paralela do Dr. Replit em
+    # 30/07/2026, absorvidos com numero NOVO. Numero existente nunca se
+    # reaproveita nem se reatribui (Art. 28-A da Biblia aplicado a item).
+    # Ver COLISAO_DE_NUMERACAO_26.07.30.md.
+    (37, "Auditoria de rotas: consulta sem filtro de empresa",
+     "Varredura de todas as rotas da API listando consulta que le tabela clinica sem restringir por empresa. Entrega e a lista, nao a correcao.",
+     "Dr. Replit", "—", "A FAZER", "P0 critico", "1 dia",
+     "Ideia do Dr. Replit, territorio dele (rotas de API) e nao toca o banco. A lista e a entrada do item 9: sem ela o RLS e escrito as cegas."),
+    (38, "Marca PAXTER para PADAXOR nas telas internas",
+     "Restante do rebrand: textos dentro do painel, nao so o titulo da aba entregue no item 15.",
+     "Dr. Replit", "—", "A FAZER", "P1 alto", "3h",
+     "O nome oficial PADAXOR ja esta decidido pelo CEO. O Dr. Replit havia marcado como decisao pendente; nao e, o nome ja foi batido."),
 ]
 
 for k, it in enumerate(ITENS):

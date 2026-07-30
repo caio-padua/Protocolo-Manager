@@ -40,7 +40,17 @@ A("")
 
 # ---------------------------------------------------------------- linha 1
 ws = wb["LINHA DE PRODUCAO"]
-A("## 1. A FILA (36 itens, ordenada por prioridade)")
+
+# A ultima linha da fila e descoberta, nao escrita a mao: a fila cresce
+# quando entra item novo (o 37 e o 38 entraram em 30/07) e um limite fixo
+# passaria a cortar item calado.
+PRIMEIRA_LINHA = 5
+ULTIMA_LINHA = PRIMEIRA_LINHA - 1
+while isinstance(ws.cell(ULTIMA_LINHA + 1, 1).value, int):
+    ULTIMA_LINHA += 1
+TOTAL = ULTIMA_LINHA - PRIMEIRA_LINHA + 1
+
+A("## 1. A FILA ({} itens, ordenada por prioridade)".format(TOTAL))
 A("")
 A("Ordem por PRIORIDADE, nao por ordem em que foi pedido. P0 vem antes de")
 A("tudo: sao os itens de isolamento entre clinicas — enquanto abertos, uma")
@@ -49,12 +59,12 @@ A("")
 cab = [celula(ws, 4, c) for c in range(1, 10)]
 A("| " + " | ".join(cab) + " |")
 A("|" + "|".join([" --- "] * len(cab)) + "|")
-for r in range(5, 41):
+for r in range(PRIMEIRA_LINHA, ULTIMA_LINHA + 1):
     A("| " + " | ".join(celula(ws, r, c) for c in range(1, 10)) + " |")
 A("")
 # Contagem lida das celulas, nunca escrita a mao: numero escrito a mao
 # envelhece calado quando um item muda de estado.
-estados = [celula(ws, r, 6) for r in range(5, 41)]
+estados = [celula(ws, r, 6) for r in range(PRIMEIRA_LINHA, ULTIMA_LINHA + 1)]
 A("Contagem em 29/07/2026: {} concluidos, {} a fazer, {} aguardando dependencia.".format(
     estados.count("CONCLUIDO"),
     estados.count("A FAZER"),
@@ -112,12 +122,15 @@ A("| Dr. Replit Manager | Le a fila, pega os itens marcados como seus, NAO mexe 
 A("| Dr. Lovable | Idem, para os itens do site |")
 A("| Dr. Manus | Sem frente nesta fase; candidato aos itens 32 e 33 |")
 A("")
-A("Trabalho novo entra como linha nova numerada a partir de 37 — nunca")
-A("renumera o que ja existe (mesma regra do Art. 28-B da Biblia).")
+A("Trabalho novo entra como linha nova, com numero maior que o ultimo em uso")
+A("(hoje o {} — o proximo e o {}). Numero nunca se reaproveita, nunca se".format(TOTAL, TOTAL + 1))
+A("reatribui e nunca se renumera: e identidade permanente, igual a versao de")
+A("documento no Art. 28-A. Em 30/07/2026 uma segunda fila reatribuiu numeros")
+A("ja em uso e o resultado esta em COLISAO_DE_NUMERACAO_26.07.30.md.")
 A("")
 A("## RESUMO EM 1 LINHA")
 A("")
-A("Fila unica de 36 itens numerados, com dono definido por item, matriz de")
+A("Fila unica de {} itens numerados, com dono definido por item, matriz de".format(TOTAL))
 A("territorio para os quatro agentes pararem de se atropelar, e as 10")
 A("decisoes que estao travando trabalho e so o CEO pode desbloquear.")
 A("")

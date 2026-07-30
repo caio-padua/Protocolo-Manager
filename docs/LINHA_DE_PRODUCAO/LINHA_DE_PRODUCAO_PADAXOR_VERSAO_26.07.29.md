@@ -11,7 +11,7 @@
 
 ---
 
-## 1. A FILA (36 itens, ordenada por prioridade)
+## 1. A FILA (38 itens, ordenada por prioridade)
 
 Ordem por PRIORIDADE, nao por ordem em que foi pedido. P0 vem antes de
 tudo: sao os itens de isolamento entre clinicas — enquanto abertos, uma
@@ -29,11 +29,11 @@ segunda clinica no sistema pode ver dado da primeira.
 | 8 | empresa_id na tabela professionals | Coluna de vinculo da clinica em professionals. Hoje colaborador nao pertence a clinica alguma. | Dr. Code | — | A FAZER | P0 critico | 2h | Primeira coisa que quebra ao licenciar a segunda clinica. |
 | 9 | Isolamento entre clinicas no banco (RLS) | Politicas de Row-Level Security nas tabelas clinicas. Hoje o isolamento e convencao no codigo. | Dr. Code | 8 | A FAZER | P0 critico | 1 dia | Uma clausula WHERE esquecida = uma clinica vendo paciente de outra. Zero politicas hoje. |
 | 10 | Marca distinta nos dois esquemas de senha | scrypt-col$ e scrypt-pac$, com recusa ruidosa do prefixo errado. | Dr. Code | — | A FAZER | P0 critico | 3h | Os dois gravam scrypt$ hoje. Foi a armadilha que custou uma noite inteira. |
-| 11 | Tela de login dentro do padaxor | Tela propria chamando /api/collaborator/login e setCollabSession. O encanamento ja existe em collab-auth.ts. | Dr. Replit | 5 | A FAZER | P1 alto | 3h | Resolve travessia de sessao, caixa nativa e 'encerrar sessao' de uma vez. |
-| 12 | Site vira botao, nao segundo login | O login do site aponta para a tela do sistema em vez de autenticar por conta propria. | Dr. Lovable | 11 | AGUARDANDO | P1 alto | 1h | Elimina o segundo formulario de autenticacao e o fluxo de conta no site. |
+| 11 | Tela de login dentro do padaxor | Tela propria chamando /api/collaborator/login e setCollabSession. O encanamento ja existe em collab-auth.ts. | Dr. Replit | 5 | CONCLUIDO | P1 alto | feito | Entregue 30/07 no commit 3a38349, conferido: pages/login/index.tsx criado e CollaboratorGate passou a redirecionar. |
+| 12 | Site vira botao, nao segundo login | O login do site aponta para a tela do sistema em vez de autenticar por conta propria. | Dr. Lovable | 11 | A FAZER | P1 alto | 1h | LIBERADO em 30/07: a tela do item 11 existe. Elimina o segundo formulario de autenticacao. |
 | 13 | DNS do padaxor.com.br no Cloudflare | Trocar os servidores de nome no Registro.br pelos do Cloudflare. | Dr. Caio | — | A FAZER | P1 alto | 15min | Railway exige CNAME Flattening ou ALIAS para dominio raiz. Registro.br nao faz. |
 | 14 | Dominio proprio apontando para o sistema | app.padaxor.com.br no Railway com certificado automatico. | Dr. Code | 13 | AGUARDANDO | P1 alto | 1h | Depende do passo do Cloudflare. |
-| 15 | Marca PAXTER para PADAXOR no painel | O painel do sistema ainda exibe PAXTER na identidade visual. | Dr. Replit | — | A FAZER | P1 alto | 1h | Nome oficial: PADAXOR. Motor: PAWARDS. PADCOM e outra empresa. |
+| 15 | Marca PAXTER para PADAXOR no painel | O painel do sistema ainda exibe PAXTER na identidade visual. | Dr. Replit | — | CONCLUIDO | P1 alto | parcial | Titulo da aba e do aplicativo entregues 30/07 no commit 3a38349. As telas internas seguem no item 38. |
 | 16 | Porta da area do paciente | O site nao tem entrada para /api/area-paciente, que tem 12 rotas prontas no servidor. | Dr. Lovable | — | A FAZER | P1 alto | 4h | Quarta porta do produto inteira sem macaneta. |
 | 17 | Indice unico em lower(login_username) | Impede dois colaboradores com o mesmo usuario. Erro 23505 traduzido em 409. | Dr. Code | 8 | A FAZER | P1 alto | 1h | Prevencao. Nao foi a causa do bug de hoje — nao havia duplicata. |
 | 18 | Ligar o registro de consumo | Comecar a gravar em consumo_eventos, que ja existe com empresa_id, custo e idempotencia. | Dr. Replit | 9 | AGUARDANDO | P2 medio | 1 dia | Sem historico nao ha painel. Historico nao se cria retroativamente. Espera o RLS do Dr. Code. |
@@ -55,8 +55,10 @@ segunda clinica no sistema pode ver dado da primeira.
 | 34 | Planos de paciente | Niveis de acompanhamento e o que cada um da. O termo 'rodio' nao existe no codigo. | Dr. Caio | — | A FAZER | P3 baixo | decisao | Prazo de resposta vira obrigacao contratual. Precisa desenho, nao improviso. |
 | 35 | Identificador de requisicao e contrato da API | X-Request-Id em toda chamada, mais openapi.yaml versionado. | Dr. Code | — | A FAZER | P3 baixo | 1 dia | Ideia veio do Dr. Lovable; quem executa e o Dr. Code (e servidor). Acaba com reclamacao sem rastro. |
 | 36 | Missao a definir para o Dr. Manus | Ainda sem frente atribuida nesta fase. | Dr. Manus | — | AGUARDANDO | P3 baixo | — | Perfil: executa missao inteira de ponta a ponta. Candidato natural: item 32 ou 33. |
+| 37 | Auditoria de rotas: consulta sem filtro de empresa | Varredura de todas as rotas da API listando consulta que le tabela clinica sem restringir por empresa. Entrega e a lista, nao a correcao. | Dr. Replit | — | A FAZER | P0 critico | 1 dia | Ideia do Dr. Replit, territorio dele (rotas de API) e nao toca o banco. A lista e a entrada do item 9: sem ela o RLS e escrito as cegas. |
+| 38 | Marca PAXTER para PADAXOR nas telas internas | Restante do rebrand: textos dentro do painel, nao so o titulo da aba entregue no item 15. | Dr. Replit | — | A FAZER | P1 alto | 3h | O nome oficial PADAXOR ja esta decidido pelo CEO. O Dr. Replit havia marcado como decisao pendente; nao e, o nome ja foi batido. |
 
-Contagem em 29/07/2026: 7 concluidos, 16 a fazer, 13 aguardando dependencia.
+Contagem em 29/07/2026: 9 concluidos, 17 a fazer, 12 aguardando dependencia.
 
 ---
 
@@ -111,11 +113,14 @@ Cada linha aqui esta travando trabalho. Nenhum agente decide por ele.
 | Dr. Lovable | Idem, para os itens do site |
 | Dr. Manus | Sem frente nesta fase; candidato aos itens 32 e 33 |
 
-Trabalho novo entra como linha nova numerada a partir de 37 — nunca
-renumera o que ja existe (mesma regra do Art. 28-B da Biblia).
+Trabalho novo entra como linha nova, com numero maior que o ultimo em uso
+(hoje o 38 — o proximo e o 39). Numero nunca se reaproveita, nunca se
+reatribui e nunca se renumera: e identidade permanente, igual a versao de
+documento no Art. 28-A. Em 30/07/2026 uma segunda fila reatribuiu numeros
+ja em uso e o resultado esta em COLISAO_DE_NUMERACAO_26.07.30.md.
 
 ## RESUMO EM 1 LINHA
 
-Fila unica de 36 itens numerados, com dono definido por item, matriz de
+Fila unica de 38 itens numerados, com dono definido por item, matriz de
 territorio para os quatro agentes pararem de se atropelar, e as 10
 decisoes que estao travando trabalho e so o CEO pode desbloquear.

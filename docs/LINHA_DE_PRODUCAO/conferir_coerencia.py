@@ -34,9 +34,16 @@ import openpyxl
 ORIGEM = "PADAXOR_LINHA_DE_PRODUCAO_26.07.29.xlsx"
 
 COL_NUMERO, COL_ITEM, COL_DONO, COL_DEPENDE, COL_ESTADO = 1, 2, 4, 5, 6
-PRIMEIRA_LINHA, ULTIMA_LINHA = 5, 40
+PRIMEIRA_LINHA = 5
 
 ws = openpyxl.load_workbook(ORIGEM, data_only=True)["LINHA DE PRODUCAO"]
+
+# Ultima linha descoberta, nao escrita a mao: com limite fixo a fila cresce
+# e o conferidor passa a ignorar o item novo em silencio — que e a mesma
+# classe de erro que ele existe para pegar.
+ULTIMA_LINHA = PRIMEIRA_LINHA - 1
+while isinstance(ws.cell(ULTIMA_LINHA + 1, COL_NUMERO).value, int):
+    ULTIMA_LINHA += 1
 
 estado, dono, dependencias, titulo = {}, {}, {}, {}
 for linha in range(PRIMEIRA_LINHA, ULTIMA_LINHA + 1):
