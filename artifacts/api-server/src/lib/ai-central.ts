@@ -1,5 +1,5 @@
 /**
- * AI Central — Guard de clone + Headers para Cloudflare AI Gateway
+ * AI Central — Guard de clone + Headers para Cloudflare AI Gateway + Ledger interno de custo
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * COMO FUNCIONA:
@@ -88,6 +88,41 @@ export function requireAiTenant(
   }
 
   return { empresaId, headers, gatewayEnabled };
+}
+
+// ─── LEDGER INTERNO DE CUSTO (Item B — Kaizen) ───────────────────────────────
+
+/**
+ * logAiUsage — Registra uma chamada de IA na tabela ai_usage_log.
+ *
+ * Nunca lança — falha silenciosa para não quebrar o fluxo principal.
+ * A tabela deve existir antes (criada por CREATE TABLE IF NOT EXISTS na rota /ai-usage).
+ */
+export async function logAiUsage(params: {
+  empresaId: number;
+  provider: string;        // 'anthropic' | 'gemini' | 'openai' | 'openrouter'
+  tipo: AiRequestType;
+  inputTokens?: number;
+  outputTokens?: number;
+  custoUsd?: number;
+}): Promise<void> {
+  try {
+    const { db } = await import("@workspace/db");
+    const { sql } = await import("drizzle-orm");
+    await db.execute(sql`
+      INSERT INTO ai_usage_log (empresa_id, provider, tipo, input_tokens, output_tokens, custo_usd)
+      VALUES (
+        ${params.empresaId},
+        ${params.provider},
+        ${params.tipo},
+        ${params.inputTokens ?? null},
+        ${params.outputTokens ?? null},
+        ${params.custoUsd ?? null}
+      )
+    `);
+  } catch {
+    // fail silently — ledger nunca derruba o fluxo clínico
+  }
 }
 
 // ─── VERIFICAÇÃO NO BOOT ──────────────────────────────────────────────────────

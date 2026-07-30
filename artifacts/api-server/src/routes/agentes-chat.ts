@@ -8,7 +8,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "../lib/logger";
-import { requireAiTenant } from "../lib/ai-central";
+import { requireAiTenant, logAiUsage } from "../lib/ai-central";
 
 const router: IRouter = Router();
 
@@ -152,6 +152,16 @@ IMPORTANTE:
     const custoEstimado = custo
       ? ((inputTokens / 1_000_000) * custo.input + (outputTokens / 1_000_000) * custo.output)
       : 0;
+
+    // Registra no ledger interno de custo por clínica (fail-safe)
+    void logAiUsage({
+      empresaId: 0,        // agentes-chat ainda não tem empresa_id no request; 0 = CEO/plataforma
+      provider:  "anthropic",
+      tipo:      "agent",
+      inputTokens,
+      outputTokens,
+      custoUsd:  parseFloat(custoEstimado.toFixed(6)),
+    });
 
     res.write(`data: ${JSON.stringify({
       done: true,
