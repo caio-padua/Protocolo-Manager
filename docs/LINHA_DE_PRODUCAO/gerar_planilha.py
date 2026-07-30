@@ -146,8 +146,8 @@ ITENS = [
     # ---- P2: monetizacao e escala
     (18, "Ligar o registro de consumo",
      "Comecar a gravar em consumo_eventos, que ja existe com empresa_id, custo e idempotencia.",
-     "Dr. Replit", "9", "A FAZER", "P2 medio", "1 dia",
-     "Sem historico nao ha painel. Historico nao se cria retroativamente."),
+     "Dr. Replit", "9", "AGUARDANDO", "P2 medio", "1 dia",
+     "Sem historico nao ha painel. Historico nao se cria retroativamente. Espera o RLS do Dr. Code."),
     (19, "Catalogo de modulos com precos",
      "Tabela de modulos: nome, beneficio, valor de adesao, valor promocional, mensalidade.",
      "Dr. Caio", "—", "A FAZER", "P2 medio", "decisao",
@@ -192,8 +192,8 @@ ITENS = [
      "COBRAR ANTES DE PROVISIONAR: pendurar no webhook do Asaas, nao antes dele."),
     (29, "Autenticacao de email em dominio proprio",
      "SPF e DKIM para padaxor.com.br. Hoje o remetente e da ferramenta e o Gmail marca como golpe.",
-     "Dr. Code", "13", "A FAZER", "P1 alto", "2h",
-     "Convite de licenciado chegando com tarja vermelha de phishing destroi confianca."),
+     "Dr. Code", "13", "AGUARDANDO", "P1 alto", "2h",
+     "Convite de licenciado chegando com tarja vermelha de phishing destroi confianca. Espera o Cloudflare."),
 
     # ---- P3: divida tecnica
     (30, "railway.toml versionado",
@@ -202,8 +202,8 @@ ITENS = [
      "Hoje a configuracao vive so no painel. Se o projeto sumir, o codigo nao reconstroi o sistema."),
     (31, "Colapsar o Supabase",
      "Formulario da homepage passa a gravar so no Railway. Painel de leads migra para o sistema.",
-     "Dr. Lovable", "7", "AGUARDANDO", "P3 baixo", "4h",
-     "Hoje ha espelho. Espelho e transicao, nao destino."),
+     "Dr. Lovable", "7", "A FAZER", "P3 baixo", "4h",
+     "Hoje ha espelho. Espelho e transicao, nao destino. Liberado: o item 7 ficou concluido."),
     (32, "Suite de testes e integracao continua",
      "Vitest mais Postgres de teste, rodando antes do deploy.",
      "Dr. Code", "9", "A FAZER", "P3 baixo", "3 dias",

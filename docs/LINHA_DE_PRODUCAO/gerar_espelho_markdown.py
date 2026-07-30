@@ -52,7 +52,14 @@ A("|" + "|".join([" --- "] * len(cab)) + "|")
 for r in range(5, 41):
     A("| " + " | ".join(celula(ws, r, c) for c in range(1, 10)) + " |")
 A("")
-A("Contagem em 29/07/2026: 7 concluidos, 17 a fazer, 12 aguardando dependencia.")
+# Contagem lida das celulas, nunca escrita a mao: numero escrito a mao
+# envelhece calado quando um item muda de estado.
+estados = [celula(ws, r, 6) for r in range(5, 41)]
+A("Contagem em 29/07/2026: {} concluidos, {} a fazer, {} aguardando dependencia.".format(
+    estados.count("CONCLUIDO"),
+    estados.count("A FAZER"),
+    estados.count("AGUARDANDO"),
+))
 A("")
 A("---")
 A("")

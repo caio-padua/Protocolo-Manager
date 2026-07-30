@@ -36,7 +36,7 @@ segunda clinica no sistema pode ver dado da primeira.
 | 15 | Marca PAXTER para PADAXOR no painel | O painel do sistema ainda exibe PAXTER na identidade visual. | Dr. Replit | — | A FAZER | P1 alto | 1h | Nome oficial: PADAXOR. Motor: PAWARDS. PADCOM e outra empresa. |
 | 16 | Porta da area do paciente | O site nao tem entrada para /api/area-paciente, que tem 12 rotas prontas no servidor. | Dr. Lovable | — | A FAZER | P1 alto | 4h | Quarta porta do produto inteira sem macaneta. |
 | 17 | Indice unico em lower(login_username) | Impede dois colaboradores com o mesmo usuario. Erro 23505 traduzido em 409. | Dr. Code | 8 | A FAZER | P1 alto | 1h | Prevencao. Nao foi a causa do bug de hoje — nao havia duplicata. |
-| 18 | Ligar o registro de consumo | Comecar a gravar em consumo_eventos, que ja existe com empresa_id, custo e idempotencia. | Dr. Replit | 9 | A FAZER | P2 medio | 1 dia | Sem historico nao ha painel. Historico nao se cria retroativamente. |
+| 18 | Ligar o registro de consumo | Comecar a gravar em consumo_eventos, que ja existe com empresa_id, custo e idempotencia. | Dr. Replit | 9 | AGUARDANDO | P2 medio | 1 dia | Sem historico nao ha painel. Historico nao se cria retroativamente. Espera o RLS do Dr. Code. |
 | 19 | Catalogo de modulos com precos | Tabela de modulos: nome, beneficio, valor de adesao, valor promocional, mensalidade. | Dr. Caio | — | A FAZER | P2 medio | decisao | Os valores sao decisao do CEO. Nada vai para tela sem eles. |
 | 20 | Menu com modulos travados | Itens nao comprados aparecem apagados com cadeado. Clique abre a mensagem de desejo. | Dr. Replit | 19 | AGUARDANDO | P2 medio | 1 dia | Coracao do modelo comercial. Depende do catalogo e dos precos. |
 | 21 | Mensagem de desejo com 48h e indicacao | Descricao do beneficio, preco promocional valido 48h, valor cheio riscado, 10% por indicacao na adesao. | Dr. Replit | 20 | AGUARDANDO | P2 medio | 1 dia | Mensalidade nunca muda — desconto so na entrada. |
@@ -47,16 +47,16 @@ segunda clinica no sistema pode ver dado da primeira.
 | 26 | Zoho configurado | ZOHO_ORG_ID e token de admin nas variaveis. Codigo de criacao de conta e alias ja existe. | Dr. Caio | — | A FAZER | P2 medio | 30min | Precisa da conta Zoho e do token. Depois disso o sistema cria sozinho. |
 | 27 | DNS automatico via Cloudflare API | Ao ativar uma clinica, o sistema cria os registros de DNS sem ninguem tocar no painel. | Dr. Replit | 13 | AGUARDANDO | P2 medio | 3h | Depende do Cloudflare ser o provedor de DNS. |
 | 28 | Tela de linha de producao de clinica | Nome da clinica, sugestao e checagem de dominio, registro, DNS, emails, brief do site. | Dr. Replit | 26,27 | AGUARDANDO | P2 medio | 1 semana | COBRAR ANTES DE PROVISIONAR: pendurar no webhook do Asaas, nao antes dele. |
-| 29 | Autenticacao de email em dominio proprio | SPF e DKIM para padaxor.com.br. Hoje o remetente e da ferramenta e o Gmail marca como golpe. | Dr. Code | 13 | A FAZER | P1 alto | 2h | Convite de licenciado chegando com tarja vermelha de phishing destroi confianca. |
+| 29 | Autenticacao de email em dominio proprio | SPF e DKIM para padaxor.com.br. Hoje o remetente e da ferramenta e o Gmail marca como golpe. | Dr. Code | 13 | AGUARDANDO | P1 alto | 2h | Convite de licenciado chegando com tarja vermelha de phishing destroi confianca. Espera o Cloudflare. |
 | 30 | railway.toml versionado | Declarar servicos, comandos e caminhos no repositorio. | Dr. Code | — | A FAZER | P3 baixo | 4h | Hoje a configuracao vive so no painel. Se o projeto sumir, o codigo nao reconstroi o sistema. |
-| 31 | Colapsar o Supabase | Formulario da homepage passa a gravar so no Railway. Painel de leads migra para o sistema. | Dr. Lovable | 7 | AGUARDANDO | P3 baixo | 4h | Hoje ha espelho. Espelho e transicao, nao destino. |
+| 31 | Colapsar o Supabase | Formulario da homepage passa a gravar so no Railway. Painel de leads migra para o sistema. | Dr. Lovable | 7 | A FAZER | P3 baixo | 4h | Hoje ha espelho. Espelho e transicao, nao destino. Liberado: o item 7 ficou concluido. |
 | 32 | Suite de testes e integracao continua | Vitest mais Postgres de teste, rodando antes do deploy. | Dr. Code | 9 | A FAZER | P3 baixo | 3 dias | Hoje: nenhum CI, nenhum script de teste no api-server, 1 arquivo de teste no repo inteiro. |
 | 33 | Renomear padcom para padaxor internamente | Pasta, nome de pacote e referencias. 414 arquivos citam padcom. | Dr. Code | 30 | AGUARDANDO | P3 baixo | 1 dia | So com todos parados. O caminho de build vive no painel do Railway, fora do repo. |
 | 34 | Planos de paciente | Niveis de acompanhamento e o que cada um da. O termo 'rodio' nao existe no codigo. | Dr. Caio | — | A FAZER | P3 baixo | decisao | Prazo de resposta vira obrigacao contratual. Precisa desenho, nao improviso. |
 | 35 | Identificador de requisicao e contrato da API | X-Request-Id em toda chamada, mais openapi.yaml versionado. | Dr. Code | — | A FAZER | P3 baixo | 1 dia | Ideia veio do Dr. Lovable; quem executa e o Dr. Code (e servidor). Acaba com reclamacao sem rastro. |
 | 36 | Missao a definir para o Dr. Manus | Ainda sem frente atribuida nesta fase. | Dr. Manus | — | AGUARDANDO | P3 baixo | — | Perfil: executa missao inteira de ponta a ponta. Candidato natural: item 32 ou 33. |
 
-Contagem em 29/07/2026: 7 concluidos, 17 a fazer, 12 aguardando dependencia.
+Contagem em 29/07/2026: 7 concluidos, 16 a fazer, 13 aguardando dependencia.
 
 ---
 
