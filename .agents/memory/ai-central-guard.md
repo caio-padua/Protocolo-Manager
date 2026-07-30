@@ -13,14 +13,27 @@ Toda chamada de IA no api-server DEVE passar por `requireAiTenant(empresaId, tip
 
 ## Como Aplicar
 
-- **CEO (instância PAWARDS):** definir `PADAXOR_AI_BYPASS=true` nos Replit Secrets. Boot mostra INFO.
-- **Clone licenciado:** definir `PADAXOR_TENANT_TOKEN=<token emitido pelo CEO>`. Boot mostra INFO.
+- **CEO (instância PAWARDS):** `PADAXOR_AI_BYPASS=true` (env var shared). Boot mostra INFO.
+- **Clone licenciado:** `PADAXOR_TENANT_TOKEN=<token emitido pelo CEO>`. Boot mostra INFO.
 - **Clone sem credenciais:** qualquer chamada de IA lança erro explícito. Boot mostra WARN.
 
-## Onde Mora o Código
+## Gateway padaxor-central — STATUS: ✅ ATIVO (criado 30/07/2026)
 
-- `artifacts/api-server/src/lib/ai-central.ts` — módulo central: `requireAiTenant()` + `checkAiSetup()`
-- `checkAiSetup()` é chamado em `app.ts` no boot para avisar inconsistências
+- **Conta CF:** `c68f93d5feb576ea2862974ec3564c48`
+- **Gateway ID:** `padaxor-central`
+- **CF_AI_GATEWAY_URL** → `https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea2862974ec3564c48/padaxor-central`
+
+URLs por provider:
+```
+Anthropic  : .../padaxor-central/anthropic
+Gemini     : .../padaxor-central/google-ai-studio
+OpenAI     : .../padaxor-central/openai
+```
+
+**Limitação na instância CEO:** `AI_INTEGRATIONS_*_BASE_URL` são gerenciadas pelo Replit AI
+integrations system (`localhost:1106/modelfarm/...`) — não alteráveis via setEnvVars.
+Os headers `cf-aig-metadata` são injetados nas chamadas SDK, mas o tráfego não passa
+fisicamente pelo CF gateway. Para clones: eles configuram BASE_URL para o gateway.
 
 ## Headers do CF AI Gateway
 
@@ -33,15 +46,12 @@ Quando `CF_AI_GATEWAY_URL` está definido, `requireAiTenant()` retorna:
 - **OpenAI fetch:** `...aiHeaders` no objeto headers do fetch
 - **Gemini:** guard only por enquanto (SDK não suporta headers por request na versão atual)
 
-## URLs do CF AI Gateway (quando CEO criar — Decisão 11)
+## Ledger Interno — ai_usage_log (Task 22 — mergeada 30/07/2026)
 
-```
-https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/anthropic
-https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/google-ai-studio
-https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/openai
-```
-
-Definir `CF_AI_GATEWAY_URL=<raiz>` + atualizar cada `AI_INTEGRATIONS_*_BASE_URL` para apontar para o gateway.
+- Tabela `ai_usage_log` criada via `CREATE TABLE IF NOT EXISTS` no boot
+- `logAiUsage()` em `ai-central.ts` — registra custo, nunca lança
+- `GET /api/ai-usage/resumo?periodo=7d|30d|90d` — agrega por empresa+provider+tipo
+- Wired em `routes/agentes-chat.ts` após cada stream Anthropic
 
 ## 11 Call Sites Cobertos
 
@@ -51,13 +61,16 @@ lib/exam-extraction/extract.ts            → Gemini SDK     (guard only)
 lib/exam-extraction/extract-image.ts      → Gemini SDK     (guard only)
 lib/exam-extraction/extract-openai.ts     → OpenAI fetch   (guard + headers)
 lib/anamnese-tts.ts                       → OpenAI fetch   (guard + headers)
-routes/agentes-chat.ts                    → Anthropic SDK  (guard + headers)
+routes/agentes-chat.ts                    → Anthropic SDK  (guard + headers + logAiUsage)
 routes/whatsapp-inbound.ts                → Anthropic SDK  (guard + headers)
 routes/client-registration.ts             → Gemini SDK     (guard only)
 routes/empresas.ts                        → Gemini SDK     (guard only)
 ```
 
-## Próximo Passo (não fazer sem ordem)
+## Próximos Passos (tarefas propostas, não fazer sem ordem)
 
-- Adicionar headers por request para Gemini usando client factory (cria `GoogleGenAI` por request com `httpOptions.headers`)
-- Implementar `ai_tenant_tokens` table com revogação (Item C — Onda E do KAIZEN)
+- Task #21: headers Gemini por request via client factory
+- Task #23: logAiUsage nas rotas de extração de laudo
+- Task #24: garantir empresa_id correto no ledger
+- Task #25: proteger endpoint /api/ai-usage para não aparecer em clones
+- Item C Onda E: `ai_tenant_tokens` com revogação

@@ -55,26 +55,31 @@ Para revogar o acesso de um clone inadimplente:
 
 ---
 
-## 4. Configurar o Cloudflare AI Gateway (Decisão 11 — ainda pendente)
+## 4. Cloudflare AI Gateway — STATUS: ✅ ATIVO (criado em 30/07/2026)
 
-Quando o CEO criar o gateway:
+Gateway `padaxor-central` criado na conta Cloudflare via API.
 
-1. Acesse: `dash.cloudflare.com → AI → AI Gateway`
-2. Crie um gateway chamado `padaxor-central`
-3. Copie o ID da conta Cloudflare (visível na URL)
-4. As URLs dos provedores ficam assim:
+**ID da conta:** `c68f93d5feb576ea2862974ec3564c48`
+**Gateway ID:** `padaxor-central`
 
-| Provider | URL no CF Gateway |
+| Provider | URL do CF Gateway |
 |---|---|
-| Anthropic | `https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/anthropic` |
-| Gemini | `https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/google-ai-studio` |
-| OpenAI | `https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central/openai` |
+| Anthropic | `https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea2862974ec3564c48/padaxor-central/anthropic` |
+| Gemini | `https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea2862974ec3564c48/padaxor-central/google-ai-studio` |
+| OpenAI | `https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea2862974ec3564c48/padaxor-central/openai` |
 
-5. No Replit Secrets da instância CEO, defina:
-   - `CF_AI_GATEWAY_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/padaxor-central`
-   - Atualize cada `AI_INTEGRATIONS_*_BASE_URL` para apontar para a URL correspondente acima
+**Variáveis já configuradas na instância CEO:**
+- `CF_AI_GATEWAY_URL` = URL base do gateway ✅
+- `PADAXOR_AI_BYPASS` = `true` ✅
 
-6. Para os clones: entregue as mesmas URLs + um token do gateway como `AI_INTEGRATIONS_*_API_KEY`
+**Nota sobre `AI_INTEGRATIONS_*_BASE_URL`:**
+Estas variáveis são gerenciadas pelo sistema de integrações Replit (secrets protegidos).
+Elas apontam para o proxy Replit → provedor. Enquanto isso, os headers `cf-aig-metadata`
+são injetados em todas as chamadas SDK (Anthropic, OpenAI), mas o tráfego não passa
+pelo CF gateway fisicamente. Para metering completo por clínica, os clones licenciados
+devem ter suas `AI_INTEGRATIONS_*_BASE_URL` apontando para as URLs acima.
+
+**Para os clones licenciados:** entregar as URLs acima + token do gateway como `AI_INTEGRATIONS_*_API_KEY`
 
 ---
 
@@ -126,11 +131,11 @@ PADAXOR_TENANT_TOKEN configurados.
 
 ---
 
-## 7. Próximos Passos (após Decisão 11)
+## 7. Status dos Próximos Passos
 
-- [ ] CEO cria gateway `padaxor-central` no Cloudflare (Decisão 11)
-- [ ] Atualizar `AI_INTEGRATIONS_*_BASE_URL` na instância CEO para CF gateway
-- [ ] Configurar `CF_AI_GATEWAY_URL` no CEO
+- [x] CEO cria gateway `padaxor-central` no Cloudflare — ✅ feito 30/07/2026
+- [x] Configurar `CF_AI_GATEWAY_URL` no CEO — ✅ feito
+- [x] Configurar `PADAXOR_AI_BYPASS=true` no CEO — ✅ feito
 - [ ] Gerar token do gateway para primeiro clone licenciado
+- [ ] Adicionar headers de metadata por request para Gemini (Task #21 — requer client factory)
 - [ ] Implementar tabela `ai_tenant_tokens` com revogação (Item C — Onda E)
-- [ ] Adicionar headers de metadata por request para Gemini (requer client factory)
