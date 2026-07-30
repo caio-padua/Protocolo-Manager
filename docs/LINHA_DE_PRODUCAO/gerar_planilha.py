@@ -113,8 +113,8 @@ ITENS = [
      "Uma clausula WHERE esquecida = uma clinica vendo paciente de outra. Zero politicas hoje."),
     (10, "Marca distinta nos dois esquemas de senha",
      "scrypt-col$ e scrypt-pac$, com recusa ruidosa do prefixo errado.",
-     "Dr. Code", "—", "A FAZER", "P0 critico", "3h",
-     "Os dois gravam scrypt$ hoje. Foi a armadilha que custou uma noite inteira."),
+     "Dr. Code", "—", "CONCLUIDO", "P0 critico", "fase 1",
+     "FASE 1 entregue 30/07 no commit df4c998, 18 conferencias passando. Grava scrypt-col$ e scrypt-pac$, LE o scrypt$ antigo com a derivacao historica de cada esquema — ninguem trancado fora. Rotulo do outro esquema tem recusa ruidosa. FASE 2 (parar de aceitar scrypt$) e decisao do CEO, so quando nao houver mais hash antigo. NAO PUBLICADO: aguarda validacao."),
 
     # ---- P1: destrava produto
     (11, "Tela de login dentro do padaxor",
@@ -641,6 +641,9 @@ HIST = [
     ("30/07/2026", "Dr. Code", "—", "equipe", "5 membros", "6 membros",
      "Dr. Chat (ChatGPT) entrou no quadro por decisao do CEO. Territorio escolhido para NAO sobrepor ninguem: peca avulsa e auditoria independente, entregue na doca, sem commitar. Modelo de familia diferente lendo a mesma spec pega o que o autor nao viu.",
      "pedido do CEO"),
+    ("30/07/2026", "Dr. Code", "10", "Estado", "A FAZER", "CONCLUIDO (fase 1)",
+     "Causa raiz PROVADA por teste, nao por leitura: os dois esquemas gravavam scrypt$ e derivavam de formas incompativeis, um entregando o salt como string e o outro como buffer. O teste 1 do commit df4c998 demonstra chaves diferentes para mesmo salt e mesma senha. Corrigido sem regravar nenhuma senha: mudou o rotulo, nao a derivacao.",
+     "commit df4c998"),
     ("30/07/2026", "Dr. Code", "42-48", "criacao", "—", "A FAZER",
      "Sete itens da carta do Dr. Replit (commit 670fcf5) absorvidos. Ele numerou 41 a 47; entraram como 42 a 48 porque o 41 ja e a rota de upload do paciente desde a manha. QUARTA vez que numero em uso foi reaproveitado — nada dele foi perdido, so renumerado para cima.",
      "commit 670fcf5"),
