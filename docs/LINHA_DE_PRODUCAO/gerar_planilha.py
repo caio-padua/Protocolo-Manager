@@ -236,6 +236,10 @@ ITENS = [
      "Varredura de todas as rotas da API listando consulta que le tabela clinica sem restringir por empresa. Entrega e a lista, nao a correcao.",
      "Dr. Replit", "—", "A FAZER", "P0 critico", "1 dia",
      "Ideia do Dr. Replit, territorio dele (rotas de API) e nao toca o banco. A lista e a entrada do item 9: sem ela o RLS e escrito as cegas."),
+    (40, "Armazenamento R2 na mesma rota de exames do Drive",
+     "A rota que hoje grava exame no Google Drive passa a gravar TAMBEM no R2 do Cloudflare, com nome padronizado: cliente-<id>/<data>/<tipo>.pdf. Espelho, nao troca: o Drive continua funcionando.",
+     "Dr. Replit", "—", "A FAZER", "P1 alto", "4h",
+     "PRIMEIRO DA FILA DE EXECUCAO por decisao do CEO em 30/07. Motivo declarado por ele: acompanhar uma construcao inteira passando pela ferramenta de coordenacao, enquanto aprende. Nao e P0 porque P0 nesta fila significa dano irreversivel, e aqui nada se perde."),
     (39, "Espelho dos .md no cofre do Dr. Obsidian",
      "Escrever os .md da equipe numa pasta do Google Drive que o Obsidian sincroniza. Sem conector novo: o Drive ja esta ligado.",
      "Dr. Code", "—", "A FAZER", "P2 medio", "3h",
@@ -289,6 +293,7 @@ LEIGO = {
     36: "Era a vaga aberta do Dr. Manus. Ele entrou em 30/07 e pegou o item 30, entao a vaga fechou. A linha fica como registro: nada se apaga.",
     37: "Varrer todas as portas do sistema procurando as que leem dados sem perguntar de qual clinica. A entrega e a LISTA dos buracos, nao o conserto. E o exame antes da cirurgia: sem a lista, o item 9 seria operado as cegas.",
     38: "O resto da troca de nome PAXTER para PADAXOR, agora dentro das telas. O titulo da aba ja foi feito no item 15.",
+    40: "Hoje o exame do cliente e guardado no Google Drive. Isso faz o sistema guardar TAMBEM num deposito de arquivos mais barato, com o nome ja saindo organizado na gravacao. O Drive continua igual: e espelho, nao troca. Serve para voce ver um item nascer, andar e fechar usando a nossa propria ferramenta.",
     39: "Fazer os documentos da equipe caírem tambem na sua pasta do Obsidian, o seu segundo cerebro. Hoje eles existem so no GitHub, que voce nao abre para consultar. E a sua propria regra que nao esta sendo cumprida.",
 }
 
@@ -595,6 +600,9 @@ HIST = [
      "CARTILHA/06 em PADUA-SOFTWARE-DESIGN"),
     ("30/07/2026", "Dr. Code", "—", "equipe", "5 membros", "6 membros",
      "Dr. Chat (ChatGPT) entrou no quadro por decisao do CEO. Territorio escolhido para NAO sobrepor ninguem: peca avulsa e auditoria independente, entregue na doca, sem commitar. Modelo de familia diferente lendo a mesma spec pega o que o autor nao viu.",
+     "pedido do CEO"),
+    ("30/07/2026", "Dr. Code", "40", "criacao", "—", "A FAZER",
+     "Item novo pedido pelo CEO, e ele mesmo declarou que nao e urgente: quer acompanhar uma construcao inteira passando pela ferramenta de coordenacao enquanto aprende. Fica primeiro na fila de execucao, com prioridade P1 e nao P0 — P0 aqui significa dano irreversivel, e este item nao perde nada.",
      "pedido do CEO"),
     ("30/07/2026", "Dr. Code", "—", "conector", "sem Cloudflare", "Cloudflare ligado, sem DNS",
      "ERRO MEU: recomendei o conector Cloudflare para resolver o DNS dos itens 13, 14, 27 e 29. Conferi a lista de ferramentas DEPOIS de o CEO instalar: o conector expoe R2, D1, KV, Workers, Hyperdrive e busca em documentacao. ZERO ferramentas de DNS. Os quatro itens continuam travados e nada mudou de estado.",
