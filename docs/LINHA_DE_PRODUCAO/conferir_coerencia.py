@@ -63,6 +63,23 @@ def ancestrais_pendentes(numero, visitados=None):
 
 
 divergencias = []
+
+# Numero repetido e o defeito mais perigoso da fila: em 30/07/2026 uma
+# segunda fila escrita em paralelo trouxe os numeros 11 e 15 duas vezes,
+# cada ocorrencia com item, dono e estado diferentes. Um recado dizendo
+# "comece o item 11" virou impossivel de obedecer. Numero de item e
+# identidade permanente, igual a versao de documento no Art. 28-A: nunca
+# se reaproveita, nunca se reatribui.
+vistos = {}
+for linha in range(PRIMEIRA_LINHA, ULTIMA_LINHA + 1):
+    numero = ws.cell(linha, COL_NUMERO).value
+    if numero in vistos:
+        divergencias.append(
+            "item {} aparece duas vezes (linhas {} e {}): '{}' e '{}'".format(
+                numero, vistos[numero], linha,
+                titulo[numero], ws.cell(linha, COL_ITEM).value))
+    vistos[numero] = linha
+
 for numero in sorted(estado):
     if estado[numero] == "CONCLUIDO":
         continue
