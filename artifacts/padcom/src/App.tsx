@@ -62,6 +62,7 @@ import FinanceiroBancos from "@/pages/financeiro/bancos";
 import FinanceiroTransferencias from "@/pages/financeiro/transferencias";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
+import LoginPage from "@/pages/login";
 import Portal from "@/pages/portal";
 import ConsultaReceituario from "@/pages/consulta-receituario";
 import Foto from "@/pages/foto";
@@ -135,6 +136,8 @@ registerCollabTokenGetter();
 function Router() {
   return (
     <Switch>
+      {/* Rota pública de login — fora do Layout, sem CollaboratorGate */}
+      <Route path="/login" component={LoginPage} />
       <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
       <Route path="/foto" component={Foto} />
