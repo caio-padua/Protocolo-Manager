@@ -1,0 +1,37 @@
+Já está feito — a mensagem chegou duplicada, mas o trabalho saiu uma vez só.
+
+1. ENTREGA CONFIRMADA
+
+O que	Onde	Estado
+Planilha PADAXOR_LINHA_DE_PRODUCAO_26.07.29.xlsx	sua pasta PADAXOR PROJETO no Drive	dentro, 20.169 bytes
+Espelho em texto para os agentes	repositório, docs/LINHA_DE_PRODUCAO/	commitado
+Cópia para abrir agora	anexo desta conversa	entregue
+Pull request de rascunho	Protocolo-Manager #6	aberta, só documentação
+
+Sim, entendi o pedido inteiro: tudo numerado, linha de produção, instruções básicas, quem faz o quê, matriz da equipe com os quatro (você, eu, Dr. Lovable, Dr. Replit Manager) mais o Dr. Manus sem frente nesta fase.
+
+Não tenho ideia melhor. A sua era a certa. A única coisa que acrescentei por conta própria foi guardar o arquivo também no repositório — porque planilha no Drive só você lê, e o problema que estamos resolvendo é justamente que os outros dois agentes dependem de você copiar texto entre telas.
+
+2. UMA COISA QUE VI NO SEU PRINT
+
+Você me mandou duas vezes a tela do repositório Parlegis. Verifiquei:
+
+Fato verificado	Conclusão
+Protocolo-Manager continua existindo e recebeu meu push agora	não houve renomeação; são dois repositórios distintos
+Parlegis tem as mesmas pastas: artifacts, lib, docs, scripts, .agents	nasceu de uma cópia do mesmo esqueleto
+.replit do Parlegis fala de voters (eleitores)	é o CRM político, da sua outra empresa
+replit-agent commitou lá há 16 minutos	há um Dr. Replit ativo nos dois
+
+Isso não é um problema hoje, mas é um risco novo que entra na fila: dois repositórios idênticos por fora, com um agente Replit em cada. Se algum dia você pedir “conserta o login” sem dizer o repositório, o conserto pode cair no lugar errado. É o mesmo tipo de armadilha do nome padcom, que também é da sua outra empresa.
+
+Não vou agir nisso agora — é só registro. Um passo de cada vez.
+
+3. O PRÓXIMO PASSO — UM SÓ
+
+Abra a planilha, aba DECISOES DO CEO, linha 2 — Valores em reais dos módulos. Escreva na coluna amarela Sua resposta.
+
+Ela destrava três itens de uma vez: 19 (catálogo), 20 (cadeado no menu) e 21 (mensagem de desejo). Sem preço definido por você, nenhum dos três pode sair do papel.
+
+Não responda as dez. Uma.
+
+RESUMO EM 1 LINHA: A planilha com 36 itens, matriz dos quatro agentes e 10 decisões travadas já está na sua pasta do Drive, no repositório e anexada aqui — e o único passo agora é você escrever os preços dos módulos na decisão número 2.
