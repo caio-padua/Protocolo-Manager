@@ -1,4 +1,6 @@
 """Gera a planilha de linha de producao do PADAXOR."""
+import unicodedata
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -59,8 +61,9 @@ wb = Workbook()
 ws = wb.active
 ws.title = "LINHA DE PRODUCAO"
 COLS = ["Nº", "Item", "O que e / como sera feito", "Responsavel",
-        "Depende de", "Estado", "Prioridade", "Esforco", "Observacao"]
-LARG = [5, 30, 52, 14, 12, 14, 11, 10, 40]
+        "Depende de", "Estado", "Prioridade", "Esforco", "Observacao",
+        "Em linguagem de leigo"]
+LARG = [5, 30, 52, 14, 12, 14, 11, 10, 40, 58]
 titulo(ws, "PADAXOR — Linha de Producao",
        "Fila unica de trabalho. Ordenada por prioridade, nao por ordem de pedido. "
        "Estado e Prioridade tem lista suspensa. Edite apenas as colunas Estado e Observacao.",
@@ -239,12 +242,57 @@ ITENS = [
      "O nome oficial PADAXOR ja esta decidido pelo CEO. O Dr. Replit havia marcado como decisao pendente; nao e, o nome ja foi batido."),
 ]
 
+# Traducao de cada item para linguagem de leigo. Pedido do CEO: ele e medico,
+# forte em logica e leigo em detalhe tecnico fino (Art. 4 da Biblia). A coluna
+# usa analogia sempre que a analogia esclarece, e nunca troca a verdade por
+# simplificacao bonita.
+LEIGO = {
+    1: "Os dados reais dos seus clientes sairam do computador antigo e entraram no novo. Como mudar o arquivo de papel de uma clinica para outra sala: 3.683 fichas e 24.287 exames, todos conferidos um a um na chegada.",
+    2: "Copia de seguranca automatica do banco, todo dia, toda semana, todo mes. E o seguro contra incendio: voce paga sem usar, e no dia do incendio ele e a unica coisa que importa. Ja salvou uma carga que travou no meio.",
+    3: "O servidor que atende os pedidos do sistema esta no ar, com endereco proprio na internet e a lista de quem pode chamar ele configurada corretamente.",
+    4: "Sua senha de entrada no sistema foi gravada no formato certo e testada em producao. Antes disso ela existia mas o sistema nao a reconhecia.",
+    5: "O cracha do colaborador passou a ser aceito nas portas internas. Antes o cracha existia mas o porteiro nao olhava para ele.",
+    6: "O site publico foi corrigido em seis pontos, entre eles tirar o cadastro aberto, que deixava qualquer um criar conta sozinho.",
+    7: "Quando alguem se interessa pelo produto no site, o nome e o contato agora caem numa lista dentro do sistema, em vez de se perderem.",
+    8: "Hoje um colaborador nao esta amarrado a nenhuma clinica: ele so existe solto. Isso e uma coluna nova no banco dizendo 'este colaborador pertence a esta clinica'. E o CPF do vinculo. Sem ela, ao vender para a segunda clinica, ninguem sabe quem e de quem.",
+    9: "Trava no proprio banco de dados que impede uma clinica de ver paciente de outra, mesmo que o programador esqueca de filtrar. Hoje a separacao depende do programador lembrar toda vez; isso troca a memoria humana por uma tranca de verdade. Hoje ha zero trancas.",
+    10: "Existem dois tipos de senha no sistema, guardados de jeitos diferentes, mas gravados com a MESMA etiqueta. E como dois frascos de remedio com o mesmo rotulo e conteudo diferente. Foi isso que fez seu login falhar por uma noite inteira. Isso poe rotulo diferente em cada frasco.",
+    11: "Tela de entrada propria do sistema, em vez da caixinha cinza do navegador. Ja entregue em 30/07.",
+    12: "O botao Entrar do site deixa de pedir senha por conta propria e passa a levar a pessoa para a tela de entrada do sistema. Uma porta so em vez de duas.",
+    13: "Trocar quem cuida do endereco padaxor.com.br na internet. O registrador brasileiro nao faz um recurso que o servidor precisa; o Cloudflare faz, e e de graca.",
+    14: "Fazer app.padaxor.com.br apontar para o sistema, com cadeado de seguranca automatico no navegador.",
+    15: "O painel ainda mostrava o nome antigo PAXTER. Titulo da aba corrigido em 30/07; o resto das telas segue no item 38.",
+    16: "O servidor ja tem doze portas prontas para a area do paciente, mas o site nao tem nenhum botao que leve ate elas. E uma porta inteira construida e sem macaneta.",
+    17: "Impedir que dois colaboradores tenham o mesmo nome de usuario. Prevencao: nao foi a causa do problema de hoje, mas seria a causa do de amanha.",
+    18: "Comecar a anotar quanto cada clinica usa do sistema. Sem anotar desde ja, nao existe historico depois: historico nao se cria para tras.",
+    19: "Definir quanto custa cada modulo em reais. So voce decide. Nenhum preco vai para tela sem isso.",
+    20: "Os modulos que a clinica nao comprou aparecem apagados com um cadeado, e clicar abre a oferta. E a vitrine da loja: voce ve o que nao comprou, e isso e o que faz querer comprar.",
+    21: "A mensagem que aparece ao clicar no cadeado: o que o modulo faz, o preco promocional valendo 48 horas, o valor cheio riscado e o desconto por indicacao.",
+    22: "Um segundo usuario seu, entrando na mesma clinica, mas enxergando so o que um cliente enxergaria. Dois cracha, mesma porta, oculos diferentes.",
+    23: "Painel onde voce ve todas as clinicas de uma vez e consegue entrar na visao de cada dona para ver o que ela ve.",
+    24: "Painel de quanto cada clinica consumiu, por periodo e por tipo, atualizando sozinho na tela.",
+    25: "Quando o uso de um modulo passa de um limite, o sistema oferece o upgrade sozinho. Oferece quando o proprio uso ja provou que faz sentido, nao antes.",
+    26: "Configurar a conta de e-mail corporativo. Depois disso o sistema cria os e-mails de cada clinica nova sozinho.",
+    27: "Quando uma clinica nova e ativada, o endereco de internet dela e criado sozinho, sem ninguem abrir painel nenhum.",
+    28: "A esteira que transforma um contrato assinado em clinica funcionando: nome, endereco, e-mails, site. Regra importante: cobrar antes de montar, nunca depois.",
+    29: "Assinatura digital do seu dominio no e-mail. Sem ela o Gmail marca seu convite como golpe, com tarja vermelha. Convite de socio chegando como phishing destroi a confianca antes da primeira conversa.",
+    30: "Escrever no proprio codigo como o sistema e montado. Hoje isso so existe dentro do painel de um fornecedor: se a conta sumir, o codigo sozinho nao remonta o sistema.",
+    31: "Hoje o formulario do site grava em dois lugares ao mesmo tempo. Isso desliga o lugar antigo e deixa so um. Espelho e etapa de mudanca, nao destino.",
+    32: "Testes automaticos que rodam sozinhos antes de publicar e barram o erro antes de ele chegar no ar. Hoje nao existe nenhum: por isso os erros das ultimas horas so apareceram em producao.",
+    33: "Trocar o nome interno antigo por PADAXOR em 414 arquivos. So da para fazer com todos os agentes parados, senao um atropela o outro.",
+    34: "Definir os niveis de acompanhamento do paciente e o que cada nivel entrega. Cuidado: prazo de resposta prometido vira obrigacao de contrato.",
+    35: "Dar um numero de protocolo a cada chamada do sistema. Igual ao numero de atendimento do banco: quando alguem reclama, existe o numero para achar o que aconteceu.",
+    36: "Vaga aberta para o Dr. Manus, que executa missao inteira sozinho. Ainda sem frente definida nesta fase.",
+    37: "Varrer todas as portas do sistema procurando as que leem dados sem perguntar de qual clinica. A entrega e a LISTA dos buracos, nao o conserto. E o exame antes da cirurgia: sem a lista, o item 9 seria operado as cegas.",
+    38: "O resto da troca de nome PAXTER para PADAXOR, agora dentro das telas. O titulo da aba ja foi feito no item 15.",
+}
+
 for k, it in enumerate(ITENS):
     linha = 5 + k
     estado = it[5]
     fill = FEITO if estado == "CONCLUIDO" else (ESPERA if estado == "AGUARDANDO" else None)
-    corpo(ws, linha, list(it), fill)
-    ws.row_dimensions[linha].height = 30
+    corpo(ws, linha, list(it) + [LEIGO.get(it[0], "")], fill)
+    ws.row_dimensions[linha].height = 46
 
 ULT = 4 + len(ITENS)
 
@@ -272,7 +320,7 @@ ws.add_data_validation(dv_estado); ws.add_data_validation(dv_prio)
 dv_estado.add(f"F5:F{ULT}"); dv_prio.add(f"G5:G{ULT}")
 
 ws.freeze_panes = "A5"
-ws.auto_filter.ref = f"A4:I{ULT}"
+ws.auto_filter.ref = f"A4:J{ULT}"
 
 # ================================================================ ABA 2
 ws2 = wb.create_sheet("MATRIZ DA EQUIPE")
@@ -525,6 +573,183 @@ c.font = Font(name=FONTE, size=9, italic=True, color="9A8F7E")
 for col in range(1, len(COLS6) + 1):
     ws6.cell(row=PROX, column=col).fill = AMARELO
     ws6.cell(row=PROX, column=col).border = BORDA
+
+# ================================================================ ABA 7
+# Glossario. Pedido do CEO: ele e medico e quer aprender IA, programacao e
+# arquitetura de sistemas. Toda palavra tecnica que aparece nos arquivos da
+# equipe entra aqui. A ordem alfabetica e feita pelo script, nunca a mao:
+# ordem mantida a mao desandra na terceira insercao.
+ws7 = wb.create_sheet("GLOSSARIO")
+COLS7 = ["Palavra", "Sinonimos e como aparece", "O que e",
+         "Em linguagem de leigo, com analogia", "Para que serve"]
+LARG7 = [20, 26, 46, 62, 46]
+titulo(ws7, "PADAXOR — Glossario para o Dr. Caio",
+       "Toda palavra tecnica usada pela equipe entra aqui. Ordem alfabetica automatica. "
+       "Palavra nova aparece numa conversa, vira linha nova aqui.",
+       len(COLS7))
+cabecalho(ws7, 4, COLS7, LARG7)
+
+GLOSSARIO = [
+    ("API", "interface, endpoint, rota",
+     "Interface de Programacao de Aplicacoes. O conjunto de portas por onde um programa pede coisas a outro.",
+     "E o balcao de atendimento de um laboratorio. Voce nao entra no laboratorio: chega no balcao, entrega o pedido, recebe o resultado. A API e o balcao, e cada guiche e uma rota.",
+     "O site conversa com o servidor por API. Quando o site mostra a lista de clientes, ele pediu pela API."),
+    ("append-only", "so cresce, log append-only",
+     "Registro em que se acrescenta linha, nunca se apaga nem se corrige linha antiga.",
+     "E o prontuario do paciente. Voce nao apaga a evolucao de ontem: escreve a de hoje embaixo. Se errou ontem, escreve hoje que errou. O erro fica registrado, e e isso que da valor legal.",
+     "A aba HISTORICO desta planilha e append-only. E o que permite comparar o que foi pedido com o que foi feito."),
+    ("backup", "copia de seguranca, dump",
+     "Copia dos dados guardada separada do original, para restaurar se o original se perder.",
+     "E o seguro do carro. Custa todo mes e parece dinheiro jogado fora, ate o dia da batida.",
+     "Item 2 da fila. Salvou a carga do banco quando o primeiro apagamento travou no meio."),
+    ("banco de dados", "banco, base, Postgres, SQL",
+     "Programa que guarda os dados de forma organizada e permite buscar rapido.",
+     "E o arquivo de fichas da clinica, mas que responde em um centesimo de segundo e nunca perde uma ficha por descuido.",
+     "Seus 3.683 clientes e 24.287 resultados de exame vivem num banco chamado PostgreSQL."),
+    ("branch", "ramificacao, ramo",
+     "Copia paralela do codigo onde se trabalha sem mexer na versao que esta no ar.",
+     "E a via de um exame: voce faz o rascunho da conduta numa folha separada antes de escrever no prontuario oficial. Se der errado, joga a folha fora e o prontuario continua intacto.",
+     "Todo trabalho meu comeca numa ramificacao. So vai para o codigo oficial depois de conferido."),
+    ("CI/CD", "integracao continua, GitHub Actions, esteira",
+     "Robo que roda os testes sozinho a cada mudanca e barra o que quebrou antes de publicar.",
+     "E a conferencia dupla da enfermagem antes de aplicar a medicacao. Ninguem confia so na memoria de quem preparou.",
+     "Item 32 da fila. Hoje nao existe nenhum: por isso os erros das ultimas horas so apareceram depois de publicados."),
+    ("CNAME", "apontamento de DNS, ALIAS",
+     "Tipo de registro de endereco na internet que diz 'este nome aponta para aquele outro nome'.",
+     "E o encaminhamento de telefone: quem liga para o numero antigo cai automaticamente no novo, sem saber que foi encaminhado.",
+     "Item 13. O Registro.br nao faz um tipo especifico que o servidor precisa; o Cloudflare faz."),
+    ("commit", "gravacao, ponto de salvamento",
+     "Um pacote de mudancas no codigo, com autor, data e explicacao, gravado de forma permanente.",
+     "E uma entrada assinada no prontuario: quem escreveu, quando, e o que mudou. Nao se apaga.",
+     "O Dr. Replit entregou os itens 11 e 15 no commit 3a38349. Esse numero e a prova de que existe."),
+    ("CORS", "lista de origens permitidas",
+     "Regra que diz quais sites tem permissao de chamar o seu servidor.",
+     "E a lista da portaria do predio: so sobe quem esta na lista. Sem a lista certa, ate o morador fica na calcada.",
+     "Item 3. Estava com valor invalido e por isso o site nao conseguia falar com o servidor."),
+    ("deploy", "publicar, subir, colocar no ar",
+     "Levar o codigo do computador do programador para o servidor onde o cliente usa.",
+     "E a diferenca entre escrever a receita no bloco e entregar na mao do paciente. Enquanto nao entregou, nao existe para ele.",
+     "Regra numero 1 da equipe: ninguem anuncia pronto antes de estar publicado."),
+    ("DKIM", "assinatura de e-mail",
+     "Assinatura digital que prova que o e-mail saiu mesmo do dominio que diz ter saido.",
+     "E o carimbo e a assinatura no receituario. Sem eles, a farmacia trata como falsificacao.",
+     "Item 29. Sem isso o Gmail marca seu convite de socio com tarja vermelha de golpe."),
+    ("DNS", "servidor de nomes, dominio",
+     "Sistema que traduz um nome como padaxor.com.br no endereco numerico real do servidor.",
+     "E a lista telefonica: voce sabe o nome da pessoa, e ela devolve o numero. Ninguem decora o numero.",
+     "Itens 13 e 14. Sem DNS certo, o endereco padaxor.com.br nao chega no sistema."),
+    ("endpoint", "rota, porta, guiche",
+     "Um endereco especifico da API que faz uma coisa so.",
+     "E o guiche especifico dentro do balcao: um guiche para entregar exame, outro para retirar resultado.",
+     "/api/collaborator/login e o guiche de entrada do colaborador."),
+    ("FK", "chave estrangeira, foreign key, vinculo",
+     "Coluna que amarra uma linha de uma tabela a uma linha de outra tabela.",
+     "E o numero do prontuario escrito no pedido de exame: e o que amarra aquele exame aquele paciente e nao a outro.",
+     "Item 8. Hoje o colaborador nao tem esse vinculo com a clinica: existe solto."),
+    ("hash", "resumo criptografico, impressao digital, identificador de commit",
+     "Numero unico calculado a partir de um conteudo. Mudou uma virgula no conteudo, o numero muda inteiro.",
+     "E a impressao digital de um documento. Duas pessoas nao tem a mesma, e a sua nao muda sozinha. Se o documento foi adulterado, a impressao digital nao bate mais.",
+     "Serve para provar entrega. Quando eu digo 'commit 3a38349', voce pode conferir que aquele codigo existe exatamente daquele jeito. E a regra anti-fantasia do seu Art. 19."),
+    ("idempotente", "reprocessavel, seguro para repetir",
+     "Operacao que pode ser repetida quantas vezes for e o resultado final e sempre o mesmo.",
+     "E apertar o botao do elevador. Apertar dez vezes nao chama dez elevadores: o andar continua marcado uma vez so.",
+     "Art. 57 da sua Biblia. Toda operacao que grava dado tem de poder rodar de novo sem duplicar."),
+    ("indice unico", "unique index, restricao de unicidade",
+     "Regra do banco que impede dois registros de terem o mesmo valor num campo.",
+     "E o CPF: o cartorio nao deixa dois cadastros com o mesmo numero. A regra vive no cartorio, nao na boa vontade de quem preenche.",
+     "Item 17. Impede dois colaboradores com o mesmo nome de usuario."),
+    ("main", "principal, tronco, producao",
+     "A ramificacao oficial do codigo, a que esta valendo de verdade.",
+     "E o prontuario oficial, nao o rascunho. O que nao esta nele, oficialmente nao aconteceu.",
+     "Regra da equipe: construido no ambiente local e rascunho; so vale quando esta na main."),
+    ("merge", "mesclar, juntar, fundir",
+     "Juntar o trabalho de duas ramificacoes num so.",
+     "E juntar as anotacoes de dois medicos sobre o mesmo paciente num prontuario unico.",
+     "O perigo e o conflito: quando os dois mexeram na mesma linha e o programa nao sabe qual vale."),
+    ("middleware", "camada intermediaria, porteiro",
+     "Codigo que fica no meio do caminho de toda chamada e decide se ela passa.",
+     "E o porteiro do predio: toda visita passa por ele antes de chegar no apartamento, e ele decide quem sobe.",
+     "O basicAuth e o porteiro do sistema. Foi um dos tres arquivos onde dois agentes colidiram."),
+    ("migration", "migracao, alteracao de estrutura",
+     "Script que muda a estrutura do banco de dados de forma controlada e registrada.",
+     "E a reforma da clinica com planta aprovada e registrada, em vez de derrubar parede no impulso.",
+     "O item 8 vai precisar de uma: acrescentar a coluna de vinculo da clinica."),
+    ("mock", "simulacao, dado de mentira, placeholder",
+     "Dado ou resposta falsa usada so para testar, no lugar do dado real.",
+     "E o manequim de treinamento. Serve para ensaiar, e e perigoso se alguem esquecer e tratar como paciente.",
+     "Cuidado permanente: mock esquecido em producao vira numero falso na tela do cliente."),
+    ("multi-tenant", "multi-inquilino, isolamento entre clinicas",
+     "Um mesmo sistema atendendo varios clientes com os dados separados entre si.",
+     "E um predio de consultorios: mesma estrutura, mesmo elevador, mas cada sala tem chave propria e ninguem entra na do outro.",
+     "Itens 9 e 37. E o que precisa estar de pe antes de licenciar a segunda clinica."),
+    ("PR", "pull request, pedido de incorporacao",
+     "Pedido formal para juntar um trabalho na versao oficial, com espaco para revisao antes.",
+     "E o pedido de parecer antes da cirurgia. Alguem olha, comenta, e so depois entra.",
+     "A PR numero 6 e onde vive esta planilha e a fila de producao."),
+    ("PWA", "aplicativo web progressivo",
+     "Site que se comporta como aplicativo de celular, com icone na tela inicial e uso sem internet.",
+     "E um aparelho que serve de dois jeitos: no consultorio parece bancada, na mao vira portatil. Mesmo aparelho.",
+     "Ideia para a area do paciente no celular, sem publicar em loja de aplicativos."),
+    ("RBAC", "controle de acesso por papel",
+     "Regra que define o que cada tipo de usuario pode ver e fazer.",
+     "E a diferenca entre medico, enfermeiro e recepcao no sistema da clinica: cada um ve a tela do seu papel.",
+     "Precisa existir para o licenciado ver so a propria clinica e voce ver todas."),
+    ("repositorio", "repo, GitHub",
+     "O lugar onde o codigo mora, com todo o historico de quem mudou o que e quando.",
+     "E o arquivo morto da clinica, mas em que nada se perde e da para voltar a qualquer dia do passado.",
+     "Protocolo-Manager e Parlegis sao dois repositorios diferentes, de dois sistemas diferentes."),
+    ("RLS", "Row-Level Security, seguranca por linha",
+     "Trava dentro do proprio banco que impede um cliente de ler a linha de outro, mesmo com erro do programador.",
+     "E a tranca da porta da sala, nao o aviso 'por favor nao entre'. O aviso depende da boa vontade; a tranca nao.",
+     "Item 9, o mais critico da fila. Hoje existem zero trancas: a separacao depende do programador lembrar."),
+    ("scrypt", "algoritmo de senha, derivacao de chave",
+     "Metodo de embaralhar a senha de um jeito que nao se desfaz, para guardar sem saber qual e.",
+     "E guardar a impressao digital do paciente em vez do dedo dele. Da para conferir se bate, mas ninguem reconstroi o dedo a partir dela.",
+     "Item 10. Existem dois usos diferentes com a mesma etiqueta, e foi isso que quebrou seu login."),
+    ("SPF", "autorizacao de remetente",
+     "Registro que diz quais servidores tem permissao de mandar e-mail em nome do seu dominio.",
+     "E a lista de quem pode assinar receita em nome da clinica. Sem ela, qualquer um assina.",
+     "Item 29, junto com o DKIM."),
+    ("SSE", "eventos do servidor, tempo real",
+     "Tecnica em que o servidor avisa a tela sozinho quando algo muda, sem a tela ficar perguntando.",
+     "E o monitor de sinais vitais: ele avisa quando muda, voce nao fica olhando de minuto em minuto.",
+     "Ideia para o painel de consumo atualizar sozinho."),
+    ("token", "cracha, Bearer, chave de sessao",
+     "Codigo temporario que prova quem voce e depois que voce ja fez o login.",
+     "E a pulseira do hospital. Voce se identifica uma vez na recepcao e depois so mostra a pulseira em cada setor.",
+     "Item 5. O cracha existia, mas o porteiro nao olhava para ele."),
+    ("UPSERT", "inserir ou atualizar",
+     "Operacao que grava o registro se ele nao existe, e atualiza se ja existe.",
+     "E abrir ficha se o paciente e novo, ou atualizar a que ja existe se ele ja veio antes. Uma decisao so, automatica.",
+     "Serve para carga de dados poder rodar duas vezes sem duplicar ninguem."),
+    ("webhook", "aviso automatico, gancho",
+     "Chamada que um sistema faz no outro sozinho quando um evento acontece.",
+     "E o laboratorio que liga para voce quando o resultado critico sai, em vez de voce ligar de hora em hora perguntando.",
+     "Item 28: o provisionamento da clinica deve pendurar no aviso de pagamento confirmado, nunca antes dele."),
+]
+
+def chave_alfabetica(termo):
+    """Ordem alfabetica do portugues: acento nao joga a palavra para o fim.
+
+    Sem isso 'indice' cai depois de 'webhook', porque o computador ordena
+    pelo numero interno da letra e a letra acentuada tem numero alto.
+    """
+    sem_acento = unicodedata.normalize("NFKD", termo)
+    return "".join(c for c in sem_acento if not unicodedata.combining(c)).lower()
+
+
+for i, g in enumerate(sorted(GLOSSARIO, key=lambda x: chave_alfabetica(x[0]))):
+    corpo(ws7, 5 + i, g, PASTEL if i % 2 == 0 else None)
+    ws7.row_dimensions[5 + i].height = 56
+ws7.freeze_panes = "A5"
+ws7.auto_filter.ref = f"A4:E{4 + len(GLOSSARIO)}"
+
+PROX7 = 5 + len(GLOSSARIO)
+c = ws7.cell(row=PROX7, column=1, value="acrescente aqui")
+c.font = Font(name=FONTE, size=9, italic=True, color="9A8F7E")
+for col in range(1, len(COLS7) + 1):
+    ws7.cell(row=PROX7, column=col).fill = AMARELO
+    ws7.cell(row=PROX7, column=col).border = BORDA
 
 wb.save(SAIDA)
 print("gerado:", SAIDA)

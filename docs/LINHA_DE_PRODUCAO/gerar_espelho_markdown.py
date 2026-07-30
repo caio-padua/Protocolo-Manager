@@ -56,11 +56,11 @@ A("Ordem por PRIORIDADE, nao por ordem em que foi pedido. P0 vem antes de")
 A("tudo: sao os itens de isolamento entre clinicas — enquanto abertos, uma")
 A("segunda clinica no sistema pode ver dado da primeira.")
 A("")
-cab = [celula(ws, 4, c) for c in range(1, 10)]
+cab = [celula(ws, 4, c) for c in range(1, 11)]
 A("| " + " | ".join(cab) + " |")
 A("|" + "|".join([" --- "] * len(cab)) + "|")
 for r in range(PRIMEIRA_LINHA, ULTIMA_LINHA + 1):
-    A("| " + " | ".join(celula(ws, r, c) for c in range(1, 10)) + " |")
+    A("| " + " | ".join(celula(ws, r, c) for c in range(1, 11)) + " |")
 A("")
 # Contagem lida das celulas, nunca escrita a mao: numero escrito a mao
 # envelhece calado quando um item muda de estado.
@@ -148,8 +148,27 @@ A("")
 A("---")
 A("")
 
+# ---------------------------------------------------------------- linha 6
+ws = wb["GLOSSARIO"]
+A("## 6. GLOSSARIO — toda palavra tecnica que a equipe usa")
+A("")
+A("Ordem alfabetica automatica, feita pelo script. Palavra nova aparece numa")
+A("conversa, vira linha nova aqui. Existe porque o CEO e medico e esta")
+A("aprendendo IA, programacao e arquitetura de sistemas.")
+A("")
+cab = [celula(ws, 4, c) for c in range(1, 6)]
+A("| " + " | ".join(cab) + " |")
+A("|" + "|".join([" --- "] * len(cab)) + "|")
+r = 5
+while celula(ws, r, 1) and celula(ws, r, 1) != "acrescente aqui":
+    A("| " + " | ".join(celula(ws, r, c) for c in range(1, 6)) + " |")
+    r += 1
+A("")
+A("---")
+A("")
+
 # ---------------------------------------------------------------- rodape
-A("## 6. COMO USAR")
+A("## 7. COMO USAR")
 A("")
 A("| Quem | O que faz com este arquivo |")
 A("| --- | --- |")
