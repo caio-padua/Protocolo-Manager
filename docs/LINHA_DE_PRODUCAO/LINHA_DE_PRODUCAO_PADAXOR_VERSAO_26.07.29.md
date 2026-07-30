@@ -11,7 +11,7 @@
 
 ---
 
-## 1. A FILA (38 itens, ordenada por prioridade)
+## 1. A FILA (39 itens, ordenada por prioridade)
 
 Ordem por PRIORIDADE, nao por ordem em que foi pedido. P0 vem antes de
 tudo: sao os itens de isolamento entre clinicas — enquanto abertos, uma
@@ -56,9 +56,10 @@ segunda clinica no sistema pode ver dado da primeira.
 | 35 | Identificador de requisicao e contrato da API | X-Request-Id em toda chamada, mais openapi.yaml versionado. | Dr. Code | — | A FAZER | P3 baixo | 1 dia | Ideia veio do Dr. Lovable; quem executa e o Dr. Code (e servidor). Acaba com reclamacao sem rastro. | Dar um numero de protocolo a cada chamada do sistema. Igual ao numero de atendimento do banco: quando alguem reclama, existe o numero para achar o que aconteceu. |
 | 36 | Missao a definir para o Dr. Manus | Vaga usada em 30/07: o Dr. Manus assumiu o item 30. Esta linha fica como registro, nao se apaga. | Dr. Manus | — | CONCLUIDO | P3 baixo | — | Fechada em 30/07 com a entrada dele no item 30. Proxima missao entra como numero novo, nunca reaproveitando este. | Era a vaga aberta do Dr. Manus. Ele entrou em 30/07 e pegou o item 30, entao a vaga fechou. A linha fica como registro: nada se apaga. |
 | 37 | Auditoria de rotas: consulta sem filtro de empresa | Varredura de todas as rotas da API listando consulta que le tabela clinica sem restringir por empresa. Entrega e a lista, nao a correcao. | Dr. Replit | — | A FAZER | P0 critico | 1 dia | Ideia do Dr. Replit, territorio dele (rotas de API) e nao toca o banco. A lista e a entrada do item 9: sem ela o RLS e escrito as cegas. | Varrer todas as portas do sistema procurando as que leem dados sem perguntar de qual clinica. A entrega e a LISTA dos buracos, nao o conserto. E o exame antes da cirurgia: sem a lista, o item 9 seria operado as cegas. |
+| 39 | Espelho dos .md no cofre do Dr. Obsidian | Escrever os .md da equipe numa pasta do Google Drive que o Obsidian sincroniza. Sem conector novo: o Drive ja esta ligado. | Dr. Code | — | A FAZER | P2 medio | 3h | O Art. 23-B da Biblia manda todo guia e licao aprendida terminar no cofre. Hoje nada chega la: cartilha, colisao e espelho estao so no GitHub. | Fazer os documentos da equipe caírem tambem na sua pasta do Obsidian, o seu segundo cerebro. Hoje eles existem so no GitHub, que voce nao abre para consultar. E a sua propria regra que nao esta sendo cumprida. |
 | 38 | Marca PAXTER para PADAXOR nas telas internas | Restante do rebrand: textos dentro do painel, nao so o titulo da aba entregue no item 15. | Dr. Replit | — | A FAZER | P1 alto | 3h | O nome oficial PADAXOR ja esta decidido pelo CEO. O Dr. Replit havia marcado como decisao pendente; nao e, o nome ja foi batido. | O resto da troca de nome PAXTER para PADAXOR, agora dentro das telas. O titulo da aba ja foi feito no item 15. |
 
-Contagem em 29/07/2026: 10 concluidos, 17 a fazer, 11 aguardando dependencia.
+Contagem em 29/07/2026: 10 concluidos, 18 a fazer, 11 aguardando dependencia.
 
 ---
 
@@ -148,6 +149,8 @@ antes de cada correcao.
 | 30/07/2026 | Dr. Code | 36 | Estado | AGUARDANDO | CONCLUIDO | A vaga em aberto do Dr. Manus foi usada: ele assumiu o item 30. A linha fica como registro; proxima missao dele entra como numero novo. | pedido do CEO |
 | 30/07/2026 | Dr. Code | — | coordenacao | recado no repositorio | recado no Slack em tempo real | Premissa minha estava errada: eu afirmei que os agentes nao conseguiam conversar entre si. Todos tinham conector de Slack. Canal #padaxor-projeto passa a ser a caixa de recados, e o CEO sai do meio. | CARTILHA/06 em PADUA-SOFTWARE-DESIGN |
 | 30/07/2026 | Dr. Code | — | equipe | 5 membros | 6 membros | Dr. Chat (ChatGPT) entrou no quadro por decisao do CEO. Territorio escolhido para NAO sobrepor ninguem: peca avulsa e auditoria independente, entregue na doca, sem commitar. Modelo de familia diferente lendo a mesma spec pega o que o autor nao viu. | pedido do CEO |
+| 30/07/2026 | Dr. Code | — | conector | sem Cloudflare | Cloudflare ligado, sem DNS | ERRO MEU: recomendei o conector Cloudflare para resolver o DNS dos itens 13, 14, 27 e 29. Conferi a lista de ferramentas DEPOIS de o CEO instalar: o conector expoe R2, D1, KV, Workers, Hyperdrive e busca em documentacao. ZERO ferramentas de DNS. Os quatro itens continuam travados e nada mudou de estado. | CARTILHA/08 em PADUA-SOFTWARE-DESIGN |
+| 30/07/2026 | Dr. Code | 39 | criacao | — | A FAZER | Item novo: o Art. 23-B da Biblia nao esta sendo cumprido. Nenhum .md escrito nesta madrugada chegou ao cofre do Dr. Obsidian. Conserto usa o Google Drive, que ja esta ligado. | achado durante a revisao de conectores |
 | 30/07/2026 | Dr. Code | — | equipe | 6 membros | 6 membros e 3 vagas | Tres vagas abertas para agente futuro, com rotulo VAGA e nao em branco: o espelho le a matriz varrendo ate a celula vazia, e linha em branco cortaria tudo abaixo. Preenchimento so pelo ritual de entrada. | pedido do CEO |
 | 30/07/2026 | Dr. Code | — | estrutura | 4 abas | 6 abas | Pedido do CEO: as regras passam a morar dentro do proprio arquivo, e o historico passa a registrar o antes e o depois de cada mudanca. Abas REGRAS DE EDICAO e HISTORICO. | PR #6 |
 
@@ -208,13 +211,13 @@ aprendendo IA, programacao e arquitetura de sistemas.
 | Agente novo | Passa pelo ritual de entrada antes da primeira acao: capitulo 07 da cartilha |
 
 Trabalho novo entra como linha nova, com numero maior que o ultimo em uso
-(hoje o 38 — o proximo e o 39). Numero nunca se reaproveita, nunca se
+(hoje o 39 — o proximo e o 40). Numero nunca se reaproveita, nunca se
 reatribui e nunca se renumera: e identidade permanente, igual a versao de
 documento no Art. 28-A. Em 30/07/2026 uma segunda fila reatribuiu numeros
 ja em uso e o resultado esta em COLISAO_DE_NUMERACAO_26.07.30.md.
 
 ## RESUMO EM 1 LINHA
 
-Fila unica de 38 itens numerados, com dono definido por item, matriz de
+Fila unica de 39 itens numerados, com dono definido por item, matriz de
 territorio para os agentes pararem de se atropelar, e as 10
 decisoes que estao travando trabalho e so o CEO pode desbloquear.
