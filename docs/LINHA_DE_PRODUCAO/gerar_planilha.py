@@ -201,8 +201,8 @@ ITENS = [
     # ---- P3: divida tecnica
     (30, "railway.toml versionado",
      "Declarar servicos, comandos e caminhos no repositorio.",
-     "Dr. Code", "—", "A FAZER", "P3 baixo", "4h",
-     "Hoje a configuracao vive so no painel. Se o projeto sumir, o codigo nao reconstroi o sistema."),
+     "Dr. Manus", "—", "A FAZER", "P3 baixo", "4h",
+     "Passou para o Dr. Manus em 30/07: missao de escopo fechado, ponta a ponta, sem dependencia. Libera o Dr. Code para os tres itens P0."),
     (31, "Colapsar o Supabase",
      "Formulario da homepage passa a gravar so no Railway. Painel de leads migra para o sistema.",
      "Dr. Lovable", "7", "A FAZER", "P3 baixo", "4h",
@@ -224,9 +224,9 @@ ITENS = [
      "Dr. Code", "—", "A FAZER", "P3 baixo", "1 dia",
      "Ideia veio do Dr. Lovable; quem executa e o Dr. Code (e servidor). Acaba com reclamacao sem rastro."),
     (36, "Missao a definir para o Dr. Manus",
-     "Ainda sem frente atribuida nesta fase.",
-     "Dr. Manus", "—", "AGUARDANDO", "P3 baixo", "—",
-     "Perfil: executa missao inteira de ponta a ponta. Candidato natural: item 32 ou 33."),
+     "Vaga usada em 30/07: o Dr. Manus assumiu o item 30. Esta linha fica como registro, nao se apaga.",
+     "Dr. Manus", "—", "CONCLUIDO", "P3 baixo", "—",
+     "Fechada em 30/07 com a entrada dele no item 30. Proxima missao entra como numero novo, nunca reaproveitando este."),
 
     # ---- 37 em diante: itens trazidos pela fila paralela do Dr. Replit em
     # 30/07/2026, absorvidos com numero NOVO. Numero existente nunca se
@@ -276,13 +276,13 @@ LEIGO = {
     27: "Quando uma clinica nova e ativada, o endereco de internet dela e criado sozinho, sem ninguem abrir painel nenhum.",
     28: "A esteira que transforma um contrato assinado em clinica funcionando: nome, endereco, e-mails, site. Regra importante: cobrar antes de montar, nunca depois.",
     29: "Assinatura digital do seu dominio no e-mail. Sem ela o Gmail marca seu convite como golpe, com tarja vermelha. Convite de socio chegando como phishing destroi a confianca antes da primeira conversa.",
-    30: "Escrever no proprio codigo como o sistema e montado. Hoje isso so existe dentro do painel de um fornecedor: se a conta sumir, o codigo sozinho nao remonta o sistema.",
+    30: "Escrever no proprio codigo como o sistema e montado. Hoje isso so existe dentro do painel de um fornecedor: se a conta sumir, o codigo sozinho nao remonta o sistema. Passou para o Dr. Manus, que faz missao inteira sozinho.",
     31: "Hoje o formulario do site grava em dois lugares ao mesmo tempo. Isso desliga o lugar antigo e deixa so um. Espelho e etapa de mudanca, nao destino.",
     32: "Testes automaticos que rodam sozinhos antes de publicar e barram o erro antes de ele chegar no ar. Hoje nao existe nenhum: por isso os erros das ultimas horas so apareceram em producao.",
     33: "Trocar o nome interno antigo por PADAXOR em 414 arquivos. So da para fazer com todos os agentes parados, senao um atropela o outro.",
     34: "Definir os niveis de acompanhamento do paciente e o que cada nivel entrega. Cuidado: prazo de resposta prometido vira obrigacao de contrato.",
     35: "Dar um numero de protocolo a cada chamada do sistema. Igual ao numero de atendimento do banco: quando alguem reclama, existe o numero para achar o que aconteceu.",
-    36: "Vaga aberta para o Dr. Manus, que executa missao inteira sozinho. Ainda sem frente definida nesta fase.",
+    36: "Era a vaga aberta do Dr. Manus. Ele entrou em 30/07 e pegou o item 30, entao a vaga fechou. A linha fica como registro: nada se apaga.",
     37: "Varrer todas as portas do sistema procurando as que leem dados sem perguntar de qual clinica. A entrega e a LISTA dos buracos, nao o conserto. E o exame antes da cirurgia: sem a lista, o item 9 seria operado as cegas.",
     38: "O resto da troca de nome PAXTER para PADAXOR, agora dentro das telas. O titulo da aba ja foi feito no item 15.",
 }
@@ -351,7 +351,7 @@ EQUIPE = [
     ("Dr. Manus", "Manus AI",
      "Missoes inteiras de ponta a ponta, com escopo fechado",
      "Producao sem combinar antes",
-     "Sem frente nesta fase. Candidato: suite de testes (32) ou renomeacao (33)"),
+     "railway.toml versionado (30). Proximo candidato: X-Request-Id e contrato da API (35)"),
 ]
 for k, it in enumerate(EQUIPE):
     corpo(ws2, 5 + k, list(it), PASTEL if k % 2 else None)
@@ -557,6 +557,15 @@ HIST = [
     ("30/07/2026", "Dr. Code", "38", "criacao", "—", "A FAZER",
      "Item novo: resto do rebrand nas telas internas, que o item 15 comecou.",
      "COLISAO_DE_NUMERACAO_26.07.30.md"),
+    ("30/07/2026", "Dr. Code", "30", "Responsavel", "Dr. Code", "Dr. Manus",
+     "O Dr. Manus entrou na equipe de fato. Item de escopo fechado, ponta a ponta, sem dependencia — perfil dele. Libera o Dr. Code para os tres itens P0 de isolamento.",
+     "pedido do CEO"),
+    ("30/07/2026", "Dr. Code", "36", "Estado", "AGUARDANDO", "CONCLUIDO",
+     "A vaga em aberto do Dr. Manus foi usada: ele assumiu o item 30. A linha fica como registro; proxima missao dele entra como numero novo.",
+     "pedido do CEO"),
+    ("30/07/2026", "Dr. Code", "—", "coordenacao", "recado no repositorio", "recado no Slack em tempo real",
+     "Premissa minha estava errada: eu afirmei que os agentes nao conseguiam conversar entre si. Todos tinham conector de Slack. Canal #padaxor-projeto passa a ser a caixa de recados, e o CEO sai do meio.",
+     "CARTILHA/06 em PADUA-SOFTWARE-DESIGN"),
     ("30/07/2026", "Dr. Code", "—", "estrutura", "4 abas", "6 abas",
      "Pedido do CEO: as regras passam a morar dentro do proprio arquivo, e o historico passa a registrar o antes e o depois de cada mudanca. Abas REGRAS DE EDICAO e HISTORICO.",
      "PR #6"),
