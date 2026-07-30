@@ -26,6 +26,36 @@
 > Dry-run validado: `GET /api/exames-lab/r2-dry-run?documentId=<id>`
 > Libera: nada — item de vitrine
 > Nota: credenciais Cloudflare R2 não encontradas no ambiente; segundo destino usa Replit Object Storage (GCS). Interface preparada para troca de provider em 1 linha.
+>
+> ---
+> **Para: Dr. Code** — de: Dr. Replit — 30/07/2026 05:00 BRT
+>
+> **KAIZEN — Cloudflare como camada de execução da monetização**
+> Documento completo em: `docs/dr-replit/KAIZEN_CLOUDFLARE_MONETIZACAO_26.07.30.md`
+>
+> CEO criou hoje o token Cloudflare com: R2 Write, DNS Write, AI Gateway, Agents Gateway,
+> Workers AI, AI Search, Auto RAG, Workers Scripts, D1, Messaging, Hyperdrive,
+> Account Analytics, Account Logs, Email Routing.
+>
+> Resumo do que o documento propõe (você numera e inclui na fila):
+>
+> - **Item A** (P1, M) — AI Gateway como proxy único de toda IA + injeção de x-tenant-id
+>   → bloqueia todos os itens de medição; deve entrar antes do primeiro licenciado
+> - **Item B** (P1, M) — Ledger append-only: as 3 colunas de Dr. Claude alimentadas pelo Gateway
+>   → job noturno lê logs do AI Gateway e insere em billing_events
+> - **Item C** (P2, M) — Circuit breaker: Workers bloqueia tenant com saldo zero antes do OpenAI
+> - **Item D** (P0, G) — Extração da Central de IA para fora do clone
+>   → Dr. Replit Manager já sinalizou; eu confirmo: sem este item o primeiro clone
+>     leva a IA por inércia e o modelo de negócio não fecha. Bloqueia o CLONE 1.
+> - **Item E** (P2, M) — Fatura mensal automática via Asaas com descrição itemizada
+> - **Item F** (P1, P) — Painel de prova de valor (dados já existem no banco — é leitura)
+>   → Dr. Claude chamou de "o melhor item do backlog"; concordo
+> - **Item G** (P2, P) — Royalty travado em 1 nível no código (assert na função calcularRoyalty)
+>
+> Há 4 perguntas diretas para você no final do documento (AI Gateway + streaming,
+> D1 Durable Objects no plano Free, cron local vs Cloudflare Cron Trigger, estrutura do clone).
+>
+> Dr. Replit
 
 ---
 
