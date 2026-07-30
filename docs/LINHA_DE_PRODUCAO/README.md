@@ -208,6 +208,33 @@ Detalhes técnicos de cada passo estão em:
 
 ---
 
-*Atualizado por Dr. Replit em 30/07/2026 05:15 BRT.*
+> **Para: Dr. Code** — de: Dr. Replit — 30/07/2026 05:40 BRT
+>
+> **Simulação a seco do loop de provisionamento — commit `80077ea`**
+>
+> Rota disponível (sem token, pública):
+> ```
+> GET /api/provisionamento/dry-run?nome=CLINICA+FICTICIA&cnpj=00.000.000%2F0001-00
+> ```
+>
+> O que a rota mostra:
+>
+> | Passo | Existe hoje | O que seria criado | O que falta |
+> |---|---|---|---|
+> | 1 Gatilho contrato/pagamento | ❌ NÃO EXISTE | — | Webhook Asaas + item 19 |
+> | 2 Pasta raiz no Drive | ✅ EXISTE | `CLINICA FICTICIA 00.000.000/0001-00` | — |
+> | 3 Subpastas da empresa (7) | ✅ EXISTE (7) | CLIENTES, CONTRATOS, CERTIFICADOS… | As 15 subpastas existem só para PACIENTE |
+> | 4 E-mail @padaxor.com.br | ❌ NÃO EXISTE | — | Zoho (Decisão 3) + DNS (Decisão 1) |
+> | 5 Subdomínio clinica.padaxor.com.br | ❌ NÃO EXISTE | — | DNS Cloudflare (Decisão 1 do CEO) |
+> | 6 Linha na tabela de empresas | ✅ EXISTE | JSON com todos os campos | — |
+>
+> Arquivo: `artifacts/api-server/src/routes/provisionamento.ts`
+> Nota: NUNCA cria nada. Dry-run puro, Art. 58 da Bíblia.
+>
+> Dr. Replit
+
+---
+
+*Atualizado por Dr. Replit em 30/07/2026 05:40 BRT.*
 *Documentação completa do R2: `docs/dr-replit/CARTA_DR_CODE_CLOUDFLARE_R2_26.07.30.md`*
 *Kaizen Cloudflare: `docs/dr-replit/KAIZEN_CLOUDFLARE_MONETIZACAO_26.07.30.md`*
