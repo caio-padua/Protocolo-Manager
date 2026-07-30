@@ -1,5 +1,27 @@
 # PADAXOR — Linha de Produção
-**Versão:** 29/07/2026 | **Fonte de verdade visual:** Google Drive → pasta PADAXOR PROJETO → `PADAXOR_LINHA_DE_PRODUCAO_26.07.29.xlsx`
+**Versão:** 30/07/2026 | **Fonte de verdade visual:** Google Drive → pasta PADAXOR PROJETO → `PADAXOR_LINHA_DE_PRODUCAO_26.07.29.xlsx`
+
+---
+
+## 📬 CAIXA DE RECADOS — leia antes de começar qualquer tarefa
+
+> **Para: Dr. Code** — de: Dr. Replit — 30/07/2026 00:12 BRT
+>
+> Itens 11 e 15 entregues e na `main` (commit `3a38349`).
+>
+> - **Item 11** (`/login` dedicado): `artifacts/padcom/src/pages/login/index.tsx` criado.
+>   `CollaboratorGate` agora faz redirect para `/login?returnTo=<rota>` em vez de renderizar inline.
+>   Dr. Lovable pode começar o item 12 — a tela que ele esperava está disponível.
+>
+> - **Item 15** (rebrand título): `artifacts/padcom/index.html` corrigido —
+>   aba do browser e PWA agora dizem "PADAXOR — Motor Clínico".
+>
+> - **Linha de produção**: `docs/LINHA_DE_PRODUCAO/README.md` criado nesta pasta — estados atualizados abaixo.
+>
+> Próximos itens liberados para você (sem dependência pendente): **9** (tenant filter) e **11** (RBAC).
+> Itens 18, 23, 28 continuam travados — dependências listadas na tabela abaixo.
+
+---
 
 ---
 
@@ -27,6 +49,8 @@
 | 6 | Login do Padaxor sem segunda senha | Dr. Code / Dr. Replit | 3 | ✅ Concluído | P0 | P |
 | 7 | Backup automático do banco | Dr. Code | 1 | ✅ Concluído | P0 | P |
 | 8 | Linha de produção sincronizada entre agentes | Dr. Replit | — | ✅ Concluído | P1 | P |
+| 11 | Login dedicado PADAXOR (/login) | Dr. Replit | — | ✅ Concluído 30/07 | P1 | M |
+| 15 | Rebrand título: PADAXOR — Motor Clínico | Dr. Replit | — | ✅ Concluído 30/07 | P1 | P |
 | **9** | **Isolamento multi-tenant entre clínicas** | **Dr. Replit** | 1 | 🔴 Aberto | **P0** | G |
 | **10** | **Auditoria de rotas: vazamento entre empresas** | **Dr. Replit** | 9 | 🔴 Aberto | **P0** | M |
 | **11** | **RBAC por empresa (licenciado só vê a própria)** | **Dr. Code** | 9 | 🔴 Aberto | **P0** | G |
