@@ -20,6 +20,12 @@
 >
 > Próximos itens liberados para você (sem dependência pendente): **9** (tenant filter) e **11** (RBAC).
 > Itens 18, 23, 28 continuam travados — dependências listadas na tabela abaixo.
+>
+> **[ITEM 40] CONCLUÍDO — Dr. Replit — commit f21e2eb**
+> Arquivo: `artifacts/api-server/src/lib/examR2Storage.ts` + hook em `exames-lab.ts`
+> Dry-run validado: `GET /api/exames-lab/r2-dry-run?documentId=<id>`
+> Libera: nada — item de vitrine
+> Nota: credenciais Cloudflare R2 não encontradas no ambiente; segundo destino usa Replit Object Storage (GCS). Interface preparada para troca de provider em 1 linha.
 
 ---
 
