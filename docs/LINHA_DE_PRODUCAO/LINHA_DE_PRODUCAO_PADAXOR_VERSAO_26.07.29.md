@@ -103,7 +103,46 @@ Cada linha aqui esta travando trabalho. Nenhum agente decide por ele.
 
 ---
 
-## 4. COMO USAR
+## 4. REGRAS DE EDICAO — valem para todos os agentes
+
+A regra mestra e uma: NADA SE APAGA, tudo se acrescenta. Sem o antes
+continuar existindo, nao se compara o que foi pedido com o que foi feito.
+
+| Regra | O que pode | O que nao pode | Por que |
+| --- | --- | --- | --- |
+| Nada se apaga | Acrescentar linha, acrescentar observacao, acrescentar comentario. | Apagar linha, apagar texto de outra pessoa, sobrescrever celula que ja tinha conteudo. | So se consegue comparar o que foi pedido, o que foi feito e o que foi corrigido se o antes continuar existindo. E o Art. 56 da Biblia: log append-only. |
+| Numero de item e permanente | Criar item novo com numero maior que o ultimo em uso. | Reaproveitar, reatribuir ou renumerar numero que ja existe. | Em 30/07/2026 uma segunda fila reatribuiu os numeros 8 a 31 e os numeros 11 e 15 passaram a significar duas coisas. Um recado dizendo 'comece o item 11' ficou impossivel de obedecer. |
+| Mudanca de estado vira linha no HISTORICO | Mudar a coluna Estado e registrar na aba HISTORICO: data, quem, de que para que, e por que. | Mudar Estado sem deixar rastro. | Sem o rastro ninguem sabe se o item foi concluido, corrigido ou apagado por engano. |
+| Concluido exige prova | Marcar CONCLUIDO citando o hash do commit e o arquivo tocado. | Marcar CONCLUIDO por prosa, memoria ou intencao. | Art. 19 da Biblia: onda so fecha com hash no GitHub mais caso real testado. Anunciar sem prova e fantasia. |
+| Cada um na sua coluna | Qualquer agente escreve na coluna Observacao, assinando com nome e data. | Um agente mudar Responsavel, Depende de ou Prioridade de item de outro. | Territorio esta na aba MATRIZ DA EQUIPE. Foi a fronteira que faltou quando dois agentes consertaram o mesmo arquivo tres vezes. |
+| Um escritor da estrutura | Pedir mudanca de estrutura pela coluna Observacao ou pelo recado no repositorio. | Dois agentes gerando a planilha ou subindo arquivo de mesmo nome para o Drive. | Recurso compartilhado com dois escritores corrompe em silencio: foi o drizzle.config.ts, e depois foi esta propria planilha. |
+| As duas copias dizem a mesma coisa | Ler no Drive (CEO) ou no repositorio em docs/LINHA_DE_PRODUCAO (agentes). | Editar so uma das duas e deixar a outra velha. | O espelho em texto e gerado desta planilha por script, nunca digitado a mao. Divergiu = alguem digitou. |
+| Decisao do CEO e so do CEO | Qualquer um pode registrar uma pergunta na aba DECISOES DO CEO. | Qualquer agente responder no lugar dele preco, plano ou decisao clinica. | Art. 15 da Biblia, balde vermelho. Preco e decisao clinica nascem do cacique. |
+
+---
+
+## 5. HISTORICO DE MUDANCAS (append-only)
+
+So cresce. Linha nunca se apaga nem se corrige: mudou de novo, entra
+linha nova. Mais antigo em cima. E aqui que se le como o item estava
+antes de cada correcao.
+
+| Data | Quem | Nº | Campo | Como estava | Como ficou | Por que mudou | Prova |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 29/07/2026 | Dr. Code | — | criacao | — | 36 itens | Primeira versao da fila. Existe porque tres vezes dois agentes consertaram o mesmo arquivo sem saber um do outro e o git aceitou os dois lados sem conflito. | PR #6 |
+| 29/07/2026 | Dr. Code | 31 | Estado | AGUARDANDO | A FAZER | Erro meu: a dependencia (item 7) ja estava concluida. O estado errado escondia trabalho livre do Dr. Lovable. | conferir_coerencia.py |
+| 29/07/2026 | Dr. Code | 18 | Estado | A FAZER | AGUARDANDO | Erro meu, inverso do anterior: aparecia livre, mas espera o RLS (item 9), que e do Dr. Code. O dono poderia comecar em cima de dependencia de outro. | conferir_coerencia.py |
+| 29/07/2026 | Dr. Code | 29 | Estado | A FAZER | AGUARDANDO | Mesmo erro do item 18: espera o Cloudflare (item 13), que e do CEO. | conferir_coerencia.py |
+| 30/07/2026 | Dr. Replit | 11 | Estado | A FAZER | CONCLUIDO | Tela de login dedicada entregue. Conferido no codigo, nao aceito em prosa: pages/login/index.tsx criado e CollaboratorGate passou a redirecionar. | commit 3a38349 |
+| 30/07/2026 | Dr. Replit | 15 | Estado | A FAZER | CONCLUIDO | Titulo da aba e do aplicativo corrigidos. Entrega parcial: as telas internas seguem no item 38. | commit 3a38349 |
+| 30/07/2026 | Dr. Code | 12 | Estado | AGUARDANDO | A FAZER | Liberado por consequencia: a tela do item 11 que o Dr. Lovable esperava passou a existir. | commit 3a38349 |
+| 30/07/2026 | Dr. Code | 37 | criacao | — | A FAZER | Item novo, ideia do Dr. Replit: auditoria de rotas sem filtro de empresa. Entrou como 37 e nao como 9 ou 10 porque esses numeros ja significam outra coisa desde 29/07. | COLISAO_DE_NUMERACAO_26.07.30.md |
+| 30/07/2026 | Dr. Code | 38 | criacao | — | A FAZER | Item novo: resto do rebrand nas telas internas, que o item 15 comecou. | COLISAO_DE_NUMERACAO_26.07.30.md |
+| 30/07/2026 | Dr. Code | — | estrutura | 4 abas | 6 abas | Pedido do CEO: as regras passam a morar dentro do proprio arquivo, e o historico passa a registrar o antes e o depois de cada mudanca. Abas REGRAS DE EDICAO e HISTORICO. | PR #6 |
+
+---
+
+## 6. COMO USAR
 
 | Quem | O que faz com este arquivo |
 | --- | --- |

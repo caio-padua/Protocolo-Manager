@@ -111,8 +111,45 @@ A("")
 A("---")
 A("")
 
+# ---------------------------------------------------------------- linha 4
+ws = wb["REGRAS DE EDICAO"]
+A("## 4. REGRAS DE EDICAO — valem para todos os agentes")
+A("")
+A("A regra mestra e uma: NADA SE APAGA, tudo se acrescenta. Sem o antes")
+A("continuar existindo, nao se compara o que foi pedido com o que foi feito.")
+A("")
+cab = [celula(ws, 4, c) for c in range(1, 5)]
+A("| " + " | ".join(cab) + " |")
+A("|" + "|".join([" --- "] * len(cab)) + "|")
+r = 5
+while celula(ws, r, 1):
+    A("| " + " | ".join(celula(ws, r, c) for c in range(1, 5)) + " |")
+    r += 1
+A("")
+A("---")
+A("")
+
+# ---------------------------------------------------------------- linha 5
+ws = wb["HISTORICO"]
+A("## 5. HISTORICO DE MUDANCAS (append-only)")
+A("")
+A("So cresce. Linha nunca se apaga nem se corrige: mudou de novo, entra")
+A("linha nova. Mais antigo em cima. E aqui que se le como o item estava")
+A("antes de cada correcao.")
+A("")
+cab = [celula(ws, 4, c) for c in range(1, 9)]
+A("| " + " | ".join(cab) + " |")
+A("|" + "|".join([" --- "] * len(cab)) + "|")
+r = 5
+while celula(ws, r, 1) and celula(ws, r, 1) != "acrescente aqui":
+    A("| " + " | ".join(celula(ws, r, c) for c in range(1, 9)) + " |")
+    r += 1
+A("")
+A("---")
+A("")
+
 # ---------------------------------------------------------------- rodape
-A("## 4. COMO USAR")
+A("## 6. COMO USAR")
 A("")
 A("| Quem | O que faz com este arquivo |")
 A("| --- | --- |")
