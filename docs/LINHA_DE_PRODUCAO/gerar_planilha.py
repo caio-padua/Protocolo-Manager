@@ -352,6 +352,28 @@ EQUIPE = [
      "Missoes inteiras de ponta a ponta, com escopo fechado",
      "Producao sem combinar antes",
      "railway.toml versionado (30). Proximo candidato: X-Request-Id e contrato da API (35)"),
+    ("Dr. Chat", "ChatGPT",
+     "Peca avulsa e auditoria independente: logo, mockup, imagem, grafico, "
+     "rascunho de texto, e segunda opiniao sobre spec e codigo de outro agente",
+     "NAO commita nada. Entrega arquivo na doca; quem commita e o dono do "
+     "territorio. Nao decide arquitetura nem mexe em fila",
+     "Sem item proprio ainda. Auditoria independente e sob demanda"),
+
+    # Vagas para agente futuro. NUNCA deixar a linha totalmente vazia: o
+    # espelho em markdown le a matriz varrendo ate a primeira celula vazia,
+    # e linha em branco cortaria tudo o que vem abaixo. Vaga tem rotulo.
+    ("VAGA 1 — a definir", "a definir",
+     "A definir no ritual de entrada",
+     "Tudo, ate a matriz ser preenchida",
+     "Livre. Ver o ritual de entrada no capitulo 07 da cartilha"),
+    ("VAGA 2 — a definir", "a definir",
+     "A definir no ritual de entrada",
+     "Tudo, ate a matriz ser preenchida",
+     "Livre. Ver o ritual de entrada no capitulo 07 da cartilha"),
+    ("VAGA 3 — a definir", "a definir",
+     "A definir no ritual de entrada",
+     "Tudo, ate a matriz ser preenchida",
+     "Livre. Ver o ritual de entrada no capitulo 07 da cartilha"),
 ]
 for k, it in enumerate(EQUIPE):
     corpo(ws2, 5 + k, list(it), PASTEL if k % 2 else None)
@@ -566,6 +588,12 @@ HIST = [
     ("30/07/2026", "Dr. Code", "—", "coordenacao", "recado no repositorio", "recado no Slack em tempo real",
      "Premissa minha estava errada: eu afirmei que os agentes nao conseguiam conversar entre si. Todos tinham conector de Slack. Canal #padaxor-projeto passa a ser a caixa de recados, e o CEO sai do meio.",
      "CARTILHA/06 em PADUA-SOFTWARE-DESIGN"),
+    ("30/07/2026", "Dr. Code", "—", "equipe", "5 membros", "6 membros",
+     "Dr. Chat (ChatGPT) entrou no quadro por decisao do CEO. Territorio escolhido para NAO sobrepor ninguem: peca avulsa e auditoria independente, entregue na doca, sem commitar. Modelo de familia diferente lendo a mesma spec pega o que o autor nao viu.",
+     "pedido do CEO"),
+    ("30/07/2026", "Dr. Code", "—", "equipe", "6 membros", "6 membros e 3 vagas",
+     "Tres vagas abertas para agente futuro, com rotulo VAGA e nao em branco: o espelho le a matriz varrendo ate a celula vazia, e linha em branco cortaria tudo abaixo. Preenchimento so pelo ritual de entrada.",
+     "pedido do CEO"),
     ("30/07/2026", "Dr. Code", "—", "estrutura", "4 abas", "6 abas",
      "Pedido do CEO: as regras passam a morar dentro do proprio arquivo, e o historico passa a registrar o antes e o depois de cada mudanca. Abas REGRAS DE EDICAO e HISTORICO.",
      "PR #6"),

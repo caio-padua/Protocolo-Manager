@@ -68,19 +68,25 @@ Tres vezes dois agentes consertaram o mesmo arquivo e o resultado quebrou. Esta 
 
 |  |  |  |  |  |
 | --- | --- | --- | --- | --- |
-| Membro | Onde vive | Territorio (decide sozinho) | Nao toca sem avisar | Nesta fase |
 | Dr. Caio | cacique | Precos, planos, decisao clinica, gasto de dinheiro, dado de paciente real | Nada — decide tudo | Cloudflare (13), precos dos modulos (19), Zoho (26), planos de paciente (34) |
 | Dr. Code | Claude Code | api-server, banco, Railway, autenticacao, infraestrutura, coordenacao | Telas do sistema (Dr. Replit) e o site (Dr. Lovable) | empresa_id (8), RLS (9), marca dos esquemas de senha (10), dominio (14), SPF/DKIM (29) |
 | Dr. Replit Manager | Replit | Telas do sistema, logica de negocio, linha de producao de clinica | basicAuth, middleware de auth, variaveis do Railway, banco de producao | Login no sistema (11), marca no painel (15), consumo (18), menu travado (20) |
 | Dr. Lovable | Lovable | Site institucional, vitrines, portoes de captacao | api-server e banco — so consome, nunca altera | Site vira botao (12), porta do paciente (16), colapsar Supabase (31) |
+| Dr. Manus | Manus AI | Missoes inteiras de ponta a ponta, com escopo fechado | Producao sem combinar antes | railway.toml versionado (30). Proximo candidato: X-Request-Id e contrato da API (35) |
+| Dr. Chat | ChatGPT | Peca avulsa e auditoria independente: logo, mockup, imagem, grafico, rascunho de texto, e segunda opiniao sobre spec e codigo de outro agente | NAO commita nada. Entrega arquivo na doca; quem commita e o dono do territorio. Nao decide arquitetura nem mexe em fila | Sem item proprio ainda. Auditoria independente e sob demanda |
+| VAGA 1 — a definir | a definir | A definir no ritual de entrada | Tudo, ate a matriz ser preenchida | Livre. Ver o ritual de entrada no capitulo 07 da cartilha |
+| VAGA 2 — a definir | a definir | A definir no ritual de entrada | Tudo, ate a matriz ser preenchida | Livre. Ver o ritual de entrada no capitulo 07 da cartilha |
+| VAGA 3 — a definir | a definir | A definir no ritual de entrada | Tudo, ate a matriz ser preenchida | Livre. Ver o ritual de entrada no capitulo 07 da cartilha |
 
 ### Regras de convivencia
 
-1. Ninguem anuncia pronto antes de a mudanca estar na main. Construido no ambiente local e rascunho; publicado e entrega.
+Dr. Chat
 
-2. Antes de editar arquivo fora do proprio territorio, avisa. Foi assim que o drizzle.config, o bypass do login e o basicAuth colidiram.
+VAGA 1 — a definir
 
-3. Quem escreve na main da pull antes. Sincronizar por cima desfaz correcao que esta funcionando em producao.
+VAGA 2 — a definir
+
+VAGA 3 — a definir
 
 ---
 
@@ -141,6 +147,8 @@ antes de cada correcao.
 | 30/07/2026 | Dr. Code | 30 | Responsavel | Dr. Code | Dr. Manus | O Dr. Manus entrou na equipe de fato. Item de escopo fechado, ponta a ponta, sem dependencia — perfil dele. Libera o Dr. Code para os tres itens P0 de isolamento. | pedido do CEO |
 | 30/07/2026 | Dr. Code | 36 | Estado | AGUARDANDO | CONCLUIDO | A vaga em aberto do Dr. Manus foi usada: ele assumiu o item 30. A linha fica como registro; proxima missao dele entra como numero novo. | pedido do CEO |
 | 30/07/2026 | Dr. Code | — | coordenacao | recado no repositorio | recado no Slack em tempo real | Premissa minha estava errada: eu afirmei que os agentes nao conseguiam conversar entre si. Todos tinham conector de Slack. Canal #padaxor-projeto passa a ser a caixa de recados, e o CEO sai do meio. | CARTILHA/06 em PADUA-SOFTWARE-DESIGN |
+| 30/07/2026 | Dr. Code | — | equipe | 5 membros | 6 membros | Dr. Chat (ChatGPT) entrou no quadro por decisao do CEO. Territorio escolhido para NAO sobrepor ninguem: peca avulsa e auditoria independente, entregue na doca, sem commitar. Modelo de familia diferente lendo a mesma spec pega o que o autor nao viu. | pedido do CEO |
+| 30/07/2026 | Dr. Code | — | equipe | 6 membros | 6 membros e 3 vagas | Tres vagas abertas para agente futuro, com rotulo VAGA e nao em branco: o espelho le a matriz varrendo ate a celula vazia, e linha em branco cortaria tudo abaixo. Preenchimento so pelo ritual de entrada. | pedido do CEO |
 | 30/07/2026 | Dr. Code | — | estrutura | 4 abas | 6 abas | Pedido do CEO: as regras passam a morar dentro do proprio arquivo, e o historico passa a registrar o antes e o depois de cada mudanca. Abas REGRAS DE EDICAO e HISTORICO. | PR #6 |
 
 ---
@@ -195,10 +203,9 @@ aprendendo IA, programacao e arquitetura de sistemas.
 | Quem | O que faz com este arquivo |
 | --- | --- |
 | Dr. Caio | Marca `Estado` na planilha do Drive e responde a coluna `Sua resposta` das decisoes |
-| Dr. Code | Mantem este arquivo e a planilha em sincronia; executa os itens marcados como seus |
-| Dr. Replit Manager | Le a fila, pega os itens marcados como seus, NAO mexe em item de outro sem avisar |
-| Dr. Lovable | Idem, para os itens do site |
-| Dr. Manus | Sem frente nesta fase; candidato aos itens 32 e 33 |
+| Dr. Code | Escritor unico da fila: mantem este arquivo e a planilha em sincronia |
+| Todo agente | Le a fila, pega item marcado como seu e livre, NAO mexe em item de outro sem avisar |
+| Agente novo | Passa pelo ritual de entrada antes da primeira acao: capitulo 07 da cartilha |
 
 Trabalho novo entra como linha nova, com numero maior que o ultimo em uso
 (hoje o 38 — o proximo e o 39). Numero nunca se reaproveita, nunca se
@@ -209,5 +216,5 @@ ja em uso e o resultado esta em COLISAO_DE_NUMERACAO_26.07.30.md.
 ## RESUMO EM 1 LINHA
 
 Fila unica de 38 itens numerados, com dono definido por item, matriz de
-territorio para os quatro agentes pararem de se atropelar, e as 10
+territorio para os agentes pararem de se atropelar, e as 10
 decisoes que estao travando trabalho e so o CEO pode desbloquear.
