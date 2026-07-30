@@ -6,6 +6,7 @@ import { eq, isNull, or } from "drizzle-orm";
 import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics, driveDownloadFile } from "../lib/google-drive";
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { requireAiTenant } from "../lib/ai-central";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -612,6 +613,7 @@ async function downloadPdfText(fileId: string): Promise<string> {
   } catch { /* cai para visão */ }
   // 2ª tentativa: Gemini visão (PDFs escaneados / imagens incorporadas)
   try {
+    requireAiTenant(0, "ocr");
     const resp = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [
@@ -686,6 +688,7 @@ router.post("/empresas/:id/auto-fill", async (req, res): Promise<void> => {
   const combinedText = textos.join("\n\n").slice(0, 20000);
   let extracted: Record<string, string | null> = {};
   try {
+    requireAiTenant(0, "ocr");
     const resp = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: EMPRESA_PROMPT + "\n\nTEXTO:\n" + combinedText }] }],

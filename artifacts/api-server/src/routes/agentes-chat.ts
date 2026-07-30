@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "../lib/logger";
+import { requireAiTenant } from "../lib/ai-central";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,8 @@ IMPORTANTE:
   let inputTokens = 0;
   let outputTokens = 0;
 
+  const { headers: aiHeaders } = requireAiTenant(0, "agent");
+
   try {
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
@@ -113,7 +116,7 @@ IMPORTANTE:
       temperature: tempSafe,
       system: systemPrompt,
       messages: chatMessages,
-    });
+    }, { headers: aiHeaders });
 
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {

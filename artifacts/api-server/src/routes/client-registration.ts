@@ -11,6 +11,7 @@ import {
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { requireAiTenant } from "../lib/ai-central";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -313,6 +314,7 @@ router.post(
     }
 
     try {
+      requireAiTenant(0, "ocr");
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [

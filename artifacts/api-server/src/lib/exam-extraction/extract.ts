@@ -1,6 +1,7 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import { compactExamText, inferLabName } from "./pdf-text";
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
+import { requireAiTenant } from "../ai-central";
 
 export const DEFAULT_MODEL = "gemini-2.5-flash";
 export const ESCALATION_MODEL = "gemini-3.1-pro-preview";
@@ -96,8 +97,9 @@ ATENÇÃO ESPECIAL para PDFs visuais:
 export async function extractExamFromMedia(
   buffer: Buffer,
   mimeType: string,
-  options: { model?: string; disableEscalation?: boolean } = {},
+  options: { model?: string; disableEscalation?: boolean; empresaId?: number } = {},
 ): Promise<ExtractExamResult> {
+  requireAiTenant(options.empresaId ?? 0, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const contents: GeminiContents = [
     { role: "user", parts: [{ text: EXTRACTION_PROMPT + MEDIA_SUFFIX }, mediaPart(buffer, mimeType)] },
@@ -123,6 +125,8 @@ export interface ExtractExamOptions {
   disableEscalation?: boolean;
   /** Desativa a compactação de linhas repetidas (cabeçalhos/rodapés). */
   disableCompaction?: boolean;
+  /** ID da empresa para guard de clone e metering do CF AI Gateway. */
+  empresaId?: number;
 }
 
 export interface ExtractExamResult {
@@ -135,6 +139,7 @@ export async function extractExamFromText(
   text: string,
   options: ExtractExamOptions = {},
 ): Promise<ExtractExamResult> {
+  requireAiTenant(options.empresaId ?? 0, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const payload = options.disableCompaction ? text : compactExamText(text).text;
   const data = await callGemini(payload, firstModel);

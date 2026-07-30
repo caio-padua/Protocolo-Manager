@@ -3,6 +3,7 @@ import { Type } from "@google/genai";
 import { compactExamText, inferLabName } from "./pdf-text";
 import { ExtractedImageReportSchema, type ExtractedImageReport } from "./schema-image";
 import { DEFAULT_MODEL, ESCALATION_MODEL, mediaPart } from "./extract";
+import { requireAiTenant } from "../ai-central";
 
 const CONFIDENCE_FLOOR = 0.7;
 
@@ -206,8 +207,9 @@ const IMAGE_MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotogr
 export async function extractImageFromMedia(
   buffer: Buffer,
   mimeType: string,
-  options: { model?: string; disableEscalation?: boolean } = {},
+  options: { model?: string; disableEscalation?: boolean; empresaId?: number } = {},
 ): Promise<ExtractImageResult> {
+  requireAiTenant(options.empresaId ?? 0, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const contents: GeminiContents = [
     { role: "user", parts: [{ text: IMAGE_PROMPT + IMAGE_MEDIA_SUFFIX }, mediaPart(buffer, mimeType)] },
@@ -234,8 +236,9 @@ export interface ExtractImageResult {
 
 export async function extractImageFromText(
   text: string,
-  options: { model?: string; disableEscalation?: boolean; disableCompaction?: boolean } = {},
+  options: { model?: string; disableEscalation?: boolean; disableCompaction?: boolean; empresaId?: number } = {},
 ): Promise<ExtractImageResult> {
+  requireAiTenant(options.empresaId ?? 0, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const payload = options.disableCompaction ? text : compactExamText(text).text;
   const data = await callGeminiImage(payload, firstModel);

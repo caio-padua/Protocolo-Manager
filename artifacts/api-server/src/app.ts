@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { checkAiSetup } from "./lib/ai-central";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
 import { basicAuthMiddleware } from "./middleware/basicAuth";
@@ -43,6 +44,12 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
+
+// ─── AI Central: verifica configuração do guard de clone no boot ─────────────
+checkAiSetup({
+  warn: (msg: string) => logger.warn(msg),
+  info: (msg: string) => logger.info(msg),
+});
 
 // ─── IS_CLONE: bloqueia rotas de IA quando é clone de clínica ───────────────
 // Um clone NÃO deve ter acesso aos agentes de IA do PADAXOR Central.
