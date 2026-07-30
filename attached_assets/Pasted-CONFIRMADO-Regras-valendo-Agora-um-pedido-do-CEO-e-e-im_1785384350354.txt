@@ -1,0 +1,90 @@
+CONFIRMADO. Regras valendo. Agora um pedido do CEO, e e importante.
+
+Voce e eu estamos construindo o mesmo sistema com vocabulario diferente, e
+o CEO precisa entender os dois. Nesta madrugada quatro colisoes aconteceram
+por falta de linguagem comum, nao por falta de competencia.
+
+Escreva UM RELATORIO com as cinco secoes abaixo. Respeite os limites: relatorio
+longo nao e lido, e o CEO tem de conseguir ler inteiro de uma vez.
+
+
+SECAO 1 — COMO VOCE ARQUITETA (maximo 15 linhas)
+
+  Nao descreva o sistema. Descreva o SEU METODO.
+  - Quando recebe um pedido, qual e a primeira coisa que voce faz?
+  - Como decide entre consertar o que existe e escrever do zero?
+  - Como decide o que e P0 e o que pode esperar?
+  - O que faz voce PARAR e perguntar em vez de decidir sozinho?
+  - Que erro voce ja cometeu neste projeto e o que mudou depois dele?
+
+  A ultima pergunta e a que mais interessa. Nao pule.
+
+
+SECAO 2 — O VOCABULARIO DO SISTEMA (tabela, 20 a 40 linhas)
+
+  Uma linha por conceito, quatro colunas:
+
+    | Termo | O que e tecnicamente | Onde vive no codigo | Em linguagem de leigo |
+
+  Inclua tudo que voce usa e que o CEO ainda nao domina. Exemplos do que
+  precisa estar la: empresaId, tenantContext, isPlatformOwner, collab-auth,
+  basicAuth, drive-watcher, exam-extraction, triagem, curadoria, analito,
+  faixa de referencia, consumo_eventos, cofre de objetos, dry-run, hook,
+  best-effort, idempotencia.
+
+  A quarta coluna e OBRIGATORIA e e a mais importante. O CEO e medico: use
+  analogia do mundo dele (prontuario, exame, receita, clinica). Analogia
+  bonita que ensina errado e pior que nenhuma — ele vai DECIDIR com base
+  nela.
+
+
+SECAO 3 — O MAPA DAS PORTAS (tabela curta)
+
+  As rotas da API agrupadas por porta do produto, com uma linha cada:
+  quem entra por ali, o que consegue fazer, e o que AINDA nao existe.
+
+  Quatro portas conhecidas: painel do colaborador, area do paciente,
+  site publico, integracoes. Se houver uma quinta, diga.
+
+
+SECAO 4 — VOCE ESTA USANDO A FILA? (resposta direta)
+
+  - Voce leu docs/LINHA_DE_PRODUCAO/LINHA_DE_PRODUCAO_PADAXOR_VERSAO_26.07.29.md
+    antes de comecar o item 40? Sim ou nao. Se nao, diga nao.
+  - Rodou docs/LINHA_DE_PRODUCAO/conferir_coerencia.py alguma vez? Cole a
+    saida se rodou.
+  - Qual item da fila voce pegaria agora, e por que esse?
+
+  Resposta honesta vale mais que resposta bonita. Se nao usou, dizer que nao
+  usou e o que ajuda.
+
+
+SECAO 5 — AS TRES TAREFAS QUE VOCE MESMO SUGERIU
+
+  Voce propos tres na sua tela:
+    a) trocar o cofre temporario pelo R2 real do Cloudflare
+    b) CEO ver quanto espaco cada clinica consome, base para cobrar
+    c) paciente recebe e solicita exames pelo WhatsApp
+
+  Para cada uma, tres linhas:
+    - por que ela, e nao outra
+    - de que ela depende para comecar
+    - quanto tempo, honestamente
+
+  Eu cheguei nas mesmas tres por caminho diferente. Convergencia
+  independente e sinal bom, mas quero ver o SEU raciocinio antes de eu
+  numerar elas na fila.
+
+
+COMO ENTREGAR
+
+  Arquivo em docs/dr-replit/RELATORIO_ARQUITETURA_26.07.30.md, commitado.
+  Nao cole no chat: relatorio em conversa se perde, arquivo fica.
+  Depois avise no recado com o hash.
+
+  O vocabulario da SECAO 2 vai virar a aba GLOSSARIO da planilha do CEO.
+  Escreva pensando nisso: ele vai ler para aprender, nao para conferir.
+
+
+NAO FACA junto com isso nenhuma mudanca de codigo. Este pedido e so o
+relatorio. Codigo volta depois que o CEO ler.
