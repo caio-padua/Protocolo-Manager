@@ -407,13 +407,8 @@ clinico (validacao, avaliacao, exame avulso) pode ter valor e link de pagamento,
 assistente visivel no painel dele; a estrutura "bracos de pagamento" ja existe (`specs/bracos-pagamento.md`),
 split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encantamento-consolidacao.md`.
 
-**Art. 70 — Dual-canal: telegramSkipped não é sucesso** *(promulgado em 31/07/2026)*
-Quando o Monitor de LLMs opera em modo dual-canal (Slack + Telegram), o registro `canal="ambos"` com
-`enviado_ok=true` só pode existir se ambos os canais efetivamente entregaram. `telegramSkipped`
-(chatId vazio) é ausência de configuração — não é entrega. O campo `erros` deve documentar
-explicitamente "Telegram não configurado" quando o canal foi ignorado. Regra: early return antes
-do bloco de resumo deve ser substituído por `else {}` para o log de ciclo sempre rodar.
-Arquivos: `llm-monitor-dispatch.ts` (step 4), `slack-reporter.ts` (salvarHistorico exportada).
+**Art. 70** *(promulgado em 31/07/2026)* — Dual-canal: ausência de configuração não é entrega feita.
+Lei completa em `PADUA-SOFTWARE-DESIGN/CARTILHA/10_CODIGO_PAXTER.md`. Resumo: `ambosOk = canalA AND canalB` (sem contar skip); early return antes do resumo de ciclo vira `else {}`; campo `erros` documenta canal ignorado explicitamente.
 
 ---
 
