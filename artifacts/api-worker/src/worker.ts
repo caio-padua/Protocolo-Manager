@@ -115,72 +115,59 @@ export function startWorkerJobs(logger: pino.Logger): void {
   // Roda todo início de hora (XX:00), 24h/dia.
   // Só executa na instância CEO (PADAXOR_AI_BYPASS=true). Fail-safe total.
   // Detecta mudanças na planilha de produção e anota termos técnicos com (*N).
+  // A lógica de despacho dual-canal vive em llm-monitor-dispatch.ts (testável).
+  // Quando o Telegram falha, postTelegramReport posta aviso de fallback no Slack
+  // usando slackFallbackChannelId (Task 34 — retry automático + fallback).
   cron.schedule(
     "0 * * * *",
     async () => {
       if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
-      const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+      const channelId      = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
       const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
-      logger.info({ channelId, telegramChatId: telegramChatId || "(não configurado)" }, "Worker: gerando monitor horário (LLMs + planilha)");
+      logger.info(
+        { channelId, telegramChatId: telegramChatId || "(não configurado)" },
+        "Worker: gerando monitor horário (LLMs + planilha)"
+      );
 
-      // Importar tudo de uma vez — módulo compartilhado pelos dois canais
-      const reporter = await import(
-        "../../api-server/src/lib/slack-reporter.js" as string
-      ).catch((err: unknown) => {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha ao importar slack-reporter"
-        );
-        return null;
-      });
-      if (!reporter) return;
+      // Importar módulos sob demanda — evita ciclo de boot
+      const [reporter, dispatch] = await Promise.all([
+        import("../../api-server/src/lib/slack-reporter.js" as string).catch((err: unknown) => {
+          logger.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            "Worker: falha ao importar slack-reporter"
+          );
+          return null;
+        }),
+        import("../../api-server/src/lib/llm-monitor-dispatch.js" as string).catch(() => null),
+      ]);
+      if (!reporter || !dispatch) return;
 
-      // Montar o relatório uma única vez — compartilhado pelos dois canais
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let report: any;
-      try {
-        report = await reporter.buildLlmReport(1); // última 1h
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha ao construir relatório LLM"
-        );
-        return; // sem relatório, nada a postar
-      }
+      // Delegar despacho dual-canal ao helper testável.
+      // slackFallbackChannelId: se Telegram falhar após retentativas, avisa o Slack (Task 34).
+      const result = await dispatch.runLlmMonitorJob(
+        {
+          channelId,
+          telegramChatId,
+          slackFallbackChannelId: channelId,
+        },
+        {
+          buildLlmReport:     reporter.buildLlmReport,
+          postSlackReport:    reporter.postSlackReport,
+          postTelegramReport: reporter.postTelegramReport,
+        },
+        logger,
+      );
 
-      // ── Canal 1: Slack — fail-safe independente ──────────────────────────
-      try {
-        await reporter.postSlackReport(channelId, report);
+      if (result.reportBuilt) {
         logger.info(
           {
-            chamadas:         report.totalChamadas,
-            custoUsd:         report.totalCustoUsd,
-            mudancasPlanilha: report.mudancasPlanilha.length,
+            slackOk:       result.slackOk,
+            telegramOk:    result.telegramOk,
+            slackError:    result.slackError,
+            telegramError: result.telegramError,
           },
-          "Worker: monitor horário Slack postado com sucesso"
+          "Worker: ciclo monitor horário concluído"
         );
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha no canal Slack (Telegram segue independente)"
-        );
-      }
-
-      // ── Canal 2: Telegram — fail-safe independente do Slack ─────────────
-      // Passa channelId como fallback: se o Telegram falhar após todas as
-      // retentativas, um aviso é postado automaticamente no Slack.
-      if (!telegramChatId) {
-        logger.warn("Worker: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
-      } else {
-        try {
-          await reporter.postTelegramReport(telegramChatId, report, channelId);
-          logger.info("Worker: monitor horário Telegram postado com sucesso");
-        } catch (err) {
-          logger.error(
-            { err: err instanceof Error ? err.message : String(err), telegramFailed: true },
-            "Worker: Telegram offline após retentativas — aviso enviado ao Slack"
-          );
-        }
       }
     },
     { timezone: "America/Sao_Paulo" }
