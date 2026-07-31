@@ -167,16 +167,18 @@ export function startWorkerJobs(logger: pino.Logger): void {
       }
 
       // ── Canal 2: Telegram — fail-safe independente do Slack ─────────────
+      // Passa channelId como fallback: se o Telegram falhar após todas as
+      // retentativas, um aviso é postado automaticamente no Slack.
       if (!telegramChatId) {
         logger.warn("Worker: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
       } else {
         try {
-          await reporter.postTelegramReport(telegramChatId, report);
+          await reporter.postTelegramReport(telegramChatId, report, channelId);
           logger.info("Worker: monitor horário Telegram postado com sucesso");
         } catch (err) {
           logger.error(
-            { err: err instanceof Error ? err.message : String(err) },
-            "Worker: falha no canal Telegram (Slack não é afetado)"
+            { err: err instanceof Error ? err.message : String(err), telegramFailed: true },
+            "Worker: Telegram offline após retentativas — aviso enviado ao Slack"
           );
         }
       }
