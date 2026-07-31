@@ -2,15 +2,22 @@
  * slack-glossario.ts
  * Glossário de termos técnicos para o monitor de LLMs no Slack.
  *
- * Cada vez que um termo aparecer numa mensagem, ele recebe uma marca (*N)
- * e a legenda aparece ao final da mensagem em bloco separado.
+ * REGRA CENTRAL: cada termo tem um número PERMANENTE = sua posição (1-based)
+ * neste array. O número NUNCA muda entre mensagens. Termo novo entra sempre
+ * no FINAL — nunca se reordena, nunca se remove.
  *
- * Padrão: (*1) = hash = impressão digital digital de um arquivo
+ * Assim (*1) significa sempre "hash" em qualquer mensagem, hoje e daqui a
+ * um ano. O CEO aprende por repetição, que era o ponto inteiro.
+ *
+ * Dr. Code mantém a cópia autoritativa em:
+ *   PADUA-SOFTWARE-DESIGN/DICIONARIO.md
+ * Os números lá e aqui devem ser idênticos.
  */
 
 export type GlossarioEntry = {
-  termo: string;       // termo técnico exato (case-insensitive na busca)
-  leigo: string;       // explicação em português simples
+  termo: string;   // termo técnico exato (case-insensitive na busca)
+  leigo: string;   // explicação em português simples para o CEO
+  // número permanente = índice + 1 no array GLOSSARIO (derivado, não armazenado)
 };
 
 /** Lista completa de termos técnicos com explicações para o CEO. */
@@ -76,54 +83,61 @@ export const GLOSSARIO: GlossarioEntry[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Motor de anotação: marca termos com (*N) e gera legenda ao final
+// Motor de anotação: marca termos com (*N) PERMANENTES e gera legenda ao final
+//
+// REGRA: o número de cada termo é sua posição 1-based no array GLOSSARIO.
+// Nunca é recalculado por mensagem. Se "API" é o item 2, ela aparece como
+// (*2) em qualquer mensagem, hoje ou daqui a um ano.
 // ---------------------------------------------------------------------------
 
 export type AnotacaoResult = {
-  textoAnotado:  string;          // texto com (*1), (*2), etc.
-  legendas:      string[];        // ["(*1) API = porta de comunicação...", ...]
+  textoAnotado: string;    // texto com (*N) permanentes
+  legendas:     string[];  // somente os termos que apareceram, com seus números fixos
 };
 
 export function anotarTermos(texto: string): AnotacaoResult {
-  const encontrados: { indice: number; entry: GlossarioEntry }[] = [];
+  // Índice permanente de cada termo: posição no array + 1 (imutável)
+  const numeroPermanente = new Map<string, number>(
+    GLOSSARIO.map((entry, i) => [entry.termo.toLowerCase(), i + 1])
+  );
+
   let textoAnotado = texto;
+  // Controla quais termos foram encontrados NESTA mensagem (para o rodapé)
+  const encontradosNaMensagem: Array<{ numero: number; entry: GlossarioEntry }> = [];
+  const jaProcessado = new Set<string>();
 
-  // Varredura: procura cada termo, primeiro os compostos (mais longos)
+  // Varredura do mais longo para o mais curto (evita marcar "cron" antes de "cron job")
   const sorted = [...GLOSSARIO].sort((a, b) => b.termo.length - a.termo.length);
-
-  const marcados = new Set<string>();
 
   for (const entry of sorted) {
     const chave = entry.termo.toLowerCase();
-    if (marcados.has(chave)) continue;
+    if (jaProcessado.has(chave)) continue;
 
-    // Regex: palavra inteira, case-insensitive
-    // Escapa caracteres especiais no termo
     const escapado = entry.termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`\\b(${escapado})\\b`, "gi");
+    const testeRegex = new RegExp(`\\b(${escapado})\\b`, "gi");
 
-    if (regex.test(textoAnotado)) {
-      const indice = encontrados.length + 1;
-      encontrados.push({ indice, entry });
-      marcados.add(chave);
+    if (!testeRegex.test(textoAnotado)) continue;
 
-      // Adiciona (*N) somente na PRIMEIRA ocorrência de cada termo
-      let primeiraVez = true;
-      textoAnotado = textoAnotado.replace(
-        new RegExp(`\\b(${escapado})\\b`, "gi"),
-        (match) => {
-          if (primeiraVez) {
-            primeiraVez = false;
-            return `${match} (*${indice})`;
-          }
-          return match;
-        },
-      );
-    }
+    // Termo encontrado — recupera seu número PERMANENTE do dicionário
+    const numero = numeroPermanente.get(chave)!;
+    jaProcessado.add(chave);
+    encontradosNaMensagem.push({ numero, entry });
+
+    // Marca APENAS a primeira ocorrência com (*N)
+    let primeiraVez = true;
+    textoAnotado = textoAnotado.replace(
+      new RegExp(`\\b(${escapado})\\b`, "gi"),
+      (match) => {
+        if (primeiraVez) { primeiraVez = false; return `${match} (*${numero})`; }
+        return match;
+      },
+    );
   }
 
-  const legendas = encontrados.map(
-    ({ indice, entry }) => `(*${indice}) *${entry.termo}* = ${entry.leigo}`
+  // Rodapé: ordenado pelo número permanente (não pela ordem de aparição no texto)
+  encontradosNaMensagem.sort((a, b) => a.numero - b.numero);
+  const legendas = encontradosNaMensagem.map(
+    ({ numero, entry }) => `(*${numero}) *${entry.termo}* = ${entry.leigo}`
   );
 
   return { textoAnotado, legendas };
