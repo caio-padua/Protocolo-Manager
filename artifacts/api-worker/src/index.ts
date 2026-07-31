@@ -9,6 +9,7 @@
  *   - lembrete por minuto  (executarLembretesPeriodo)
  *   - receituário 06h BRT  (processarReceituarioDiario)
  *   - Drive watcher 5min   (processWatchedFolders)
+ *   - LLM Slack 08h BRT    (buildLlmReport + postSlackReport → #padaxor-projeto)
  *
  * Para Railway: startCommand = "pnpm --filter @workspace/api-worker run start"
  *               numReplicas  = 1   ← NUNCA alterar
@@ -28,7 +29,7 @@ const server = http.createServer((req, res) => {
       JSON.stringify({
         status: "ok",
         worker: "api-worker",
-        jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min"],
+        jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h"],
         ts: new Date().toISOString(),
       })
     );
