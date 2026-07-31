@@ -20,8 +20,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { logger } from "./logger";
 import { brtNow } from "./brt";
-import { anotarTermos } from "./slack-glossario";
+import { anotarTermos, GLOSSARIO } from "./slack-glossario";
 import { getGoogleSheetsClient } from "./google-drive";
+import { sendTelegram } from "./telegram";
 
 // ---------------------------------------------------------------------------
 // Slack client — nunca cachear; tokens expiram
@@ -541,4 +542,190 @@ export async function postSlackReport(channelId: string, report: LlmReport): Pro
     // Grava histórico independente de sucesso ou falha
     await salvarHistorico(report, "slack", ok, erro);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Formatar para Telegram (HTML condensado) — canal independente do Slack
+// ---------------------------------------------------------------------------
+
+/** Escapa caracteres especiais HTML exigidos pelo Telegram em parse_mode=HTML. */
+function escHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Anota termos do glossário no texto e retorna legendas em formato HTML
+ * (compatível com Telegram parse_mode=HTML).
+ * Reutiliza o array GLOSSARIO importado do slack-glossario para garantir
+ * números permanentes idênticos ao Slack.
+ */
+function anotarTermosHtml(texto: string): { textoAnotado: string; legendasHtml: string[] } {
+  // Índice permanente de cada termo (posição 1-based no array, nunca muda)
+  const numeroPermanente = new Map<string, number>(
+    GLOSSARIO.map((entry, i) => [entry.termo.toLowerCase(), i + 1])
+  );
+
+  let textoAnotado = texto;
+  const encontrados: Array<{ numero: number; termo: string; leigo: string }> = [];
+  const jaProcessado = new Set<string>();
+
+  // Varredura do mais longo para o mais curto (evita marcar "cron" antes de "cron job")
+  const sorted = [...GLOSSARIO].sort((a, b) => b.termo.length - a.termo.length);
+
+  for (const entry of sorted) {
+    const chave = entry.termo.toLowerCase();
+    if (jaProcessado.has(chave)) continue;
+
+    const escapado = entry.termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const testeRegex = new RegExp(`\\b(${escapado})\\b`, "gi");
+    if (!testeRegex.test(textoAnotado)) continue;
+
+    const numero = numeroPermanente.get(chave)!;
+    jaProcessado.add(chave);
+    encontrados.push({ numero, termo: entry.termo, leigo: entry.leigo });
+
+    let primeiraVez = true;
+    textoAnotado = textoAnotado.replace(
+      new RegExp(`\\b(${escapado})\\b`, "gi"),
+      (match) => {
+        if (primeiraVez) { primeiraVez = false; return `${match} (*${numero})`; }
+        return match;
+      },
+    );
+  }
+
+  encontrados.sort((a, b) => a.numero - b.numero);
+  const legendasHtml = encontrados.map(
+    ({ numero, termo, leigo }) => `<b>(*${numero}) ${escHtml(termo)}</b> = ${escHtml(leigo)}`
+  );
+
+  return { textoAnotado, legendasHtml };
+}
+
+/**
+ * Formata o relatório como mensagem HTML para Telegram.
+ * Produz texto condensado (respeita o limite de 4 096 caracteres do Telegram).
+ */
+export function formatarRelatorioTelegram(report: LlmReport): string {
+  const geradoEmFormatado = new Date(report.geradoEm)
+    .toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour12: false });
+
+  const linhas: string[] = [];
+
+  // ── Cabeçalho ───────────────────────────────────────────────────────────
+  linhas.push(`<b>🧠 PADAXOR — Monitor Horário</b>`);
+  linhas.push(`📅 ${geradoEmFormatado} (BRT) | ${report.periodo}`);
+  linhas.push("");
+
+  // ── Planilha de produção ─────────────────────────────────────────────────
+  const temMudancas = report.mudancasPlanilha.length > 0;
+  if (temMudancas) {
+    linhas.push(`<b>📋 Planilha — ${report.mudancasPlanilha.length} mudança(s):</b>`);
+    for (const m of report.mudancasPlanilha) {
+      const emoji = m.tipo === "novo" ? "🆕" : m.tipo === "estado" ? "🔄" : "👤";
+      if (m.tipo === "novo") {
+        linhas.push(`${emoji} #${m.nro} adicionado: "${escHtml(m.item)}" → ${escHtml(m.para ?? "")}`);
+      } else if (m.tipo === "estado") {
+        linhas.push(`${emoji} #${m.nro} "${escHtml(m.item)}": ${escHtml(m.de ?? "")} → <b>${escHtml(m.para ?? "")}</b>`);
+      } else {
+        linhas.push(`${emoji} #${m.nro} "${escHtml(m.item)}": resp ${escHtml(m.de ?? "")} → <b>${escHtml(m.para ?? "")}</b>`);
+      }
+    }
+  } else {
+    linhas.push(`📋 <b>Planilha:</b> ${report.totalItensPlanilha} itens — sem mudanças.`);
+  }
+  linhas.push("");
+
+  // ── IA: chamadas e custo ────────────────────────────────────────────────
+  if (report.totalChamadas > 0) {
+    linhas.push(`<b>🤖 IA (${report.periodo})</b>`);
+    linhas.push(`Chamadas: <b>${num(report.totalChamadas)}</b> | Custo: <b>${usd(report.totalCustoUsd)}</b>`);
+    linhas.push("<pre>");
+    linhas.push("PROVIDER        TIPO            CHAM   CUSTO");
+    linhas.push("─────────────────────────────────────────");
+    for (const s of report.stats) {
+      const prov = (PROVIDER_LABEL[s.provider] ?? s.provider).slice(0, 14).padEnd(14);
+      const tipo = (TIPO_LABEL[s.tipo]         ?? s.tipo).slice(0, 14).padEnd(14);
+      linhas.push(
+        `${prov} ${tipo} ${String(s.chamadas).padStart(4)}  ${usd(s.custoUsd)}`
+      );
+    }
+    linhas.push("</pre>");
+  } else {
+    linhas.push(`🤖 <b>IA:</b> nenhuma chamada neste período.`);
+  }
+
+  // ── Divergências ────────────────────────────────────────────────────────
+  if (report.divergencias.length > 0) {
+    linhas.push("");
+    linhas.push(`<b>⚠️ Divergências (${report.divergencias.length}):</b>`);
+    for (const d of report.divergencias) {
+      linhas.push(`• ${escHtml(d)}`);
+    }
+  }
+  linhas.push("");
+
+  // ── Tradução leigo (com glossário HTML) ─────────────────────────────────
+  let textoLeigo = "";
+  if (report.totalChamadas === 0 && !temMudancas) {
+    textoLeigo = "O sistema ficou em repouso nesta hora. Nenhuma IA foi acionada e nada mudou na planilha.";
+  } else {
+    const partes: string[] = [];
+    if (report.totalChamadas > 0) {
+      const provedores = [...new Set(report.stats.map(s => PROVIDER_LABEL[s.provider] ?? s.provider))];
+      partes.push(`Nesta hora, ${provedores.join(" e ")} foram acionados ${num(report.totalChamadas)} vez(es), com custo estimado de ${usd(report.totalCustoUsd)}.`);
+    }
+    if (temMudancas) {
+      const concluidos = report.mudancasPlanilha.filter(m => m.para === "CONCLUIDO").length;
+      const novos      = report.mudancasPlanilha.filter(m => m.tipo === "novo").length;
+      if (concluidos > 0) partes.push(`${concluidos} tarefa(s) marcada(s) como CONCLUIDO na planilha de produção.`);
+      if (novos      > 0) partes.push(`${novos} item(ns) novo(s) adicionado(s) à planilha.`);
+    }
+    if (report.divergencias.length > 0) {
+      partes.push(`⚠️ ${report.divergencias.length} tarefa(s) planejada(s) ainda sem chamadas de IA correspondentes.`);
+    } else if (report.totalChamadas > 0) {
+      partes.push("Tudo que foi planejado está sendo executado.");
+    }
+    textoLeigo = partes.join(" ");
+  }
+
+  const { textoAnotado, legendasHtml } = anotarTermosHtml(textoLeigo);
+
+  linhas.push(`<b>📖 TRADUÇÃO PARA O CEO</b>`);
+  linhas.push(escHtml(textoAnotado));
+
+  // ── Glossário HTML ───────────────────────────────────────────────────────
+  if (legendasHtml.length > 0) {
+    linhas.push("");
+    linhas.push(`<b>📚 Glossário:</b>`);
+    for (const leg of legendasHtml) {
+      linhas.push(leg);
+    }
+  }
+
+  // Telegram limita 4 096 chars — truncar com aviso se necessário
+  const texto = linhas.join("\n");
+  if (texto.length > 4000) {
+    return texto.slice(0, 3950) + "\n\n<i>... [truncado — relatório excedeu 4 096 chars]</i>";
+  }
+  return texto;
+}
+
+// ---------------------------------------------------------------------------
+// Postar no Telegram — fail-safe independente do Slack
+// ---------------------------------------------------------------------------
+export async function postTelegramReport(chatId: string, report: LlmReport): Promise<void> {
+  const texto = formatarRelatorioTelegram(report);
+  const resultado = await sendTelegram(chatId, texto);
+  if (resultado.mock) {
+    logger.info({ chatId }, "slack-reporter: Telegram MOCK (sem token no cofre)");
+    return;
+  }
+  if (!resultado.sent) {
+    throw new Error(`Telegram sendMessage erro: ${resultado.error ?? "desconhecido"}`);
+  }
+  logger.info({ chatId }, "slack-reporter: relatório postado no Telegram com sucesso");
 }

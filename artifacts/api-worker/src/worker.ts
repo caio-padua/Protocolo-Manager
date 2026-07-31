@@ -120,26 +120,65 @@ export function startWorkerJobs(logger: pino.Logger): void {
     async () => {
       if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
       const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
-      logger.info({ channelId }, "Worker: gerando monitor horário Slack (LLMs + planilha)");
-      try {
-        const { buildLlmReport, postSlackReport } = await import(
-          "../../api-server/src/lib/slack-reporter.js" as string
+      const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+      logger.info({ channelId, telegramChatId: telegramChatId || "(não configurado)" }, "Worker: gerando monitor horário (LLMs + planilha)");
+
+      // Importar tudo de uma vez — módulo compartilhado pelos dois canais
+      const reporter = await import(
+        "../../api-server/src/lib/slack-reporter.js" as string
+      ).catch((err: unknown) => {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha ao importar slack-reporter"
         );
-        const report = await buildLlmReport(1); // última 1h
-        await postSlackReport(channelId, report);
+        return null;
+      });
+      if (!reporter) return;
+
+      // Montar o relatório uma única vez — compartilhado pelos dois canais
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let report: any;
+      try {
+        report = await reporter.buildLlmReport(1); // última 1h
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha ao construir relatório LLM"
+        );
+        return; // sem relatório, nada a postar
+      }
+
+      // ── Canal 1: Slack — fail-safe independente ──────────────────────────
+      try {
+        await reporter.postSlackReport(channelId, report);
         logger.info(
           {
-            chamadas:          report.totalChamadas,
-            custoUsd:          report.totalCustoUsd,
-            mudancasPlanilha:  report.mudancasPlanilha.length,
+            chamadas:         report.totalChamadas,
+            custoUsd:         report.totalCustoUsd,
+            mudancasPlanilha: report.mudancasPlanilha.length,
           },
           "Worker: monitor horário Slack postado com sucesso"
         );
       } catch (err) {
         logger.error(
           { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha no monitor horário Slack"
+          "Worker: falha no canal Slack (Telegram segue independente)"
         );
+      }
+
+      // ── Canal 2: Telegram — fail-safe independente do Slack ─────────────
+      if (!telegramChatId) {
+        logger.warn("Worker: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
+      } else {
+        try {
+          await reporter.postTelegramReport(telegramChatId, report);
+          logger.info("Worker: monitor horário Telegram postado com sucesso");
+        } catch (err) {
+          logger.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            "Worker: falha no canal Telegram (Slack não é afetado)"
+          );
+        }
       }
     },
     { timezone: "America/Sao_Paulo" }
