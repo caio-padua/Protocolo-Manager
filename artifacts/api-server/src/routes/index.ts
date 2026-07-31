@@ -79,6 +79,7 @@ import receituarioModelosRouter from "./receituario-modelos";
 import adminPreviewRouter from "./admin-preview";
 import adminDriveRouter from "./admin-drive";
 import adminSheetsRouter from "./admin-sheets";
+import slackPadaxorRouter from "./slack-padaxor";
 import padteamRouter from "./padteam";
 import provaDeValorRouter from "./prova-de-valor";
 import agentesRouter from "./agentes";
@@ -125,6 +126,7 @@ router.use(agentesTrelloRouter);
 // Admin Drive: rota interna de admin, sem sessão de colaborador.
 router.use(adminDriveRouter);
 router.use(adminSheetsRouter);
+router.use(slackPadaxorRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
