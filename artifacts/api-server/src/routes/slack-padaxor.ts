@@ -15,6 +15,8 @@ import { requireCeoInstance } from "../middleware/tenantContext";
 import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, consultarHistorico } from "../lib/slack-reporter";
 import { getGoogleDriveClientRaw } from "../lib/google-drive";
 import { logger } from "../lib/logger";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -170,6 +172,75 @@ router.post("/padaxor/drive/clonar-planilha", async (req: Request, res: Response
     logger.error({ err: e }, "clonar-planilha: erro");
     res.status(500).json({ error: e.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/slack/status
+// Diagnóstico honesto: mostra o que está e o que NÃO está configurado.
+// Nunca retorna 500 — sempre responde, mesmo que tudo esteja errado.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promise<void> => {
+  const slackChannel   = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "";
+  const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+  const ceoSecret      = process.env.PADAXOR_CEO_SECRET       ?? "";
+  const planilhaId     = "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
+
+  // Checar se planilha está acessível (tentativa rápida via buildLlmReport com 0h)
+  let planilhaAcessivel = false;
+  let planilhaErro: string | null = null;
+  try {
+    const report = await buildLlmReport(0);
+    planilhaAcessivel = true;
+    void report; // só queríamos saber se não lança
+  } catch (e: any) {
+    planilhaErro = e.message;
+  }
+
+  // Último registro no histórico
+  let ultimoRelatorio: string | null = null;
+  try {
+    const rows = await db.execute(sql`
+      SELECT gerado_em_brt, canal, enviado_ok
+      FROM llm_reports_history
+      ORDER BY gerado_em DESC LIMIT 1
+    `);
+    if (rows.rows.length > 0) {
+      const r = rows.rows[0] as any;
+      ultimoRelatorio = `${r.gerado_em_brt} | canal=${r.canal} | ok=${r.enviado_ok}`;
+    }
+  } catch { /* sem histórico ainda */ }
+
+  res.json({
+    status: {
+      slack: {
+        configurado: slackChannel.length > 0,
+        channelId:   slackChannel || null,
+        aviso:       slackChannel ? null : "Configure PADAXOR_SLACK_CHANNEL_ID",
+      },
+      telegram: {
+        configurado: telegramChatId.length > 0,
+        chatId:      telegramChatId || null,
+        aviso:       telegramChatId
+          ? null
+          : "Configure PADAXOR_TELEGRAM_CHAT_ID — Telegram está sendo IGNORADO silenciosamente",
+      },
+      seguranca: {
+        camada2Ativa: ceoSecret.length > 0,
+        aviso:        ceoSecret
+          ? null
+          : "PADAXOR_CEO_SECRET não configurado — camada 2 de segurança INATIVA (qualquer clone com PADAXOR_AI_BYPASS=true passa)",
+      },
+      planilha: {
+        id:           planilhaId,
+        acessivel:    planilhaAcessivel,
+        erro:         planilhaErro,
+      },
+      historicoRelatorios: {
+        ultimoRegistro: ultimoRelatorio,
+        aviso: ultimoRelatorio ? null : "Nenhum relatório gravado ainda",
+      },
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------

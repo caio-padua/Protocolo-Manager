@@ -90,21 +90,41 @@ export function requirePlatformOwner(req: Request, res: Response, next: NextFunc
 }
 
 /**
- * Guard de instância CEO baseado em variável de ambiente.
+ * Guard de instância CEO — dupla camada.
  *
- * Diferente de requirePlatformOwner (que checa o tenant context, sempre true
- * na fase single-tenant atual), este guard checa PADAXOR_AI_BYPASS=true —
- * variável presente APENAS na instância CEO. Clones licenciados, mesmo com
- * isPlatformOwner=true no context, são bloqueados aqui.
+ * Camada 1 — PADAXOR_AI_BYPASS=true : flag de conveniência (env var no servidor).
+ *   Clones PODEM setar isso no próprio Replit → camada 1 sozinha NÃO é suficiente.
+ *
+ * Camada 2 — Header X-Padaxor-CEO vs PADAXOR_CEO_SECRET (env var do servidor CEO):
+ *   A requisição deve incluir o header X-Padaxor-CEO com o valor exato de
+ *   PADAXOR_CEO_SECRET. Esse secret vive APENAS nos Replit Secrets do CEO.
+ *   Um clone seta PADAXOR_AI_BYPASS=true mas não conhece PADAXOR_CEO_SECRET
+ *   do CEO → bloqueado na camada 2.
+ *
+ * Modo degradado (dev local / secret não configurado):
+ *   Se PADAXOR_CEO_SECRET não está definido, aceita só a camada 1.
+ *   Em produção (Railway), PADAXOR_CEO_SECRET DEVE estar configurado.
  *
  * Uso: router.get("/rota-ceo", requireCeoInstance, handler)
  */
-export function requireCeoInstance(_req: Request, res: Response, next: NextFunction): void {
-  if (process.env.PADAXOR_AI_BYPASS !== "true") {
-    res.status(403).json({
-      error: "Endpoint exclusivo da instância CEO (PADAXOR_AI_BYPASS).",
-    });
+export function requireCeoInstance(req: Request, res: Response, next: NextFunction): void {
+  const bypass    = process.env.PADAXOR_AI_BYPASS;
+  const ceoSecret = process.env.PADAXOR_CEO_SECRET ?? "";
+
+  // Camada 1: flag de conveniência
+  if (bypass !== "true") {
+    res.status(403).json({ error: "Acesso restrito." });
     return;
   }
+
+  // Camada 2: header vs secret de plataforma (só aplica quando o secret está configurado)
+  if (ceoSecret.length > 0) {
+    const header = (req.headers["x-padaxor-ceo"] as string | undefined) ?? "";
+    if (header !== ceoSecret) {
+      res.status(403).json({ error: "Acesso restrito." });
+      return;
+    }
+  }
+
   next();
 }
