@@ -13,7 +13,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
 import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, consultarHistorico } from "../lib/slack-reporter";
-import { getGoogleDriveClientRaw } from "../lib/google-drive";
+import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
