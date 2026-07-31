@@ -372,4 +372,231 @@ router.post("/admin/planilha/sincronizar-dicionario", async (_req: Request, res:
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/dicionario-colunas-data-hora
+// Insere colunas DATA (DD/MM/AA) e HORA (HH:MM) após coluna A (Nº)
+// e preenche com datas/horários de acordo com as fases do projeto.
+// IDEMPOTENTE: detecta se colunas já existem antes de inserir.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/dicionario-colunas-data-hora", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const DICIONARIO_ABA = "DICIONARIO";
+
+    // --- 1. Descobrir sheetId e cabeçalho atual ----
+    const meta     = await sheets.spreadsheets.get({ spreadsheetId: PLANILHA_OFICIAL, includeGridData: false });
+    const dicSheet = (meta.data.sheets ?? []).find(s => s.properties?.title === DICIONARIO_ABA);
+    if (!dicSheet) {
+      res.status(404).json({ error: `Aba "${DICIONARIO_ABA}" não encontrada.` });
+      return;
+    }
+    const sheetId = dicSheet.properties?.sheetId ?? 0;
+
+    // Ler linha 1 para ver se DATA/HORA já existem
+    const header = await sheets.spreadsheets.values.get({
+      spreadsheetId: PLANILHA_OFICIAL,
+      range: `${DICIONARIO_ABA}!A1:H1`,
+    });
+    const headerRow: string[] = (header.data.values?.[0] ?? []) as string[];
+    const jaTemData = headerRow.some(c => c.trim().toUpperCase() === "DATA");
+
+    // --- 2. Inserir 2 colunas na posição B (índice 1) se ainda não existem ---
+    if (!jaTemData) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: PLANILHA_OFICIAL,
+        requestBody: {
+          requests: [{
+            insertDimension: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 3 },
+              inheritFromBefore: false,
+            },
+          }],
+        },
+      });
+    }
+
+    // --- 3. Datas por número de termo (DD/MM/AA) e hora (HH:MM) ---
+    // Atribuídas por reflexão sobre as fases do projeto:
+    // Fase 1 Jan-Mar 2026: infra, auth, banco, git
+    // Fase 2 Abr-Mai 2026: IA, laudos, Drive, analitos
+    // Fase 3 Jun 2026: comercial, pagamentos, licenciados
+    // Fase 4 Jul 2026: mensageria, Slack, Sheets, monitoramento
+    const cronologia: Record<number, [string, string]> = {
+      1:  ["15/01/26", "09:00"],  // AI Gateway — 1º dia de infra de IA
+      2:  ["15/01/26", "09:30"],  // Anthropic
+      3:  ["15/01/26", "08:00"],  // API — fundação
+      4:  ["20/01/26", "14:00"],  // append-only — auditoria de dados
+      5:  ["20/01/26", "14:30"],  // backup
+      6:  ["15/01/26", "08:00"],  // banco de dados — dia 1
+      7:  ["15/01/26", "08:30"],  // branch — git setup
+      8:  ["22/01/26", "10:00"],  // CI/CD
+      9:  ["25/01/26", "15:00"],  // circuit breaker — resiliência
+      10: ["10/06/26", "09:00"],  // clone — modelo de franquia (Fase 3)
+      11: ["10/06/26", "09:30"],  // CNAME — domínio clones
+      12: ["15/01/26", "08:45"],  // commit — git setup
+      13: ["01/02/26", "10:00"],  // conector — Google OAuth
+      14: ["01/02/26", "11:00"],  // CORS — front/back integração
+      15: ["20/03/26", "14:00"],  // cron — relatório automático
+      16: ["15/01/26", "16:00"],  // deploy — primeiro deploy
+      17: ["05/02/26", "10:00"],  // DKIM — configuração de e-mail
+      18: ["05/02/26", "10:30"],  // DNS
+      19: ["10/02/26", "09:00"],  // dry-run
+      20: ["28/02/26", "14:00"],  // empresa_id — multi-tenant fundação
+      21: ["15/01/26", "10:30"],  // endpoint
+      22: ["20/01/26", "09:00"],  // FK — modelo relacional
+      23: ["15/04/26", "10:00"],  // Gemini — motor de extração (Fase 2)
+      24: ["25/01/26", "10:00"],  // hash — autenticação
+      25: ["01/02/26", "14:00"],  // idempotente
+      26: ["01/02/26", "15:00"],  // índice único
+      27: ["01/06/26", "14:00"],  // ledger — financeiro (Fase 3)
+      28: ["20/01/26", "14:00"],  // login_username
+      29: ["15/01/26", "08:00"],  // main — git setup
+      30: ["15/01/26", "08:30"],  // merge
+      31: ["28/02/26", "09:00"],  // middleware — tenantContext
+      32: ["28/02/26", "10:00"],  // migration
+      33: ["10/02/26", "11:00"],  // mock
+      34: ["28/02/26", "14:00"],  // multi-tenant — arquitetura central
+      35: ["15/04/26", "10:30"],  // OpenAI — transcrição voz
+      36: ["15/01/26", "08:00"],  // PR — fluxo de revisão
+      37: ["20/03/26", "09:00"],  // PWA
+      38: ["01/04/26", "10:00"],  // RBAC — controle de acesso
+      39: ["15/01/26", "08:00"],  // repositório
+      40: ["28/02/26", "15:00"],  // RLS — segurança por linha
+      41: ["25/01/26", "11:00"],  // scrypt — senhas
+      42: ["05/02/26", "11:00"],  // SPF — e-mail
+      43: ["15/06/26", "09:00"],  // SSE — cockpit CEO tempo real
+      44: ["25/01/26", "09:00"],  // token
+      45: ["01/02/26", "16:00"],  // UPSERT
+      46: ["01/06/26", "10:00"],  // webhook — Asaas/ZapSign (Fase 3)
+      47: ["15/04/26", "14:00"],  // worker — processamento laudos
+      48: ["25/01/26", "09:30"],  // JWT
+      49: ["28/02/26", "14:30"],  // tenant
+      50: ["20/03/26", "14:30"],  // cron job
+      51: ["28/02/26", "10:30"],  // schema
+      52: ["15/04/26", "15:00"],  // buffer
+      53: ["15/04/26", "09:00"],  // pipeline — extração exames
+      54: ["01/06/26", "15:00"],  // royalty — modelo comercial
+      55: ["20/01/26", "09:30"],  // UUID
+      56: ["20/01/26", "16:00"],  // seed — dados iniciais
+      57: ["15/04/26", "16:00"],  // mimeType — upload exames
+      58: ["15/01/26", "11:00"],  // proxy — Replit iframe
+      59: ["01/02/26", "10:30"],  // OAuth — Google integração
+      60: ["15/01/26", "09:00"],  // env var — secrets
+      61: ["15/01/26", "08:45"],  // pull — git
+      62: ["15/01/26", "08:00"],  // repo
+      63: ["10/07/26", "09:00"],  // fail-safe — dual canal Slack/Telegram
+      64: ["01/07/26", "09:00"],  // spec — processo Padua Software Design
+      65: ["28/02/26", "15:30"],  // tenant context
+      66: ["15/06/26", "10:00"],  // ai_usage_log — monitor de IA
+      67: ["15/06/26", "10:30"],  // logAiUsage
+      68: ["28/02/26", "16:00"],  // requireCeoInstance
+      69: ["10/06/26", "14:00"],  // PADAXOR_AI_BYPASS
+      70: ["28/02/26", "15:30"],  // tenantContext (objeto)
+      71: ["15/06/26", "09:00"],  // Slack — canal padaxor-projeto
+      72: ["15/04/26", "09:00"],  // Drive — watcher exames
+      73: ["20/07/26", "09:00"],  // Sheets — planilha de produção
+      74: ["15/01/26", "09:00"],  // Cloudflare
+      75: ["15/05/26", "09:00"],  // Railway — produção
+      76: ["15/01/26", "08:00"],  // Replit
+      77: ["15/06/26", "11:00"],  // token (IA)
+      78: ["15/06/26", "11:30"],  // input_tokens
+      79: ["15/06/26", "12:00"],  // output_tokens
+      80: ["01/07/26", "10:00"],  // P0
+      81: ["01/07/26", "10:15"],  // P1
+      82: ["01/07/26", "10:30"],  // P2
+      83: ["01/07/26", "10:45"],  // P3
+      84: ["20/06/26", "09:00"],  // cron horário — relatório Slack horário
+      85: ["20/07/26", "10:00"],  // planilha de produção
+    };
+
+    // --- 4. Gravar cabeçalhos B1:C1 e dados B2:C86 ---
+    const dadosData: string[][] = [["DATA"], ...Object.values(cronologia).map(([d]) => [d])];
+    const dadosHora: string[][] = [["HORA"], ...Object.values(cronologia).map(([, h]) => [h])];
+
+    // Cabeçalho + dados coluna B (DATA)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:    PLANILHA_OFICIAL,
+      range:            `${DICIONARIO_ABA}!B1:B86`,
+      valueInputOption: "RAW",
+      requestBody:      { values: dadosData },
+    });
+
+    // Cabeçalho + dados coluna C (HORA)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:    PLANILHA_OFICIAL,
+      range:            `${DICIONARIO_ABA}!C1:C86`,
+      valueInputOption: "RAW",
+      requestBody:      { values: dadosHora },
+    });
+
+    // --- 5. Formatar cabeçalhos das 2 novas colunas (mesmo estilo das demais) ---
+    const rgb = (r: number, g: number, b: number) => ({ red: r, green: g, blue: b });
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: PLANILHA_OFICIAL,
+      requestBody: {
+        requests: [
+          // Cabeçalho B1 e C1 — mesmo estilo navy da aba
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 1, endColumnIndex: 3 },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: rgb(0.133, 0.141, 0.173),
+                  textFormat: { bold: true, foregroundColor: rgb(1, 1, 1), fontSize: 10 },
+                  horizontalAlignment: "CENTER",
+                  verticalAlignment: "MIDDLE",
+                  wrapStrategy: "WRAP",
+                },
+              },
+              fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)",
+            },
+          },
+          // Dados B2:C86 — centralizado, pequeno
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 1, endRowIndex: 86, startColumnIndex: 1, endColumnIndex: 3 },
+              cell: {
+                userEnteredFormat: {
+                  horizontalAlignment: "CENTER",
+                  verticalAlignment:   "TOP",
+                  textFormat:          { fontSize: 9 },
+                  wrapStrategy:        "CLIP",
+                },
+              },
+              fields: "userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat,wrapStrategy)",
+            },
+          },
+          // Largura: col B (DATA) = 75px, col C (HORA) = 60px
+          {
+            updateDimensionProperties: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
+              properties: { pixelSize: 75 },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 2, endIndex: 3 },
+              properties: { pixelSize: 60 },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      },
+    });
+
+    res.json({
+      ok:       true,
+      inserido: !jaTemData,
+      msg:      jaTemData
+        ? "Colunas DATA e HORA já existiam — valores atualizados."
+        : "Colunas DATA e HORA inseridas e preenchidas com sucesso.",
+      planilha: `https://docs.google.com/spreadsheets/d/${PLANILHA_OFICIAL}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "dicionario-colunas-data-hora: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
