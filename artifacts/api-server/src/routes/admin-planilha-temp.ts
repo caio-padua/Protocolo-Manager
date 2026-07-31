@@ -4,6 +4,10 @@
  * Uso único: ler, validar e limpar a pasta do Drive.
  *
  * REMOVER após concluída a operação.
+ *
+ * Histórico de correções aplicadas diretamente na planilha:
+ *   [Task42 31/07/2026] Item #43 PARCIAL→A FAZER + obs adicionada
+ *   [Task42 31/07/2026] Item #49 (Monitor de LLMs) renumerado para #53
  */
 
 import { Router, type Request, type Response } from "express";
@@ -139,6 +143,7 @@ router.delete("/admin/planilha/limpar-pasta", async (_req: Request, res: Respons
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/planilha/atualizar-estados — corrige estados e adiciona linhas
+// NOTA: estados PARCIAL removidos (valor invalido; lista valida: A FAZER / AGUARDANDO / CONCLUIDO).
 // ---------------------------------------------------------------------------
 router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -162,10 +167,12 @@ router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Resp
     const updates: { range: string; values: string[][] }[] = [];
 
     // Itens a corrigir: [nº, novoEstado]
+    // ATENÇÃO: estados válidos = A FAZER | AGUARDANDO | CONCLUIDO
+    // PARCIAL foi removido — o conferidor de consistência reprova qualquer valor fora dessa lista.
     const correcoes: [number, string][] = [
       [18, "CONCLUIDO"],
       [42, "CONCLUIDO"],
-      [43, "PARCIAL"],
+      // #43 permanece A FAZER — não alterar para PARCIAL (valor inválido)
     ];
 
     for (const [nro, novoEstado] of correcoes) {
@@ -187,28 +194,10 @@ router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Resp
       });
     }
 
-    // Adicionar linhas novas ao final
-    const totalLinhas = rows.length; // inclui header
-    const novasLinhas = [
-      [
-        "49", "Monitor de LLMs no Slack (#padaxor-projeto)",
-        "Dr. Replit", "CONCLUIDO", "P1 alto", "42",
-        "O sistema agora posta automaticamente no canal do Slack toda manha o que cada IA fez, quanto custou e se ha divergencias — em linguagem tecnica e em linguagem simples.",
-        "feito",
-      ],
-    ];
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sid,
-      range: `A${totalLinhas + 1}`,
-      valueInputOption: "RAW",
-      requestBody: { values: novasLinhas },
-    });
-
     res.json({
       ok: true,
       estadosAtualizados: correcoes.map(([n, e]) => ({ item: n, novoEstado: e })),
-      linhasAdicionadas: novasLinhas.length,
+      nota: "Item #43 nao alterado (A FAZER e correto). Item #49 (Monitor de LLMs) foi renumerado para #53 pela Task42.",
     });
   } catch (e: any) {
     logger.error({ err: e }, "atualizar-estados: erro");

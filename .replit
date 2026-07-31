@@ -37,7 +37,6 @@ CF_API_TOKEN = "cfat_kwuONUnk7zopBW5ld8ecW3kFupmq0UHBm8LT6iCqc45f2fad"
 CF_AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea2862974ec3564c48/padaxor-central"
 PADAXOR_AI_BYPASS = "true"
 PADAXOR_SLACK_CHANNEL_ID = "C0BLW5S7GQL"
-GITHUB_PAT = "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"
 
 [userenv.development]
 ZAPSIGN_BASE_URL = "https://api.zapsign.com.br"
