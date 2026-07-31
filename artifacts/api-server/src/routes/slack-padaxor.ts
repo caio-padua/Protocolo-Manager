@@ -12,7 +12,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
-import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport } from "../lib/slack-reporter";
+import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, consultarHistorico } from "../lib/slack-reporter";
 import { getGoogleDriveClientRaw } from "../lib/google-drive";
 import { logger } from "../lib/logger";
 
@@ -168,6 +168,58 @@ router.post("/padaxor/drive/clonar-planilha", async (req: Request, res: Response
     });
   } catch (e: any) {
     logger.error({ err: e }, "clonar-planilha: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/slack/historico?dias=7
+// Consulta o histórico de relatórios de LLMs gravados no banco.
+// Retorna: registros cronológicos + totais agregados por provedor de IA.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/slack/historico", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const dias = Math.min(Number(req.query.dias ?? 7), 90); // máx 90 dias
+    const { registros, totalChamadas, totalCustoUsd, porProvedor } =
+      await consultarHistorico(dias);
+
+    // Formatar resumo por provedor para exibição leiga
+    const LABEL: Record<string, string> = {
+      anthropic: "Anthropic (Claude)",
+      gemini:    "Google (Gemini)",
+      openai:    "OpenAI (GPT)",
+    };
+
+    const resumoProvedor = Object.entries(porProvedor).map(([prov, stat]) => ({
+      provedor:    LABEL[prov] ?? prov,
+      chamadas:    stat.chamadas,
+      custoUsd:    Number(stat.custoUsd.toFixed(6)),
+      custoFormatado: `U$ ${stat.custoUsd.toFixed(4)}`,
+    })).sort((a, b) => b.custoUsd - a.custoUsd);
+
+    res.json({
+      consulta: {
+        dias,
+        totalRegistros:   registros.length,
+        totalChamadas,
+        totalCustoUsd:    Number(totalCustoUsd.toFixed(6)),
+        totalCustoFormatado: `U$ ${totalCustoUsd.toFixed(4)}`,
+      },
+      porProvedor: resumoProvedor,
+      registros: registros.map((r: any) => ({
+        id:               r.id,
+        geradoEmBrt:      r.gerado_em_brt,
+        periodoHoras:     r.periodo_horas,
+        totalChamadas:    Number(r.total_chamadas),
+        totalCustoUsd:    Number(r.total_custo_usd),
+        mudancasPlanilha: Number(r.mudancas_planilha),
+        canal:            r.canal,
+        enviadoOk:        r.enviado_ok,
+        erro:             r.erro ?? null,
+      })),
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "slack-historico: erro");
     res.status(500).json({ error: e.message });
   }
 });

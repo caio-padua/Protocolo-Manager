@@ -440,19 +440,105 @@ export async function listarCanaisSlack(): Promise<{ id: string; name: string }[
 // ---------------------------------------------------------------------------
 // Postar no Slack
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Persistência de histórico (tabela llm_reports_history)
+// ---------------------------------------------------------------------------
+async function salvarHistorico(
+  report: LlmReport,
+  canal: "slack" | "telegram" | "ambos",
+  enviado_ok: boolean,
+  erro?: string,
+): Promise<void> {
+  try {
+    const brtStr = new Date(report.geradoEm)
+      .toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour12: false });
+
+    await db.execute(sql`
+      INSERT INTO llm_reports_history
+        (gerado_em_brt, periodo_horas, total_chamadas, total_custo_usd,
+         mudancas_planilha, stats_json, divergencias, canal, enviado_ok, erro)
+      VALUES (
+        ${brtStr},
+        ${report.stats.length > 0 ? 1 : 1},
+        ${report.totalChamadas},
+        ${report.totalCustoUsd},
+        ${report.mudancasPlanilha.length},
+        ${JSON.stringify(report.stats)}::jsonb,
+        ${JSON.stringify(report.divergencias)}::jsonb,
+        ${canal},
+        ${enviado_ok},
+        ${erro ?? null}
+      )
+    `);
+    logger.info({ canal, enviado_ok }, "slack-reporter: histórico salvo");
+  } catch (e) {
+    // falha no histórico nunca derruba o envio
+    logger.warn({ err: (e as Error).message }, "slack-reporter: falha ao salvar histórico (non-fatal)");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Consulta de histórico para a rota GET /historico
+// ---------------------------------------------------------------------------
+export async function consultarHistorico(dias = 7): Promise<{
+  registros: object[];
+  totalChamadas: number;
+  totalCustoUsd: number;
+  porProvedor: Record<string, { chamadas: number; custoUsd: number }>;
+}> {
+  const rows = await db.execute(sql`
+    SELECT id, gerado_em, gerado_em_brt, periodo_horas,
+           total_chamadas, total_custo_usd, mudancas_planilha,
+           stats_json, canal, enviado_ok, erro
+    FROM llm_reports_history
+    WHERE gerado_em >= NOW() - (${dias} || ' days')::interval
+    ORDER BY gerado_em DESC
+    LIMIT 500
+  `);
+
+  const registros = rows.rows as any[];
+
+  const totalChamadas  = registros.reduce((a, r) => a + Number(r.total_chamadas), 0);
+  const totalCustoUsd  = registros.reduce((a, r) => a + Number(r.total_custo_usd), 0);
+
+  // Agregação por provedor de IA
+  const porProvedor: Record<string, { chamadas: number; custoUsd: number }> = {};
+  for (const r of registros) {
+    const stats: LlmProviderStats[] = r.stats_json ?? [];
+    for (const s of stats) {
+      if (!porProvedor[s.provider]) porProvedor[s.provider] = { chamadas: 0, custoUsd: 0 };
+      porProvedor[s.provider].chamadas  += s.chamadas;
+      porProvedor[s.provider].custoUsd  += s.custoUsd;
+    }
+  }
+
+  return { registros, totalChamadas, totalCustoUsd, porProvedor };
+}
+
+// ---------------------------------------------------------------------------
+// Postar no Slack + gravar histórico
+// ---------------------------------------------------------------------------
 export async function postSlackReport(channelId: string, report: LlmReport): Promise<void> {
   const blocks = formatarRelatorioSlack(report);
   const fallback = `PADAXOR LLMs — ${report.periodo}: ${report.totalChamadas} chamadas, ${usd(report.totalCustoUsd)}`;
 
-  const data = await slackPost("/chat.postMessage", {
-    channel: channelId,
-    text:    fallback,
-    blocks,
-  });
+  let erro: string | undefined;
+  let ok = false;
 
-  if (!data.ok) {
-    throw new Error(`Slack postMessage erro: ${data.error ?? "desconhecido"}`);
+  try {
+    const data = await slackPost("/chat.postMessage", {
+      channel: channelId,
+      text:    fallback,
+      blocks,
+    });
+    if (!data.ok) throw new Error(`Slack postMessage erro: ${data.error ?? "desconhecido"}`);
+    ok = true;
+    logger.info({ channel: channelId }, "slack-reporter: relatório postado com sucesso");
+  } catch (e) {
+    erro = (e as Error).message;
+    throw e;   // propaga para o chamador (cron loga, mas não derruba o worker)
+  } finally {
+    // Grava histórico independente de sucesso ou falha
+    await salvarHistorico(report, "slack", ok, erro);
   }
-
-  logger.info({ channel: channelId }, "slack-reporter: relatório postado com sucesso");
 }

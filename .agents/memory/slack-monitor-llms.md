@@ -60,6 +60,19 @@ Execução: 08:00 BRT, timezone: "America/Sao_Paulo".
 **Build do api-worker**: erro pré-existente ("Cannot find module 'thread-stream'") — não causado pelo Job 5.
 O worker roda no Railway (não há workflow local para ele).
 
+## Histórico de relatórios (llm_reports_history)
+
+Tabela criada via raw SQL (não está no schema Drizzle). Campos: id, gerado_em, gerado_em_brt, periodo_horas, total_chamadas, total_custo_usd, mudancas_planilha, stats_json (JSONB), divergencias (JSONB), canal, enviado_ok, erro.
+`salvarHistorico()` é chamada no `finally` de `postSlackReport()` — grava sempre, mesmo em falha.
+Rota de consulta: `GET /api/padaxor/slack/historico?dias=N` (padrão 7, máx 90).
+Estado da planilha para comparação horária: `/tmp/padaxor-planilha-estado.json` — reseta no restart (aceitável; pior caso = falso positivo de "novo item").
+
+## Glossário — regra de números permanentes
+
+`(*N)` = posição 1-based no array `GLOSSARIO` em `slack-glossario.ts`. NUNCA recalcular por mensagem.
+Bug corrigido em 31/07/2026: numeração dinâmica → permanente.
+Dr. Code deve criar `DICIONARIO.md` no GitHub com os mesmos 55 termos na mesma ordem. Spec: `specs/dicionario-numeros-permanentes.md`.
+
 ## Planilha de Produção (assumida como oficial)
 
 - **ID oficial**: `1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw`
