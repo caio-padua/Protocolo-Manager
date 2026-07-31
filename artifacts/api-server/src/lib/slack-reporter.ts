@@ -321,38 +321,86 @@ function usd(v: number) { return `U$ ${v.toFixed(4)}`; }
 function num(v: number)  { return v.toLocaleString("pt-BR"); }
 
 // ---------------------------------------------------------------------------
-// Helper: tabela monospace de CONCLUÍDOS para Slack (bloco emoldurado)
+// Helper: word-wrap de texto em coluna de largura fixa (sem cortar palavras)
+// ---------------------------------------------------------------------------
+function wrapCol(text: string, width: number): string[] {
+  const str = String(text ?? "").trim();
+  if (str.length === 0) return [" ".repeat(width)];
+  if (str.length <= width) return [str.padEnd(width)];
+
+  const lines: string[] = [];
+  let remaining = str;
+  while (remaining.length > 0) {
+    if (remaining.length <= width) {
+      lines.push(remaining.padEnd(width));
+      break;
+    }
+    // quebra na última palavra que cabe
+    let cut = width;
+    const spaceIdx = remaining.lastIndexOf(" ", width - 1);
+    if (spaceIdx > Math.floor(width / 3)) cut = spaceIdx;
+    lines.push(remaining.slice(0, cut).padEnd(width));
+    remaining = remaining.slice(cut).trimStart();
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: tabela monospace de CONCLUÍDOS para Slack (com quebra de linha real)
 // ---------------------------------------------------------------------------
 function montarTabelaConcluidos(items: ItemPlanilha[]): string {
   if (items.length === 0) return "";
 
   // Larguras fixas das colunas (chars)
   const W_NRO  = 4;
-  const W_ITEM = 32;
+  const W_ITEM = 38;
   const W_RESP = 14;
-  const W_SOL  = 26;
-
-  const pad  = (s: string, w: number) => String(s ?? "").slice(0, w).padEnd(w);
-  const line = (a: string, b: string, c: string, d: string) =>
-    `║ ${pad(a, W_NRO)} │ ${pad(b, W_ITEM)} │ ${pad(c, W_RESP)} │ ${pad(d, W_SOL)} ║`;
+  const W_SOL  = 30;
 
   const barTop = `╔${"═".repeat(W_NRO+2)}╤${"═".repeat(W_ITEM+2)}╤${"═".repeat(W_RESP+2)}╤${"═".repeat(W_SOL+2)}╗`;
   const barSep = `╠${"═".repeat(W_NRO+2)}╪${"═".repeat(W_ITEM+2)}╪${"═".repeat(W_RESP+2)}╪${"═".repeat(W_SOL+2)}╣`;
   const barBot = `╚${"═".repeat(W_NRO+2)}╧${"═".repeat(W_ITEM+2)}╧${"═".repeat(W_RESP+2)}╧${"═".repeat(W_SOL+2)}╝`;
+  const blank  = (w: number) => " ".repeat(w);
+
+  // Monta as linhas de uma célula multi-linha alinhada
+  function montarLinhaMulti(nro: string, item: string, resp: string, sol: string): string[] {
+    const nroL  = wrapCol(nro,  W_NRO);
+    const itemL = wrapCol(item, W_ITEM);
+    const respL = wrapCol(resp, W_RESP);
+    const solL  = wrapCol(sol,  W_SOL);
+    const h = Math.max(nroL.length, itemL.length, respL.length, solL.length);
+    const out: string[] = [];
+    for (let i = 0; i < h; i++) {
+      out.push(
+        `║ ${nroL[i]  ?? blank(W_NRO)} │ ${itemL[i] ?? blank(W_ITEM)} │ ${respL[i] ?? blank(W_RESP)} │ ${solL[i]  ?? blank(W_SOL)} ║`
+      );
+    }
+    return out;
+  }
+
+  // Mostrar apenas os últimos 10 itens (maior nro = mais recente) para não ultrapassar 3000 chars
+  const MAX_ROWS = 10;
+  const itensSorted = [...items].sort((a, b) => Number(b.nro) - Number(a.nro)).slice(0, MAX_ROWS).reverse();
+  const omitidos    = items.length - itensSorted.length;
 
   const rows: string[] = [
     barTop,
-    line("Nº", "Item", "Agente", "Solicitado por"),
+    ...montarLinhaMulti("Nº", "Item", "Agente", "Pedido por / Esperado de"),
     barSep,
   ];
 
-  for (const it of items) {
+  for (const it of itensSorted) {
+    // solicitacao: o que o agente pode esperar do outro LLM ou do CEO
     const sol = it.solicitacao?.trim() || "—";
-    rows.push(line(it.nro, it.item, it.resp || "Dr. Replit", sol));
+    rows.push(...montarLinhaMulti(it.nro, it.item, it.resp || "Dr. Replit", sol));
   }
   rows.push(barBot);
 
-  return "```\n" + rows.join("\n") + "\n```";
+  let tabela = "```\n" + rows.join("\n") + "\n```";
+  if (omitidos > 0) {
+    tabela += `\n_... e mais ${omitidos} item(ns) anteriores — ver planilha completa no link abaixo._`;
+  }
+  return tabela;
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +587,16 @@ export function formatarRelatorioSlack(report: LlmReport): object[] {
       }],
     });
   }
+
+  // ── Link direto para a planilha de produção (sempre presente) ────────
+  blocks.push({ type: "divider" });
+  blocks.push({
+    type: "context",
+    elements: [{
+      type: "mrkdwn",
+      text: `📊 *Planilha de Produção (ao vivo):* <https://docs.google.com/spreadsheets/d/${PLANILHA_ID}|Abrir no Google Sheets ↗>   ·   _${report.totalItensPlanilha} itens · ${report.itensConcluidos.length} concluídos_`,
+    }],
+  });
 
   return blocks;
 }
