@@ -407,12 +407,21 @@ clinico (validacao, avaliacao, exame avulso) pode ter valor e link de pagamento,
 assistente visivel no painel dele; a estrutura "bracos de pagamento" ja existe (`specs/bracos-pagamento.md`),
 split e painel de ganhos ficam para onda dedicada. Roadmap em `specs/motor-encantamento-consolidacao.md`.
 
+**Art. 70 — Dual-canal: telegramSkipped não é sucesso** *(promulgado em 31/07/2026)*
+Quando o Monitor de LLMs opera em modo dual-canal (Slack + Telegram), o registro `canal="ambos"` com
+`enviado_ok=true` só pode existir se ambos os canais efetivamente entregaram. `telegramSkipped`
+(chatId vazio) é ausência de configuração — não é entrega. O campo `erros` deve documentar
+explicitamente "Telegram não configurado" quando o canal foi ignorado. Regra: early return antes
+do bloco de resumo deve ser substituído por `else {}` para o log de ciclo sempre rodar.
+Arquivos: `llm-monitor-dispatch.ts` (step 4), `slack-reporter.ts` (salvarHistorico exportada).
+
 ---
 
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 31/07/2026 | Art. 70 (Título III) | Dual-canal telegramSkipped ≠ sucesso: ambosOk = slackOk AND telegramOk (sem contar skip); early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL para testes sem API real. |
 | 24/07/2026 | Art. 69 (Título III) | Toda construção é testada e provada, promulgado a pedido do CEO: 4 níveis obrigatórios (SMOKE/DADO/VISUAL/LOG); proibido declarar "feito" sem prova objetiva; motor de exames só declarado funcionando com PDF real+banco+Evolução; data/hora de arquivo/exibição SEMPRE via `lib/brt.ts`; resultado de teste em tabela Nível/Esperado/Obtido/Passou na resposta ao CEO; "Passou: NÃO" bloqueia entrega. |
 | 28/06/2026 | Art. 66 v2 + Padrao 19/20 (skill) | E-mail Paxter v2 aprovado pelo CEO: fundo "terno" navy MAIS claro (fallback #0a1430 + gradiente + brilho dourado + tramado) substitui o #05080f "muito escuro". A lista de substancias: o CEO TESTOU cartoes e na mesma data DESCARTOU — preferiu a TABELA com COLUNAS ALINHADAS na vertical (SUBSTANCIA \| DOSE \| SESSAO \| FREQUENCIA \| STATUS), dose so em miligramagem (motor remove "/ N ml"), sessao "4/12", frequencia "a cada N dias", status em pilula, coluna omitida se ninguem tiver o dado. Fonte unica `messaging/substance-table.ts` (`blocoTabelaSubstancias`); `substance-cards.ts` removido. Registrado como Padrao 20 (atualizado: TABELA) + Padrao 19 na skill `skill-layout-paxter`. Previa viva: `GET /api/brand/email-preview`; envio de teste dev-only: `POST /api/brand/email-test {to}`. Memoria: `email-paxter-v2-terno-tabela`. |
 | 28/06/2026 | Art. 68 (Título III) | Dado real antes de fixture, promulgado pelo "freio de mão" do CEO: antes de criar qualquer dado de teste/exemplo (fixture/mock), o agente verifica se já existe o dado REAL no sistema e o usa; fixture só é permitido para validação puramente visual de layout (renderização), nunca para provar fluxo de negócio. Operar o sistema de verdade vence simulação. |

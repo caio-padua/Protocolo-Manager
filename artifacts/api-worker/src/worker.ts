@@ -154,6 +154,8 @@ export function startWorkerJobs(logger: pino.Logger): void {
           buildLlmReport:     reporter.buildLlmReport,
           postSlackReport:    reporter.postSlackReport,
           postTelegramReport: reporter.postTelegramReport,
+          // R2 (spec llm-monitor-telegram-fallback): grava registro "ambos" ao final
+          salvarHistorico:    reporter.salvarHistorico,
         },
         logger,
       );

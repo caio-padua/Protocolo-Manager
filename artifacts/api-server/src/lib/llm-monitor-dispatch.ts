@@ -16,14 +16,17 @@ import type { LlmReport } from "./slack-reporter";
 // ---------------------------------------------------------------------------
 // Tipos das dependências injetáveis (facilita mock nos testes)
 // ---------------------------------------------------------------------------
-export type BuildReportFn    = (horas?: number) => Promise<LlmReport>;
-export type PostSlackFn      = (channelId: string, report: LlmReport) => Promise<void>;
-export type PostTelegramFn   = (chatId: string, report: LlmReport, fallbackSlackChannelId?: string) => Promise<void>;
+export type BuildReportFn       = (horas?: number) => Promise<LlmReport>;
+export type PostSlackFn         = (channelId: string, report: LlmReport) => Promise<void>;
+export type PostTelegramFn      = (chatId: string, report: LlmReport, fallbackSlackChannelId?: string) => Promise<void>;
+export type SalvarHistoricoFn   = (report: LlmReport, canal: "slack" | "telegram" | "ambos", ok: boolean, erro?: string) => Promise<void>;
 
 export interface LlmMonitorDeps {
-  buildLlmReport:    BuildReportFn;
-  postSlackReport:   PostSlackFn;
+  buildLlmReport:     BuildReportFn;
+  postSlackReport:    PostSlackFn;
   postTelegramReport: PostTelegramFn;
+  /** Opcional — quando presente, grava um registro "ambos" ao final do ciclo */
+  salvarHistorico?:   SalvarHistoricoFn;
 }
 
 export interface LlmMonitorConfig {
@@ -99,20 +102,40 @@ export async function runLlmMonitorJob(
   // ── 3. Telegram — fail-safe independente do Slack ───────────────────────
   if (!config.telegramChatId) {
     logger?.warn("llm-monitor: PADAXOR_TELEGRAM_CHAT_ID vazio — Telegram ignorado");
-    return result;
+    // NÃO retorna aqui: continua para gravar o registro "ambos" no histórico
+  } else {
+    try {
+      await deps.postTelegramReport(config.telegramChatId, report, config.slackFallbackChannelId);
+      result.telegramOk = true;
+      logger?.info("llm-monitor: Telegram postado com sucesso");
+    } catch (err) {
+      result.telegramError = err instanceof Error ? err.message : String(err);
+      logger?.error(
+        { err: result.telegramError },
+        "llm-monitor: falha no canal Telegram — Slack não é afetado"
+      );
+      // NÃO relança
+    }
   }
 
-  try {
-    await deps.postTelegramReport(config.telegramChatId, report, config.slackFallbackChannelId);
-    result.telegramOk = true;
-    logger?.info("llm-monitor: Telegram postado com sucesso");
-  } catch (err) {
-    result.telegramError = err instanceof Error ? err.message : String(err);
-    logger?.error(
-      { err: result.telegramError },
-      "llm-monitor: falha no canal Telegram — Slack não é afetado"
+  // ── 4. Registro "ambos" — resumo dual-canal do ciclo ───────────────────
+  // Só grava se o relatório foi construído e a função foi injetada.
+  if (result.reportBuilt && deps.salvarHistorico) {
+    // ambosOk = ambos os canais realmente entregaram.
+    // telegramSkipped (chatId vazio) NÃO é sucesso — é ausência de configuração.
+    const ambosOk = result.slackOk && result.telegramOk;
+    const partesTelegram = result.telegramSkipped
+      ? ["Telegram não configurado (PADAXOR_TELEGRAM_CHAT_ID vazio)"]
+      : [];
+    const erros = [...partesTelegram, result.slackError, result.telegramError]
+      .filter(Boolean).join("; ");
+    await deps.salvarHistorico(report, "ambos", ambosOk, erros || undefined).catch(() => {
+      // salvarHistorico já trata seus próprios erros internamente
+    });
+    logger?.info(
+      { slackOk: result.slackOk, telegramOk: result.telegramOk, ambosOk },
+      "llm-monitor: registro 'ambos' gravado no histórico",
     );
-    // NÃO relança
   }
 
   return result;

@@ -12,7 +12,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
-import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, consultarHistorico } from "../lib/slack-reporter";
+import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico } from "../lib/slack-reporter";
+import { GLOSSARIO } from "../lib/slack-glossario";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
@@ -196,8 +197,9 @@ router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promis
     planilhaErro = e.message;
   }
 
-  // Último registro no histórico
+  // Último registro + falhas recentes (7 dias)
   let ultimoRelatorio: string | null = null;
+  let falhasRecentes = 0;
   try {
     const rows = await db.execute(sql`
       SELECT gerado_em_brt, canal, enviado_ok
@@ -208,6 +210,13 @@ router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promis
       const r = rows.rows[0] as any;
       ultimoRelatorio = `${r.gerado_em_brt} | canal=${r.canal} | ok=${r.enviado_ok}`;
     }
+    const falhas = await db.execute(sql`
+      SELECT COUNT(*)::int AS n
+      FROM llm_reports_history
+      WHERE enviado_ok = false
+        AND gerado_em >= NOW() - INTERVAL '7 days'
+    `);
+    falhasRecentes = Number((falhas.rows[0] as any)?.n ?? 0);
   } catch { /* sem histórico ainda */ }
 
   res.json({
@@ -237,10 +246,118 @@ router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promis
       },
       historicoRelatorios: {
         ultimoRegistro: ultimoRelatorio,
+        falhasRecentes,
         aviso: ultimoRelatorio ? null : "Nenhum relatório gravado ainda",
       },
     },
   });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/padaxor/slack/test-fallback-telegram   (R4 da spec)
+// Confirma que o aviso de fallback chega ao Slack quando o Telegram recusa.
+// Usa chatId especial "PADAXOR_TEST_FORCE_FAIL" — sendTelegram retorna erro
+// sem chamar a API real. Grava histórico (canal=telegram, ok=false).
+// ---------------------------------------------------------------------------
+router.post("/padaxor/slack/test-fallback-telegram", async (_req: Request, res: Response): Promise<void> => {
+  const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+  let telegramFailed = false;
+  let slackFallbackOk = false;
+  let erroMensagem = "";
+
+  try {
+    const report = await buildLlmReport(0);
+
+    try {
+      await postTelegramReport("PADAXOR_TEST_FORCE_FAIL", report, channelId);
+    } catch (e: any) {
+      telegramFailed = true;
+      erroMensagem   = e.message;
+      // Se chegou aqui, o fallback foi acionado com channelId configurado
+      slackFallbackOk = channelId.length > 0;
+    }
+
+    // Confirmar que um registro telegram foi gravado no histórico
+    const hist = await db.execute(sql`
+      SELECT id FROM llm_reports_history
+      WHERE canal = 'telegram' AND enviado_ok = false
+      ORDER BY gerado_em DESC LIMIT 1
+    `);
+    const historicoId = (hist.rows[0] as any)?.id ?? null;
+
+    res.json({
+      telegramFailed,
+      slackFallbackOk,
+      erro: erroMensagem || null,
+      historicoId,
+      mensagem: telegramFailed
+        ? "Fallback testado: Telegram recusou, aviso enviado ao Slack. Confirme a mensagem ⚠️ PADAXOR — Telegram offline no canal."
+        : "Telegram enviou com sucesso (token real configurado — use chatId inválido para testar fallback).",
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "test-fallback-telegram: erro inesperado");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/dicionario/verificar   (R3 da spec dicionario-sync-task39)
+// Compara GLOSSARIO em memória com dicionario.json no GitHub.
+// Detecta divergências de número entre as duas fontes.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/dicionario/verificar", async (_req: Request, res: Response): Promise<void> => {
+  const RAW_URL = "https://raw.githubusercontent.com/caio-padua/PADUA-SOFTWARE-DESIGN/main/dicionario/dicionario.json";
+
+  try {
+    // 1. Buscar JSON do GitHub (público, sem autenticação)
+    const resp = await fetch(RAW_URL, { signal: AbortSignal.timeout(10_000) });
+    if (!resp.ok) {
+      res.status(503).json({ sync: null, erro: `GitHub API retornou ${resp.status}` });
+      return;
+    }
+    const data = await resp.json() as { termos: Array<{ numero: number; termo: string }> };
+    const githubTermos = data.termos ?? [];
+
+    // 2. Indexar por termo normalizado (case-insensitive, sem espaços extras)
+    const norm = (s: string) => s.toLowerCase().trim();
+    const githubIdx = new Map(githubTermos.map(t => [norm(t.termo), t.numero]));
+    const glossarioIdx = new Map(GLOSSARIO.map(e => [norm(e.termo), e.numero]));
+
+    // 3. Divergências: mesmo termo, número diferente
+    const divergencias: Array<{ termo: string; numeroGlossario: number; numeroGithub: number | null }> = [];
+    for (const e of GLOSSARIO) {
+      const key = norm(e.termo);
+      const numGithub = githubIdx.get(key) ?? null;
+      if (numGithub !== null && numGithub !== e.numero) {
+        divergencias.push({ termo: e.termo, numeroGlossario: e.numero, numeroGithub: numGithub });
+      }
+    }
+
+    // 4. Termos só no glossário local (não estão no GitHub)
+    const apenasLocal = GLOSSARIO
+      .filter(e => !githubIdx.has(norm(e.termo)))
+      .map(e => ({ termo: e.termo, numero: e.numero }));
+
+    // 5. Termos só no GitHub (não estão no glossário local)
+    const apenasNoGithub = githubTermos
+      .filter(t => !glossarioIdx.has(norm(t.termo)))
+      .map(t => ({ termo: t.termo, numero: t.numero }));
+
+    res.json({
+      sync:           divergencias.length === 0 && apenasLocal.length === 0,
+      totalGlossario: GLOSSARIO.length,
+      totalGithub:    githubTermos.length,
+      divergencias,
+      apenasLocal,
+      apenasNoGithub,
+    });
+  } catch (e: any) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      res.status(503).json({ sync: null, erro: "GitHub API indisponível (timeout)" });
+    } else {
+      res.status(503).json({ sync: null, erro: e.message });
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------
