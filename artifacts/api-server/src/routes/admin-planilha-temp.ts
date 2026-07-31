@@ -212,7 +212,19 @@ router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Resp
 // ---------------------------------------------------------------------------
 router.post("/admin/planilha/adicionar-item", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nro, item, resp, estado, prio, hash, descricao, notas } = req.body as Record<string, string>;
+    // Campos aceitos:
+    //   A  nro         — número do item
+    //   B  item        — descrição curta
+    //   C  resp        — agente responsável (ex: "Dr. Replit")
+    //   D  estado      — A FAZER | AGUARDANDO | CONCLUIDO
+    //   E  prio        — P1 alto | P2 medio | P3 baixo
+    //   F  hash        — sessão de referência (ex: "53")
+    //   G  descricao   — descrição longa
+    //   H  notas       — notas de entrega
+    //   I  solicitacao — o que uma LLM pediu à outra (handoff inter-agente)
+    const { nro, item, resp, estado, prio, hash, descricao, notas, solicitacao } =
+      req.body as Record<string, string>;
+
     const sheets = await getGoogleSheetsClient();
     await sheets.spreadsheets.values.append({
       spreadsheetId: PLANILHA_OFICIAL,
@@ -220,7 +232,17 @@ router.post("/admin/planilha/adicionar-item", async (req: Request, res: Response
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
-        values: [[String(nro ?? ""), String(item ?? ""), String(resp ?? ""), String(estado ?? ""), String(prio ?? ""), String(hash ?? "—"), String(descricao ?? ""), String(notas ?? "")]],
+        values: [[
+          String(nro         ?? ""),
+          String(item        ?? ""),
+          String(resp        ?? ""),
+          String(estado      ?? ""),
+          String(prio        ?? ""),
+          String(hash        ?? "—"),
+          String(descricao   ?? ""),
+          String(notas       ?? ""),
+          String(solicitacao ?? ""),   // coluna I — handoff inter-LLM
+        ]],
       },
     });
     res.json({ ok: true, nro, item });

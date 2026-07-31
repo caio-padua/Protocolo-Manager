@@ -66,11 +66,15 @@ export type LlmProviderStats = {
 };
 
 export type ItemPlanilha = {
-  nro:    string;
-  item:   string;
-  resp:   string;
-  estado: string;
-  prio:   string;
+  nro:         string;
+  item:        string;
+  resp:        string;   // agente responsável (ex: "Dr. Replit")
+  estado:      string;
+  prio:        string;
+  hash?:       string;   // sessão de referência
+  descricao?:  string;
+  notas?:      string;
+  solicitacao?: string;  // coluna I — o que uma LLM pediu à outra (handoff)
 };
 
 export type MudancaPlanilha = {
@@ -79,6 +83,13 @@ export type MudancaPlanilha = {
   item:    string;
   de?:     string;
   para?:   string;
+};
+
+export type UltimoPreenchimento = {
+  nro:        string;
+  item:       string;
+  resp:       string;   // agente que preencheu (ex: "Dr. Replit")
+  solicitacao?: string; // handoff recebido de outra LLM, se existir
 };
 
 export type LlmReport = {
@@ -91,6 +102,8 @@ export type LlmReport = {
   totalChamadas: number;
   mudancasPlanilha: MudancaPlanilha[];
   totalItensPlanilha: number;
+  itensConcluidos:    ItemPlanilha[];          // todos os itens com estado=CONCLUIDO
+  ultimoPreenchimento: UltimoPreenchimento | null; // última linha adicionada
 };
 
 // ---------------------------------------------------------------------------
@@ -101,16 +114,20 @@ async function lerPlanilha(): Promise<ItemPlanilha[]> {
     const sheets = await getGoogleSheetsClient();
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: PLANILHA_ID,
-      range: "A2:E200",   // Nº | Item | Responsavel | Estado | Prioridade
+      range: "A2:I200",   // Nº | Item | Resp | Estado | Prio | Hash | Desc | Notas | Solicitacao
     });
     return (resp.data.values ?? [])
       .filter(r => r[0] && r[1])
       .map(r => ({
-        nro:    String(r[0] ?? ""),
-        item:   String(r[1] ?? ""),
-        resp:   String(r[2] ?? ""),
-        estado: String(r[3] ?? ""),
-        prio:   String(r[4] ?? ""),
+        nro:         String(r[0] ?? ""),
+        item:        String(r[1] ?? ""),
+        resp:        String(r[2] ?? ""),
+        estado:      String(r[3] ?? ""),
+        prio:        String(r[4] ?? ""),
+        hash:        String(r[5] ?? ""),
+        descricao:   String(r[6] ?? ""),
+        notas:       String(r[7] ?? ""),
+        solicitacao: String(r[8] ?? ""),   // coluna I — handoff entre LLMs
       }));
   } catch (e) {
     logger.warn({ err: e }, "slack-reporter: falha ao ler planilha Google Sheets");
@@ -244,6 +261,24 @@ export async function buildLlmReport(horas = 1): Promise<LlmReport> {
     await salvarEstado(itensPlanilhaAtual);
   }
 
+  // Itens com estado CONCLUIDO — para o bloco emoldurado do Slack
+  const itensConcluidos = itensPlanilhaAtual.filter(i => i.estado.toUpperCase() === "CONCLUIDO");
+
+  // Último preenchimento: item com maior nro numérico (foi adicionado mais recentemente)
+  const ultimoPreenchimento: UltimoPreenchimento | null = (() => {
+    const comNro = itensPlanilhaAtual.filter(i => !isNaN(Number(i.nro)));
+    if (comNro.length === 0) return null;
+    const ultimo = comNro.reduce((max, cur) =>
+      Number(cur.nro) > Number(max.nro) ? cur : max
+    );
+    return {
+      nro:         ultimo.nro,
+      item:        ultimo.item,
+      resp:        ultimo.resp || "Dr. Replit",
+      solicitacao: ultimo.solicitacao || undefined,
+    };
+  })();
+
   return {
     geradoEm: brtNow().toISOString(),
     periodo:  `última ${horas}h`,
@@ -254,6 +289,8 @@ export async function buildLlmReport(horas = 1): Promise<LlmReport> {
     totalChamadas,
     mudancasPlanilha,
     totalItensPlanilha: itensPlanilhaAtual.length,
+    itensConcluidos,
+    ultimoPreenchimento,
   };
 }
 
@@ -282,6 +319,55 @@ const ESTADO_EMOJI: Record<string, string> = {
 
 function usd(v: number) { return `U$ ${v.toFixed(4)}`; }
 function num(v: number)  { return v.toLocaleString("pt-BR"); }
+
+// ---------------------------------------------------------------------------
+// Helper: tabela monospace de CONCLUÍDOS para Slack (bloco emoldurado)
+// ---------------------------------------------------------------------------
+function montarTabelaConcluidos(items: ItemPlanilha[]): string {
+  if (items.length === 0) return "";
+
+  // Larguras fixas das colunas (chars)
+  const W_NRO  = 4;
+  const W_ITEM = 32;
+  const W_RESP = 14;
+  const W_SOL  = 26;
+
+  const pad  = (s: string, w: number) => String(s ?? "").slice(0, w).padEnd(w);
+  const line = (a: string, b: string, c: string, d: string) =>
+    `║ ${pad(a, W_NRO)} │ ${pad(b, W_ITEM)} │ ${pad(c, W_RESP)} │ ${pad(d, W_SOL)} ║`;
+
+  const barTop = `╔${"═".repeat(W_NRO+2)}╤${"═".repeat(W_ITEM+2)}╤${"═".repeat(W_RESP+2)}╤${"═".repeat(W_SOL+2)}╗`;
+  const barSep = `╠${"═".repeat(W_NRO+2)}╪${"═".repeat(W_ITEM+2)}╪${"═".repeat(W_RESP+2)}╪${"═".repeat(W_SOL+2)}╣`;
+  const barBot = `╚${"═".repeat(W_NRO+2)}╧${"═".repeat(W_ITEM+2)}╧${"═".repeat(W_RESP+2)}╧${"═".repeat(W_SOL+2)}╝`;
+
+  const rows: string[] = [
+    barTop,
+    line("Nº", "Item", "Agente", "Solicitado por"),
+    barSep,
+  ];
+
+  for (const it of items) {
+    const sol = it.solicitacao?.trim() || "—";
+    rows.push(line(it.nro, it.item, it.resp || "Dr. Replit", sol));
+  }
+  rows.push(barBot);
+
+  return "```\n" + rows.join("\n") + "\n```";
+}
+
+// ---------------------------------------------------------------------------
+// Helper: bloco de handoffs inter-LLM (itens com solicitacao preenchida)
+// ---------------------------------------------------------------------------
+function montarHandoffs(items: ItemPlanilha[]): string {
+  const comHandoff = items.filter(i => i.solicitacao?.trim());
+  if (comHandoff.length === 0) return "";
+
+  const linhas = ["*🔄 Handoffs entre agentes:*"];
+  for (const it of comHandoff) {
+    linhas.push(`• *#${it.nro}* "${it.item}" ← _${it.solicitacao!.trim()}_`);
+  }
+  return linhas.join("\n");
+}
 
 export function formatarRelatorioSlack(report: LlmReport): object[] {
   // ── 1. Bloco de mudanças da planilha ──────────────────────────────────
@@ -367,6 +453,11 @@ export function formatarRelatorioSlack(report: LlmReport): object[] {
   const geradoEmFormatado = new Date(report.geradoEm)
     .toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour12: false });
 
+  // ── Linha de "quem preencheu" para o cabeçalho ────────────────────────
+  const ultimoTexto = report.ultimoPreenchimento
+    ? `✍️ Última entrada: *#${report.ultimoPreenchimento.nro}* "${report.ultimoPreenchimento.item}" · _${report.ultimoPreenchimento.resp}_`
+    : null;
+
   const blocks: object[] = [
     {
       type: "header",
@@ -374,12 +465,39 @@ export function formatarRelatorioSlack(report: LlmReport): object[] {
     },
     {
       type: "context",
-      elements: [{ type: "mrkdwn", text: `📅 ${geradoEmFormatado} (BRT) | ${report.periodo}` }],
+      elements: [{
+        type: "mrkdwn",
+        text: [`📅 ${geradoEmFormatado} (BRT) | ${report.periodo}`, ultimoTexto]
+          .filter(Boolean).join("   ·   "),
+      }],
     },
     { type: "divider" },
   ];
 
-  // Mudanças da planilha
+  // ── Tabela emoldurada de CONCLUÍDOS (destaque visual) ─────────────────
+  const tabelaConcluidos = montarTabelaConcluidos(report.itensConcluidos);
+  if (tabelaConcluidos) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*✅ CONCLUÍDOS — Planilha de Produção (${report.itensConcluidos.length} itens)*\n${tabelaConcluidos}`,
+      },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // ── Handoffs inter-LLM ────────────────────────────────────────────────
+  const handoffTexto = montarHandoffs(report.itensConcluidos);
+  if (handoffTexto) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: handoffTexto },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // ── Mudanças da planilha (novos/alterados nesta leitura) ─────────────
   if (temMudancas || report.totalItensPlanilha > 0) {
     blocks.push({
       type: "section",
