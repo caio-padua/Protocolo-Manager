@@ -50,9 +50,28 @@ Na fase atual não há dual-token separado; fallback automático para bot (xoxb)
 **Why**: `googleapis` espera um `Readable` stream no campo `media.body`, não um `Buffer`.
 **Fix**: `const stream = Readable.from(Buffer.from(downloadResp.data as ArrayBuffer))` antes de passar ao `files.create`.
 
-## Cron (pendente — Task #26)
+## Cron — Job 5 implementado (Task #26 concluída)
 
-Registrar em `artifacts/api-server/src/cron.ts` job às 08h BRT:
-```typescript
-buildLlmReport(24).then(report => postSlackReport("C0BLW5S7GQL", report));
-```
+Local CORRETO: `artifacts/api-worker/src/worker.ts` (não cron.ts — startCronJobs está desativado no api-server).
+Padrão idêntico aos Jobs 1-4: importação dinâmica de `../../api-server/src/lib/slack-reporter.js`.
+Guard: `if (process.env.PADAXOR_AI_BYPASS !== "true") return;` — clones ignoram.
+Execução: 08:00 BRT, timezone: "America/Sao_Paulo".
+
+**Build do api-worker**: erro pré-existente ("Cannot find module 'thread-stream'") — não causado pelo Job 5.
+O worker roda no Railway (não há workflow local para ele).
+
+## Planilha de Produção (assumida como oficial)
+
+- **ID oficial**: `1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw`
+- **Nome**: "PADAXOR — LINHA DE PRODUCAO (completa)"
+- **Pasta Drive**: `1_oq50UEJo45YwdDZKvuI5awNuUf9Rqke`
+- **Abas**: 1 aba "Untitled" (renomear para algo descritivo é recomendado)
+- **Colunas**: Nº | Item | Responsavel | Estado | Prioridade | Depende de | Em linguagem de leigo | Esforco
+- **Total de itens**: 49 (após adição do Monitor de LLMs)
+- **Arquivos apagados da pasta**: PADAXOR_ESTAGIO_DA_OBRA e PADAXOR_LINHA_DE_PRODUCAO_26.07.29.xlsx (lixeira)
+
+**Atualizações feitas em 31/07/2026:**
+- Item #18 AGUARDANDO → CONCLUIDO (ai_usage_log implementado)
+- Item #42 A FAZER → CONCLUIDO (requireCeoInstance implementado)
+- Item #43 A FAZER → PARCIAL (CF Gateway criado, BASE_URL ainda no Replit)
+- Item #49 NOVO → CONCLUIDO (Monitor de LLMs no Slack)

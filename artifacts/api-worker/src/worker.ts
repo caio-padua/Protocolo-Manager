@@ -111,7 +111,35 @@ export function startWorkerJobs(logger: pino.Logger): void {
   void runDriveWatcher();
   setInterval(() => void runDriveWatcher(), 5 * 60 * 1000);
 
+  // ─── Job 5: Relatório diário de LLMs no Slack — 08h BRT ────────────────
+  // Só executa na instância CEO (PADAXOR_AI_BYPASS=true). Fail-safe total.
+  cron.schedule(
+    "0 8 * * *",
+    async () => {
+      if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora
+      const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+      logger.info({ channelId }, "Worker: gerando relatório diário de LLMs (08:00 BRT)");
+      try {
+        const { buildLlmReport, postSlackReport } = await import(
+          "../../api-server/src/lib/slack-reporter.js" as string
+        );
+        const report = await buildLlmReport(24);
+        await postSlackReport(channelId, report);
+        logger.info(
+          { chamadas: report.totalChamadas, custoUsd: report.totalCustoUsd },
+          "Worker: relatório diário de LLMs postado no Slack com sucesso"
+        );
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha no relatório diário de LLMs no Slack"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-llm-8h"
   );
 }

@@ -60,4 +60,24 @@ export function startCronJobs(): void {
   );
 
   logger.info("Cron de receituário magistral agendado para 06:00 BRT");
+
+  // 08:00 todos os dias — relatório diário de atividade dos LLMs no Slack
+  // Só roda na instância CEO (PADAXOR_AI_BYPASS=true); fail-safe (nunca lança).
+  cron.schedule(
+    "0 8 * * *",
+    () => {
+      if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
+      const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+      logger.info({ channelId }, "Cron Slack 08:00 BRT — gerando relatório diário de LLMs");
+      import("./slack-reporter")
+        .then(({ buildLlmReport, postSlackReport }) =>
+          buildLlmReport(24).then(report => postSlackReport(channelId, report)),
+        )
+        .then(() => logger.info("Cron Slack: relatório diário postado com sucesso"))
+        .catch(err => logger.error({ err: err?.message }, "Cron Slack: falha no relatório diário"));
+    },
+    { timezone: "America/Sao_Paulo" },
+  );
+
+  logger.info("Cron de relatório diário de LLMs no Slack agendado para 08:00 BRT");
 }

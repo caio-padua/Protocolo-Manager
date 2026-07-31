@@ -80,6 +80,7 @@ import adminPreviewRouter from "./admin-preview";
 import adminDriveRouter from "./admin-drive";
 import adminSheetsRouter from "./admin-sheets";
 import slackPadaxorRouter from "./slack-padaxor";
+import adminPlanilhaTempRouter from "./admin-planilha-temp";
 import padteamRouter from "./padteam";
 import provaDeValorRouter from "./prova-de-valor";
 import agentesRouter from "./agentes";
@@ -127,6 +128,7 @@ router.use(agentesTrelloRouter);
 router.use(adminDriveRouter);
 router.use(adminSheetsRouter);
 router.use(slackPadaxorRouter);
+router.use(adminPlanilhaTempRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
