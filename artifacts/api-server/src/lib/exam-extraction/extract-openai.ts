@@ -1,5 +1,5 @@
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
-import { requireAiTenant } from "../ai-central";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Extrator OpenAI GPT-4o — sem SDK; usa fetch nativo (sem instalar openai pkg).
@@ -73,6 +73,13 @@ export async function extractExamWithOpenAI(text: string, empresaId = 0): Promis
     });
     if (!res.ok) return null;
     const json = await res.json();
+    void logAiUsage({
+      empresaId,
+      provider: "openai",
+      tipo: "clinical",
+      inputTokens:  json?.usage?.prompt_tokens     ?? undefined,
+      outputTokens: json?.usage?.completion_tokens ?? undefined,
+    });
     const raw: string = json?.choices?.[0]?.message?.content ?? "";
     if (!raw) return null;
     const parsed = JSON.parse(stripJsonFences(raw));

@@ -11,7 +11,7 @@ import {
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { ai } from "@workspace/integrations-gemini-ai";
-import { requireAiTenant } from "../lib/ai-central";
+import { requireAiTenant, logAiUsage } from "../lib/ai-central";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -327,6 +327,13 @@ router.post(
           },
         ],
         config: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 8192 },
+      });
+      void logAiUsage({
+        empresaId: 0,
+        provider: "gemini",
+        tipo: "ocr",
+        inputTokens:  response.usageMetadata?.promptTokenCount     ?? undefined,
+        outputTokens: response.usageMetadata?.candidatesTokenCount ?? undefined,
       });
 
       const raw = response.text ?? "";

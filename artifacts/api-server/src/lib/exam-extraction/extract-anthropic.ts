@@ -1,5 +1,5 @@
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
-import { requireAiTenant } from "../ai-central";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Extrator Claude (Anthropic) — lazy init: não estoura no boot se as vars
@@ -85,6 +85,15 @@ export async function extractExamWithClaude(text: string, empresaId = 0): Promis
       },
       { headers: aiHeaders },
     );
+
+    const usage = (msg as any).usage;
+    void logAiUsage({
+      empresaId,
+      provider: "anthropic",
+      tipo: "clinical",
+      inputTokens:  usage?.input_tokens  ?? undefined,
+      outputTokens: usage?.output_tokens ?? undefined,
+    });
 
     const raw = (msg.content as Array<{ type: string; text?: string }>)
       .filter((b) => b.type === "text")

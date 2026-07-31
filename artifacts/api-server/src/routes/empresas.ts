@@ -6,7 +6,7 @@ import { eq, isNull, or } from "drizzle-orm";
 import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics, driveDownloadFile } from "../lib/google-drive";
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
-import { requireAiTenant } from "../lib/ai-central";
+import { requireAiTenant, logAiUsage } from "../lib/ai-central";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -622,6 +622,13 @@ async function downloadPdfText(fileId: string): Promise<string> {
       ]}],
       config: { maxOutputTokens: 8192 },
     });
+    void logAiUsage({
+      empresaId: 0,
+      provider: "gemini",
+      tipo: "ocr",
+      inputTokens:  resp.usageMetadata?.promptTokenCount     ?? undefined,
+      outputTokens: resp.usageMetadata?.candidatesTokenCount ?? undefined,
+    });
     return resp.text?.trim() || "";
   } catch {
     return "";
@@ -692,6 +699,13 @@ router.post("/empresas/:id/auto-fill", async (req, res): Promise<void> => {
     const resp = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: EMPRESA_PROMPT + "\n\nTEXTO:\n" + combinedText }] }],
+    });
+    void logAiUsage({
+      empresaId: 0,
+      provider: "gemini",
+      tipo: "ocr",
+      inputTokens:  resp.usageMetadata?.promptTokenCount     ?? undefined,
+      outputTokens: resp.usageMetadata?.candidatesTokenCount ?? undefined,
     });
     const raw = resp.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const clean = raw.trim().replace(/^```(?:json)?|```$/gm, "").trim();

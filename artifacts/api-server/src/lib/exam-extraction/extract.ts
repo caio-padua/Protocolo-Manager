@@ -1,7 +1,7 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import { compactExamText, inferLabName } from "./pdf-text";
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
-import { requireAiTenant } from "../ai-central";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 export const DEFAULT_MODEL = "gemini-2.5-flash";
 export const ESCALATION_MODEL = "gemini-3.1-pro-preview";
@@ -99,7 +99,8 @@ export async function extractExamFromMedia(
   mimeType: string,
   options: { model?: string; disableEscalation?: boolean; empresaId?: number } = {},
 ): Promise<ExtractExamResult> {
-  requireAiTenant(options.empresaId ?? 0, "clinical");
+  const empresaId = options.empresaId ?? 0;
+  requireAiTenant(empresaId, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const contents: GeminiContents = [
     { role: "user", parts: [{ text: EXTRACTION_PROMPT + MEDIA_SUFFIX }, mediaPart(buffer, mimeType)] },
@@ -110,11 +111,14 @@ export async function extractExamFromMedia(
   if (shouldEscalate) {
     try {
       const escalated = await runExamGemini(contents, ESCALATION_MODEL);
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data: escalated, modelUsed: ESCALATION_MODEL, escalated: true };
     } catch {
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data, modelUsed: firstModel, escalated: false };
     }
   }
+  void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
   return { data, modelUsed: firstModel, escalated: false };
 }
 
@@ -139,7 +143,8 @@ export async function extractExamFromText(
   text: string,
   options: ExtractExamOptions = {},
 ): Promise<ExtractExamResult> {
-  requireAiTenant(options.empresaId ?? 0, "clinical");
+  const empresaId = options.empresaId ?? 0;
+  requireAiTenant(empresaId, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const payload = options.disableCompaction ? text : compactExamText(text).text;
   const data = await callGemini(payload, firstModel);
@@ -152,16 +157,19 @@ export async function extractExamFromText(
   if (shouldEscalate) {
     try {
       const escalated = await callGemini(payload, ESCALATION_MODEL);
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return {
         data: withLabFallback(escalated, text),
         modelUsed: ESCALATION_MODEL,
         escalated: true,
       };
     } catch {
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data: withLabFallback(data, text), modelUsed: firstModel, escalated: false };
     }
   }
 
+  void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
   return { data: withLabFallback(data, text), modelUsed: firstModel, escalated: false };
 }
 
