@@ -1,10 +1,12 @@
 /**
  * slack-reporter.ts
- * Monitor de atividade de todos os LLMs para o canal #padaxor-projeto.
+ * Monitor de atividade de todos os LLMs + planilha de produção para #padaxor-projeto.
  *
- * Produz dois blocos por relatório:
+ * Produz por relatório:
  *   TÉCNICO — métricas, tokens, custos, specs ativas, divergências.
  *   LEIGO   — tradução em linguagem simples para o CEO.
+ *   GLOSSÁRIO — toda palavra técnica desconhecida recebe (*N) e legenda ao final.
+ *   PLANILHA — mudanças detectadas desde a última leitura (horária).
  *
  * Uso:
  *   const report = await buildLlmReport();
@@ -18,6 +20,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { logger } from "./logger";
 import { brtNow } from "./brt";
+import { anotarTermos } from "./slack-glossario";
+import { getGoogleSheetsClient } from "./google-drive";
 
 // ---------------------------------------------------------------------------
 // Slack client — nunca cachear; tokens expiram
@@ -43,6 +47,12 @@ async function slackGet(path: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Constantes
+// ---------------------------------------------------------------------------
+const PLANILHA_ID  = process.env.PADAXOR_PLANILHA_ID ?? "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
+const ESTADO_FILE  = path.resolve("/tmp/padaxor-planilha-estado.json");
+
+// ---------------------------------------------------------------------------
 // Tipos
 // ---------------------------------------------------------------------------
 export type LlmProviderStats = {
@@ -54,15 +64,96 @@ export type LlmProviderStats = {
   custoUsd: number;
 };
 
+export type ItemPlanilha = {
+  nro:    string;
+  item:   string;
+  resp:   string;
+  estado: string;
+  prio:   string;
+};
+
+export type MudancaPlanilha = {
+  tipo:    "novo" | "estado" | "responsavel";
+  nro:     string;
+  item:    string;
+  de?:     string;
+  para?:   string;
+};
+
 export type LlmReport = {
   geradoEm: string;
   periodo: string;         // ex: "últimas 24h"
   stats: LlmProviderStats[];
   specsAtivas: string[];
-  divergencias: string[];  // specs planejadas sem nenhuma chamada de IA correspondente
+  divergencias: string[];
   totalCustoUsd: number;
   totalChamadas: number;
+  mudancasPlanilha: MudancaPlanilha[];
+  totalItensPlanilha: number;
 };
+
+// ---------------------------------------------------------------------------
+// Leitura e detecção de mudanças na planilha de produção
+// ---------------------------------------------------------------------------
+async function lerPlanilha(): Promise<ItemPlanilha[]> {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: PLANILHA_ID,
+      range: "A2:E200",   // Nº | Item | Responsavel | Estado | Prioridade
+    });
+    return (resp.data.values ?? [])
+      .filter(r => r[0] && r[1])
+      .map(r => ({
+        nro:    String(r[0] ?? ""),
+        item:   String(r[1] ?? ""),
+        resp:   String(r[2] ?? ""),
+        estado: String(r[3] ?? ""),
+        prio:   String(r[4] ?? ""),
+      }));
+  } catch (e) {
+    logger.warn({ err: e }, "slack-reporter: falha ao ler planilha Google Sheets");
+    return [];
+  }
+}
+
+async function carregarEstadoAnterior(): Promise<ItemPlanilha[]> {
+  try {
+    const raw = await fs.readFile(ESTADO_FILE, "utf-8");
+    return JSON.parse(raw) as ItemPlanilha[];
+  } catch {
+    return [];   // primeira execução
+  }
+}
+
+async function salvarEstado(items: ItemPlanilha[]): Promise<void> {
+  try {
+    await fs.writeFile(ESTADO_FILE, JSON.stringify(items), "utf-8");
+  } catch (e) {
+    logger.warn({ err: e }, "slack-reporter: falha ao salvar estado da planilha");
+  }
+}
+
+function detectarMudancas(anterior: ItemPlanilha[], atual: ItemPlanilha[]): MudancaPlanilha[] {
+  const mapAnterior = new Map(anterior.map(i => [i.nro, i]));
+  const mudancas: MudancaPlanilha[] = [];
+
+  for (const item of atual) {
+    const ant = mapAnterior.get(item.nro);
+    if (!ant) {
+      mudancas.push({ tipo: "novo", nro: item.nro, item: item.item, para: item.estado });
+    } else {
+      if (ant.estado !== item.estado) {
+        mudancas.push({ tipo: "estado", nro: item.nro, item: item.item, de: ant.estado, para: item.estado });
+      }
+      if (ant.resp !== item.resp) {
+        mudancas.push({ tipo: "responsavel", nro: item.nro, item: item.item, de: ant.resp, para: item.resp });
+      }
+    }
+  }
+
+  return mudancas;
+}
 
 // ---------------------------------------------------------------------------
 // Coletar dados
@@ -132,31 +223,41 @@ function detectarDivergencias(stats: LlmProviderStats[], specs: string[]): strin
 }
 
 // ---------------------------------------------------------------------------
-// Montar relatório
+// Montar relatório (com detecção de mudanças na planilha)
 // ---------------------------------------------------------------------------
-export async function buildLlmReport(horas = 24): Promise<LlmReport> {
-  const [stats, specs] = await Promise.all([
+export async function buildLlmReport(horas = 1): Promise<LlmReport> {
+  const [stats, specs, itensPlanilhaAtual, estadoAnterior] = await Promise.all([
     queryAiUsage(horas),
     listSpecsAtivas(),
+    lerPlanilha(),
+    carregarEstadoAnterior(),
   ]);
 
   const totalCustoUsd = stats.reduce((a, r) => a + r.custoUsd, 0);
   const totalChamadas = stats.reduce((a, r) => a + r.chamadas, 0);
-  const divergencias = detectarDivergencias(stats, specs);
+  const divergencias  = detectarDivergencias(stats, specs);
+  const mudancasPlanilha = detectarMudancas(estadoAnterior, itensPlanilhaAtual);
+
+  // Persistir estado atual para a próxima comparação
+  if (itensPlanilhaAtual.length > 0) {
+    await salvarEstado(itensPlanilhaAtual);
+  }
 
   return {
     geradoEm: brtNow().toISOString(),
-    periodo:  `últimas ${horas}h`,
+    periodo:  `última ${horas}h`,
     stats,
-    specsAtivas:   specs,
+    specsAtivas:        specs,
     divergencias,
     totalCustoUsd,
     totalChamadas,
+    mudancasPlanilha,
+    totalItensPlanilha: itensPlanilhaAtual.length,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Formatar para Slack (Block Kit)
+// Formatar para Slack (Block Kit) com glossário (*N) e mudanças da planilha
 // ---------------------------------------------------------------------------
 const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic (Claude)",
@@ -171,102 +272,154 @@ const TIPO_LABEL: Record<string, string> = {
   chat:       "Chat",
 };
 
-function usd(v: number) {
-  return `U$ ${v.toFixed(4)}`;
-}
+const ESTADO_EMOJI: Record<string, string> = {
+  CONCLUIDO: "✅",
+  "A FAZER":  "⬜",
+  AGUARDANDO: "⏳",
+  PARCIAL:    "🔶",
+};
 
-function num(v: number) {
-  return v.toLocaleString("pt-BR");
-}
+function usd(v: number) { return `U$ ${v.toFixed(4)}`; }
+function num(v: number)  { return v.toLocaleString("pt-BR"); }
 
 export function formatarRelatorioSlack(report: LlmReport): object[] {
-  const blocoTecnico: string[] = [
-    `*🤖 TÉCNICO — Atividade de IA (${report.periodo})*`,
-    `Total de chamadas: *${num(report.totalChamadas)}* | Custo total: *${usd(report.totalCustoUsd)}*`,
-    "```",
-    "PROVIDER            TIPO               CHAMADAS  IN-TOK   OUT-TOK  CUSTO",
-    "---",
+  // ── 1. Bloco de mudanças da planilha ──────────────────────────────────
+  const temMudancas = report.mudancasPlanilha.length > 0;
+  const linhaMudancas: string[] = [];
+
+  if (temMudancas) {
+    linhaMudancas.push(`*📋 Planilha de Produção — ${report.mudancasPlanilha.length} mudança(s) detectada(s):*`);
+    for (const m of report.mudancasPlanilha) {
+      const emoji = m.tipo === "novo" ? "🆕" : m.tipo === "estado" ? "🔄" : "👤";
+      if (m.tipo === "novo") {
+        linhaMudancas.push(`${emoji} Item *#${m.nro}* adicionado: "${m.item}" → ${ESTADO_EMOJI[m.para ?? ""] ?? ""} ${m.para}`);
+      } else if (m.tipo === "estado") {
+        linhaMudancas.push(`${emoji} Item *#${m.nro}* "${m.item}": ${m.de} → ${ESTADO_EMOJI[m.para ?? ""] ?? ""} *${m.para}*`);
+      } else {
+        linhaMudancas.push(`${emoji} Item *#${m.nro}* "${m.item}": responsável ${m.de} → *${m.para}*`);
+      }
+    }
+  } else {
+    linhaMudancas.push(`*📋 Planilha:* ${report.totalItensPlanilha} itens — nenhuma mudança desde a última hora.`);
+  }
+
+  // ── 2. Bloco técnico de IA ────────────────────────────────────────────
+  const blocoTecnicoRaw: string[] = [
+    `*🤖 TÉCNICO — IA (${report.periodo})*`,
+    `Chamadas: *${num(report.totalChamadas)}* | Custo: *${usd(report.totalCustoUsd)}*`,
   ];
 
   if (report.stats.length === 0) {
-    blocoTecnico.push("(nenhuma chamada registrada no período)");
+    blocoTecnicoRaw.push("_(nenhuma chamada de IA neste período)_");
   } else {
+    blocoTecnicoRaw.push("```");
+    blocoTecnicoRaw.push("PROVIDER            TIPO               CHAM  IN-TOK  OUT-TOK  CUSTO");
+    blocoTecnicoRaw.push("---");
     for (const s of report.stats) {
       const prov = (PROVIDER_LABEL[s.provider] ?? s.provider).padEnd(20);
-      const tipo = (TIPO_LABEL[s.tipo] ?? s.tipo).padEnd(18);
-      blocoTecnico.push(
-        `${prov} ${tipo} ${String(s.chamadas).padStart(6)}  ${num(s.inputTokens).padStart(7)}  ${num(s.outputTokens).padStart(7)}  ${usd(s.custoUsd)}`
+      const tipo = (TIPO_LABEL[s.tipo]         ?? s.tipo).padEnd(18);
+      blocoTecnicoRaw.push(
+        `${prov} ${tipo} ${String(s.chamadas).padStart(4)}  ${num(s.inputTokens).padStart(6)}  ${num(s.outputTokens).padStart(7)}  ${usd(s.custoUsd)}`
       );
     }
-  }
-  blocoTecnico.push("```");
-
-  if (report.specsAtivas.length > 0) {
-    blocoTecnico.push(`*📋 Specs ativas (${report.specsAtivas.length}):*`);
-    blocoTecnico.push(report.specsAtivas.map(s => `• ${s}`).join("\n"));
+    blocoTecnicoRaw.push("```");
   }
 
   if (report.divergencias.length > 0) {
-    blocoTecnico.push(`*⚠️ Divergências detectadas:*`);
-    blocoTecnico.push(report.divergencias.map(d => `• ${d}`).join("\n"));
-  } else {
-    blocoTecnico.push("✅ Sem divergências entre specs planejadas e chamadas registradas.");
+    blocoTecnicoRaw.push(`*⚠️ Divergências:*`);
+    blocoTecnicoRaw.push(report.divergencias.map(d => `• ${d}`).join("\n"));
   }
 
-  // Bloco leigo
-  const blocoLeigo: string[] = [
-    "┌──────────────────────────────────────────┐",
-    `│  📖 TRADUÇÃO PARA O CEO — ${report.periodo}  │`,
-    "└──────────────────────────────────────────┘",
-  ];
+  // ── 3. Bloco leigo (com glossário aplicado) ───────────────────────────
+  let textoLeigo = "";
 
-  if (report.totalChamadas === 0) {
-    blocoLeigo.push("Nenhum LLM foi acionado neste período. O sistema ficou em repouso.");
+  if (report.totalChamadas === 0 && !temMudancas) {
+    textoLeigo = "O sistema ficou em repouso nesta hora. Nenhuma IA foi acionada e nada mudou na planilha.";
   } else {
-    const provedores = [...new Set(report.stats.map(s => PROVIDER_LABEL[s.provider] ?? s.provider))];
-    blocoLeigo.push(
-      `No período analisado, ${provedores.join(", ")} foram usados.`,
-      `Foram feitas *${num(report.totalChamadas)} chamadas* ao todo.`,
-      `O custo total estimado foi de *${usd(report.totalCustoUsd)}*.`,
-    );
+    const partes: string[] = [];
 
-    if (report.specsAtivas.length > 0) {
-      blocoLeigo.push(
-        `Há *${report.specsAtivas.length} tarefas planejadas* (specs) no repositório.`
-      );
+    if (report.totalChamadas > 0) {
+      const provedores = [...new Set(report.stats.map(s => PROVIDER_LABEL[s.provider] ?? s.provider))];
+      partes.push(`Nesta hora, ${provedores.join(" e ")} foram acionados ${num(report.totalChamadas)} vez(es), com custo estimado de ${usd(report.totalCustoUsd)}.`);
+    }
+
+    if (temMudancas) {
+      const concluidos = report.mudancasPlanilha.filter(m => m.para === "CONCLUIDO").length;
+      const novos      = report.mudancasPlanilha.filter(m => m.tipo === "novo").length;
+      if (concluidos > 0) partes.push(`${concluidos} tarefa(s) marcada(s) como CONCLUIDO na planilha de produção.`);
+      if (novos      > 0) partes.push(`${novos} item(ns) novo(s) adicionado(s) à planilha.`);
     }
 
     if (report.divergencias.length > 0) {
-      blocoLeigo.push(
-        `⚠️ *Atenção:* ${report.divergencias.length} tarefa(s) planejada(s) ainda não geraram chamadas de IA.`,
-        "Isso pode indicar trabalho pendente ou spec ainda não executada."
-      );
-    } else {
-      blocoLeigo.push("✅ Tudo que foi planejado está sendo executado — sem lacunas detectadas.");
+      partes.push(`⚠️ ${report.divergencias.length} tarefa(s) planejada(s) ainda sem chamadas de IA correspondentes — pode ser trabalho pendente.`);
+    } else if (report.totalChamadas > 0) {
+      partes.push("Tudo que foi planejado está sendo executado.");
     }
+
+    textoLeigo = partes.join(" ");
   }
 
-  // Blocos do Slack (Block Kit)
+  // Aplicar glossário: marca termos técnicos com (*N) e gera legendas
+  const { textoAnotado, legendas } = anotarTermos(textoLeigo);
+
+  // ── 4. Montar blocos Slack (Block Kit) ────────────────────────────────
+  const geradoEmFormatado = new Date(report.geradoEm)
+    .toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour12: false });
+
   const blocks: object[] = [
     {
       type: "header",
-      text: { type: "plain_text", text: "🧠 PADAXOR — Relatório de LLMs" },
+      text: { type: "plain_text", text: "🧠 PADAXOR — Monitor Horário" },
     },
     {
       type: "context",
-      elements: [{ type: "mrkdwn", text: `Gerado em: ${report.geradoEm} | Período: ${report.periodo}` }],
+      elements: [{ type: "mrkdwn", text: `📅 ${geradoEmFormatado} (BRT) | ${report.periodo}` }],
     },
     { type: "divider" },
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: blocoTecnico.join("\n") },
-    },
-    { type: "divider" },
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: blocoLeigo.join("\n") },
-    },
   ];
+
+  // Mudanças da planilha
+  if (temMudancas || report.totalItensPlanilha > 0) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: linhaMudancas.join("\n") },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Bloco técnico de IA (só se houver atividade)
+  if (report.totalChamadas > 0 || report.divergencias.length > 0) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: blocoTecnicoRaw.join("\n") },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Bloco leigo + legendas do glossário
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: [
+        "┌─────────────────────────────────────┐",
+        "│  📖 TRADUÇÃO PARA O CEO              │",
+        "└─────────────────────────────────────┘",
+        textoAnotado,
+      ].join("\n"),
+    },
+  });
+
+  // Legendas do glossário (se houver termos marcados)
+  if (legendas.length > 0) {
+    blocks.push({
+      type: "context",
+      elements: [{
+        type: "mrkdwn",
+        text: "*📚 Glossário desta mensagem:*\n" + legendas.join("\n"),
+      }],
+    });
+  }
 
   return blocks;
 }
