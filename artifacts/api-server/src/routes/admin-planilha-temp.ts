@@ -205,4 +205,29 @@ router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Resp
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/adicionar-item
+// Adiciona UMA linha ao final da planilha de produção (sem quebrar o existente).
+// Body: { nro, item, resp, estado, prio, hash, descricao, notas }
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/adicionar-item", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nro, item, resp, estado, prio, hash, descricao, notas } = req.body as Record<string, string>;
+    const sheets = await getGoogleSheetsClient();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: PLANILHA_OFICIAL,
+      range:         "A:I",
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [[String(nro ?? ""), String(item ?? ""), String(resp ?? ""), String(estado ?? ""), String(prio ?? ""), String(hash ?? "—"), String(descricao ?? ""), String(notas ?? "")]],
+      },
+    });
+    res.json({ ok: true, nro, item });
+  } catch (e: any) {
+    logger.error({ err: e }, "admin-planilha/adicionar-item: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
