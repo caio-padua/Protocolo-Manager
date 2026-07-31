@@ -88,3 +88,23 @@ export function requirePlatformOwner(req: Request, res: Response, next: NextFunc
   }
   next();
 }
+
+/**
+ * Guard de instância CEO baseado em variável de ambiente.
+ *
+ * Diferente de requirePlatformOwner (que checa o tenant context, sempre true
+ * na fase single-tenant atual), este guard checa PADAXOR_AI_BYPASS=true —
+ * variável presente APENAS na instância CEO. Clones licenciados, mesmo com
+ * isPlatformOwner=true no context, são bloqueados aqui.
+ *
+ * Uso: router.get("/rota-ceo", requireCeoInstance, handler)
+ */
+export function requireCeoInstance(_req: Request, res: Response, next: NextFunction): void {
+  if (process.env.PADAXOR_AI_BYPASS !== "true") {
+    res.status(403).json({
+      error: "Endpoint exclusivo da instância CEO (PADAXOR_AI_BYPASS).",
+    });
+    return;
+  }
+  next();
+}

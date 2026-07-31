@@ -3,7 +3,7 @@
  *
  * GET /api/ai-usage/resumo?periodo=30d  → custo agregado por empresa_id
  *
- * Acesso: requirePlatformOwner (apenas CEO)
+ * Acesso: requireCeoInstance (apenas instância CEO via PADAXOR_AI_BYPASS=true)
  *
  * A tabela ai_usage_log é criada aqui via CREATE TABLE IF NOT EXISTS
  * (padrão: migration gradual, sem db push, sem DROP).
@@ -13,7 +13,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { requirePlatformOwner } from "../middleware/tenantContext";
+import { requireCeoInstance } from "../middleware/tenantContext";
 
 const router = Router();
 
@@ -55,7 +55,7 @@ const PERIODOS: Record<string, string> = {
 
 router.get(
   "/ai-usage/resumo",
-  requirePlatformOwner,
+  requireCeoInstance,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const periodoParam = String(req.query.periodo ?? "30d");

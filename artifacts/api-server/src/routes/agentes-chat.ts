@@ -107,7 +107,8 @@ IMPORTANTE:
   let inputTokens = 0;
   let outputTokens = 0;
 
-  const { headers: aiHeaders } = requireAiTenant(0, "agent");
+  const { empresaId } = req.tenantContext;
+  const { headers: aiHeaders } = requireAiTenant(empresaId, "agent");
 
   try {
     const stream = anthropic.messages.stream({
@@ -155,7 +156,7 @@ IMPORTANTE:
 
     // Registra no ledger interno de custo por clínica (fail-safe)
     void logAiUsage({
-      empresaId: 0,        // agentes-chat ainda não tem empresa_id no request; 0 = CEO/plataforma
+      empresaId,
       provider:  "anthropic",
       tipo:      "agent",
       inputTokens,
