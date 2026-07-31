@@ -57,10 +57,11 @@ router.get("/padaxor/slack/preview", async (req: Request, res: Response): Promis
 });
 
 // ---------------------------------------------------------------------------
-// Slack — postar relatório no canal
+// Slack — postar relatório no canal (+ Telegram quando configurado)
 // ---------------------------------------------------------------------------
 router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Promise<void> => {
-  const channelId = (req.body.channelId as string) || process.env.PADAXOR_SLACK_CHANNEL_ID;
+  const channelId      = (req.body.channelId as string) || process.env.PADAXOR_SLACK_CHANNEL_ID;
+  const telegramChatId = (req.body.telegramChatId as string) || process.env.PADAXOR_TELEGRAM_CHAT_ID || "";
 
   if (!channelId) {
     res.status(400).json({
@@ -73,10 +74,66 @@ router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Pro
   try {
     const horas = Number(req.body.horas ?? 24);
     const report = await buildLlmReport(horas);
-    await postSlackReport(channelId, report);
-    res.json({ ok: true, chamadas: report.totalChamadas, custoUsd: report.totalCustoUsd });
+
+    // Canal Slack — sempre enviado (canal primário)
+    let slackOk = false;
+    let slackErro: string | undefined;
+    try {
+      await postSlackReport(channelId, report);
+      slackOk = true;
+    } catch (e: any) {
+      slackErro = e.message;
+      logger.error({ err: e }, "slack-relatorio: erro ao postar no Slack");
+    }
+
+    // Canal Telegram — enviado quando PADAXOR_TELEGRAM_CHAT_ID configurado
+    let telegramOk = false;
+    let telegramMock = false;
+    let telegramErro: string | undefined;
+    let telegramSkipped = false;
+    if (telegramChatId) {
+      try {
+        await postTelegramReport(telegramChatId, report, channelId);
+        telegramOk = true;
+      } catch (e: any) {
+        telegramErro = e.message;
+        logger.error({ err: e }, "slack-relatorio: erro ao postar no Telegram");
+      }
+    } else {
+      telegramSkipped = true;
+      logger.warn("slack-relatorio: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
+    }
+
+    if (!slackOk && !telegramOk && !telegramSkipped) {
+      res.status(500).json({
+        error: "Falha nos dois canais",
+        slackErro,
+        telegramErro,
+      });
+      return;
+    }
+
+    res.json({
+      ok: slackOk || telegramOk,
+      chamadas:   report.totalChamadas,
+      custoUsd:   report.totalCustoUsd,
+      slack: {
+        ok:   slackOk,
+        erro: slackErro ?? null,
+      },
+      telegram: {
+        ok:       telegramOk,
+        mock:     telegramMock,
+        skipped:  telegramSkipped,
+        chatId:   telegramChatId || null,
+        erro:     telegramErro ?? null,
+        aviso:    telegramSkipped
+          ? "Configure PADAXOR_TELEGRAM_CHAT_ID para receber no celular"
+          : null,
+      },
+    });
   } catch (e: any) {
-    logger.error({ err: e }, "slack-relatorio: erro");
+    logger.error({ err: e }, "slack-relatorio: erro geral");
     res.status(500).json({ error: e.message });
   }
 });
@@ -171,6 +228,90 @@ router.post("/padaxor/drive/clonar-planilha", async (req: Request, res: Response
     });
   } catch (e: any) {
     logger.error({ err: e }, "clonar-planilha: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/telegram/meu-chat-id
+// Helper para o CEO descobrir / confirmar o chatId configurado no bot.
+// Lê as últimas mensagens via getUpdates (sem webhook) e mostra quem enviou.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response): Promise<void> => {
+  const chatIdConfigurado = process.env.PADAXOR_TELEGRAM_CHAT_ID || null;
+
+  // Tentar buscar token do cofre
+  let token: string | null = null;
+  try {
+    const { getSecret } = await import("../lib/secure-settings.js");
+    const tok = await getSecret("telegram.botToken");
+    if (tok && tok.trim()) token = tok.trim();
+  } catch { /* sem token no cofre */ }
+  if (!token && process.env.TELEGRAM_BOT_TOKEN) token = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!token) {
+    res.json({
+      chatIdConfigurado,
+      aviso: "TELEGRAM_BOT_TOKEN não configurado no cofre — não é possível buscar getUpdates.",
+      instrucao: [
+        "1. Abra o bot PADAXOR no Telegram e envie /start",
+        "2. Abra @userinfobot no Telegram e envie qualquer mensagem — ele responde com o seu chatId",
+        "3. Configure PADAXOR_TELEGRAM_CHAT_ID=<seu-chat-id> como Replit Secret",
+      ],
+    });
+    return;
+  }
+
+  try {
+    // getUpdates retorna até 100 mensagens recentes
+    const resp = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=20&allowed_updates=["message"]`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    const data = await resp.json() as { ok: boolean; result?: any[]; description?: string };
+
+    if (!data.ok) {
+      // getUpdates falha quando webhook está ativo — informar o CEO
+      res.json({
+        chatIdConfigurado,
+        erroGetUpdates: data.description ?? "getUpdates retornou ok=false",
+        aviso: "Se o webhook estiver ativo, getUpdates não funciona. Use @userinfobot no Telegram para obter o chatId.",
+        instrucao: [
+          "1. No Telegram, abra @userinfobot e envie qualquer mensagem",
+          "2. O bot responde com o seu ID numérico (ex: 8911159822)",
+          "3. Configure PADAXOR_TELEGRAM_CHAT_ID=<esse-numero> como Replit Secret",
+        ],
+      });
+      return;
+    }
+
+    // Extrair remetentes únicos das últimas mensagens
+    const remetentes: Array<{ chatId: string; nome: string; usuario: string | null }> = [];
+    const vistos = new Set<string>();
+    for (const upd of (data.result ?? [])) {
+      const msg = upd.message ?? upd.edited_message;
+      if (!msg?.chat) continue;
+      const id = String(msg.chat.id);
+      if (vistos.has(id)) continue;
+      vistos.add(id);
+      remetentes.push({
+        chatId:  id,
+        nome:    [msg.chat.first_name, msg.chat.last_name].filter(Boolean).join(" ") || msg.chat.title || "(sem nome)",
+        usuario: msg.chat.username ? `@${msg.chat.username}` : null,
+      });
+    }
+
+    res.json({
+      chatIdConfigurado,
+      configurado: Boolean(chatIdConfigurado),
+      aviso: chatIdConfigurado
+        ? null
+        : "PADAXOR_TELEGRAM_CHAT_ID não configurado — configure como Replit Secret para ativar o Telegram",
+      remetentesRecentes: remetentes,
+      instrucao: chatIdConfigurado
+        ? `chatId ${chatIdConfigurado} está configurado. Teste com POST /api/padaxor/slack/relatorio para confirmar entrega.`
+        : "Copie o chatId do campo 'remetentesRecentes' e configure como PADAXOR_TELEGRAM_CHAT_ID (Replit Secret).",
+    });
+  } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
