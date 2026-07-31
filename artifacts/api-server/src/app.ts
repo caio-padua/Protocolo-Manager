@@ -45,6 +45,15 @@ app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
 
+// ─── DICIONARIO: sincronizar aba Google Sheets no boot ───────────────────────
+// Adiciona termos novos do GLOSSARIO sem sobrescrever o que o CEO preencheu.
+import("./lib/sheets-dicionario").then(({ sincronizarDicionarioSheets }) => {
+  const sid = process.env.PADAXOR_PLANILHA_ID ?? "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
+  sincronizarDicionarioSheets(sid)
+    .then(log => logger.info({ log }, "sheets-dicionario: sync no boot concluído"))
+    .catch(err => logger.warn({ err }, "sheets-dicionario: sync no boot falhou (ignorado)"));
+}).catch(() => { /* módulo não carregado — ignora */ });
+
 // ─── AI Central: verifica configuração do guard de clone no boot ─────────────
 checkAiSetup({
   warn: (msg: string) => logger.warn(msg),
