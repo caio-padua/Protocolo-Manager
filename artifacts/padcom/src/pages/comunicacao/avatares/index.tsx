@@ -9,12 +9,12 @@
  * Sistema visual Paxter 3D: panel-3d, bevel-3d, LED de status.
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mic, Video, MessageSquare, Settings, Zap,
   AlertCircle, CheckCircle2, XCircle, BarChart3, Send,
-  Radio, History, Users,
+  Radio, History, Users, Clock, Play, Loader2, Film,
 } from "lucide-react";
 import AvatarConfig from "./AvatarConfig";
 import { DisparadorAvatar } from "./DisparadorAvatar";
@@ -47,6 +47,20 @@ interface UsoMes {
   charsVoz:      number;
   segundosVideo: number;
   erros:         number;
+}
+
+interface FilaVideoItem {
+  id:           number;
+  avatar_id:    number;
+  cliente_id:   number | null;
+  canal_destino: string;
+  status:       string;
+  tentativas:   number;
+  video_url:    string | null;
+  erro:         string | null;
+  contexto:     string | null;
+  created_at:   string;
+  entregue_at:  string | null;
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -385,6 +399,140 @@ function DisparadorVoz({ avatares }: { avatares: ClinicAvatar[] }) {
   );
 }
 
+// ─── Player de vídeo inline ───────────────────────────────────────────────────
+
+function VideoPlayer({ url }: { url: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  return (
+    <div className="mt-2 rounded-lg overflow-hidden border border-amber-700/40 bg-black/60">
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video
+        ref={ref}
+        src={url}
+        controls
+        playsInline
+        preload="metadata"
+        className="w-full max-h-64 object-contain"
+        style={{ background: "#000" }}
+      />
+      <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-amber-300/70">
+        <Film className="w-3 h-3" />
+        Vídeo HeyGen — prévia inline
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto underline underline-offset-2 hover:text-amber-300"
+        >
+          Abrir original
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── Painel Fila de Vídeo ─────────────────────────────────────────────────────
+
+const STATUS_FILA_CONFIG: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+  pendente:  { label: "Aguardando",   color: "text-white/50",   Icon: Clock        },
+  gerando:   { label: "Gerando…",     color: "text-amber-400",  Icon: Loader2      },
+  entregue:  { label: "Entregue",     color: "text-emerald-400",Icon: CheckCircle2 },
+  erro:      { label: "Erro",         color: "text-red-400",    Icon: XCircle      },
+};
+
+function FilaVideoPanel() {
+  const { data, isLoading } = useQuery<{ fila: FilaVideoItem[] }>({
+    queryKey:       ["fila-video"],
+    queryFn:        () =>
+      fetch("/api/avatares/fila-video", { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 10_000,   // atualiza a cada 10 segundos
+    staleTime:       5_000,
+  });
+
+  const fila = data?.fila ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="text-white/40 text-xs py-4 text-center">Carregando fila de vídeo…</div>
+    );
+  }
+
+  if (fila.length === 0) {
+    return (
+      <div className="bevel-3d rounded-xl px-4 py-6 text-center text-white/30 text-xs">
+        Nenhum vídeo na fila no momento.
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel-3d-sub rounded-xl p-5 space-y-4">
+      <div className="flex items-center gap-2 text-xs text-white/60 font-medium">
+        <Film className="w-4 h-4 text-amber-400" />
+        Fila de Vídeos HeyGen
+        <span className="ml-auto text-white/30">atualiza a cada 10s</span>
+      </div>
+
+      <div className="space-y-3">
+        {fila.map(item => {
+          const cfg = STATUS_FILA_CONFIG[item.status] ?? STATUS_FILA_CONFIG.pendente;
+          const StatusIcon = cfg.Icon;
+          const isGerando  = item.status === "gerando";
+
+          return (
+            <div key={item.id} className="bevel-3d rounded-lg p-3 space-y-1.5">
+              {/* Linha de cabeçalho */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatusIcon
+                  className={`w-3.5 h-3.5 shrink-0 ${cfg.color} ${isGerando ? "animate-spin" : ""}`}
+                />
+                <span className={`text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
+
+                {item.cliente_id && (
+                  <span className="text-xs text-white/40">
+                    Cliente #{item.cliente_id}
+                  </span>
+                )}
+                {item.contexto && (
+                  <span className="text-xs text-white/30 italic truncate max-w-[160px]">
+                    {item.contexto}
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-white/25">
+                  {item.created_at
+                    ? new Date(item.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+                    : "—"}
+                </span>
+              </div>
+
+              {/* Tentativas */}
+              <div className="text-xs text-white/30">
+                Tentativas: {item.tentativas}
+                {item.canal_destino && (
+                  <span className="ml-3">Canal: {item.canal_destino}</span>
+                )}
+              </div>
+
+              {/* Erro */}
+              {item.erro && (
+                <p className="text-xs text-red-400/80 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  {item.erro.slice(0, 120)}
+                </p>
+              )}
+
+              {/* Player inline quando entregue e tem URL */}
+              {item.status === "entregue" && item.video_url && (
+                <VideoPlayer url={item.video_url} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Histórico de Envios por Avatar ──────────────────────────────────────────
 
 interface EnvioHistorico {
@@ -411,70 +559,76 @@ function HistoricoAvatares({ avatares }: { avatares: ClinicAvatar[] }) {
   const statusLabel = (s: string) => s === "ok" ? "Enviado" : s === "erro" ? "Erro" : "Pulado";
 
   return (
-    <div className="panel-3d-sub rounded-xl p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-gold uppercase tracking-widest">
-        Histórico de Envios
-      </h3>
+    <div className="space-y-5">
+      {/* ── Fila de Vídeo com player inline (polling 10s) ── */}
+      <FilaVideoPanel />
 
-      {avatares.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {avatares.map(a => (
-            <button
-              key={a.id}
-              onClick={() => setAvatarId(a.id)}
-              className={`px-3 py-1 rounded-lg border text-xs transition-all ${
-                avatarId === a.id
-                  ? "border-gold/50 bg-gold/10 text-gold"
-                  : "border-white/10 text-white/50 hover:border-white/20"
-              }`}
-            >
-              {a.nomeExibido}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── Tabela de histórico de envios ── */}
+      <div className="panel-3d-sub rounded-xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-gold uppercase tracking-widest">
+          Histórico de Envios
+        </h3>
 
-      {isLoading ? (
-        <p className="text-white/40 text-xs py-4 text-center">Carregando histórico…</p>
-      ) : historico.length === 0 ? (
-        <p className="text-white/40 text-xs py-4 text-center">Nenhum envio registrado para este avatar.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-white/40 font-medium py-2 pr-3">Data/Hora</th>
-                <th className="text-left text-white/40 font-medium py-2 pr-3">Canal</th>
-                <th className="text-left text-white/40 font-medium py-2 pr-3">Entrega</th>
-                <th className="text-left text-white/40 font-medium py-2 pr-3">Status</th>
-                <th className="text-left text-white/40 font-medium py-2 pr-3">Contexto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historico.map(h => (
-                <tr key={h.id} className="border-b border-white/5 hover:bg-white/3">
-                  <td className="py-1.5 pr-3 text-white/60 whitespace-nowrap">
-                    {h.dataEnvio} {h.horaEnvio}
-                  </td>
-                  <td className="py-1.5 pr-3">
-                    {h.canal === "VOICE" ? (
-                      <span className="flex items-center gap-1 text-violet-400"><Mic className="w-3 h-3" /> Voz</span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-400"><Video className="w-3 h-3" /> Vídeo</span>
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-3 text-white/60">{h.canalEntrega}</td>
-                  <td className={`py-1.5 pr-3 font-medium ${statusColor(h.status)}`}>
-                    {statusLabel(h.status)}
-                    {h.erro && <span className="text-red-300/60 font-normal ml-1">— {h.erro.slice(0,30)}</span>}
-                  </td>
-                  <td className="py-1.5 pr-3 text-white/40">{h.contexto ?? "—"}</td>
+        {avatares.length > 1 && (
+          <div className="flex gap-2 flex-wrap">
+            {avatares.map(a => (
+              <button
+                key={a.id}
+                onClick={() => setAvatarId(a.id)}
+                className={`px-3 py-1 rounded-lg border text-xs transition-all ${
+                  avatarId === a.id
+                    ? "border-gold/50 bg-gold/10 text-gold"
+                    : "border-white/10 text-white/50 hover:border-white/20"
+                }`}
+              >
+                {a.nomeExibido}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {isLoading ? (
+          <p className="text-white/40 text-xs py-4 text-center">Carregando histórico…</p>
+        ) : historico.length === 0 ? (
+          <p className="text-white/40 text-xs py-4 text-center">Nenhum envio registrado para este avatar.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left text-white/40 font-medium py-2 pr-3">Data/Hora</th>
+                  <th className="text-left text-white/40 font-medium py-2 pr-3">Canal</th>
+                  <th className="text-left text-white/40 font-medium py-2 pr-3">Entrega</th>
+                  <th className="text-left text-white/40 font-medium py-2 pr-3">Status</th>
+                  <th className="text-left text-white/40 font-medium py-2 pr-3">Contexto</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {historico.map(h => (
+                  <tr key={h.id} className="border-b border-white/5 hover:bg-white/3">
+                    <td className="py-1.5 pr-3 text-white/60 whitespace-nowrap">
+                      {h.dataEnvio} {h.horaEnvio}
+                    </td>
+                    <td className="py-1.5 pr-3">
+                      {h.canal === "VOICE" ? (
+                        <span className="flex items-center gap-1 text-violet-400"><Mic className="w-3 h-3" /> Voz</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-amber-400"><Video className="w-3 h-3" /> Vídeo</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 text-white/60">{h.canalEntrega}</td>
+                    <td className={`py-1.5 pr-3 font-medium ${statusColor(h.status)}`}>
+                      {statusLabel(h.status)}
+                      {h.erro && <span className="text-red-300/60 font-normal ml-1">— {h.erro.slice(0,30)}</span>}
+                    </td>
+                    <td className="py-1.5 pr-3 text-white/40">{h.contexto ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -487,6 +641,8 @@ export default function AvatarManager() {
   const queryClient = useQueryClient();
   const [configAvatar, setConfigAvatar] = useState<ClinicAvatar | null>(null);
   const [aba, setAba] = useState<Aba>("avatares");
+  // Rastreia IDs já vistos para calcular badge de "vídeo novo pronto"
+  const vistoRef = useRef<Set<number>>(new Set());
 
   const { data: avatarData, isLoading: loadingAvatares } = useQuery<{ avatares: ClinicAvatar[] }>({
     queryKey: ["avatares"],
@@ -506,6 +662,29 @@ export default function AvatarManager() {
     staleTime: 120_000,
     retry:     false,
   });
+
+  // Fila de vídeo: polling 10s para o badge da aba Histórico
+  const { data: filaData } = useQuery<{ fila: FilaVideoItem[] }>({
+    queryKey:        ["fila-video"],
+    queryFn:         () =>
+      fetch("/api/avatares/fila-video", { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 10_000,
+    staleTime:       5_000,
+    retry:           false,
+  });
+
+  // Conta quantos vídeos entregues ainda não foram vistos na aba Histórico
+  const videosNovos = (filaData?.fila ?? []).filter(
+    item => item.status === "entregue" && item.video_url && !vistoRef.current.has(item.id)
+  ).length;
+
+  // Quando o CEO abre a aba histórico, marca todos como vistos
+  function abrirHistorico() {
+    (filaData?.fila ?? [])
+      .filter(i => i.status === "entregue" && i.video_url)
+      .forEach(i => vistoRef.current.add(i.id));
+    setAba("historico");
+  }
 
   const avatares = avatarData?.avatares ?? [];
 
@@ -565,14 +744,14 @@ export default function AvatarManager() {
       {/* Abas de navegação */}
       <div className="flex gap-1 border-b border-white/10 pb-0">
         {([
-          { id: "avatares",  label: "Avatares",  icon: Radio    },
-          { id: "disparar",  label: "Disparar",  icon: Send     },
-          { id: "historico", label: "Histórico", icon: History  },
-        ] as { id: Aba; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
+          { id: "avatares",  label: "Avatares",  icon: Radio,   badge: 0            },
+          { id: "disparar",  label: "Disparar",  icon: Send,    badge: 0            },
+          { id: "historico", label: "Histórico", icon: History, badge: videosNovos  },
+        ] as { id: Aba; label: string; icon: any; badge: number }[]).map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
-            onClick={() => setAba(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all ${
+            onClick={id === "historico" ? abrirHistorico : () => setAba(id)}
+            className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all ${
               aba === id
                 ? "border-gold text-gold bg-gold/5"
                 : "border-transparent text-white/40 hover:text-white/70"
@@ -580,6 +759,15 @@ export default function AvatarManager() {
           >
             <Icon className="w-3.5 h-3.5" />
             {label}
+            {badge > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1 flex h-4 w-4 items-center justify-center
+                  rounded-full bg-amber-500 text-[9px] font-bold text-black
+                  ring-1 ring-black/40 animate-pulse"
+              >
+                {badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
