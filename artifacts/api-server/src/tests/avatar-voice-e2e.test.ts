@@ -84,6 +84,7 @@ import { getAudioTemp, setAudioTemp } from "../lib/avatar-messenger";
 import { enviarMensagemPaxter }       from "../lib/messaging/engine";
 import { gerarAudio }                 from "../lib/elevenlabs";
 import { sendWhatsapp }               from "../lib/whatsapp";
+import { sendGmailMessage }           from "../lib/google-gmail";
 import { registrarEnvioAvatar }       from "../lib/avatar-envios";
 
 // ─── Constantes de teste ──────────────────────────────────────────────────────
@@ -101,6 +102,14 @@ const DOC_SIMPLES = {
 const DESTINO_COM_FONE = {
   telefone:       "+5511999990000",
   email:          null,
+  telegramChatId: null,
+  nome:           "Maria Teste",
+};
+
+/** Destino apenas com e-mail (sem telefone) — fallback de VOICE via e-mail. */
+const DESTINO_SEM_FONE_COM_EMAIL = {
+  telefone:       null,
+  email:          "maria@teste.com.br",
   telegramChatId: null,
   nome:           "Maria Teste",
 };
@@ -164,6 +173,7 @@ describe("enviarMensagemPaxter — canal VOICE", () => {
       via:  "twilio_mock",
       link: "SM_FAKE_SID",
     });
+    vi.mocked(sendGmailMessage).mockResolvedValue({ success: true });
   });
 
   /**
@@ -275,5 +285,62 @@ describe("enviarMensagemPaxter — canal VOICE", () => {
 
     // WhatsApp nunca deve ter sido chamado
     expect(sendWhatsapp).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Cenário 6 — VOICE via e-mail como fallback (sem telefone):
+   * Quando destino.telefone=null e destino.email está preenchido, o motor deve:
+   *   6a. Retornar sent:true (via "elevenlabs+gmail").
+   *   6b. Chamar sendGmailMessage com anexo MP3 correto:
+   *       filename="mensagem-do-seu-medico.mp3" e contentType="audio/mpeg".
+   *   6c. sendWhatsapp NÃO deve ser chamado (não há telefone).
+   *   6d. registrarEnvioAvatar chamado com canalEntrega:'EMAIL' e status:'ok'.
+   */
+  it("fallback e-mail: sent:true, anexo MP3 correto, WhatsApp não acionado, histórico com EMAIL", async () => {
+    const resultado = await enviarMensagemPaxter(
+      DOC_SIMPLES,
+      DESTINO_SEM_FONE_COM_EMAIL,
+      ["VOICE"],
+      CTX_PADRAO,
+    );
+
+    // ── 6a: algumEnviado e canal VOICE marcado como sent:true ──────────────
+    expect(resultado.algumEnviado).toBe(true);
+
+    const canalVoice = resultado.resultados.find(r => r.canal === "VOICE");
+    expect(canalVoice).toBeDefined();
+    expect(canalVoice!.sent).toBe(true);
+    expect((canalVoice as any).via).toBe("elevenlabs+gmail");
+
+    // ── 6b: sendGmailMessage chamado com o anexo MP3 correto ───────────────
+    expect(sendGmailMessage).toHaveBeenCalledOnce();
+
+    const chamada = vi.mocked(sendGmailMessage).mock.calls[0][0];
+    expect(chamada.to).toBe("maria@teste.com.br");
+
+    const anexos: any[] = chamada.attachments ?? [];
+    const mp3Anexo = anexos.find(
+      (a: any) => a.filename === "mensagem-do-seu-medico.mp3",
+    );
+    expect(mp3Anexo).toBeDefined();
+    expect(mp3Anexo.contentType).toBe("audio/mpeg");
+    expect(Buffer.isBuffer(mp3Anexo.content)).toBe(true);
+    expect((mp3Anexo.content as Buffer).equals(FAKE_MP3)).toBe(true);
+
+    // ── 6c: WhatsApp não deve ter sido chamado (sem telefone) ──────────────
+    expect(sendWhatsapp).not.toHaveBeenCalled();
+
+    // ── 6d: registrarEnvioAvatar com canalEntrega:'EMAIL' e status:'ok' ────
+    expect(registrarEnvioAvatar).toHaveBeenCalledOnce();
+    expect(registrarEnvioAvatar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        canal:        "VOICE",
+        canalEntrega: "EMAIL",
+        status:       "ok",
+        empresaId:    5,
+        avatarId:     7,
+        clienteId:    42,
+      }),
+    );
   });
 });
