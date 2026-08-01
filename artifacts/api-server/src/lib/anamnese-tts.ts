@@ -1,4 +1,6 @@
 // Voz premium da Anamnese — Text-To-Speech (texto para fala) via Replit AI
+// Guard de clone via ai-central: requireAiTenant() protege a chamada.
+import { requireAiTenant } from "./ai-central";
 // Integrations (OpenAI). Sem chave propria: usa AI_INTEGRATIONS_OPENAI_*,
 // faturado nos creditos do CEO. Web Speech API e PROIBIDA pela skill.
 //
@@ -33,7 +35,7 @@ const SYSTEM_PROMPT =
  * Gera um mp3 (Buffer) lendo `texto` em voz alta com a `voz` escolhida.
  * Lanca erro se a integracao nao estiver configurada ou se a API falhar.
  */
-export async function gerarFalaMp3(texto: string, voz: string): Promise<Buffer> {
+export async function gerarFalaMp3(texto: string, voz: string, empresaId = 0): Promise<Buffer> {
   const base = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   const key = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   if (!base || !key) {
@@ -41,6 +43,7 @@ export async function gerarFalaMp3(texto: string, voz: string): Promise<Buffer> 
       "Integracao de voz nao configurada (AI_INTEGRATIONS_OPENAI_BASE_URL/API_KEY).",
     );
   }
+  const { headers: aiHeaders } = requireAiTenant(empresaId, "voice");
   const v: VozId = vozValida(voz) ? voz : "shimmer";
 
   const res = await fetch(`${base.replace(/\/$/, "")}/chat/completions`, {
@@ -48,6 +51,7 @@ export async function gerarFalaMp3(texto: string, voz: string): Promise<Buffer> 
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${key}`,
+      ...aiHeaders,
     },
     body: JSON.stringify({
       model: "gpt-audio",

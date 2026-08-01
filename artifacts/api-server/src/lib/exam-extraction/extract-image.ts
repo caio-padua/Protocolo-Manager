@@ -3,6 +3,7 @@ import { Type } from "@google/genai";
 import { compactExamText, inferLabName } from "./pdf-text";
 import { ExtractedImageReportSchema, type ExtractedImageReport } from "./schema-image";
 import { DEFAULT_MODEL, ESCALATION_MODEL, mediaPart } from "./extract";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 const CONFIDENCE_FLOOR = 0.7;
 
@@ -206,8 +207,10 @@ const IMAGE_MEDIA_SUFFIX = `\n\nO laudo vem como ARQUIVO EM ANEXO (imagem fotogr
 export async function extractImageFromMedia(
   buffer: Buffer,
   mimeType: string,
-  options: { model?: string; disableEscalation?: boolean } = {},
+  options: { model?: string; disableEscalation?: boolean; empresaId?: number } = {},
 ): Promise<ExtractImageResult> {
+  const empresaId = options.empresaId ?? 0;
+  requireAiTenant(empresaId, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const contents: GeminiContents = [
     { role: "user", parts: [{ text: IMAGE_PROMPT + IMAGE_MEDIA_SUFFIX }, mediaPart(buffer, mimeType)] },
@@ -218,11 +221,14 @@ export async function extractImageFromMedia(
   if (shouldEscalate) {
     try {
       const escalated = await runImageGemini(contents, ESCALATION_MODEL);
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data: escalated, modelUsed: ESCALATION_MODEL, escalated: true };
     } catch {
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data, modelUsed: firstModel, escalated: false };
     }
   }
+  void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
   return { data, modelUsed: firstModel, escalated: false };
 }
 
@@ -234,8 +240,10 @@ export interface ExtractImageResult {
 
 export async function extractImageFromText(
   text: string,
-  options: { model?: string; disableEscalation?: boolean; disableCompaction?: boolean } = {},
+  options: { model?: string; disableEscalation?: boolean; disableCompaction?: boolean; empresaId?: number } = {},
 ): Promise<ExtractImageResult> {
+  const empresaId = options.empresaId ?? 0;
+  requireAiTenant(empresaId, "clinical");
   const firstModel = options.model ?? DEFAULT_MODEL;
   const payload = options.disableCompaction ? text : compactExamText(text).text;
   const data = await callGeminiImage(payload, firstModel);
@@ -245,11 +253,14 @@ export async function extractImageFromText(
   if (shouldEscalate) {
     try {
       const escalated = await callGeminiImage(payload, ESCALATION_MODEL);
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data: withImageLabFallback(escalated, text), modelUsed: ESCALATION_MODEL, escalated: true };
     } catch {
+      void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
       return { data: withImageLabFallback(data, text), modelUsed: firstModel, escalated: false };
     }
   }
+  void logAiUsage({ empresaId, provider: "gemini", tipo: "clinical" });
   return { data: withImageLabFallback(data, text), modelUsed: firstModel, escalated: false };
 }
 

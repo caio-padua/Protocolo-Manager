@@ -1,4 +1,5 @@
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Extrator OpenAI GPT-4o — sem SDK; usa fetch nativo (sem instalar openai pkg).
@@ -43,11 +44,12 @@ function stripJsonFences(raw: string): string {
   return s.trim();
 }
 
-export async function extractExamWithOpenAI(text: string): Promise<{ data: ExtractedExam; ms: number } | null> {
+export async function extractExamWithOpenAI(text: string, empresaId = 0): Promise<{ data: ExtractedExam; ms: number } | null> {
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
   const baseURL = (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
   if (!apiKey) return null;
 
+  const { headers: aiHeaders } = requireAiTenant(empresaId, "clinical");
   const t0 = Date.now();
   try {
     const res = await fetch(`${baseURL}/chat/completions`, {
@@ -55,6 +57,7 @@ export async function extractExamWithOpenAI(text: string): Promise<{ data: Extra
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...aiHeaders,
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
@@ -70,6 +73,13 @@ export async function extractExamWithOpenAI(text: string): Promise<{ data: Extra
     });
     if (!res.ok) return null;
     const json = await res.json();
+    void logAiUsage({
+      empresaId,
+      provider: "openai",
+      tipo: "clinical",
+      inputTokens:  json?.usage?.prompt_tokens     ?? undefined,
+      outputTokens: json?.usage?.completion_tokens ?? undefined,
+    });
     const raw: string = json?.choices?.[0]?.message?.content ?? "";
     if (!raw) return null;
     const parsed = JSON.parse(stripJsonFences(raw));

@@ -60,4 +60,7 @@ export function startCronJobs(): void {
   );
 
   logger.info("Cron de receituário magistral agendado para 06:00 BRT");
+
 }
+// NOTA: o cron horário de relatório de LLMs (Slack + Telegram) roda APENAS
+// em artifacts/api-worker/src/worker.ts (Job 5). Não duplicar aqui.

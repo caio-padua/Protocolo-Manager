@@ -1,4 +1,5 @@
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
+import { requireAiTenant, logAiUsage } from "../ai-central";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Extrator Claude (Anthropic) — lazy init: não estoura no boot se as vars
@@ -64,21 +65,34 @@ function getClient(): import("@anthropic-ai/sdk").default | null {
   return _client;
 }
 
-export async function extractExamWithClaude(text: string): Promise<{ data: ExtractedExam; ms: number } | null> {
+export async function extractExamWithClaude(text: string, empresaId = 0): Promise<{ data: ExtractedExam; ms: number } | null> {
   const client = getClient();
   if (!client) return null;
 
+  const { headers: aiHeaders } = requireAiTenant(empresaId, "clinical");
   const t0 = Date.now();
   try {
-    const msg = await (client.messages.create as Function)({
-      model: CLAUDE_MODEL,
-      max_tokens: 8096,
-      messages: [
-        {
-          role: "user",
-          content: `${EXTRACTION_PROMPT}\n\n=== TEXTO DO LAUDO ===\n${text}`,
-        },
-      ],
+    const msg = await (client.messages.create as Function)(
+      {
+        model: CLAUDE_MODEL,
+        max_tokens: 8096,
+        messages: [
+          {
+            role: "user",
+            content: `${EXTRACTION_PROMPT}\n\n=== TEXTO DO LAUDO ===\n${text}`,
+          },
+        ],
+      },
+      { headers: aiHeaders },
+    );
+
+    const usage = (msg as any).usage;
+    void logAiUsage({
+      empresaId,
+      provider: "anthropic",
+      tipo: "clinical",
+      inputTokens:  usage?.input_tokens  ?? undefined,
+      outputTokens: usage?.output_tokens ?? undefined,
     });
 
     const raw = (msg.content as Array<{ type: string; text?: string }>)

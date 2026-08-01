@@ -111,7 +111,71 @@ export function startWorkerJobs(logger: pino.Logger): void {
   void runDriveWatcher();
   setInterval(() => void runDriveWatcher(), 5 * 60 * 1000);
 
+  // ─── Job 5: Monitor horário de LLMs + planilha no Slack ────────────────
+  // Roda todo início de hora (XX:00), 24h/dia.
+  // Só executa na instância CEO (PADAXOR_AI_BYPASS=true). Fail-safe total.
+  // Detecta mudanças na planilha de produção e anota termos técnicos com (*N).
+  // A lógica de despacho dual-canal vive em llm-monitor-dispatch.ts (testável).
+  // Quando o Telegram falha, postTelegramReport posta aviso de fallback no Slack
+  // usando slackFallbackChannelId (Task 34 — retry automático + fallback).
+  cron.schedule(
+    "0 * * * *",
+    async () => {
+      if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
+      const channelId      = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+      const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+      logger.info(
+        { channelId, telegramChatId: telegramChatId || "(não configurado)" },
+        "Worker: gerando monitor horário (LLMs + planilha)"
+      );
+
+      // Importar módulos sob demanda — evita ciclo de boot
+      const [reporter, dispatch] = await Promise.all([
+        import("../../api-server/src/lib/slack-reporter.js" as string).catch((err: unknown) => {
+          logger.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            "Worker: falha ao importar slack-reporter"
+          );
+          return null;
+        }),
+        import("../../api-server/src/lib/llm-monitor-dispatch.js" as string).catch(() => null),
+      ]);
+      if (!reporter || !dispatch) return;
+
+      // Delegar despacho dual-canal ao helper testável.
+      // slackFallbackChannelId: se Telegram falhar após retentativas, avisa o Slack (Task 34).
+      const result = await dispatch.runLlmMonitorJob(
+        {
+          channelId,
+          telegramChatId,
+          slackFallbackChannelId: channelId,
+        },
+        {
+          buildLlmReport:     reporter.buildLlmReport,
+          postSlackReport:    reporter.postSlackReport,
+          postTelegramReport: reporter.postTelegramReport,
+          // R2 (spec llm-monitor-telegram-fallback): grava registro "ambos" ao final
+          salvarHistorico:    reporter.salvarHistorico,
+        },
+        logger,
+      );
+
+      if (result.reportBuilt) {
+        logger.info(
+          {
+            slackOk:       result.slackOk,
+            telegramOk:    result.telegramOk,
+            slackError:    result.slackError,
+            telegramError: result.telegramError,
+          },
+          "Worker: ciclo monitor horário concluído"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário"
   );
 }

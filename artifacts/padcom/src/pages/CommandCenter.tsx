@@ -11,7 +11,7 @@ import {
   Building2, Users, Calendar, TrendingUp, AlertTriangle,
   Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight,
   ShieldCheck, Package, CreditCard, MapPin, Phone, Hash,
-  BadgeCheck, Crown, Lock,
+  BadgeCheck, Crown, Lock, BrainCircuit, DollarSign,
 } from "lucide-react";
 
 // ── Interface ampliada com todos os campos do CEO ────────────────────────────
@@ -408,6 +408,217 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
   );
 }
 
+// ── Interface para o ledger de custo IA ──────────────────────────────────────
+interface AiUsageLinha {
+  empresa_id: number;
+  nome_empresa: string;
+  provider: string;
+  tipo: string;
+  total_chamadas: number;
+  input_tokens: number;
+  output_tokens: number;
+  custo_usd: string | number;
+}
+
+interface AiUsageResumo {
+  ok: boolean;
+  periodo: string;
+  data: AiUsageLinha[];
+  total_chamadas: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_custo_usd: number;
+  total_custo_brl: number;
+}
+
+// ── Painel de custo IA ────────────────────────────────────────────────────────
+function PainelCustoIA() {
+  const [dados, setDados] = useState<AiUsageResumo | null>(null);
+  const [loadingAi, setLoadingAi] = useState(true);
+  const [erroAi, setErroAi] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<"7d" | "30d" | "90d">("30d");
+
+  useEffect(() => {
+    setLoadingAi(true);
+    setErroAi(null);
+    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+    fetch(`${base}/api/ai-usage/resumo?periodo=${periodo}`)
+      .then((r) => r.json())
+      .then((d: AiUsageResumo) => {
+        if (d.ok) setDados(d);
+        else setErroAi("Erro ao carregar ledger de IA.");
+      })
+      .catch(() => setErroAi("Erro de conexão com o ledger de IA."))
+      .finally(() => setLoadingAi(false));
+  }, [periodo]);
+
+  const labelPeriodo = { "7d": "7 dias", "30d": "30 dias", "90d": "90 dias" }[periodo];
+  const corProvider: Record<string, string> = {
+    anthropic:  "text-amber-700",
+    gemini:     "text-blue-700",
+    openai:     "text-emerald-700",
+    openrouter: "text-purple-700",
+  };
+
+  return (
+    <div className="panel-3d p-4 space-y-4">
+      {/* Cabeçalho do painel */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <BrainCircuit size={16} className="text-primary" />
+          <span className="text-sm font-black uppercase tracking-widest text-primary">
+            Custo IA por Clínica
+          </span>
+          <span className="bevel-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+            {labelPeriodo}
+          </span>
+        </div>
+        {/* Seletor de período */}
+        <div className="flex items-center gap-1">
+          {(["7d", "30d", "90d"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriodo(p)}
+              className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-all ${
+                periodo === p
+                  ? "btn-3d text-primary"
+                  : "btn-3d-soft text-muted-foreground"
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPIs totais */}
+      {dados && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="concave-3d p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <DollarSign size={10} className="text-muted-foreground/60" />
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
+                Total USD
+              </span>
+            </div>
+            <span className="text-xl font-black tabular-nums text-primary">
+              $ {dados.total_custo_usd.toFixed(4)}
+            </span>
+          </div>
+          <div className="concave-3d p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <DollarSign size={10} className="text-muted-foreground/60" />
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
+                Total BRL
+              </span>
+            </div>
+            <span className="text-xl font-black tabular-nums text-primary">
+              {dados.total_custo_brl.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </span>
+          </div>
+          <div className="concave-3d p-3 flex flex-col gap-1">
+            <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
+              Chamadas
+            </span>
+            <span className="text-xl font-black tabular-nums text-foreground">
+              {dados.total_chamadas.toLocaleString("pt-BR")}
+            </span>
+          </div>
+          <div className="concave-3d p-3 flex flex-col gap-1">
+            <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
+              Tokens Total
+            </span>
+            <span className="text-xl font-black tabular-nums text-foreground">
+              {(dados.total_input_tokens + dados.total_output_tokens).toLocaleString("pt-BR")}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Carregando */}
+      {loadingAi && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <RefreshCw size={14} className="animate-spin" />
+          Carregando ledger de IA…
+        </div>
+      )}
+
+      {/* Erro */}
+      {erroAi && (
+        <div className="paxter-alert paxter-alert-red px-3 py-2 flex items-center gap-2 text-xs text-red-700">
+          <AlertTriangle size={12} />
+          {erroAi}
+        </div>
+      )}
+
+      {/* Sem dados */}
+      {!loadingAi && !erroAi && dados && dados.data.length === 0 && (
+        <div className="concave-3d px-4 py-6 text-center text-sm text-muted-foreground/60">
+          Nenhuma chamada de IA registrada nos últimos {labelPeriodo}.
+        </div>
+      )}
+
+      {/* Tabela de detalhes */}
+      {!loadingAi && dados && dados.data.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] border-collapse">
+            <thead>
+              <tr className="border-b border-border/40">
+                {[
+                  "CLÍNICA",
+                  "PROVIDER",
+                  "TIPO",
+                  "CHAMADAS",
+                  "TOKENS IN",
+                  "TOKENS OUT",
+                  "CUSTO USD",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left py-2 px-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground/70"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dados.data.map((row, i) => (
+                <tr
+                  key={i}
+                  className="border-b border-border/20 hover:bg-muted/20 transition-colors"
+                >
+                  <td className="py-1.5 px-2 font-bold text-foreground uppercase tracking-tight truncate max-w-[120px]">
+                    {row.nome_empresa}
+                  </td>
+                  <td className={`py-1.5 px-2 font-black uppercase ${corProvider[row.provider] ?? "text-foreground"}`}>
+                    {row.provider}
+                  </td>
+                  <td className="py-1.5 px-2 text-muted-foreground uppercase">
+                    {row.tipo}
+                  </td>
+                  <td className="py-1.5 px-2 tabular-nums font-bold text-right">
+                    {row.total_chamadas.toLocaleString("pt-BR")}
+                  </td>
+                  <td className="py-1.5 px-2 tabular-nums text-muted-foreground text-right">
+                    {Number(row.input_tokens).toLocaleString("pt-BR")}
+                  </td>
+                  <td className="py-1.5 px-2 tabular-nums text-muted-foreground text-right">
+                    {Number(row.output_tokens).toLocaleString("pt-BR")}
+                  </td>
+                  <td className="py-1.5 px-2 tabular-nums font-black text-primary text-right">
+                    $ {parseFloat(String(row.custo_usd)).toFixed(4)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function CommandCenter() {
   const [resumos, setResumos] = useState<EmpresaResumo[]>([]);
@@ -579,6 +790,9 @@ export default function CommandCenter() {
           </button>
         </div>
       )}
+
+      {/* Painel de custo IA por clínica */}
+      <PainelCustoIA />
 
     </div>
   );

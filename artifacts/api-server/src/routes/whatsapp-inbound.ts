@@ -13,6 +13,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { getSecret } from "../lib/secure-settings";
 import { logger } from "../lib/logger";
+import { requireAiTenant } from "../lib/ai-central";
 
 const router: IRouter = Router();
 
@@ -148,13 +149,14 @@ router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
 
   // Gera resposta via Aurora ADM
   let resposta = "Olá! Recebi sua mensagem. Nossa equipe retornará em breve. 😊";
+  const { headers: aiHeaders } = requireAiTenant(0, "whatsapp");
   try {
     const aiR = await anthropic.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 300,
       system: systemPrompt,
       messages: [{ role: "user", content: body }],
-    });
+    }, { headers: aiHeaders });
     const txt = (aiR.content[0] as { text?: string })?.text?.trim();
     if (txt) resposta = txt;
   } catch (err: unknown) {

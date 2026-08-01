@@ -37,6 +37,12 @@ export interface TelegramResult {
 
 /** Envia texto a um chat. MOCK quando sem token (nunca falha por isso). */
 export async function sendTelegram(chatId: string, text: string): Promise<TelegramResult> {
+  // ChatId especial: força falha para testar o fallback Slack (endpoint de teste).
+  if (chatId === "PADAXOR_TEST_FORCE_FAIL") {
+    logger.info({ chatId }, "[telegram] TEST_FORCE_FAIL — simulando rejeição forçada do Telegram");
+    return { sent: false, mock: false, error: "TEST_FORCED_FAIL — chatId de teste, sem chamada real à API" };
+  }
+
   await ensureTelegramTokenLoaded();
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {

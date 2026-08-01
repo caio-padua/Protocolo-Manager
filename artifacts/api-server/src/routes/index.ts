@@ -68,7 +68,9 @@ import encaminhamentosRouter from "./encaminhamentos";
 import documentTemplatesRouter from "./document-templates";
 import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
+import provisionamentoRouter from "./provisionamento";
 import ceoRouter from "./ceo";
+import aiUsageRouter from "./ai-usage";
 import dominiosRouter from "./dominios";
 import dominiosComercialRouter from "./dominios-comercial";
 import cadernosJuridicosRouter from "./cadernos-juridicos";
@@ -77,6 +79,8 @@ import receituarioModelosRouter from "./receituario-modelos";
 import adminPreviewRouter from "./admin-preview";
 import adminDriveRouter from "./admin-drive";
 import adminSheetsRouter from "./admin-sheets";
+import slackPadaxorRouter from "./slack-padaxor";
+import adminPlanilhaTempRouter from "./admin-planilha-temp";
 import padteamRouter from "./padteam";
 import provaDeValorRouter from "./prova-de-valor";
 import agentesRouter from "./agentes";
@@ -123,6 +127,8 @@ router.use(agentesTrelloRouter);
 // Admin Drive: rota interna de admin, sem sessão de colaborador.
 router.use(adminDriveRouter);
 router.use(adminSheetsRouter);
+router.use(slackPadaxorRouter);
+router.use(adminPlanilhaTempRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
@@ -195,7 +201,9 @@ router.use(encaminhamentosRouter);
 router.use(documentTemplatesRouter);
 router.use(clientServiceAddressesRouter);
 router.use(empresasRouter);
+router.use(provisionamentoRouter);
 router.use(ceoRouter);
+router.use(aiUsageRouter);
 router.use(cadernosJuridicosRouter);
 router.use(receituarioRouter);
 router.use(receituarioModelosRouter);

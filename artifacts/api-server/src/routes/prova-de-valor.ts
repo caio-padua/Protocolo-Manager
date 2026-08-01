@@ -225,4 +225,144 @@ router.post("/prova-de-valor/exportar-pdf", async (req: Request, res: Response):
   }
 });
 
+// ─── GET /api/prova-de-valor/por-empresa ─────────────────────────────────────
+//
+// Retorna, por empresa, os mesmos 6 KPIs + tempo economizado.
+// Só lista empresas ativas e não-platformOwner.
+//
+router.get("/prova-de-valor/por-empresa", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const de = req.query.de ? new Date(req.query.de as string) : new Date(Date.now() - 30 * 24 * 3600_000);
+    const ate = req.query.ate ? new Date(req.query.ate as string) : new Date();
+
+    if (isNaN(de.getTime()) || isNaN(ate.getTime())) {
+      res.status(400).json({ error: "Parâmetros de data inválidos." });
+      return;
+    }
+
+    // Busca todas as empresas ativas (exceto a plataforma dona)
+    const empresasResult = await db.execute(sql`
+      SELECT id, nome, nick, tipo_licenciamento, tipo_relacionamento
+      FROM empresas
+      WHERE ativa = true AND (is_platform_owner IS NULL OR is_platform_owner = false)
+      ORDER BY CASE WHEN id = 5 THEN 0 ELSE 1 END, nome ASC
+    `);
+
+    const empresas = empresasResult.rows as Array<{
+      id: number;
+      nome: string;
+      nick: string | null;
+      tipo_licenciamento: string | null;
+      tipo_relacionamento: string | null;
+    }>;
+
+    const deISO  = de.toISOString();
+    const ateISO = ate.toISOString();
+
+    const por_empresa = await Promise.all(
+      empresas.map(async (emp) => {
+        const eid = emp.id;
+        const [recR, docR, taxaR, iaR, lemR, laudR] = await Promise.all([
+          // Receitas emitidas pela clínica
+          db.execute(sql`
+            SELECT COUNT(*) AS n FROM prescriptions
+            WHERE empresa_id = ${eid}
+              AND created_at >= ${deISO} AND created_at <= ${ateISO}
+          `),
+          // Documentos entregues (dispatch_log)
+          db.execute(sql`
+            SELECT COUNT(*) AS n FROM dispatch_log
+            WHERE empresa_id = ${eid} AND status = 'sent'
+              AND created_at >= ${deISO} AND created_at <= ${ateISO}
+          `),
+          // Taxa de confirmação
+          db.execute(sql`
+            SELECT
+              COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmados,
+              COUNT(*) AS total
+            FROM dispatch_log
+            WHERE empresa_id = ${eid}
+              AND created_at >= ${deISO} AND created_at <= ${ateISO}
+          `),
+          // Dúvidas respondidas pela IA
+          db.execute(sql`
+            SELECT COUNT(*) AS n FROM agente_messages
+            WHERE empresa_id = ${eid} AND role = 'assistant'
+              AND created_at >= ${deISO} AND created_at <= ${ateISO}
+          `),
+          // Lembretes de dose entregues (mensageria_lembrete)
+          db.execute(sql`
+            SELECT COUNT(*) AS n FROM mensageria_lembrete
+            WHERE empresa_id = ${eid} AND status = 'enviado'
+              AND enviado_em >= ${deISO} AND enviado_em <= ${ateISO}
+          `),
+          // Laudos processados (drive_watcher_files → join clients → empresa_id)
+          db.execute(sql`
+            SELECT COUNT(*) AS n
+            FROM drive_watcher_files dwf
+            JOIN clients c ON c.id = dwf.client_id
+            WHERE c.empresa_id = ${eid} AND dwf.status = 'ok'
+              AND dwf.processed_at >= ${deISO} AND dwf.processed_at <= ${ateISO}
+          `),
+        ]);
+
+        const receitas   = Number((recR.rows[0]  as Record<string, unknown>)?.n ?? 0);
+        const documentos = Number((docR.rows[0]  as Record<string, unknown>)?.n ?? 0);
+        const taxaRow    = taxaR.rows[0] as Record<string, unknown> | undefined;
+        const confirmados   = Number(taxaRow?.confirmados ?? 0);
+        const totalDispatch = Number(taxaRow?.total ?? 0);
+        const taxaConfirmacao = totalDispatch > 0 ? Math.round((confirmados / totalDispatch) * 100) : 0;
+        const ia       = Number((iaR.rows[0]  as Record<string, unknown>)?.n ?? 0);
+        const lembretes = Number((lemR.rows[0] as Record<string, unknown>)?.n ?? 0);
+        const laudos   = Number((laudR.rows[0] as Record<string, unknown>)?.n ?? 0);
+        const total    = receitas + documentos + lembretes + laudos + ia;
+
+        const tipoLic = emp.tipo_licenciamento ?? emp.tipo_relacionamento ?? "licenciada_direta";
+
+        return {
+          empresaId: eid,
+          nome: emp.nick?.trim() || emp.nome,
+          nomeCompleto: emp.nome,
+          tipoLicenciamento: tipoLic,
+          isPropria: tipoLic === "propria",
+          isLicenciada: tipoLic === "licenciada_direta",
+          isSublicenciada: tipoLic === "licenciada_por_clinica" || tipoLic === "sub_unidade",
+          kpis: {
+            receitasEmitidas:       receitas,
+            documentosEntregues:    documentos,
+            taxaConfirmacaoPercent: taxaConfirmacao,
+            duvidasRespondidas:     ia,
+            lembretesEntregues:     lembretes,
+            laudosProcessados:      laudos,
+          },
+          totalEventos: total,
+        };
+      }),
+    );
+
+    // Totais consolidados para a visão geral
+    const totais = por_empresa.reduce(
+      (acc, e) => {
+        acc.receitasEmitidas       += e.kpis.receitasEmitidas;
+        acc.documentosEntregues    += e.kpis.documentosEntregues;
+        acc.duvidasRespondidas     += e.kpis.duvidasRespondidas;
+        acc.lembretesEntregues     += e.kpis.lembretesEntregues;
+        acc.laudosProcessados      += e.kpis.laudosProcessados;
+        return acc;
+      },
+      { receitasEmitidas: 0, documentosEntregues: 0, duvidasRespondidas: 0, lembretesEntregues: 0, laudosProcessados: 0 },
+    );
+
+    res.json({
+      de: de.toISOString(),
+      ate: ate.toISOString(),
+      totais,
+      por_empresa,
+    });
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, "prova-de-valor/por-empresa: erro");
+    res.status(500).json({ error: "Erro ao carregar dados por empresa." });
+  }
+});
+
 export default router;

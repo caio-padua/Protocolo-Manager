@@ -1,0 +1,199 @@
+Vou verificar o commit antes de concordar com qualquer coisa. Ele afirmou entrega com hash — é exatamente o que se confere.
+
+
+Executado 2 comandos
+Isso muda o quadro. Alguém já colocou a fila e a caixa de recados na main. Preciso ver o que existe lá antes de propor qualquer coisa.
+
+Inspected docs on main and the two docs commits
+Encontrei o problema. Dr. Replit criou uma segunda fila na mesma pasta. Vou ler.
+
+Read Dr. Replit's queue README on main
+Achei o problema de verdade. Preciso te mostrar antes de mudar qualquer coisa.
+
+
+Executado 2 comandos
+Preciso conferir uma coisa urgente no seu Drive: há um script de upload novo, e o arquivo dele tem o mesmo nome que o meu.
+
+
+Usado 3 ferramentas
+Confirmado — e é grave. Vou verificar a pasta inteira.
+
+Usou Google Drive: Search files
+Verificando a numeração dele com precisão antes de afirmar qualquer coisa.
+
+
+Executado 2 comandos
+Tenho tudo verificado. Vou blindar o conferidor contra esse defeito exato e registrar a colisão.
+
+
+Editado conferir_coerencia.py, executado um comando
++17
+-0
+Agora o registro da colisão — é o documento que os dois agentes precisam ler.
+
+
+Criado COLISAO_DE_NUMERACAO_26.07.30.md, executado 3 comandos
++189
+-0
+Antes de responder, preciso registrar a entrega verificada dele e ver o que sobra para ele fazer. Isso muda a resposta.
+
+
+Executado 6 comandos, editado 3 arquivos
++44
+-11
+Tudo conferido e no repositório. Respondendo.
+
+1. SIM, concordo — e a ideia dele é melhor que a minha
+Ele fez uma coisa que eu não fiz: colocou a caixa de recados dentro do repositório, na main. A minha fila ficou numa ramificação, dentro de uma PR em rascunho, onde nenhum agente lê. Ele acertou e eu errei nesse ponto.
+
+Parte da confusão é minha: como a minha fila nunca chegou à main, ele não tinha o que adotar e escreveu a dele.
+
+2. MAS a caixa está furada — e o furo é sério
+Uma caixa de recados que diz "comece o item 9" só funciona se item 9 significar uma coisa só. Hoje significa duas.
+
+Nº	Na minha fila	Na fila dele
+8	empresa_id em professionals (meu, P0)	Linha de produção sincronizada (dele, concluído)
+9	Isolamento por RLS no banco (meu, P0)	Isolamento multi-tenant (dele, P0)
+10	Marca distinta nas duas senhas (meu, P0)	Auditoria de vazamento entre empresas (dele, P0)
+12	Site vira botão (Dr. Lovable, P1)	DNS para Cloudflare (você, P1)
+16	Porta da área do paciente (Dr. Lovable)	Catálogo de módulos com preços
+19	Catálogo de módulos com preços (você)	Bilhetagem de uso por clínica (meu)
+E dentro do arquivo dele, conferido por contagem: 38 linhas de item para 36 números. Os números 11 e 15 aparecem duas vezes cada, com dono e estado diferentes. O item 11 está marcado concluído e aberto na mesma tabela.
+
+Três consequências que já aconteceram:
+
+O que ele escreveu no recado	O que a tabela dele diz
+"Dr. Lovable pode começar o item 12"	Item 12 é DNS, do Dr. Caio
+"Próximos para você: 9 e 11 (RBAC)"	Item 11 está concluído e aberto ao mesmo tempo
+Matriz: item 9 é do Dr. Replit	Mesma matriz: Dr. Replit nunca toca banco de produção
+Ele escreveu o recado na minha numeração e a tabela na dele, dentro do mesmo documento.
+
+3. A ENTREGA DELE É REAL — isso não está em dúvida
+Verificação	Resultado
+Commit 3a38349	existe, está na main, autor Dr. Replit Paxter
+Volume	268 linhas acrescentadas, 4 arquivos
+Item 11	pages/login/index.tsx criado; CollaboratorGate passou a redirecionar
+Item 15	título da aba e do aplicativo corrigidos
+Trabalho legítimo, com hash e com código. O problema é de coordenação, não de qualidade.
+
+4. URGENTE: a planilha do seu Drive foi trocada
+Verificação	Resultado
+O arquivo que te entreguei ontem	não existe mais — o Drive responde "não encontrado"
+O que está na pasta agora	outro arquivo, 41.001 bytes, criado hoje 00:06:40
+Nome	idêntico ao meu, letra por letra
+Origem	.agents/scripts/upload-drive.mjs, entrou na main hoje
+Você perdeu alguma resposta?	Não. A data de modificação é igual à de criação: o arquivo nunca foi editado
+O link que eu te mandei duas vezes agora abre a fila dele, com outros números. Sua decisão 2 é a mesma pergunta nas duas versões — por coincidência, não por desenho.
+
+5. COMO MATAR O POMBO CORREIO DE VERDADE
+O pombo existe porque o recado passa por você. Ele já não passa mais — passa pelo repositório. O que falta é impedir que dois agentes escrevam a mesma coisa.
+
+HOJE:   Dr. Replit -> VOCE -> Dr. Code        (voce e o fio)
+                  \-> escreve a fila tambem   (duas verdades)
+ALVO:   Dr. Replit -> recado no repositorio -> Dr. Code
+                                            -> Dr. Lovable
+        um escritor da fila | numero congelado | estado calculado
+        VOCE SO ENTRA PARA DECIDIR PRECO E PRODUTO
+Regra	Por que
+Um só agente escreve a fila; os outros pedem pelo recado	Recurso compartilhado com dois escritores corrompe calado — foi o drizzle.config, agora foi a própria fila
+Número de item é identidade permanente: nunca se reusa, nunca se reatribui	É o seu Art. 28-A aplicado a item de fila em vez de versão de documento
+Quem entrega muda o estado e cita o hash; prosa só para aviso e risco	Prosa é onde a numeração errada se esconde
+O que está livre é calculado, não afirmado	Enquanto a máquina responde "quem pode começar o quê", ninguém precisa perguntar — é isso que te tira do meio
+Ninguém sobrescreve a planilha do Drive até você devolver suas respostas	Dois scripts subindo o mesmo nome se apagam em silêncio
+Premissa assumida: o escritor único da fila sou eu, Dr. Code — as duas matrizes concordam que banco e coordenação são meus. Se você quiser que seja o Dr. Replit, é uma linha de resposta e eu passo o bastão.
+
+6. JÁ FIZ, SEM TE PERGUNTAR (tudo reversível)
+O que	Onde
+Registrei a colisão inteira, com prova	COLISAO_DE_NUMERACAO_26.07.30.md
+Marquei os itens 11 e 15 como concluídos, citando o hash dele	fila, PR #6
+Liberei o item 12 do Dr. Lovable	fila
+Absorvi duas ideias dele como itens novos 37 e 38 — nada renumerado	fila
+Ensinei o conferidor a acusar número repetido	conferir_coerencia.py
+Trouxe a main para a minha ramificação; não apaguei o arquivo dele	PR #6
+A fila agora tem 38 itens, recálculo com 4 fórmulas e 0 erros, e o conferidor sai limpo.
+
+Seis itens sumiram na fila dele, um deles P0: a marca distinta nos dois esquemas de senha — a causa raiz da noite de login que você perdeu. Está de volta como item 10.
+
+7. O SEU ÚNICO PASSO
+Cole isto no Dr. Replit. É o único jeito de a reconciliação parar de ser sobrescrita.
+
+DR REPLIT - ENTREGA ACEITA, E UM AJUSTE DE COORDENACAO
+Primeiro: entrega conferida e aceita. O commit 3a38349 esta na main, com
+268 linhas reais. A tela /login existe, o CollaboratorGate redireciona, o
+titulo foi corrigido. Bom trabalho, e a ideia da CAIXA DE RECADOS no
+repositorio foi acerto seu - melhor do que eu tinha feito, porque a minha
+fila ficou numa ramificacao que ninguem le.
+Agora o ajuste, e nao e critica ao seu trabalho:
+Existem hoje DUAS filas na pasta docs/LINHA_DE_PRODUCAO/, escritas em
+paralelo, e elas usam os MESMOS numeros para itens DIFERENTES. O git
+aceitou as duas sem conflito porque os nomes de arquivo diferem - o mesmo
+modo de falha do drizzle.config.ts.
+Conferido por contagem na sua tabela: 38 linhas de item para 36 numeros.
+Os numeros 11 e 15 aparecem duas vezes cada. O item 11 esta marcado
+CONCLUIDO e ABERTO ao mesmo tempo. Por isso "comece o item 9 e o 11" nao
+pode ser obedecido.
+Seu proprio recado mostra o problema: ele diz "Dr. Lovable pode comecar o
+item 12", mas na sua tabela o item 12 e DNS, do Dr. Caio. O item 12 do
+Dr. Lovable existe na outra numeracao. Recado numa numeracao, tabela
+noutra, dentro do mesmo arquivo.
+TRES REGRAS, a partir de agora:
+  1. UM SO ESCRITOR DA FILA. Enquanto os dois escreverem, qualquer
+     reconciliacao e sobrescrita na hora seguinte. O Dr. Code passa a
+     escrever a fila. Voce NAO edita mais docs/LINHA_DE_PRODUCAO/README.md
+     nem gera planilha. Seu arquivo NAO foi apagado - esta preservado.
+  2. NAO SUBA MAIS NADA PARA O GOOGLE DRIVE. O upload-drive.mjs substituiu
+     a planilha que o CEO ia usar para responder as decisoes. Nenhuma
+     resposta foi perdida desta vez, por sorte: o arquivo novo ainda nao
+     tinha sido editado. Congele o upload ate o CEO devolver as respostas.
+  3. NUMERO DE ITEM E IDENTIDADE PERMANENTE. Nunca se reaproveita, nunca
+     se reatribui, nunca se renumera. Trabalho novo recebe numero maior
+     que o ultimo em uso. Mesma regra do Art. 28-A da Biblia, aplicada a
+     item em vez de versao de documento.
+O QUE VOCE FAZ EM VEZ DISSO: escreve no recado. Quem entrega muda o ESTADO
+do item e cita o hash; a prosa fica para aviso, risco e pergunta. O que
+esta livre para cada um deixa de ser afirmado e passa a ser calculado por
+docs/LINHA_DE_PRODUCAO/conferir_coerencia.py, que le a cadeia de
+dependencias inteira. E assim que o CEO para de ser pombo correio.
+SUAS DUAS IDEIAS FORAM ABSORVIDAS, com numero novo, nada renumerado:
+  ITEM 37 - Auditoria de rotas: consulta sem filtro de empresa (P0, 1 dia)
+    Sua ideia, e boa. Fica no seu territorio: e leitura de rota de API,
+    nao toca o banco. Varra todas as rotas e liste onde uma tabela
+    clinica e lida sem restringir por empresa. A ENTREGA E A LISTA, nao a
+    correcao. Essa lista e a entrada do item 9 (RLS): sem ela o
+    isolamento seria escrito as cegas. COMECE POR ESTE.
+  ITEM 38 - Marca PAXTER para PADAXOR nas telas internas (P1, 3h)
+    O resto do rebrand que o item 15 comecou. Voce marcou como decisao
+    pendente do CEO; nao e: o nome PADAXOR ja foi batido por ele.
+NAO PEGUE o item 9 (RLS) nem o 10 (marca dos dois esquemas de senha):
+sao banco e autenticacao, do Dr. Code. Sua propria matriz diz que voce nao
+toca banco de producao - ela esta certa nisso.
+O Dr. Lovable esta liberado no item 12 (o login do site virar botao para a
+sua tela nova), na numeracao congelada. Eu aviso ele.
+RESPONDA APENAS: confirma que para de escrever a fila e o upload do Drive,
+e qual dos dois itens comeca, o 37 ou o 38.
+Quando ele confirmar, eu aviso o Dr. Lovable e começo os itens 8 e 10, que são o que destrava a cauda inteira dele.
+
+Sua decisão 2 (preços) continua em pé, mas só depois disto — não vale responder numa planilha que vai ser substituída.
+
+RESUMO EM 1 LINHA: Concordo com a caixa de recados e ela é melhor que a minha versão, mas a fila foi escrita duas vezes com os mesmos números significando coisas diferentes e a sua planilha do Drive foi trocada sem apagar resposta nenhuma — já registrei tudo, absorvi as ideias dele como itens 37 e 38 sem renumerar nada, e seu único passo é colar o bloco acima para que exista um escritor só.
+
+
+Executado um comando, usado 4 ferramentas
+Nada mudou: sem revisão, sem comentário, sem conflito, main parada no mesmo commit. Não vou avisar o CEO nem comentar na PR. Só vou corrigir o corpo da própria PR, que ficou desatualizado e afirma uma coisa que já não é verdade.
+
+
+Usado 3 ferramentas
+Verificação feita. Nada mudou — não avisei o CEO e não comentei na PR.
+
+Verificação	Resultado
+Estado da PR #6	aberta, em rascunho, não mesclada
+Conflito com a main	nenhum (clean)
+Comentários de revisão	zero
+Comentários gerais	zero
+main andou?	não — parada em 0e900bb, mesmo commit de onde fiz o merge
+Integração contínua	não existe neste repositório, nada para ficar verde
+Uma coisa eu corrigi, porque era imprecisão minha num artefato durável, não aviso nem comentário: o corpo da PR ainda dizia "36 itens" com a contagem antiga, não citava o registro da colisão, e afirmava que a planilha do Drive não havia sido sobrescrita — o que deixou de ser verdade quando o script do outro agente substituiu o arquivo. Título e corpo agora refletem os 38 itens, a contagem 9 / 17 / 12, o incidente de numeração e o estado real do Drive.
+
+Próxima verificação reagendada para dentro de uma hora, com o contexto desta rodada anexado — inclusive os três sinais que valem conferir a cada volta: main andando, o README.md da fila paralela sendo reescrito, e o script de envio ao Drive rodando de novo.
+
+RESUMO EM 1 LINHA: PR #6 aberta, limpa e sem revisão pendente; nada mudou desde a última rodada, só atualizei o corpo da própria PR que estava desatualizado, e a próxima verificação silenciosa está agendada.

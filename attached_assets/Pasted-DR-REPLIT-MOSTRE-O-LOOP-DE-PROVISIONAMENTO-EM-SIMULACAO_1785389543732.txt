@@ -1,0 +1,66 @@
+DR REPLIT — MOSTRE O LOOP DE PROVISIONAMENTO EM SIMULACAO A SECO
+
+O CEO quer VER o loop de abertura de clinica funcionando, ponta a ponta, com
+os proprios olhos. Nao e para construir nada novo agora: e para mostrar o que
+JA existe e mapear honestamente o que falta.
+
+REGRA ABSOLUTA: use uma clinica FICTICIA. Nome inventado, CNPJ de teste.
+Nunca uma clinica real, nunca dado de cliente real. Art. 18 da Biblia.
+
+O QUE MOSTRAR, PASSO POR PASSO
+
+  Passo 1  contrato assinado / pagamento confirmado
+           mostre onde esse gatilho entra hoje, ou diga que nao existe
+
+  Passo 2  pasta da empresa no Drive
+           nomenclatura [NOME FANTASIA MAIUSCULO] [CNPJ]
+           isso JA existe em google-drive.ts — mostre rodando
+
+  Passo 3  as 15 subpastas dentro dela
+           CADASTRO, PATOLOGIAS, EXAMES, AVALIACOES, RECEITAS, PROTOCOLOS,
+           FINANCEIRO, CONTRATOS, ATESTADOS, LAUDOS, TERMOS, FOTO PERFIL,
+           IMAGENS, PESQUISA, OUVIDORIA
+           tambem JA existe — mostre rodando
+
+  Passo 4  email da clinica no dominio do CEO
+           item 26 da fila, AINDA NAO configurado. Diga o que falta.
+           ATENCAO: criar conta Gmail por programa NAO e possivel e viola
+           os termos do Google. O caminho e email no dominio padaxor.com.br.
+
+  Passo 5  subdominio clinica-x.padaxor.com.br
+           item 27, travado pelo item 13 (DNS no Cloudflare, do CEO).
+           Diga o que falta e de quem depende.
+
+  Passo 6  linha na tabela de empresas, com empresa_id
+           mostre a linha que SERIA criada, sem criar
+
+COMO ENTREGAR
+
+  1. Uma rota de simulacao a seco, igual voce fez no item 40:
+     GET /provisionamento/dry-run?nome=<ficticio>&cnpj=<teste>
+     Ela DEVOLVE o que seria criado. NAO cria nada.
+
+  2. A saida em texto, mostrando lado a lado:
+     | Passo | Existe hoje | O que seria criado | O que falta |
+
+  3. Se algum passo depender de coisa que nao existe, escreva NAO EXISTE.
+     Nao simule sucesso de coisa que nao esta construida — o CEO precisa
+     ver o buraco, nao um teatro bonito.
+
+O QUE NAO FAZER
+
+  - nao crie pasta de verdade no Drive do CEO
+  - nao crie email nenhum
+  - nao toque DNS
+  - nao invente numero de item novo: os numeros vao ate 48 hoje
+
+NUMEROS DA FILA QUE ESTE PEDIDO TOCA
+  item 28  tela de linha de producao de clinica  (AGUARDANDO, seu)
+  item 26  Zoho                                  (do CEO)
+  item 27  DNS automatico                        (travado pelo 13)
+  item 13  DNS no Cloudflare                     (do CEO)
+
+O objetivo do CEO e ver o predio sendo construido, nao receber relatorio.
+Entregue algo que ele CLICA e ve a saida.
+
+Avise no recado com o hash quando estiver no ar.

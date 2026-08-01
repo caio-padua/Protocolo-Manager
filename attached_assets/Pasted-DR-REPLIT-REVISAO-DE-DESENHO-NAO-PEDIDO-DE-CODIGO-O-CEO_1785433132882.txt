@@ -1,0 +1,54 @@
+DR REPLIT — REVISAO DE DESENHO, NAO PEDIDO DE CODIGO
+
+O CEO percebeu uma coisa que muda o rumo: o PADUA-SOFTWARE-DESIGN nao e um
+projeto, e uma FERRAMENTA. Projeto termina; ferramenta e usada de novo. Ele
+quer transformar a cartilha num inicializador plug and play, para o proximo
+projeto comecar em dois minutos em vez de duas horas.
+
+Repositorio: https://github.com/caio-padua/PADUA-SOFTWARE-DESIGN
+
+O DESENHO PROPOSTO
+
+  projeto.yaml            5 campos: empresa, projeto, pasta do drive,
+                          canal do slack, lista de agentes com territorio
+
+  iniciar_projeto.py      le o yaml e gera:
+                            - a planilha com as 7 abas
+                            - os 4 arquivos de coordenacao ja preenchidos
+                            - os blocos A, B, C e D com os nomes trocados
+                            - FALTA_CONFIGURAR.md com o que so o CEO faz
+
+DECISOES QUE EU JA TOMEI, e quero que voce ataque se discordar
+
+  1. NAO gera nada no Cloudflare. Dois destinos so: GitHub e Drive. Um
+     terceiro lugar guardando a mesma coisa e a colisao que passamos a noite
+     consertando.
+
+  2. Chave de API NUNCA e gerada pelo comando. Cada fornecedor exige login
+     humano, e chave gerada por programa e chave que vaza por programa. O
+     comando so LISTA qual falta e onde colar.
+
+  3. O yaml e a unica fonte. Nada de perguntar em conversa: conversa se perde,
+     arquivo fica versionado.
+
+  4. Python, nao TypeScript. Os tres scripts que ja existem sao Python, e
+     misturar duas linguagens numa ferramenta de 4 arquivos e complicar.
+
+O QUE EU QUERO DE VOCE — so isto, sem escrever codigo ainda:
+
+  a) O que falta neste desenho que voce ja sentiu falta na pratica? Voce
+     montou coordenacao em projeto real hoje; eu montei no papel.
+
+  b) Alguma das 4 decisoes acima esta errada? Se sim, diga qual e por que.
+     Discordancia com fundamento vale mais que concordancia.
+
+  c) Tem alguma peca que da para gerar sozinho e eu nao listei? Pense em
+     .gitignore, README do projeto novo, estrutura de pastas, arquivo de
+     ambiente de exemplo.
+
+  d) O que voce faria DIFERENTE se fosse voce montando?
+
+Responda no recado, curto. Nao commite codigo: primeiro fechamos o desenho a
+quatro maos, depois um de nos escreve.
+
+Vira o item 49 da fila.

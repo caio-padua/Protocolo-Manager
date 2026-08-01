@@ -73,6 +73,7 @@ import {
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
 
 const router: IRouter = Router();
 router.use(moduleGuard("exames_lab"));
@@ -369,6 +370,31 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
         .set({ sourcePdfDriveId: job.sourcePdfDriveId })
         .where(eq(examDocumentsTable.id, documentId));
     }
+
+    // ── Espelho R2 (Item 40) — best-effort, não bloqueia nem falha o pipeline ──
+    // A data de coleta pode ainda não estar no banco neste ponto; usamos a que
+    // a IA extraiu (finalizeDocument já gravou). Buscamos do banco para garantir.
+    try {
+      const [docRow] = await db
+        .select({ clientId: examDocumentsTable.clientId, collectionDate: examDocumentsTable.collectionDate })
+        .from(examDocumentsTable)
+        .where(eq(examDocumentsTable.id, documentId));
+      const r2 = await mirrorExamToR2({
+        clientId: docRow?.clientId ?? job.clientId,
+        documentId,
+        collectionDate: docRow?.collectionDate ?? null,
+        buffer,
+      });
+      logger.info(
+        { docId: documentId, r2Key: r2.r2Key, bytes: r2.bytes, alreadyExisted: r2.alreadyExists },
+        "[ExamesLab] doc espelhado no cofre de objetos",
+      );
+    } catch (err) {
+      console.error(
+        `[ExamesLab] doc ${documentId}: falha ao espelhar no cofre (Drive ok): ${(err as Error).message}`,
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Aviso "exame recebido" — best-effort
     if (job.notify) {
@@ -682,6 +708,84 @@ router.post(
     } catch (err) {
       console.error("[ExamesLab] Erro no ingest:", (err as Error).message);
       res.status(500).json({ error: "Erro ao receber exame" });
+    }
+  },
+);
+
+// ---- GET /exames-lab/r2-dry-run?documentId= (Art. 58 — simula, não grava) ----
+// Mostra o que SERIA gravado no cofre de objetos para um documento existente.
+// Requer token de colaborador. Nunca escreve nenhum byte.
+router.get(
+  "/exames-lab/r2-dry-run",
+  requireCollaborator,
+  async (req: Request, res: Response) => {
+    try {
+      const documentId = Number(req.query.documentId);
+      if (!Number.isInteger(documentId) || documentId <= 0) {
+        res.status(400).json({ error: "documentId inválido" });
+        return;
+      }
+      const [doc] = await db
+        .select({
+          id: examDocumentsTable.id,
+          clientId: examDocumentsTable.clientId,
+          fileName: examDocumentsTable.fileName,
+          collectionDate: examDocumentsTable.collectionDate,
+          status: examDocumentsTable.status,
+          sourcePdfDriveId: examDocumentsTable.sourcePdfDriveId,
+        })
+        .from(examDocumentsTable)
+        .where(eq(examDocumentsTable.id, documentId));
+
+      if (!doc) {
+        res.status(404).json({ error: "Documento não encontrado" });
+        return;
+      }
+
+      // Recupera buffer do cofre interno para saber o tamanho real
+      const hasCopy = await hasInternalCopy(documentId);
+      let bufferForDryRun: Buffer;
+      if (hasCopy) {
+        const copy = await getInternalCopy(documentId);
+        bufferForDryRun = copy.buffer;
+      } else {
+        // Sem cópia interna: simula com buffer vazio (tamanho = 0)
+        bufferForDryRun = Buffer.alloc(0);
+      }
+
+      const r2Key = examR2Key({
+        clientId: doc.clientId,
+        documentId: doc.id,
+        collectionDate: doc.collectionDate,
+      });
+
+      const result = await mirrorExamToR2({
+        clientId: doc.clientId,
+        documentId: doc.id,
+        collectionDate: doc.collectionDate,
+        buffer: bufferForDryRun,
+        dryRun: true,
+      });
+
+      res.json({
+        dryRun: true,
+        documentId: doc.id,
+        clientId: doc.clientId,
+        fileName: doc.fileName,
+        collectionDate: doc.collectionDate,
+        documentStatus: doc.status,
+        driveId: doc.sourcePdfDriveId ?? null,
+        r2Key,
+        alreadyInCofre: result.alreadyExists,
+        wouldUpload: !result.alreadyExists,
+        bufferBytes: bufferForDryRun.length,
+        hasInternalCopy: hasCopy,
+        message: result.alreadyExists
+          ? "Arquivo JÁ existe no cofre. Upload idempotente não duplicaria."
+          : "Arquivo NÃO existe no cofre. Seria gravado na próxima execução real.",
+      });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
     }
   },
 );

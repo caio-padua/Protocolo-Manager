@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "../lib/logger";
+import { requireAiTenant, logAiUsage } from "../lib/ai-central";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,9 @@ IMPORTANTE:
   let inputTokens = 0;
   let outputTokens = 0;
 
+  const { empresaId } = req.tenantContext;
+  const { headers: aiHeaders } = requireAiTenant(empresaId, "agent");
+
   try {
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
@@ -113,7 +117,7 @@ IMPORTANTE:
       temperature: tempSafe,
       system: systemPrompt,
       messages: chatMessages,
-    });
+    }, { headers: aiHeaders });
 
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
@@ -149,6 +153,16 @@ IMPORTANTE:
     const custoEstimado = custo
       ? ((inputTokens / 1_000_000) * custo.input + (outputTokens / 1_000_000) * custo.output)
       : 0;
+
+    // Registra no ledger interno de custo por clínica (fail-safe)
+    void logAiUsage({
+      empresaId,
+      provider:  "anthropic",
+      tipo:      "agent",
+      inputTokens,
+      outputTokens,
+      custoUsd:  parseFloat(custoEstimado.toFixed(6)),
+    });
 
     res.write(`data: ${JSON.stringify({
       done: true,
