@@ -5,6 +5,7 @@ import { executarLembretesPeriodo } from "./lembrete-periodo";
 import { logger } from "./logger";
 import { processarReceituarioDiario } from "./receituario-worker";
 import { processarFilaVideo }        from "./avatar-video-worker";
+import { processarFilaCampanha, ensureCampanhaSchema } from "./avatar-campanha-worker";
 
 let started = false;
 
@@ -79,6 +80,31 @@ export function startCronJobs(): void {
   );
 
   logger.info("Worker de vídeo HeyGen agendado (tick a cada 2 min, BRT)");
+
+  // Worker de campanhas de avatar (voz/vídeo em massa):
+  // processa itens pendentes em avatar_campanha_itens a cada minuto.
+  // Retoma automaticamente após restart do servidor (itens ficam no banco).
+  void ensureCampanhaSchema().then(() => {
+    logger.info("Schema de campanhas de avatar garantido no boot");
+  }).catch(err => {
+    logger.warn({ err: err?.message }, "Worker de campanhas: falha ao garantir schema no boot");
+  });
+
+  cron.schedule(
+    "* * * * *",
+    () => {
+      processarFilaCampanha()
+        .then((r) => {
+          if (r.processadas > 0 || r.leasesRecuperados > 0) {
+            logger.info(r, "[campanha-worker] tick da fila de campanhas");
+          }
+        })
+        .catch((err) => logger.error({ err: err?.message }, "[campanha-worker] falha no tick"));
+    },
+    { timezone: "America/Sao_Paulo" },
+  );
+
+  logger.info("Worker de campanhas de avatar agendado (tick a cada 1 min, BRT)");
 
 }
 // NOTA: o cron horário de relatório de LLMs (Slack + Telegram) roda APENAS

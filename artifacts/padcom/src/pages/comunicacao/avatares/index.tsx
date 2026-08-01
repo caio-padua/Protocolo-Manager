@@ -14,10 +14,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mic, Video, MessageSquare, Settings, Zap,
   AlertCircle, CheckCircle2, XCircle, BarChart3, Send,
-  Radio, History, Users, Clock, Play, Loader2, Film,
+  Radio, History, Users, Clock, Loader2, Film, Megaphone,
 } from "lucide-react";
 import AvatarConfig from "./AvatarConfig";
 import { DisparadorAvatar } from "./DisparadorAvatar";
+import { CampanhaAvatar } from "./CampanhaAvatar";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -635,7 +636,7 @@ function HistoricoAvatares({ avatares }: { avatares: ClinicAvatar[] }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-type Aba = "avatares" | "disparar" | "historico";
+type Aba = "avatares" | "disparar" | "campanha" | "historico";
 
 export default function AvatarManager() {
   const queryClient = useQueryClient();
@@ -744,9 +745,10 @@ export default function AvatarManager() {
       {/* Abas de navegação */}
       <div className="flex gap-1 border-b border-white/10 pb-0">
         {([
-          { id: "avatares",  label: "Avatares",  icon: Radio,   badge: 0            },
-          { id: "disparar",  label: "Disparar",  icon: Send,    badge: 0            },
-          { id: "historico", label: "Histórico", icon: History, badge: videosNovos  },
+          { id: "avatares",  label: "Avatares",  icon: Radio,      badge: 0           },
+          { id: "disparar",  label: "Disparar",  icon: Send,       badge: 0           },
+          { id: "campanha",  label: "Campanha",  icon: Megaphone,  badge: 0           },
+          { id: "historico", label: "Histórico", icon: History,    badge: videosNovos },
         ] as { id: Aba; label: string; icon: any; badge: number }[]).map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
@@ -775,6 +777,10 @@ export default function AvatarManager() {
       {/* Conteúdo da aba */}
       {aba === "disparar" && (
         <DisparadorAvatar avatares={avatares} apiBase="" />
+      )}
+
+      {aba === "campanha" && (
+        <CampanhaAvatar avatares={avatares} apiBase="" />
       )}
 
       {aba === "historico" && (

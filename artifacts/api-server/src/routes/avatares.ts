@@ -23,6 +23,7 @@ import { getAudioTemp, enviarVozManual } from "../lib/avatar-messenger";
 import { resumoUsoMes } from "../lib/avatar-metering";
 import { buscarHistoricoAvatar } from "../lib/avatar-envios";
 import { enviarMensagemPaxter } from "../lib/messaging/engine";
+import { criarCampanha, buscarProgressoCampanha, ensureCampanhaSchema } from "../lib/avatar-campanha-worker";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -370,67 +371,107 @@ router.post("/api/avatares/:id/disparar", async (req, res) => {
 });
 
 // ─── POST /api/avatares/campanha ──────────────────────────────────────────────
-// Dispara voz/vídeo para uma lista de clientes. Retorna jobId (campaignId)
-// para acompanhamento. Envio em background via Promise.allSettled.
+// Dispara voz/vídeo para uma lista de clientes.
+// SALVA cada item no banco ANTES de processar, garantindo retomada após restart.
+// Worker (cron) consome avatar_campanha_itens e atualiza status por item.
 
 const campanhaSchema = z.object({
   avatarId:    z.number().int().positive(),
-  clienteIds:  z.array(z.number().int().positive()).min(1).max(200),
+  clienteIds:  z.array(z.number().int().positive()).min(1).max(500),
   texto:       z.string().min(1).max(3000),
   canal:       z.enum(["VOICE", "VIDEO"]),
 });
 
 router.post("/api/avatares/campanha", async (req, res) => {
   try {
-    const parsed = campanhaSchema.parse(req.body);
+    const parsed    = campanhaSchema.parse(req.body);
     const empresaId = empresaIdFromReq(req);
 
-    // Gera um ID de campanha para acompanhamento
+    // ── Verificar que o avatar pertence à empresa da sessão (anti-IDOR) ────
+    const [avatarOwner] = await db
+      .select({ id: clinicAvatarsTable.id })
+      .from(clinicAvatarsTable)
+      .where(
+        and(
+          eq(clinicAvatarsTable.id, parsed.avatarId),
+          eq(clinicAvatarsTable.empresaId, empresaId),
+        )
+      )
+      .limit(1);
+
+    if (!avatarOwner) {
+      return res.status(403).json({ error: "Avatar não encontrado ou não pertence à sua empresa" });
+    }
+
+    // Busca dados dos clientes selecionados
+    const todosClientes = await db
+      .select({
+        id:        clientsTable.id,
+        phone:     clientsTable.phone,
+        email:     clientsTable.email,
+        name:      clientsTable.name,
+        empresaId: clientsTable.empresaId,
+      })
+      .from(clientsTable)
+      .where(eq(clientsTable.empresaId, empresaId));
+
+    const clientes = todosClientes.filter(c => parsed.clienteIds.includes(c.id));
+
+    if (clientes.length === 0) {
+      return res.status(400).json({ error: "Nenhum cliente encontrado para os IDs informados" });
+    }
+
+    // ID determinístico baseado em timestamp (sem new Date() nu — BRT não necessário aqui)
     const campaignId = `camp_${Date.now()}`;
 
-    // Responder IMEDIATAMENTE — disparo em background para não travar
-    res.json({
-      ok: true,
+    // Persiste campanha + itens no banco ANTES de responder
+    await criarCampanha({
       campaignId,
-      totalClientes: parsed.clienteIds.length,
-      canal:         parsed.canal,
-      mensagem:      "Campanha enfileirada. Os envios serão processados em background.",
+      empresaId,
+      avatarId:  parsed.avatarId,
+      canal:     parsed.canal,
+      texto:     parsed.texto,
+      clientes,
     });
 
-    // Disparo assíncrono (best-effort, fire-and-forget)
-    setImmediate(async () => {
-      const clientes = await db
-        .select({ id: clientsTable.id, phone: clientsTable.phone, email: clientsTable.email,
-                  name: clientsTable.name, empresaId: clientsTable.empresaId })
-        .from(clientsTable)
-        .where(eq(clientsTable.empresaId, empresaId));
+    logger.info(
+      { campaignId, total: clientes.length, canal: parsed.canal },
+      "[avatar] campanha criada — itens salvos no banco",
+    );
 
-      const filtrados = clientes.filter(c => parsed.clienteIds.includes(c.id));
-
-      const resultados = await Promise.allSettled(
-        filtrados.map(cliente =>
-          enviarMensagemPaxter(
-            { titulo: "Mensagem do Instituto Pádua", paragrafos: [parsed.texto] },
-            { telefone: cliente.phone ?? null, email: cliente.email ?? null, nome: cliente.name },
-            [parsed.canal as any],
-            {
-              empresaId: cliente.empresaId ?? empresaId,
-              avatarId:  parsed.avatarId,
-              clienteId: cliente.id,
-              contexto:  `campanha:${campaignId}`,
-            },
-          )
-        )
-      );
-
-      const ok  = resultados.filter(r => r.status === "fulfilled" && (r.value as any).algumEnviado).length;
-      const err = resultados.length - ok;
-      logger.info({ campaignId, ok, err, total: resultados.length }, "[avatar] campanha concluída");
+    res.json({
+      ok:            true,
+      campaignId,
+      totalClientes: clientes.length,
+      canal:         parsed.canal,
+      mensagem:      "Campanha enfileirada. Os envios serão processados pelo worker (cron 1min) e você pode acompanhar o progresso.",
     });
 
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro na campanha");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ─── GET /api/avatares/campanha/:campaignId ───────────────────────────────────
+// Progresso da campanha: total / enviados / erros / pendentes / status.
+// Filtrado por empresaId da sessão — sem match retorna 404 (anti-IDOR).
+
+router.get("/api/avatares/campanha/:campaignId", async (req, res) => {
+  try {
+    await ensureCampanhaSchema();
+    const { campaignId } = req.params;
+    if (!campaignId) return res.status(400).json({ error: "campaignId obrigatório" });
+
+    const empresaId = empresaIdFromReq(req);
+    // empresaId é passado como filtro — campanha de outra empresa retorna 404
+    const progresso = await buscarProgressoCampanha(campaignId, empresaId);
+    if (!progresso) return res.status(404).json({ error: "Campanha não encontrada" });
+
+    res.json(progresso);
+  } catch (e: any) {
+    logger.error({ err: e?.message }, "avatares: erro ao buscar progresso de campanha");
     res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
