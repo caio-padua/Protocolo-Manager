@@ -9,6 +9,17 @@
  *  3. Falha do Telegram: Slack não é afetado (fail-safe independente).
  *  4. Falha do buildLlmReport: nenhum canal é acionado.
  *  5. telegramChatId vazio: Telegram ignorado, Slack funciona normalmente.
+ *  6. Ambos falham: os dois erros ficam registrados no resultado.
+ *  7. Janela de coleta customizada chega ao buildLlmReport.
+ *  8. slackFallbackChannelId é repassado ao postTelegramReport.
+ *
+ * Registro "ambos" — as cláusulas do Art. 70 do Código Paxter (9 a 13):
+ *  9. ambosOk = true só quando os DOIS canais entregam.
+ * 10. telegramSkipped NÃO é sucesso, e o erro nomeia a variável que falta.
+ * 11. O campo de erro resume todos os canais que não entregaram.
+ * 12. Sem relatório construído, nada é gravado.
+ * 13. Falha ao gravar o histórico não derruba o ciclo — promessa recusada
+ *     OU exceção síncrona.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -33,6 +44,10 @@ function makeReport(overrides: Partial<LlmReport> = {}): LlmReport {
     totalChamadas:      0,
     mudancasPlanilha:   [],
     totalItensPlanilha: 0,
+    // Obrigatorios em LlmReport. Faltavam aqui, e o helper inteiro deixava de
+    // satisfazer o tipo (TS2322) — erro que ja existia antes deste trabalho.
+    itensConcluidos:     [],
+    ultimoPreenchimento: null,
     ...overrides,
   };
 }
@@ -220,5 +235,104 @@ describe("runLlmMonitorJob — dual-canal fail-safe", () => {
       expect.objectContaining({ periodo: "última 1h" }),
       "C_SLACK_FALLBACK"
     );
+  });
+
+  // =========================================================================
+  // REGISTRO "AMBOS" — o resumo dual-canal do ciclo (Art. 70)
+  // =========================================================================
+  // Por que estes cinco testes existem:
+  //
+  // Os oito cenarios acima nunca injetam `salvarHistorico` no `makeDeps`.
+  // Como o campo e opcional, `deps.salvarHistorico` fica `undefined` e o passo
+  // 4 do dispatch — o bloco inteiro que grava o registro "ambos" — NAO EXECUTA
+  // em nenhum deles.
+  //
+  // Ou seja: a regra que o revisor reprovou uma vez (tratar telegramSkipped
+  // como sucesso), que foi corrigida e virou o Art. 70 do Codigo Paxter, nao
+  // tinha nenhum teste segurando. Podia voltar a quebrar em silencio.
+  //
+  // Cada teste abaixo prende uma clausula do Art. 70.
+  // =========================================================================
+
+  // ── Art. 70: ambosOk = canalA E canalB ──────────────────────────────────
+  it("grava o registro 'ambos' com ambosOk=true quando os DOIS canais entregam", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ salvarHistorico });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledTimes(1);
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.objectContaining({ periodo: "última 1h" }),
+      "ambos",
+      true,
+      undefined,          // sem erro: nenhum canal falhou nem foi ignorado
+    );
+  });
+
+  // ── Art. 70: skip NAO e entrega — o caso que o revisor reprovou ──────────
+  it("NAO conta telegramSkipped como sucesso, e nomeia a variavel que falta", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ salvarHistorico });
+    const config: LlmMonitorConfig = { ...CONFIG_PADRAO, telegramChatId: "" };
+
+    const result = await runLlmMonitorJob(config, deps, LOGGER_MUDO);
+
+    // O Slack entregou, mas o ciclo dual NAO foi bem-sucedido.
+    expect(result.slackOk).toBe(true);
+    expect(result.telegramSkipped).toBe(true);
+
+    const [, canal, ambosOk, erro] = salvarHistorico.mock.calls[0]!;
+    expect(canal).toBe("ambos");
+    expect(ambosOk).toBe(false);
+    // O erro precisa DIZER o que falta, senao o CEO nao sabe o que configurar.
+    expect(erro).toContain("PADAXOR_TELEGRAM_CHAT_ID");
+  });
+
+  // ── Art. 70: o campo `erros` documenta qualquer canal que nao entregou ───
+  it("resume no campo de erro os dois canais quando ambos falham", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      salvarHistorico,
+      postSlackReport:    vi.fn().mockRejectedValue(new Error("Slack down")),
+      postTelegramReport: vi.fn().mockRejectedValue(new Error("Telegram down")),
+    });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    const [, , ambosOk, erro] = salvarHistorico.mock.calls[0]!;
+    expect(ambosOk).toBe(false);
+    expect(erro).toContain("Slack down");
+    expect(erro).toContain("Telegram down");
+  });
+
+  // ── R2 da spec: sem relatorio nao ha o que resumir ───────────────────────
+  it("NAO grava o registro 'ambos' quando o relatorio nem chegou a ser construido", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      salvarHistorico,
+      buildLlmReport: vi.fn().mockRejectedValue(new Error("banco fora")),
+    });
+
+    const result = await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(result.reportBuilt).toBe(false);
+    expect(salvarHistorico).not.toHaveBeenCalled();
+  });
+
+  // ── Contrato do docblock: "Nunca relança exceção" ────────────────────────
+  // Falha ao GRAVAR o historico nao pode derrubar o ciclo: o relatorio ja foi
+  // entregue aos dois canais, e perder o registro e menos grave que estourar.
+  // Cobre as duas formas de falhar — promessa recusada e excecao sincrona.
+  it("nao derruba o ciclo quando salvarHistorico falha, das duas formas", async () => {
+    const recusaPromessa = vi.fn().mockRejectedValue(new Error("banco fora"));
+    await expect(
+      runLlmMonitorJob(CONFIG_PADRAO, makeDeps({ salvarHistorico: recusaPromessa }), LOGGER_MUDO),
+    ).resolves.toMatchObject({ slackOk: true, telegramOk: true });
+
+    const estouraDireto = vi.fn(() => { throw new Error("estourou antes da promessa"); });
+    await expect(
+      runLlmMonitorJob(CONFIG_PADRAO, makeDeps({ salvarHistorico: estouraDireto }), LOGGER_MUDO),
+    ).resolves.toMatchObject({ slackOk: true, telegramOk: true });
   });
 });

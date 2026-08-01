@@ -129,13 +129,25 @@ export async function runLlmMonitorJob(
       : [];
     const erros = [...partesTelegram, result.slackError, result.telegramError]
       .filter(Boolean).join("; ");
-    await deps.salvarHistorico(report, "ambos", ambosOk, erros || undefined).catch(() => {
-      // salvarHistorico já trata seus próprios erros internamente
-    });
-    logger?.info(
-      { slackOk: result.slackOk, telegramOk: result.telegramOk, ambosOk },
-      "llm-monitor: registro 'ambos' gravado no histórico",
-    );
+    // try/catch, e nao `.catch()` encadeado: o `.catch()` so pega PROMESSA
+    // RECUSADA. Se salvarHistorico estourar de forma sincrona — um `throw`
+    // antes do primeiro `await`, um deps mal montado, um mock de teste — a
+    // excecao escapa antes de o `.catch` sequer existir, e runLlmMonitorJob
+    // rejeita. Isso contraria o contrato escrito no topo deste arquivo
+    // ("Nunca relança exceção") e derrubaria um ciclo cujos DOIS canais ja
+    // tinham entregue: perder o registro e menos grave que estourar.
+    try {
+      await deps.salvarHistorico(report, "ambos", ambosOk, erros || undefined);
+      logger?.info(
+        { slackOk: result.slackOk, telegramOk: result.telegramOk, ambosOk },
+        "llm-monitor: registro 'ambos' gravado no histórico",
+      );
+    } catch (err) {
+      logger?.error(
+        { err: err instanceof Error ? err.message : String(err), ambosOk },
+        "llm-monitor: falha ao gravar o registro 'ambos' — ciclo segue, relatório já foi entregue",
+      );
+    }
   }
 
   return result;
