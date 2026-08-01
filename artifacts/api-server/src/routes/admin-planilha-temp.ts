@@ -692,4 +692,44 @@ router.post("/admin/planilha/adicionar-demandas-voz-avatar", async (_req: Reques
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/reparar-a44
+// Corrige a célula A44 que recebeu texto de auditoria em vez do número "43".
+// Causa: rota atualizar-estados escreveu comentário de código na célula errada.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/reparar-a44", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const sid    = PLANILHA_OFICIAL;
+
+    // 1. Ler o conteúdo atual de A44 para logar
+    const leituraResp = await sheets.spreadsheets.values.get({
+      spreadsheetId: sid,
+      range:         "PLANILHA PRODUCAO!A44",
+    });
+    const valorAtual = leituraResp.data.values?.[0]?.[0] ?? "(vazio)";
+
+    // 2. Corrigir A44 → apenas "43"
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:      sid,
+      range:              "PLANILHA PRODUCAO!A44",
+      valueInputOption:   "USER_ENTERED",
+      requestBody:        { values: [["43"]] },
+    });
+
+    logger.info({ valorAntes: valorAtual, valorDepois: "43" }, "admin-planilha: A44 reparada");
+
+    res.json({
+      ok:          true,
+      celula:      "A44",
+      valorAntes:  valorAtual,
+      valorDepois: "43",
+      planilha:    `https://docs.google.com/spreadsheets/d/${sid}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "admin-planilha/reparar-a44: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
