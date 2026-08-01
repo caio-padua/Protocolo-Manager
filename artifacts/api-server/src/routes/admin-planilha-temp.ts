@@ -599,4 +599,97 @@ router.post("/admin/planilha/dicionario-colunas-data-hora", async (_req: Request
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/adicionar-demandas-voz-avatar
+// Adiciona as 3 demandas de ElevenLabs/HeyGen na PLANILHA PRODUCAO.
+// Idempotente: não duplica se o item já existir pelo texto exato.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/adicionar-demandas-voz-avatar", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sheets    = await getGoogleSheetsClient();
+    const ABA       = "PLANILHA PRODUCAO";
+    const SID       = PLANILHA_OFICIAL;
+
+    // Ler estado atual para pegar último Nº e verificar duplicatas
+    const atual = await sheets.spreadsheets.values.get({
+      spreadsheetId: SID,
+      range: `${ABA}!A2:I500`,
+    });
+    const linhas: string[][] = (atual.data.values ?? []) as string[][];
+
+    // Último número ocupado
+    let ultimoNum = 0;
+    for (const row of linhas) {
+      const n = Number(row[0]);
+      if (Number.isFinite(n) && n > ultimoNum) ultimoNum = n;
+    }
+
+    // Textos únicos dos itens que queremos adicionar
+    const novasDemandas: string[][] = [
+      [
+        String(ultimoNum + 1),
+        "Integrar ElevenLabs e HeyGen em todos os membros da equipe (quando possível)",
+        "Toda Equipe",
+        "A FAZER",
+        "P2",
+        "—",
+        "PEDIDO 1 CEO 01/08/26: todos os agentes (Dr. Code, Dr. Lovable, Dr. Manus, Dr. Replit) devem mapear e integrar ElevenLabs (voz sintética PT-BR) e HeyGen (avatar em vídeo) nos seus respectivos ambientes quando possível.",
+        "Ver Task #54 e #55",
+        "01/08/26",
+      ],
+      [
+        String(ultimoNum + 2),
+        "PILOTO Instituto Pádua (PADUCCIA): ElevenLabs + HeyGen — médico, secretária e avatar livre",
+        "Dr. Replit",
+        "A FAZER",
+        "P1",
+        "—",
+        "PEDIDO 3 CEO 01/08/26: ANTES de oferecer para clínicas licenciadas, implantar voz (ElevenLabs) e avatar em vídeo (HeyGen) PRIMEIRO no Instituto Pádua (PADUCCIA). Avatares: 1=Médico, 2=Secretária, 3=Livre. Task #54.",
+        "Bloqueante para Task #55 (expansão clínicas)",
+        "01/08/26",
+      ],
+      [
+        String(ultimoNum + 3),
+        "Motor de avatares por clínica: médico, secretária e avatar livre via HeyGen (pós-piloto)",
+        "Dr. Replit",
+        "A FAZER",
+        "P2",
+        "—",
+        "PEDIDO 2 CEO 01/08/26: após validação no Instituto Pádua, disponibilizar para clínicas licenciadas criação de avatares de voz e vídeo. Clínica opta pelo serviço. Tabela clinic_avatars + worker assíncrono + tela de gestão. Task #55.",
+        "Bloqueado por piloto PADUCCIA (item acima)",
+        "01/08/26",
+      ],
+    ];
+
+    // Filtrar demandas que já existem (por texto do item — col B)
+    const textosExistentes = new Set(linhas.map(r => (r[1] ?? "").trim().toLowerCase()));
+    const paraAdicionar = novasDemandas.filter(
+      nd => !textosExistentes.has(nd[1].trim().toLowerCase()),
+    );
+
+    if (paraAdicionar.length === 0) {
+      res.json({ ok: true, msg: "Todas as demandas já existiam na planilha — nenhuma linha duplicada." });
+      return;
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId:    SID,
+      range:            `${ABA}!A:I`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody:      { values: paraAdicionar },
+    });
+
+    res.json({
+      ok:        true,
+      adicionado: paraAdicionar.length,
+      itens:     paraAdicionar.map(r => `#${r[0]} — ${r[1]}`),
+      planilha:  `https://docs.google.com/spreadsheets/d/${SID}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "adicionar-demandas-voz-avatar: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
