@@ -412,10 +412,82 @@ Lei completa em `PADUA-SOFTWARE-DESIGN/CARTILHA/10_CODIGO_PAXTER.md`. Resumo: `a
 
 ---
 
+## TÍTULO XII — DA ORQUESTRAÇÃO MULTI-AGENTE
+
+**Art. 71** FLUXO DE MISSÃO MULTI-AGENTE (promulgado a pedido do CEO em 01/08/2026).
+O pipeline de execução de qualquer tarefa não-trivial segue este fluxo fixo e nesta ordem:
+
+```
+CEO escreve a tarefa → Dr. Replit (aqui) E Dr. Code (editor)
+                              ↓
+         Dr. Manus lê as DUAS respostas e avalia:
+         concorda? discorda? acha erro ou contradição?
+         escreve a avaliação na PLANILHA
+                              ↓
+         Os 3 escrevem na PLANILHA o que cada um vai fazer
+         (compromisso antes de executar — plano visível a todos)
+                              ↓
+         Os 3 detalham como farão no SLACK
+         (esmiúçam a tarefa, combinam quem faz o quê)
+                              ↓
+         Os 3 executam suas partes
+                              ↓
+         Os 3 publicam os resultados na PLANILHA (linha própria)
+         E no SLACK (anúncio público com hash e caso testado)
+                              ↓
+         Dr. Code dá o VEREDITO (aprova ou aponta correção)
+                              ↓
+         Próxima tarefa
+```
+
+Regras derivadas:
+(a) Nenhum agente declara resultado sem ter escrito na PLANILHA e postado no SLACK.
+(b) O veredito final é do Dr. Code, não do agente que executou.
+(c) A planilha é o **contrato vivo**: linha por agente, coluna por fase (plano / execução / resultado).
+(d) O Slack é o **barramento de eventos**: onde cada agente detalha como fará e publica o que entregou.
+(e) Art. 19 continua valendo: item só fecha com hash de commit verificado + caso testado.
+
+**Art. 72** PAPEL DO DR. MANUS NA ORQUESTRAÇÃO.
+Dr. Manus não é executor direto no repositório; é o **árbitro cruzado** da equipe:
+(a) Lê as respostas de Dr. Replit E Dr. Code ao mesmo tempo.
+(b) Avalia contradições, erros, divergências ou pontos cegos entre os dois.
+(c) Concorda ou discorda com fundamento — não valida por cortesia.
+(d) Escreve a avaliação na PLANILHA antes de qualquer execução começar.
+(e) Ao fim, lê os resultados dos dois e emite avaliação final (endossa ou pede correção).
+(f) Nunca marca item como CONCLUÍDO sozinho — o veredito final é do Dr. Code.
+
+**Art. 73** PROTOCOLO START — PRÉ-EXECUÇÃO (o que Dr. Replit faz antes de codar).
+
+| Passo | Nome | O que fazer | Fonte |
+|---|---|---|---|
+| S1 | LER MEMÓRIA | Abrir `.agents/memory/MEMORY.md` + topic files do tema | `.agents/memory/` |
+| S2 | LER CÓDIGO-PAXTER | Verificar artigos que regem o que será tocado | `CODIGO-PAXTER.md` |
+| S3 | CHECAR WORKFLOWS | Confirmar api-server + padcom `RUNNING` | Logs ao vivo |
+| S4 | LER PLANILHA | Ver o item: estado, plano do Dr. Manus, plano do Dr. Code | Google Sheets |
+| S5 | LER SLACK | Ver se Dr. Manus postou avaliação ou código para esta tarefa | `#padaxor-projeto` |
+| S6 | LER OU CRIAR SPEC | Se existe `specs/<nome>.md`, ler. Se não, escrever agora | `specs/` |
+| S7 | CONFIRMAR ESCOPO | Se ambíguo, 1 pergunta A/B/C ao CEO antes de codar | — |
+| S8 | EXECUTAR LOOP | ESPECIFICAR → CONSTRUIR → REVISAR → aprovar (Arts. 34–38) | paxter-loop |
+
+**Art. 74** PROTOCOLO FINISH — PÓS-EXECUÇÃO (o que Dr. Replit faz após a revisão aprovar).
+
+| Passo | Nome | O que fazer | Destino |
+|---|---|---|---|
+| F1 | ESCREVER NA PLANILHA | Linha do Dr. Replit: resultado + hash do commit | Google Sheets |
+| F2 | POSTAR NO SLACK | Anunciar em `#padaxor-projeto`: item fechado, hash, caso testado | Slack |
+| F3 | ATUALIZAR MEMÓRIA | Lição durável não derivável do código → topic file | `.agents/memory/` |
+| F4 | ATUALIZAR CÓDIGO-PAXTER | Novo artigo se aprendeu método ou diretriz nova | `CODIGO-PAXTER.md` |
+
+Após F1 e F2, Dr. Manus lê os resultados de Dr. Replit e Dr. Code e emite avaliação final.
+Após avaliação do Dr. Manus, Dr. Code dá o veredito e a equipe avança para a próxima tarefa.
+
+---
+
 ## HISTÓRICO DE PROMULGAÇÕES
 
 | Data | Artigos | Resumo da promulgação |
 |------|---------|-----------------------|
+| 01/08/2026 | Arts. 71–74 (Título XII) | Orquestração Multi-Agente: pipeline CEO→Dr.Replit+Dr.Code→Dr.Manus avalia→3 escrevem plano na planilha→detalham no Slack→executam→publicam resultado na planilha e no Slack→Dr.Code dá veredito→próxima tarefa. Protocolo START (S1–S8) e FINISH (F1–F4) com planilha e Slack integrados. Papel do Dr. Manus como árbitro cruzado (não executor). |
 | 31/07/2026 | Art. 70 (Título III) | Dual-canal telegramSkipped ≠ sucesso: ambosOk = slackOk AND telegramOk (sem contar skip); early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL para testes sem API real. |
 | 24/07/2026 | Art. 69 (Título III) | Toda construção é testada e provada, promulgado a pedido do CEO: 4 níveis obrigatórios (SMOKE/DADO/VISUAL/LOG); proibido declarar "feito" sem prova objetiva; motor de exames só declarado funcionando com PDF real+banco+Evolução; data/hora de arquivo/exibição SEMPRE via `lib/brt.ts`; resultado de teste em tabela Nível/Esperado/Obtido/Passou na resposta ao CEO; "Passou: NÃO" bloqueia entrega. |
 | 28/06/2026 | Art. 66 v2 + Padrao 19/20 (skill) | E-mail Paxter v2 aprovado pelo CEO: fundo "terno" navy MAIS claro (fallback #0a1430 + gradiente + brilho dourado + tramado) substitui o #05080f "muito escuro". A lista de substancias: o CEO TESTOU cartoes e na mesma data DESCARTOU — preferiu a TABELA com COLUNAS ALINHADAS na vertical (SUBSTANCIA \| DOSE \| SESSAO \| FREQUENCIA \| STATUS), dose so em miligramagem (motor remove "/ N ml"), sessao "4/12", frequencia "a cada N dias", status em pilula, coluna omitida se ninguem tiver o dado. Fonte unica `messaging/substance-table.ts` (`blocoTabelaSubstancias`); `substance-cards.ts` removido. Registrado como Padrao 20 (atualizado: TABELA) + Padrao 19 na skill `skill-layout-paxter`. Previa viva: `GET /api/brand/email-preview`; envio de teste dev-only: `POST /api/brand/email-test {to}`. Memoria: `email-paxter-v2-terno-tabela`. |
