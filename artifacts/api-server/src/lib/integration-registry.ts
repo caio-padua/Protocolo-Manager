@@ -37,6 +37,40 @@ export interface IntegrationDef {
 }
 
 export const INTEGRATIONS: Record<string, IntegrationDef> = {
+  elevenlabs: {
+    provider: "elevenlabs",
+    label: "ElevenLabs (Voz / TTS)",
+    enabledKey: "elevenlabs.active",
+    allowCustom: false,
+    fields: [
+      {
+        field: "apiKey",
+        label: "Chave de API (xi-api-key)",
+        kind: "secret",
+        key: "elevenlabs.apiKey",
+        secret: true,
+        envName: "ELEVENLABS_API_KEY",
+        placeholder: "Cole a chave de API do ElevenLabs",
+      },
+    ],
+  },
+  heygen: {
+    provider: "heygen",
+    label: "HeyGen (Avatar em Vídeo)",
+    enabledKey: "heygen.active",
+    allowCustom: false,
+    fields: [
+      {
+        field: "apiKey",
+        label: "Chave de API (X-Api-Key)",
+        kind: "secret",
+        key: "heygen.apiKey",
+        secret: true,
+        envName: "HEYGEN_API_KEY",
+        placeholder: "Cole a chave de API do HeyGen",
+      },
+    ],
+  },
   asaas: {
     provider: "asaas",
     label: "Asaas",

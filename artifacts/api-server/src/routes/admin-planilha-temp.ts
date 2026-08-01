@@ -14,6 +14,7 @@ import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
+import { sincronizarDicionarioSheets } from "../lib/sheets-dicionario";
 
 const router = Router();
 router.use(requireCeoInstance);
@@ -335,183 +336,11 @@ router.post("/admin/planilha/preparar-abas", async (_req: Request, res: Response
       novaDicSheetId = dicAba?.properties?.sheetId ?? null;
     }
 
-    // ── 6. Popular o DICIONARIO com os dados do GLOSSARIO ────────────────
-    // Colunas: Nº | Termo | Explicação | Analogia para Leigo | Onde usar no Projeto | Função usualmente Requisitada
-    const GLOSSARIO_INLINE: Array<[number, string, string]> = [
-      [1,"AI Gateway","E a caixa de energia na frente da casa: nada consome sem passar pelo medidor."],
-      [2,"Anthropic","E um dos laboratorios de onde vem a inteligencia que o sistema usa."],
-      [3,"API","E o balcao de atendimento de um laboratorio. Voce nao entra no laboratorio: chega no balcao, entrega o pedido, recebe o resultado. A API e o balcao, e cada guiche e uma rota."],
-      [4,"append-only","E o prontuario do paciente. Voce nao apaga a evolucao de ontem: escreve a de hoje embaixo. Se errou ontem, escreve hoje que errou. O erro fica registrado, e e isso que da valor legal."],
-      [5,"backup","E o seguro do carro. Custa todo mes e parece dinheiro jogado fora, ate o dia da batida."],
-      [6,"banco de dados","E o arquivo de fichas da clinica, mas que responde em um centesimo de segundo e nunca perde uma ficha por descuido."],
-      [7,"branch","E a via de um exame: voce faz o rascunho da conduta numa folha separada antes de escrever no prontuario oficial. Se der errado, joga a folha fora e o prontuario continua intacto."],
-      [8,"CI/CD","E a conferencia dupla da enfermagem antes de aplicar a medicacao. Ninguem confia so na memoria de quem preparou."],
-      [9,"circuit breaker","E o disjuntor do quadro: corta antes de queimar."],
-      [10,"clone","E uma franquia: mesma placa, dono diferente, cozinha propria."],
-      [11,"CNAME","E o encaminhamento de telefone: quem liga para o numero antigo cai automaticamente no novo, sem saber que foi encaminhado."],
-      [12,"commit","E uma entrada assinada no prontuario: quem escreveu, quando, e o que mudou. Nao se apaga."],
-      [13,"conector","E a tomada: voce nao refaz a fiacao da rua, so pluga."],
-      [14,"CORS","E a lista da portaria do predio: so sobe quem esta na lista. Sem a lista certa, ate o morador fica na calcada."],
-      [15,"cron","E o despertador do sistema: voce marca a hora, ele toca sem ninguem lembrar."],
-      [16,"deploy","E a diferenca entre escrever a receita no bloco e entregar na mao do paciente. Enquanto nao entregou, nao existe para ele."],
-      [17,"DKIM","E o carimbo e a assinatura no receituario. Sem eles, a farmacia trata como falsificacao."],
-      [18,"DNS","E a lista telefonica: voce sabe o nome da pessoa, e ela devolve o numero. Ninguem decora o numero."],
-      [19,"dry-run","E o ensaio da cirurgia: todo mundo faz os gestos, ninguem corta."],
-      [20,"empresa_id","E o numero do prontuario: e o que diz de quem e aquela ficha."],
-      [21,"endpoint","E o guiche especifico dentro do balcao: um guiche para entregar exame, outro para retirar resultado."],
-      [22,"FK","E o numero do prontuario escrito no pedido de exame: e o que amarra aquele exame aquele paciente e nao a outro."],
-      [23,"Gemini","Outro laboratorio, melhor em enxergar imagem e PDF."],
-      [24,"hash","E a impressao digital de um documento. Duas pessoas nao tem a mesma, e a sua nao muda sozinha. Se o documento foi adulterado, a impressao digital nao bate mais."],
-      [25,"idempotente","E apertar o botao do elevador. Apertar dez vezes nao chama dez elevadores: o andar continua marcado uma vez so."],
-      [26,"indice unico","E o CPF: o cartorio nao deixa dois cadastros com o mesmo numero. A regra vive no cartorio, nao na boa vontade de quem preenche."],
-      [27,"ledger","E o livro-caixa: cada linha e uma coisa que aconteceu e vale dinheiro."],
-      [28,"login_username","E o seu nome na portaria: a senha prova que e voce, o usuario diz quem voce diz ser."],
-      [29,"main","E o prontuario oficial, nao o rascunho. O que nao esta nele, oficialmente nao aconteceu."],
-      [30,"merge","E juntar as anotacoes de dois medicos sobre o mesmo paciente num prontuario unico."],
-      [31,"middleware","E o porteiro do predio: toda visita passa por ele antes de chegar no apartamento, e ele decide quem sobe."],
-      [32,"migration","E a reforma da clinica com planta aprovada e registrada, em vez de derrubar parede no impulso."],
-      [33,"mock","E o manequim de treinamento. Serve para ensaiar, e e perigoso se alguem esquecer e tratar como paciente."],
-      [34,"multi-tenant","E um predio de consultorios: mesma estrutura, mesmo elevador, mas cada sala tem chave propria e ninguem entra na do outro."],
-      [35,"OpenAI","Um terceiro laboratorio, forte em transcrever audio."],
-      [36,"PR","E o pedido de parecer antes da cirurgia. Alguem olha, comenta, e so depois entra."],
-      [37,"PWA","E um aparelho que serve de dois jeitos: no consultorio parece bancada, na mao vira portatil. Mesmo aparelho."],
-      [38,"RBAC","E a diferenca entre medico, enfermeiro e recepcao no sistema da clinica: cada um ve a tela do seu papel."],
-      [39,"repositorio","E o arquivo morto da clinica, mas em que nada se perde e da para voltar a qualquer dia do passado."],
-      [40,"RLS","E a tranca da porta da sala, nao o aviso por favor nao entre. O aviso depende da boa vontade; a tranca nao."],
-      [41,"scrypt","E guardar a impressao digital do paciente em vez do dedo dele. Da para conferir se bate, mas ninguem reconstroi o dedo a partir dela."],
-      [42,"SPF","E a lista de quem pode assinar receita em nome da clinica. Sem ela, qualquer um assina."],
-      [43,"SSE","E o monitor de sinais vitais: ele avisa quando muda, voce nao fica olhando de minuto em minuto."],
-      [44,"token","E a pulseira do hospital. Voce se identifica uma vez na recepcao e depois so mostra a pulseira em cada setor."],
-      [45,"UPSERT","E abrir ficha se o paciente e novo, ou atualizar a que ja existe se ele ja veio antes. Uma decisao so, automatica."],
-      [46,"webhook","E o laboratorio que liga para voce quando o resultado critico sai, em vez de voce ligar de hora em hora perguntando."],
-      [47,"worker","E o funcionario dos fundos: nao atende no balcao, faz o servico que leva tempo."],
-      [48,"JWT","E a pulseira com QR-code da festa VIP: voce mostra na entrada e entra em qualquer area permitida sem fila."],
-      [49,"tenant","E um apartamento no predio: mesma estrutura fisica, porta separada, mobilia propria, vizinho nao acessa."],
-      [50,"cron job","E o funcionario que toda sexta as 18h fecha o caixa automaticamente — nao precisa ninguem mandar."],
-      [51,"schema","E a planta baixa da clinica: define onde fica cada sala, quantas portas tem, o que cabe em cada comodo."],
-      [52,"buffer","E a sala de espera antes do consultorio: o paciente chega, espera, e e chamado na ordem."],
-      [53,"pipeline","E a linha de montagem da farmacia de manipulacao: pesa, mistura, encapsula, rotula — em ordem fixa."],
-      [54,"royalty","E a comissao do medico que assina o protocolo: toda vez que a clinica licenciada aplica, ele recebe."],
-      [55,"UUID","E o CPF do registro: nunca se repete, nao depende de nenhum contador central."],
-      [56,"seed","E o estoque inicial de uma farmacia recem-aberta: sem ele, o sistema existe mas nao tem nada para vender."],
-      [57,"mimeType","E a etiqueta do frasco de medicamento: diz se e comprimido, liquido ou pomada antes de abrir."],
-      [58,"proxy","E o corretor de imoveis: voce fala com ele, ele fala com o proprietario — ninguem se fala diretamente."],
-      [59,"OAuth","E dar a chave do carro ao manobrista: ele move o carro, mas nao tem acesso a sua casa nem ao cofre."],
-      [60,"env var","E o cofre da clinica: a senha fica la, nao escrita no protocolo publico."],
-      [61,"pull","E sincronizar a agenda do Google: voce puxa as consultas novas que outra pessoa adicionou."],
-      [62,"repo","E o prontuario completo do sistema: cada mudanca esta la, assinada, datada e reversivel."],
-      [63,"fail-safe","E o gerador de emergencia da UTI: se a rede cair, o monitor de sinais vitais continua ligado."],
-      [64,"spec","E a prescricao antes da manipulacao: o medico escreve o que quer antes de a farmacia produzir."],
-      [65,"tenant context","E o cracha do plantonista: diz em qual hospital ele esta naquele turno, quais salas pode acessar."],
-      [66,"ai_usage_log","E o livro-caixa de exames terceirizados: cada pedido ao laboratorio externo fica registrado com o custo."],
-      [67,"logAiUsage","E o carimbo automatico da balanca: todo peso registrado ganha carimbo de data e hora sem ninguem pedir."],
-      [68,"requireCeoInstance","E a catraca do andar executivo: nao adianta ter cracha de funcionario, precisa do cracha de diretor."],
-      [69,"PADAXOR_AI_BYPASS","E o cracha master do dono do predio: abre qualquer porta, inclusive as que o gerente nao alcanca."],
-      [70,"tenantContext","E a pasta do plantonista: ao entrar no turno, ele recebe a pasta da clinica — dados daquele dia, daquele lugar."],
-      [71,"Slack","E o WhatsApp do trabalho: cada assunto tem seu grupo, mas a empresa controla o que fica gravado."],
-      [72,"Drive","E o arquivo fisico da clinica, mas na nuvem: qualquer medico autorizado acessa de qualquer lugar."],
-      [73,"Sheets","E a ficha de controle do estoque que todos veem ao mesmo tempo, sem precisar mandar e-mail com anexo."],
-      [74,"Cloudflare","E a portaria do predio com camera, identificacao e lista de visitantes: nenhum pacote entra sem ser conferido."],
-      [75,"Railway","E o data center terceirizado: voce coloca o servidor la, eles garantem a luz, o ar-condicionado e o acesso."],
-      [76,"Replit","E o consultorio de desenvolvimento: onde o medico estuda o caso antes de escrever a prescricao final."],
-      [77,"token (IA)","E como a IA cobra por palavra: nao exatamente por palavra, mas e a unidade de conta — ~0,75 palavra em portugues."],
-      [78,"input_tokens","E o numero de paginas do prontuario que voce entregou para o consultor ler antes de dar o parecer."],
-      [79,"output_tokens","E o numero de paginas do laudo que o consultor escreveu depois de ler o prontuario."],
-      [80,"P0","E o paciente que chega em PCR: vai direto para a ressuscitacao, fila nao existe."],
-      [81,"P1","E o paciente com dor intensa: nao esta em risco imediato de vida, mas nao pode esperar."],
-      [82,"P2","E o exame de rotina com resultado alterado: importante resolver, mas nao hoje de manha."],
-      [83,"P3","E a pintura da sala de espera: fica melhor, mas o consultorio funciona sem ela."],
-      [84,"cron horario","E o residente que bate na porta a cada hora para checar o pos-operatorio — pontual, sem precisar de chamado."],
-      [85,"planilha de producao","E o quadro de cirurgias do centro cirurgico: todo mundo ve o que esta agendado, em andamento e concluido."],
-    ];
-
-    // Cabeçalhos e dados do DICIONARIO
-    const headerDic = [
-      "Nº",
-      "Termo",
-      "Explicação (a preencher)",
-      "Analogia para Leigo",
-      "Onde usar no Projeto (a preencher)",
-      "Função usualmente Requisitada (a preencher)",
-    ];
-
-    const linhasDic: string[][] = [
-      headerDic,
-      ...GLOSSARIO_INLINE.map(([num, termo, analogia]) => [
-        String(num),
-        termo,
-        "",         // Explicação — a preencher
-        analogia,   // Analogia para Leigo — já temos
-        "",         // Onde usar no projeto — a preencher
-        "",         // Função usual — a preencher
-      ]),
-    ];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: sid,
-      range:         `${nomeDic}!A1`,
-      valueInputOption: "RAW",
-      requestBody: { values: linhasDic },
-    });
-    log.push(`${nomeDic}: ${GLOSSARIO_INLINE.length} termos gravados.`);
-
-    // ── 7. Formatar cabeçalho do DICIONARIO ──────────────────────────────
-    if (novaDicSheetId !== null) {
-      const rgb = (r: number, g: number, b: number) => ({ red: r, green: g, blue: b });
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: sid,
-        requestBody: {
-          requests: [
-            // Cabeçalho navy + texto branco
-            {
-              repeatCell: {
-                range: { sheetId: novaDicSheetId, startRowIndex: 0, endRowIndex: 1 },
-                cell: {
-                  userEnteredFormat: {
-                    backgroundColor: rgb(0.133, 0.141, 0.173),
-                    textFormat: { bold: true, foregroundColor: rgb(1, 1, 1), fontSize: 10 },
-                    horizontalAlignment: "CENTER",
-                    verticalAlignment: "MIDDLE",
-                    wrapStrategy: "WRAP",
-                  },
-                },
-                fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)",
-              },
-            },
-            // Linhas de dados: fundo levemente esverdeado alternado (linha par=branco, ímpar=pastel)
-            {
-              repeatCell: {
-                range: { sheetId: novaDicSheetId, startRowIndex: 1, endRowIndex: GLOSSARIO_INLINE.length + 1 },
-                cell: {
-                  userEnteredFormat: {
-                    wrapStrategy: "WRAP",
-                    verticalAlignment: "TOP",
-                    textFormat: { fontSize: 9 },
-                  },
-                },
-                fields: "userEnteredFormat(wrapStrategy,verticalAlignment,textFormat)",
-              },
-            },
-            // Larguras das colunas: Nº | Termo | Explicação | Analogia | Onde usar | Função
-            ...([60, 160, 220, 300, 220, 220] as number[]).map((px, i) => ({
-              updateDimensionProperties: {
-                range: { sheetId: novaDicSheetId!, dimension: "COLUMNS", startIndex: i, endIndex: i + 1 },
-                properties: { pixelSize: px },
-                fields: "pixelSize",
-              },
-            })),
-            // Congelar 1ª linha
-            {
-              updateSheetProperties: {
-                properties: { sheetId: novaDicSheetId, gridProperties: { frozenRowCount: 1 } },
-                fields: "gridProperties.frozenRowCount",
-              },
-            },
-          ],
-        },
-      });
-      log.push("Formatação do DICIONARIO aplicada.");
-    }
+    // ── 6. Sincronizar aba DICIONARIO via fonte única de verdade ─────────
+    // Delega toda a lógica para sheets-dicionario.ts (GLOSSARIO canônico).
+    // A função adiciona termos novos sem tocar nas colunas C/E/F preenchidas.
+    const dicLog = await sincronizarDicionarioSheets(sid);
+    log.push(...dicLog);
 
     res.json({
       ok:     true,
@@ -520,6 +349,345 @@ router.post("/admin/planilha/preparar-abas", async (_req: Request, res: Response
     });
   } catch (e: any) {
     logger.error({ err: e }, "preparar-abas: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/sincronizar-dicionario
+// Força sincronização imediata da aba DICIONARIO com o GLOSSARIO canônico.
+// Idempotente: adiciona apenas termos novos; preserva colunas C/E/F.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/sincronizar-dicionario", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const log = await sincronizarDicionarioSheets(PLANILHA_OFICIAL);
+    res.json({
+      ok:  true,
+      log,
+      planilha: `https://docs.google.com/spreadsheets/d/${PLANILHA_OFICIAL}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "sincronizar-dicionario: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/dicionario-colunas-data-hora
+// Insere colunas DATA (DD/MM/AA) e HORA (HH:MM) após coluna A (Nº)
+// e preenche com datas/horários de acordo com as fases do projeto.
+// IDEMPOTENTE: detecta se colunas já existem antes de inserir.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/dicionario-colunas-data-hora", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sheets = await getGoogleSheetsClient();
+    const DICIONARIO_ABA = "DICIONARIO";
+
+    // --- 1. Descobrir sheetId e cabeçalho atual ----
+    const meta     = await sheets.spreadsheets.get({ spreadsheetId: PLANILHA_OFICIAL, includeGridData: false });
+    const dicSheet = (meta.data.sheets ?? []).find(s => s.properties?.title === DICIONARIO_ABA);
+    if (!dicSheet) {
+      res.status(404).json({ error: `Aba "${DICIONARIO_ABA}" não encontrada.` });
+      return;
+    }
+    const sheetId = dicSheet.properties?.sheetId ?? 0;
+
+    // Ler linha 1 para ver se DATA/HORA já existem
+    const header = await sheets.spreadsheets.values.get({
+      spreadsheetId: PLANILHA_OFICIAL,
+      range: `${DICIONARIO_ABA}!A1:H1`,
+    });
+    const headerRow: string[] = (header.data.values?.[0] ?? []) as string[];
+    const jaTemData = headerRow.some(c => c.trim().toUpperCase() === "DATA");
+
+    // --- 2. Inserir 2 colunas na posição B (índice 1) se ainda não existem ---
+    if (!jaTemData) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: PLANILHA_OFICIAL,
+        requestBody: {
+          requests: [{
+            insertDimension: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 3 },
+              inheritFromBefore: false,
+            },
+          }],
+        },
+      });
+    }
+
+    // --- 3. Datas por número de termo (DD/MM/AA) e hora (HH:MM) ---
+    // Atribuídas por reflexão sobre as fases do projeto:
+    // Fase 1 Jan-Mar 2026: infra, auth, banco, git
+    // Fase 2 Abr-Mai 2026: IA, laudos, Drive, analitos
+    // Fase 3 Jun 2026: comercial, pagamentos, licenciados
+    // Fase 4 Jul 2026: mensageria, Slack, Sheets, monitoramento
+    const cronologia: Record<number, [string, string]> = {
+      1:  ["15/01/26", "09:00"],  // AI Gateway — 1º dia de infra de IA
+      2:  ["15/01/26", "09:30"],  // Anthropic
+      3:  ["15/01/26", "08:00"],  // API — fundação
+      4:  ["20/01/26", "14:00"],  // append-only — auditoria de dados
+      5:  ["20/01/26", "14:30"],  // backup
+      6:  ["15/01/26", "08:00"],  // banco de dados — dia 1
+      7:  ["15/01/26", "08:30"],  // branch — git setup
+      8:  ["22/01/26", "10:00"],  // CI/CD
+      9:  ["25/01/26", "15:00"],  // circuit breaker — resiliência
+      10: ["10/06/26", "09:00"],  // clone — modelo de franquia (Fase 3)
+      11: ["10/06/26", "09:30"],  // CNAME — domínio clones
+      12: ["15/01/26", "08:45"],  // commit — git setup
+      13: ["01/02/26", "10:00"],  // conector — Google OAuth
+      14: ["01/02/26", "11:00"],  // CORS — front/back integração
+      15: ["20/03/26", "14:00"],  // cron — relatório automático
+      16: ["15/01/26", "16:00"],  // deploy — primeiro deploy
+      17: ["05/02/26", "10:00"],  // DKIM — configuração de e-mail
+      18: ["05/02/26", "10:30"],  // DNS
+      19: ["10/02/26", "09:00"],  // dry-run
+      20: ["28/02/26", "14:00"],  // empresa_id — multi-tenant fundação
+      21: ["15/01/26", "10:30"],  // endpoint
+      22: ["20/01/26", "09:00"],  // FK — modelo relacional
+      23: ["15/04/26", "10:00"],  // Gemini — motor de extração (Fase 2)
+      24: ["25/01/26", "10:00"],  // hash — autenticação
+      25: ["01/02/26", "14:00"],  // idempotente
+      26: ["01/02/26", "15:00"],  // índice único
+      27: ["01/06/26", "14:00"],  // ledger — financeiro (Fase 3)
+      28: ["20/01/26", "14:00"],  // login_username
+      29: ["15/01/26", "08:00"],  // main — git setup
+      30: ["15/01/26", "08:30"],  // merge
+      31: ["28/02/26", "09:00"],  // middleware — tenantContext
+      32: ["28/02/26", "10:00"],  // migration
+      33: ["10/02/26", "11:00"],  // mock
+      34: ["28/02/26", "14:00"],  // multi-tenant — arquitetura central
+      35: ["15/04/26", "10:30"],  // OpenAI — transcrição voz
+      36: ["15/01/26", "08:00"],  // PR — fluxo de revisão
+      37: ["20/03/26", "09:00"],  // PWA
+      38: ["01/04/26", "10:00"],  // RBAC — controle de acesso
+      39: ["15/01/26", "08:00"],  // repositório
+      40: ["28/02/26", "15:00"],  // RLS — segurança por linha
+      41: ["25/01/26", "11:00"],  // scrypt — senhas
+      42: ["05/02/26", "11:00"],  // SPF — e-mail
+      43: ["15/06/26", "09:00"],  // SSE — cockpit CEO tempo real
+      44: ["25/01/26", "09:00"],  // token
+      45: ["01/02/26", "16:00"],  // UPSERT
+      46: ["01/06/26", "10:00"],  // webhook — Asaas/ZapSign (Fase 3)
+      47: ["15/04/26", "14:00"],  // worker — processamento laudos
+      48: ["25/01/26", "09:30"],  // JWT
+      49: ["28/02/26", "14:30"],  // tenant
+      50: ["20/03/26", "14:30"],  // cron job
+      51: ["28/02/26", "10:30"],  // schema
+      52: ["15/04/26", "15:00"],  // buffer
+      53: ["15/04/26", "09:00"],  // pipeline — extração exames
+      54: ["01/06/26", "15:00"],  // royalty — modelo comercial
+      55: ["20/01/26", "09:30"],  // UUID
+      56: ["20/01/26", "16:00"],  // seed — dados iniciais
+      57: ["15/04/26", "16:00"],  // mimeType — upload exames
+      58: ["15/01/26", "11:00"],  // proxy — Replit iframe
+      59: ["01/02/26", "10:30"],  // OAuth — Google integração
+      60: ["15/01/26", "09:00"],  // env var — secrets
+      61: ["15/01/26", "08:45"],  // pull — git
+      62: ["15/01/26", "08:00"],  // repo
+      63: ["10/07/26", "09:00"],  // fail-safe — dual canal Slack/Telegram
+      64: ["01/07/26", "09:00"],  // spec — processo Padua Software Design
+      65: ["28/02/26", "15:30"],  // tenant context
+      66: ["15/06/26", "10:00"],  // ai_usage_log — monitor de IA
+      67: ["15/06/26", "10:30"],  // logAiUsage
+      68: ["28/02/26", "16:00"],  // requireCeoInstance
+      69: ["10/06/26", "14:00"],  // PADAXOR_AI_BYPASS
+      70: ["28/02/26", "15:30"],  // tenantContext (objeto)
+      71: ["15/06/26", "09:00"],  // Slack — canal padaxor-projeto
+      72: ["15/04/26", "09:00"],  // Drive — watcher exames
+      73: ["20/07/26", "09:00"],  // Sheets — planilha de produção
+      74: ["15/01/26", "09:00"],  // Cloudflare
+      75: ["15/05/26", "09:00"],  // Railway — produção
+      76: ["15/01/26", "08:00"],  // Replit
+      77: ["15/06/26", "11:00"],  // token (IA)
+      78: ["15/06/26", "11:30"],  // input_tokens
+      79: ["15/06/26", "12:00"],  // output_tokens
+      80: ["01/07/26", "10:00"],  // P0
+      81: ["01/07/26", "10:15"],  // P1
+      82: ["01/07/26", "10:30"],  // P2
+      83: ["01/07/26", "10:45"],  // P3
+      84: ["20/06/26", "09:00"],  // cron horário — relatório Slack horário
+      85: ["20/07/26", "10:00"],  // planilha de produção
+    };
+
+    // --- 4. Gravar cabeçalhos B1:C1 e dados B2:C86 ---
+    const dadosData: string[][] = [["DATA"], ...Object.values(cronologia).map(([d]) => [d])];
+    const dadosHora: string[][] = [["HORA"], ...Object.values(cronologia).map(([, h]) => [h])];
+
+    // Cabeçalho + dados coluna B (DATA)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:    PLANILHA_OFICIAL,
+      range:            `${DICIONARIO_ABA}!B1:B86`,
+      valueInputOption: "RAW",
+      requestBody:      { values: dadosData },
+    });
+
+    // Cabeçalho + dados coluna C (HORA)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:    PLANILHA_OFICIAL,
+      range:            `${DICIONARIO_ABA}!C1:C86`,
+      valueInputOption: "RAW",
+      requestBody:      { values: dadosHora },
+    });
+
+    // --- 5. Formatar cabeçalhos das 2 novas colunas (mesmo estilo das demais) ---
+    const rgb = (r: number, g: number, b: number) => ({ red: r, green: g, blue: b });
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: PLANILHA_OFICIAL,
+      requestBody: {
+        requests: [
+          // Cabeçalho B1 e C1 — mesmo estilo navy da aba
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 1, endColumnIndex: 3 },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: rgb(0.133, 0.141, 0.173),
+                  textFormat: { bold: true, foregroundColor: rgb(1, 1, 1), fontSize: 10 },
+                  horizontalAlignment: "CENTER",
+                  verticalAlignment: "MIDDLE",
+                  wrapStrategy: "WRAP",
+                },
+              },
+              fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)",
+            },
+          },
+          // Dados B2:C86 — centralizado, pequeno
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 1, endRowIndex: 86, startColumnIndex: 1, endColumnIndex: 3 },
+              cell: {
+                userEnteredFormat: {
+                  horizontalAlignment: "CENTER",
+                  verticalAlignment:   "TOP",
+                  textFormat:          { fontSize: 9 },
+                  wrapStrategy:        "CLIP",
+                },
+              },
+              fields: "userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat,wrapStrategy)",
+            },
+          },
+          // Largura: col B (DATA) = 75px, col C (HORA) = 60px
+          {
+            updateDimensionProperties: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
+              properties: { pixelSize: 75 },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 2, endIndex: 3 },
+              properties: { pixelSize: 60 },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      },
+    });
+
+    res.json({
+      ok:       true,
+      inserido: !jaTemData,
+      msg:      jaTemData
+        ? "Colunas DATA e HORA já existiam — valores atualizados."
+        : "Colunas DATA e HORA inseridas e preenchidas com sucesso.",
+      planilha: `https://docs.google.com/spreadsheets/d/${PLANILHA_OFICIAL}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "dicionario-colunas-data-hora: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/planilha/adicionar-demandas-voz-avatar
+// Adiciona as 3 demandas de ElevenLabs/HeyGen na PLANILHA PRODUCAO.
+// Idempotente: não duplica se o item já existir pelo texto exato.
+// ---------------------------------------------------------------------------
+router.post("/admin/planilha/adicionar-demandas-voz-avatar", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sheets    = await getGoogleSheetsClient();
+    const ABA       = "PLANILHA PRODUCAO";
+    const SID       = PLANILHA_OFICIAL;
+
+    // Ler estado atual para pegar último Nº e verificar duplicatas
+    const atual = await sheets.spreadsheets.values.get({
+      spreadsheetId: SID,
+      range: `${ABA}!A2:I500`,
+    });
+    const linhas: string[][] = (atual.data.values ?? []) as string[][];
+
+    // Último número ocupado
+    let ultimoNum = 0;
+    for (const row of linhas) {
+      const n = Number(row[0]);
+      if (Number.isFinite(n) && n > ultimoNum) ultimoNum = n;
+    }
+
+    // Textos únicos dos itens que queremos adicionar
+    const novasDemandas: string[][] = [
+      [
+        String(ultimoNum + 1),
+        "Integrar ElevenLabs e HeyGen em todos os membros da equipe (quando possível)",
+        "Toda Equipe",
+        "A FAZER",
+        "P2",
+        "—",
+        "PEDIDO 1 CEO 01/08/26: todos os agentes (Dr. Code, Dr. Lovable, Dr. Manus, Dr. Replit) devem mapear e integrar ElevenLabs (voz sintética PT-BR) e HeyGen (avatar em vídeo) nos seus respectivos ambientes quando possível.",
+        "Ver Task #54 e #55",
+        "01/08/26",
+      ],
+      [
+        String(ultimoNum + 2),
+        "PILOTO Instituto Pádua (PADUCCIA): ElevenLabs + HeyGen — médico, secretária e avatar livre",
+        "Dr. Replit",
+        "A FAZER",
+        "P1",
+        "—",
+        "PEDIDO 3 CEO 01/08/26: ANTES de oferecer para clínicas licenciadas, implantar voz (ElevenLabs) e avatar em vídeo (HeyGen) PRIMEIRO no Instituto Pádua (PADUCCIA). Avatares: 1=Médico, 2=Secretária, 3=Livre. Task #54.",
+        "Bloqueante para Task #55 (expansão clínicas)",
+        "01/08/26",
+      ],
+      [
+        String(ultimoNum + 3),
+        "Motor de avatares por clínica: médico, secretária e avatar livre via HeyGen (pós-piloto)",
+        "Dr. Replit",
+        "A FAZER",
+        "P2",
+        "—",
+        "PEDIDO 2 CEO 01/08/26: após validação no Instituto Pádua, disponibilizar para clínicas licenciadas criação de avatares de voz e vídeo. Clínica opta pelo serviço. Tabela clinic_avatars + worker assíncrono + tela de gestão. Task #55.",
+        "Bloqueado por piloto PADUCCIA (item acima)",
+        "01/08/26",
+      ],
+    ];
+
+    // Filtrar demandas que já existem (por texto do item — col B)
+    const textosExistentes = new Set(linhas.map(r => (r[1] ?? "").trim().toLowerCase()));
+    const paraAdicionar = novasDemandas.filter(
+      nd => !textosExistentes.has(nd[1].trim().toLowerCase()),
+    );
+
+    if (paraAdicionar.length === 0) {
+      res.json({ ok: true, msg: "Todas as demandas já existiam na planilha — nenhuma linha duplicada." });
+      return;
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId:    SID,
+      range:            `${ABA}!A:I`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody:      { values: paraAdicionar },
+    });
+
+    res.json({
+      ok:        true,
+      adicionado: paraAdicionar.length,
+      itens:     paraAdicionar.map(r => `#${r[0]} — ${r[1]}`),
+      planilha:  `https://docs.google.com/spreadsheets/d/${SID}`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "adicionar-demandas-voz-avatar: erro");
     res.status(500).json({ error: e.message });
   }
 });

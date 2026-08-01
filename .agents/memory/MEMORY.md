@@ -116,8 +116,10 @@
 - [Fila de triagem != resultados crus](triagem-fila-vs-crus.md) — zerar Sala de Triagem nao zera exam_results sem code; adimensional (razao/indice) sem unidade nao e pendencia.
 - [perguntaId nao e chave de identidade](anamnese-perguntaid-nao-unico.md) — pergunta_id REPETE (Q030); identidade de linha usa o `id` numerico, nunca perguntaId (guard de DELETE).
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
+- [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
 - [Slack Monitor de LLMs — canal padaxor-projeto](slack-monitor-llms.md) — canal #padaxor-projeto ID=C0BLW5S7GQL; PADAXOR_SLACK_CHANNEL_ID=env var shared; googledrive.files.create exige Readable stream (não Buffer) para body.
 - [Slack Report Formato V2 — cabeçalho + tabela + handoff](slack-report-formato-v2.md) — 3 blocos novos: contexto com quem preencheu; tabela emoldurada de CONCLUÍDOS (cols A:I); handoffs inter-LLM via coluna I da planilha.
 - [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa fallback sem API real.
 - [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
+- [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.

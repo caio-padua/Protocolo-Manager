@@ -62,6 +62,7 @@ export const MENU_ITEMS: MenuItem[] = [
   // ─── Comunicação ──────────────────────────────────────────────────────────
   { id: "mensageria", label: "Mensageria", path: "/mensageria", icon: "MessageSquare", grupo: "comunicacao", moduloRequerido: "comunicacao" },
   { id: "agentes-wpp", label: "Agentes WhatsApp", path: "/agentes-wpp", icon: "Bot", grupo: "comunicacao", moduloRequerido: "comunicacao" },
+  { id: "avatares", label: "Avatares de Voz e Vídeo", path: "/comunicacao/avatares", icon: "PersonStanding", grupo: "comunicacao", moduloRequerido: "comunicacao" },
 
   // ─── RAS / FAP ────────────────────────────────────────────────────────────
   { id: "ras", label: "RAS", path: "/ras", icon: "FileBarChart", grupo: "ras", moduloRequerido: "ras" },

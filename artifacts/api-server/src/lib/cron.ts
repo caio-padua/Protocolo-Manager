@@ -4,6 +4,7 @@ import { sendNightlyPharmacyBatch } from "./pharmacy-email";
 import { executarLembretesPeriodo } from "./lembrete-periodo";
 import { logger } from "./logger";
 import { processarReceituarioDiario } from "./receituario-worker";
+import { processarFilaVideo }        from "./avatar-video-worker";
 
 let started = false;
 
@@ -60,6 +61,24 @@ export function startCronJobs(): void {
   );
 
   logger.info("Cron de receituário magistral agendado para 06:00 BRT");
+
+  // Worker de vídeo HeyGen: a cada 2 minutos faz polling na fila
+  // avatar_video_queue e entrega links quando o vídeo fica pronto.
+  cron.schedule(
+    "*/2 * * * *",
+    () => {
+      processarFilaVideo()
+        .then((r) => {
+          if (r.processadas > 0) {
+            logger.info(r, "[avatar-worker] tick da fila de vídeo");
+          }
+        })
+        .catch((err) => logger.error({ err: err?.message }, "[avatar-worker] falha no tick"));
+    },
+    { timezone: "America/Sao_Paulo" },
+  );
+
+  logger.info("Worker de vídeo HeyGen agendado (tick a cada 2 min, BRT)");
 
 }
 // NOTA: o cron horário de relatório de LLMs (Slack + Telegram) roda APENAS

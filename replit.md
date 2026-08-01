@@ -51,6 +51,25 @@ vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anu
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks e schemas Zod do OpenAPI
 - Schema de banco: tabelas novas via SQL direto (nunca `db push` em tabela populada — ver memórias)
 
+## GITHUB_PAT — Renovação obrigatória antes do vencimento
+
+O secret `GITHUB_PAT` (Personal Access Token — chave pessoal do GitHub) permite o git push automático.
+Quando ele expirar, `git push origin` falha com "Invalid username or token" sem aviso prévio.
+
+**Como verificar se ainda está válido**: `GET /api/health` — campo `integracoes.github_pat` retorna
+`conectado`, `expirado_em_breve` (menos de sete dias), ou `erro` (já inválido / expirado).
+
+**Procedimento de renovação** (fazer ANTES da data de vencimento):
+1. Acesse github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens (ou Classic).
+2. Gere um novo token com permissão `repo` (leitura e escrita no repositório `caio-padua/Protocolo-Manager`).
+3. Copie o novo token.
+4. No Replit: painel esquerdo → Secrets → `GITHUB_PAT` → atualize o valor.
+5. Reinicie o workflow `artifacts/api-server: API Server` para recarregar o secret.
+6. Confirme: `GET /api/health` deve retornar `integracoes.github_pat = "conectado"`.
+
+**Nota**: o push pelo shell (`git push origin`) falha mesmo com PAT válido se o git local não tiver
+a credencial configurada. O método aprovado de push é o painel Git do Replit (botão de push na aba Git).
+
 ## Estrutura (resumo)
 
 - `artifacts/padcom` — frontend administrativo + Área do Cliente (Vite proxy `/api` → porta 8080)

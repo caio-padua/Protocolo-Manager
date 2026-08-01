@@ -5,9 +5,13 @@
 // INDEPENDENTE de canal: quem chama fornece SÓ o conteúdo (chamada, título,
 // parágrafos, botão, anexo) e o motor veste a marca em e-mail, WhatsApp e
 // Telegram. Nenhuma rota monta HTML/mensagem de marca à mão (Art. 57).
+//
+// Canais VOICE e VIDEO (Task #57 — Motor de Avatar):
+//   VOICE — gera MP3 via ElevenLabs e envia como mídia no WhatsApp / anexo no e-mail
+//   VIDEO — enfileira geração HeyGen; worker entrega o link ao destinatário
 // ============================================================================
 
-export type PaxterCanal = "EMAIL" | "WHATSAPP" | "TELEGRAM";
+export type PaxterCanal = "EMAIL" | "WHATSAPP" | "TELEGRAM" | "VOICE" | "VIDEO";
 
 export interface PaxterBotao {
   label: string;
@@ -56,21 +60,39 @@ export interface PaxterDestino {
 export interface PaxterEnvioContexto {
   /** Base pública (ex.: https://app.exemplo.com) para imagens e banner. */
   baseUrl?: string;
+  /**
+   * ID da empresa (tenant). Obrigatório para canais VOICE e VIDEO — o motor
+   * precisa localizar o avatar configurado para a clínica.
+   */
+  empresaId?: number;
+  /**
+   * ID do avatar a usar diretamente. Quando informado, o motor não precisa
+   * pesquisar o avatar padrão da empresa.
+   */
+  avatarId?: number;
+  /** ID do cliente destinatário (para rastreio e metering). */
+  clienteId?: number;
+  /** Contexto do envio, ex.: "lembrete_prescricao_voz", "campanha". */
+  contexto?: string;
 }
 
 export interface PaxterCanalResultado {
   canal: PaxterCanal;
   /** true = saiu de verdade OU mock honesto; false = falhou. */
   sent: boolean;
-  /** Origem real do envio: 'gmail' | 'twilio' | 'telegram' | 'link' | 'mock'. */
+  /** Origem real do envio: 'gmail' | 'twilio' | 'telegram' | 'elevenlabs' | 'heygen' | 'mock'. */
   via?: string;
   /** true quando o provedor não está configurado (envio simulado honesto). */
   mock?: boolean;
-  /** true quando o canal foi pulado por falta de destino. */
+  /** true quando o canal foi pulado por falta de destino ou avatar. */
   skipped?: boolean;
   /** Link wa.me de fallback manual (WhatsApp). */
   link?: string;
   error?: string;
+  /** URL do áudio MP3 em cache (VOICE via WhatsApp). */
+  audioUrl?: string;
+  /** ID da tarefa na fila de vídeo (VIDEO). */
+  videoQueueId?: number;
 }
 
 export interface PaxterEnvioResultado {

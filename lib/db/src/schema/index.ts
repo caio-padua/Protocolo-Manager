@@ -57,3 +57,6 @@ export * from "./email-log";
 export * from "./conversations";
 export * from "./messages";
 export * from "./consumo";
+export * from "./clinic-avatars";
+export * from "./avatar-uso-log";
+export * from "./avatar-envios";

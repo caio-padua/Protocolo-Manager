@@ -1,0 +1,90 @@
+Não. Procurei só nas pastas do projeto e declarei que não existia. Isso está errado — "não achei no lugar onde olhei" não é "não existe". A mensagem estava no Slack desde as 21h17.
+
+Deixa eu ir buscar de verdade.
+
+Google Drive respondeu. Slack não — o conector caiu. Vou ler a planilha agora.
+
+Não, não tinha lido. Procurei só nas pastas do projeto e dei a resposta a partir dali. Foi o mesmo erro da noite: conferi um lugar e declarei o todo. Li a planilha agora.
+
+Antes de avaliar o Dr. Manus, vou fazer o teste que o Art. 19 exige — o trabalho dele existe no código?
+
+A rota existe na `main`. Vou ver quem a colocou lá e quando.
+
+Li a planilha inteira. Segue o que ela diz de verdade — inclusive onde eu estava errado.
+
+---
+
+## 1. Resposta direta
+
+| Pergunta | Resposta |
+| :--- | :--- |
+| Tinha lido a planilha? | **Não.** Procurei só nas pastas do projeto |
+| Li agora? | Sim, a planilha inteira, direto do Google |
+| Li o Slack? | Não consigo — o conector do Slack caiu. Li o Dr. Manus pela sua foto de tela |
+
+Duas vezes na mesma noite eu conferi um lugar só e falei como se fosse o todo. É o mesmo erro, e ele agora tem nome e regra na carta.
+
+---
+
+## 2. O que eu te disse errado, e o número certo
+
+| O que eu disse | O que a planilha diz |
+| :--- | :--- |
+| 48 itens | **58 itens**, numerados de 1 a 63 |
+| — | 22 concluídos, 23 a fazer, 13 aguardando |
+
+---
+
+## 3. Dr. Manus — o que ele disse e o que eu consegui conferir
+
+Ele se apresentou as 21h17 e registrou quatro itens na planilha, todos como CONCLUIDO:
+
+| Nº | O que ele registrou | Prioridade |
+| :--- | :--- | :--- |
+| 60 | Refatoração do Cockpit Unificado, 966 linhas | P1 alto |
+| 61 | Correção do fluxo Upload → Drive → Gemini → Cockpit | **P0 crítico** |
+| 62 | Relatório de ferramentas modernas para cockpit | P2 médio |
+| 63 | Integração dele no Slack | P2 médio |
+
+**O que está certo:** o alvo dele é o caminho do dinheiro — o exame que o cliente sobe, vai para a nuvem, passa pela inteligência artificial e aparece na tela. É trabalho de produto, não de ferramenta. É exatamente o que estava faltando.
+
+**O que eu não consegui confirmar:**
+
+| Conferência | Resultado |
+| :--- | :--- |
+| A rota que ele diz ter criado existe? | Sim — mas está no sistema desde **24/07**, posta por outro agente |
+| Ele tem trabalho registrado neste projeto? | Dois registros, ambos de **18/07**, num ramo que nunca foi juntado |
+| Algum registro dele hoje, 31/07? | Nenhum |
+
+Isso **não é acusação.** O trabalho dele pode estar em outro repositório, ou num ramo que ainda não foi enviado. Mas o Art. 19 é claro: item só fecha com o número do registro mais um caso testado. Quatro itens fecharam sem esse número.
+
+A pergunta certa a fazer a ele, e nada além disso:
+
+    "Dr. Manus, me manda o hash dos commits dos itens 60, 61, 62 e 63,
+     e em qual repositorio eles estao. E a regra da casa para fechar item."
+
+---
+
+## 4. Dois problemas que a planilha mostra
+
+| Problema | Detalhe |
+| :--- | :--- |
+| **Item 43 sumiu** | Era "AI Gateway como proxy único de IA". É o item que destrava **toda a bilhetagem**. Não está mais na fila |
+| Números 49 a 52 vazios | A fila pula de 48 para 53. Buraco de quatro números |
+
+O item 43 é o mais grave desta mensagem. Sem ele, nada de cobrança por uso funciona — e ele desapareceu sem ninguém marcar como cancelado.
+
+---
+
+## 5. Martelo — um só
+
+    A) Eu devolvo o item 43 para a fila e pergunto ao Dr. Manus
+       os hashes dos itens 60 a 63                          (recomendado)
+
+    B) Só os hashes; o 43 fica fora por enquanto
+
+    C) Deixa comigo depois, hoje chega
+
+---
+
+**RESUMO EM 1 LINHA:** Você tinha razão, eu não tinha lido a planilha; agora li: são 58 itens e não 48, o Dr. Manus mirou no lugar certo mas fechou quatro itens sem o número de registro que a regra exige, e o item 43, que destrava toda a bilhetagem, sumiu da fila sem aviso.

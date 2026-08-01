@@ -21,6 +21,7 @@ import { logger } from "./logger";
 import { sendWhatsapp } from "./whatsapp";
 import { montarSaudacao, templateLembretePrescricao, type Genero } from "./lembrete-templates";
 import { montarMensagemOpus } from "./mensageria-opus";
+import { enviarVozAvatarWhatsapp, gerarScriptLembrete } from "./avatar-messenger";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -111,6 +112,7 @@ interface LembreteComContexto {
   horariosEnvio: string[];
   clienteNome: string;
   clienteTelefone: string | null;
+  empresaId: number | null;
 }
 
 async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
@@ -122,6 +124,7 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
       horariosEnvio: lembretesPrescricaoTable.horariosEnvio,
       clienteNome: clientsTable.name,
       clienteTelefone: clientsTable.phone,
+      empresaId: clientsTable.empresaId,
     })
     .from(lembretesPrescricaoTable)
     .innerJoin(clientsTable, eq(clientsTable.id, lembretesPrescricaoTable.clienteId))
@@ -139,6 +142,7 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
     horariosEnvio: Array.isArray(r.horariosEnvio) ? r.horariosEnvio : [],
     clienteNome: r.clienteNome,
     clienteTelefone: r.clienteTelefone,
+    empresaId: r.empresaId,
   }));
 }
 
@@ -403,6 +407,19 @@ export async function executarLembretesPeriodo(
         .set({ status: "ENVIADO", whatsappLogId: resultado.logId ?? null, erro: null, enviadoEm: new Date() })
         .where(eq(lembreteEnviosTable.id, envioId));
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: true, whatsappLogId: resultado.logId });
+
+      // ── AVATAR DE VOZ (best-effort, nunca bloqueia o tick) ──────────────────
+      // Se a clínica tem um avatar ativo com ElevenLabs configurado, envia um
+      // áudio da voz do médico logo após a mensagem de texto.
+      if (ctx.empresaId && ctx.clienteTelefone) {
+        const script = gerarScriptLembrete(ctx.clienteNome, ctx.periodos);
+        void enviarVozAvatarWhatsapp(
+          ctx.empresaId,
+          ctx.clienteTelefone,
+          script,
+          { clienteId: ctx.clienteId, contexto: "lembrete_prescricao_voz" },
+        );
+      }
     } else if (resultado.via === "link" && !resultado.error) {
       // Twilio não configurado: não é falha de entrega, é ausência de canal.
       // Marca SEM_TWILIO (não conta como falha; fica separado na tela de status).
