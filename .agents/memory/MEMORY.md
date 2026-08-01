@@ -122,3 +122,4 @@
 - [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa fallback sem API real.
 - [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
+- [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.

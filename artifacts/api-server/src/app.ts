@@ -54,6 +54,13 @@ import("./lib/sheets-dicionario").then(({ sincronizarDicionarioSheets }) => {
     .catch(err => logger.warn({ err }, "sheets-dicionario: sync no boot falhou (ignorado)"));
 }).catch(() => { /* módulo não carregado — ignora */ });
 
+// ─── AVATARES: seed dos 3 avatares do Instituto Pádua no boot ────────────────
+import("./lib/seed-avatares").then(({ runSeedAvatares }) => {
+  runSeedAvatares((msg) => logger.info({ msg }, "seed-avatares"))
+    .then(r => logger.info(r, "seed-avatares: concluído"))
+    .catch(err => logger.warn({ err }, "seed-avatares: falhou (ignorado)"));
+}).catch(() => { /* módulo não carregado — ignora */ });
+
 // ─── AI Central: verifica configuração do guard de clone no boot ─────────────
 checkAiSetup({
   warn: (msg: string) => logger.warn(msg),

@@ -52,6 +52,8 @@ function deriveKey(): Buffer {
 // Permite que segredos já existentes no env continuem valendo até o CEO salvar
 // pela tela. Nunca o contrário (env nunca sobrescreve o cofre).
 const ENV_FALLBACK: Record<string, string> = {
+  "elevenlabs.apiKey": "ELEVENLABS_API_KEY",
+  "heygen.apiKey": "HEYGEN_API_KEY",
   "asaas.apiKey": "ASAAS_API_KEY",
   "asaas.webhookToken": "ASAAS_WEBHOOK_TOKEN",
   "certificate.password": "CERT_PASSWORD",

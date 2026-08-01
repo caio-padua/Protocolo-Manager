@@ -95,6 +95,7 @@ import ComunicacaoEmails from "@/pages/comunicacao/emails";
 import ComunicacaoPlataformas from "@/pages/comunicacao/plataformas";
 import ComunicacaoWhatsappStatus from "@/pages/comunicacao/whatsapp-status";
 import ComunicacaoCentralAuditoria from "@/pages/comunicacao/central-auditoria";
+import AvatarManager from "@/pages/comunicacao/avatares";
 import PainelDominios from "@/pages/comunicacao/dominios";
 import DominioEditPage from "@/pages/comunicacao/dominio-edit";
 import PropostaNova from "@/pages/comunicacao/proposta-nova";
@@ -299,6 +300,7 @@ function Router() {
             <Route path="/comunicacao/plataformas" component={ComunicacaoPlataformas} />
             <Route path="/comunicacao/whatsapp-status" component={ComunicacaoWhatsappStatus} />
             <Route path="/comunicacao/central-auditoria" component={ComunicacaoCentralAuditoria} />
+            <Route path="/comunicacao/avatares" component={AvatarManager} />
             <Route path="/comunicacao/dominios/nova-proposta" component={PropostaNova} />
             <Route path="/comunicacao/dominios/new" component={DominioEditPage} />
             <Route path="/comunicacao/dominios/:id/edit" component={DominioEditPage} />
