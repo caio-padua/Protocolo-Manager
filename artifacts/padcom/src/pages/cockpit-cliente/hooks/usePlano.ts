@@ -15,7 +15,7 @@ export function usePlano(): UsePlanoResult {
   const plano: PlanoId = "premium";
   return {
     plano,
-    isPremium: plano === "premium",
-    isBasico: plano === "basico",
+    isPremium: true,
+    isBasico: false,
   };
 }

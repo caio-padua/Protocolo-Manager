@@ -226,8 +226,6 @@ function Router() {
             <Route path="/dieta" component={Dieta} />
             <Route path="/treino" component={Treino} />
             <Route path="/craniotomia" component={Craniotomia} />
-            <Route path="/cockpit" component={Cockpit} />
-            <Route path="/cockpit-cliente" component={CockpitCliente} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
