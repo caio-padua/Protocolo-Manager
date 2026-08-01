@@ -67,14 +67,17 @@ export type LlmProviderStats = {
 
 export type ItemPlanilha = {
   nro:         string;
+  data:        string;   // coluna B — DATA de conclusão/atualização (DD/MM/AAAA)
+  hora:        string;   // coluna C — HORA de conclusão/atualização (HH:MM)
   item:        string;
   resp:        string;   // agente responsável (ex: "Dr. Replit")
   estado:      string;
   prio:        string;
-  hash?:       string;   // sessão de referência
-  descricao?:  string;
-  notas?:      string;
-  solicitacao?: string;  // coluna I — o que uma LLM pediu à outra (handoff)
+  hash?:       string;   // coluna H — Depend.de / sessão de referência
+  descricao?:  string;   // coluna I — Em linguagem de leigo
+  notas?:      string;   // coluna J
+  solicitacao?: string;  // coluna K — handoff inter-LLM
+  linhaSheet?: number;   // linha real na planilha (para escrita)
 };
 
 export type MudancaPlanilha = {
@@ -112,26 +115,57 @@ export type LlmReport = {
 async function lerPlanilha(): Promise<ItemPlanilha[]> {
   try {
     const sheets = await getGoogleSheetsClient();
+    // Nova estrutura (CEO inseriu DATA e HORA nas colunas B e C em 01/08/2026):
+    // A=Nº | B=DATA | C=HORA | D=Item | E=Responsável | F=Estado | G=Prioridade
+    // H=Depend.de | I=Em linguagem de leigo | J=Notas | K=Solicitacao
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: PLANILHA_ID,
-      range: "A2:I200",   // Nº | Item | Resp | Estado | Prio | Hash | Desc | Notas | Solicitacao
+      range: "A2:K200",
     });
     return (resp.data.values ?? [])
-      .filter(r => r[0] && r[1])
-      .map(r => ({
+      .filter(r => r[0] && r[3])   // Nº (col A) e Item (col D) obrigatórios
+      .map((r, idx) => ({
+        linhaSheet:  idx + 2,          // +2: linha 1 é cabeçalho; array 0-based
         nro:         String(r[0] ?? ""),
-        item:        String(r[1] ?? ""),
-        resp:        String(r[2] ?? ""),
-        estado:      String(r[3] ?? ""),
-        prio:        String(r[4] ?? ""),
-        hash:        String(r[5] ?? ""),
-        descricao:   String(r[6] ?? ""),
-        notas:       String(r[7] ?? ""),
-        solicitacao: String(r[8] ?? ""),   // coluna I — handoff entre LLMs
+        data:        String(r[1] ?? ""),
+        hora:        String(r[2] ?? ""),
+        item:        String(r[3] ?? ""),
+        resp:        String(r[4] ?? ""),
+        estado:      String(r[5] ?? ""),
+        prio:        String(r[6] ?? ""),
+        hash:        String(r[7] ?? ""),
+        descricao:   String(r[8] ?? ""),
+        notas:       String(r[9]  ?? ""),
+        solicitacao: String(r[10] ?? ""),
       }));
   } catch (e) {
     logger.warn({ err: e }, "slack-reporter: falha ao ler planilha Google Sheets");
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Escreve DATA e HORA automáticos na planilha quando estado muda (BRT)
+// ---------------------------------------------------------------------------
+async function escreverDataHoraSeVazio(
+  linhaSheet: number,
+  dataAtual: string,
+  dataFormatada: string,
+  horaFormatada: string,
+): Promise<void> {
+  // Só escreve se a célula DATA (coluna B) estiver vazia — não sobrescreve datas existentes
+  if (dataAtual.trim()) return;
+  try {
+    const sheets = await getGoogleSheetsClient();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: PLANILHA_ID,
+      range:         `B${linhaSheet}:C${linhaSheet}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [[dataFormatada, horaFormatada]] },
+    });
+    logger.info({ linhaSheet, dataFormatada, horaFormatada }, "slack-reporter: DATA/HORA gravados na planilha");
+  } catch (e) {
+    logger.warn({ err: e, linhaSheet }, "slack-reporter: falha ao gravar DATA/HORA");
   }
 }
 
@@ -261,6 +295,21 @@ export async function buildLlmReport(horas = 1): Promise<LlmReport> {
     await salvarEstado(itensPlanilhaAtual);
   }
 
+  // ── AUTO-PREENCHER DATA/HORA quando estado muda (best-effort, não bloqueia) ──
+  // Para cada item cujo estado mudou, grava a DATA e HORA BRT nas colunas B e C
+  // da planilha — se ainda estiverem vazias (não sobrescreve datas já registradas).
+  const agora       = brtNow();
+  const dataFmt     = agora.toLocaleDateString("pt-BR");           // "DD/MM/AAAA"
+  const horaFmt     = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); // "HH:MM"
+  const nrosMudados = new Set(mudancasPlanilha.filter(m => m.tipo === "estado" || m.tipo === "novo").map(m => m.nro));
+
+  for (const item of itensPlanilhaAtual) {
+    if (nrosMudados.has(item.nro) && item.linhaSheet) {
+      // Fire-and-forget: gravar DATA/HORA sem bloquear o relatório
+      void escreverDataHoraSeVazio(item.linhaSheet, item.data, dataFmt, horaFmt);
+    }
+  }
+
   // Itens com estado CONCLUIDO — para o bloco emoldurado do Slack
   const itensConcluidos = itensPlanilhaAtual.filter(i => i.estado.toUpperCase() === "CONCLUIDO");
 
@@ -353,52 +402,64 @@ function montarTabelaConcluidos(items: ItemPlanilha[]): string {
 
   // Larguras fixas das colunas (chars)
   const W_NRO  = 4;
-  const W_ITEM = 38;
+  const W_DATA = 10;  // "DD/MM/AAAA"
+  const W_HORA = 5;   // "HH:MM"
+  const W_ITEM = 30;
   const W_RESP = 14;
-  const W_SOL  = 30;
+  const W_SOL  = 22;
 
-  const barTop = `╔${"═".repeat(W_NRO+2)}╤${"═".repeat(W_ITEM+2)}╤${"═".repeat(W_RESP+2)}╤${"═".repeat(W_SOL+2)}╗`;
-  const barSep = `╠${"═".repeat(W_NRO+2)}╪${"═".repeat(W_ITEM+2)}╪${"═".repeat(W_RESP+2)}╪${"═".repeat(W_SOL+2)}╣`;
-  const barBot = `╚${"═".repeat(W_NRO+2)}╧${"═".repeat(W_ITEM+2)}╧${"═".repeat(W_RESP+2)}╧${"═".repeat(W_SOL+2)}╝`;
+  const sep = (w: number) => "═".repeat(w + 2);
+  const barTop = `╔${sep(W_NRO)}╤${sep(W_DATA)}╤${sep(W_HORA)}╤${sep(W_ITEM)}╤${sep(W_RESP)}╤${sep(W_SOL)}╗`;
+  const barSep = `╠${sep(W_NRO)}╪${sep(W_DATA)}╪${sep(W_HORA)}╪${sep(W_ITEM)}╪${sep(W_RESP)}╪${sep(W_SOL)}╣`;
+  const barBot = `╚${sep(W_NRO)}╧${sep(W_DATA)}╧${sep(W_HORA)}╧${sep(W_ITEM)}╧${sep(W_RESP)}╧${sep(W_SOL)}╝`;
   const blank  = (w: number) => " ".repeat(w);
 
-  // Monta as linhas de uma célula multi-linha alinhada
-  function montarLinhaMulti(nro: string, item: string, resp: string, sol: string): string[] {
+  function montarLinhaMulti(
+    nro: string, data: string, hora: string, item: string, resp: string, sol: string,
+  ): string[] {
     const nroL  = wrapCol(nro,  W_NRO);
+    const dataL = wrapCol(data, W_DATA);
+    const horaL = wrapCol(hora, W_HORA);
     const itemL = wrapCol(item, W_ITEM);
     const respL = wrapCol(resp, W_RESP);
     const solL  = wrapCol(sol,  W_SOL);
-    const h = Math.max(nroL.length, itemL.length, respL.length, solL.length);
+    const h = Math.max(nroL.length, dataL.length, horaL.length, itemL.length, respL.length, solL.length);
     const out: string[] = [];
     for (let i = 0; i < h; i++) {
       out.push(
-        `║ ${nroL[i]  ?? blank(W_NRO)} │ ${itemL[i] ?? blank(W_ITEM)} │ ${respL[i] ?? blank(W_RESP)} │ ${solL[i]  ?? blank(W_SOL)} ║`
+        `║ ${nroL[i]  ?? blank(W_NRO)}  │` +
+        ` ${dataL[i] ?? blank(W_DATA)} │` +
+        ` ${horaL[i] ?? blank(W_HORA)} │` +
+        ` ${itemL[i] ?? blank(W_ITEM)} │` +
+        ` ${respL[i] ?? blank(W_RESP)} │` +
+        ` ${solL[i]  ?? blank(W_SOL)} ║`
       );
     }
     return out;
   }
 
-  // Mostrar apenas os últimos 10 itens (maior nro = mais recente) para não ultrapassar 3000 chars
+  // Últimos 10 itens (maior nro = mais recente)
   const MAX_ROWS = 10;
   const itensSorted = [...items].sort((a, b) => Number(b.nro) - Number(a.nro)).slice(0, MAX_ROWS).reverse();
   const omitidos    = items.length - itensSorted.length;
 
   const rows: string[] = [
     barTop,
-    ...montarLinhaMulti("Nº", "Item", "Agente", "Pedido por / Esperado de"),
+    ...montarLinhaMulti("Nº", "Data", "Hora", "Item", "Agente", "Pedido / Handoff"),
     barSep,
   ];
 
   for (const it of itensSorted) {
-    // solicitacao: o que o agente pode esperar do outro LLM ou do CEO
-    const sol = it.solicitacao?.trim() || "—";
-    rows.push(...montarLinhaMulti(it.nro, it.item, it.resp || "Dr. Replit", sol));
+    const sol  = it.solicitacao?.trim() || "—";
+    const data = it.data?.trim() || "—";
+    const hora = it.hora?.trim() || "—";
+    rows.push(...montarLinhaMulti(it.nro, data, hora, it.item, it.resp || "Dr. Replit", sol));
   }
   rows.push(barBot);
 
   let tabela = "```\n" + rows.join("\n") + "\n```";
   if (omitidos > 0) {
-    tabela += `\n_... e mais ${omitidos} item(ns) anteriores — ver planilha completa no link abaixo._`;
+    tabela += `\n_... e mais ${omitidos} item(ns) anteriores — ver planilha completa._`;
   }
   return tabela;
 }

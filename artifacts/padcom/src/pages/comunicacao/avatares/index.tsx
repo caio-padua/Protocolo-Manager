@@ -137,10 +137,10 @@ function StatusPanel({ status }: { status: Required<StatusResult> }) {
 
 function UsoPanel({ uso }: { uso: UsoMes }) {
   const stats = [
-    { label: "Áudios gerados (mês)", valor: (uso.totalVoz ?? 0),      icon: Mic,       color: "text-violet-400" },
-    { label: "Vídeos gerados (mês)", valor: (uso.totalVideo ?? 0),    icon: Video,      color: "text-amber-400" },
-    { label: "Caracteres (TTS)",     valor: (uso.charsVoz ?? 0).toLocaleString("pt-BR"),   icon: BarChart3, color: "text-sky-400" },
-    { label: "Segundos de vídeo",    valor: (uso.segundosVideo ?? 0).toFixed(1), icon: BarChart3, color: "text-sky-400" },
+    { label: "Áudios gerados (mês)", valor: String(uso.totalVoz   ?? 0),                           icon: Mic,       color: "text-violet-400" },
+    { label: "Vídeos gerados (mês)", valor: String(uso.totalVideo ?? 0),                           icon: Video,     color: "text-amber-400" },
+    { label: "Caracteres (TTS)",     valor: Number(uso.charsVoz   ?? 0).toLocaleString("pt-BR"),   icon: BarChart3, color: "text-sky-400" },
+    { label: "Segundos de vídeo",    valor: Number(uso.segundosVideo ?? 0).toFixed(1),             icon: BarChart3, color: "text-sky-400" },
   ];
   return (
     <div className="panel-3d-sub p-4">

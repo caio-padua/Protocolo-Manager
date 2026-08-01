@@ -46,6 +46,11 @@ export interface RegistrarUsoParams {
  */
 export async function registrarUso(params: RegistrarUsoParams): Promise<void> {
   try {
+    // Data e hora separadas para billing pay-per-use (GROUP BY data_uso, hora_uso)
+    const agora    = new Date();
+    const dataUso  = agora.toISOString().slice(0, 10);                  // "YYYY-MM-DD"
+    const horaUso  = agora.toISOString().slice(11, 19);                 // "HH:MM:SS"
+
     await db.insert(avatarUsoLogTable).values({
       empresaId:  params.empresaId,
       avatarId:   params.avatarId ?? null,
@@ -58,6 +63,8 @@ export async function registrarUso(params: RegistrarUsoParams): Promise<void> {
       status:     params.status ?? "ok",
       erro:       params.erro ?? null,
       cfRayId:    params.cfRayId ?? null,
+      dataUso,
+      horaUso,
     });
   } catch (e: any) {
     logger.warn({ err: e?.message }, "avatar-metering: falha ao registrar uso (ignorado)");

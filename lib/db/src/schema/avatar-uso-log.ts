@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, boolean, date, time } from "drizzle-orm/pg-core";
 
 // ============================================================================
 // AVATAR USO LOG — metering de voz (ElevenLabs) e vídeo (HeyGen).
@@ -28,6 +28,13 @@ export const avatarUsoLogTable = pgTable("avatar_uso_log", {
   erro:         text("erro"),
   /** Cloudflare Ray ID do response (header cf-ray) */
   cfRayId:      text("cf_ray_id"),
+  /**
+   * Data e hora de uso em colunas SEPARADAS — obrigatório para billing pay-per-use.
+   * Permite GROUP BY data_uso, hora_uso sem precisar de funções de extração de timestamp.
+   * Exemplo: SELECT data_uso, COUNT(*) FROM avatar_uso_log GROUP BY data_uso
+   */
+  dataUso:      date("data_uso").notNull().defaultNow(),
+  horaUso:      time("hora_uso").notNull().defaultNow(),
   createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
