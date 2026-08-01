@@ -12,7 +12,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
-import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico } from "../lib/slack-reporter";
+import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico, slackGet } from "../lib/slack-reporter";
 import { GLOSSARIO } from "../lib/slack-glossario";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
@@ -550,6 +550,81 @@ router.get("/padaxor/slack/historico", async (req: Request, res: Response): Prom
   } catch (e: any) {
     logger.error({ err: e }, "slack-historico: erro");
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/slack/mensagens?canal=padaxor-projeto&limite=50
+// Lê mensagens REAIS do canal Slack (conversations.history).
+// Diferente de /historico que lê o banco interno — este lê o canal ao vivo.
+// Proposta do Dr. Code (commit e83ab18): qualquer agente lê o canal sem
+// depender do conector de Slack na sessão do aplicativo.
+// Somente leitura — não posta nada, nenhum token novo.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/slack/mensagens", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limite    = Math.min(Number(req.query.limite ?? 50), 200);
+    const nomeCanalParam = (req.query.canal as string) || "padaxor-projeto";
+
+    // 1. Localizar o canal pelo nome (reusa listarCanaisSlack já existente)
+    let channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "";
+
+    if (!channelId) {
+      // Buscar na lista de canais pelo nome
+      const canais = await listarCanaisSlack();
+      const canal  = canais.find(
+        (c: any) => c.name === nomeCanalParam || c.id === nomeCanalParam,
+      );
+      if (!canal) {
+        res.status(404).json({
+          error: `Canal "${nomeCanalParam}" não encontrado. Configure PADAXOR_SLACK_CHANNEL_ID ou passe o ID direto como ?canal=C0BLW5S7GQL`,
+          canaisDisponiveis: canais.slice(0, 10).map((c: any) => ({ id: c.id, nome: c.name })),
+        });
+        return;
+      }
+      channelId = canal.id;
+    }
+
+    // 2. Ler histórico do canal
+    const resp = await slackGet(
+      `/conversations.history?channel=${channelId}&limit=${limite}`,
+    );
+
+    if (!resp.ok) {
+      res.status(502).json({
+        error:   `Slack conversations.history erro: ${resp.error ?? JSON.stringify(resp)}`,
+        canal:   channelId,
+        dica:    resp.error === "not_in_channel"
+          ? "O bot precisa ser convidado para o canal: /invite @padaxor-bot"
+          : resp.error === "channel_not_found"
+          ? "Verifique o ID do canal ou configure PADAXOR_SLACK_CHANNEL_ID"
+          : null,
+      });
+      return;
+    }
+
+    // 3. Formatar mensagens para leitura amigável
+    const mensagens = (resp.messages as any[] ?? []).map((m: any) => ({
+      ts:        m.ts,
+      // Converter timestamp Unix → BRT legível
+      horaBrt:   new Date(Number(m.ts) * 1000).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      tipo:      m.subtype ?? "message",
+      usuario:   m.user ?? m.username ?? m.bot_id ?? "desconhecido",
+      texto:     (m.text as string ?? "").slice(0, 500),   // truncar mensagens longas
+      blocos:    Array.isArray(m.blocks) ? m.blocks.length : 0,
+      arquivos:  Array.isArray(m.files)  ? m.files.length  : 0,
+    }));
+
+    res.json({
+      ok:       true,
+      canal:    { id: channelId, nome: nomeCanalParam },
+      total:    mensagens.length,
+      limite,
+      mensagens,
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "slack-mensagens: erro");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 

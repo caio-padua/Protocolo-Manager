@@ -41,10 +41,10 @@ async function slackPost(path: string, body: Record<string, unknown>) {
   return resp.json() as Promise<{ ok: boolean; error?: string; channels?: any[]; [k: string]: any }>;
 }
 
-async function slackGet(path: string) {
+export async function slackGet(path: string) {
   const connectors = getSlackConnectors();
   const resp = await connectors.proxy("slack", path, { method: "GET" });
-  return resp.json() as Promise<{ ok: boolean; error?: string; channels?: any[]; [k: string]: any }>;
+  return resp.json() as Promise<{ ok: boolean; error?: string; channels?: any[]; messages?: any[]; [k: string]: any }>;
 }
 
 // ---------------------------------------------------------------------------

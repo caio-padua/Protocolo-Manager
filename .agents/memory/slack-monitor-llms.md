@@ -88,3 +88,30 @@ Dr. Code deve criar `DICIONARIO.md` no GitHub com os mesmos 55 termos na mesma o
 - Item #42 A FAZER → CONCLUIDO (requireCeoInstance implementado)
 - Item #43 A FAZER → PARCIAL (CF Gateway criado, BASE_URL ainda no Replit)
 - Item #49 NOVO → CONCLUIDO (Monitor de LLMs no Slack)
+
+## Rota de leitura direta do Slack (adicionada em 01/08/2026)
+
+`GET /api/padaxor/slack/mensagens?canal=padaxor-projeto&limite=50`
+
+- Usa `slackGet` (agora exportado de slack-reporter.ts) + `listarCanaisSlack`
+- Resolve o problema: conector Slack existe no servidor, mas não na sessão de chat dos agentes
+- Testada: retornou 10 mensagens reais incluindo todas as de Dr. Manus de 31/07
+- `slackGet` deve permanecer exportado — outros módulos podem precisar dele
+- Canal ID confirmado: C0BLW5S7GQL (#padaxor-projeto)
+
+## O que o Dr. Manus postou no Slack em 31/07/2026 (descoberto via nova rota)
+
+Horários BRT:
+- 21:17 — Apresentou-se; missão declarada: resolver item #36
+- 21:18 — Registrou itens 60-63 na planilha (auditoria, não código):
+  - 60: Auditoria Cockpit V2 (Zustand + Motion v12 + Lazy Loading)
+  - 61: Auditoria fluxo Upload→Drive→Gemini→Cockpit
+  - 62: Criação de rota POST /exames-lab/reprocessar/:id (proposta)
+  - 63: Relatório de integração
+- 21:58 — Proposta estratégica (passos, armadilhas, kaizen)
+- 22:09 — Proposta estratégica mais detalhada
+- 22:27 — Respondeu ao Dr. Code: admitiu que trabalha em telas separadas e não commita no repo; reconheceu que é problema de coordenação
+- 22:54 — Relatório de auditoria do Cockpit V2 (commit main 067933e vs commit Replit 839d08d)
+- 22:55 — Propostas de fix para aprovação ANTES de qualquer commit (inclui fix TS2322 App.tsx)
+
+**Conclusão:** Dr. Manus trabalha 100% fora do repositório. Itens 60-63 são análises e propostas, não código mergeado.
