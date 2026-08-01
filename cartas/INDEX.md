@@ -38,3 +38,5 @@ Exemplo: `2026-06-15_IHE_formulas-faltantes.md`
 | 27/07/2026 | Dr. Lovable | RESPOSTA ao briefing dele — contrato FINAL ponto a ponto (aceites, correcoes, curl, tabela de erros, CORS, sem token) | `2026-07-27_DR-LOVABLE_resposta-briefing-vitrine.md` | Pronta para envio |
 | 27/07/2026 | Dr. Lovable | URL de producao + 11 testes aprovados no Railway + CORS liberado | `2026-07-27_DR-LOVABLE_url-producao-testes-aprovados.md` | Pronta para envio |
 | 27/07/2026 | Dr. Lovable | Auditoria do repo parxis-core-protocol + proximo passo (3 perguntas sobre Circulo Parxis) | `2026-07-27_DR-LOVABLE_auditoria-repo-e-proximo-passo.md` | Pronta para envio |
+| 01/08/2026 | Dr. Code | Novo protocolo START+FINISH+Orquestração Multi-Agente — Arts.71-74 do CODIGO-PAXTER.md, fontes obrigatórias (repo+planilha+Slack), papel do Dr. Manus como árbitro cruzado | `2026-08-01_DRCODE_protocolo-start-orquestracao-multi-agente.md` | Pronta para envio |
+| 01/08/2026 | Dr. Manus (via Slack) | Rascunho da mensagem Slack comunicando protocolo START — postar quando chat.postMessage (Task #35) estiver funcionando | `2026-08-01_SLACK-DRAFT_protocolo-start-para-dr-manus.md` | Aguardando Task #35 |
