@@ -14,8 +14,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Mic, Video, MessageSquare, Settings, Zap,
   AlertCircle, CheckCircle2, XCircle, BarChart3, Send,
+  Radio, History, Users,
 } from "lucide-react";
 import AvatarConfig from "./AvatarConfig";
+import { DisparadorAvatar } from "./DisparadorAvatar";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -383,11 +385,108 @@ function DisparadorVoz({ avatares }: { avatares: ClinicAvatar[] }) {
   );
 }
 
+// ─── Histórico de Envios por Avatar ──────────────────────────────────────────
+
+interface EnvioHistorico {
+  id: number; canal: string; canalEntrega: string; status: string;
+  dataEnvio: string; horaEnvio: string; contexto: string | null;
+  textoEnviado: string | null; erro: string | null; clienteId: number | null;
+}
+
+function HistoricoAvatares({ avatares }: { avatares: ClinicAvatar[] }) {
+  const [avatarId, setAvatarId] = useState<number | null>(avatares[0]?.id ?? null);
+
+  const { data, isLoading } = useQuery<{ historico: EnvioHistorico[] }>({
+    queryKey:  ["avatar-historico", avatarId],
+    queryFn:   () => avatarId
+      ? fetch(`/api/avatares/${avatarId}/historico?limite=50`, { credentials: "include" }).then(r => r.json())
+      : Promise.resolve({ historico: [] }),
+    staleTime: 30_000,
+    enabled:   !!avatarId,
+  });
+
+  const historico = data?.historico ?? [];
+
+  const statusColor = (s: string) => s === "ok" ? "text-emerald-400" : s === "erro" ? "text-red-400" : "text-white/40";
+  const statusLabel = (s: string) => s === "ok" ? "Enviado" : s === "erro" ? "Erro" : "Pulado";
+
+  return (
+    <div className="panel-3d-sub rounded-xl p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-gold uppercase tracking-widest">
+        Histórico de Envios
+      </h3>
+
+      {avatares.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {avatares.map(a => (
+            <button
+              key={a.id}
+              onClick={() => setAvatarId(a.id)}
+              className={`px-3 py-1 rounded-lg border text-xs transition-all ${
+                avatarId === a.id
+                  ? "border-gold/50 bg-gold/10 text-gold"
+                  : "border-white/10 text-white/50 hover:border-white/20"
+              }`}
+            >
+              {a.nomeExibido}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-white/40 text-xs py-4 text-center">Carregando histórico…</p>
+      ) : historico.length === 0 ? (
+        <p className="text-white/40 text-xs py-4 text-center">Nenhum envio registrado para este avatar.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="text-left text-white/40 font-medium py-2 pr-3">Data/Hora</th>
+                <th className="text-left text-white/40 font-medium py-2 pr-3">Canal</th>
+                <th className="text-left text-white/40 font-medium py-2 pr-3">Entrega</th>
+                <th className="text-left text-white/40 font-medium py-2 pr-3">Status</th>
+                <th className="text-left text-white/40 font-medium py-2 pr-3">Contexto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historico.map(h => (
+                <tr key={h.id} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="py-1.5 pr-3 text-white/60 whitespace-nowrap">
+                    {h.dataEnvio} {h.horaEnvio}
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    {h.canal === "VOICE" ? (
+                      <span className="flex items-center gap-1 text-violet-400"><Mic className="w-3 h-3" /> Voz</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-400"><Video className="w-3 h-3" /> Vídeo</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-3 text-white/60">{h.canalEntrega}</td>
+                  <td className={`py-1.5 pr-3 font-medium ${statusColor(h.status)}`}>
+                    {statusLabel(h.status)}
+                    {h.erro && <span className="text-red-300/60 font-normal ml-1">— {h.erro.slice(0,30)}</span>}
+                  </td>
+                  <td className="py-1.5 pr-3 text-white/40">{h.contexto ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
+
+type Aba = "avatares" | "disparar" | "historico";
 
 export default function AvatarManager() {
   const queryClient = useQueryClient();
   const [configAvatar, setConfigAvatar] = useState<ClinicAvatar | null>(null);
+  const [aba, setAba] = useState<Aba>("avatares");
 
   const { data: avatarData, isLoading: loadingAvatares } = useQuery<{ avatares: ClinicAvatar[] }>({
     queryKey: ["avatares"],
@@ -463,8 +562,36 @@ export default function AvatarManager() {
         </div>
       )}
 
-      {/* Disparador manual de voz */}
-      {avatares.length > 0 && <DisparadorVoz avatares={avatares} />}
+      {/* Abas de navegação */}
+      <div className="flex gap-1 border-b border-white/10 pb-0">
+        {([
+          { id: "avatares",  label: "Avatares",  icon: Radio    },
+          { id: "disparar",  label: "Disparar",  icon: Send     },
+          { id: "historico", label: "Histórico", icon: History  },
+        ] as { id: Aba; label: string; icon: any }[]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setAba(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all ${
+              aba === id
+                ? "border-gold text-gold bg-gold/5"
+                : "border-transparent text-white/40 hover:text-white/70"
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conteúdo da aba */}
+      {aba === "disparar" && (
+        <DisparadorAvatar avatares={avatares} apiBase="" />
+      )}
+
+      {aba === "historico" && (
+        <HistoricoAvatares avatares={avatares} />
+      )}
 
       {/* Modal de configuração */}
       {configAvatar && (

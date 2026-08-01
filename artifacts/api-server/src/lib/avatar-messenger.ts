@@ -42,6 +42,9 @@ export function getAudioTemp(key: string): Buffer | null {
   return entry.buffer;
 }
 
+/** Armazena MP3 no cache em memória e retorna a key (usado pelo Motor Hermes). */
+export function setAudioTemp(buffer: Buffer): string { return storeAudioTemp(buffer); }
+
 function storeAudioTemp(buffer: Buffer): string {
   const key = crypto.randomUUID();
   audioCache.set(key, { buffer, expiresAt: Date.now() + 5 * 60_000 });

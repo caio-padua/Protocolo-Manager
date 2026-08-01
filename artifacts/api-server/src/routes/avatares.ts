@@ -15,11 +15,14 @@
 import { Router }              from "express";
 import { db, clinicAvatarsTable, clientsTable } from "@workspace/db";
 import { eq, and }             from "drizzle-orm";
+import { sql }                 from "drizzle-orm";
 import { z }                   from "zod";
 import { listarVozes, gerarAudio, checkElevenLabsStatus } from "../lib/elevenlabs";
 import { listarAvatares, gerarVideo, buscarStatusVideo, checkHeyGenStatus } from "../lib/heygen";
 import { getAudioTemp, enviarVozManual } from "../lib/avatar-messenger";
 import { resumoUsoMes } from "../lib/avatar-metering";
+import { buscarHistoricoAvatar } from "../lib/avatar-envios";
+import { enviarMensagemPaxter } from "../lib/messaging/engine";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -298,6 +301,174 @@ router.post("/api/avatares/enviar-voz", async (req, res) => {
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao enviar voz manual");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ─── POST /api/avatares/:id/disparar ─────────────────────────────────────────
+// Disparo MANUAL de voz OU vídeo do avatar para um cliente específico.
+// Usado pela tela "Disparar Avatar" no PADCOM.
+
+const dispararSchema = z.object({
+  clienteId: z.number().int().positive(),
+  texto:     z.string().min(1).max(3000),
+  canal:     z.enum(["VOICE", "VIDEO"]),
+  canalEntrega: z.enum(["WHATSAPP", "TELEGRAM", "EMAIL"]).optional().default("WHATSAPP"),
+});
+
+router.post("/api/avatares/:id/disparar", async (req, res) => {
+  try {
+    const avatarId = parseInt(req.params.id);
+    if (isNaN(avatarId)) return res.status(400).json({ error: "avatarId inválido" });
+
+    const parsed = dispararSchema.parse(req.body);
+    const empresaId = empresaIdFromReq(req);
+
+    // Buscar dados do cliente
+    const [cliente] = await db
+      .select({ phone: clientsTable.phone, email: clientsTable.email,
+                name: clientsTable.name, empresaId: clientsTable.empresaId })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, parsed.clienteId))
+      .limit(1);
+
+    if (!cliente) return res.status(404).json({ error: "Cliente não encontrado" });
+
+    const destino = {
+      telefone:       cliente.phone  ?? null,
+      email:          cliente.email  ?? null,
+      telegramChatId: null,
+      nome:           cliente.name,
+    };
+
+    const resultado = await enviarMensagemPaxter(
+      {
+        titulo:    `Mensagem do seu médico — ${parsed.canal === "VOICE" ? "Áudio" : "Vídeo"}`,
+        paragrafos: [parsed.texto],
+      },
+      destino,
+      [parsed.canal as any],
+      {
+        empresaId: cliente.empresaId ?? empresaId,
+        avatarId,
+        clienteId: parsed.clienteId,
+        contexto:  "disparar_manual",
+      },
+    );
+
+    res.json({
+      ok:       resultado.algumEnviado,
+      canal:    parsed.canal,
+      cliente:  { id: parsed.clienteId, nome: cliente.name },
+      resultado: resultado.resultados,
+    });
+  } catch (e: any) {
+    if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
+    logger.error({ err: e?.message }, "avatares: erro ao disparar");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ─── POST /api/avatares/campanha ──────────────────────────────────────────────
+// Dispara voz/vídeo para uma lista de clientes. Retorna jobId (campaignId)
+// para acompanhamento. Envio em background via Promise.allSettled.
+
+const campanhaSchema = z.object({
+  avatarId:    z.number().int().positive(),
+  clienteIds:  z.array(z.number().int().positive()).min(1).max(200),
+  texto:       z.string().min(1).max(3000),
+  canal:       z.enum(["VOICE", "VIDEO"]),
+});
+
+router.post("/api/avatares/campanha", async (req, res) => {
+  try {
+    const parsed = campanhaSchema.parse(req.body);
+    const empresaId = empresaIdFromReq(req);
+
+    // Gera um ID de campanha para acompanhamento
+    const campaignId = `camp_${Date.now()}`;
+
+    // Responder IMEDIATAMENTE — disparo em background para não travar
+    res.json({
+      ok: true,
+      campaignId,
+      totalClientes: parsed.clienteIds.length,
+      canal:         parsed.canal,
+      mensagem:      "Campanha enfileirada. Os envios serão processados em background.",
+    });
+
+    // Disparo assíncrono (best-effort, fire-and-forget)
+    setImmediate(async () => {
+      const clientes = await db
+        .select({ id: clientsTable.id, phone: clientsTable.phone, email: clientsTable.email,
+                  name: clientsTable.name, empresaId: clientsTable.empresaId })
+        .from(clientsTable)
+        .where(eq(clientsTable.empresaId, empresaId));
+
+      const filtrados = clientes.filter(c => parsed.clienteIds.includes(c.id));
+
+      const resultados = await Promise.allSettled(
+        filtrados.map(cliente =>
+          enviarMensagemPaxter(
+            { titulo: "Mensagem do Instituto Pádua", paragrafos: [parsed.texto] },
+            { telefone: cliente.phone ?? null, email: cliente.email ?? null, nome: cliente.name },
+            [parsed.canal as any],
+            {
+              empresaId: cliente.empresaId ?? empresaId,
+              avatarId:  parsed.avatarId,
+              clienteId: cliente.id,
+              contexto:  `campanha:${campaignId}`,
+            },
+          )
+        )
+      );
+
+      const ok  = resultados.filter(r => r.status === "fulfilled" && (r.value as any).algumEnviado).length;
+      const err = resultados.length - ok;
+      logger.info({ campaignId, ok, err, total: resultados.length }, "[avatar] campanha concluída");
+    });
+
+  } catch (e: any) {
+    if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
+    logger.error({ err: e?.message }, "avatares: erro na campanha");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ─── GET /api/avatares/:id/historico ─────────────────────────────────────────
+// Histórico de envios de voz e vídeo por avatar.
+
+router.get("/api/avatares/:id/historico", async (req, res) => {
+  try {
+    const avatarId = parseInt(req.params.id);
+    if (isNaN(avatarId)) return res.status(400).json({ error: "avatarId inválido" });
+
+    const limite = Math.min(Number(req.query.limite ?? 50), 200);
+    const historico = await buscarHistoricoAvatar(avatarId, limite);
+    res.json({ historico });
+  } catch (e: any) {
+    logger.error({ err: e?.message }, "avatares: erro ao buscar histórico");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ─── GET /api/avatares/fila-video ────────────────────────────────────────────
+// Estado da fila de vídeos pendentes / em geração (painel CEO).
+
+router.get("/api/avatares/fila-video", async (req, res) => {
+  try {
+    const empresaId = empresaIdFromReq(req);
+    const rows = await db.execute(sql`
+      SELECT id, avatar_id, cliente_id, canal_destino, status, tentativas,
+             video_url, erro, contexto, created_at, entregue_at
+      FROM avatar_video_queue
+      WHERE empresa_id = ${empresaId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    res.json({ fila: rows.rows });
+  } catch (e: any) {
+    logger.error({ err: e?.message }, "avatares: erro ao buscar fila de vídeo");
     res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
