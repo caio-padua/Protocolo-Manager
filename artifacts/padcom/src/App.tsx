@@ -226,8 +226,20 @@ function Router() {
             <Route path="/dieta" component={Dieta} />
             <Route path="/treino" component={Treino} />
             <Route path="/craniotomia" component={Craniotomia} />
-            <Route path="/cockpit" component={Cockpit} />
-            <Route path="/cockpit-cliente" component={CockpitCliente} />
+            {/* Telas legadas do cockpit, mantidas como rede de seguranca.
+                ANTES estavam em "/cockpit" e "/cockpit-cliente" — os MESMOS
+                caminhos ja declarados la em cima (v2, linha ~175, e o redirect
+                de /cockpit-cliente). Dentro de um mesmo <Switch> so a PRIMEIRA
+                rota que casa e renderizada, entao estas duas eram inalcancaveis:
+                codigo morto que parecia vivo para quem lia daqui.
+                Renomeadas em vez de apagadas — o monolito legado continua sendo
+                o fallback se a v2 falhar (Art. 1, paragrafo 7: aditivo). */}
+            <Route path="/cockpit-legado" component={Cockpit} />
+            {/* Envolvido em funcao, igual a rota "/cockpit" la em cima: o
+                CockpitShell recebe CockpitShellProps, e o `component` do wouter
+                entrega RouteComponentProps. Passar o componente direto e o
+                TS2322 que o Dr. Manus apontou. */}
+            <Route path="/cockpit-cliente-legado" component={() => <CockpitCliente />} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />

@@ -12,7 +12,13 @@ export interface UsePlanoResult {
 
 export function usePlano(): UsePlanoResult {
   // MVP: desbloqueado para todos. Para fechar, trocar para "basico".
-  const plano: PlanoId = "premium";
+  //
+  // O `as PlanoId` NAO e enfeite: sem ele o TypeScript estreita a constante
+  // para o literal "premium", e a comparacao com "basico" logo abaixo vira
+  // erro TS2367 ("os tipos nao tem sobreposicao"). Mantendo o tipo da uniao,
+  // as duas comparacoes continuam validas e o dia em que este valor vier da
+  // API nao exige tocar em componente nenhum — que e o motivo deste arquivo.
+  const plano = "premium" as PlanoId;
   return {
     plano,
     isPremium: plano === "premium",

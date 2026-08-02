@@ -676,6 +676,97 @@ export async function listarCanaisSlack(): Promise<{ id: string; name: string }[
 }
 
 // ---------------------------------------------------------------------------
+// Ler um canal do Slack
+// ---------------------------------------------------------------------------
+// POR QUE ESTA FUNCAO EXISTE
+//
+// O conector de Slack e por superficie e por sessao: o CEO liga no aplicativo
+// e a sessao do Claude Code continua sem enxergar. Consequencia real de
+// 31/07/2026: o Dr. Code afirmou que "nao chegou nada do Dr. Manus" porque
+// procurou nas pastas do repositorio, sem conseguir ler o canal onde a
+// mensagem estava.
+//
+// Uma rota no proprio servidor resolve isso de vez: o token ja vive no cofre
+// de conectores, o endereco e sempre o mesmo, e QUALQUER agente le — Dr. Code,
+// Dr. Manus, Dr. Lovable, Dr. Chat. O conector serve um; a rota serve a equipe.
+//
+// Somente leitura. Postar continua sendo postSlackReport.
+// ---------------------------------------------------------------------------
+export type MensagemSlack = {
+  quando: string;   // 31/07/2026 21:17 — horario de Brasilia
+  quem: string;     // nome legivel, nao o identificador U0123
+  texto: string;
+  thread: boolean;  // true = resposta dentro de um assunto, nao mensagem solta
+};
+
+export async function lerCanalSlack(
+  canal: string,
+  limite = 50,
+): Promise<{ canalId: string; canalNome: string; total: number; mensagens: MensagemSlack[] }> {
+  // Aceita tanto "padaxor-projeto" quanto "#padaxor-projeto" quanto o ID "C09..."
+  const alvo = canal.replace(/^#/, "").trim();
+  let canalId = alvo;
+  let canalNome = alvo;
+
+  if (!/^[CGD][A-Z0-9]{6,}$/.test(alvo)) {
+    const canais = await listarCanaisSlack();
+    const achado = canais.find((c) => c.name === alvo);
+    if (!achado) {
+      throw new Error(
+        `Canal "${alvo}" nao encontrado. Disponiveis: ${canais.map((c) => c.name).join(", ")}`,
+      );
+    }
+    canalId = achado.id;
+    canalNome = achado.name;
+  }
+
+  const seguro = Math.min(Math.max(limite, 1), 200);
+  const data = await slackGet(
+    `/conversations.history?channel=${encodeURIComponent(canalId)}&limit=${seguro}`,
+  );
+  if (!data.ok) {
+    throw new Error(`Slack API erro ao ler ${canalNome}: ${data.error ?? "desconhecido"}`);
+  }
+
+  const brutas: any[] = data.messages ?? [];
+
+  // Identificador de usuario (U0123ABC) nao diz nada a quem le. Traduz uma vez
+  // so, em lote, em vez de uma chamada por mensagem.
+  const nomePorId = new Map<string, string>();
+  try {
+    const users = await slackGet("/users.list?limit=500");
+    if (users.ok) {
+      for (const u of (users["members"] as any[]) ?? []) {
+        nomePorId.set(u.id, u.profile?.real_name || u.profile?.display_name || u.name || u.id);
+      }
+    }
+  } catch (e) {
+    // Sem a traducao o historico ainda serve; falhar aqui seria pior que o ruido.
+    logger.warn({ err: e }, "lerCanalSlack: nao traduziu identificadores de usuario");
+  }
+
+  const mensagens: MensagemSlack[] = brutas.map((m) => ({
+    quando: new Date(Number(m.ts) * 1000).toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    quem: m.bot_profile?.name ?? nomePorId.get(m.user) ?? m.user ?? m.username ?? "desconhecido",
+    texto: String(m.text ?? ""),
+    thread: Boolean(m.thread_ts && m.thread_ts !== m.ts),
+  }));
+
+  // Slack devolve do mais novo para o mais antigo. Ordem de leitura humana e
+  // a contraria: quem chega no meio da conversa le de cima para baixo.
+  mensagens.reverse();
+
+  return { canalId, canalNome, total: mensagens.length, mensagens };
+}
+
+// ---------------------------------------------------------------------------
 // Postar no Slack
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------

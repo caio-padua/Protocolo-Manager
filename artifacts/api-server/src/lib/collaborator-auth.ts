@@ -1,4 +1,6 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+
+import { conferirHash, gerarHash, precisaRegravarRotulo } from "./passwordScheme.js";
 
 // Portao do Colaborador (Onda 8.2). Login POR colaborador (decisao do CEO em
 // 20/06/2026) para permitir auditoria de quem entrou e o que fez. Reaproveita o
@@ -38,25 +40,20 @@ export function verifyCollaboratorToken(token: string): CollaboratorClaims | nul
   }
 }
 
-// Hash de senha com scrypt + salt aleatorio. Formato persistido:
-// "scrypt$<salt-hex>$<derivado-hex>". A senha em texto puro NUNCA e gravada.
+// Senha do COLABORADOR. A derivacao e o rotulo vivem em passwordScheme.ts,
+// compartilhado com o esquema do paciente. Motivo de existir um modulo comum:
+// ate 30/07/2026 os dois esquemas gravavam com o rotulo identico `scrypt$` e
+// derivavam de formas incompativeis, e um hash no campo errado devolvia
+// `false` — indistinguivel de senha errada. Custou uma noite de investigacao.
+// Ver item 10 da linha de producao.
 export function hashPassword(plain: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const derived = scryptSync(plain, salt, 64).toString("hex");
-  return `scrypt$${salt}$${derived}`;
+  return gerarHash("colaborador", plain);
 }
 
 export function verifyPassword(plain: string, stored: string | null): boolean {
-  if (!stored) return false;
-  const parts = stored.split("$");
-  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
-  const [, salt, expectedHex] = parts;
-  try {
-    const derived = scryptSync(plain, salt, 64);
-    const expected = Buffer.from(expectedHex, "hex");
-    if (derived.length !== expected.length) return false;
-    return timingSafeEqual(derived, expected);
-  } catch {
-    return false;
-  }
+  return conferirHash("colaborador", plain, stored);
 }
+
+// Reexportado para as rotas conseguirem regravar o rotulo antigo no proximo
+// login bem-sucedido, sem pedir nada ao colaborador.
+export { precisaRegravarRotulo };

@@ -1,30 +1,24 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
-// Acesso leve do paciente (Bloco D). Senha SEMPRE com hash forte (scrypt nativo do
-// Node — zero dependencia nova). Formato guardado: `scrypt$<saltHex>$<hashHex>`.
-// NUNCA guardar/logar a senha em texto puro.
+import { conferirHash, gerarHash, precisaRegravarRotulo } from "./passwordScheme.js";
 
-const KEYLEN = 64;
+// Acesso leve do paciente (Bloco D). A derivacao e o rotulo vivem em
+// passwordScheme.ts, compartilhado com o esquema do colaborador. Motivo de
+// existir um modulo comum: ate 30/07/2026 os dois gravavam com o rotulo
+// identico `scrypt$` e derivavam de formas incompativeis, e um hash no campo
+// errado devolvia `false` — indistinguivel de senha errada.
+// Ver item 10 da linha de producao.
+// A senha em texto puro NUNCA e gravada nem registrada em log.
 
 export function hashPassword(plain: string): string {
-  const salt = randomBytes(16);
-  const derived = scryptSync(plain, salt, KEYLEN);
-  return `scrypt$${salt.toString("hex")}$${derived.toString("hex")}`;
+  return gerarHash("paciente", plain);
 }
 
 export function verifyPassword(plain: string, stored: string | null | undefined): boolean {
-  if (!stored) return false;
-  const parts = stored.split("$");
-  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
-  try {
-    const salt = Buffer.from(parts[1], "hex");
-    const expected = Buffer.from(parts[2], "hex");
-    const derived = scryptSync(plain, salt, expected.length);
-    return expected.length === derived.length && timingSafeEqual(expected, derived);
-  } catch {
-    return false;
-  }
+  return conferirHash("paciente", plain, stored);
 }
+
+export { precisaRegravarRotulo };
 
 // Senha provisoria legivel: 8 caracteres sem simbolos ambiguos (sem I, O, 0, 1).
 // Uso unico — o paciente e OBRIGADO a trocar no 1o acesso (mustChangePassword).

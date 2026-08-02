@@ -4,6 +4,7 @@
  *
  * Endpoints:
  *   GET  /api/padaxor/slack/canais            — lista canais (encontrar o ID do #padaxor-projeto)
+ *   GET  /api/padaxor/slack/mensagens         — LE as mensagens do canal no Slack (independe do conector)
  *   GET  /api/padaxor/slack/preview           — gera relatório sem postar (pré-visualização)
  *   POST /api/padaxor/slack/relatorio         — gera e posta no canal configurado
  *   GET  /api/padaxor/drive/planilha-status   — diagnóstico da planilha que não abre
@@ -12,7 +13,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
-import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico } from "../lib/slack-reporter";
+import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, lerCanalSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico } from "../lib/slack-reporter";
 import { GLOSSARIO } from "../lib/slack-glossario";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
@@ -37,6 +38,38 @@ router.get("/padaxor/slack/canais", async (_req: Request, res: Response): Promis
     });
   } catch (e: any) {
     logger.error({ err: e }, "slack-canais: erro");
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Slack — LER as mensagens de um canal (o que faltava)
+// ---------------------------------------------------------------------------
+// GET /api/padaxor/slack/mensagens?canal=padaxor-projeto&limite=50
+//
+// O conector de Slack e por superficie: ligado no aplicativo do CEO, ausente
+// na sessao do agente. Esta rota tira a leitura do canal da dependencia do
+// conector e a poe no proprio sistema, onde o token ja vive no cofre.
+//
+// Vale para TODOS os agentes, nao so para um: Dr. Code, Dr. Manus, Dr. Lovable
+// e Dr. Chat leem o mesmo endereco.
+//
+// NAO CONFUNDIR com /padaxor/slack/historico, mais abaixo neste arquivo:
+//   /historico   le a tabela INTERNA de relatorios ja enviados (banco)
+//   /mensagens   le o CANAL de verdade, no Slack
+// A primeira versao desta rota nasceu chamada /historico e teria ENCOBERTO a
+// outra — no Express, a primeira rota registrada com o mesmo caminho vence, e
+// a minha estava antes. Quem viu foi o Dr. Replit, na revisao. O nome
+// /mensagens e dele.
+// ---------------------------------------------------------------------------
+router.get("/padaxor/slack/mensagens", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const canal = String(req.query.canal ?? "padaxor-projeto");
+    const limite = Number(req.query.limite ?? 50);
+    const dados = await lerCanalSlack(canal, Number.isFinite(limite) ? limite : 50);
+    res.json(dados);
+  } catch (e: any) {
+    logger.error({ err: e }, "slack-mensagens: erro");
     res.status(500).json({ error: e.message });
   }
 });
