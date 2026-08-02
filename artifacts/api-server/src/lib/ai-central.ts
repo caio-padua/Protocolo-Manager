@@ -28,6 +28,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import { logger } from "./logger";
+
 export type AiRequestType =
   | "clinical"   // extração de laudo
   | "ocr"        // OCR de documento (RG, CNH, contrato)
@@ -120,8 +122,12 @@ export async function logAiUsage(params: {
         ${params.custoUsd ?? null}
       )
     `);
-  } catch {
-    // fail silently — ledger nunca derruba o fluxo clínico
+  } catch (err) {
+    // Nunca derruba o fluxo clínico — mas loga para distinguir "sem uso" de "registro quebrado"
+    logger.error(
+      { err: (err as Error).message, empresaId: params.empresaId, provider: params.provider, tipo: params.tipo },
+      "[LEDGER_PERDIDO] evento de consumo de IA NÃO gravado no banco",
+    );
   }
 }
 
