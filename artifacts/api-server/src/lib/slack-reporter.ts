@@ -663,6 +663,45 @@ export function formatarRelatorioSlack(report: LlmReport): object[] {
 }
 
 // ---------------------------------------------------------------------------
+// Escrita pontual na planilha — um campo por vez (nunca apaga o resto)
+// ---------------------------------------------------------------------------
+const CAMPO_COLUNA: Record<string, string> = {
+  estado:     "F",   // col F — Estado
+  notas:      "J",   // col J — Notas
+  hash:       "H",   // col H — Depend.de / sessão de referência
+  resp:       "E",   // col E — Responsável
+  solicitacao:"K",   // col K — Handoff inter-LLM
+};
+
+export async function escreverCampoPlanilha(
+  nro:   string,
+  campo: "estado" | "notas" | "hash" | "resp" | "solicitacao",
+  valor: string,
+): Promise<{ linhaSheet: number; coluna: string }> {
+  const coluna = CAMPO_COLUNA[campo];
+  if (!coluna) throw new Error(`Campo "${campo}" não permitido. Use: ${Object.keys(CAMPO_COLUNA).join(", ")}`);
+
+  // Localiza a linha pelo número do item
+  const itens  = await lerPlanilha();
+  const item   = itens.find(i => String(i.nro).trim() === String(nro).trim());
+  if (!item || !item.linhaSheet) {
+    throw new Error(`Item #${nro} não encontrado na planilha (${itens.length} itens lidos)`);
+  }
+
+  const sheets = await getGoogleSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId:    PLANILHA_ID,
+    range:            `${coluna}${item.linhaSheet}`,
+    valueInputOption: "RAW",
+    requestBody:      { values: [[valor]] },
+  });
+
+  logger.info({ nro, campo, coluna, linhaSheet: item.linhaSheet, valor },
+    "slack-reporter: campo gravado na planilha");
+  return { linhaSheet: item.linhaSheet, coluna };
+}
+
+// ---------------------------------------------------------------------------
 // Listar canais do Slack
 // ---------------------------------------------------------------------------
 export async function listarCanaisSlack(): Promise<{ id: string; name: string }[]> {

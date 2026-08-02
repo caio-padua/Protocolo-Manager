@@ -8,11 +8,12 @@
  *   POST /api/padaxor/slack/relatorio         — gera e posta no canal configurado
  *   GET  /api/padaxor/drive/planilha-status   — diagnóstico da planilha que não abre
  *   POST /api/padaxor/drive/clonar-planilha   — clona .xlsx → Google Sheet nativo
+ *   POST /api/padaxor/planilha/linha          — escrita pontual (campo por campo, nunca apaga o resto)
  */
 
 import { Router, type Request, type Response } from "express";
 import { requireCeoInstance } from "../middleware/tenantContext";
-import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico, slackGet } from "../lib/slack-reporter";
+import { buildLlmReport, formatarRelatorioSlack, listarCanaisSlack, postSlackReport, postTelegramReport, salvarHistorico, consultarHistorico, slackGet, escreverCampoPlanilha } from "../lib/slack-reporter";
 import { GLOSSARIO } from "../lib/slack-glossario";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
@@ -624,6 +625,62 @@ router.get("/padaxor/slack/mensagens", async (req: Request, res: Response): Prom
     });
   } catch (e: any) {
     logger.error({ err: e }, "slack-mensagens: erro");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/padaxor/planilha/linha
+// Escrita pontual na planilha de produção — um campo por vez.
+// Contrato: { nro, campo, valor }
+//   nro:   número do item na col A (ex: "37")
+//   campo: "estado" | "notas" | "hash" | "resp" | "solicitacao"
+//   valor: novo conteúdo da célula
+// Grava SÓ na célula indicada — nunca apaga colunas vizinhas.
+// ---------------------------------------------------------------------------
+router.post("/padaxor/planilha/linha", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nro, campo, valor } = req.body as {
+      nro?:   unknown;
+      campo?: unknown;
+      valor?: unknown;
+    };
+
+    if (!nro || !campo || valor === undefined) {
+      res.status(400).json({
+        error: "Campos obrigatórios: nro, campo, valor",
+        exemplo: { nro: "37", campo: "estado", valor: "CONCLUIDO" },
+        camposPermitidos: ["estado", "notas", "hash", "resp", "solicitacao"],
+      });
+      return;
+    }
+
+    const camposPermitidos = ["estado", "notas", "hash", "resp", "solicitacao"];
+    if (!camposPermitidos.includes(String(campo))) {
+      res.status(400).json({
+        error: `Campo "${campo}" não permitido.`,
+        camposPermitidos,
+      });
+      return;
+    }
+
+    const { linhaSheet, coluna } = await escreverCampoPlanilha(
+      String(nro),
+      campo as "estado" | "notas" | "hash" | "resp" | "solicitacao",
+      String(valor),
+    );
+
+    res.json({
+      ok:         true,
+      nro:        String(nro),
+      campo:      String(campo),
+      coluna,
+      linhaSheet,
+      valor:      String(valor),
+      gravadoEm:  new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    });
+  } catch (e: any) {
+    logger.error({ err: e }, "planilha-linha: erro ao gravar campo");
     res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });

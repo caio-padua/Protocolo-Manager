@@ -121,19 +121,35 @@ export async function runLlmMonitorJob(
   // ── 4. Registro "ambos" — resumo dual-canal do ciclo ───────────────────
   // Só grava se o relatório foi construído e a função foi injetada.
   if (result.reportBuilt && deps.salvarHistorico) {
-    // ambosOk = ambos os canais realmente entregaram.
-    // telegramSkipped (chatId vazio) NÃO é sucesso — é ausência de configuração.
-    const ambosOk = result.slackOk && result.telegramOk;
-    const partesTelegram = result.telegramSkipped
-      ? ["Telegram não configurado (PADAXOR_TELEGRAM_CHAT_ID vazio)"]
-      : [];
-    const erros = [...partesTelegram, result.slackError, result.telegramError]
-      .filter(Boolean).join("; ");
-    await deps.salvarHistorico(report, "ambos", ambosOk, erros || undefined).catch(() => {
-      // salvarHistorico já trata seus próprios erros internamente
-    });
+    // ambosOk: Slack entregou E (Telegram entregou OU Telegram não estava configurado).
+    // telegramSkipped (chatId vazio) é ausência de configuração — não é falha de entrega.
+    const ambosOk = result.slackOk && (result.telegramOk || result.telegramSkipped);
+
+    // Mensagem estruturada: descreve o estado de CADA canal explicitamente.
+    // Permite distinguir "Slack OK, Telegram falhou" de "ambos falharam" no histórico.
+    const descSlack = result.slackOk
+      ? "Slack: OK"
+      : `Slack: falhou — ${result.slackError ?? "erro desconhecido"}`;
+    const descTelegram = result.telegramSkipped
+      ? "Telegram: não configurado"
+      : result.telegramOk
+        ? "Telegram: OK"
+        : `Telegram: falhou — ${result.telegramError ?? "erro desconhecido"}`;
+
+    // Só grava o campo erro quando houve falha real (não quando é só "não configurado")
+    const erroStr = ambosOk ? undefined : `${descSlack} | ${descTelegram}`;
+
+    try {
+      await deps.salvarHistorico(report, "ambos", ambosOk, erroStr);
+    } catch (saveErr) {
+      // salvarHistorico já loga internamente; aqui só garantimos que o ciclo não derruba
+      logger?.warn(
+        { err: saveErr instanceof Error ? saveErr.message : String(saveErr) },
+        "llm-monitor: falha ao gravar registro 'ambos' — ciclo já entregou",
+      );
+    }
     logger?.info(
-      { slackOk: result.slackOk, telegramOk: result.telegramOk, ambosOk },
+      { slackOk: result.slackOk, telegramOk: result.telegramOk, telegramSkipped: result.telegramSkipped, ambosOk },
       "llm-monitor: registro 'ambos' gravado no histórico",
     );
   }
