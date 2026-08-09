@@ -1,3 +1,10 @@
+/**
+ * @deprecated Use PaxterClientSelector em vez deste componente.
+ * import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+ *
+ * Mantido apenas para referência histórica (Regra de Ouro: nunca apagar sem ordem dupla do CEO).
+ * Arquivo migrado em 09/08/2026 — spec: specs/paxter-client-selector.md
+ */
 import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
 import { DriveLinksField } from "@/components/ProcedenciaDocumentosBloco";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
 import DriveWatcherPanel from "@/components/exames/DriveWatcherPanel";
 import ImportarDrivePanel from "@/components/exames/ImportarDrivePanel";
@@ -490,7 +490,7 @@ export default function ExamesCliente() {
       <section className="panel-3d p-5">
         <BlockTitle icon={Upload}>1. Receber exame (PDF)</BlockTitle>
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <ClientPicker
+          <PaxterClientSelector
             clientes={clientes}
             value={clienteId ? Number(clienteId) : null}
             onChange={(id) => setClienteId(id == null ? "" : String(id))}

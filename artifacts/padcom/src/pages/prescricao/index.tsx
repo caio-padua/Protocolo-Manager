@@ -13,7 +13,7 @@ import {
   type Tomada, type FormulaSeed, type Protocolo, type SelectedFormula,
 } from "./data";
 import { useQuery } from "@tanstack/react-query";
-import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
+import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
@@ -67,7 +67,7 @@ export default function PrescricaoPage(
 ) {
   const [patient, setPatient] = useState<PatientData>({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
   // ── Seletor padrão de cliente (A-Z + busca) ──────────────────────────────
-  const [clientes, setClientes] = useState<ClientPickerOption[]>([]);
+  const [clientes, setClientes] = useState<PaxterClientOption[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [duracao, setDuracao] = useState("30");
   const [cid, setCid] = useState("");
@@ -621,7 +621,7 @@ export default function PrescricaoPage(
               <label className="block text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
                 Selecionar Cliente
               </label>
-              <ClientPicker
+              <PaxterClientSelector
                 clientes={clientes}
                 value={selectedClientId}
                 onChange={(id) => {

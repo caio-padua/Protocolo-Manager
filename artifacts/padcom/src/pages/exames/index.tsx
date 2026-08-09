@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientCombobox } from "@/components/ClientCombobox";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import {
   Select,
   SelectContent,
@@ -152,7 +152,7 @@ export default function ExamesPage({
   initialViewMode,
 }: { clientId?: number; embedded?: boolean; initialViewMode?: ViewMode } = {}) {
   const { toast } = useToast();
-  const [clientId, setClientId] = useState<string>(clientIdProp ? String(clientIdProp) : "");
+  const [clientId, setClientId] = useState<number | null>(clientIdProp ?? null);
   const [professionalId, setProfessionalId] = useState<string>("");
   const [categoria, setCategoria] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -165,7 +165,7 @@ export default function ExamesPage({
   const [result, setResult] = useState<EmitResult | null>(null);
 
   useEffect(() => {
-    if (clientIdProp) setClientId(String(clientIdProp));
+    if (clientIdProp) setClientId(clientIdProp);
   }, [clientIdProp]);
 
   const { data: clients } = useQuery<Client[]>({
@@ -637,11 +637,11 @@ export default function ExamesPage({
               <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</label>
               {clientIdProp ? (
                 <div className="field-engraved px-3 py-2 text-sm text-foreground/90">
-                  {clients?.find((c) => String(c.id) === clientId)?.name ?? "Paciente selecionado"}
+                  {clients?.find((c) => c.id === clientId)?.name ?? "Paciente selecionado"}
                 </div>
               ) : (
-                <ClientCombobox
-                  clients={clients ?? []}
+                <PaxterClientSelector
+                  clientes={clients ?? []}
                   value={clientId}
                   onChange={setClientId}
                   placeholder="Selecionar paciente"

@@ -22,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
+import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { cn } from "@/lib/utils";
 import PrescricaoPage from "@/pages/prescricao";
 import ExamesPage from "@/pages/exames";
@@ -553,7 +553,7 @@ export default function ReceituarioAutomatico() {
     } finally { setSalvando(false); }
   };
 
-  const clientesOpts: ClientPickerOption[] = clientes.map(c => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
+  const clientesOpts: PaxterClientOption[] = clientes.map(c => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
 
   // KPIs globais da linha do tempo
   const kpis = useMemo(() => {
@@ -612,7 +612,7 @@ export default function ReceituarioAutomatico() {
         <div className="px-6 pt-4 pb-3 grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b border-border/30">
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Cliente *</label>
-            <ClientPicker clientes={clientesOpts} value={clienteSelId} onChange={v => { setClienteSelId(v); setNoAtivo(null); }} placeholder="Selecione o cliente…" />
+            <PaxterClientSelector clientes={clientesOpts} value={clienteSelId} onChange={v => { setClienteSelId(v); setNoAtivo(null); }} placeholder="Selecione o cliente…" />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Nome do Programa *</label>

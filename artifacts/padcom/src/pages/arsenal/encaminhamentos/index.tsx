@@ -4,7 +4,7 @@ import {
   ClipboardList, AlertTriangle, Layers,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../../comunicacao/_shared";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { VARIAVEIS_DOC, aplicarVariaveis, montarValores } from "@/lib/doc-variaveis";
 import { useToast } from "@/hooks/use-toast";
 
@@ -221,7 +221,7 @@ export default function EncaminhamentosPage() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Cliente</label>
-            <ClientPicker clientes={clientes} value={clientId} onChange={setClientId} placeholder="Escolha um cliente..." />
+            <PaxterClientSelector clientes={clientes} value={clientId} onChange={setClientId} placeholder="Escolha um cliente..." />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Profissional (origem)</label>

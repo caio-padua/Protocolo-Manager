@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import {
   Dumbbell,
   Plus,
@@ -165,7 +166,7 @@ function MontarFicha() {
     [exercicios],
   );
 
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<number | null>(null);
   const [objetivo, setObjetivo] = useState("hipertrofia");
   const [divisao, setDivisao] = useState("ABC");
   const [frequencia, setFrequencia] = useState("3");
@@ -230,7 +231,7 @@ function MontarFicha() {
   const salvar = useMutation({
     mutationFn: async () => {
       const body = {
-        clientId: Number(clientId),
+        clientId: clientId ?? 0,
         objetivo,
         divisao,
         frequenciaSemanal: frequencia ? parseInt(frequencia, 10) : null,
@@ -285,18 +286,12 @@ function MontarFicha() {
           </h2>
           <div className="space-y-3">
             <Field label="Cliente">
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(clientes ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <PaxterClientSelector
+                clientes={clientes ?? []}
+                value={clientId}
+                onChange={setClientId}
+                placeholder="Selecione o cliente"
+              />
             </Field>
             <Field label="Objetivo">
               <Select value={objetivo} onValueChange={setObjetivo}>

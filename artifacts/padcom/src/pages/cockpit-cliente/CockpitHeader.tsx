@@ -6,7 +6,7 @@
 import { UserRound } from "lucide-react";
 import ClientIdentity from "./ClientIdentity";
 import ActionButtons from "./ActionButtons";
-import CockpitSearch from "./CockpitSearch";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 
 const GOLD = "#9a7b32";
 
@@ -81,9 +81,11 @@ export default function CockpitHeader({
       {/* LADO DIREITO */}
       <div className="flex items-center gap-3 flex-wrap justify-end">
         {/* Campo de busca — sempre visível */}
-        <CockpitSearch
-          onSelect={onSelectClient}
-          currentName={client?.name}
+        <PaxterClientSelector
+          variant="search"
+          serverSearch
+          value={clientId}
+          onChange={onSelectClient}
           placeholder={temCliente ? `Trocar: ${client!.name.split(" ")[0]}…` : "Buscar paciente…"}
         />
 

@@ -4,7 +4,7 @@ import {
   ExternalLink, Download, Layers, Clock, CalendarDays,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { ClientPicker, type ClientPickerOption } from "@/components/ClientPicker";
+import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { CidPicker } from "@/components/CidPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -105,7 +105,7 @@ export default function AtestadosPage() {
   const clienteSel = useMemo(() => clientes.find((c) => c.id === clientId) ?? null, [clientes, clientId]);
   const profSel = useMemo(() => profissionais.find((p) => p.id === professionalId) ?? null, [profissionais, professionalId]);
 
-  const clientPickerOpts: ClientPickerOption[] = useMemo(
+  const clientPickerOpts: PaxterClientOption[] = useMemo(
     () => clientes.map((c) => ({ id: c.id, name: c.name })),
     [clientes],
   );
@@ -229,7 +229,7 @@ export default function AtestadosPage() {
               <div className="space-y-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
-                  <ClientPicker clientes={clientPickerOpts} value={clientId} onChange={setClientId} />
+                  <PaxterClientSelector clientes={clientPickerOpts} value={clientId} onChange={setClientId} />
                   {clienteSel && (
                     <p className="mt-1 text-xs text-slate-500">CPF: {clienteSel.cpf || "—"}</p>
                   )}

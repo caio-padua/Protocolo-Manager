@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Send, Bot, User2 } from "lucide-react";
 import { Link } from "wouter";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 
 interface Member {
   id: number;
@@ -33,6 +34,7 @@ export default function NovaDemanda() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
+  const [clientId, setClientId] = useState<number | null>(null);
   const [form, setForm] = useState({
     titulo: "",
     descricao: "",
@@ -67,7 +69,7 @@ export default function NovaDemanda() {
         body: JSON.stringify({
           ...form,
           assigned_member_id: form.assigned_member_id ? parseInt(form.assigned_member_id) : null,
-          client_id: form.client_id ? parseInt(form.client_id) : null,
+          client_id: clientId,
           prazo_horas: parseInt(form.prazo_horas),
         }),
       });
@@ -219,16 +221,12 @@ export default function NovaDemanda() {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Cliente (opcional)</label>
-            <select
-              value={form.client_id}
-              onChange={e => setForm({ ...form, client_id: e.target.value })}
-              className="w-full bg-background border border-border rounded-[6px] px-3 py-2.5 text-sm"
-            >
-              <option value="">Sem vínculo com cliente</option>
-              {clients.slice(0, 100).map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <PaxterClientSelector
+              clientes={clients}
+              value={clientId}
+              onChange={setClientId}
+              placeholder="Sem vínculo com cliente"
+            />
           </div>
         </div>
 

@@ -1,4 +1,10 @@
 /**
+ * @deprecated Use PaxterClientSelector em vez deste componente.
+ * import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+ *
+ * Mantido apenas para referência histórica (Regra de Ouro: nunca apagar sem ordem dupla do CEO).
+ * Arquivo migrado em 09/08/2026 — spec: specs/paxter-client-selector.md
+ *
  * ClientPicker — seletor de cliente com barra do alfabeto.
  *
  * Padrão sênior PAXTER:

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { getCollabToken } from "@/lib/collab-auth";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
 import {
@@ -73,7 +74,7 @@ export default function LancadorNfse() {
   const { data: clients, isLoading: loadingClients } = useListClients();
 
   const [origem, setOrigem] = useState<Origem>("payment");
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<number | null>(null);
   const [paymentId, setPaymentId] = useState<string>("");
   const [value, setValue] = useState<string>("");
   const [serviceDescription, setServiceDescription] = useState<string>("");
@@ -87,7 +88,7 @@ export default function LancadorNfse() {
   const [result, setResult] = useState<AsaasInvoice | null>(null);
 
   const client = useMemo(
-    () => (clients || []).find((c) => String(c.id) === clientId) || null,
+    () => (clients || []).find((c) => c.id === clientId) || null,
     [clients, clientId],
   );
 
@@ -116,8 +117,8 @@ export default function LancadorNfse() {
     }
   }
 
-  function onPickClient(v: string) {
-    setClientId(v);
+  function onPickClient(id: number | null) {
+    setClientId(id);
     setPaymentId("");
     setResult(null);
     setValue("");
@@ -244,18 +245,12 @@ export default function LancadorNfse() {
         {/* Cliente */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cliente</label>
-          <Select value={clientId} onValueChange={onPickClient}>
-            <SelectTrigger className="bevel-3d h-11">
-              <SelectValue placeholder={loadingClients ? "Carregando clientes..." : "Selecione o cliente"} />
-            </SelectTrigger>
-            <SelectContent>
-              {(clients || []).map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {c.name}{c.cpf ? ` — ${c.cpf}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PaxterClientSelector
+            clientes={clients || []}
+            value={clientId}
+            onChange={onPickClient}
+            placeholder={loadingClients ? "Carregando clientes..." : "Selecione o cliente"}
+          />
           <div className="concave-3d mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
               <User className="w-3.5 h-3.5" />

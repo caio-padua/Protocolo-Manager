@@ -102,10 +102,14 @@ router.get("/clients", async (req, res): Promise<void> => {
   }
 
   if (query.data.search) {
+    const searchDigits = query.data.search.replace(/\D/g, "");
     baseFilters.push(
       or(
         ilike(clientsTable.name, `%${query.data.search}%`),
         ilike(clientsTable.cpf, `%${query.data.search}%`),
+        ...(searchDigits.length >= 3
+          ? [sql`regexp_replace(coalesce(${clientsTable.phone}::text, ''), '[^0-9]', '', 'g') ilike ${'%' + searchDigits + '%'}`]
+          : []),
       )!
     );
   }

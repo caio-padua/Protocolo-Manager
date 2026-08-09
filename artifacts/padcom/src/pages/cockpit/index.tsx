@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import {
   Accordion,
   AccordionItem,
@@ -215,7 +215,7 @@ export default function Cockpit() {
       <div className="panel-3d mb-5 flex flex-wrap items-center gap-3 rounded-lg p-3">
         <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Cliente</span>
         <div className="min-w-[280px] flex-1">
-          <ClientPicker
+          <PaxterClientSelector
             clientes={clientes ?? []}
             value={clienteId}
             onChange={setClienteId}

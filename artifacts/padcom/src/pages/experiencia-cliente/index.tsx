@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Users, Eye, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { useListClients } from "@workspace/api-client-react";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -79,7 +79,7 @@ export default function ExperienciaCliente() {
                 Carregando clientes...
               </div>
             ) : (
-              <ClientPicker
+              <PaxterClientSelector
                 clientes={options}
                 value={selectedId}
                 onChange={setSelectedId}

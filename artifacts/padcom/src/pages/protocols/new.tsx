@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClientCombobox } from "@/components/ClientCombobox";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock, Stethoscope } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -94,7 +94,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const [locations, setLocations] = useState<Location[]>([]);
 
   const [step, setStep] = useState<"configurar" | "resumo">("configurar");
-  const [clientId, setClientId] = useState(clientIdProp != null ? String(clientIdProp) : "");
+  const [clientId, setClientId] = useState<number | null>(clientIdProp ?? null);
   const [professionalId, setProfessionalId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("08:00");
@@ -109,7 +109,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const slotsTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (clientIdProp != null) setClientId(String(clientIdProp));
+    if (clientIdProp != null) setClientId(clientIdProp);
   }, [clientIdProp]);
 
   useEffect(() => {
@@ -153,7 +153,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
 
   const validateMutation = useValidateProtocol();
 
-  const selectedClient = clients?.find(c => String(c.id) === clientId);
+  const selectedClient = clients?.find(c => c.id === clientId);
   const selectedProfessional = professionals?.find(p => String(p.id) === professionalId);
   const selectedLocation = locations.find(l => String(l.id) === locationId);
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
@@ -210,7 +210,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     const maxSessions = filledSlots.length > 0 ? Math.max(...filledSlots.map(s => s.totalSessions)) : 0;
     const nurseServiceFeeCalc = feePerVisit > 0 ? feePerVisit * maxSessions : null;
     return {
-      clientId: parseInt(clientId),
+      clientId: clientId ?? 0,
       title: autoTitle,
       status: "suggested" as const,
       startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
@@ -453,8 +453,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
                 </div>
               ) : (
                 <div className="field-engraved rounded-md p-1">
-                  <ClientCombobox
-                    clients={clients ?? []}
+                  <PaxterClientSelector
+                    clientes={clients ?? []}
                     value={clientId}
                     onChange={setClientId}
                     placeholder="Selecione o cliente"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useListClients, useCreateAnamneseSession } from "@workspace/api-client-react";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useToast } from "@/hooks/use-toast";
 import {
   Link2,
@@ -107,12 +107,11 @@ export default function CockpitAnamnese() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <ClientPicker
+          <PaxterClientSelector
             clientes={opcoes}
             value={clienteId}
             onChange={(id) => setClienteId(id)}
             placeholder="Selecionar cliente…"
-            triggerClassName="min-w-[240px] bg-white/95 text-[#16294a]"
           />
           <div className="text-right leading-tight">
             {cliente ? (

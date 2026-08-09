@@ -12,7 +12,7 @@ import {
   getListPaymentsQueryKey,
   getGetClientQueryKey,
 } from "@workspace/api-client-react";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
 import { useToast } from "@/hooks/use-toast";
 import { formatStatus, getStatusColor } from "@/lib/status";
@@ -352,12 +352,11 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                 </Link>
               </div>
             )}
-            <ClientPicker
+            <PaxterClientSelector
               clientes={opcoes}
               value={clienteId}
               onChange={(id) => selecionarCliente(id)}
               placeholder="Selecionar cliente…"
-              triggerClassName="min-w-[260px] bg-white/95 text-[#16294a] font-semibold shadow-lg"
             />
           </div>
         </header>

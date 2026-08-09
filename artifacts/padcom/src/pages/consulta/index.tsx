@@ -18,7 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
-import { ClientPicker } from "@/components/ClientPicker";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { getCollabProfessional } from "@/lib/collab-auth";
 
 // ===========================================================================
@@ -428,7 +428,7 @@ export default function ConsultaProntuario() {
             <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Cliente da consulta
             </label>
-            <ClientPicker
+            <PaxterClientSelector
               clientes={clientes}
               value={clienteId ? Number(clienteId) : null}
               onChange={(id) => setClienteId(id == null ? "" : String(id))}
