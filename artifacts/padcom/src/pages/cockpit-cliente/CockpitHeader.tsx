@@ -3,10 +3,12 @@
 // ESTADO PREENCHIDO: ClientIdentity à esquerda, ActionButtons à direita.
 // Remove "Padcon Conect" (ruído de marca) — requisito R-HEADER-2.
 
+import { useMemo } from "react";
 import { UserRound } from "lucide-react";
 import ClientIdentity from "./ClientIdentity";
 import ActionButtons from "./ActionButtons";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { useListClients } from "@workspace/api-client-react";
 
 const GOLD = "#9a7b32";
 
@@ -39,6 +41,13 @@ export default function CockpitHeader({
   onDriveSetup,
 }: CockpitHeaderProps) {
   const temCliente = !!client && !!clientId;
+
+  // Carrega lista de clientes para o seletor (usa cache React Query — sem requisição extra)
+  const { data: clients } = useListClients();
+  const opcoes = useMemo(
+    () => (clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone })),
+    [clients],
+  );
 
   return (
     <header
@@ -80,13 +89,12 @@ export default function CockpitHeader({
 
       {/* LADO DIREITO */}
       <div className="flex items-center gap-3 flex-wrap justify-end">
-        {/* Campo de busca — sempre visível */}
+        {/* Seletor de paciente — popover com A–Z e CPF visível (mesmo padrão do sistema) */}
         <PaxterClientSelector
-          variant="search"
-          serverSearch
+          clientes={opcoes}
           value={clientId}
           onChange={onSelectClient}
-          placeholder={temCliente ? `Trocar: ${client!.name.split(" ")[0]}…` : "Buscar paciente…"}
+          placeholder={temCliente ? `Trocar: ${client!.name.split(" ")[0]}…` : "Selecionar cliente…"}
         />
 
         {/* Botões de ação — fantasma quando vazio */}
