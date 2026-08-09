@@ -1,597 +1,346 @@
 /**
- * radar-clinico.ts
- * Painel de Inteligência Clínica — visão operacional do médico.
+ * Radar Clínico — visão operacional do médico.
  *
- * Endpoints:
- *   GET    /api/radar-clinico                    — lista de pacientes com dados agregados + filtros
- *   GET    /api/radar-clinico/substancias        — substâncias disponíveis para o filtro
- *   POST   /api/radar-clinico/diagnostico        — adiciona diagnóstico a um paciente
- *   DELETE /api/radar-clinico/diagnostico/:id    — remove diagnóstico
+ * GET  /radar-clinico          — lista paginada (PAGE_SIZE=50) com filtros
+ * POST /radar-clinico/mensagem — envia mensagem pontual a um paciente
+ *
+ * Segurança:
+ *  - moduleGuard("cockpit") bloqueia tenants sem o módulo ativo
+ *  - resolveEmpresaId(req) garante isolamento multi-tenant em todo SELECT/INSERT
+ *  - isPlatformOwner pode cruzar tenants via ?empresaId=N
+ *
+ * Regras de honestidade da mensageria rápida:
+ *  - Telegram sem token (mock) → 422, nunca 200 ok:true
+ *  - WhatsApp sem Twilio (link) → 422, nunca 200 ok:true
+ *  - Falha de provedor → 502
+ *  - Sucesso real → 200 ok:true + grava em mensageria_lembrete (fonte do "último contato")
  */
-
-import { Router, type Request, type Response } from "express";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
-import { logger } from "../lib/logger";
+import { Router, type Request } from "express";
+import { pool } from "@workspace/db";
+import { moduleGuard } from "../middleware/moduleGuard";
 import { resolveEmpresaId } from "../middleware/tenantContext";
+import { sendWhatsapp } from "../lib/whatsapp";
+import { sendTelegram } from "../lib/telegram";
+import { sendGmailMessage } from "../lib/google-gmail";
 
 const router = Router();
 
-// ── Boot: criar tabela client_diagnosticos se não existir ─────────────────
-(async () => {
+// Guard: todos os endpoints do Radar exigem o módulo "cockpit" ativo.
+// isPlatformOwner nunca é bloqueado (regra do moduleGuard).
+router.use(moduleGuard("cockpit"));
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GET /radar-clinico
+// ──────────────────────────────────────────────────────────────────────────────
+router.get("/radar-clinico", async (req, res): Promise<void> => {
   try {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS client_diagnosticos (
-        id               SERIAL PRIMARY KEY,
-        client_id        INTEGER NOT NULL,
-        empresa_id       INTEGER NOT NULL,
-        nome_diagnostico TEXT    NOT NULL,
-        codigo_cid       TEXT,
-        categoria        TEXT    DEFAULT 'outra',
-        criado_em        TIMESTAMPTZ DEFAULT NOW(),
-        atualizado_em    TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-    await db.execute(sql`
-      CREATE INDEX IF NOT EXISTS idx_cd_client_empresa
-      ON client_diagnosticos (client_id, empresa_id)
-    `);
-    logger.info("radar-clinico: tabela client_diagnosticos pronta");
-  } catch (e) {
-    logger.warn({ err: (e as Error).message }, "radar-clinico: boot non-fatal");
-  }
-})();
+    const empresaId = resolveEmpresaId(req as any);
+    const PAGE_SIZE = 50;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const offset = (page - 1) * PAGE_SIZE;
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-const getEmpresaId = (req: Request): number => resolveEmpresaId(req); // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _getEmpresaIdLegacy = (req: Request): number =>
-  (req as any).empresaId ?? 5;
+    const protocoloStatus = String(req.query.protocolo_status || "all");
+    const tempoAtivo = req.query.tempo_ativo ? Number(req.query.tempo_ativo) : null;
+    const faltaDias = req.query.falta_dias ? Number(req.query.falta_dias) : null;
+    const substancia = req.query.substancia ? String(req.query.substancia) : null;
+    const silencioDias = req.query.silencio_dias ? Number(req.query.silencio_dias) : null;
 
-function buildBooleanFilter(cond: boolean, trueSql: ReturnType<typeof sql>, falseSql = sql`TRUE`) {
-  return cond ? trueSql : falseSql;
-}
-
-// ── GET /api/radar-clinico ─────────────────────────────────────────────────
-router.get("/radar-clinico", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const empresaId = getEmpresaId(req);
-
-    // ── Filtros recebidos via query string ──────────────────────────────
-    const faseMin        = req.query.faseMin        ? Number(req.query.faseMin)        : null;
-    const faseMax        = req.query.faseMax        ? Number(req.query.faseMax)        : null;
-    const procedureType  = (req.query.procedureType  as string | undefined) || null;
-    const substancia     = (req.query.substancia     as string | undefined) || null;
-    const diagnostico    = (req.query.diagnostico    as string | undefined) || null;
-    const protocolStatus = (req.query.protocolStatus as string | undefined) || "all";
-    const semFoto        = req.query.semFoto        === "true";
-    const semContato     = req.query.semContato     === "true";
-    const faltouHaDias   = req.query.faltouHaDias   ? Number(req.query.faltouHaDias)  : null;
-    const page           = Math.max(1, Number(req.query.page  ?? 1));
-    const limit          = Math.min(100, Number(req.query.limit ?? 50));
-    const offset         = (page - 1) * limit;
-
-    // ── Fragmentos SQL condicionais (null = filtro desligado) ──────────────
-    const filtFaseMin     = faseMin     !== null ? sql`AND pr.dias_ativo >= ${faseMin}`                      : sql``;
-    const filtFaseMax     = faseMax     !== null ? sql`AND pr.dias_ativo <= ${faseMax}`                      : sql``;
-    const filtFaltou      = faltouHaDias !== null ? sql`AND se.dias_desde_ultima_sessao >= ${faltouHaDias}`  : sql``;
-    const filtProto       = protocolStatus === "all"
-      ? sql``
-      : protocolStatus === "active"
-        ? sql`AND pr.protocol_status IN ('active','validated')`
-        : sql`AND (pr.protocol_status IS NULL OR pr.protocol_status NOT IN ('active','validated'))`;
-    const filtVia         = procedureType !== null
-      ? sql`AND EXISTS (
-            SELECT 1 FROM protocols p2
-            JOIN protocol_items pi2 ON pi2.protocol_id = p2.id
-            JOIN substances     s2  ON s2.id           = pi2.substance_id
-            WHERE p2.client_id  = c.id
-              AND p2.empresa_id = ${empresaId}
-              AND p2.status IN ('active','validated')
-              AND LOWER(s2.procedure_type) ILIKE '%' || LOWER(${procedureType}) || '%'
-          )`
-      : sql``;
-    const filtSubst       = substancia !== null
-      ? sql`AND EXISTS (
-            SELECT 1 FROM protocols p3
-            JOIN protocol_items pi3 ON pi3.protocol_id = p3.id
-            JOIN substances     s3  ON s3.id           = pi3.substance_id
-            WHERE p3.client_id  = c.id
-              AND p3.empresa_id = ${empresaId}
-              AND p3.status IN ('active','validated')
-              AND LOWER(s3.name) ILIKE '%' || LOWER(${substancia}) || '%'
-          )`
-      : sql``;
-    const filtDiag        = diagnostico !== null
-      ? sql`AND EXISTS (
-            SELECT 1 FROM client_diagnosticos cd
-            WHERE cd.client_id  = c.id
-              AND cd.empresa_id = ${empresaId}
-              AND LOWER(cd.nome_diagnostico) ILIKE '%' || LOWER(${diagnostico}) || '%'
-          )`
-      : sql``;
-
-    const rows = await db.execute(sql`
+    const result = await pool.query<{
+      id: number;
+      nome: string;
+      data_nascimento: string | null;
+      telefone: string | null;
+      email: string | null;
+      photo_url: string | null;
+      telegram_chat_id: string | null;
+      protocolo_id: number | null;
+      protocolo_status: string | null;
+      protocolo_inicio: string | null;
+      protocolo_titulo: string | null;
+      ultima_sessao_data: string | null;
+      ultima_sessao_status: string | null;
+      proxima_sessao_data: string | null;
+      proxima_sessao_hora: string | null;
+      total_substancias: string;
+      tem_coenzima: boolean;
+      tem_gh: boolean;
+      tem_testosterona: boolean;
+      ultimo_contato: string | null;
+    }>(`
       WITH
-      -- Protocolo com maior prioridade por cliente (ativo > validado > sugerido > outros)
-      protocolo_recente AS (
+      prot_recente AS (
+        -- Prioridade: active/validated vence qualquer protocolo mais recente com outro status.
+        -- Dentro do mesmo nível de prioridade, o mais recente (created_at DESC) ganha.
         SELECT DISTINCT ON (client_id)
-          client_id,
-          id              AS protocol_id,
-          title           AS protocol_title,
-          status          AS protocol_status,
-          start_date,
-          end_date,
-          completed_sessions,
-          total_sessions,
-          CASE WHEN start_date IS NOT NULL
-            THEN EXTRACT(DAY FROM NOW() - start_date::date)::INT
-            ELSE NULL
-          END AS dias_ativo
+          id AS protocolo_id, client_id,
+          status AS protocolo_status,
+          start_date AS protocolo_inicio,
+          title AS protocolo_titulo
         FROM protocols
-        WHERE empresa_id = ${empresaId}
-        ORDER BY
-          client_id,
-          CASE status
-            WHEN 'active'    THEN 0
-            WHEN 'validated' THEN 1
-            WHEN 'suggested' THEN 2
-            ELSE 3
-          END,
+        WHERE empresa_id = $1
+        ORDER BY client_id,
+          CASE WHEN status IN ('active', 'validated') THEN 1 ELSE 2 END ASC,
           created_at DESC
       ),
-
-      -- Substâncias agrupadas por cliente (somente protocolos ativos/validados)
-      substancias_por_cliente AS (
+      ultima_sess AS (
+        SELECT DISTINCT ON (s.client_id)
+          s.client_id,
+          s.scheduled_date AS ultima_sessao_data,
+          s.status AS ultima_sessao_status
+        FROM sessions s
+        WHERE s.empresa_id = $1
+          AND s.scheduled_date <= to_char(NOW() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')
+        ORDER BY s.client_id, s.scheduled_date DESC, s.id DESC
+      ),
+      proxima_sess AS (
+        SELECT DISTINCT ON (s.client_id)
+          s.client_id,
+          s.scheduled_date AS proxima_sessao_data,
+          s.scheduled_time AS proxima_sessao_hora
+        FROM sessions s
+        WHERE s.empresa_id = $1
+          AND s.status = 'scheduled'
+          AND s.scheduled_date > to_char(NOW() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')
+        ORDER BY s.client_id, s.scheduled_date ASC, s.id ASC
+      ),
+      subst_agg AS (
         SELECT
           p.client_id,
-          JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT(
-            'id',            s.id,
-            'name',          s.name,
-            'procedureType', s.procedure_type,
-            'category',      s.category,
-            'color',         s.color
-          )) AS substances,
-          COUNT(DISTINCT s.id)::INT AS total_injetaveis
+          COUNT(DISTINCT pi.substance_id) AS total_substancias,
+          BOOL_OR(LOWER(s.name) LIKE '%coenzima%' OR LOWER(s.name) LIKE '%coq10%') AS tem_coenzima,
+          BOOL_OR(LOWER(s.name) LIKE '%gh%' OR LOWER(s.name) LIKE '%somatropin%'
+            OR LOWER(s.name) LIKE '%hormônio do crescimento%'
+            OR LOWER(s.name) LIKE '%hormonio do crescimento%') AS tem_gh,
+          BOOL_OR(LOWER(s.name) LIKE '%testosteron%') AS tem_testosterona
         FROM protocols p
         JOIN protocol_items pi ON pi.protocol_id = p.id
-        JOIN substances     s  ON s.id           = pi.substance_id
-        WHERE p.empresa_id = ${empresaId}
-          AND p.status IN ('active', 'validated')
+        JOIN substances s ON s.id = pi.substance_id
+        WHERE p.empresa_id = $1 AND p.status IN ('active', 'validated')
         GROUP BY p.client_id
       ),
-
-      -- Última sessão concluída + próxima sessão agendada
-      sessoes_por_cliente AS (
-        SELECT
-          client_id,
-          MAX(CASE WHEN status = 'completed'
-              THEN scheduled_date END)                          AS ultima_sessao,
-          MIN(CASE WHEN status IN ('scheduled','pending')
-                    AND scheduled_date >= TO_CHAR(NOW(), 'YYYY-MM-DD')
-              THEN scheduled_date END)                          AS proxima_sessao,
-          CASE WHEN MAX(CASE WHEN status = 'completed' THEN scheduled_date END) IS NOT NULL
-            THEN EXTRACT(DAY FROM
-                   NOW() - MAX(CASE WHEN status = 'completed' THEN scheduled_date END)::date
-                 )::INT
-            ELSE NULL
-          END AS dias_desde_ultima_sessao
-        FROM sessions
-        WHERE empresa_id = ${empresaId}
-        GROUP BY client_id
-      ),
-
-      -- Diagnósticos por cliente
-      diagnosticos_por_cliente AS (
-        SELECT
-          client_id,
-          JSONB_AGG(JSONB_BUILD_OBJECT(
-            'id',        id,
-            'nome',      nome_diagnostico,
-            'cid',       codigo_cid,
-            'categoria', categoria
-          ) ORDER BY criado_em) AS diagnosticos
-        FROM client_diagnosticos
-        WHERE empresa_id = ${empresaId}
-        GROUP BY client_id
+      ult_contato AS (
+        SELECT DISTINCT ON (cliente_id)
+          cliente_id,
+          enviado_em AS ultimo_contato
+        FROM mensageria_lembrete
+        WHERE status = 'enviado'
+          AND enviado_em IS NOT NULL
+          AND empresa_id = $1
+        ORDER BY cliente_id, enviado_em DESC
       )
-
       SELECT
         c.id,
-        c.name,
-        c.cpf,
-        c.phone,
+        c.name AS nome,
+        c.birth_date AS data_nascimento,
+        c.phone AS telefone,
         c.email,
-        c.birth_date,
         c.photo_url,
-        c.status                      AS client_status,
-
-        pr.protocol_id,
-        pr.protocol_title,
-        pr.protocol_status,
-        pr.start_date,
-        pr.end_date,
-        pr.dias_ativo,
-        pr.completed_sessions,
-        pr.total_sessions,
-
-        sc.substances,
-        sc.total_injetaveis,
-
-        se.ultima_sessao,
-        se.proxima_sessao,
-        se.dias_desde_ultima_sessao,
-
-        dp.diagnosticos,
-
-        (c.photo_url IS NULL OR c.photo_url = '')   AS sem_foto,
-        (c.phone IS NULL AND c.email IS NULL)        AS contato_incompleto
-
+        c.telegram_chat_id,
+        pr.protocolo_id, pr.protocolo_status, pr.protocolo_inicio, pr.protocolo_titulo,
+        us.ultima_sessao_data, us.ultima_sessao_status,
+        nx.proxima_sessao_data, nx.proxima_sessao_hora,
+        COALESCE(sa.total_substancias, 0) AS total_substancias,
+        COALESCE(sa.tem_coenzima, false) AS tem_coenzima,
+        COALESCE(sa.tem_gh, false) AS tem_gh,
+        COALESCE(sa.tem_testosterona, false) AS tem_testosterona,
+        uc.ultimo_contato
       FROM clients c
-      LEFT JOIN protocolo_recente        pr ON pr.client_id = c.id
-      LEFT JOIN substancias_por_cliente  sc ON sc.client_id = c.id
-      LEFT JOIN sessoes_por_cliente      se ON se.client_id = c.id
-      LEFT JOIN diagnosticos_por_cliente dp ON dp.client_id = c.id
+      LEFT JOIN prot_recente pr ON pr.client_id = c.id
+      LEFT JOIN ultima_sess us ON us.client_id = c.id
+      LEFT JOIN proxima_sess nx ON nx.client_id = c.id
+      LEFT JOIN subst_agg sa ON sa.client_id = c.id
+      LEFT JOIN ult_contato uc ON uc.cliente_id = c.id
+      WHERE c.empresa_id = $1
+        AND c.status = 'active'
+        AND c.deleted_at IS NULL
+      ORDER BY c.name ASC
+    `, [empresaId]);
 
-      WHERE c.empresa_id = ${empresaId}
-        AND c.status      = 'active'
+    let rows = result.rows.map((r) => {
+      const diasDesdeInicio = r.protocolo_inicio
+        ? Math.floor((Date.now() - new Date(r.protocolo_inicio).getTime()) / 86_400_000)
+        : null;
+      const diasDesdeUltSessao = r.ultima_sessao_data
+        ? Math.floor((Date.now() - new Date(r.ultima_sessao_data).getTime()) / 86_400_000)
+        : null;
+      const diasSemContato = r.ultimo_contato
+        ? Math.floor((Date.now() - new Date(r.ultimo_contato).getTime()) / 86_400_000)
+        : null;
+      const faltou = r.ultima_sessao_status === "missed" || r.ultima_sessao_status === "cancelled";
+      const totalSubstancias = Number(r.total_substancias);
 
-        -- Filtro: sem foto
-        AND (NOT ${semFoto} OR (c.photo_url IS NULL OR c.photo_url = ''))
-
-        -- Filtro: sem contato
-        AND (NOT ${semContato} OR (c.phone IS NULL AND c.email IS NULL))
-
-        -- Filtros condicionais (fragmentos pré-construídos — null = desligado)
-        ${filtProto}
-        ${filtFaseMin}
-        ${filtFaseMax}
-        ${filtFaltou}
-        ${filtVia}
-        ${filtSubst}
-        ${filtDiag}
-
-      ORDER BY
-        CASE WHEN pr.protocol_status IN ('active','validated') THEN 0 ELSE 1 END,
-        pr.dias_ativo DESC NULLS LAST,
-        c.name ASC
-
-      LIMIT  ${limit}
-      OFFSET ${offset}
-    `);
-
-    res.json({
-      ok:        true,
-      page,
-      limit,
-      total:     rows.rows.length,
-      pacientes: rows.rows,
-    });
-  } catch (e: any) {
-    logger.error({ err: e }, "radar-clinico: erro na consulta principal");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
-  }
-});
-
-// ── GET /api/radar-clinico/substancias ────────────────────────────────────
-router.get("/radar-clinico/substancias", async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const rows = await db.execute(sql`
-      SELECT DISTINCT id, name, procedure_type, category, color
-      FROM substances
-      ORDER BY name ASC
-      LIMIT 300
-    `);
-    res.json({ ok: true, substancias: rows.rows });
-  } catch (e: any) {
-    res.status(500).json({ error: e?.message });
-  }
-});
-
-// ── POST /api/radar-clinico/diagnostico ───────────────────────────────────
-router.post("/radar-clinico/diagnostico", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const empresaId = getEmpresaId(req);
-    const { clientId, nomeDiagnostico, codigoCid, categoria } = req.body as {
-      clientId?:        number;
-      nomeDiagnostico?: string;
-      codigoCid?:       string;
-      categoria?:       string;
-    };
-
-    if (!clientId || !nomeDiagnostico?.trim()) {
-      res.status(400).json({ error: "clientId e nomeDiagnostico são obrigatórios" });
-      return;
-    }
-
-    const result = await db.execute(sql`
-      INSERT INTO client_diagnosticos (client_id, empresa_id, nome_diagnostico, codigo_cid, categoria)
-      VALUES (${clientId}, ${empresaId}, ${nomeDiagnostico.trim()}, ${codigoCid ?? null}, ${categoria ?? "outra"})
-      RETURNING id, client_id, nome_diagnostico, codigo_cid, categoria, criado_em
-    `);
-
-    res.status(201).json({ ok: true, diagnostico: result.rows[0] });
-  } catch (e: any) {
-    logger.error({ err: e }, "radar-clinico: erro ao salvar diagnóstico");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
-  }
-});
-
-// ── DELETE /api/radar-clinico/diagnostico/:id ─────────────────────────────
-router.delete("/radar-clinico/diagnostico/:id", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const empresaId = getEmpresaId(req);
-    await db.execute(sql`
-      DELETE FROM client_diagnosticos
-      WHERE id = ${Number(req.params.id)} AND empresa_id = ${empresaId}
-    `);
-    res.json({ ok: true });
-  } catch (e: any) {
-    logger.error({ err: e }, "radar-clinico: erro ao deletar diagnóstico");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
-  }
-});
-
-// ── GET /api/radar-clinico/seed-demo ──────────────────────────────────────
-// Insere 10 pacientes demo com protocolos, sessões e diagnósticos variados.
-// Idempotente: verifica pelo CPF marcador antes de inserir.
-router.get("/radar-clinico/seed-demo", async (_req: Request, res: Response): Promise<void> => {
-  try {
-    // Verifica se demo já existe
-    const check = await db.execute(sql`
-      SELECT id FROM clients WHERE cpf = '000.000.001-01' AND empresa_id = 5 LIMIT 1
-    `);
-    if (check.rows.length > 0) {
-      res.json({ ok: true, msg: "Dados demo já existem — sem alteração.", total: 10 });
-      return;
-    }
-
-    // ── Dados dos 10 pacientes demo ──────────────────────────────────
-    const hoje = "2026-08-09";
-
-    type SessionEntry = { date: string; status: "completed" | "scheduled" };
-    type DiagEntry    = { nome: string; cid: string; cat: string };
-    type PatientSeed  = {
-      name: string; cpf: string; phone: string; email: string;
-      birth: string; photo: string | null;
-      proto?: {
-        title: string; status: string; start: string;
-        total: number; completed: number;
-        subIds: number[];   // IDs de substances reais no banco
-        sessions: SessionEntry[];
+      return {
+        id: r.id,
+        nome: r.nome,
+        dataNascimento: r.data_nascimento,
+        telefone: r.telefone,
+        email: r.email,
+        photoUrl: r.photo_url,
+        telegramChatId: r.telegram_chat_id,
+        protocolo: r.protocolo_id
+          ? { id: r.protocolo_id, titulo: r.protocolo_titulo, status: r.protocolo_status, inicio: r.protocolo_inicio, diasDesdeInicio }
+          : null,
+        sessoes: {
+          ultimaData: r.ultima_sessao_data,
+          ultimaStatus: r.ultima_sessao_status,
+          diasDesdeUltima: diasDesdeUltSessao,
+          faltou,
+          proximaData: r.proxima_sessao_data,
+          proximaHora: r.proxima_sessao_hora,
+        },
+        substancias: { total: totalSubstancias, temCoenzima: r.tem_coenzima, temGH: r.tem_gh, temTestosterona: r.tem_testosterona },
+        alertas: { faltaHaDias: faltou ? diasDesdeUltSessao : null, silencioHaDias: diasSemContato },
+        ultimoContato: r.ultimo_contato,
       };
-      diag: DiagEntry[];
-    };
+    });
 
-    const PATIENTS: PatientSeed[] = [
-      {
-        name: "Ana Carolina Souza",  cpf: "000.000.001-01",
-        phone: "(11) 91111-0001", email: "ana.souza@exemplo.com",
-        birth: "1985-03-15",     photo: "https://i.pravatar.cc/200?img=1",
-        proto: {
-          title: "Protocolo Metabólico Feminino", status: "active",
-          start: "2026-06-25", total: 12, completed: 6,
-          subIds: [6, 14], // Vitamina D3+K2 (im), Coenzima Q10 (im)
-          sessions: [
-            { date: "2026-07-02", status: "completed" },
-            { date: "2026-07-09", status: "completed" },
-            { date: "2026-07-16", status: "completed" },
-            { date: "2026-07-23", status: "completed" },
-            { date: "2026-07-30", status: "completed" },
-            { date: "2026-08-04", status: "completed" },   // última — faltou há 5d
-          ],
-        },
-        diag: [
-          { nome: "Diabetes Mellitus tipo 2", cid: "E11",  cat: "metabolica" },
-          { nome: "Hipotireoidismo",           cid: "E03",  cat: "endocrina"  },
-        ],
-      },
-      {
-        name: "Bruno Henrique Lima",  cpf: "000.000.002-02",
-        phone: "(11) 92222-0002", email: "bruno.lima@exemplo.com",
-        birth: "1978-07-22",     photo: "https://i.pravatar.cc/200?img=11",
-        proto: {
-          title: "IV Antioxidante Premium", status: "active",
-          start: "2026-04-11", total: 24, completed: 17,
-          subIds: [1, 4], // Glutationa (iv), NAD+ (iv)
-          sessions: [
-            { date: "2026-07-31", status: "completed" },
-            { date: "2026-08-07", status: "completed" },
-            { date: "2026-08-10", status: "scheduled" },  // próxima: amanhã
-            { date: "2026-08-14", status: "scheduled" },
-          ],
-        },
-        diag: [
-          { nome: "Obesidade", cid: "E66", cat: "metabolica" },
-        ],
-      },
-      {
-        name: "Carlos Eduardo Mendes",  cpf: "000.000.003-03",
-        phone: "(11) 93333-0003", email: "carlos.mendes@exemplo.com",
-        birth: "1992-11-08",     photo: "https://i.pravatar.cc/200?img=12",
-        proto: {
-          title: "Suplementação Oral Básica", status: "suggested",
-          start: "2026-07-30", total: 6, completed: 1,
-          subIds: [7], // Complexo B (im)
-          sessions: [
-            { date: "2026-07-30", status: "completed" },
-            { date: "2026-08-13", status: "scheduled" },
-          ],
-        },
-        diag: [
-          { nome: "Síndrome Metabólica", cid: "E88.8", cat: "metabolica" },
-        ],
-      },
-      {
-        name: "Daniela Ferreira Costa",  cpf: "000.000.004-04",
-        phone: "(11) 94444-0004", email: "daniela.costa@exemplo.com",
-        birth: "1969-04-30",     photo: "https://i.pravatar.cc/200?img=5",
-        proto: {
-          title: "Protocolo Hormonal Completado", status: "completed",
-          start: "2025-09-01", total: 18, completed: 18,
-          subIds: [6, 8], // Vitamina D3+K2 (im), Zinco+Selênio (im)
-          sessions: [
-            { date: "2026-07-01", status: "completed" },
-          ],
-        },
-        diag: [
-          { nome: "Dislipidemia", cid: "E78", cat: "cardiovascular" },
-        ],
-      },
-      {
-        name: "Eduardo Rodrigues Silva",  cpf: "000.000.005-05",
-        phone: "(11) 95555-0005", email: "eduardo.silva@exemplo.com",
-        birth: "1983-12-01",     photo: "https://i.pravatar.cc/200?img=15",
-        proto: {
-          title: "Suplementação Cardiometabólica", status: "active",
-          start: "2026-08-01", total: 10, completed: 2,
-          subIds: [8, 6], // Zinco+Selênio (im), Vitamina D3+K2 (im)
-          sessions: [
-            { date: "2026-07-30", status: "completed" },  // faltou há 10d — ALERTA
-            { date: "2026-08-01", status: "completed" },
-          ],
-        },
-        diag: [
-          { nome: "Hipertensão Arterial",  cid: "I10",  cat: "cardiovascular" },
-          { nome: "Pré-diabetes",          cid: "R73",  cat: "metabolica"     },
-        ],
-      },
-      {
-        name: "Fernanda Alves Pereira",  cpf: "000.000.006-06",
-        phone: "(11) 96666-0006", email: "fernanda.pereira@exemplo.com",
-        birth: "1976-09-14",     photo: "https://i.pravatar.cc/200?img=9",
-        proto: {
-          title: "Implante Hormonal — Longa Duração", status: "validated",
-          start: "2026-01-21", total: 4, completed: 3,
-          subIds: [10], // Implante Gestrinona 20mg
-          sessions: [
-            { date: "2026-08-05", status: "completed" },
-            { date: "2026-09-05", status: "scheduled" },
-          ],
-        },
-        diag: [
-          { nome: "Resistência à Insulina", cid: "E88.8", cat: "metabolica" },
-        ],
-      },
-      {
-        name: "Gabriel Martins Santos",  cpf: "000.000.007-07",
-        phone: "(11) 97777-0007", email: "gabriel.santos@exemplo.com",
-        birth: "2001-05-25",     photo: null,  // SEM FOTO — alerta admin
-        proto: undefined,                       // SEM PROTOCOLO
-        diag: [],
-      },
-      {
-        name: "Helena Cristina Barbosa",  cpf: "000.000.008-08",
-        phone: null as any, email: null as any, // SEM CONTATO — alerta admin
-        birth: "1990-01-19",     photo: "https://i.pravatar.cc/200?img=3",
-        proto: {
-          title: "IV Antioxidante + Vitamina D", status: "active",
-          start: "2026-06-10", total: 16, completed: 9,
-          subIds: [2, 1], // Vitamina C Endovenosa (iv), Glutationa (iv)
-          sessions: [
-            { date: "2026-08-06", status: "completed" },
-            { date: "2026-08-13", status: "scheduled" },
-          ],
-        },
-        diag: [
-          { nome: "Deficiência de Vitamina D", cid: "E55", cat: "nutricional" },
-          { nome: "Obesidade",                 cid: "E66", cat: "metabolica"  },
-        ],
-      },
-      {
-        name: "Igor Cavalcanti Neto",  cpf: "000.000.009-09",
-        phone: "(85) 99999-0009", email: "igor.cavalcanti@exemplo.com",
-        birth: "1988-08-03",     photo: "https://i.pravatar.cc/200?img=17",
-        proto: {
-          title: "Suplementação Antioxidante", status: "active",
-          start: "2026-07-25", total: 8, completed: 3,
-          subIds: [14, 7], // Coenzima Q10 (im), Complexo B (im)
-          sessions: [
-            { date: "2026-07-25", status: "completed" },
-            { date: "2026-08-01", status: "completed" },
-            { date: "2026-08-02", status: "completed" }, // faltou há 7d — ALERTA
-          ],
-        },
-        diag: [],
-      },
-      {
-        name: "Juliana Nascimento Reis",  cpf: "000.000.010-10",
-        phone: "(21) 98888-0010", email: "juliana.reis@exemplo.com",
-        birth: "1980-06-11",     photo: "https://i.pravatar.cc/200?img=7",
-        proto: {
-          title: "Protocolo Integrado SC + Implante", status: "active",
-          start: "2026-05-11", total: 12, completed: 8,
-          subIds: [10, 3], // Implante Gestrinona (implant), Fosfatidilcolina (iv)
-          sessions: [
-            { date: "2026-08-07", status: "completed" },
-            { date: "2026-09-07", status: "scheduled" },
-          ],
-        },
-        diag: [
-          { nome: "Pré-diabetes",          cid: "R73",   cat: "metabolica" },
-          { nome: "Resistência à Insulina",cid: "E88.8", cat: "metabolica" },
-          { nome: "Hiperomocisteinemia",   cid: "E72.1", cat: "metabolica" },
-        ],
-      },
-    ];
+    if (protocoloStatus === "active") {
+      rows = rows.filter((r) => r.protocolo?.status === "active" || r.protocolo?.status === "validated");
+    } else if (protocoloStatus === "inactive") {
+      rows = rows.filter((r) => !r.protocolo || (r.protocolo.status !== "active" && r.protocolo.status !== "validated"));
+    }
+    if (tempoAtivo !== null) {
+      rows = rows.filter((r) => r.protocolo?.diasDesdeInicio != null && r.protocolo.diasDesdeInicio >= tempoAtivo);
+    }
+    if (faltaDias !== null) {
+      rows = rows.filter((r) => r.alertas.faltaHaDias != null && r.alertas.faltaHaDias >= faltaDias);
+    }
+    if (substancia === "coenzima") rows = rows.filter((r) => r.substancias.temCoenzima);
+    else if (substancia === "gh") rows = rows.filter((r) => r.substancias.temGH);
+    else if (substancia === "testosterona") rows = rows.filter((r) => r.substancias.temTestosterona);
+    else if (substancia === "5plus") rows = rows.filter((r) => r.substancias.total >= 5);
+    if (silencioDias !== null) {
+      rows = rows.filter((r) => r.alertas.silencioHaDias == null || r.alertas.silencioHaDias >= silencioDias);
+    }
 
-    const insertedClients: number[] = [];
+    const total = rows.length;
+    const pacientes = rows.slice(offset, offset + PAGE_SIZE);
+    res.json({ total, pagina: page, pageSize: PAGE_SIZE, totalPaginas: Math.ceil(total / PAGE_SIZE), pacientes });
+  } catch (err) {
+    console.error("[radar-clinico] erro:", err);
+    res.status(500).json({ error: "Erro interno ao carregar o Radar Clínico" });
+  }
+});
 
-    for (const p of PATIENTS) {
-      // 1. Inserir cliente
-      const cliRes = await db.execute(sql`
-        INSERT INTO clients (name, cpf, phone, email, birth_date, photo_url, status, empresa_id, location_id)
-        VALUES (
-          ${p.name}, ${p.cpf}, ${p.phone ?? null}, ${p.email ?? null},
-          ${p.birth}, ${p.photo ?? null},
-          'active', 5, 8
-        )
-        RETURNING id
-      `);
-      const clientId = (cliRes.rows[0] as any).id as number;
-      insertedClients.push(clientId);
+// ──────────────────────────────────────────────────────────────────────────────
+// POST /radar-clinico/mensagem
+// Regras: Telegram mock → 422 | WhatsApp sem Twilio → 422 | falha → 502
+//         sucesso real → 200 + grava em mensageria_lembrete
+// ──────────────────────────────────────────────────────────────────────────────
+router.post("/radar-clinico/mensagem", async (req, res): Promise<void> => {
+  try {
+    const empresaId = resolveEmpresaId(req as any);
+    const { clientId, canal, mensagem } = req.body ?? {};
+    if (!clientId || !canal || !mensagem) {
+      res.status(400).json({ error: "clientId, canal e mensagem são obrigatórios" });
+      return;
+    }
 
-      if (!p.proto) continue;
+    // Busca o cliente dentro do mesmo tenant
+    const clientResult = await pool.query<{
+      id: number; name: string; phone: string | null; email: string | null; telegram_chat_id: string | null;
+    }>(
+      `SELECT id, name, phone, email, telegram_chat_id FROM clients WHERE id = $1 AND empresa_id = $2`,
+      [Number(clientId), empresaId]
+    );
+    if (!clientResult.rows.length) { res.status(404).json({ error: "Paciente não encontrado" }); return; }
+    const c = clientResult.rows[0];
 
-      // 2. Inserir protocolo
-      const protoRes = await db.execute(sql`
-        INSERT INTO protocols (client_id, empresa_id, title, status, start_date, total_sessions, completed_sessions)
-        VALUES (${clientId}, 5, ${p.proto.title}, ${p.proto.status}, ${p.proto.start}, ${p.proto.total}, ${p.proto.completed})
-        RETURNING id
-      `);
-      const protocolId = (protoRes.rows[0] as any).id as number;
+    let entregue = false;
+    let viaRegistrada: string = canal;
 
-      // 3. Inserir protocol_items (uma por substância)
-      for (const subId of p.proto.subIds) {
-        await db.execute(sql`
-          INSERT INTO protocol_items (protocol_id, substance_id, dose, interval_days, frequency, completed_sessions)
-          VALUES (${protocolId}, ${subId}, '1 ampola', 7, 'semanal', ${Math.floor(p.proto.completed / p.proto.subIds.length)})
-        `);
+    if (canal === "whatsapp") {
+      if (!c.phone) { res.status(422).json({ error: "Paciente sem telefone cadastrado" }); return; }
+      const result = await sendWhatsapp(c.phone, mensagem);
+      if (!result.sent) {
+        if (result.via === "link") {
+          res.status(422).json({ ok: false, error: "WhatsApp não configurado (Twilio sem credenciais). Use o link manual.", link: result.link });
+        } else {
+          res.status(502).json({ ok: false, error: result.error ?? "Twilio recusou o envio." });
+        }
+        return;
       }
+      entregue = true;
+      viaRegistrada = "twilio";
 
-      // 4. Inserir sessões
-      for (const sess of p.proto.sessions) {
-        await db.execute(sql`
-          INSERT INTO sessions (protocol_id, client_id, substance_id, scheduled_date, status, empresa_id)
-          VALUES (${protocolId}, ${clientId}, ${p.proto.subIds[0]}, ${sess.date}, ${sess.status}, 5)
-        `);
+    } else if (canal === "telegram") {
+      if (!c.telegram_chat_id) { res.status(422).json({ error: "Paciente sem Telegram vinculado" }); return; }
+      const result = await sendTelegram(c.telegram_chat_id, mensagem);
+      // mock=true → sem token → não entregue de verdade (honesto: 422)
+      if (result.mock) {
+        res.status(422).json({ ok: false, error: "Telegram não configurado (sem Bot Token). Configure nas Integrações." });
+        return;
       }
+      if (!result.sent) {
+        res.status(502).json({ ok: false, error: result.error ?? "Telegram rejeitou o envio." });
+        return;
+      }
+      entregue = true;
+      viaRegistrada = "telegram";
 
-      // 5. Inserir diagnósticos
-      for (const d of p.diag) {
-        await db.execute(sql`
-          INSERT INTO client_diagnosticos (client_id, empresa_id, nome_diagnostico, codigo_cid, categoria)
-          VALUES (${clientId}, 5, ${d.nome}, ${d.cid}, ${d.cat})
-        `);
+    } else if (canal === "email") {
+      if (!c.email) { res.status(422).json({ error: "Paciente sem e-mail cadastrado" }); return; }
+      const mensagemEscapada = mensagem
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+      const result = await sendGmailMessage({
+        to: c.email,
+        subject: `Mensagem da clínica para ${c.name}`,
+        html: `<p>${mensagemEscapada}</p>`,
+      });
+      if (!result.success) {
+        res.status(502).json({ ok: false, error: result.error ?? "Gmail rejeitou o envio." });
+        return;
+      }
+      entregue = true;
+      viaRegistrada = "gmail";
+
+    } else {
+      res.status(400).json({ error: "Canal inválido. Use: whatsapp | telegram | email" });
+      return;
+    }
+
+    // Grava na mensageria_lembrete quando entregue=true (fonte do "último contato").
+    // Usa pool.query diretamente para incluir empresa_id sem depender do tipo compilado do Drizzle.
+    // Falha de persistência NÃO é silenciosa: retornamos historyStored=false para que o frontend
+    // possa avisar o médico que o envio ocorreu mas o histórico não foi registrado.
+    let historyStored = false;
+    let historyError: string | undefined;
+    if (entregue) {
+      try {
+        const agora = new Date();
+        await pool.query(
+          `INSERT INTO mensageria_lembrete
+            (cliente_id, tipo, titulo, mensagem, periodo, dia_semana,
+             proximo_envio, status, via, telefone, enviado_em, empresa_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            Number(clientId),
+            "radar",
+            "Mensagem rápida via Radar Clínico",
+            mensagem,
+            "avulso",
+            null,
+            agora,
+            "enviado",
+            viaRegistrada,
+            c.phone ?? null,
+            agora,
+            empresaId,
+          ]
+        );
+        historyStored = true;
+      } catch (persistErr) {
+        const msg = persistErr instanceof Error ? persistErr.message : String(persistErr);
+        historyError = msg;
+        console.error("[radar-clinico/mensagem] falha ao gravar histórico:", persistErr);
       }
     }
 
-    logger.info({ insertedClients }, "radar-clinico: seed-demo concluído");
-    res.json({ ok: true, msg: `${insertedClients.length} pacientes demo inseridos.`, clientIds: insertedClients });
-  } catch (e: any) {
-    logger.error({ err: e }, "radar-clinico: erro no seed-demo");
-    res.status(500).json({ error: e?.message ?? "Erro interno no seed" });
+    res.json({ ok: true, canal, entregue, historyStored, ...(historyError ? { historyError } : {}) });
+  } catch (err) {
+    console.error("[radar-clinico/mensagem] erro:", err);
+    res.status(500).json({ error: "Erro interno ao enviar mensagem" });
   }
 });
 
 export default router;
-

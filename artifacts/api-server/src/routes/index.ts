@@ -169,6 +169,7 @@ router.use(catalogsRouter);
 router.use(dietaRouter);
 router.use(treinoRouter);
 router.use(cockpitRouter);
+router.use(radarClinicoRouter);
 router.use(cadastrosRouter);
 router.use(examRequestsRouter);
 router.use(examesLabRouter);
