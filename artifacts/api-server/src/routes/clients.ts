@@ -108,7 +108,12 @@ router.get("/clients", async (req, res): Promise<void> => {
         ilike(clientsTable.name, `%${query.data.search}%`),
         ilike(clientsTable.cpf, `%${query.data.search}%`),
         ...(searchDigits.length >= 3
-          ? [sql`regexp_replace(coalesce(${clientsTable.phone}::text, ''), '[^0-9]', '', 'g') ilike ${'%' + searchDigits + '%'}`]
+          ? [
+              // CPF normalizado: "123.456.789-00" bate com "12345678900"
+              sql`regexp_replace(coalesce(${clientsTable.cpf}::text, ''), '[^0-9]', '', 'g') ilike ${'%' + searchDigits + '%'}`,
+              // Telefone normalizado: "(11) 99999-9999" bate com "11999"
+              sql`regexp_replace(coalesce(${clientsTable.phone}::text, ''), '[^0-9]', '', 'g') ilike ${'%' + searchDigits + '%'}`,
+            ]
           : []),
       )!
     );
