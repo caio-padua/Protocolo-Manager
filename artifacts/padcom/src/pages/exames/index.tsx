@@ -644,7 +644,7 @@ export default function ExamesPage({
                   clientes={clients ?? []}
                   value={clientId}
                   onChange={setClientId}
-                  placeholder="Selecionar paciente"
+                  placeholder="Selecionar cliente…"
                 />
               )}
             </div>

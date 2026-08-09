@@ -628,7 +628,7 @@ export default function PrescricaoPage(
                   setSelectedClientId(id);
                   if (!id) setPatient({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
                 }}
-                placeholder="Busque por nome ou CPF…"
+                placeholder="Selecionar cliente…"
                 className="w-full"
               />
             </div>

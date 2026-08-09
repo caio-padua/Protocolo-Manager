@@ -612,7 +612,7 @@ export default function ReceituarioAutomatico() {
         <div className="px-6 pt-4 pb-3 grid grid-cols-1 md:grid-cols-2 gap-4 items-end border-b border-border/30">
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Cliente *</label>
-            <PaxterClientSelector clientes={clientesOpts} value={clienteSelId} onChange={v => { setClienteSelId(v); setNoAtivo(null); }} placeholder="Selecione o cliente…" />
+            <PaxterClientSelector clientes={clientesOpts} value={clienteSelId} onChange={v => { setClienteSelId(v); setNoAtivo(null); }} placeholder="Selecionar cliente…" />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">Nome do Programa *</label>

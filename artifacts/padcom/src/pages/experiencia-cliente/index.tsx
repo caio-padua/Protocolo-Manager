@@ -84,7 +84,7 @@ export default function ExperienciaCliente() {
                 clientes={options}
                 value={selectedId}
                 onChange={setSelectedId}
-                placeholder="Buscar cliente por nome ou CPF..."
+                placeholder="Selecionar cliente…"
               />
             )}
           </div>

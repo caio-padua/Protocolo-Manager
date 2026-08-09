@@ -221,7 +221,7 @@ export default function EncaminhamentosPage() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Cliente</label>
-            <PaxterClientSelector clientes={clientes} value={clientId} onChange={setClientId} placeholder="Escolha um cliente..." />
+            <PaxterClientSelector clientes={clientes} value={clientId} onChange={setClientId} placeholder="Selecionar cliente…" />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Profissional (origem)</label>

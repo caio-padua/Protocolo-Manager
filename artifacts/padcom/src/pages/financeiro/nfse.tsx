@@ -249,7 +249,7 @@ export default function LancadorNfse() {
             clientes={clients || []}
             value={clientId}
             onChange={onPickClient}
-            placeholder={loadingClients ? "Carregando clientes..." : "Selecione o cliente"}
+            placeholder="Selecionar cliente…"
           />
           <div className="concave-3d mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">

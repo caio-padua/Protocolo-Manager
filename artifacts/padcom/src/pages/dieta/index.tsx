@@ -294,7 +294,7 @@ function MontarCardapio() {
                 clientes={clientes ?? []}
                 value={clientId}
                 onChange={setClientId}
-                placeholder="Selecione o cliente"
+                placeholder="Selecionar cliente…"
               />
             </Field>
             <Field label="Objetivo">

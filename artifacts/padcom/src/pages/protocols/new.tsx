@@ -457,7 +457,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
                     clientes={clients ?? []}
                     value={clientId}
                     onChange={setClientId}
-                    placeholder="Selecione o cliente"
+                    placeholder="Selecionar cliente…"
                   />
                 </div>
               )}

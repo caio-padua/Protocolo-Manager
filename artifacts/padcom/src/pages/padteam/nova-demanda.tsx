@@ -225,7 +225,7 @@ export default function NovaDemanda() {
               clientes={clients}
               value={clientId}
               onChange={setClientId}
-              placeholder="Sem vínculo com cliente"
+              placeholder="Selecionar cliente…"
             />
           </div>
         </div>

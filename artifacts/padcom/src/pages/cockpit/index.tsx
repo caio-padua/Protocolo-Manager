@@ -221,7 +221,7 @@ export default function Cockpit() {
             clientes={clientes ?? []}
             value={clienteId}
             onChange={setClienteId}
-            placeholder="Escolha um cliente para abrir a consulta..."
+            placeholder="Selecionar cliente…"
           />
         </div>
         <Button

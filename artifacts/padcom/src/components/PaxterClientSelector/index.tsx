@@ -28,7 +28,7 @@ export function PaxterClientSelector({
   value,
   onChange,
   variant = "popover",
-  placeholder = "Selecionar paciente...",
+  placeholder = "Selecionar cliente…",
   allOptionLabel,
   disabled = false,
   className,

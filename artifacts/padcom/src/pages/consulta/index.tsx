@@ -432,7 +432,7 @@ export default function ConsultaProntuario() {
               clientes={clientes}
               value={clienteId ? Number(clienteId) : null}
               onChange={(id) => setClienteId(id == null ? "" : String(id))}
-              placeholder="Escolher cliente…"
+              placeholder="Selecionar cliente…"
               allOptionLabel="Escolher cliente…"
             />
           </div>
