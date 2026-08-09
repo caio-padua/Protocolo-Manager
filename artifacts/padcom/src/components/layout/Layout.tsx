@@ -94,6 +94,7 @@ const navigation: NavEntry[] = [
     name: "O Ato Médico",
     icon: Stethoscope,
     children: [
+      { name: "Radar Clínico",       href: "/radar-clinico",   icon: Radar       },
       { name: "Cockpit da Consulta", href: "/cockpit-cliente", icon: Stethoscope },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },

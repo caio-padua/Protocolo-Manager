@@ -30,6 +30,7 @@ import Dieta from "@/pages/dieta";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import Cockpit from "@/pages/cockpit";
+import RadarClinico from "@/pages/radar-clinico";
 import CockpitShell from "@/pages/cockpit-cliente/CockpitShell";
 import type { AbaId } from "@/pages/cockpit-cliente/CockpitTabs";
 const CockpitCliente = CockpitShell; // alias para rotas legadas
@@ -228,6 +229,7 @@ function Router() {
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/cartorio" component={Cartorio} />
+            <Route path="/radar-clinico" component={RadarClinico} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
             <Route path="/modelo-receituario" component={ModeloReceituario} />
             <Route path="/portfolio-clinico" component={PortfolioClinico} />

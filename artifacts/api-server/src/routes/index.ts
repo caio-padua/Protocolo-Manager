@@ -94,6 +94,7 @@ import prontuarioRouter from "./prontuario";
 import driveWatcherRouter from "./drive-watcher";
 import menuRouter from "./menu";
 import avatarsRouter from "./avatares";
+import radarClinicoRouter from "./radar-clinico";
 
 const router: IRouter = Router();
 
@@ -222,5 +223,6 @@ router.use(prontuarioRouter);
 router.use(driveWatcherRouter);
 router.use(menuRouter);
 router.use(avatarsRouter);
+router.use(radarClinicoRouter);
 
 export default router;
