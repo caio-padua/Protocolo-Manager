@@ -7,11 +7,16 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import {
-  Radar, SlidersHorizontal, X, Search, MessageSquare, ChevronDown,
-  ChevronUp, UserRound, Syringe, AlertTriangle, CalendarClock, Clock,
+  Radar, X, MessageSquare, ChevronDown, ChevronUp,
+  UserRound, Syringe, AlertTriangle, CalendarClock, Clock,
   Filter, Stethoscope, FlaskConical, ShieldAlert, Phone, ImageOff,
   CheckCircle2, RefreshCw, Send,
 } from "lucide-react";
+import {
+  PatientSelectorBar,
+  PatientGroupDivider,
+  usePatientFilter,
+} from "@/components/patients/PatientSelectorBar";
 import { Button }   from "@/components/ui/button";
 import { Input }    from "@/components/ui/input";
 import { Badge }    from "@/components/ui/badge";
@@ -820,11 +825,19 @@ function ModalDiagnostico({
 // ── Página principal ──────────────────────────────────────────────────────
 
 export default function RadarClinico() {
-  const [filtros, setFiltros]         = useState<Filtros>(FILTROS_INICIAL);
-  const [pacientes, setPacientes]     = useState<Paciente[]>([]);
-  const [carregando, setCarregando]   = useState(false);
-  const [busca, setBusca]             = useState("");
+  const [filtros, setFiltros]           = useState<Filtros>(FILTROS_INICIAL);
+  const [pacientes, setPacientes]       = useState<Paciente[]>([]);
+  const [carregando, setCarregando]     = useState(false);
   const [painelAberto, setPainelAberto] = useState(true);
+
+  // Seletor A–Z (padrão canônico — skill-patient-selector)
+  const {
+    busca, setBusca,
+    letra, setLetra,
+    letrasDisponiveis,
+    filtrados: pacientesFiltrados,
+    grupos,
+  } = usePatientFilter(pacientes);
   const [pacienteMensagem, setPacienteMensagem]     = useState<Paciente | null>(null);
   const [pacienteDiagnostico, setPacienteDiagnostico] = useState<Paciente | null>(null);
 
@@ -842,18 +855,7 @@ export default function RadarClinico() {
     return n;
   }, [filtros]);
 
-  // Filtro de busca local (nome, CPF, telefone)
-  const pacientesFiltrados = useMemo(() => {
-    const q = busca.toLowerCase().trim();
-    if (!q) return pacientes;
-    return pacientes.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.cpf ?? "").includes(q) ||
-        (p.phone ?? "").includes(q) ||
-        (p.email ?? "").toLowerCase().includes(q),
-    );
-  }, [pacientes, busca]);
+  // Filtro de busca local: delegado ao hook usePatientFilter acima
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -960,15 +962,15 @@ export default function RadarClinico() {
           ))}
         </div>
 
-        {/* Busca */}
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            className="field-engraved w-full text-sm pl-8 pr-3 py-1.5"
+        {/* Barra A–Z + busca (padrão canônico — skill-patient-selector) */}
+        <div className="panel-3d-sub p-3 space-y-2 rounded-lg">
+          <PatientSelectorBar
+            busca={busca}
+            onBuscaChange={setBusca}
+            letraSelecionada={letra}
+            onLetraChange={setLetra}
+            letrasDisponiveis={letrasDisponiveis}
             placeholder="Buscar por nome, CPF ou telefone..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
           />
         </div>
       </div>
@@ -1018,17 +1020,26 @@ export default function RadarClinico() {
                 {kpiTotal} paciente(s) encontrado(s)
                 {filtrosAtivos > 0 && ` · ${filtrosAtivos} filtro(s) ativo(s)`}
               </div>
-              <div
-                className="grid gap-3"
-                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}
-              >
-                {pacientesFiltrados.map((p) => (
-                  <PatientCard
-                    key={p.id}
-                    paciente={p}
-                    onMessage={setPacienteMensagem}
-                    onDiagnostico={setPacienteDiagnostico}
-                  />
+
+              {/* Grade por grupos de letra — padrão canônico skill-patient-selector */}
+              <div className="flex flex-col gap-4">
+                {grupos.map((g) => (
+                  <div key={g.letra}>
+                    <PatientGroupDivider letra={g.letra} count={g.pacientes.length} />
+                    <div
+                      className="grid gap-3 mt-2"
+                      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}
+                    >
+                      {g.pacientes.map((p) => (
+                        <PatientCard
+                          key={p.id}
+                          paciente={p}
+                          onMessage={setPacienteMensagem}
+                          onDiagnostico={setPacienteDiagnostico}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </>

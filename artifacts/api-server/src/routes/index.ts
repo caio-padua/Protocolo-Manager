@@ -220,9 +220,9 @@ router.use(agentesWppRouter);
 router.use(agentesIntegracoesRouter);
 router.use(agentesQuickrepliesRouter);
 router.use(prontuarioRouter);
+router.use(radarClinicoRouter);
 router.use(driveWatcherRouter);
 router.use(menuRouter);
 router.use(avatarsRouter);
-router.use(radarClinicoRouter);
 
 export default router;
