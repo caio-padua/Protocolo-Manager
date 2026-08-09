@@ -45,7 +45,7 @@ export default function CockpitHeader({
   // Carrega lista de clientes para o seletor (usa cache React Query — sem requisição extra)
   const { data: clients } = useListClients();
   const opcoes = useMemo(
-    () => (clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone })),
+    () => (clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl })),
     [clients],
   );
 

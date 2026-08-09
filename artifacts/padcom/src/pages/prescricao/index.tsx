@@ -116,6 +116,8 @@ export default function PrescricaoPage(
             id: c.id,
             name: c.name ?? "",
             cpf: c.cpf ?? null,
+            phone: (c as any).phone ?? null,
+            photoUrl: (c as any).photoUrl ?? null,
             status: c.status ?? "active",
             deletedAt: c.deletedAt ?? null,
           }))

@@ -18,6 +18,7 @@ export default function ExperienciaCliente() {
     name: c.name,
     cpf: c.cpf,
     phone: c.phone,
+    photoUrl: c.photoUrl,
   }));
 
   const selected = options.find((c) => c.id === selectedId) ?? null;

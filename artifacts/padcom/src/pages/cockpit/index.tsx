@@ -144,7 +144,7 @@ export default function Cockpit() {
       const r = await fetch("/api/clients");
       if (!r.ok) throw new Error("falha ao listar clientes");
       const rows = await r.json();
-      return (rows as { id: number; name: string; cpf?: string | null; phone?: string | null }[]).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone }));
+      return (rows as { id: number; name: string; cpf?: string | null; phone?: string | null; photoUrl?: string | null }[]).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl }));
     },
   });
 

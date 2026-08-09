@@ -7,6 +7,8 @@ export interface PaxterClientOption {
   name: string;
   cpf?: string | null;
   phone?: string | null;
+  /** URL da foto do cliente (object-storage). Exibida como mini-avatar no trigger e na lista. */
+  photoUrl?: string | null;
   status?: string | null;
   deletedAt?: string | null;
 }

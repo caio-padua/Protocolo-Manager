@@ -76,7 +76,7 @@ export default function CockpitAnamnese() {
 
   const { data: clients } = useListClients();
   const opcoes = useMemo(
-    () => (clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone })),
+    () => (clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl })),
     [clients],
   );
   const cliente = useMemo(

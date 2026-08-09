@@ -4,21 +4,58 @@
  * Substitui ClientPicker, ClientCombobox, CockpitSearch e Radix <Select> de clientes.
  * Busca por nome, CPF e telefone. Barra A–Z com estilo keycap 3D.
  * CPF sempre visível ao lado do nome para evitar seleção de homônimos.
+ * Mini-avatar (foto ou iniciais) no trigger e em cada linha da lista.
  *
- * Skill de referência: .agents/skills/skill-patient-selector/SKILL.md
+ * Skill de referência: .agents/skills/skill-paxter-client-selector/SKILL.md
  */
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Search, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import type { PaxterClientSelectorProps, PaxterClientOption } from "./types";
-import { useClientFilter, useServerSearch, formatCpf, norm, initialOf } from "./useClientFilter";
+import { useClientFilter, useServerSearch, formatCpf } from "./useClientFilter";
 import { AlphabetBar } from "./AlphabetBar";
 
 export type { PaxterClientOption, PaxterClientSelectorProps };
+
+// ── Helper: iniciais do nome ──────────────────────────────────────────────────
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return (parts[0]?.[0] ?? "?").toUpperCase();
+  return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+
+// ── Mini avatar (foto ou iniciais) ───────────────────────────────────────────
+
+function ClientAvatar({
+  name,
+  photoUrl,
+  size = "md",
+}: {
+  name: string;
+  photoUrl?: string | null;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "sm" ? "h-5 w-5 text-[9px] rounded-[3px]" : "h-7 w-7 text-[10px] rounded-[4px]";
+  return (
+    <span
+      className={cn(
+        "shrink-0 overflow-hidden flex items-center justify-center font-bold bg-primary/10 text-primary",
+        dim,
+      )}
+    >
+      {photoUrl ? (
+        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials(name)
+      )}
+    </span>
+  );
+}
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
@@ -112,6 +149,7 @@ export function PaxterClientSelector({
             <ClientRow
               name={allOptionLabel}
               cpf={null}
+              photoUrl={null}
               selected={value === null}
               onClick={() => handleSelect(null)}
             />
@@ -129,7 +167,7 @@ export function PaxterClientSelector({
             filter.filtrados.length === 0 &&
             (!serverSearch || filter.busca.trim().length >= 2) && (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum paciente encontrado.
+                Nenhum cliente encontrado.
               </p>
             )}
 
@@ -139,6 +177,7 @@ export function PaxterClientSelector({
               key={c.id}
               name={c.name}
               cpf={c.cpf}
+              photoUrl={c.photoUrl}
               selected={c.id === value}
               onClick={() => handleSelect(c)}
             />
@@ -230,9 +269,10 @@ export function PaxterClientSelector({
             className,
           )}
         >
-          {/* Lado esquerdo: nome + CPF */}
+          {/* Lado esquerdo: avatar + nome + CPF */}
           {displayName ? (
-            <span className="flex items-baseline gap-1.5 truncate min-w-0">
+            <span className="flex items-center gap-1.5 truncate min-w-0">
+              <ClientAvatar name={displayName} photoUrl={selected?.photoUrl} size="sm" />
               <span className="truncate font-medium text-foreground">{displayName}</span>
               {displayCpf && (
                 <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
@@ -288,11 +328,13 @@ export function PaxterClientSelector({
 function ClientRow({
   name,
   cpf,
+  photoUrl,
   selected,
   onClick,
 }: {
   name: string;
   cpf?: string | null;
+  photoUrl?: string | null;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -302,14 +344,18 @@ function ClientRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-[5px] px-2.5 py-1.5",
+        "flex w-full items-center gap-2 rounded-[5px] px-2 py-1.5",
         "text-left text-sm transition-colors",
         selected
           ? "bg-primary/10 text-primary font-semibold"
           : "hover:bg-muted/70 text-foreground",
       )}
     >
-      <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+      {/* Mini avatar */}
+      <ClientAvatar name={name} photoUrl={photoUrl} size="md" />
+
+      {/* Nome + CPF */}
+      <span className="flex items-baseline gap-1.5 min-w-0 flex-1 truncate">
         <span className="truncate font-medium">{name}</span>
         {cpfFormatado && (
           <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
@@ -317,6 +363,7 @@ function ClientRow({
           </span>
         )}
       </span>
+
       {selected && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
     </button>
   );
