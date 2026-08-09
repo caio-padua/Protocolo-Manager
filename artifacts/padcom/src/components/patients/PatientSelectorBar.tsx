@@ -31,21 +31,27 @@ export function normPatient(s: string): string {
  * `usePatientFilter` — encapsula busca por texto + filtro A–Z sobre
  * uma lista de pacientes já carregada em memória.
  *
- * @param pacientes  Lista completa (pode incluir any[]; precisa ter campo `name`).
+ * Busca por: nome, CPF (apenas dígitos) e telefone (apenas dígitos).
+ * Agrupamento sempre por primeira letra do nome.
+ *
+ * @param pacientes    Lista completa. Precisa ter campo `name`; `cpf` e `phone`
+ *                     são opcionais e usados na busca textual quando presentes.
  * @param extraFilter  Filtro adicional opcional (ex.: filtros server-side já aplicados).
  *
  * @example
- *   const { busca, setBusca, letra, setLetra, letrasDisponiveis, filtrados } =
+ *   const { busca, setBusca, letra, setLetra, letrasDisponiveis, filtrados, grupos } =
  *     usePatientFilter(pacientesCarregados);
  */
-export function usePatientFilter<T extends { name: string }>(
+export function usePatientFilter<
+  T extends { name: string; cpf?: string | null; phone?: string | null; email?: string | null }
+>(
   pacientes: T[],
   extraFilter?: (p: T) => boolean,
 ) {
   const [busca, setBusca]       = useState("");
   const [letra, setLetra]       = useState<string | null>(null);
 
-  // Letras que têm pelo menos um paciente
+  // Letras que têm pelo menos um paciente (sempre por nome)
   const letrasDisponiveis = useMemo(() => {
     const s = new Set<string>();
     const pool = extraFilter ? pacientes.filter(extraFilter) : pacientes;
@@ -53,15 +59,25 @@ export function usePatientFilter<T extends { name: string }>(
     return s;
   }, [pacientes, extraFilter]);
 
-  // Resultado filtrado
+  // Resultado filtrado — busca por nome, CPF (dígitos) e telefone (dígitos)
   const filtrados = useMemo(() => {
     let pool = extraFilter ? pacientes.filter(extraFilter) : pacientes;
     if (letra) {
       pool = pool.filter((p) => normPatient(p.name).charAt(0) === letra);
     }
     if (busca.trim()) {
-      const q = normPatient(busca);
-      pool = pool.filter((p) => normPatient(p.name).includes(q));
+      const q      = normPatient(busca);
+      const digits = busca.replace(/\D/g, "");
+      pool = pool.filter((p) => {
+        if (normPatient(p.name).includes(q)) return true;
+        if (digits.length >= 3) {
+          const byCpf   = (p.cpf   ?? "").replace(/\D/g, "").includes(digits);
+          const byPhone = (p.phone  ?? "").replace(/\D/g, "").includes(digits);
+          const byEmail = normPatient(p.email ?? "").includes(q);
+          if (byCpf || byPhone || byEmail) return true;
+        }
+        return false;
+      });
     }
     return pool;
   }, [pacientes, extraFilter, letra, busca]);
