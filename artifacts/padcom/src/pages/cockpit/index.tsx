@@ -98,6 +98,8 @@ interface CockpitDTO {
 interface ClienteOpt {
   id: number;
   name: string;
+  cpf?: string | null;
+  phone?: string | null;
 }
 interface EmitirResp {
   ok: boolean;
@@ -142,7 +144,7 @@ export default function Cockpit() {
       const r = await fetch("/api/clients");
       if (!r.ok) throw new Error("falha ao listar clientes");
       const rows = await r.json();
-      return (rows as { id: number; name: string }[]).map((c) => ({ id: c.id, name: c.name }));
+      return (rows as { id: number; name: string; cpf?: string | null; phone?: string | null }[]).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone }));
     },
   });
 

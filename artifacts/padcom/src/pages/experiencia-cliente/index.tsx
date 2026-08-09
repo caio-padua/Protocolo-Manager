@@ -5,7 +5,7 @@ import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-type ClientOption = { id: number; name: string; cpf?: string | null };
+type ClientOption = { id: number; name: string; cpf?: string | null; phone?: string | null };
 
 export default function ExperienciaCliente() {
   const { data: clientes, isLoading } = useListClients();
@@ -17,6 +17,7 @@ export default function ExperienciaCliente() {
     id: c.id,
     name: c.name,
     cpf: c.cpf,
+    phone: c.phone,
   }));
 
   const selected = options.find((c) => c.id === selectedId) ?? null;

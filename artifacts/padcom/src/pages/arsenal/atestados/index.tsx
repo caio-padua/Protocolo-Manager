@@ -106,7 +106,7 @@ export default function AtestadosPage() {
   const profSel = useMemo(() => profissionais.find((p) => p.id === professionalId) ?? null, [profissionais, professionalId]);
 
   const clientPickerOpts: PaxterClientOption[] = useMemo(
-    () => clientes.map((c) => ({ id: c.id, name: c.name })),
+    () => clientes.map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone })),
     [clientes],
   );
 
