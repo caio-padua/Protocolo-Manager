@@ -22,6 +22,7 @@ import { resolveEmpresaId } from "../middleware/tenantContext";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { sendGmailMessage } from "../lib/google-gmail";
+import { enviarMensagemRadar, type RadarMensagemDeps } from "../lib/radar-mensagem";
 
 const router = Router();
 
@@ -250,117 +251,74 @@ router.get("/radar-clinico", async (req, res): Promise<void> => {
 // POST /radar-clinico/mensagem
 // Regras: Telegram mock → 422 | WhatsApp sem Twilio → 422 | falha → 502
 //         sucesso real → 200 + grava em mensageria_lembrete
+//
+// A lógica de negócio fica em lib/radar-mensagem.ts (testável sem HTTP).
+// A rota só injeta as dependências reais e mapeia o resultado para HTTP.
 // ──────────────────────────────────────────────────────────────────────────────
 router.post("/radar-clinico/mensagem", async (req, res): Promise<void> => {
   try {
     const empresaId = resolveEmpresaId(req as any);
     const { clientId, canal, mensagem } = req.body ?? {};
-    if (!clientId || !canal || !mensagem) {
-      res.status(400).json({ error: "clientId, canal e mensagem são obrigatórios" });
-      return;
-    }
 
-    // Busca o cliente dentro do mesmo tenant
-    const clientResult = await pool.query<{
-      id: number; name: string; phone: string | null; email: string | null; telegram_chat_id: string | null;
-    }>(
-      `SELECT id, name, phone, email, telegram_chat_id FROM clients WHERE id = $1 AND empresa_id = $2`,
-      [Number(clientId), empresaId]
-    );
-    if (!clientResult.rows.length) { res.status(404).json({ error: "Paciente não encontrado" }); return; }
-    const c = clientResult.rows[0];
-
-    let entregue = false;
-    let viaRegistrada: string = canal;
-
-    if (canal === "whatsapp") {
-      if (!c.phone) { res.status(422).json({ error: "Paciente sem telefone cadastrado" }); return; }
-      const result = await sendWhatsapp(c.phone, mensagem);
-      if (!result.sent) {
-        if (result.via === "link") {
-          res.status(422).json({ ok: false, error: "WhatsApp não configurado (Twilio sem credenciais). Use o link manual.", link: result.link });
-        } else {
-          res.status(502).json({ ok: false, error: result.error ?? "Twilio recusou o envio." });
-        }
-        return;
-      }
-      entregue = true;
-      viaRegistrada = "twilio";
-
-    } else if (canal === "telegram") {
-      if (!c.telegram_chat_id) { res.status(422).json({ error: "Paciente sem Telegram vinculado" }); return; }
-      const result = await sendTelegram(c.telegram_chat_id, mensagem);
-      // mock=true → sem token → não entregue de verdade (honesto: 422)
-      if (result.mock) {
-        res.status(422).json({ ok: false, error: "Telegram não configurado (sem Bot Token). Configure nas Integrações." });
-        return;
-      }
-      if (!result.sent) {
-        res.status(502).json({ ok: false, error: result.error ?? "Telegram rejeitou o envio." });
-        return;
-      }
-      entregue = true;
-      viaRegistrada = "telegram";
-
-    } else if (canal === "email") {
-      if (!c.email) { res.status(422).json({ error: "Paciente sem e-mail cadastrado" }); return; }
-      const mensagemEscapada = mensagem
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
-      const result = await sendGmailMessage({
-        to: c.email,
-        subject: `Mensagem da clínica para ${c.name}`,
-        html: `<p>${mensagemEscapada}</p>`,
-      });
-      if (!result.success) {
-        res.status(502).json({ ok: false, error: result.error ?? "Gmail rejeitou o envio." });
-        return;
-      }
-      entregue = true;
-      viaRegistrada = "gmail";
-
-    } else {
-      res.status(400).json({ error: "Canal inválido. Use: whatsapp | telegram | email" });
-      return;
-    }
-
-    // Grava na mensageria_lembrete quando entregue=true (fonte do "último contato").
-    // Usa pool.query diretamente para incluir empresa_id sem depender do tipo compilado do Drizzle.
-    // Falha de persistência NÃO é silenciosa: retornamos historyStored=false para que o frontend
-    // possa avisar o médico que o envio ocorreu mas o histórico não foi registrado.
-    let historyStored = false;
-    let historyError: string | undefined;
-    if (entregue) {
-      try {
+    // Dependências reais injetadas aqui
+    const deps: RadarMensagemDeps = {
+      async getCliente(cId, eId) {
+        const r = await pool.query<{
+          id: number; name: string; phone: string | null;
+          email: string | null; telegram_chat_id: string | null;
+        }>(
+          `SELECT id, name, phone, email, telegram_chat_id FROM clients WHERE id = $1 AND empresa_id = $2`,
+          [Number(cId), eId],
+        );
+        return r.rows[0] ?? null;
+      },
+      sendWhatsapp: (phone, msg) => sendWhatsapp(phone, msg),
+      sendTelegram: (chatId, msg) => sendTelegram(chatId, msg),
+      async sendGmail(to, subject, html) {
+        const r = await sendGmailMessage({ to, subject, html });
+        return r;
+      },
+      async saveHistory({ clientId: cId, mensagem: msg, via, phone, empresaId: eId }) {
         const agora = new Date();
         await pool.query(
           `INSERT INTO mensageria_lembrete
             (cliente_id, tipo, titulo, mensagem, periodo, dia_semana,
              proximo_envio, status, via, telefone, enviado_em, empresa_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [
-            Number(clientId),
-            "radar",
-            "Mensagem rápida via Radar Clínico",
-            mensagem,
-            "avulso",
-            null,
-            agora,
-            "enviado",
-            viaRegistrada,
-            c.phone ?? null,
-            agora,
-            empresaId,
-          ]
+            Number(cId), "radar", "Mensagem rápida via Radar Clínico", msg,
+            "avulso", null, agora, "enviado", via, phone, agora, eId,
+          ],
         );
-        historyStored = true;
-      } catch (persistErr) {
-        const msg = persistErr instanceof Error ? persistErr.message : String(persistErr);
-        historyError = msg;
-        console.error("[radar-clinico/mensagem] falha ao gravar histórico:", persistErr);
-      }
-    }
+        return true;
+      },
+    };
 
-    res.json({ ok: true, canal, entregue, historyStored, ...(historyError ? { historyError } : {}) });
+    const result = await enviarMensagemRadar(
+      { clientId: Number(clientId), canal, mensagem, empresaId },
+      deps,
+    );
+
+    // Mapeamento resultado → HTTP
+    switch (result.kind) {
+      case "ok":
+        res.json({
+          ok: true, canal, entregue: true,
+          historyStored: result.historyStored,
+          ...(result.historyError ? { historyError: result.historyError } : {}),
+        });
+        break;
+      case "400": res.status(400).json({ error: result.error }); break;
+      case "404": res.status(404).json({ error: "Paciente não encontrado" }); break;
+      case "422":
+        res.status(422).json({ ok: false, error: result.error, ...(result.link ? { link: result.link } : {}) });
+        break;
+      case "502":
+        res.status(502).json({ ok: false, error: result.error, ...(result.link ? { link: result.link } : {}) });
+        break;
+      default:
+        res.status(500).json({ error: (result as any).error ?? "Erro interno" });
+    }
   } catch (err) {
     console.error("[radar-clinico/mensagem] erro:", err);
     res.status(500).json({ error: "Erro interno ao enviar mensagem" });

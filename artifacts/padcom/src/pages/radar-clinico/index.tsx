@@ -314,6 +314,15 @@ function CardPaciente({
 
 // ── Modal de mensagem rápida ────────────────────────────────────────────────
 
+// Erro que carrega o link de fallback WhatsApp (wa.me) para exibir no modal
+class SendError extends Error {
+  link?: string;
+  constructor(message: string, link?: string) {
+    super(message);
+    this.link = link;
+  }
+}
+
 function MsgModal({
   paciente,
   onClose,
@@ -323,6 +332,7 @@ function MsgModal({
 }) {
   const [canal, setCanal] = useState<"whatsapp" | "telegram" | "email">("whatsapp");
   const [texto, setTexto] = useState("");
+  const [fallbackLink, setFallbackLink] = useState<string | null>(null);
   const { toast } = useToast();
 
   const canaisDisponiveis = [
@@ -333,14 +343,15 @@ function MsgModal({
 
   const mutation = useMutation({
     mutationFn: async () => {
+      setFallbackLink(null);
       const resp = await fetch(`${API_BASE}/api/radar-clinico/mensagem`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId: paciente.id, canal, mensagem: texto }),
       });
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error((err as any).error || `Erro ${resp.status}`);
+        const body = await resp.json().catch(() => ({})) as { error?: string; link?: string };
+        throw new SendError(body.error || `Erro ${resp.status}`, body.link);
       }
       return resp.json();
     },
@@ -357,6 +368,8 @@ function MsgModal({
       onClose();
     },
     onError: (err: Error) => {
+      const link = (err as SendError).link;
+      if (link) setFallbackLink(link);
       toast({ title: "Falha ao enviar", description: err.message, variant: "destructive" });
     },
   });
@@ -439,6 +452,19 @@ function MsgModal({
             </span>
           )}
         </button>
+
+        {/* Botão de fallback manual — aparece quando o WhatsApp falha mas temos o link wa.me */}
+        {fallbackLink && (
+          <a
+            href={fallbackLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 w-full btn-3d-soft py-2 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Abrir WhatsApp manualmente
+          </a>
+        )}
       </div>
     </div>
   );
