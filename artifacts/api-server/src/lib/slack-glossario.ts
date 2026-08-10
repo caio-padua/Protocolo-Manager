@@ -24,7 +24,7 @@ export type GlossarioEntry = {
 };
 
 /**
- * Dicionário canônico — 85 termos completos.
+ * Dicionário canônico — 96 termos completos.
  * Ordenado por numero permanente. NÃO alterar a ordem.
  */
 export const GLOSSARIO: GlossarioEntry[] = [
@@ -622,6 +622,87 @@ export const GLOSSARIO: GlossarioEntry[] = [
     explicacao:  "Documento Google Sheets com todas as tasks do projeto: status (A FAZER/PARCIAL/CONCLUÍDO), responsável e contexto.",
     ondeUsar:    "Aba PLANILHA PRODUCAO na Google Sheets do projeto; link no footer de todo relatório Slack horário.",
     funcaoUsual: "Qual o status de tudo? / O que está sendo feito agora? / Atualiza a planilha com o novo item.",
+  },
+
+  // ── Termos do framework de tarefas Paxter Loop (adicionados 10/08/2026) ────
+  {
+    numero: 86, termo: "What & Why",
+    leigo:       "É a primeira linha do prontuário: 'paciente de 55 anos, hipertenso, veio por dor torácica'. Sem ela, ninguém sabe por que está tratando.",
+    explicacao:  "Seção obrigatória do plano de tarefa que descreve o problema a resolver e a motivação — por que existe, qual dor resolve.",
+    ondeUsar:    "Primeiro bloco de todo arquivo em .local/tasks/*.md; lido pelo executor antes de tocar uma linha de código.",
+    funcaoUsual: "Por que vamos fazer isso? / Qual é o problema que esta tarefa resolve?",
+  },
+  {
+    numero: 87, termo: "Done looks like",
+    leigo:       "É o critério de alta: 'paciente recebe alta quando saturação acima de 95% em ar ambiente por 24h'. Sem critério claro, ninguém sabe quando parar.",
+    explicacao:  "Seção do plano que define outcomes observáveis e concretos — o que o usuário vê quando a tarefa está concluída, não detalhes de código.",
+    ondeUsar:    "Segundo bloco do arquivo .local/tasks/*.md; usado pelo auditor para conferir se a tarefa foi entregue conforme o combinado.",
+    funcaoUsual: "Quando a task está pronta? / O que preciso ver para aprovar? / O que foi entregue?",
+  },
+  {
+    numero: 88, termo: "Out of scope",
+    leigo:       "É a contra-indicação do protocolo: o que não vai ser feito nesta sessão, para ninguém esperar o que não foi prometido.",
+    explicacao:  "Seção que delimita explicitamente o que NÃO está incluído na tarefa — evita escopo inflado e trabalho não pedido.",
+    ondeUsar:    "Terceiro bloco do arquivo .local/tasks/*.md; garante que executor e auditor concordam sobre os limites da entrega.",
+    funcaoUsual: "Isso está incluído nesta task? / Por que não fez a funcionalidade X também?",
+  },
+  {
+    numero: 89, termo: "Steps",
+    leigo:       "É o protocolo de manipulação da farmácia: passo 1, pese o ativo; passo 2, dissolva; passo 3, filtre. Sem ordem, resulta em erro.",
+    explicacao:  "Seção do plano com passos numerados de implementação para o executor — o que construir, em que ordem, sem código inline.",
+    ondeUsar:    "Quarto bloco do arquivo .local/tasks/*.md; seguido pelo agente executor (Dr. Replit, Dr. Code ou Dr. Manus) para construir a feature.",
+    funcaoUsual: "Como implementar esta task? / Quais são os passos? / Em que ordem deve ser feito?",
+  },
+  {
+    numero: 90, termo: "Relevant files",
+    leigo:       "É o índice do prontuário que aponta exatamente onde está cada resultado de exame, sem precisar folhear tudo.",
+    explicacao:  "Seção final do plano com caminhos exatos dos arquivos do repositório que o executor deve ler antes de começar a modificar.",
+    ondeUsar:    "Último bloco do arquivo .local/tasks/*.md; lista apenas arquivos verificados como existentes — nunca caminhos inventados.",
+    funcaoUsual: "Por onde começo a implementar? / Quais arquivos já existem e preciso conhecer?",
+  },
+
+  // ── Termos técnicos do Guia Digital (adicionados 10/08/2026) ────────────────
+  {
+    numero: 91, termo: "TTS",
+    leigo:       "É a recepcionista que lê em voz alta o nome do paciente: você não precisa enxergar o painel para saber que chegou a sua vez.",
+    explicacao:  "Text-to-Speech — síntese de voz que converte texto em áudio falado. No Guia Digital usa a Web Speech API nativa do navegador.",
+    ondeUsar:    "Botão de áudio em cada passo do /guia-digital; acionado pelo ícone de alto-falante ao lado do texto.",
+    funcaoUsual: "O sistema consegue ler o passo em voz alta? / Como funciona o áudio no guia do paciente?",
+  },
+  {
+    numero: 92, termo: "Web Speech API",
+    leigo:       "É o microfone e o alto-falante que o navegador já tem instalados — sem precisar instalar mais nada.",
+    explicacao:  "API nativa dos navegadores modernos para síntese de voz (TTS) e reconhecimento de fala (STT) — zero custo, zero API externa.",
+    ondeUsar:    "Usada em guia-digital/index.tsx via window.speechSynthesis; funciona em iOS Safari, Android Chrome e desktop.",
+    funcaoUsual: "Precisa de API paga para o áudio? / O som funciona em iPhone? / Qual custo do TTS?",
+  },
+  {
+    numero: 93, termo: "onboarding digital",
+    leigo:       "É a consulta de boas-vindas onde você explica ao paciente como funciona a clínica, o app e como chegar na próxima vez.",
+    explicacao:  "Processo estruturado de cadastro, configuração e integração inicial do paciente na plataforma — instalar PWA, entrar na área, vincular Telegram.",
+    ondeUsar:    "Tela pública /guia-digital (paciente) e tela CEO /comunicacao/guia-paciente (disparo); rota POST /api/onboarding/enviar-guia.",
+    funcaoUsual: "Como o paciente instala o app? / Como ensino o paciente a usar o Telegram? / Como envio o guia?",
+  },
+  {
+    numero: 94, termo: "rate limiting",
+    leigo:       "É o intervalo mínimo entre aplicações: não importa quantas vezes o médico clicar, a segunda dose não sai antes do prazo.",
+    explicacao:  "Controle de taxa que impede múltiplas chamadas idênticas num intervalo curto — protege APIs de disparo duplo ou loop acidental.",
+    ondeUsar:    "Implementado em /api/onboarding/enviar-guia com cooldown de 60 segundos por (clienteId, canal); armazenado em Map em memória.",
+    funcaoUsual: "Por que não posso reenviar imediatamente? / O sistema evita mandar WhatsApp duplicado?",
+  },
+  {
+    numero: 95, termo: "funil de onboarding",
+    leigo:       "É o acompanhamento da triagem: sabe quantos pacientes vieram ao pronto-socorro, quantos foram avaliados e quantos internaram.",
+    explicacao:  "Sequência de etapas mensuráveis de um processo com registro de onde o usuário avança ou abandona — identifica gargalos.",
+    ondeUsar:    "Tabela onboarding_eventos (Task #124): registra device + seção aberta + timestamp por paciente no Guia Digital.",
+    funcaoUsual: "Quantos pacientes instalaram o PWA? / Onde param no guia? / Qual seção tem mais abandono?",
+  },
+  {
+    numero: 96, termo: "QR Code",
+    leigo:       "É o código de barras moderno que a câmera do celular lê em um segundo — como um atalho impresso no papel que leva direto ao site.",
+    explicacao:  "Quick Response Code — matriz bidimensional de pontos que codifica uma URL ou dado, lida instantaneamente pela câmera sem app especial.",
+    ondeUsar:    "Card no /guia-digital quando acessado por computador (Task #127) — permite o paciente abrir o guia no celular apontando a câmera.",
+    funcaoUsual: "Como o paciente abre no celular a partir do computador? / O que é aquele quadrado com pontinhos?",
   },
 ];
 
