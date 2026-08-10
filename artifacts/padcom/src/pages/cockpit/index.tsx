@@ -71,7 +71,14 @@ interface Sugestao {
   justificativa: string;
 }
 interface CockpitDTO {
-  cliente: { id: number; nome: string; telefone: string | null; email: string | null };
+  cliente: {
+    id: number;
+    nome: string;
+    telefone: string | null;
+    email: string | null;
+    telegramLinked: boolean;
+    ultimoContatoAt: string | null;
+  };
   passado: {
     protocolos: { id: number; status: string; createdAt: string }[];
     orcamentos: { id: number; title: string; status: string; totalCents: number }[];
@@ -256,8 +263,35 @@ export default function Cockpit() {
               </h2>
             </div>
             <div className="mb-3 text-lg font-semibold">{dto.cliente.nome}</div>
-            <div className="mb-3 text-xs text-slate-400">
+            <div className="mb-1 text-xs text-slate-400">
               {dto.cliente.telefone ?? "sem telefone"} &middot; {dto.cliente.email ?? "sem e-mail"}
+            </div>
+            {/* Badge Telegram */}
+            <div className="mb-3 flex items-center gap-2">
+              {dto.cliente.telegramLinked ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-900/60 px-2.5 py-0.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/40">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Telegram ativo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-700/50 px-2.5 py-0.5 text-xs font-medium text-slate-400 ring-1 ring-slate-600/40">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+                  Telegram inativo
+                </span>
+              )}
+              {dto.cliente.ultimoContatoAt && (
+                <span className="text-xs text-slate-500">
+                  último contato{" "}
+                  {new Intl.DateTimeFormat("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Sao_Paulo",
+                  }).format(new Date(dto.cliente.ultimoContatoAt))}
+                </span>
+              )}
             </div>
             <div className="space-y-3">
               <div className="screen-3d rounded-md p-3">

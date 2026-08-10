@@ -9,8 +9,9 @@ import {
   perguntaDoencaTable,
   itemDoencaTable,
   catalogoDoencasTable,
+  whatsappMensagensLogTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   computeMotor,
@@ -110,8 +111,23 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
     .from(budgetsTable)
     .where(eq(budgetsTable.clientId, clienteId));
 
+  // Ultima mensagem enviada ao paciente (qualquer canal — log unico da plataforma).
+  const [ultimoLog] = await db
+    .select({ criadoEm: whatsappMensagensLogTable.criadoEm })
+    .from(whatsappMensagensLogTable)
+    .where(eq(whatsappMensagensLogTable.clienteId, clienteId))
+    .orderBy(desc(whatsappMensagensLogTable.criadoEm))
+    .limit(1);
+
   res.json({
-    cliente: { id: cliente.id, nome: cliente.name, telefone: cliente.phone ?? null, email: cliente.email ?? null },
+    cliente: {
+      id: cliente.id,
+      nome: cliente.name,
+      telefone: cliente.phone ?? null,
+      email: cliente.email ?? null,
+      telegramLinked: cliente.telegramChatId != null,
+      ultimoContatoAt: ultimoLog?.criadoEm?.toISOString() ?? null,
+    },
     passado: {
       protocolos,
       orcamentos,
