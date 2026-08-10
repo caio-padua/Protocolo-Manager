@@ -23,6 +23,7 @@ import {
   BellOff,
   Zap,
   ArrowDownUp,
+  Search,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -481,6 +482,7 @@ export default function RadarClinico() {
   const [silencioDias, setSilencioDias] = useState("");
   // "urgencia" (padrão) = faltou DESC → silêncio DESC → A-Z
   const [ordenacao, setOrdenacao] = useState<"urgencia" | "az">("urgencia");
+  const [search, setSearch] = useState("");
   const [pacienteMsg, setPacienteMsg] = useState<Paciente | null>(null);
   const queryClient = useQueryClient();
 
@@ -493,11 +495,12 @@ export default function RadarClinico() {
     if (faltaDias) params.set("falta_dias", faltaDias);
     if (substancia) params.set("substancia", substancia);
     if (silencioDias) params.set("silencio_dias", silencioDias);
+    if (search.trim()) params.set("search", search.trim());
     return `${API_BASE}/api/radar-clinico?${params.toString()}`;
-  }, [pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias]);
+  }, [pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, search]);
 
   const { data, isLoading, isError, refetch } = useQuery<RadarResponse>({
-    queryKey: ["radar-clinico", pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias],
+    queryKey: ["radar-clinico", pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, search],
     queryFn: async () => {
       const r = await fetch(buildUrl());
       if (!r.ok) throw new Error(`Erro ${r.status} ao carregar o Radar Clínico`);
@@ -512,10 +515,11 @@ export default function RadarClinico() {
     setFaltaDias("");
     setSubstancia("");
     setSilencioDias("");
+    setSearch("");
     setPagina(1);
   };
 
-  const temFiltro = protocoloStatus !== "all" || tempoAtivo || faltaDias || substancia || silencioDias;
+  const temFiltro = protocoloStatus !== "all" || tempoAtivo || faltaDias || substancia || silencioDias || search.trim();
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-5">
@@ -552,6 +556,26 @@ export default function RadarClinico() {
                   {op === "urgencia" ? "Urgência" : "A-Z"}
                 </button>
               ))}
+            </div>
+
+            {/* Busca por nome */}
+            <div className="concave-3d flex items-center gap-2 px-3 py-1.5 min-w-[220px]">
+              <Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPagina(1); }}
+                placeholder="Buscar por nome…"
+                className="bg-transparent text-xs outline-none placeholder:text-muted-foreground/50 w-full"
+              />
+              {search && (
+                <button
+                  onClick={() => { setSearch(""); setPagina(1); }}
+                  className="shrink-0 text-muted-foreground/60 hover:text-muted-foreground"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
             {data && (
