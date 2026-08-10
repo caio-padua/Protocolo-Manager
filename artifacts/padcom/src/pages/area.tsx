@@ -168,27 +168,35 @@ export default function Area() {
           ⚙ MODO VISUALIZAÇÃO ADMIN — você está vendo como o cliente enxerga esta tela
         </div>
       )}
-      {/* Header logado — mesma linguagem do LoginShell: símbolo glass + PARXIS filtrado + subtítulo centrado */}
+      {/* Header logado — símbolo glass + wordmark PADAXOR oficial + subtítulo */}
       <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
 
-        {/* Esquerda: símbolo glass + PARXIS + subtítulo centrado */}
+        {/* Esquerda: símbolo glass + PADAXOR wordmark oficial */}
         <a
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="PARXIS — site institucional"
-          className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
+          aria-label="PADAXOR — site institucional"
+          className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
         >
           <PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} sharp={true} />
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-start gap-0.5">
             <img
-              src="/brand/parxis-wordmark-clean.png"
-              alt="PARXIS"
-              className="h-8 w-auto object-contain"
-              style={{ filter: "hue-rotate(14deg) saturate(0.72) brightness(1.06)" }}
+              src="/brand/padaxor-wordmark-trim.png"
+              alt="PADAXOR"
+              style={{ height: 22, width: "auto", objectFit: "contain" }}
               draggable={false}
             />
-            <p className="text-accent text-[9px] uppercase tracking-widest mt-0.5">ÁREA DO PACIENTE</p>
+            <p
+              className="text-accent"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontWeight: 600, fontSize: 9,
+                letterSpacing: "0.10em",
+              }}
+            >
+              Clinical Intelligence System
+            </p>
           </div>
         </a>
 
@@ -282,19 +290,42 @@ export default function Area() {
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
+            const isDark = theme === "dark";
             return (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                style={{ minWidth: 68 }}
-                className={`flex flex-col items-center gap-0.5 py-3 px-1 transition-colors ${
+                style={{ minWidth: 72 }}
+                className={`flex flex-col items-center py-2 px-0.5 transition-colors ${
                   active ? "text-accent" : "text-muted-foreground hover:text-accent"
                 }`}
               >
-                <div className={`p-1.5 rounded-lg ${active ? "concave-3d" : ""}`}>
+                {/* Inner pill: CONCAVE (pressionado) se ativo, RAISED se inativo */}
+                <div
+                  className={active ? "concave-3d" : ""}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                    padding: "5px 10px 4px",
+                    borderRadius: 7,
+                    minWidth: 58,
+                    transition: "all 0.15s ease",
+                    /* Up-bevel nas tabs inativas: placa que sai da superfície */
+                    ...(active ? {} : {
+                      background: isDark
+                        ? "linear-gradient(180deg,rgba(55,85,135,0.72)0%,rgba(28,52,90,0.80)100%)"
+                        : "linear-gradient(180deg,rgba(255,255,255,0.88)0%,rgba(232,220,196,0.78)100%)",
+                      boxShadow: isDark
+                        ? "0 3px 6px rgba(0,0,0,0.55),inset 0 1.5px 0 rgba(255,255,255,0.18),inset 0 -1px 0 rgba(0,0,0,0.35)"
+                        : "0 3px 6px rgba(15,28,53,0.20),inset 0 1.5px 0 rgba(255,255,255,0.95),inset 0 -1px 0 rgba(138,109,47,0.18)",
+                    }),
+                  }}
+                >
                   <Icon className="w-5 h-5" />
+                  <span className="text-[9px] font-bold uppercase tracking-wider">{t.label}</span>
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-wider">{t.label}</span>
               </button>
             );
           })}
@@ -352,16 +383,48 @@ function TernoFooter({ theme = "light" }: { theme?: "light" | "dark" }) {
   return (
     <footer
       style={{
-        /* fundo sólido igual ao da página — claramente diferente da nav branca/panel-3d */
-        background: isDark ? "#0d1f3a" : "#f3ecdd",
-        /* linha dourada embaixo = separador visual forte entre logo-bar e nav */
-        borderTop:    `1px solid ${isDark ? "rgba(194,160,90,0.25)" : "rgba(138,109,47,0.30)"}`,
-        borderBottom: `2px solid ${isDark ? "rgba(194,160,90,0.55)" : "rgba(138,109,47,0.50)"}`,
-        padding: "7px 16px",
+        position: "relative",
+        overflow: "hidden",
+        background: isDark ? "#0d1f3a" : "#f0e8d4",
+        borderTop:    `1px solid ${isDark ? "rgba(194,160,90,0.30)" : "rgba(138,109,47,0.35)"}`,
+        borderBottom: `2px solid ${isDark ? "rgba(194,160,90,0.65)" : "rgba(138,109,47,0.55)"}`,
+        padding: "9px 16px 10px",
       }}
     >
-      <div className="flex items-center max-w-lg mx-auto">
-        <PaxterWordmarkArt width={82} tone={isDark ? "dark" : "light"} />
+      {/* Tecido de terno — risca de giz sobre o rodapé */}
+      <div className="leva-fabric" aria-hidden="true" style={{ opacity: isDark ? 0.70 : 0.55 }} />
+
+      {/* Conteúdo — PADAXOR à esquerda, PAXTER à direita */}
+      <div
+        className="relative z-10 flex items-center justify-between max-w-lg mx-auto"
+        style={{ gap: 12 }}
+      >
+        {/* Wordmark PADAXOR — arte oficial PNG, sem filtros */}
+        <img
+          src="/brand/padaxor-wordmark-trim.png"
+          alt="PADAXOR"
+          style={{
+            height: 18,
+            width: "auto",
+            objectFit: "contain",
+            opacity: isDark ? 0.92 : 0.85,
+          }}
+          draggable={false}
+        />
+
+        {/* Linha divisória */}
+        <div
+          style={{
+            flex: 1,
+            height: 1,
+            background: isDark
+              ? "linear-gradient(90deg,rgba(194,160,90,0.10),rgba(194,160,90,0.30),rgba(194,160,90,0.10))"
+              : "linear-gradient(90deg,rgba(138,109,47,0.10),rgba(138,109,47,0.25),rgba(138,109,47,0.10))",
+          }}
+        />
+
+        {/* Wordmark PAXTER — com efeito glint */}
+        <PaxterWordmarkArt width={72} tone={isDark ? "dark" : "light"} />
       </div>
     </footer>
   );
@@ -387,19 +450,28 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               href={PAXTER_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="PAXTER — site institucional"
+              aria-label="PADAXOR — site institucional"
               className="flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
             >
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             </a>
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-start gap-1">
               <img
-                src="/brand/parxis-wordmark-clean.png"
-                alt="PARXIS"
-                className="h-11 w-auto object-contain"
-                style={{ filter: "hue-rotate(14deg) saturate(0.72) brightness(1.06)" }}
+                src="/brand/padaxor-wordmark-trim.png"
+                alt="PADAXOR"
+                style={{ height: 28, width: "auto", objectFit: "contain" }}
+                draggable={false}
               />
-              <p className="text-accent text-[10px] uppercase tracking-widest mt-0.5">{subtitle}</p>
+              <p
+                className="text-accent"
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontWeight: 600, fontSize: 10,
+                  letterSpacing: "0.10em",
+                }}
+              >
+                {subtitle}
+              </p>
             </div>
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
