@@ -175,7 +175,22 @@ export function startWorkerJobs(logger: pino.Logger): void {
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 6: Telegram Webhook Guard — a cada 5 minutos ──────────────────
+  // Verifica se o webhook do @Paduaclinica_bot ainda está registrado no Telegram.
+  // Polling ativo em outro processo desativa o webhook silenciosamente e impede
+  // que mensagens dos pacientes cheguem ao CEO. Alerta via Slack + Telegram CEO.
+  import("../../api-server/src/lib/telegram-webhook-guard.js" as string)
+    .then(({ startWebhookGuard }) => {
+      startWebhookGuard(logger);
+    })
+    .catch((err: unknown) => {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Worker: falha ao carregar telegram-webhook-guard"
+      );
+    });
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard"
   );
 }

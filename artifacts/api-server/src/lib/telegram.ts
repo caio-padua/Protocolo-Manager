@@ -1,6 +1,9 @@
 /**
  * Canal Telegram (Paxter) — NATIVO, com modo MOCK automático.
  *
+ * Inclui getWebhookInfo() para diagnóstico: detecta se o webhook ainda está
+ * ativo ou foi silenciosamente substituído por polling (takeover por getUpdates).
+ *
  * Linha vermelha do CEO: NUNCA logar nem expor o valor do token. O token vive
  * no cofre cifrado (chave `telegram.botToken`) e é hidratado para process.env
  * sob demanda. Sem token, o canal opera em MOCK (loga só destino + tamanho da
@@ -20,6 +23,74 @@ async function ensureTelegramTokenLoaded(): Promise<void> {
     if (tok && tok.trim()) process.env["TELEGRAM_BOT_TOKEN"] = tok.trim();
   } catch (e) {
     logger.warn({ err: (e as Error).message }, "[telegram] falha ao ler token do cofre");
+  }
+}
+
+export interface WebhookInfo {
+  /** URL do webhook cadastrado no Telegram. Vazio = sem webhook (polling ativo ou nunca configurado). */
+  url: string;
+  hasCustomCertificate: boolean;
+  pendingUpdateCount: number;
+  /** Último erro retornado pelo Telegram ao tentar entregar um update. */
+  lastErrorMessage?: string;
+  lastErrorDate?: number;
+  maxConnections?: number;
+  /** Dados brutos quando o token está ausente (MOCK) ou quando a chamada falhou. */
+  mock?: boolean;
+  fetchError?: string;
+}
+
+/**
+ * Consulta o Telegram para saber se o webhook ainda está registrado.
+ * Retorna WebhookInfo com `url` vazio quando não há webhook (polling assumiu ou nunca foi configurado).
+ * MOCK quando não há token — nunca lança exceção.
+ */
+export async function getWebhookInfo(): Promise<WebhookInfo> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    return { url: "", hasCustomCertificate: false, pendingUpdateCount: 0, mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    if (!resp.ok) {
+      return {
+        url: "",
+        hasCustomCertificate: false,
+        pendingUpdateCount: 0,
+        fetchError: `telegram_http_${resp.status}`,
+      };
+    }
+    const body = (await resp.json()) as {
+      ok: boolean;
+      result?: {
+        url?: string;
+        has_custom_certificate?: boolean;
+        pending_update_count?: number;
+        last_error_message?: string;
+        last_error_date?: number;
+        max_connections?: number;
+      };
+    };
+    if (!body.ok || !body.result) {
+      return { url: "", hasCustomCertificate: false, pendingUpdateCount: 0, fetchError: "telegram_api_not_ok" };
+    }
+    const r = body.result;
+    return {
+      url: r.url ?? "",
+      hasCustomCertificate: r.has_custom_certificate ?? false,
+      pendingUpdateCount: r.pending_update_count ?? 0,
+      lastErrorMessage: r.last_error_message,
+      lastErrorDate: r.last_error_date,
+      maxConnections: r.max_connections,
+    };
+  } catch (e) {
+    return {
+      url: "",
+      hasCustomCertificate: false,
+      pendingUpdateCount: 0,
+      fetchError: (e as Error).message,
+    };
   }
 }
 

@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
       JSON.stringify({
         status: "ok",
         worker: "api-worker",
-        jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h"],
+        jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h", "telegram-webhook-guard"],
         ts: new Date().toISOString(),
       })
     );

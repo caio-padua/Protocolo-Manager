@@ -559,6 +559,33 @@ assinaturasRouter.post(
   },
 );
 
+// ---------------------------------------------------------------------------
+// GET /api/telegram/webhook-status
+//
+// Consulta em tempo real o Telegram (getWebhookInfo) e devolve o estado do
+// webhook para o painel de status do CEO. Protegido por requireCollaborator.
+//
+// Resposta:
+//   { ok, healthy, url, pendingUpdateCount, lastErrorMessage?, mock?, fetchError?, checkedAt }
+//
+// healthy = true  → webhook ativo (URL registrada, bot recebe mensagens)
+// healthy = false → webhook inativo (URL vazia = polling ou nunca configurado)
+// mock = true     → token do bot ausente no cofre (não há como verificar)
+// ---------------------------------------------------------------------------
+assinaturasRouter.get(
+  "/telegram/webhook-status",
+  requireCollaborator,
+  async (_req, res): Promise<void> => {
+    try {
+      const { checkWebhookHealth } = await import("../lib/telegram-webhook-guard.js");
+      const result = await checkWebhookHealth();
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: String(err) });
+    }
+  },
+);
+
 // GET /api/cert/metadata — metadados públicos do certificado A1 embarcado
 // Retorna: titular, CPF, validade, tipo, emissor — nunca expõe chave privada.
 assinaturasRouter.get("/cert/metadata", async (_req, res): Promise<void> => {
