@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import {
   AlertTriangle,
   ChevronRight,
@@ -387,8 +388,8 @@ function Empty({ children }: { children: React.ReactNode }) {
 // Opcao A (distribuicao) — escolher cliente e gerar link wa.me da anamnese.
 // ---------------------------------------------------------------------------
 function InviteModal({ onClose }: { onClose: () => void }) {
-  const [search, setSearch] = useState("");
-  const { data: clients, isLoading } = useListClients({ search });
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { data: clients } = useListClients();
 
   const anamneseUrl = useMemo(() => {
     const base = import.meta.env.BASE_URL; // ja termina com "/"
@@ -423,57 +424,38 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="concave-3d mb-3 flex items-center gap-2 rounded-md px-3">
-          <Search className="h-4 w-4 text-gray-400" />
-          <input
-            autoFocus
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar cliente pelo nome..."
-            className="h-10 w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none"
-          />
-        </div>
+        <PaxterClientSelector
+          clientes={(clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? null, phone: c.phone ?? null, photoUrl: (c as any).photoUrl ?? null }))}
+          value={selectedId}
+          onChange={setSelectedId}
+          placeholder="Selecionar cliente…"
+        />
 
-        <div className="max-h-72 space-y-1.5 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
-            </div>
-          ) : !clients || clients.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">Nenhum cliente encontrado.</p>
-          ) : (
-            clients.map((c) => {
-              const wa = buildWa(c.name, c.phone);
-              return (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-gray-100 px-3 py-2"
+        {selectedId && (() => {
+          const cl = (clients ?? []).find(c => c.id === selectedId);
+          if (!cl) return null;
+          const wa = buildWa(cl.name, cl.phone);
+          return (
+            <div className="mt-3 concave-3d rounded-md px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-800">{tituloProprio(cl.name)}</p>
+                <p className="text-xs text-gray-400">{cl.phone ?? "sem telefone cadastrado"}</p>
+              </div>
+              {wa ? (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-3d flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold text-white"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-800">{tituloProprio(c.name)}</p>
-                    <p className="text-xs text-gray-400">
-                      {c.phone ? c.phone : "sem telefone cadastrado"}
-                    </p>
-                  </div>
-                  {wa ? (
-                    <a
-                      href={wa}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-3d flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold text-white"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" /> Enviar
-                    </a>
-                  ) : (
-                    <span className="flex-shrink-0 text-[11px] uppercase tracking-wide text-gray-300">
-                      sem telefone
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                  <MessageCircle className="h-3.5 w-3.5" /> Enviar WhatsApp
+                </a>
+              ) : (
+                <span className="flex-shrink-0 text-[11px] uppercase tracking-wide text-gray-300">sem telefone</span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

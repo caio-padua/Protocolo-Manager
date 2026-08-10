@@ -57,7 +57,7 @@ function fmtBRL(v: number) {
 }
 
 // ─── tipos ────────────────────────────────────────────────────────────────────
-type ClienteLite = { id: number; name: string; cpf?: string | null; };
+type ClienteLite = { id: number; name: string; cpf?: string | null; phone?: string | null; photoUrl?: string | null; };
 type NoFormula = { id: string; nome: string; dose?: string; posologia?: string; via?: string; };
 type NoExame   = { id: string; nome: string; };
 type No = {
@@ -553,7 +553,7 @@ export default function ReceituarioAutomatico() {
     } finally { setSalvando(false); }
   };
 
-  const clientesOpts: PaxterClientOption[] = clientes.map(c => ({ id: c.id, name: c.name, cpf: c.cpf ?? undefined }));
+  const clientesOpts: PaxterClientOption[] = clientes.map(c => ({ id: c.id, name: c.name, cpf: c.cpf ?? null, phone: c.phone ?? null, photoUrl: c.photoUrl ?? null }));
 
   // KPIs globais da linha do tempo
   const kpis = useMemo(() => {

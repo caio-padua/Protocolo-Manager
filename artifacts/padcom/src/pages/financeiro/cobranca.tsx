@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
+import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useListClients, type Client } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
 import { PaxterLogo } from "@/components/branding/PaxterLogo";
@@ -105,9 +105,9 @@ const STATUS_UI: Record<ChannelResult["status"], { label: string; cls: string; i
 
 export default function LancadorCobranca() {
   const { toast } = useToast();
-  const { data: clients, isLoading: loadingClients } = useListClients();
+  const { data: clients } = useListClients();
 
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<number | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
@@ -128,7 +128,7 @@ export default function LancadorCobranca() {
   const [result, setResult] = useState<LaunchResponse | null>(null);
 
   const client = useMemo(
-    () => (clients || []).find((c) => String(c.id) === clientId) || null,
+    () => (clients || []).find((c) => c.id === clientId) || null,
     [clients, clientId],
   );
 
@@ -155,10 +155,10 @@ export default function LancadorCobranca() {
   }, []);
 
   // Ao trocar de cliente: repreenche os destinos a partir do cadastro.
-  function onPickClient(v: string) {
-    setClientId(v);
+  function onPickClient(id: number | null) {
+    setClientId(id);
     setResult(null);
-    const c = (clients || []).find((x) => String(x.id) === v) || null;
+    const c = (clients || []).find((x) => x.id === id) || null;
     setDest({
       email: c?.email || "",
       phone: c?.phone || "",
@@ -244,18 +244,12 @@ export default function LancadorCobranca() {
         {/* Cliente */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cliente</label>
-          <Select value={clientId} onValueChange={onPickClient}>
-            <SelectTrigger className="bevel-3d h-11">
-              <SelectValue placeholder={loadingClients ? "Carregando clientes..." : "Selecione o cliente"} />
-            </SelectTrigger>
-            <SelectContent>
-              {(clients || []).map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {tituloProprio(c.name)}{c.cpf ? ` — ${c.cpf}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PaxterClientSelector
+            clientes={(clients || []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? null, phone: c.phone ?? null, photoUrl: (c as any).photoUrl ?? null }))}
+            value={clientId}
+            onChange={onPickClient}
+            placeholder="Selecionar cliente…"
+          />
           {/* Resumo do cliente escolhido */}
           <div className="concave-3d mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">

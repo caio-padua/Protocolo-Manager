@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useListClients } from "@workspace/api-client-react";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { tituloProprio } from "@/lib/utils";
 import {
   FileSignature, RefreshCw, Sparkles, Edit3, Eye,
@@ -181,15 +183,17 @@ export default function ContratosJuridicos() {
 
   // Modal de emissão
   const [modalEmissao, setModalEmissao] = useState(false);
-  const [buscaCliente, setBuscaCliente] = useState("");
-  const [clientes, setClientes]         = useState<ClienteLite[]>([]);
-  const [clienteSel, setClienteSel]     = useState<ClienteLite | null>(null);
+  const [clienteSelId, setClienteSelId] = useState<number | null>(null);
   const [protocolos, setProtocolos]     = useState<ProtocoloLite[]>([]);
   const [protocoloSel, setProtocoloSel] = useState<ProtocoloLite | null>(null);
   const [codigosEmitir, setCodigosEmitir] = useState<Set<string>>(new Set());
   const [dadosHidratacao, setDadosHidratacao] = useState<Record<string, string>>({});
   const [resolvendo, setResolvendo]     = useState(false);
   const [emitindo, setEmitindo]         = useState(false);
+
+  const { data: allClients } = useListClients();
+  const clienteSelOpts = useMemo(() => (allClients ?? []).map(cl => ({ id: cl.id, name: cl.name, cpf: cl.cpf ?? null, phone: cl.phone ?? null, photoUrl: (cl as any).photoUrl ?? null })), [allClients]);
+  const clienteSel = useMemo(() => (allClients ?? []).find(cl => cl.id === clienteSelId) ?? null, [allClients, clienteSelId]);
 
   // ── Carregar cadernos ─────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
@@ -254,29 +258,24 @@ export default function ContratosJuridicos() {
   };
 
   // ── Abrir modal emissão ───────────────────────────────────────────────────
-  const abrirEmissao = async () => {
+  const abrirEmissao = () => {
     setModalEmissao(true);
-    setBuscaCliente("");
-    setClienteSel(null);
+    setClienteSelId(null);
     setProtocoloSel(null);
     setProtocolos([]);
     setCodigosEmitir(new Set());
     setDadosHidratacao({});
-    try {
-      const d = await apiFetch("/api/clients?limit=300");
-      setClientes(Array.isArray(d) ? d : (d.clients ?? d.data ?? []));
-    } catch { setClientes([]); }
   };
 
   // ── Selecionar cliente → carregar protocolos ──────────────────────────────
-  const selecionarCliente = async (c: ClienteLite) => {
-    setClienteSel(c);
-    setBuscaCliente(c.name);
+  const onPickClienteId = async (id: number | null) => {
+    setClienteSelId(id);
     setProtocoloSel(null);
     setCodigosEmitir(new Set());
     setDadosHidratacao({});
+    if (!id) { setProtocolos([]); return; }
     try {
-      const d = await apiFetch(`/api/protocols?clientId=${c.id}`);
+      const d = await apiFetch(`/api/protocols?clientId=${id}`);
       setProtocolos(Array.isArray(d) ? d : (d.protocols ?? []));
     } catch { setProtocolos([]); }
   };
@@ -342,11 +341,6 @@ export default function ContratosJuridicos() {
       next.has(cod) ? next.delete(cod) : next.add(cod);
       return next;
     });
-
-  const clientesFiltrados = clientes.filter((c) =>
-    c.name.toLowerCase().includes(buscaCliente.toLowerCase()) ||
-    (c.cpf ?? "").includes(buscaCliente),
-  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -664,53 +658,12 @@ export default function ContratosJuridicos() {
                   <span className="concave-3d px-1.5 py-0.5 text-[10px] font-bold">1</span>
                   Selecionar Cliente
                 </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <input
-                    className="field-engraved w-full pl-9 text-sm"
-                    placeholder="Nome ou CPF do cliente…"
-                    value={buscaCliente}
-                    onChange={(e) => {
-                      setBuscaCliente(e.target.value);
-                      if (clienteSel && e.target.value !== clienteSel.name) {
-                        setClienteSel(null);
-                        setProtocoloSel(null);
-                        setCodigosEmitir(new Set());
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Lista de clientes filtrados */}
-                {buscaCliente.length >= 2 && !clienteSel && (
-                  <div className="mt-1.5 panel-3d-sub max-h-44 overflow-y-auto">
-                    {clientesFiltrados.slice(0, 8).map((c) => (
-                      <button
-                        key={c.id}
-                        className="w-full text-left px-3 py-2 hover:bg-primary/5 text-sm flex justify-between gap-2"
-                        onClick={() => selecionarCliente(c)}
-                      >
-                        <span className="font-medium">{tituloProprio(c.name)}</span>
-                        <span className="text-muted-foreground text-xs font-mono">{c.cpf ?? "—"}</span>
-                      </button>
-                    ))}
-                    {clientesFiltrados.length === 0 && (
-                      <p className="text-sm text-muted-foreground p-3 text-center">Nenhum cliente encontrado</p>
-                    )}
-                  </div>
-                )}
-
-                {clienteSel && (
-                  <div className="mt-1.5 concave-3d px-3 py-2 text-sm flex items-center justify-between">
-                    <span><strong>{tituloProprio(clienteSel.name)}</strong> · {clienteSel.cpf ?? "—"}</span>
-                    <button
-                      className="text-muted-foreground hover:text-destructive text-xs ml-2"
-                      onClick={() => { setClienteSel(null); setBuscaCliente(""); setProtocoloSel(null); setCodigosEmitir(new Set()); }}
-                    >
-                      trocar
-                    </button>
-                  </div>
-                )}
+                <PaxterClientSelector
+                  clientes={clienteSelOpts}
+                  value={clienteSelId}
+                  onChange={(id) => { void onPickClienteId(id); }}
+                  placeholder="Selecionar cliente…"
+                />
               </div>
 
               {/* ── 2. Selecionar protocolo ── */}

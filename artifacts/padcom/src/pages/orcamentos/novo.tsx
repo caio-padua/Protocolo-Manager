@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useLocation } from "wouter";
 import {
   useListBudgetCatalog,
@@ -20,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Presentation, Save, Calculator, Lock, TrendingDown, ArrowRight, Plus } from "lucide-react";
 import { fmt } from "./money";
@@ -122,7 +122,7 @@ export default function MontagemOrcamento() {
   }, [substances]);
 
   const [title, setTitle] = useState("");
-  const [clientId, setClientId] = useState<string>("none");
+  const [clientId, setClientId] = useState<number | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [liberarFrequencia, setLiberarFrequencia] = useState(false);
   const [repassarTaxa, setRepassarTaxa] = useState(false);
@@ -227,7 +227,7 @@ export default function MontagemOrcamento() {
     const created = await createBudget.mutateAsync({
       data: {
         title: title.trim() || undefined,
-        clientId: clientId !== "none" ? Number(clientId) : undefined,
+        clientId: clientId ?? undefined,
         status: "draft",
         items,
         settingsSnapshot: settings ? (settings as unknown as Record<string, unknown>) : undefined,
@@ -261,13 +261,12 @@ export default function MontagemOrcamento() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Cliente (opcional)</Label>
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem cliente</SelectItem>
-                    {clients?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{tituloProprio(c.name)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <PaxterClientSelector
+                  clientes={(clients ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf ?? null, phone: c.phone ?? null, photoUrl: (c as any).photoUrl ?? null }))}
+                  value={clientId}
+                  onChange={setClientId}
+                  placeholder="Selecionar cliente…"
+                />
               </div>
             </CardContent>
           </Card>

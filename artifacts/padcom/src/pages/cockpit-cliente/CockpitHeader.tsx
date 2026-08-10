@@ -94,7 +94,7 @@ export default function CockpitHeader({
           clientes={opcoes}
           value={clientId}
           onChange={onSelectClient}
-          placeholder={temCliente ? `Trocar: ${client!.name.split(" ")[0]}…` : "Selecionar cliente…"}
+          placeholder="Selecionar cliente…"
         />
 
         {/* Botões de ação — fantasma quando vazio */}

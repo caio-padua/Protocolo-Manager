@@ -21,6 +21,7 @@ interface PaxterClientOption {
   name: string;
   cpf?: string | null;
   phone?: string | null;
+  photoUrl?: string | null;  // obrigatório no map — (c as any).photoUrl ?? null
   status?: string | null;
   deletedAt?: string | null;
 }
@@ -28,7 +29,19 @@ interface PaxterClientOption {
 // value: number | null (NUNCA string)
 // onChange: (id: number | null) => void
 // clientes: PaxterClientOption[]
+// placeholder: "Selecionar cliente…" (canônico — nunca dinâmico com nome do cliente selecionado)
 // serverSearch?: boolean — GET /api/clients?search=...&limit=20
+```
+
+## Map canônico (copiar para qualquer tela nova)
+```tsx
+clientes={(clients ?? []).map(c => ({
+  id: c.id,
+  name: c.name,
+  cpf: c.cpf ?? null,
+  phone: c.phone ?? null,
+  photoUrl: (c as any).photoUrl ?? null,
+}))}
 ```
 
 ## Regras de migração
