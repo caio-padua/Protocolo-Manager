@@ -2,15 +2,15 @@
  * /guia-digital — Página PÚBLICA para pacientes.
  *
  * Ensina: instalar o PWA, entrar na Área do Paciente e usar o Telegram.
- * Design: sistema Paxter 3D — panel-3d / bevel-3d / concave-3d / screen-3d.
+ * Design: sistema Paxter 3D + terno risca de giz (header navy com pinstripe dourado).
  * Fonte de leitura: Lora (.leva-q) — reservada ao paciente.
- * Cor: navy/ouro canônico do skill-layout-paxter.
+ * Audio: Web Speech API — TTS nativo pt-BR, zero custo, zero API externa.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Apple, Smartphone, Monitor, LogIn, MessageCircle,
-  ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info,
+  ChevronDown, ChevronUp, Volume2, VolumeX, Copy, CheckCheck,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
@@ -21,42 +21,112 @@ const AREA_URL = `${window.location.origin}${import.meta.env.BASE_URL}area`.repl
 function detectDevice(): "iphone" | "android" | "desktop" {
   const ua = navigator.userAgent.toLowerCase();
   if (/iphone|ipad|ipod/.test(ua)) return "iphone";
-  if (/android/.test(ua)) return "android";
+  if (/android/.test(ua))           return "android";
   return "desktop";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook TTS — Web Speech API nativa (pt-BR, zero custo)
+// ─────────────────────────────────────────────────────────────────────────────
+function useTTS() {
+  const activeRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [falando, setFalando] = useState(false);
+
+  const falar = useCallback((texto: string) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(texto);
+    utt.lang  = "pt-BR";
+    utt.rate  = 0.88;
+    utt.pitch = 1.0;
+    utt.onstart = () => setFalando(true);
+    utt.onend   = () => { setFalando(false); activeRef.current = null; };
+    utt.onerror = () => { setFalando(false); activeRef.current = null; };
+    activeRef.current = utt;
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  const parar = useCallback(() => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setFalando(false);
+  }, []);
+
+  useEffect(() => () => { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); }, []);
+
+  return { falar, parar, falando };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Botão de áudio — ícone bevel com estado ativo
+// ─────────────────────────────────────────────────────────────────────────────
+function BotaoAudio({ texto, detalhe }: { texto: string; detalhe?: string }) {
+  const { falar, parar, falando } = useTTS();
+  const frase = detalhe ? `${texto}. ${detalhe}` : texto;
+  return (
+    <button
+      onClick={() => (falando ? parar() : falar(frase))}
+      className={`bevel-3d shrink-0 w-7 h-7 flex items-center justify-center rounded-[4px] border-none bg-transparent cursor-pointer transition-opacity ${falando ? "opacity-100 bevel-3d-ok" : "opacity-40 hover:opacity-80"}`}
+      title={falando ? "Parar áudio" : "Ouvir este passo"}
+      aria-label={falando ? "Parar áudio" : "Ouvir este passo"}
+    >
+      {falando
+        ? <VolumeX className="w-3.5 h-3.5 text-primary" />
+        : <Volume2  className="w-3.5 h-3.5 text-primary" />}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Separador horizontal — riscas de giz (ouro fino)
+// ─────────────────────────────────────────────────────────────────────────────
+function Divisor() {
+  return (
+    <div className="flex items-center gap-3 my-4">
+      <div className="flex-1 h-px bg-border/50" />
+      <div className="w-1 h-1 rounded-full bg-accent/40" />
+      <div className="flex-1 h-px bg-border/50" />
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componentes-átomo Paxter
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Número de passo em alto-relevo (screen-3d) + texto em Lora */
+/** Número de passo em alto-relevo (screen-3d) + texto Lora + botão TTS */
 function Passo({ n, texto, detalhe }: { n: number; texto: string; detalhe?: string }) {
   return (
-    <div className="flex gap-3 items-start py-2.5">
+    <div className="flex gap-3 items-start py-3 border-b border-border/25 last:border-0">
       {/* número saliente */}
-      <div className="screen-3d shrink-0 w-8 h-8 flex items-center justify-center text-sm font-black leading-none">
+      <div className="screen-3d shrink-0 w-9 h-9 flex items-center justify-center text-sm font-black leading-none">
         {n}
       </div>
+      {/* texto */}
       <div className="flex-1 min-w-0 space-y-1">
-        <p className="leva-q m-0 text-[1rem] font-semibold text-primary leading-snug">{texto}</p>
+        <p className="leva-q m-0 text-[0.975rem] font-semibold text-primary leading-snug">{texto}</p>
         {detalhe && (
-          <p className="leva-q m-0 text-[0.875rem] text-muted-foreground leading-relaxed">{detalhe}</p>
+          <p className="leva-q m-0 text-[0.85rem] text-muted-foreground leading-relaxed">{detalhe}</p>
         )}
       </div>
+      {/* TTS */}
+      <BotaoAudio texto={texto} detalhe={detalhe} />
     </div>
   );
 }
 
-/** Sub-título de grupo como placa Bevel saliente */
-function PlacaGrupo({ texto }: { texto: string }) {
+/** Sub-título de grupo como placa Bevel saliente (com índice de reinício do divisor) */
+function PlacaGrupo({ texto, primeiro = false }: { texto: string; primeiro?: boolean }) {
   return (
-    <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest mt-5 mb-2">
-      {texto}
-    </div>
+    <>
+      {!primeiro && <Divisor />}
+      <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest mb-3">
+        {texto}
+      </div>
+    </>
   );
 }
 
-/** Dica/alerta usando vocabulário 3D Paxter */
+/** Alerta com LED + texto Lora + botão TTS */
 function Alerta({
   tipo,
   texto,
@@ -69,6 +139,7 @@ function Alerta({
       <div className="bevel-3d bevel-3d-ok flex gap-3 items-start px-4 py-3 my-3 rounded-[6px]">
         <span className="paxter-led paxter-led-green shrink-0 mt-1" />
         <p className="leva-q m-0 text-[0.9rem] leading-relaxed flex-1">{texto}</p>
+        <BotaoAudio texto={texto} />
       </div>
     );
   }
@@ -77,6 +148,7 @@ function Alerta({
       <div className="paxter-alert paxter-alert-amber flex gap-3 items-start px-4 py-3 my-3 rounded-[6px]">
         <span className="paxter-led paxter-led-amber paxter-led-breathe shrink-0 mt-1" />
         <p className="leva-q m-0 text-[0.9rem] leading-relaxed flex-1">{texto}</p>
+        <BotaoAudio texto={texto} />
       </div>
     );
   }
@@ -85,6 +157,7 @@ function Alerta({
     <div className="bevel-3d flex gap-3 items-start px-4 py-3 my-3 rounded-[6px]">
       <span className="paxter-led paxter-led-breathe shrink-0 mt-1" />
       <p className="leva-q m-0 text-[0.9rem] leading-relaxed flex-1">{texto}</p>
+      <BotaoAudio texto={texto} />
     </div>
   );
 }
@@ -121,17 +194,20 @@ function Secao({
           <Icon className="w-4 h-4 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="m-0 text-sm font-black uppercase tracking-widest text-primary leading-none">
+          <p
+            className="m-0 text-sm font-black uppercase tracking-widest text-primary leading-none"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 700, fontSize: "0.9rem" }}
+          >
             {titulo}
           </p>
-          <p className="m-0 mt-1 text-xs text-muted-foreground">{subtitulo}</p>
+          <p className="leva-q m-0 mt-1 text-xs text-muted-foreground">{subtitulo}</p>
         </div>
         {aberta
-          ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+          ? <ChevronUp   className="w-4 h-4 text-muted-foreground shrink-0" />
           : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
       </button>
 
-      {/* Conteúdo em well concavo */}
+      {/* Conteúdo em well côncavo */}
       {aberta && (
         <div className="concave-3d mx-4 mb-4 rounded-[6px] px-5 py-4">
           {children}
@@ -150,20 +226,20 @@ function GuiaIphone() {
     <div>
       <Alerta
         tipo="aviso"
-        texto="No iPhone, o aplicativo SÓ pode ser instalado pelo Safari — o ícone da bússola azul. Se estiver usando Chrome ou outro navegador, abra o Safari primeiro."
+        texto="No iPhone, o aplicativo SÓ pode ser instalado pelo Safari — o ícone de bússola azul. Se estiver usando outro navegador, abra o Safari primeiro."
       />
 
-      <PlacaGrupo texto="📲 Instalar no iPhone — Safari" />
+      <PlacaGrupo primeiro texto="📲 Instalar no iPhone — Safari" />
       <Passo n={1} texto="Abra o Safari no seu iPhone (ícone de bússola azul)" />
       <Passo
         n={2}
-        texto={`Na barra de endereço (parte de cima), acesse: ${AREA_URL}`}
-        detalhe="Ou toque no link que recebeu pelo WhatsApp — ele abre direto."
+        texto={`Na barra de endereço, acesse: ${AREA_URL}`}
+        detalhe="Ou toque no link recebido pelo WhatsApp — ele abre direto."
       />
       <Passo
         n={3}
-        texto="Toque no botão Compartilhar no centro da barra inferior"
-        detalhe="É um quadrado com uma seta apontando para cima ↑"
+        texto="Toque no botão Compartilhar na barra inferior"
+        detalhe="É um quadrado com uma seta apontando para cima ↑ — no centro da barra."
       />
       <Passo
         n={4}
@@ -182,7 +258,7 @@ function GuiaIphone() {
       <Passo
         n={3}
         texto="O site funciona direto no navegador — não precisa instalar nada"
-        detalhe="Para facilitar, salve nos Favoritos: pressione ⌘+D."
+        detalhe="Para facilitar, salve nos Favoritos: pressione Comando + D."
       />
     </div>
   );
@@ -191,10 +267,10 @@ function GuiaIphone() {
 function GuiaAndroid() {
   return (
     <div>
-      <PlacaGrupo texto="📲 Instalar pelo Chrome (recomendado)" />
+      <PlacaGrupo primeiro texto="📲 Instalar pelo Chrome (recomendado)" />
       <Alerta
         tipo="info"
-        texto="Chrome é o ícone colorido de círculo (vermelho, verde, amarelo e azul). É o navegador mais comum no Android."
+        texto="Chrome é o ícone colorido de círculo — vermelho, verde, amarelo e azul. É o mais comum no Android."
       />
       <Passo n={1} texto="Abra o Chrome no seu celular" />
       <Passo
@@ -202,7 +278,7 @@ function GuiaAndroid() {
         texto={`Na barra de endereço, acesse: ${AREA_URL}`}
         detalhe="Ou toque no link recebido pelo WhatsApp."
       />
-      <Passo n={3} texto="Toque nos 3 pontinhos ⋮ no canto superior direito" />
+      <Passo n={3} texto="Toque nos 3 pontinhos no canto superior direito" />
       <Passo
         n={4}
         texto="Toque em → Adicionar à tela inicial"
@@ -218,17 +294,14 @@ function GuiaAndroid() {
       />
       <Passo n={1} texto="Abra o Samsung Internet" />
       <Passo n={2} texto={`Acesse: ${AREA_URL}`} />
-      <Passo n={3} texto="Toque nas 3 linhas ☰ no canto inferior direito" />
+      <Passo n={3} texto="Toque nas 3 linhas no canto inferior direito" />
       <Passo n={4} texto="Toque em → Adicionar página à → Tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
 
       <PlacaGrupo texto="📲 Firefox ou Edge" />
       <Passo n={1} texto="Abra o Firefox ou Edge" />
       <Passo n={2} texto={`Acesse: ${AREA_URL}`} />
-      <Passo
-        n={3}
-        texto="Toque nos 3 pontinhos → Instalar ou Adicionar à tela inicial"
-      />
+      <Passo n={3} texto="Toque nos 3 pontinhos → Instalar ou → Adicionar à tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
     </div>
   );
@@ -237,17 +310,17 @@ function GuiaAndroid() {
 function GuiaComputador() {
   return (
     <div>
-      <PlacaGrupo texto="🖥 Chrome ou Edge — instalar como aplicativo" />
+      <PlacaGrupo primeiro texto="🖥 Chrome ou Edge — instalar como aplicativo" />
       <Alerta
         tipo="info"
-        texto="No computador, o aplicativo pode ser instalado pelo Chrome ou Edge. Funciona como um programa separado, sem precisar abrir o navegador toda vez."
+        texto="No computador, o aplicativo pode ser instalado pelo Chrome ou Edge. Funciona como um programa separado, sem abrir o navegador toda vez."
       />
       <Passo n={1} texto="Abra o Chrome ou o Edge no seu computador" />
       <Passo n={2} texto={`Na barra de endereço, cole ou digite: ${AREA_URL}`} />
       <Passo
         n={3}
         texto="Procure o ícone de instalação na barra de endereço"
-        detalhe="No Chrome: ícone de tela com seta (⊕) à direita da barra. No Edge: ícone de janela com seta."
+        detalhe="No Chrome: ícone de tela com seta à direita da barra. No Edge: ícone de janela com seta."
       />
       <Passo n={4} texto="Clique nesse ícone e depois em → Instalar" />
       <Alerta
@@ -256,7 +329,7 @@ function GuiaComputador() {
       />
       <Alerta
         tipo="aviso"
-        texto="Se o ícone não aparecer no Chrome: clique nos 3 pontinhos ⋮ → Transmitir, salvar e compartilhar → Instalar página como aplicativo."
+        texto="Se o ícone não aparecer no Chrome: clique nos 3 pontinhos → Transmitir, salvar e compartilhar → Instalar página como aplicativo."
       />
 
       <PlacaGrupo texto="🖥 Firefox ou Safari (Mac)" />
@@ -264,7 +337,7 @@ function GuiaComputador() {
       <Passo
         n={2}
         texto="O site funciona normalmente — não precisa instalar"
-        detalhe="Para facilitar, salve nos Favoritos: Ctrl+D (Windows) ou ⌘+D (Mac)."
+        detalhe="Para facilitar, salve nos Favoritos: Ctrl+D (Windows) ou Comando+D (Mac)."
       />
     </div>
   );
@@ -296,7 +369,7 @@ function GuiaLogin() {
       <Alerta tipo="ok" texto="Você está dentro! Veja seus protocolos, consultas e documentos." />
       <Alerta
         tipo="aviso"
-        texto="Se der erro, verifique se digitou o CPF completo (11 números) e a data correta. Qualquer problema, entre em contato com o Instituto."
+        texto="Se der erro, verifique se digitou o CPF completo com 11 números e a data correta. Qualquer problema, entre em contato com o Instituto."
       />
     </div>
   );
@@ -310,7 +383,7 @@ function GuiaTelegram() {
         texto="O Telegram é um aplicativo gratuito de mensagens — parecido com o WhatsApp. Quando vinculado, você recebe as mensagens do Instituto Pádua por lá também."
       />
 
-      <PlacaGrupo texto="1 — Instale o Telegram (se ainda não tiver)" />
+      <PlacaGrupo primeiro texto="1 — Instale o Telegram (se ainda não tiver)" />
       <Passo n={1} texto="iPhone: abra a App Store, pesquise Telegram e toque em OBTER" />
       <Passo n={2} texto="Android: abra a Play Store, pesquise Telegram e toque em INSTALAR" />
       <Passo n={3} texto="Crie sua conta com seu número de celular (igual ao WhatsApp)" />
@@ -324,10 +397,10 @@ function GuiaTelegram() {
       <Passo n={1} texto="Abra o Telegram no seu celular" />
       <Passo
         n={2}
-        texto="Toque na lupa 🔍 e pesquise por: @Paduaclinica_bot"
+        texto="Toque na lupa e pesquise por: @Paduaclinica_bot"
         detalhe="Ou toque diretamente neste link: t.me/Paduaclinica_bot"
       />
-      <Passo n={3} texto="Toque em INICIAR (ou escreva /start e envie)" />
+      <Passo n={3} texto="Toque em INICIAR ou escreva /start e envie" />
       <Passo
         n={4}
         texto="O robô vai pedir a senha — digite a senha de 6 letras recebida pelo WhatsApp"
@@ -346,25 +419,57 @@ function GuiaTelegram() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Botão compartilhar — copia URL
+// ─────────────────────────────────────────────────────────────────────────────
+function BotaoCompartilhar() {
+  const [copiado, setCopiado] = useState(false);
+  const copiar = () => {
+    const url = window.location.href;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2500);
+      });
+    }
+  };
+  return (
+    <button
+      onClick={copiar}
+      className="btn-3d-soft flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-[5px]"
+      title="Copiar link deste guia"
+    >
+      {copiado ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copiado ? "Copiado!" : "Compartilhar"}
+    </button>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Página principal
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECOES = [
-  { id: "sec-iphone",     key: "iphone",     icon: Apple,          titulo: "iPhone",                          subtitulo: "Safari, Chrome ou outro navegador no iPhone",  device: "iphone"  },
-  { id: "sec-android",    key: "android",    icon: Smartphone,     titulo: "Android",                         subtitulo: "Chrome, Samsung Browser, Firefox, Edge",       device: "android" },
-  { id: "sec-computador", key: "computador", icon: Monitor,        titulo: "Computador",                      subtitulo: "Windows ou Mac — Chrome, Edge, Safari",        device: "desktop" },
-  { id: "sec-login",      key: "login",      icon: LogIn,          titulo: "Como entrar na Área do Paciente", subtitulo: "CPF + data de nascimento — sem senha",         device: null      },
-  { id: "sec-telegram",   key: "telegram",   icon: MessageCircle,  titulo: "Telegram",                        subtitulo: "Aplicativo gratuito, alternativa ao WhatsApp", device: null      },
+  { id: "sec-iphone",     key: "iphone",     icon: Apple,         titulo: "iPhone",                          subtitulo: "Safari, Chrome ou outro navegador no iPhone",  device: "iphone"  },
+  { id: "sec-android",    key: "android",    icon: Smartphone,    titulo: "Android",                         subtitulo: "Chrome, Samsung Browser, Firefox, Edge",       device: "android" },
+  { id: "sec-computador", key: "computador", icon: Monitor,       titulo: "Computador",                      subtitulo: "Windows ou Mac — Chrome, Edge, Safari",        device: "desktop" },
+  { id: "sec-login",      key: "login",      icon: LogIn,         titulo: "Como entrar na Área do Paciente", subtitulo: "CPF + data de nascimento — sem senha",         device: null      },
+  { id: "sec-telegram",   key: "telegram",   icon: MessageCircle, titulo: "Telegram",                        subtitulo: "Aplicativo gratuito, alternativa ao WhatsApp", device: null      },
 ] as const;
 
 type SecKey = typeof SECOES[number]["key"];
 
+// Padrão pinstripe ouro sobre navy (terno risca de giz)
+const PINSTRIPE: React.CSSProperties = {
+  backgroundImage: [
+    "repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(212,175,55,0.09) 47px, rgba(212,175,55,0.09) 48px)",
+    "repeating-linear-gradient(180deg, transparent, transparent 47px, rgba(212,175,55,0.04) 47px, rgba(212,175,55,0.04) 48px)",
+  ].join(", "),
+};
+
 export default function GuiaDigital() {
   const device = detectDevice();
 
-  // Abre automaticamente a seção do dispositivo + login
   const [aberta, setAberta] = useState<Record<SecKey, boolean>>(() => ({
     iphone:     device === "iphone",
     android:    device === "android",
@@ -382,7 +487,7 @@ export default function GuiaDigital() {
       iphone: "sec-iphone", android: "sec-android", desktop: "sec-computador",
     };
     const el = document.getElementById(map[device]);
-    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 400);
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 500);
   }, []);
 
   const navegar = (id: string, key: SecKey) => {
@@ -400,12 +505,18 @@ export default function GuiaDigital() {
     telegram:   <GuiaTelegram />,
   };
 
+  const deviceLabel: Record<string, string> = {
+    iphone:  "iPhone",
+    android: "celular Android",
+    desktop: "computador",
+  };
+
   return (
     <div className="min-h-screen bg-background">
 
-      {/* ── Header navy ────────────────────────────────────────────────────── */}
-      <header className="bg-primary px-5 py-4 flex items-center gap-4">
-        <PaxterSymbolGlass size={40} tone="dark" />
+      {/* ── Header navy + pinstripe risca de giz ─────────────────────────────── */}
+      <header className="bg-primary px-5 py-5 flex items-center gap-4" style={PINSTRIPE}>
+        <PaxterSymbolGlass size={44} tone="dark" />
         <div className="flex-1 min-w-0">
           <img
             src="/brand/padaxor-wordmark-trim.png"
@@ -414,26 +525,40 @@ export default function GuiaDigital() {
             draggable={false}
           />
           <p
-            className="m-0 mt-0.5 text-[0.75rem] tracking-[0.1em] text-accent/80"
-            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 600 }}
+            className="m-0 mt-1 text-[0.8rem] tracking-[0.12em] text-accent/80"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 600, letterSpacing: "0.12em" }}
           >
             Guia Digital do Paciente
           </p>
         </div>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <div className="bg-primary px-5 pt-1 pb-5 text-center border-t border-white/10">
-        <p className="leva-q text-white text-lg font-semibold leading-snug m-0">
+      {/* ── Hero — faixa navy mais clara ─────────────────────────────────────── */}
+      <div
+        className="bg-primary px-5 pt-2 pb-6 text-center"
+        style={{
+          borderTop: "1px solid rgba(212,175,55,0.15)",
+          ...PINSTRIPE,
+        }}
+      >
+        <p
+          className="leva-q text-white text-[1.15rem] font-semibold leading-snug m-0"
+          style={{ fontFamily: "'Lora', Georgia, serif" }}
+        >
           Olá! Aqui você aprende a usar o Instituto Pádua no seu celular e computador.
         </p>
-        <p className="leva-q text-white/65 text-[0.9rem] mt-2 m-0 leading-relaxed">
-          Siga os passos do seu dispositivo. É simples e rápido!
+        <p
+          className="leva-q text-white/60 text-[0.9rem] mt-2 m-0 leading-relaxed"
+          style={{ fontFamily: "'Lora', Georgia, serif" }}
+        >
+          Siga os passos da seção do seu dispositivo.
+          <br />
+          Toque no ícone <Volume2 className="inline w-3.5 h-3.5 mx-0.5 opacity-70" /> ao lado de cada passo para ouvir em voz alta.
         </p>
       </div>
 
-      {/* ── Navegação rápida — pills btn-3d-soft ────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-border bg-card flex flex-wrap gap-2">
+      {/* ── Navegação rápida + botão compartilhar ────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-border bg-card flex flex-wrap gap-2 items-center">
         {SECOES.map(({ id, key, icon: Icon, titulo }) => (
           <button
             key={key}
@@ -444,22 +569,29 @@ export default function GuiaDigital() {
             {titulo.split(" ")[0]}
           </button>
         ))}
+        <div className="ml-auto">
+          <BotaoCompartilhar />
+        </div>
       </div>
 
       {/* ── Corpo ───────────────────────────────────────────────────────────── */}
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
         {/* Banner de dispositivo detectado */}
-        {device !== "desktop" && (
-          <div className="panel-3d rounded-[8px] px-4 py-3 flex items-center gap-3">
-            <span className="paxter-led paxter-led-green paxter-led-on shrink-0" />
-            <p className="leva-q m-0 text-[0.9rem] text-primary leading-snug">
-              Detectamos que você está num{" "}
-              <strong>{device === "iphone" ? "iPhone" : "celular Android"}</strong>.
-              {" "}A seção certa já está aberta!
+        <div className="panel-3d rounded-[8px] px-5 py-3 flex items-start gap-3">
+          <span className="paxter-led paxter-led-green shrink-0 mt-1.5" />
+          <div className="flex-1 space-y-0.5">
+            <p className="m-0 text-[11px] font-black uppercase tracking-widest text-primary">
+              Dispositivo detectado
+            </p>
+            <p className="leva-q m-0 text-[0.9rem] text-primary/80 leading-snug">
+              Você está num <strong>{deviceLabel[device]}</strong>. A seção certa já está aberta abaixo.
             </p>
           </div>
-        )}
+        </div>
+
+        {/* Linha ouro separadora */}
+        <div className="h-px bg-accent/20" />
 
         {/* Seções colapsáveis */}
         {SECOES.map(({ id, key, icon, titulo, subtitulo }) => (
@@ -476,24 +608,21 @@ export default function GuiaDigital() {
           </Secao>
         ))}
 
-        {/* Rodapé de contato */}
+        {/* Rodapé */}
         <div className="panel-3d rounded-[8px] overflow-hidden">
-          <div className="bg-primary px-5 py-5 text-center space-y-2">
-            <div className="flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
-              <p
-                className="m-0 text-accent font-black text-sm uppercase tracking-widest"
-              >
-                Ficou com dúvida?
-              </p>
-            </div>
-            <p className="leva-q m-0 text-white/75 text-[0.9rem] leading-relaxed">
+          <div className="bg-primary px-5 py-6 text-center space-y-2" style={PINSTRIPE}>
+            <p
+              className="m-0 text-accent font-black text-sm uppercase tracking-widest"
+              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1rem" }}
+            >
+              Ficou com dúvida?
+            </p>
+            <p className="leva-q m-0 text-white/70 text-[0.9rem] leading-relaxed">
               Entre em contato com o Instituto Pádua pelo WhatsApp ou telefone.
               <br />Estamos aqui para ajudar!
             </p>
-            <p
-              className="m-0 text-accent/60 text-[0.7rem] uppercase tracking-widest mt-3"
-            >
+            <div className="h-px bg-accent/20 mt-4" />
+            <p className="m-0 text-accent/40 text-[0.65rem] uppercase tracking-widest mt-3">
               Instituto Pádua — Clinical Intelligence System
             </p>
           </div>
