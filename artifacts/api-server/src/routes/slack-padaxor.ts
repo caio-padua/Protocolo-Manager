@@ -18,7 +18,8 @@ import { GLOSSARIO } from "../lib/slack-glossario";
 import { getGoogleDriveClientRaw, getGoogleSheetsClient } from "../lib/google-drive";
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { clientsTable } from "@workspace/db/schema";
 import { sendTelegram } from "../lib/telegram.js";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 
@@ -699,25 +700,34 @@ router.post("/padaxor/planilha/linha", async (req: Request, res: Response): Prom
 
 // ── POST /api/padaxor/teste-canal/:clientId ───────────────────────────────────
 // Dispara WhatsApp + Telegram de teste para o cliente indicado.
+// O Telegram chega via espelho automático do sendWhatsapp (fire-and-forget).
 // Requer instância CEO. Usado apenas para demonstração e validação ao vivo.
 router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Request, res: Response): Promise<void> => {
   const clientId = Number(req.params.clientId);
   if (!Number.isInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
 
-  const rows = await db.execute(sql`
-    SELECT id, name, phone, email, telegram_chat_id, validation_password
-    FROM clients WHERE id = ${clientId} LIMIT 1
-  `);
-  const c = rows.rows[0] as Record<string, string | null> | undefined;
+  // Usa Drizzle para garantir leitura dos campos corretos (telegramChatId via ORM).
+  const [c] = await db
+    .select({
+      name: clientsTable.name,
+      phone: clientsTable.phone,
+      telegramChatId: clientsTable.telegramChatId,
+    })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId))
+    .limit(1);
+
   if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
-  const { name, phone, telegram_chat_id: chatId } = c;
+  const { name, phone, telegramChatId: chatId } = c;
   const primeiroNome = (name ?? "").split(" ")[0] ?? "Olá";
   const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 
   const resultados: Record<string, unknown> = {};
 
   // ── WhatsApp ──────────────────────────────────────────────────────────────
+  // O espelho Telegram (sendWhatsapp → espelharParaTelegram) dispara aqui
+  // de forma automática como fire-and-forget quando clienteId está presente.
   if (phone) {
     const msg =
       `🩺 *Instituto Pádua — Sistema PADAXOR*\n\n` +
@@ -735,23 +745,16 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
   if (chatIdCEO) {
     void sendTelegram(
       chatIdCEO,
-      `✅ <b>Teste de canal disparado</b>\n\nCliente: <b>${name}</b>\nHorário: ${agora}\n\nWhatsApp: ${resultados.whatsapp && (resultados.whatsapp as any).sent ? "enviado ✓" : "link gerado"}`,
+      `✅ <b>Teste de canal disparado</b>\n\nCliente: <b>${name}</b>\nHorário: ${agora}\n\nWhatsApp: ${resultados.whatsapp && (resultados.whatsapp as any).sent ? "enviado ✓" : "link gerado"}\nTelegram paciente: ${chatId ? "vinculado ✓ (espelho ativo)" : "não vinculado"}`,
     );
   }
 
-  // ── Telegram direto ao cliente (se vinculado) ────────────────────────────
-  if (chatId) {
-    const r = await sendTelegram(
-      chatId,
-      `🩺 <b>Instituto Pádua — Sistema PADAXOR</b>\n\n` +
-      `Olá, <b>${primeiroNome}</b>! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
-      `Seu canal Telegram está ativo e funcionando perfeitamente. ✅\n\n` +
-      `A equipe do Dr. Caio pode se comunicar com você por aqui a qualquer momento.`,
-    );
-    resultados.telegram = { sent: r.ok, motivo: r.ok ? null : "Falha no envio" };
-  } else {
-    resultados.telegram = { sent: false, motivo: "Telegram não vinculado — envie K4SYFX ao @Paduaclinica_bot para ativar" };
-  }
+  // ── Telegram do cliente: reporta status sem envio duplicado ──────────────
+  // O espelho já foi disparado dentro de sendWhatsapp (fire-and-forget).
+  // Enviar uma segunda mensagem imediata causaria rate-limit do Telegram.
+  resultados.telegram = chatId
+    ? { vinculado: true, chatId, espelhoDisparado: true }
+    : { vinculado: false, motivo: "Telegram não vinculado — envie K4SYFX ao @Paduaclinica_bot para ativar" };
 
   res.json({ ok: true, clienteId: clientId, nome: name, agora, resultados });
 });
