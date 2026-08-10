@@ -229,6 +229,12 @@ const navigation: NavEntry[] = [
 
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";
 
+// Href do Cockpit da Consulta — item que recebe o badge Telegram
+const COCKPIT_HREF = "/cockpit-cliente";
+
+// Intervalo de polling do badge Telegram (em milissegundos)
+const BADGE_POLL_MS = 30_000;
+
 // ─── Filtro de menu por módulos ativos ────────────────────────────────────────
 // Mapeia cada grupo do menu para o módulo que o habilita (null = universal).
 const GRUPO_MODULO: Record<string, string | null> = {
@@ -351,6 +357,30 @@ export function Layout({ children }: LayoutProps) {
       });
   }, []);
 
+  // ─── Badge Telegram: conta mensagens não lidas de todos os pacientes ─────────
+  const [telegramBadge, setTelegramBadge] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchBadge = () => {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("padcom_collab_token")
+          : null;
+      fetch("/api/telegram-inbox/badge", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { naoLidas?: number } | null) => {
+          setTelegramBadge(data?.naoLidas ?? 0);
+        })
+        .catch(() => {/* silencioso: badge some até próximo ciclo */});
+    };
+
+    fetchBadge();
+    const timer = setInterval(fetchBadge, BADGE_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
   // Navegação filtrada pelos módulos que o servidor autorizou
   const navFiltrada = filtrarNavegacao(navigation, modulosAtivos);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -437,16 +467,27 @@ export function Layout({ children }: LayoutProps) {
                           const ChildIcon = child.icon;
                           const isActive =
                             location === child.href || location.startsWith(`${child.href}/`);
+                          const showBadgeCollapsed =
+                            child.href === COCKPIT_HREF && telegramBadge > 0;
                           const innerCollapsed = (
                             <div
-                              title={child.name}
-                              className={`flex items-center justify-center px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
+                              title={
+                                showBadgeCollapsed
+                                  ? `${child.name} (${telegramBadge} não lida${telegramBadge > 1 ? "s" : ""})`
+                                  : child.name
+                              }
+                              className={`relative flex items-center justify-center px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
                                 isActive
                                   ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/40"
                                   : "text-sidebar-foreground/55 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
                               }`}
                             >
                               <ChildIcon className="w-[19px] h-[19px] shrink-0" />
+                              {showBadgeCollapsed && (
+                                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none px-[3px]">
+                                  {telegramBadge > 99 ? "99+" : telegramBadge}
+                                </span>
+                              )}
                             </div>
                           );
                           if (child.external) {
@@ -491,6 +532,8 @@ export function Layout({ children }: LayoutProps) {
                         const ChildIcon = child.icon;
                         const isActive =
                           location === child.href || location.startsWith(`${child.href}/`);
+                        const showBadgeExpanded =
+                          child.href === COCKPIT_HREF && telegramBadge > 0;
                         const innerExpanded = (
                           <div
                             className={`relative flex items-center gap-3 px-3 py-2 rounded-[5px] border transition-all cursor-pointer ${
@@ -507,7 +550,12 @@ export function Layout({ children }: LayoutProps) {
                                 isActive ? "text-sidebar-primary" : "text-sidebar-foreground/45"
                               }`}
                             />
-                            <span className="text-[13px] tracking-wide">{child.name}</span>
+                            <span className="text-[13px] tracking-wide flex-1">{child.name}</span>
+                            {showBadgeExpanded && (
+                              <span className="ml-auto min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-[5px]">
+                                {telegramBadge > 99 ? "99+" : telegramBadge}
+                              </span>
+                            )}
                           </div>
                         );
                         if (child.external) {
