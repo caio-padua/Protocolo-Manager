@@ -464,10 +464,21 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
 // Body: { clienteId: number, texto: string }
 //
 // O que valida:
-//  1) Cliente existe e tem telegramChatId vinculado.
+//  1) Cliente existe e tem telegramChatId vinculado no banco.
 //  2) PADAXOR_TELEGRAM_CHAT_ID configurado (chatId do CEO).
-//  3) sendTelegram() entrega o repasse formatado ao CEO.
+//  3) sendTelegram() entrega o repasse formatado ao CEO via API real do Telegram.
 //  4) Log `[telegram] mensagem encaminhada ao CEO` aparece no servidor.
+//
+// Resposta inclui:
+//  - telegramEntregue: true somente quando a API do Telegram confirmou (sent=true, mock=false).
+//    Se false, significa que o chatId pode estar inválido (paciente bloqueou o bot,
+//    conta deletada, etc.) mesmo existindo no banco.
+//  - erro: código exato da API do Telegram quando a entrega falhou.
+//    Códigos mais comuns:
+//      403 Forbidden      — paciente bloqueou o bot (não aceita mais mensagens).
+//      400 Bad Request    — chatId malformado ou inexistente.
+//      401 Unauthorized   — token do bot inválido ou revogado no cofre.
+//      429 Too Many Req.  — limite de envios atingido; tentar novamente em segundos.
 //
 // Uso via curl (substitua TOKEN pelo token de colaborador):
 //   curl -s -X POST "$API/telegram/test-inbox" \
@@ -539,18 +550,23 @@ assinaturasRouter.post(
       // 4) Log obrigatório — mesmo que o webhook real usa.
       logger.info({ clienteId: cliente.id, mock: resultado.mock }, "[telegram] mensagem encaminhada ao CEO");
 
+      // telegramEntregue = true somente quando a API real do Telegram confirmou.
+      // sent=true + mock=true significa que o token do bot está ausente no cofre
+      // e o envio foi simulado — o paciente NÃO recebeu nada de verdade.
+      const telegramEntregue = resultado.sent && !resultado.mock;
+
       res.json({
         ok: resultado.sent,
+        telegramEntregue,
         mock: resultado.mock,
         erro: resultado.error ?? null,
         cliente: { id: cliente.id, nome: cliente.name, cpfDisplay, telegramChatId: cliente.telegramChatId },
         ceoChatId: `${chatIdCEO.slice(0, 3)}***`,   // mascarado — nunca expõe o valor completo
-        mensagemEnviada: resultado.sent,
-        descricao: resultado.sent
-          ? resultado.mock
+        descricao: telegramEntregue
+          ? "Repasse enviado ao CEO com sucesso. Confira o Telegram do Dr. Caio."
+          : resultado.mock
             ? "MOCK: token do bot ausente no cofre — repasse registrado em log sem chamada real ao Telegram."
-            : "Repasse enviado ao CEO com sucesso. Confira o Telegram do Dr. Caio."
-          : `Falha ao enviar: ${resultado.error}`,
+            : `Falha na entrega (Telegram API): ${resultado.error}`,
       });
     } catch (err) {
       req.log.error({ err: String(err) }, "[telegram] erro no test-inbox");
