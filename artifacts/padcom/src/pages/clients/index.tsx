@@ -75,18 +75,26 @@ export default function Clients() {
   const [tabLoading, setTabLoading]       = useState(false);
   const [displayCount, setDisplayCount]   = useState(PAGE_SIZE);
   const sentinelRef                       = useRef<HTMLDivElement>(null);
+  const abortRef                          = useRef<AbortController | null>(null);
 
   const loadClients = useCallback((currentTab: Tab, currentSearch: string) => {
+    // Cancela qualquer fetch anterior para evitar race condition
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+
     setTabLoading(true);
     const params = new URLSearchParams({ tab: currentTab });
     if (currentSearch) params.set("search", currentSearch);
-    fetch(`/api/clients?${params}`)
+    fetch(`/api/clients?${params}`, { signal })
       .then((r) => r.json())
       .then((data) => {
         setTabClients(Array.isArray(data) ? data : []);
         setTabLoading(false);
       })
-      .catch(() => setTabLoading(false));
+      .catch((err) => {
+        if (err.name !== "AbortError") setTabLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -240,43 +248,45 @@ export default function Clients() {
           />
         </div>
 
-        {/* Barra A–Z */}
-        <div className="flex flex-wrap gap-[3px]">
-          <button
-            type="button"
-            onClick={() => setFilterLetra(null)}
-            className={cn(
-              "h-6 rounded border px-2 text-[10px] font-bold uppercase tracking-widest transition-colors",
-              filterLetra === null
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            TODOS
-          </button>
-          {LETRAS.map((l) => {
-            const tem   = disponíveis.has(l);
-            const ativa = filterLetra === l;
-            return (
-              <button
-                key={l}
-                type="button"
-                disabled={!tem}
-                onClick={() => setFilterLetra(ativa ? null : l)}
-                className={cn(
-                  "h-6 w-6 rounded border text-[11px] font-bold transition-colors",
-                  ativa
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : tem
-                      ? "border-border bg-background text-foreground hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-                      : "cursor-not-allowed border-transparent text-muted-foreground/25",
-                )}
-              >
-                {l}
-              </button>
-            );
-          })}
-        </div>
+        {/* Barra A–Z — só aparece quando não há texto de busca ativo */}
+        {!search && (
+          <div className="flex flex-wrap gap-[3px]">
+            <button
+              type="button"
+              onClick={() => setFilterLetra(null)}
+              className={cn(
+                "h-6 rounded border px-2 text-[10px] font-bold uppercase tracking-widest transition-colors",
+                filterLetra === null
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              TODOS
+            </button>
+            {LETRAS.map((l) => {
+              const tem   = disponíveis.has(l);
+              const ativa = filterLetra === l;
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  disabled={!tem}
+                  onClick={() => setFilterLetra(ativa ? null : l)}
+                  className={cn(
+                    "h-6 w-6 rounded border text-[11px] font-bold transition-colors",
+                    ativa
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : tem
+                        ? "border-border bg-background text-foreground hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                        : "cursor-not-allowed border-transparent text-muted-foreground/25",
+                  )}
+                >
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Barra de seleção em lote */}
