@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 // startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
+import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
@@ -25,39 +26,51 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
+// Boot sequenciado: migrações críticas rodam ANTES do listen para evitar
+// race condition entre requests e criação de tabelas auxiliares.
+(async () => {
+  try {
+    await ensurePhotoHistoryTable();
+    logger.info("client_photo_history: tabela pronta antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela client_photo_history — abortando boot");
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
-  // startCronJobs() removido — roda no api-worker (evita duplicação com múltiplas réplicas)
-  aquecerBannersAnimados();
-  refreshCertCache().catch((e) =>
-    logger.error({ err: e }, "Falha ao carregar cache do certificado"),
-  );
-  runSeedSiteContent((m) => logger.info({ seed: "site-content" }, m)).catch((e) =>
-    logger.error({ err: e }, "Falha ao semear site-content"),
-  );
-  runSeedMensageriaOpus((m) => logger.info({ seed: "mensageria-opus" }, m)).catch((e) =>
-    logger.error({ err: e }, "Falha ao semear mensageria-opus"),
-  );
-  runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
-    logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
-  );
-  seedDirecoesExames()
-    .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
-    .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
-  seedCatalogoAnalitos()
-    .then((r) => logger.info({ seed: "catalogo-analitos", ...r }, "Catálogo/unidades/faixas semeados"))
-    .then(() => seedFaixasSexo())
-    .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
-    .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
+  app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
 
-  // Recupera documentos de exame que ficaram presos em "processando"
-  // por reinicializacao do servidor durante a extracao por IA.
-  recoverStuckDocuments().catch((e) =>
-    logger.error({ err: e }, "[ExamesLab] Falha na recuperacao de documentos presos"),
-  );
-});
+    logger.info({ port }, "Server listening");
+    // startCronJobs() removido — roda no api-worker (evita duplicação com múltiplas réplicas)
+    aquecerBannersAnimados();
+    refreshCertCache().catch((e) =>
+      logger.error({ err: e }, "Falha ao carregar cache do certificado"),
+    );
+    runSeedSiteContent((m) => logger.info({ seed: "site-content" }, m)).catch((e) =>
+      logger.error({ err: e }, "Falha ao semear site-content"),
+    );
+    runSeedMensageriaOpus((m) => logger.info({ seed: "mensageria-opus" }, m)).catch((e) =>
+      logger.error({ err: e }, "Falha ao semear mensageria-opus"),
+    );
+    runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
+      logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
+    );
+    seedDirecoesExames()
+      .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
+      .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
+    seedCatalogoAnalitos()
+      .then((r) => logger.info({ seed: "catalogo-analitos", ...r }, "Catálogo/unidades/faixas semeados"))
+      .then(() => seedFaixasSexo())
+      .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
+      .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
+
+    // Recupera documentos de exame que ficaram presos em "processando"
+    // por reinicializacao do servidor durante a extracao por IA.
+    recoverStuckDocuments().catch((e) =>
+      logger.error({ err: e }, "[ExamesLab] Falha na recuperacao de documentos presos"),
+    );
+  });
+})();
