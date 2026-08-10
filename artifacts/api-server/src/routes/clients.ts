@@ -17,6 +17,18 @@ import {
 
 const router: IRouter = Router();
 
+// Boot migration — coluna de data de vinculação do Telegram.
+// Pacientes vinculados antes desta migração terão telegram_vinculado_em = null.
+(async () => {
+  try {
+    await db.execute(
+      sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_vinculado_em TIMESTAMPTZ`
+    );
+  } catch (e) {
+    console.warn("[clients] migration telegram_vinculado_em:", e);
+  }
+})();
+
 type ClientRow = typeof clientsTable.$inferSelect;
 
 // Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
@@ -426,5 +438,38 @@ async function dispararBoasVindas(clientId: number, nome: string, telefone: stri
     await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "falhou", detalhe: { erro: err.message } });
   }
 }
+
+// ── GET /api/clientes/:id/telegram-status ────────────────────────────────────
+// Retorna se o cliente tem Telegram vinculado e a data de vinculação.
+// Protegida por requireCollaborator (CEO/staff apenas).
+router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "clientId inválido" });
+    return;
+  }
+  const empresaId = req.tenantContext.empresaId;
+  try {
+    const result = await db.execute(
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          LIMIT 1`
+    );
+    const row = result.rows[0] as
+      | { telegram_chat_id: string | null; telegram_vinculado_em: string | null }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: "Cliente não encontrado" });
+      return;
+    }
+    res.json({
+      vinculado: row.telegram_chat_id !== null,
+      desde: row.telegram_vinculado_em ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 export default router;

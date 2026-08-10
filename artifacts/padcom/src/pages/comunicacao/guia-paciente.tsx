@@ -6,13 +6,74 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_BASE  = import.meta.env.BASE_URL.replace(/\/$/, "");
 const GUIA_URL  = `${window.location.origin}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/");
+
+// ── Badge de status Telegram ──────────────────────────────────────────────────
+type TgStatus = { vinculado: boolean; desde: string | null };
+
+function TelegramStatusBadge({ clientId }: { clientId: number }) {
+  const [status,  setStatus]  = useState<TgStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [erro,    setErro]    = useState(false);
+
+  useEffect(() => {
+    setStatus(null);
+    setLoading(true);
+    setErro(false);
+    fetch(`${API_BASE}/api/clientes/${clientId}/telegram-status`)
+      .then((r) => r.ok ? r.json() as Promise<TgStatus> : Promise.reject(r.status))
+      .then((d) => setStatus(d))
+      .catch(() => setErro(true))
+      .finally(() => setLoading(false));
+  }, [clientId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+        <span className="paxter-led" />
+        <span>Verificando status do Telegram…</span>
+      </div>
+    );
+  }
+
+  if (erro) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
+        <span className="paxter-led" />
+        <span>Não foi possível verificar</span>
+      </div>
+    );
+  }
+
+  if (!status) return null;
+
+  if (status.vinculado) {
+    const desde = status.desde
+      ? new Date(status.desde).toLocaleDateString("pt-BR")
+      : null;
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+        <span className="paxter-led paxter-led-green flex-shrink-0" />
+        <span>
+          Telegram vinculado{desde ? ` desde ${desde}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
+      <span className="paxter-led paxter-led-amber paxter-led-breathe flex-shrink-0" />
+      <span>Ainda não vinculou ao Telegram</span>
+    </div>
+  );
+}
 
 type Canal = "WHATSAPP" | "TELEGRAM";
 
@@ -138,16 +199,28 @@ export default function GuiaPaciente() {
           />
         </div>
 
-        {/* Dados do selecionado */}
+        {/* Dados do selecionado + badge Telegram */}
         {selected && (
-          <div className="concave-3d rounded-lg p-4 space-y-1 text-sm">
-            <p className="font-black text-primary uppercase tracking-wider">{selected.name}</p>
-            <p className="text-muted-foreground">
-              {selected.phone ? `📞 ${selected.phone}` : "⚠️ Sem telefone cadastrado"}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {selected.cpf ? `CPF: ${selected.cpf}` : "Sem CPF"}
-            </p>
+          <div className="concave-3d rounded-lg p-4 space-y-3 text-sm">
+            <div className="space-y-1">
+              <p className="font-black text-primary uppercase tracking-wider">{selected.name}</p>
+              <p className="text-muted-foreground">
+                {selected.phone ? `📞 ${selected.phone}` : "⚠️ Sem telefone cadastrado"}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {selected.cpf ? `CPF: ${selected.cpf}` : "Sem CPF"}
+              </p>
+            </div>
+            {/* Badge de status Telegram — atualiza ao trocar de cliente */}
+            <div className="border-t border-border/30 pt-2">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <MessageCircle size={10} className="text-muted-foreground/50" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Canal Telegram
+                </span>
+              </div>
+              <TelegramStatusBadge clientId={selected.id} />
+            </div>
           </div>
         )}
       </div>

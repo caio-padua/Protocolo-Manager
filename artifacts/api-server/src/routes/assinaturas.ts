@@ -447,7 +447,10 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       logger.warn("[telegram] vínculo recusado: senha de validação ambígua (colisão)");
     } else if (alvo) {
       // ── Vinculação confirmada ─────────────────────────────────────────────
-      await db.update(clientsTable).set({ telegramChatId: chatId }).where(eq(clientsTable.id, alvo.id));
+      // Usa raw SQL para também gravar telegram_vinculado_em (coluna não está no schema Drizzle).
+      await db.execute(
+        sql`UPDATE clients SET telegram_chat_id = ${chatId}, telegram_vinculado_em = now() WHERE id = ${alvo.id}`
+      );
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
       // Boas-vindas ao cliente
