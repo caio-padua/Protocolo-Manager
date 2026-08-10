@@ -15,6 +15,11 @@ import { z } from "zod";
 
 export const onboardingRouter = Router();
 
+// ── Rate limit em memória ─────────────────────────────────────────────────────
+// Chave: `${clienteId}:${canal}` | Valor: timestamp (ms) do último envio bem-sucedido
+const COOLDOWN_MS = 60_000; // 60 segundos
+const sendCooldowns = new Map<string, number>();
+
 const bodySchema = z.object({
   clientId: z.number().int().positive(),
   canais:   z.array(z.enum(["WHATSAPP", "TELEGRAM"])).min(1),
@@ -28,6 +33,21 @@ onboardingRouter.post("/enviar-guia", async (req, res) => {
   }
 
   const { clientId, canais, guiaUrl } = parsed.data;
+
+  // ── Rate limit por (clienteId, canal) ────────────────────────────────────
+  const agora = Date.now();
+  const canalBloqueado = canais.find((canal) => {
+    const key = `${clientId}:${canal}`;
+    return agora - (sendCooldowns.get(key) ?? 0) < COOLDOWN_MS;
+  });
+  if (canalBloqueado) {
+    return res.status(429).json({ ok: false, error: "Aguarde 60 segundos antes de reenviar." });
+  }
+
+  // Registrar timestamp ANTES de enviar (evita retry race condition)
+  for (const canal of canais) {
+    sendCooldowns.set(`${clientId}:${canal}`, agora);
+  }
 
   // Busca o cliente
   const [cliente] = await db

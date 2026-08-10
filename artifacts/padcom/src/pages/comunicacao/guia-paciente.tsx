@@ -5,7 +5,7 @@
  * do Guia Digital (PWA + Telegram) por WhatsApp e/ou Telegram.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
@@ -30,6 +30,27 @@ export default function GuiaPaciente() {
   const [copiado,  setCopiado]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [resultados, setResultados] = useState<EnvioResult[]>([]);
+  const [countdown, setCountdown]   = useState(0); // segundos restantes do cooldown
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Inicia o timer de 60s de cooldown
+  const iniciarCountdown = useCallback(() => {
+    setCountdown(60);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Limpa o intervalo ao desmontar
+  useEffect(() => () => { if (countdownRef.current) clearInterval(countdownRef.current); }, []);
 
   const clientesSelecionados = (clientes ?? []).map((c) => ({
     id: c.id,
@@ -52,7 +73,7 @@ export default function GuiaPaciente() {
 
   // ── Enviar guia ─────────────────────────────────────────────────────────
   async function enviar(canais: Canal[]) {
-    if (!clientId || !selected) return;
+    if (!clientId || !selected || loading || countdown > 0) return;
     setLoading(true);
     setResultados([]);
     try {
@@ -61,9 +82,19 @@ export default function GuiaPaciente() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId, canais, guiaUrl: GUIA_URL }),
       });
+
+      // ── 429: disparo duplo bloqueado pelo servidor ──
+      if (res.status === 429) {
+        iniciarCountdown();
+        toast({ title: "Guia já enviado", description: "Aguarde um momento antes de reenviar.", variant: "destructive" });
+        setResultados([{ canal: canais[0], ok: false, mensagem: "Guia já enviado. Aguarde um momento." }]);
+        return;
+      }
+
       const data = await res.json() as { ok: boolean; resultados: EnvioResult[] };
       setResultados(data.resultados ?? []);
       if (data.ok) {
+        iniciarCountdown(); // bloquear reenvio imediato mesmo no sucesso
         toast({ title: "Guia enviado!", description: `Enviado para ${selected.name}.` });
       } else {
         toast({ title: "Atenção", description: "Verifique os resultados abaixo.", variant: "destructive" });
@@ -150,23 +181,31 @@ export default function GuiaPaciente() {
             {/* WhatsApp */}
             <button
               onClick={() => enviar(["WHATSAPP"])}
-              disabled={loading || !selected.phone}
+              disabled={loading || !selected.phone || countdown > 0}
               className="btn-3d flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              WhatsApp
+              {countdown > 0 ? `Aguarde ${countdown}s…` : "WhatsApp"}
             </button>
 
             {/* WhatsApp + Telegram */}
             <button
               onClick={() => enviar(["WHATSAPP", "TELEGRAM"])}
-              disabled={loading || !selected.phone}
+              disabled={loading || !selected.phone || countdown > 0}
               className="btn-3d-soft flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              WhatsApp + Telegram
+              {countdown > 0 ? `Aguarde ${countdown}s…` : "WhatsApp + Telegram"}
             </button>
           </div>
+
+          {/* Banner de cooldown */}
+          {countdown > 0 && (
+            <div className="flex items-center gap-2 text-amber-700 text-xs concave-3d rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              Guia já enviado. Aguarde {countdown} segundo{countdown !== 1 ? "s" : ""} antes de reenviar.
+            </div>
+          )}
 
           {!selected.phone && (
             <div className="flex items-center gap-2 text-amber-700 text-xs">
