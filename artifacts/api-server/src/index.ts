@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 // startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
+import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
@@ -34,6 +35,13 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("client_photo_history: tabela pronta antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela client_photo_history — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureTelegramInboxTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela telegram_inbox_messages — abortando boot");
     process.exit(1);
   }
 

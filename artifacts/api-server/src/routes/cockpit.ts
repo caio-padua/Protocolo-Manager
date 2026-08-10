@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { requireCollaborator } from "./collaborator";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 import {
   db,
   clientsTable,
@@ -10,8 +12,9 @@ import {
   itemDoencaTable,
   catalogoDoencasTable,
   whatsappMensagensLogTable,
+  telegramInboxTable,
 } from "@workspace/db";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, isNull, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   computeMotor,
@@ -304,6 +307,124 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
 router.post("/mensageria/processar", async (_req, res): Promise<void> => {
   const resultado = await executarLembretesPeriodo();
   res.json(resultado);
+});
+
+// ============================================================================
+// INBOX TELEGRAM — mensagens recebidas dos pacientes via bot
+// ============================================================================
+
+// 5) GET /cockpit/:clientId/telegram-inbox
+// Lista mensagens Telegram do paciente. Requer token de colaborador.
+// Tenant derivado de req.tenantContext (resolveEmpresaId) — nunca do clientId
+// fornecido pelo chamador. Escopo: empresaId autorizado × clienteId solicitado.
+router.get("/cockpit/:clientId/telegram-inbox", requireCollaborator, async (req, res): Promise<void> => {
+  const clienteId = Number(req.params.clientId);
+  if (!Number.isFinite(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "clientId invalido" });
+    return;
+  }
+
+  // empresaId vem do contexto de sessão (tenantContextMiddleware), não do chamador
+  const empresaId = resolveEmpresaId(req);
+
+  // Confirma que o cliente pertence ao tenant autorizado — bloqueio cross-tenant
+  const [clienteNoTenant] = await db
+    .select({ id: clientsTable.id })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
+    .limit(1);
+
+  if (!clienteNoTenant) {
+    res.status(404).json({ error: "cliente nao encontrado" });
+    return;
+  }
+
+  // Filtro triplo: clienteId + empresaId da sessão — sem dependência dos dados do cliente
+  const filtro = and(
+    eq(telegramInboxTable.clienteId, clienteId),
+    eq(telegramInboxTable.empresaId, empresaId),
+  );
+
+  const mensagens = await db
+    .select()
+    .from(telegramInboxTable)
+    .where(filtro)
+    .orderBy(desc(telegramInboxTable.recebidaEm))
+    .limit(100);
+
+  // Marca como lidas quando o front requisita (query param marcar_lidas=1)
+  if (req.query["marcar_lidas"] === "1") {
+    await db
+      .update(telegramInboxTable)
+      .set({ lidaEm: new Date() })
+      .where(and(filtro, isNull(telegramInboxTable.lidaEm)));
+  }
+
+  const naoLidas = mensagens.filter((m) => m.lidaEm == null).length;
+
+  res.json({
+    mensagens: mensagens.map((m) => ({
+      id: m.id,
+      texto: m.texto,
+      recebidaEm: m.recebidaEm.toISOString(),
+      lida: m.lidaEm != null,
+    })),
+    naoLidas,
+  });
+});
+
+// 6) POST /cockpit/:clientId/telegram-inbox/marcar-lidas
+// Marca não-lidas do paciente como lidas. Requer token de colaborador.
+// Tenant derivado de req.tenantContext — escopo obrigatório no UPDATE.
+router.post("/cockpit/:clientId/telegram-inbox/marcar-lidas", requireCollaborator, async (req, res): Promise<void> => {
+  const clienteId = Number(req.params.clientId);
+  if (!Number.isFinite(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "clientId invalido" });
+    return;
+  }
+
+  const empresaId = resolveEmpresaId(req);
+
+  // Verifica pertencimento ao tenant antes de qualquer escrita
+  const [clienteNoTenant] = await db
+    .select({ id: clientsTable.id })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
+    .limit(1);
+
+  if (!clienteNoTenant) {
+    res.status(404).json({ error: "cliente nao encontrado" });
+    return;
+  }
+
+  const resultado = await db
+    .update(telegramInboxTable)
+    .set({ lidaEm: new Date() })
+    .where(and(
+      eq(telegramInboxTable.clienteId, clienteId),
+      eq(telegramInboxTable.empresaId, empresaId), // tenant da sessão, não do payload
+      isNull(telegramInboxTable.lidaEm),
+    ));
+
+  res.json({ ok: true, marcadas: (resultado as any).rowCount ?? 0 });
+});
+
+// 7) GET /telegram-inbox/badge
+// Conta não-lidas do tenant autorizado. Requer token de colaborador.
+// empresaId vem de req.tenantContext — colaboradores de outro tenant nunca veem
+// mensagens alheias, mesmo que o banco tenha múltiplas empresas.
+router.get("/telegram-inbox/badge", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = resolveEmpresaId(req);
+
+  const [row] = await db
+    .select({ total: sql<number>`COUNT(*)::int` })
+    .from(telegramInboxTable)
+    .where(and(
+      isNull(telegramInboxTable.lidaEm),
+      eq(telegramInboxTable.empresaId, empresaId), // isolamento por tenant da sessão
+    ));
+
+  res.json({ naoLidas: row?.total ?? 0 });
 });
 
 export default router;

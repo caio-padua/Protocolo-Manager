@@ -10,7 +10,7 @@
 
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, clientsTable, assinaturaTogglesAdminTable } from "@workspace/db";
+import { db, clientsTable, assinaturaTogglesAdminTable, telegramInboxTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import {
   enviarAssinatura,
@@ -364,25 +364,38 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
 
     // ── PASSO 1: verifica se este chatId já está vinculado a algum cliente ───
     const [clienteJaVinculado] = await db
-      .select({ id: clientsTable.id, name: clientsTable.name, cpf: clientsTable.cpf })
+      .select({ id: clientsTable.id, name: clientsTable.name, cpf: clientsTable.cpf, empresaId: clientsTable.empresaId })
       .from(clientsTable)
       .where(eq(clientsTable.telegramChatId, chatId))
       .limit(1);
 
     if (clienteJaVinculado) {
-      // ── Modo INBOX: cliente vinculado enviou mensagem → encaminha ao CEO ──
-      if (texto && chatIdCEO) {
-        const cpfDisplay = (clienteJaVinculado.cpf || "00000000000")
-          .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-        const repasse =
-          `💬 <b>Mensagem via Telegram</b>\n\n` +
-          `<b>De:</b> ${clienteJaVinculado.name}\n` +
-          `<b>CPF:</b> ${cpfDisplay}\n\n` +
-          `"${texto}"\n\n` +
-          `──────────────────\n` +
-          `Responda em: Cockpit → ${clienteJaVinculado.name.split(" ")[0]}`;
-        void sendTelegram(chatIdCEO, repasse);
-        logger.info({ clienteId: clienteJaVinculado.id }, "[telegram] mensagem encaminhada ao CEO");
+      // ── Modo INBOX: cliente vinculado enviou mensagem → grava no inbox + encaminha ao CEO ──
+      if (texto) {
+        // Grava no banco ANTES de encaminhar (fail-safe: se o CEO não vir o Telegram, o cockpit mostra)
+        // empresaId é obrigatório para isolamento multi-tenant — herdado do cliente.
+        await db.insert(telegramInboxTable).values({
+          empresaId: clienteJaVinculado.empresaId ?? 0,
+          clienteId: clienteJaVinculado.id,
+          chatId,
+          texto,
+        }).catch((err: unknown) =>
+          logger.error({ err }, "[telegram] falha ao gravar mensagem no inbox"),
+        );
+
+        if (chatIdCEO) {
+          const cpfDisplay = (clienteJaVinculado.cpf || "00000000000")
+            .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+          const repasse =
+            `💬 <b>Mensagem via Telegram</b>\n\n` +
+            `<b>De:</b> ${clienteJaVinculado.name}\n` +
+            `<b>CPF:</b> ${cpfDisplay}\n\n` +
+            `"${texto}"\n\n` +
+            `──────────────────\n` +
+            `Responda em: Cockpit → ${clienteJaVinculado.name.split(" ")[0]}`;
+          void sendTelegram(chatIdCEO, repasse);
+          logger.info({ clienteId: clienteJaVinculado.id }, "[telegram] mensagem encaminhada ao CEO");
+        }
       }
       res.status(200).json({ ok: true });
       return;

@@ -60,3 +60,4 @@ export * from "./consumo";
 export * from "./clinic-avatars";
 export * from "./avatar-uso-log";
 export * from "./avatar-envios";
+export * from "./telegram-inbox";
