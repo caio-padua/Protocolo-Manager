@@ -1,4 +1,5 @@
 - [Foto upload — validação, histórico e segurança](foto-upload-historico.md) — assertSquare fail-closed; await backup antes de sobrescrever; requireCollaborator em rotas de staff; boot migration antes do listen; brtNow() (não nowBRT).
+- [Drive — nomenclatura canônica de fotos de perfil](drive-foto-nomenclatura.md) — `AA.MM.DD FOTO PERFIL NOME PACIENTE.ext`; pasta=FOTO PERFIL sempre; AA primeiro = ordem cronológica por nome; assertSquare só no upload público.
 - [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na raiz) ou architect reprova.
 - [multer 0 bytes não rejeita automaticamente](multer-zero-bytes.md) — multer aceita buffer vazio com MIME válido; guard explícito file.size===0 obrigatório antes de salvar; check vai APÓS validação de token (guard de token roda primeiro).
 - [drive-watcher guard global — ordem de rotas](drive-watcher-guard-global.md) — router.use(requireCollaborator) sem caminho bloqueia TUDO abaixo; novas rotas clínicas devem ficar ANTES de driveWatcherRouter no index.ts.

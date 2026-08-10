@@ -8,7 +8,7 @@ import { createPhotoToken, verifyPhotoToken } from "../lib/portal-token.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator.js";
-import { ensureClientFolderStructure, uploadFileToDrive, formatCpfDisplay } from "../lib/google-drive.js";
+import { ensureClientFolderStructure, uploadFileToDrive, formatCpfDisplay, removeDiacritics } from "../lib/google-drive.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { brtNow } from "../lib/brt.js";
 
@@ -140,8 +140,22 @@ function docFoto(clientName: string, link: string): PaxterDoc {
   };
 }
 
+// ── Convenção de nomenclatura de fotos no Drive ───────────────────────────────
+// Formato: "AA.MM.DD FOTO PERFIL NOME PACIENTE.ext"
+// AA = ano 2 dígitos (BRT), MM = mês, DD = dia.
+// Pasta destino: sempre FOTO PERFIL (jamais IMAGENS para fotos de perfil).
+// A mais recente (maior AA.MM.DD) = foto ativa; as anteriores = histórico.
+function buildPhotoFileName(clientName: string, ext: string): string {
+  const now = brtNow();
+  const aa = String(now.getFullYear()).slice(2); // "26"
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const nome = removeDiacritics(clientName).toUpperCase().trim();
+  return `${aa}.${mm}.${dd} FOTO PERFIL ${nome}.${ext}`;
+}
+
 /**
- * Salva a foto atual do cliente no histórico (banco + Drive) antes de sobrescrever.
+ * Salva a foto atual do cliente no histórico (banco + Drive/FOTO PERFIL) antes de sobrescrever.
  * Falha silenciosa: nunca bloqueia o upload principal.
  */
 async function backupFotoAnterior(
@@ -161,9 +175,8 @@ async function backupFotoAnterior(
     log.warn({ err, clientId }, "Falha ao salvar histórico de foto no banco");
   }
 
-  // 2. Copiar arquivo para Drive/IMAGENS (fail-safe separado)
+  // 2. Copiar arquivo para Drive/FOTO PERFIL com nomeclatura canônica (fail-safe)
   try {
-    // Extrai a chave relativa: /api/storage/objects/uploads/photos/xxx → uploads/photos/xxx
     const relativePath = oldPhotoUrl.replace(/^\/api\/storage\/objects\//, "");
     if (!relativePath.startsWith("uploads/")) {
       log.warn({ clientId, relativePath }, "Photo URL não começa com uploads/ — pulando backup Drive");
@@ -171,16 +184,12 @@ async function backupFotoAnterior(
     }
     const buffer = await objectStorageService.readPrivateObject(relativePath);
     const folders = await ensureClientFolderStructure(clientName, cpf);
-    const imagensFolder = (folders.subfolders as Record<string, string>)["IMAGENS"];
-    if (!imagensFolder) {
-      log.warn({ clientId }, "Pasta IMAGENS não encontrada no Drive — pulando backup");
+    const fotoPerfilFolder = (folders.subfolders as Record<string, string>)["FOTO PERFIL"];
+    if (!fotoPerfilFolder) {
+      log.warn({ clientId }, "Pasta FOTO PERFIL não encontrada no Drive — pulando backup");
       return;
     }
-    const now = brtNow();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-
-    // Preserva MIME e extensão originais da foto salva no Object Storage
+    // Preserva extensão original; MIME mapeado
     const originalExt = (relativePath.split(".").pop() ?? "jpg").toLowerCase();
     const EXT_TO_MIME: Record<string, string> = {
       jpg: "image/jpeg", jpeg: "image/jpeg",
@@ -188,17 +197,18 @@ async function backupFotoAnterior(
       heic: "image/heic", heif: "image/heif",
     };
     const originalMime = EXT_TO_MIME[originalExt] ?? "image/jpeg";
-    const fileName = `foto-perfil-${ts}.${originalExt}`;
-    await uploadFileToDrive(imagensFolder, fileName, originalMime, buffer, true);
-    log.info({ clientId, fileName }, "Foto anterior salva no Drive/IMAGENS");
+    const fileName = buildPhotoFileName(clientName, originalExt);
+    // allowDuplicates=true — múltiplos uploads no mesmo dia coexistem pela data no nome
+    await uploadFileToDrive(fotoPerfilFolder, fileName, originalMime, buffer, true);
+    log.info({ clientId, fileName }, "Foto anterior salva no Drive/FOTO PERFIL");
   } catch (err) {
-    log.warn({ err, clientId }, "Falha ao copiar foto para Drive/IMAGENS — upload principal não afetado");
+    log.warn({ err, clientId }, "Falha ao copiar foto para Drive/FOTO PERFIL — upload principal não afetado");
   }
 }
 
 /**
  * Após salvar a nova foto no banco:
- * 1. Sobe a foto ativa para Drive/FOTO PERFIL (substitui a anterior — sem duplicata)
+ * 1. Sobe a foto ativa para Drive/FOTO PERFIL com nomeclatura canônica AA.MM.DD
  * 2. Notifica o médico via Telegram
  * Falha silenciosa em ambas as etapas — não bloqueia a resposta ao cliente.
  */
@@ -210,16 +220,17 @@ async function afterPhotoSaved(
   newMime: string,
   log: Request["log"],
 ): Promise<void> {
-  // 1. Upload da foto ativa para Drive/FOTO PERFIL
+  // 1. Upload da foto ativa para Drive/FOTO PERFIL com nomenclatura canônica
   try {
     const folders = await ensureClientFolderStructure(clientName, cpf);
     const fotoPerfil = (folders.subfolders as Record<string, string>)["FOTO PERFIL"];
     if (fotoPerfil) {
-      // Extensão legível: image/jpeg → jpg, image/png → png, etc.
       const ext = newMime === "image/jpeg" ? "jpg" : (newMime.split("/")[1] ?? "jpg");
-      // allowDuplicates=false apaga arquivo de mesmo nome antes de subir → mantém 1 arquivo nesta pasta
-      await uploadFileToDrive(fotoPerfil, `foto-perfil-atual.${ext}`, newMime, newBuffer, false);
-      log.info({ clientId }, "Foto ativa salva no Drive/FOTO PERFIL");
+      // Nomenclatura: "AA.MM.DD FOTO PERFIL NOME PACIENTE.ext"
+      // allowDuplicates=true — coexistência no mesmo dia é válida; a mais recente = ativa
+      const fileName = buildPhotoFileName(clientName, ext);
+      await uploadFileToDrive(fotoPerfil, fileName, newMime, newBuffer, true);
+      log.info({ clientId, fileName }, "Foto ativa salva no Drive/FOTO PERFIL com nomenclatura canônica");
     }
   } catch (err) {
     log.warn({ err, clientId }, "Falha ao salvar foto ativa no Drive/FOTO PERFIL — não afeta o upload");
@@ -366,8 +377,9 @@ router.post(
     const ext = ALLOWED_IMAGE_TYPES[file.mimetype];
     if (!ext) { res.status(400).json({ error: "Formato de imagem não aceito" }); return; }
     if (file.size === 0) { res.status(400).json({ error: "Imagem vazia — envie um arquivo com conteúdo." }); return; }
-    // Validação 1:1 no servidor (tolerância ±5px)
-    if (!assertSquare(file.buffer, file.mimetype, res)) return;
+    // Nota: assertSquare NÃO é aplicado aqui — a equipe pode enviar fotos de perfil
+    // em qualquer proporção (retrato, quadrado). A validação 1:1 existe apenas na
+    // rota pública /upload onde o cliente edita a foto pelo celular.
 
     const [client] = await db
       .select({
