@@ -44,6 +44,9 @@ router.get("/radar-clinico", async (req, res): Promise<void> => {
     const faltaDias = req.query.falta_dias ? Number(req.query.falta_dias) : null;
     const substancia = req.query.substancia ? String(req.query.substancia) : null;
     const silencioDias = req.query.silencio_dias ? Number(req.query.silencio_dias) : null;
+    // "urgencia" (padrão) = faltou DESC → silêncio DESC → nome ASC
+    // "az" = nome ASC
+    const ordenacao = String(req.query.ordenacao || "urgencia");
 
     const result = await pool.query<{
       id: number;
@@ -211,6 +214,27 @@ router.get("/radar-clinico", async (req, res): Promise<void> => {
     else if (substancia === "5plus") rows = rows.filter((r) => r.substancias.total >= 5);
     if (silencioDias !== null) {
       rows = rows.filter((r) => r.alertas.silencioHaDias == null || r.alertas.silencioHaDias >= silencioDias);
+    }
+
+    // ── Ordenação ────────────────────────────────────────────────────────────
+    if (ordenacao === "urgencia") {
+      rows.sort((a, b) => {
+        // 1) faltou DESC (quem faltou aparece antes)
+        const faltaA = a.alertas.faltaHaDias != null ? 1 : 0;
+        const faltaB = b.alertas.faltaHaDias != null ? 1 : 0;
+        if (faltaB !== faltaA) return faltaB - faltaA;
+
+        // 2) silêncio DESC (maior silêncio primeiro; null = nunca contatado → trata como máximo)
+        const silA = a.alertas.silencioHaDias ?? Number.MAX_SAFE_INTEGER;
+        const silB = b.alertas.silencioHaDias ?? Number.MAX_SAFE_INTEGER;
+        if (silB !== silA) return silB - silA;
+
+        // 3) nome ASC (desempate alfabético)
+        return a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" });
+      });
+    } else {
+      // "az" — ordem alfabética simples
+      rows.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
     }
 
     const total = rows.length;

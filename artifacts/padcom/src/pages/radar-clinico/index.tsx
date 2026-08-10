@@ -22,6 +22,7 @@ import {
   Radio,
   BellOff,
   Zap,
+  ArrowDownUp,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -452,22 +453,25 @@ export default function RadarClinico() {
   const [faltaDias, setFaltaDias] = useState("");
   const [substancia, setSubstancia] = useState("");
   const [silencioDias, setSilencioDias] = useState("");
+  // "urgencia" (padrão) = faltou DESC → silêncio DESC → A-Z
+  const [ordenacao, setOrdenacao] = useState<"urgencia" | "az">("urgencia");
   const [pacienteMsg, setPacienteMsg] = useState<Paciente | null>(null);
   const queryClient = useQueryClient();
 
   const buildUrl = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(pagina));
+    params.set("ordenacao", ordenacao);
     if (protocoloStatus !== "all") params.set("protocolo_status", protocoloStatus);
     if (tempoAtivo) params.set("tempo_ativo", tempoAtivo);
     if (faltaDias) params.set("falta_dias", faltaDias);
     if (substancia) params.set("substancia", substancia);
     if (silencioDias) params.set("silencio_dias", silencioDias);
     return `${API_BASE}/api/radar-clinico?${params.toString()}`;
-  }, [pagina, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias]);
+  }, [pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias]);
 
   const { data, isLoading, isError, refetch } = useQuery<RadarResponse>({
-    queryKey: ["radar-clinico", pagina, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias],
+    queryKey: ["radar-clinico", pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias],
     queryFn: async () => {
       const r = await fetch(buildUrl());
       if (!r.ok) throw new Error(`Erro ${r.status} ao carregar o Radar Clínico`);
@@ -504,7 +508,26 @@ export default function RadarClinico() {
               Visão operacional · todos os pacientes com protocolo, sessões e mensageria
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Toggle de ordenação */}
+            <div className="flex items-center gap-1 concave-3d p-1 rounded-[6px]">
+              <ArrowDownUp className="w-3 h-3 ml-1 shrink-0 text-muted-foreground" />
+              {(["urgencia", "az"] as const).map((op) => (
+                <button
+                  key={op}
+                  onClick={() => { setOrdenacao(op); setPagina(1); }}
+                  className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded-[4px] transition-all
+                    ${ordenacao === op
+                      ? "bevel-3d"
+                      : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  style={ordenacao === op ? { color: GOLD } : undefined}
+                >
+                  {op === "urgencia" ? "Urgência" : "A-Z"}
+                </button>
+              ))}
+            </div>
+
             {data && (
               <div className="concave-3d px-3 py-1 text-xs font-bold tabular-nums">
                 {data.total} paciente{data.total !== 1 ? "s" : ""}
