@@ -115,6 +115,8 @@ import ContratosJuridicos from "@/pages/contratos-juridicos";
 import ReceituarioAutomatico from "@/pages/receituario-automatico";
 import PortfolioClinico from "@/pages/portfolio-clinico";
 import ExperienciaCliente from "@/pages/experiencia-cliente";
+import GuiaDigital from "@/pages/guia-digital";
+import GuiaPaciente from "@/pages/comunicacao/guia-paciente";
 import PadteamHub from "@/pages/padteam/index";
 import NovaDemanda from "@/pages/padteam/nova-demanda";
 import ProvaDeValor from "@/pages/prova-de-valor";
@@ -149,6 +151,7 @@ function Router() {
       <Route path="/anamnese"><Redirect to="/anamnese/v2" /></Route>
       <Route path="/anamnese/v2" component={AnamneseV2} />
       <Route path="/area" component={Area} />
+      <Route path="/guia-digital" component={GuiaDigital} />
       <Route path="/entrada" component={Entrada} />
       <Route path="/licenciado" component={Licenciado} />
       <Route path="/vitrine" component={VitrinePublica} />
@@ -304,6 +307,7 @@ function Router() {
             <Route path="/comunicacao/dominios/nova-proposta" component={PropostaNova} />
             <Route path="/comunicacao/dominios/new" component={DominioEditPage} />
             <Route path="/comunicacao/dominios/:id/edit" component={DominioEditPage} />
+            <Route path="/comunicacao/guia-paciente" component={GuiaPaciente} />
             <Route path="/comunicacao/dominios" component={PainelDominios} />
             <Route path="/hierarquia" component={Hierarquia} />
             <Route path="/ceo/command-center" component={CommandCenter} />

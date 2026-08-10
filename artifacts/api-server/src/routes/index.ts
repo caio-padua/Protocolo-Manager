@@ -226,4 +226,8 @@ router.use(driveWatcherRouter);
 router.use(menuRouter);
 router.use(avatarsRouter);
 
+// Onboarding — Guia Digital ao paciente (PWA + Telegram)
+import { onboardingRouter } from "./onboarding.js";
+router.use("/onboarding", onboardingRouter);
+
 export default router;
