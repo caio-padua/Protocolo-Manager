@@ -42,13 +42,29 @@ function buildAllowedOrigins(): string[] {
 
 const allowedOrigins = buildAllowedOrigins();
 
+/** Retorna true quando a origem é um domínio Replit gerenciado pela plataforma.
+ *  Cobre: *.replit.dev, *.repl.co, *.riker.replit.dev, *.replit.app. */
+function isReplitOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname.endsWith(".replit.dev") ||
+      hostname.endsWith(".repl.co") ||
+      hostname.endsWith(".replit.app") ||
+      hostname === "replit.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const corsMiddleware = cors({
   origin: (origin, callback) => {
     if (!origin) {
       callback(null, true);
       return;
     }
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin) || isReplitOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origem não permitida — ${origin}`));

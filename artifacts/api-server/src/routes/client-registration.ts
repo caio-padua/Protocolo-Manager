@@ -91,7 +91,17 @@ router.post("/client-registration/send-link/:id", async (req: Request, res: Resp
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id)).limit(1);
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
+      phone: clientsTable.phone,
+      telegramChatId: clientsTable.telegramChatId,
+    })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, id))
+    .limit(1);
   if (!client) {
     res.status(404).json({ error: "Cliente não encontrado" });
     return;
@@ -100,18 +110,31 @@ router.post("/client-registration/send-link/:id", async (req: Request, res: Resp
   const token = createRegistrationToken(id);
   const link = `${absoluteBaseUrl(req)}/cadastro?token=${token}`;
 
-  // Envio pelo Motor Único (canal e-mail). A marca é vestida pelo motor.
-  const envio = await enviarMensagemPaxter(
-    docCadastro(client.name, link),
-    { email: client.email ?? null, nome: client.name },
-    ["EMAIL"],
-    { baseUrl: absoluteBaseUrl(req) },
-  );
-  const r0 = envio.resultados[0];
-  const emailSent = r0?.sent ?? false;
-  const emailError = r0 && !r0.sent ? r0.error : undefined;
+  // Envio pelo Motor Único — todos os canais disponíveis (e-mail, WhatsApp,
+  // Telegram). O motor pula silenciosamente os canais sem destino configurado.
+  let resultados: Array<{ canal: string; sent: boolean; error?: string }> = [];
+  try {
+    const envio = await enviarMensagemPaxter(
+      docCadastro(client.name, link),
+      {
+        email: client.email ?? null,
+        telefone: client.phone ?? null,
+        telegramChatId: client.telegramChatId ?? null,
+        nome: client.name,
+      },
+      ["EMAIL", "WHATSAPP", "TELEGRAM"],
+      { baseUrl: absoluteBaseUrl(req) },
+    );
+    resultados = envio.resultados;
+  } catch (err) {
+    req.log.error({ err }, "Erro ao enviar link de cadastro pelo motor de mensageria");
+  }
 
-  res.json({ link, emailSent, emailError });
+  const emailResult = resultados.find((r) => r.canal === "EMAIL");
+  const emailSent = emailResult?.sent ?? false;
+  const emailError = emailResult && !emailResult.sent ? emailResult.error : undefined;
+
+  res.json({ link, emailSent, emailError, resultados });
 });
 
 /**

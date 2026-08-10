@@ -20,6 +20,17 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
   const [lastLink, setLastLink] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  /** Resume os canais confirmados pelo servidor em texto curto. */
+  function resumoCanais(resultados: Array<{ canal: string; sent: boolean; skipped?: boolean }>): string {
+    const enviados = resultados
+      .filter((r) => r.sent && !r.skipped)
+      .map((r) => ({ EMAIL: "e-mail", WHATSAPP: "WhatsApp", TELEGRAM: "Telegram" }[r.canal] ?? r.canal));
+    if (enviados.length === 0) return "";
+    if (enviados.length === 1) return ` via ${enviados[0]}`;
+    const last = enviados.pop();
+    return ` via ${enviados.join(", ")} e ${last}`;
+  }
+
   const sendLink = async () => {
     setSending(true);
     try {
@@ -28,12 +39,18 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
         toast.error("Não foi possível gerar o link.");
         return;
       }
-      const data = await res.json();
+      const data = await res.json() as {
+        link: string;
+        emailSent: boolean;
+        emailError?: string;
+        resultados?: Array<{ canal: string; sent: boolean; skipped?: boolean }>;
+      };
       setLastLink(data.link);
-      if (data.emailSent) {
-        toast.success("Link de foto enviado por e-mail ao cliente.");
+      const canais = resumoCanais(data.resultados ?? []);
+      if (canais) {
+        toast.success(`Link de foto enviado${canais}.`);
       } else {
-        toast.message("Link de foto gerado. Cliente sem e-mail — copie e envie pelo WhatsApp.");
+        toast.message("Link de foto gerado. Copie e envie pelo canal preferido do cliente.");
       }
     } catch {
       toast.error("Erro ao gerar link.");
@@ -52,12 +69,18 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
         toast.error("Não foi possível gerar o link de cadastro.");
         return;
       }
-      const data = await res.json();
+      const data = await res.json() as {
+        link: string;
+        emailSent: boolean;
+        emailError?: string;
+        resultados?: Array<{ canal: string; sent: boolean; skipped?: boolean }>;
+      };
       setLastLink(data.link);
-      if (data.emailSent) {
-        toast.success("Link de cadastro enviado por e-mail ao cliente.");
+      const canais = resumoCanais(data.resultados ?? []);
+      if (canais) {
+        toast.success(`Link de cadastro enviado${canais}.`);
       } else {
-        toast.message("Link de cadastro gerado. Cliente sem e-mail — copie e envie pelo WhatsApp.");
+        toast.message("Link de cadastro gerado. Copie e envie pelo canal preferido do cliente.");
       }
     } catch {
       toast.error("Erro ao gerar link de cadastro.");
