@@ -7,13 +7,39 @@
  */
 
 import { Router } from "express";
+import type { Request, Response } from "express";
 import { db, clientsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql as sqlRaw } from "drizzle-orm";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { z } from "zod";
 
 export const onboardingRouter = Router();
+
+// Router público — POST /evento pode ser chamado pelo browser do paciente sem auth
+export const onboardingPublicRouter = Router();
+
+// ── Boot migration — tabela de eventos de onboarding ─────────────────────────
+(async () => {
+  try {
+    await db.execute(sqlRaw`
+      CREATE TABLE IF NOT EXISTS onboarding_eventos (
+        id         SERIAL PRIMARY KEY,
+        empresa_id INT,
+        device     TEXT,
+        secao      TEXT,
+        ts         TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+  } catch (e) {
+    // não bloqueia o boot
+    console.warn("[onboarding] migration warning:", e);
+  }
+})();
+
+// ── Seções canônicas ──────────────────────────────────────────────────────────
+const SECOES_VALIDAS = ["iphone", "android", "computador", "login", "telegram"] as const;
+type SecaoCanonica = typeof SECOES_VALIDAS[number];
 
 // ── Rate limit em memória ─────────────────────────────────────────────────────
 // Chave: `${clienteId}:${canal}` | Valor: timestamp (ms) do último envio bem-sucedido
@@ -114,4 +140,60 @@ Qualquer dúvida, estamos à disposição! 😊`;
 
   const algumOk = resultados.some((r) => r.ok);
   res.json({ ok: algumOk, resultados });
+});
+
+// ── POST /api/onboarding/evento ───────────────────────────────────────────────
+// Rota PÚBLICA — registrada em onboardingPublicRouter (antes do collaboratorGuard).
+// Chamada pelo browser do paciente sem autenticação.
+const eventoSchema = z.object({
+  empresa_id: z.number().int().positive().default(5),
+  device:     z.string().max(50),
+  secao:      z.enum(SECOES_VALIDAS),
+});
+
+onboardingPublicRouter.post("/evento", async (req: Request, res: Response): Promise<void> => {
+  const parsed = eventoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "Payload inválido" });
+    return;
+  }
+  const { empresa_id, device, secao } = parsed.data;
+  try {
+    await db.execute(
+      sqlRaw`INSERT INTO onboarding_eventos (empresa_id, device, secao) VALUES (${empresa_id}, ${device}, ${secao})`
+    );
+    res.json({ ok: true });
+  } catch {
+    // falha silenciosa — não impedir o paciente
+    res.json({ ok: false });
+  }
+});
+
+// ── GET /api/onboarding/stats ─────────────────────────────────────────────────
+// Agrega os últimos 30 dias por device e por seção.
+onboardingRouter.get("/stats", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const [totalRow, porDevice, porSecao] = await Promise.all([
+      db.execute(
+        sqlRaw`SELECT COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days'`
+      ),
+      db.execute(
+        sqlRaw`SELECT device, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' GROUP BY device ORDER BY total DESC`
+      ),
+      db.execute(
+        sqlRaw`SELECT secao, COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' GROUP BY secao ORDER BY total DESC`
+      ),
+    ]);
+
+    const total = (totalRow.rows?.[0] as { total: number } | undefined)?.total ?? 0;
+
+    res.json({
+      ok: true,
+      total,
+      porDevice: (porDevice.rows ?? []) as { device: string; total: number }[],
+      porSecao:  (porSecao.rows  ?? []) as { secao:  string; total: number }[],
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
 });

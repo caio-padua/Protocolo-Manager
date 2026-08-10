@@ -12,6 +12,7 @@ import {
   Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight,
   ShieldCheck, Package, CreditCard, MapPin, Phone, Hash,
   BadgeCheck, Crown, Lock, BrainCircuit, DollarSign,
+  Smartphone, Apple, Monitor, LogIn, MessageCircle,
 } from "lucide-react";
 
 // ── Interface ampliada com todos os campos do CEO ────────────────────────────
@@ -619,6 +620,176 @@ function PainelCustoIA() {
   );
 }
 
+// ── Painel de Onboarding Digital ─────────────────────────────────────────────
+
+interface OnboardingStats {
+  ok: boolean;
+  total: number;
+  porDevice: { device: string; total: number }[];
+  porSecao:  { secao:  string; total: number }[];
+}
+
+const DEVICE_LABELS: Record<string, string> = {
+  iphone:  "iPhone",
+  android: "Android",
+  desktop: "Computador",
+};
+const DEVICE_ICONS: Record<string, typeof Smartphone> = {
+  iphone:  Apple,
+  android: Smartphone,
+  desktop: Monitor,
+};
+const SECAO_LABELS: Record<string, string> = {
+  iphone:     "iPhone — Instalação",
+  android:    "Android — Instalação",
+  computador: "Computador",
+  login:      "Como Entrar",
+  telegram:   "Telegram",
+};
+const SECAO_ICONS: Record<string, typeof Smartphone> = {
+  iphone:     Apple,
+  android:    Smartphone,
+  computador: Monitor,
+  login:      LogIn,
+  telegram:   MessageCircle,
+};
+
+function PainelOnboarding() {
+  const [stats, setStats]       = useState<OnboardingStats | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [erro, setErro]         = useState<string | null>(null);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+    fetch(`${base}/api/onboarding/stats`)
+      .then((r) => r.json())
+      .then((d: OnboardingStats) => {
+        if (d.ok) setStats(d);
+        else setErro("Erro ao carregar dados de onboarding.");
+      })
+      .catch(() => setErro("Erro de conexão."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const maxDevice = stats?.porDevice.reduce((m, r) => Math.max(m, r.total), 1) ?? 1;
+  const maxSecao  = stats?.porSecao.reduce( (m, r) => Math.max(m, r.total), 1) ?? 1;
+
+  return (
+    <div className="panel-3d p-4 space-y-4">
+      {/* Cabeçalho */}
+      <div className="flex items-center gap-2">
+        <Smartphone size={16} className="text-primary" />
+        <span className="text-sm font-black uppercase tracking-widest text-primary">
+          Onboarding Digital
+        </span>
+        <span className="bevel-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+          Últimos 30 dias
+        </span>
+      </div>
+
+      {/* Carregando */}
+      {loading && (
+        <div className="concave-3d px-4 py-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <RefreshCw size={14} className="animate-spin" /> Carregando…
+        </div>
+      )}
+
+      {/* Erro */}
+      {erro && !loading && (
+        <div className="paxter-alert paxter-alert-red px-3 py-2 flex items-center gap-2 text-xs text-red-700">
+          <AlertTriangle size={12} /> {erro}
+        </div>
+      )}
+
+      {/* Sem dados */}
+      {!loading && !erro && stats && stats.total === 0 && (
+        <div className="concave-3d px-4 py-8 text-center text-sm text-muted-foreground/60">
+          Nenhum acesso ao Guia Digital registrado ainda.
+        </div>
+      )}
+
+      {/* Dados */}
+      {!loading && stats && stats.total > 0 && (
+        <>
+          {/* KPI total */}
+          <div className="concave-3d px-4 py-3 flex items-center gap-3">
+            <span className="text-3xl font-black tabular-nums text-primary">{stats.total}</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+              seções abertas<br />nos últimos 30 dias
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Por dispositivo */}
+            <div className="space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                Por dispositivo
+              </p>
+              {stats.porDevice.map((r) => {
+                const Icon = DEVICE_ICONS[r.device] ?? Smartphone;
+                const pct  = Math.round((r.total / maxDevice) * 100);
+                return (
+                  <div key={r.device} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Icon size={11} className="text-muted-foreground/60 shrink-0" />
+                        <span className="text-[11px] font-bold uppercase tracking-tight text-foreground">
+                          {DEVICE_LABELS[r.device] ?? r.device}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-black tabular-nums text-primary shrink-0">
+                        {r.total}
+                      </span>
+                    </div>
+                    <div className="concave-3d h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary/60 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Por seção */}
+            <div className="space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                Por seção
+              </p>
+              {stats.porSecao.map((r) => {
+                const Icon = SECAO_ICONS[r.secao] ?? Smartphone;
+                const pct  = Math.round((r.total / maxSecao) * 100);
+                return (
+                  <div key={r.secao} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Icon size={11} className="text-muted-foreground/60 shrink-0" />
+                        <span className="text-[11px] font-bold uppercase tracking-tight text-foreground truncate">
+                          {SECAO_LABELS[r.secao] ?? r.secao}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-black tabular-nums text-primary shrink-0">
+                        {r.total}
+                      </span>
+                    </div>
+                    <div className="concave-3d h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-accent/70 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function CommandCenter() {
   const [resumos, setResumos] = useState<EmpresaResumo[]>([]);
@@ -790,6 +961,9 @@ export default function CommandCenter() {
           </button>
         </div>
       )}
+
+      {/* Painel de Onboarding Digital */}
+      <PainelOnboarding />
 
       {/* Painel de custo IA por clínica */}
       <PainelCustoIA />

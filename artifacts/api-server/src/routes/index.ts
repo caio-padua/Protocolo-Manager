@@ -95,6 +95,7 @@ import driveWatcherRouter from "./drive-watcher";
 import menuRouter from "./menu";
 import avatarsRouter from "./avatares";
 import radarClinicoRouter from "./radar-clinico";
+import { onboardingRouter, onboardingPublicRouter } from "./onboarding.js";
 
 const router: IRouter = Router();
 
@@ -131,6 +132,10 @@ router.use(adminDriveRouter);
 router.use(adminSheetsRouter);
 router.use(slackPadaxorRouter);
 router.use(adminPlanilhaTempRouter);
+
+// Onboarding público — POST /evento chamado pelo browser do paciente sem auth.
+// Deve ficar ANTES do collaboratorGuard para não ser bloqueado.
+router.use("/onboarding", onboardingPublicRouter);
 
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
@@ -222,12 +227,10 @@ router.use(agentesIntegracoesRouter);
 router.use(agentesQuickrepliesRouter);
 router.use(prontuarioRouter);
 router.use(radarClinicoRouter);
+// Onboarding — POST /enviar-guia + GET /stats (ANTES do driveWatcherRouter que tem requireCollaborator sem caminho)
+router.use("/onboarding", onboardingRouter);
 router.use(driveWatcherRouter);
 router.use(menuRouter);
 router.use(avatarsRouter);
-
-// Onboarding — Guia Digital ao paciente (PWA + Telegram)
-import { onboardingRouter } from "./onboarding.js";
-router.use("/onboarding", onboardingRouter);
 
 export default router;

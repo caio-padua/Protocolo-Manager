@@ -15,8 +15,18 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
-const AREA_URL = import.meta.env.VITE_AREA_URL
+const AREA_URL  = import.meta.env.VITE_AREA_URL
   ?? `${window.location.origin}${import.meta.env.BASE_URL}area`.replace(/([^:])\/\//g, "$1/");
+const API_BASE  = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+
+// ── Evento de analytics — silencioso, nunca bloqueia o paciente ───────────────
+function registrarEvento(device: string, secao: string): void {
+  fetch(`${API_BASE}/api/onboarding/evento`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ empresa_id: 5, device, secao }),
+  }).catch(() => {/* silencioso */});
+}
 
 // ── Detecção de dispositivo ───────────────────────────────────────────────────
 function detectDevice(): "iphone" | "android" | "desktop" {
@@ -479,8 +489,11 @@ export default function GuiaDigital() {
     telegram:   false,
   }));
 
-  const toggle = (key: SecKey) =>
+  const toggle = (key: SecKey) => {
+    // Registrar evento somente quando ABRE (não quando fecha)
+    if (!aberta[key]) registrarEvento(device, key);
     setAberta((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Scroll suave para a seção do dispositivo
   useEffect(() => {
