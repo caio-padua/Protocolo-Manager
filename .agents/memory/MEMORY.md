@@ -1,3 +1,5 @@
+- [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na raiz) ou architect reprova.
+- [multer 0 bytes não rejeita automaticamente](multer-zero-bytes.md) — multer aceita buffer vazio com MIME válido; guard explícito file.size===0 obrigatório antes de salvar; check vai APÓS validação de token (guard de token roda primeiro).
 - [drive-watcher guard global — ordem de rotas](drive-watcher-guard-global.md) — router.use(requireCollaborator) sem caminho bloqueia TUDO abaixo; novas rotas clínicas devem ficar ANTES de driveWatcherRouter no index.ts.
 - [Filtros nulos em SQL drizzle — fragmentos condicionais](sql-null-int-filter.md) — ${null}::int explode no Postgres; usar frag condicional: `faseMin !== null ? sql\`AND col >= ${faseMin}\` : sql\`\``.
 - [AI Central — guard de clone + CF AI Gateway](ai-central-guard.md) — PADAXOR_AI_BYPASS=true (CEO) ou PADAXOR_TENANT_TOKEN (clone); 11 call sites cobertos; CF_AI_GATEWAY_URL ativa headers cf-aig-metadata.

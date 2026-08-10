@@ -191,6 +191,10 @@ router.post(
       res.status(400).json({ error: "Formato de imagem não aceito" });
       return;
     }
+    if (file.size === 0) {
+      res.status(400).json({ error: "Imagem vazia — envie um arquivo com conteúdo." });
+      return;
+    }
 
     // Garante que o cliente ainda existe antes de gravar.
     const [client] = await db
@@ -241,6 +245,10 @@ router.post(
     const ext = ALLOWED_IMAGE_TYPES[file.mimetype];
     if (!ext) {
       res.status(400).json({ error: "Formato de imagem não aceito" });
+      return;
+    }
+    if (file.size === 0) {
+      res.status(400).json({ error: "Imagem vazia — envie um arquivo com conteúdo." });
       return;
     }
 

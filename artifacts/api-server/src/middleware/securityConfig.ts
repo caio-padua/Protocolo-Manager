@@ -22,41 +22,38 @@ import { rateLimit } from "express-rate-limit";
 import { logger } from "../lib/logger";
 
 function buildAllowedOrigins(): string[] {
-  const raw = process.env.ALLOWED_ORIGINS ?? "";
-  const list = raw
+  // Lê ALLOWED_ORIGINS (lista manual do operador, separada por vírgula).
+  const fromManual = (process.env.ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((o) => o.trim())
     .filter((o) => o.length > 0);
 
-  if (list.length === 0) {
+  // Lê REPLIT_DOMAINS (injetada automaticamente pela plataforma Replit em
+  // todos os ambientes — dev e deploy). Adiciona automaticamente sem precisar
+  // que o operador copie o valor para ALLOWED_ORIGINS.
+  const fromReplit = (process.env.REPLIT_DOMAINS ?? "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter((d) => d.length > 0)
+    .map((d) => (d.startsWith("http") ? d : `https://${d}`));
+
+  // União sem duplicatas.
+  const merged = Array.from(new Set([...fromManual, ...fromReplit]));
+
+  if (merged.length === 0) {
     logger.warn(
-      "ALLOWED_ORIGINS não definida. Usando fallback de desenvolvimento " +
-      "(localhost:5173 e localhost:4173). Em produção, defina ALLOWED_ORIGINS."
+      "ALLOWED_ORIGINS e REPLIT_DOMAINS não definidas. Usando fallback de " +
+      "desenvolvimento (localhost:5173 e localhost:4173). Em produção, defina " +
+      "ALLOWED_ORIGINS com o domínio do frontend."
     );
     return ["http://localhost:5173", "http://localhost:4173"];
   }
 
-  logger.info({ origens: list }, "CORS: origens permitidas carregadas");
-  return list;
+  logger.info({ origens: merged }, "CORS: origens permitidas carregadas");
+  return merged;
 }
 
 const allowedOrigins = buildAllowedOrigins();
-
-/** Retorna true quando a origem é um domínio Replit gerenciado pela plataforma.
- *  Cobre: *.replit.dev, *.repl.co, *.riker.replit.dev, *.replit.app. */
-function isReplitOrigin(origin: string): boolean {
-  try {
-    const { hostname } = new URL(origin);
-    return (
-      hostname.endsWith(".replit.dev") ||
-      hostname.endsWith(".repl.co") ||
-      hostname.endsWith(".replit.app") ||
-      hostname === "replit.com"
-    );
-  } catch {
-    return false;
-  }
-}
 
 export const corsMiddleware = cors({
   origin: (origin, callback) => {
@@ -64,7 +61,7 @@ export const corsMiddleware = cors({
       callback(null, true);
       return;
     }
-    if (allowedOrigins.includes(origin) || isReplitOrigin(origin)) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origem não permitida — ${origin}`));
