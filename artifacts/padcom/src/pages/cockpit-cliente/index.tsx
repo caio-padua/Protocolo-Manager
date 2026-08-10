@@ -242,12 +242,15 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
   });
   const totalNaoLidas = badgeData?.naoLidas ?? 0;
 
+  // ── Estado de resposta Telegram ───────────────────────────────────────────
+  const [replyText, setReplyText] = useState("");
+
   // ── Telegram inbox — mensagens do cliente selecionado ─────────────────────
   const {
     data: inboxData,
     isLoading: inboxLoading,
     refetch: refetchInbox,
-  } = useQuery<{ mensagens: { id: number; texto: string; recebidaEm: string; lida: boolean }[]; naoLidas: number }>({
+  } = useQuery<{ mensagens: { id: number; texto: string; recebidaEm: string; lida: boolean; direcao: string }[]; naoLidas: number }>({
     queryKey: ["telegram-inbox", clienteId],
     queryFn: async () => {
       if (!clienteId) return { mensagens: [], naoLidas: 0 };
@@ -260,6 +263,32 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
     },
     enabled: !!clienteId,
     refetchInterval: aba === "telegram" ? 15_000 : false, // polling só quando a aba está aberta
+  });
+
+  // ── Enviar resposta ao paciente via Telegram ─────────────────────────────
+  const enviarResposta = useMutation({
+    mutationFn: async (texto: string) => {
+      const token = getCollabToken();
+      const res = await fetch(`${apiBase}/cockpit/${clienteId}/telegram-inbox/enviar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ texto }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Falha ao enviar");
+      return body;
+    },
+    onSuccess: () => {
+      setReplyText("");
+      refetchInbox();
+      toast({ title: "Mensagem enviada", description: "Resposta entregue ao paciente via Telegram." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Erro ao enviar", description: err.message, variant: "destructive" });
+    },
   });
 
   // Marca como lidas quando abre a aba Telegram
@@ -1115,31 +1144,72 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {inboxData.mensagens.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`concave-3d p-3 flex items-start gap-3 ${!msg.lida ? "ring-1 ring-[#e7cd8f]/60" : ""}`}
-                        >
-                          {/* Indicador não lida */}
-                          {!msg.lida && (
-                            <span
-                              className="mt-1 h-2 w-2 shrink-0 rounded-full"
-                              style={{ background: "#e03333", boxShadow: "0 0 5px rgba(224,51,51,0.6)" }}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-semibold leading-relaxed break-words" style={{ color: NAVY }}>
-                              {msg.texto}
-                            </p>
-                            <p className="mt-1 text-[10px] text-muted-foreground">
-                              {format(new Date(msg.recebidaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                              {msg.lida ? " · Lida" : " · Não lida"}
-                            </p>
+                      {inboxData.mensagens.map((msg) => {
+                        const saida = msg.direcao === "saida";
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex ${saida ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`max-w-[80%] p-3 rounded-lg ${
+                                saida
+                                  ? "bevel-3d"
+                                  : `concave-3d ${!msg.lida ? "ring-1 ring-[#e7cd8f]/60" : ""}`
+                              }`}
+                            >
+                              {/* Indicador não lida (só para mensagens recebidas) */}
+                              {!saida && !msg.lida && (
+                                <span
+                                  className="inline-block mb-1 h-2 w-2 rounded-full align-middle mr-1"
+                                  style={{ background: "#e03333", boxShadow: "0 0 5px rgba(224,51,51,0.6)" }}
+                                />
+                              )}
+                              <p
+                                className="text-[12px] font-semibold leading-relaxed break-words"
+                                style={{ color: saida ? GOLD : NAVY }}
+                              >
+                                {msg.texto}
+                              </p>
+                              <p className="mt-1 text-[10px] text-muted-foreground text-right">
+                                {format(new Date(msg.recebidaEm), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                {saida ? " · Enviado" : msg.lida ? " · Lida" : " · Não lida"}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* ── Caixa de resposta ── */}
+                  {client && (client as any).telegramChatId ? (
+                    <div className="mt-4 flex gap-2">
+                      <Input
+                        className="flex-1 h-9 text-[12px]"
+                        placeholder="Digite a resposta ao paciente…"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && replyText.trim()) {
+                            e.preventDefault();
+                            enviarResposta.mutate(replyText.trim());
+                          }
+                        }}
+                        maxLength={4096}
+                        disabled={enviarResposta.isPending}
+                      />
+                      <Button
+                        className="btn-3d-soft h-9 text-[10px] font-black px-3 shrink-0"
+                        onClick={() => { if (replyText.trim()) enviarResposta.mutate(replyText.trim()); }}
+                        disabled={enviarResposta.isPending || !replyText.trim()}
+                      >
+                        {enviarResposta.isPending
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <><Send className="w-3 h-3 mr-1.5" /> ENVIAR</>}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Aviso quando o Telegram não está vinculado */}

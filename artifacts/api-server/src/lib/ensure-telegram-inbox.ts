@@ -31,5 +31,10 @@ export async function ensureTelegramInboxTable(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_telegram_inbox_recebida
       ON telegram_inbox_messages (recebida_em)
   `);
+  /* Adiciona coluna de direção (entrada=paciente→bot / saida=CEO→paciente) */
+  await db.execute(sql`
+    ALTER TABLE telegram_inbox_messages
+      ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'entrada'
+  `);
   logger.info("telegram_inbox_messages: tabela pronta");
 }

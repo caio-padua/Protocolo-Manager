@@ -28,6 +28,7 @@ import {
 } from "../lib/lembrete-periodo";
 import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { sendWhatsapp } from "../lib/whatsapp";
+import { sendTelegram } from "../lib/telegram";
 
 const router = Router();
 router.use(moduleGuard("cockpit"));
@@ -362,18 +363,90 @@ router.get("/cockpit/:clientId/telegram-inbox", requireCollaborator, async (req,
 
   const naoLidas = mensagens.filter((m) => m.lidaEm == null).length;
 
+  // Lê direcao via raw SQL (coluna adicionada via ALTER TABLE, fora do schema Drizzle)
+  const rawRows = await db.execute(
+    sql`SELECT id, direcao FROM telegram_inbox_messages
+        WHERE cliente_id = ${clienteId} AND empresa_id = ${empresaId}
+        ORDER BY recebida_em DESC LIMIT 100`
+  );
+  const direcaoById = new Map<number, string>(
+    (rawRows.rows as { id: number; direcao: string }[]).map((r) => [r.id, r.direcao ?? "entrada"])
+  );
+
   res.json({
     mensagens: mensagens.map((m) => ({
       id: m.id,
       texto: m.texto,
       recebidaEm: m.recebidaEm.toISOString(),
       lida: m.lidaEm != null,
+      direcao: direcaoById.get(m.id) ?? "entrada",
     })),
     naoLidas,
   });
 });
 
-// 6) POST /cockpit/:clientId/telegram-inbox/marcar-lidas
+// 6-A) POST /cockpit/:clientId/telegram-inbox/enviar
+// Envia uma mensagem de texto do CEO ao paciente via Telegram e registra no log.
+// Requer token de colaborador. Só funciona se o paciente tem telegramChatId.
+router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, async (req, res): Promise<void> => {
+  const clienteId = Number(req.params.clientId);
+  if (!Number.isFinite(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "clientId invalido" });
+    return;
+  }
+
+  const texto: string = (req.body?.texto ?? "").trim();
+  if (!texto) {
+    res.status(400).json({ error: "texto obrigatorio" });
+    return;
+  }
+  if (texto.length > 4096) {
+    res.status(400).json({ error: "texto muito longo (max 4096 caracteres)" });
+    return;
+  }
+
+  const empresaId = resolveEmpresaId(req);
+
+  // Busca cliente e verifica pertencimento ao tenant
+  const [cliente] = await db
+    .select({ id: clientsTable.id, telegramChatId: (clientsTable as any).telegramChatId })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
+    .limit(1);
+
+  if (!cliente) {
+    res.status(404).json({ error: "cliente nao encontrado" });
+    return;
+  }
+
+  // Busca chatId via raw SQL (coluna adicionada via ALTER TABLE)
+  const [chatRow] = (await db.execute(
+    sql`SELECT telegram_chat_id FROM clients WHERE id = ${clienteId} LIMIT 1`
+  )).rows as { telegram_chat_id: string | null }[];
+
+  const chatId = chatRow?.telegram_chat_id;
+  if (!chatId) {
+    res.status(422).json({ error: "paciente nao tem Telegram vinculado" });
+    return;
+  }
+
+  const resultado = await sendTelegram(chatId, texto);
+
+  if (!resultado.sent && !resultado.mock) {
+    res.status(502).json({ error: resultado.error ?? "falha ao enviar pelo Telegram" });
+    return;
+  }
+
+  // Registra envio no inbox com direcao='saida'
+  await db.execute(sql`
+    INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao)
+    VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida')
+  `);
+
+  res.json({ ok: true, sent: resultado.sent, mock: resultado.mock });
+});
+
+// 6-B) POST /cockpit/:clientId/telegram-inbox/marcar-lidas
 // Marca não-lidas do paciente como lidas. Requer token de colaborador.
 // Tenant derivado de req.tenantContext — escopo obrigatório no UPDATE.
 router.post("/cockpit/:clientId/telegram-inbox/marcar-lidas", requireCollaborator, async (req, res): Promise<void> => {
