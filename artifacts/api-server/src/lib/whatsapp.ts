@@ -223,8 +223,6 @@ export async function sendWhatsapp(
   opts: SendWhatsappOptions = {},
 ): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
-  // Espelho Telegram: dispara em paralelo (fire-and-forget), não bloqueia o WhatsApp
-  if (opts.clienteId) void espelharParaTelegram(opts.clienteId, message);
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) {
@@ -327,6 +325,11 @@ export async function sendWhatsapp(
         return { sent: false, via: "twilio", link, error: finalError, logId };
       }
     }
+
+    // Espelho Telegram: só dispara APÓS o Twilio confirmar aceitação da mensagem
+    // (2xx sem error_code e sem falha assíncrona). Falhas do WhatsApp não chegam
+    // ao paciente via Telegram de forma silenciosa.
+    if (opts.clienteId) void espelharParaTelegram(opts.clienteId, message);
 
     return { sent: true, via: "twilio", link, logId };
   } catch (err: any) {
