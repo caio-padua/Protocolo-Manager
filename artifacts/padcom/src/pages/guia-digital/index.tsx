@@ -15,7 +15,8 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
-const AREA_URL = `${window.location.origin}${import.meta.env.BASE_URL}area`.replace(/([^:])\/\//g, "$1/");
+const AREA_URL = import.meta.env.VITE_AREA_URL
+  ?? `${window.location.origin}${import.meta.env.BASE_URL}area`.replace(/([^:])\/\//g, "$1/");
 
 // ── Detecção de dispositivo ───────────────────────────────────────────────────
 function detectDevice(): "iphone" | "android" | "desktop" {
