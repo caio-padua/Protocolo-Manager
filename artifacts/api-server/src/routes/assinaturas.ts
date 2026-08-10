@@ -39,6 +39,10 @@ import type { ProvedorCodigo } from "../lib/assinatura/types";
 import { logger } from "../lib/logger";
 import { getSecret } from "../lib/secure-settings";
 import { sendTelegram } from "../lib/telegram.js";
+import {
+  processarWebhookInbox,
+  type ClienteVinculado,
+} from "../lib/telegram-inbox-flow";
 
 // ---------------------------------------------------------------------------
 // Webhook (livre — registrado antes do guard).
@@ -370,32 +374,50 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       .limit(1);
 
     if (clienteJaVinculado) {
-      // ── Modo INBOX: cliente vinculado enviou mensagem → grava no inbox + encaminha ao CEO ──
+      // ── Modo INBOX: cliente vinculado enviou mensagem → delega à lib ────────
+      // processarWebhookInbox é a fonte única de verdade:
+      //   - insere em telegram_inbox_messages (fail-safe: cockpit mostra mesmo se CEO não vê)
+      //   - notifica o CEO via Telegram (best-effort, fire-and-forget)
+      // Erros de inserção são capturados aqui (.catch) para nunca falhar o 200
+      // que o Telegram exige (caso contrário reentreguaria em loop).
       if (texto) {
-        // Grava no banco ANTES de encaminhar (fail-safe: se o CEO não vir o Telegram, o cockpit mostra)
-        // empresaId é obrigatório para isolamento multi-tenant — herdado do cliente.
-        await db.insert(telegramInboxTable).values({
+        const cliente: ClienteVinculado = {
+          id: clienteJaVinculado.id,
+          name: clienteJaVinculado.name,
           empresaId: clienteJaVinculado.empresaId ?? 0,
-          clienteId: clienteJaVinculado.id,
-          chatId,
-          texto,
-        }).catch((err: unknown) =>
-          logger.error({ err }, "[telegram] falha ao gravar mensagem no inbox"),
-        );
+          cpf: clienteJaVinculado.cpf,
+        };
 
-        if (chatIdCEO) {
-          const cpfDisplay = (clienteJaVinculado.cpf || "00000000000")
-            .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-          const repasse =
-            `💬 <b>Mensagem via Telegram</b>\n\n` +
-            `<b>De:</b> ${clienteJaVinculado.name}\n` +
-            `<b>CPF:</b> ${cpfDisplay}\n\n` +
-            `"${texto}"\n\n` +
-            `──────────────────\n` +
-            `Responda em: Cockpit → ${clienteJaVinculado.name.split(" ")[0]}`;
-          void sendTelegram(chatIdCEO, repasse);
-          logger.info({ clienteId: clienteJaVinculado.id }, "[telegram] mensagem encaminhada ao CEO");
-        }
+        await processarWebhookInbox(
+          { chatId, texto, chatIdCEO },
+          {
+            findClienteByChatId: async () => cliente,
+            insertMensagem: async (params) => {
+              const rows = await db
+                .insert(telegramInboxTable)
+                .values(params)
+                .returning({ id: telegramInboxTable.id });
+              return { id: rows[0]?.id ?? 0 };
+            },
+            notificarCEO: chatIdCEO
+              ? async (ceoId, cli, txt) => {
+                  const cpfDisplay = (cli.cpf || "00000000000")
+                    .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+                  const repasse =
+                    `💬 <b>Mensagem via Telegram</b>\n\n` +
+                    `<b>De:</b> ${cli.name}\n` +
+                    `<b>CPF:</b> ${cpfDisplay}\n\n` +
+                    `"${txt}"\n\n` +
+                    `──────────────────\n` +
+                    `Responda em: Cockpit → ${cli.name.split(" ")[0]}`;
+                  void sendTelegram(ceoId, repasse);
+                  logger.info({ clienteId: cli.id }, "[telegram] mensagem encaminhada ao CEO");
+                }
+              : undefined,
+          },
+        ).catch((err: unknown) =>
+          logger.error({ err }, "[telegram] falha ao processar mensagem no inbox"),
+        );
       }
       res.status(200).json({ ok: true });
       return;
