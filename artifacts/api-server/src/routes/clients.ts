@@ -3,6 +3,8 @@ import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
+import { sendTelegramOnboardingEmail } from "../lib/email-service";
+import { requireCollaborator } from "./collaborator";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
 import {
@@ -318,6 +320,75 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
     });
   } catch (err) {
     res.status(500).json({ error: "Erro ao consultar CEP" });
+  }
+});
+
+// ── POST /api/clients/:id/activate-telegram ───────────────────────────────────
+// Gera senha de ativação de 6 dígitos, salva no banco e dispara o e-mail de
+// onboarding do Telegram. Requer colaborador autenticado.
+router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "clientId inválido" });
+    return;
+  }
+
+  // Filtra por tenant: usa o empresaId da identidade autenticada, SEM aceitar
+  // override por ?empresaId= — rotas de escrita nunca permitem cross-tenant via query.
+  const empresaId = req.tenantContext.empresaId;
+  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
+
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
+      telegramChatId: clientsTable.telegramChatId,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
+
+  if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
+  if (client.telegramChatId) {
+    res.status(409).json({ error: "Telegram já vinculado", chatId: client.telegramChatId });
+    return;
+  }
+
+  // Gera senha alfanumérica de 6 caracteres (letras maiúsculas + números)
+  // Usa crypto seguro para evitar previsibilidade do PRNG padrão.
+  const { randomInt } = await import("node:crypto");
+  const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // remove O/0/I/1 p/ evitar confusão visual
+  const senha = Array.from({ length: 6 }, () => CHARS[randomInt(CHARS.length)]).join("");
+
+  // Persiste a senha no banco — filtra por tenant também no UPDATE para garantia dupla.
+  const updated = await db
+    .update(clientsTable)
+    .set({ validationPassword: senha })
+    .where(tenantFilter)
+    .returning({ id: clientsTable.id });
+
+  if (updated.length === 0) {
+    res.status(404).json({ error: "Cliente não encontrado ou sem permissão" });
+    return;
+  }
+
+  // Dispara e-mail de onboarding
+  try {
+    const result = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: senha,
+    });
+    if (result.success) {
+      res.json({ ok: true, message: `Senha gerada e e-mail enviado para ${client.email}` });
+    } else {
+      // Senha foi salva, mas e-mail falhou — informar sem reverter
+      res.status(500).json({ error: result.error ?? "Senha gerada, mas falha no envio do e-mail" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "erro_activate_telegram", detalhe: String(err) });
   }
 });
 

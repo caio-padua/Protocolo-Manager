@@ -12,6 +12,7 @@ import {
   getListPaymentsQueryKey,
   getGetClientQueryKey,
 } from "@workspace/api-client-react";
+import { getCollabToken } from "@/lib/collab-auth";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +61,8 @@ import {
   Home,
   Upload,
   FolderSync,
+  Send,
+  CheckCircle2,
 } from "lucide-react";
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 import Injetaveis from "@/pages/cockpit/panels/Injetaveis";
@@ -297,6 +300,26 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
     },
     onSuccess: (data: any) =>
       toast({ title: "Google Drive", description: data.message || "Pastas criadas com sucesso!" }),
+    onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
+  const activateTelegram = useMutation({
+    mutationFn: async () => {
+      const token = getCollabToken();
+      const res = await fetch(`${apiBase}/clients/${clienteId}/activate-telegram`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Falha ao ativar Telegram");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Telegram ativado", description: data.message || "E-mail de onboarding enviado!" });
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(clienteId ?? 0) });
+    },
     onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
@@ -922,6 +945,33 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                             <span className="font-bold text-sm text-right truncate max-w-[180px]">{row.value}</span>
                           </div>
                         ) : null)}
+
+                        {/* ── Telegram ──────────────────────────────────── */}
+                        <div className="pt-3 border-t flex items-center justify-between gap-3">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            <Send className="w-3 h-3 text-primary" /> Telegram
+                          </span>
+                          {(client as any).telegramChatId ? (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              <span className="bevel-3d text-[10px] font-extrabold px-2 py-0.5 text-emerald-700">
+                                ATIVO · …{String((client as any).telegramChatId).slice(-4)}
+                              </span>
+                            </div>
+                          ) : (
+                            <Button
+                              className="btn-3d-soft h-7 text-[10px] font-black px-3"
+                              onClick={() => activateTelegram.mutate()}
+                              disabled={activateTelegram.isPending || !client.email}
+                              title={!client.email ? "Cliente sem e-mail cadastrado" : "Gerar senha e enviar e-mail de onboarding"}
+                            >
+                              {activateTelegram.isPending
+                                ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                : <Send className="w-3 h-3 mr-1.5" />}
+                              ATIVAR TELEGRAM
+                            </Button>
+                          )}
+                        </div>
                         {client.address && (
                           <div className="pt-3 border-t">
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-2">
