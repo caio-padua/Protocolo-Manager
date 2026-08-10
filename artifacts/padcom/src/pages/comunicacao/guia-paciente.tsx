@@ -100,7 +100,7 @@ export default function GuiaPaciente() {
             Paciente
           </label>
           <PaxterClientSelector
-            clients={clientesSelecionados}
+            clientes={clientesSelecionados}
             value={clientId}
             onChange={setClientId}
             placeholder="Selecionar cliente…"
