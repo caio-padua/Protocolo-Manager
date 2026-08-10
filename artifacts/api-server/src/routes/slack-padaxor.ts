@@ -700,7 +700,8 @@ router.post("/padaxor/planilha/linha", async (req: Request, res: Response): Prom
 
 // ── POST /api/padaxor/teste-canal/:clientId ───────────────────────────────────
 // Dispara WhatsApp + Telegram de teste para o cliente indicado.
-// O Telegram chega via espelho automático do sendWhatsapp (fire-and-forget).
+// WhatsApp: via Twilio (sem clienteId → sem espelho duplo). Telegram: awaitable
+// diretamente pelo chatId para confirmar entrega (sent:true/false no JSON).
 // Requer instância CEO. Usado apenas para demonstração e validação ao vivo.
 router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Request, res: Response): Promise<void> => {
   const clientId = Number(req.params.clientId);
@@ -725,36 +726,56 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
 
   const resultados: Record<string, unknown> = {};
 
+  // ── Texto compartilhado: o mesmo chega via WhatsApp e via Telegram ────────
+  const msgTeste =
+    `🩺 *Instituto Pádua — Sistema PADAXOR*\n\n` +
+    `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
+    `Você está recebendo este teste porque o canal está ativo. ` +
+    `Para ativar o Telegram, abra *@Paduaclinica_bot* e envie a senha de validação informada por e-mail.`;
+
   // ── WhatsApp ──────────────────────────────────────────────────────────────
-  // O espelho Telegram (sendWhatsapp → espelharParaTelegram) dispara aqui
-  // de forma automática como fire-and-forget quando clienteId está presente.
+  // Não passamos clienteId aqui: o espelho fire-and-forget seria silencioso e
+  // não-rastreável. O Telegram é enviado de forma awaitable logo abaixo para
+  // que o resultado real (sent: true/false) apareça no JSON de resposta.
   if (phone) {
-    const msg =
-      `🩺 *Instituto Pádua — Sistema PADAXOR*\n\n` +
-      `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
-      `Se o Telegram também estiver ativo, a mesma mensagem chegará por lá. ` +
-      `Para ativar, abra *@Paduaclinica_bot* e envie a senha de validação informada por e-mail.`;
-    const r = await sendWhatsapp(phone, msg, { clienteId: clientId, contexto: "teste-canal" });
-    resultados.whatsapp = { sent: r.sent, via: r.via, link: r.link };
+    const r = await sendWhatsapp(phone, msgTeste, { contexto: "teste-canal" });
+    resultados.whatsapp = { sent: r.sent, via: r.via, link: r.link, ...(r.error ? { error: r.error } : {}) };
   } else {
     resultados.whatsapp = { sent: false, motivo: "Sem telefone cadastrado" };
   }
 
-  // ── Telegram CEO (notificação de que o teste foi disparado) ───────────────
-  const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] ?? null;
-  if (chatIdCEO) {
-    void sendTelegram(
-      chatIdCEO,
-      `✅ <b>Teste de canal disparado</b>\n\nCliente: <b>${name}</b>\nHorário: ${agora}\n\nWhatsApp: ${resultados.whatsapp && (resultados.whatsapp as any).sent ? "enviado ✓" : "link gerado"}\nTelegram paciente: ${chatId ? "vinculado ✓ (espelho ativo)" : "não vinculado"}`,
-    );
+  // ── Telegram do cliente (awaitable — confirmação real de entrega) ─────────
+  // Enviamos diretamente ao chatId do cliente (HTML, sem conversão de markdown).
+  // Capturamos sent:true/false para reportar no JSON desta resposta.
+  if (chatId) {
+    const msgTelegramCliente =
+      `🩺 <b>Instituto Pádua — Sistema PADAXOR</b>\n\n` +
+      `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
+      `Você está recebendo este teste porque o seu Telegram está ativo. ✅`;
+    const tgResult = await sendTelegram(chatId, msgTelegramCliente);
+    resultados.telegram = {
+      vinculado: true,
+      chatId,
+      sent: tgResult.sent,
+      ...(tgResult.error ? { error: tgResult.error } : {}),
+    };
+  } else {
+    resultados.telegram = { vinculado: false, motivo: "Telegram não vinculado — envie a senha ao @Paduaclinica_bot para ativar" };
   }
 
-  // ── Telegram do cliente: reporta status sem envio duplicado ──────────────
-  // O espelho já foi disparado dentro de sendWhatsapp (fire-and-forget).
-  // Enviar uma segunda mensagem imediata causaria rate-limit do Telegram.
-  resultados.telegram = chatId
-    ? { vinculado: true, chatId, espelhoDisparado: true }
-    : { vinculado: false, motivo: "Telegram não vinculado — envie K4SYFX ao @Paduaclinica_bot para ativar" };
+  // ── Notificação ao CEO via Telegram ──────────────────────────────────────
+  const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] ?? null;
+  if (chatIdCEO) {
+    const waSent = resultados.whatsapp && (resultados.whatsapp as any).sent;
+    const tgSent = chatId && (resultados.telegram as any).sent;
+    void sendTelegram(
+      chatIdCEO,
+      `✅ <b>Teste de canal concluído</b>\n\n` +
+      `Cliente: <b>${name}</b>\nHorário: ${agora}\n\n` +
+      `WhatsApp: ${waSent ? "enviado ✓" : "falhou / link gerado"}\n` +
+      `Telegram paciente: ${tgSent ? "entregue ✓" : chatId ? "falhou ✗" : "não vinculado"}`,
+    );
+  }
 
   res.json({ ok: true, clienteId: clientId, nome: name, agora, resultados });
 });
