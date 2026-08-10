@@ -13,7 +13,7 @@ import { useState, useMemo, useRef } from "react";
 import { Search, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, tituloProprio } from "@/lib/utils";
 
 import type { PaxterClientSelectorProps, PaxterClientOption } from "./types";
 import { useClientFilter, useServerSearch, formatCpf } from "./useClientFilter";
@@ -262,23 +262,27 @@ export function PaxterClientSelector({
           disabled={disabled}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-md border border-input",
-            "bg-background px-3 py-2 text-sm transition-colors",
+            "bg-background px-3 py-2 text-sm transition-colors min-h-[48px]",
             "hover:border-primary/40 hover:bg-muted/30",
             "focus:outline-none focus:ring-1 focus:ring-primary/40",
             disabled && "cursor-not-allowed opacity-50",
             className,
           )}
         >
-          {/* Lado esquerdo: avatar + nome + CPF */}
+          {/* Lado esquerdo: avatar + nome + CPF como subtítulo */}
           {displayName ? (
-            <span className="flex items-center gap-1.5 truncate min-w-0">
-              <ClientAvatar name={displayName} photoUrl={selected?.photoUrl} size="sm" />
-              <span className="truncate font-medium text-foreground">{displayName}</span>
-              {displayCpf && (
-                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                  · {displayCpf}
+            <span className="flex items-center gap-2 min-w-0 truncate">
+              <ClientAvatar name={tituloProprio(displayName)} photoUrl={selected?.photoUrl} size="sm" />
+              <span className="flex flex-col items-start min-w-0">
+                <span className="truncate font-medium text-foreground leading-tight">
+                  {tituloProprio(displayName)}
                 </span>
-              )}
+                {displayCpf && (
+                  <span className="text-[11px] text-muted-foreground tabular-nums leading-tight">
+                    {displayCpf}
+                  </span>
+                )}
+              </span>
             </span>
           ) : (
             <span className="truncate text-muted-foreground">{placeholder}</span>
@@ -339,12 +343,13 @@ function ClientRow({
   onClick: () => void;
 }) {
   const cpfFormatado = cpf ? formatCpf(cpf) : null;
+  const nomeTitulo = tituloProprio(name);
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[5px] px-2 py-1.5",
+        "flex w-full items-center gap-2 rounded-[5px] px-2 py-2",
         "text-left text-sm transition-colors",
         selected
           ? "bg-primary/10 text-primary font-semibold"
@@ -352,14 +357,14 @@ function ClientRow({
       )}
     >
       {/* Mini avatar */}
-      <ClientAvatar name={name} photoUrl={photoUrl} size="md" />
+      <ClientAvatar name={nomeTitulo} photoUrl={photoUrl} size="md" />
 
-      {/* Nome + CPF */}
-      <span className="flex items-baseline gap-1.5 min-w-0 flex-1 truncate">
-        <span className="truncate font-medium">{name}</span>
+      {/* Nome + CPF em linha separada abaixo */}
+      <span className="flex flex-col min-w-0 flex-1">
+        <span className="truncate font-medium leading-tight">{nomeTitulo}</span>
         {cpfFormatado && (
-          <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-            · {cpfFormatado}
+          <span className="text-[11px] text-muted-foreground tabular-nums leading-tight">
+            {cpfFormatado}
           </span>
         )}
       </span>

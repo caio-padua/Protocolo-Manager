@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   UserRound,
@@ -317,7 +318,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
               }}
               title={client?.name}
             >
-              {client?.name ?? "—"}
+              {client?.name ? tituloProprio(client.name) : "—"}
             </div>
             <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.10em]" style={{ color: "#647c97" }}>
               {linha2 || "—"}

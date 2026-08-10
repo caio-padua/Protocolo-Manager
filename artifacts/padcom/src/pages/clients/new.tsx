@@ -15,6 +15,7 @@ import { PreferredAgendasField } from "@/components/clients/preferred-agendas-fi
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useCallback } from "react";
+import { tituloProprio } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -145,7 +146,7 @@ export default function NewClient() {
 
     createClient.mutate(
       { data: {
-        name: values.name,
+        name: tituloProprio(values.name),
         cpf: values.cpf,
         email: values.email,
         phone: values.phone,

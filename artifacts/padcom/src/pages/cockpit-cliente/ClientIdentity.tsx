@@ -3,6 +3,7 @@
 // Segue skill-layout-paxter: serifa grife para nome; sem infantilidades.
 
 import { useMemo } from "react";
+import { tituloProprio } from "@/lib/utils";
 
 interface Client {
   id: number;
@@ -98,7 +99,7 @@ export default function ClientIdentity({ client, alarmColor = "green" }: ClientI
             letterSpacing: "0.01em",
           }}
         >
-          {client.name}
+          {tituloProprio(client.name)}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           {age !== null && (
