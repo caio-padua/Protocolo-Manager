@@ -8,7 +8,8 @@ import { createPhotoToken, verifyPhotoToken } from "../lib/portal-token.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator.js";
-import { ensureClientFolderStructure, uploadFileToDrive } from "../lib/google-drive.js";
+import { ensureClientFolderStructure, uploadFileToDrive, formatCpfDisplay } from "../lib/google-drive.js";
+import { sendTelegram } from "../lib/telegram.js";
 import { brtNow } from "../lib/brt.js";
 
 const router: IRouter = Router();
@@ -195,6 +196,53 @@ async function backupFotoAnterior(
   }
 }
 
+/**
+ * Após salvar a nova foto no banco:
+ * 1. Sobe a foto ativa para Drive/FOTO PERFIL (substitui a anterior — sem duplicata)
+ * 2. Notifica o médico via Telegram
+ * Falha silenciosa em ambas as etapas — não bloqueia a resposta ao cliente.
+ */
+async function afterPhotoSaved(
+  clientId: number,
+  clientName: string,
+  cpf: string,
+  newBuffer: Buffer,
+  newMime: string,
+  log: Request["log"],
+): Promise<void> {
+  // 1. Upload da foto ativa para Drive/FOTO PERFIL
+  try {
+    const folders = await ensureClientFolderStructure(clientName, cpf);
+    const fotoPerfil = (folders.subfolders as Record<string, string>)["FOTO PERFIL"];
+    if (fotoPerfil) {
+      // Extensão legível: image/jpeg → jpg, image/png → png, etc.
+      const ext = newMime === "image/jpeg" ? "jpg" : (newMime.split("/")[1] ?? "jpg");
+      // allowDuplicates=false apaga arquivo de mesmo nome antes de subir → mantém 1 arquivo nesta pasta
+      await uploadFileToDrive(fotoPerfil, `foto-perfil-atual.${ext}`, newMime, newBuffer, false);
+      log.info({ clientId }, "Foto ativa salva no Drive/FOTO PERFIL");
+    }
+  } catch (err) {
+    log.warn({ err, clientId }, "Falha ao salvar foto ativa no Drive/FOTO PERFIL — não afeta o upload");
+  }
+
+  // 2. Notificação ao médico via Telegram
+  try {
+    const chatId = process.env["PADAXOR_TELEGRAM_CHAT_ID"];
+    if (chatId) {
+      const cpfDisplay = formatCpfDisplay(cpf || "00000000000");
+      const msg =
+        `📸 *Nova foto de perfil adicionada*\n` +
+        `Cliente: ${clientName}\n` +
+        `CPF: ${cpfDisplay}\n\n` +
+        `Verifique em Clientes → Editar → Foto do Cliente.`;
+      await sendTelegram(chatId, msg);
+      log.info({ clientId }, "Notificação de nova foto enviada ao médico via Telegram");
+    }
+  } catch (err) {
+    log.warn({ err, clientId }, "Falha ao notificar médico sobre nova foto — não afeta o upload");
+  }
+}
+
 // ── POST /client-photo/send-link/:id (equipe — requireCollaborator) ───────────
 router.post("/client-photo/send-link/:id", requireCollaborator, async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params.id);
@@ -294,6 +342,8 @@ router.post(
       await objectStorageService.saveUploadObject(relativePath, file.buffer, file.mimetype);
       const photoUrl = `/api/storage/objects/${relativePath}`;
       await db.update(clientsTable).set({ photoUrl }).where(eq(clientsTable.id, clientId));
+      // Drive/FOTO PERFIL + notificação ao médico (fire-and-forget — fail-safe interno)
+      void afterPhotoSaved(clientId, client.name, client.cpf ?? "", file.buffer, file.mimetype, req.log);
       res.json({ photoUrl });
     } catch (error) {
       req.log.error({ err: error }, "Falha ao salvar foto do cliente");
@@ -341,6 +391,8 @@ router.post(
       await objectStorageService.saveUploadObject(relativePath, file.buffer, file.mimetype);
       const photoUrl = `/api/storage/objects/${relativePath}`;
       await db.update(clientsTable).set({ photoUrl }).where(eq(clientsTable.id, clientId));
+      // Drive/FOTO PERFIL + notificação ao médico (fire-and-forget — fail-safe interno)
+      void afterPhotoSaved(clientId, client.name, client.cpf ?? "", file.buffer, file.mimetype, req.log);
       res.json({ photoUrl });
     } catch (error) {
       req.log.error({ err: error }, "Falha ao salvar foto (admin)");
