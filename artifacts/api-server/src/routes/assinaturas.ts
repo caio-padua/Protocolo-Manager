@@ -455,6 +455,110 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/telegram/test-inbox
+//
+// Simula o fluxo "paciente vinculado envia mensagem ao bot → CEO recebe repasse".
+// Rota protegida por requireCollaborator — nunca exposta ao público.
+//
+// Body: { clienteId: number, texto: string }
+//
+// O que valida:
+//  1) Cliente existe e tem telegramChatId vinculado.
+//  2) PADAXOR_TELEGRAM_CHAT_ID configurado (chatId do CEO).
+//  3) sendTelegram() entrega o repasse formatado ao CEO.
+//  4) Log `[telegram] mensagem encaminhada ao CEO` aparece no servidor.
+//
+// Uso via curl (substitua TOKEN pelo token de colaborador):
+//   curl -s -X POST "$API/telegram/test-inbox" \
+//        -H "Authorization: Bearer TOKEN" \
+//        -H "Content-Type: application/json" \
+//        -d '{"clienteId":1,"texto":"Oi, doutora, tenho uma dúvida!"}'
+// ---------------------------------------------------------------------------
+assinaturasRouter.post(
+  "/telegram/test-inbox",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    try {
+      const clienteId = Number(req.body?.clienteId);
+      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
+
+      if (!clienteId || clienteId <= 0) {
+        res.status(400).json({ ok: false, error: "clienteId_invalido", detalhe: "Informe clienteId numérico > 0." });
+        return;
+      }
+      if (!texto) {
+        res.status(400).json({ ok: false, error: "texto_vazio", detalhe: "Informe o campo texto com a mensagem do paciente." });
+        return;
+      }
+
+      // 1) Buscar cliente e verificar vínculo Telegram.
+      const [cliente] = await db
+        .select({ id: clientsTable.id, name: clientsTable.name, cpf: clientsTable.cpf, telegramChatId: clientsTable.telegramChatId })
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clienteId))
+        .limit(1);
+
+      if (!cliente) {
+        res.status(404).json({ ok: false, error: "cliente_nao_encontrado", clienteId });
+        return;
+      }
+      if (!cliente.telegramChatId) {
+        res.status(422).json({
+          ok: false,
+          error: "canal_nao_vinculado",
+          detalhe: `Cliente "${cliente.name}" (id=${clienteId}) não possui telegramChatId vinculado. Vincule primeiro pelo bot.`,
+        });
+        return;
+      }
+
+      // 2) Verificar chatId do CEO.
+      const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+      if (!chatIdCEO) {
+        res.status(503).json({
+          ok: false,
+          error: "ceo_chatid_ausente",
+          detalhe: "PADAXOR_TELEGRAM_CHAT_ID não configurado — CEO não pode receber repasse.",
+        });
+        return;
+      }
+
+      // 3) Formatar e enviar repasse (lógica idêntica ao webhook /webhooks/telegram).
+      const cpfDisplay = (cliente.cpf || "00000000000")
+        .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+      const repasse =
+        `💬 <b>Mensagem via Telegram</b>\n\n` +
+        `<b>De:</b> ${cliente.name}\n` +
+        `<b>CPF:</b> ${cpfDisplay}\n\n` +
+        `"${texto}"\n\n` +
+        `──────────────────\n` +
+        `Responda em: Cockpit → ${cliente.name.split(" ")[0]}`;
+
+      const resultado = await sendTelegram(chatIdCEO, repasse);
+
+      // 4) Log obrigatório — mesmo que o webhook real usa.
+      logger.info({ clienteId: cliente.id, mock: resultado.mock }, "[telegram] mensagem encaminhada ao CEO");
+
+      res.json({
+        ok: resultado.sent,
+        mock: resultado.mock,
+        erro: resultado.error ?? null,
+        cliente: { id: cliente.id, nome: cliente.name, cpfDisplay, telegramChatId: cliente.telegramChatId },
+        ceoChatId: `${chatIdCEO.slice(0, 3)}***`,   // mascarado — nunca expõe o valor completo
+        mensagemEnviada: resultado.sent,
+        descricao: resultado.sent
+          ? resultado.mock
+            ? "MOCK: token do bot ausente no cofre — repasse registrado em log sem chamada real ao Telegram."
+            : "Repasse enviado ao CEO com sucesso. Confira o Telegram do Dr. Caio."
+          : `Falha ao enviar: ${resultado.error}`,
+      });
+    } catch (err) {
+      req.log.error({ err: String(err) }, "[telegram] erro no test-inbox");
+      res.status(500).json({ ok: false, error: "erro_interno", detalhe: String(err) });
+    }
+  },
+);
+
 // GET /api/cert/metadata — metadados públicos do certificado A1 embarcado
 // Retorna: titular, CPF, validade, tipo, emissor — nunca expõe chave privada.
 assinaturasRouter.get("/cert/metadata", async (_req, res): Promise<void> => {
