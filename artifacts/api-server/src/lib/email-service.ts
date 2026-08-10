@@ -584,93 +584,238 @@ export interface TelegramOnboardingData {
 }
 
 /**
- * Envia e-mail PADAXOR ensinando o paciente a baixar o Telegram e ativar
- * a comunicação com o Instituto Pádua via @Paduaclinica_bot.
- * Layout: fundo navy/ouro, 3 passos visuais + senha destacada + botão CTA.
+ * Envia e-mail PADAXOR (alfaiataria navy/ouro + banner animado com símbolo de
+ * vidro e faísca de luz + botão dourado bulletproof) ensinando o paciente a
+ * baixar o Telegram e ativar a comunicação com o Instituto Pádua.
+ * Linguagem detalhada para leigos — nomes exatos das telas e botões do app.
  */
 export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData): Promise<{ success: boolean; error?: string }> {
   const BOT_LINK = "https://t.me/Paduaclinica_bot";
-  const BOT_USERNAME = "@Paduaclinica_bot";
+  const _UNUSED_BOT_USERNAME = "@Paduaclinica_bot"; void _UNUSED_BOT_USERNAME;
 
-  const passoStyle = "padding:16px 0; border-bottom:1px solid rgba(201,162,79,.14);";
-  const numStyle = "display:inline-block; width:32px; height:32px; border-radius:50%; background:rgba(201,162,79,.18); border:1.5px solid rgba(201,162,79,.55); color:#c9a24f; font-size:15px; font-weight:700; line-height:30px; text-align:center; margin-right:12px; flex-shrink:0;";
-  const rowStyle = "display:flex; align-items:flex-start;";
-  const stepTextStyle = "color:#c2cee0; font-size:14px; line-height:1.65; padding-top:4px;";
-  const storeBtn = "display:inline-block; background:rgba(201,162,79,.12); border:1px solid rgba(201,162,79,.35); border-radius:8px; color:#c9a24f; font-size:12px; padding:6px 14px; margin:4px 4px 0 0; text-decoration:none;";
+  const SERIF = "Georgia,'Times New Roman',Times,serif";
+  const SANS  = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
+  // Primeiro nome formatado para saudação mais pessoal e elegante
+  const primeiroNome = data.clientName
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .shift() ?? data.clientName;
+
+  // ── Divisória dourada fina ──────────────────────────────────────────────────
+  const divider = `
+    <tr><td style="padding:0 36px;">
+      <div style="height:1px; background:linear-gradient(90deg,rgba(201,162,79,0) 0%,rgba(201,162,79,.45) 50%,rgba(201,162,79,0) 100%);"></div>
+    </td></tr>`;
+
+  // ── Cartão de passo numerado ────────────────────────────────────────────────
+  function passoCard(num: number, titulo: string, corpo: string, isLast = false): string {
+    const borda = isLast ? "" : "border-bottom:1px solid rgba(201,162,79,.12);";
+    return `
+      <tr><td style="padding:28px 22px; ${borda}">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="50" valign="top" style="padding-top:3px;">
+              <div style="
+                width:38px; height:38px; border-radius:50%;
+                background:linear-gradient(135deg,rgba(201,162,79,.22) 0%,rgba(201,162,79,.06) 100%);
+                border:1.5px solid rgba(201,162,79,.60);
+                box-shadow:0 0 16px rgba(201,162,79,.18), inset 0 1px 0 rgba(255,255,255,.06);
+                color:#c9a24f; font-family:${SERIF}; font-size:17px; font-weight:400;
+                line-height:36px; text-align:center;">
+                ${num}
+              </div>
+            </td>
+            <td valign="top" style="padding-left:6px;">
+              <div style="color:#f3ead6; font-family:${SERIF}; font-size:17px; font-weight:400; margin-bottom:12px; letter-spacing:.2px; line-height:1.3;">${titulo}</div>
+              <div style="color:#b0c2d8; font-family:${SANS}; font-size:14px; line-height:1.85;">${corpo}</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>`;
+  }
+
+  // ── Passo 1 — Baixar o Telegram ─────────────────────────────────────────────
+  const passo1 = passoCard(
+    1,
+    "Instale o aplicativo Telegram no seu celular",
+    `O Telegram é um aplicativo de mensagens totalmente gratuito, disponível para iPhone e para
+     celulares Android (Samsung, Motorola, Xiaomi e outros). Ele funciona de maneira muito parecida
+     com o WhatsApp, que o senhor provavelmente já conhece — mas com recursos adicionais de segurança
+     e privacidade que nos permitem enviar informações clínicas com mais tranquilidade.<br><br>
+
+     <strong style="color:#d4c4a8; font-size:13px; letter-spacing:.3px;">Para instalar no iPhone:</strong><br>
+     Procure na sua tela inicial o ícone da <em>App Store</em> — é um ícone azul com a letra "A" branca no centro.
+     Toque nele para abrir. Em seguida, toque no campo de busca escrito <em>"Buscar"</em>, localizado
+     na parte inferior da tela. Digite a palavra <strong>Telegram</strong> e pressione
+     <em>"Buscar"</em> no teclado. Selecione o resultado que exibe o ícone de um avião de papel
+     branco sobre fundo azul e toque no botão <em>"Obter"</em> para instalar.<br><br>
+
+     <strong style="color:#d4c4a8; font-size:13px; letter-spacing:.3px;">Para instalar em Android (Samsung, Motorola etc.):</strong><br>
+     Procure na tela do seu celular o ícone da <em>Google Play</em> — é um triângulo colorido em
+     verde, amarelo, vermelho e azul. Abra-o e toque no campo de busca no topo da tela.
+     Digite <strong>Telegram</strong> e selecione o resultado com o mesmo ícone do avião de papel azul.
+     Toque em <em>"Instalar"</em> para concluir.<br><br>
+
+     Após a instalação, abra o Telegram e crie a sua conta informando o número do seu celular.
+     O processo é rápido e idêntico ao cadastro do WhatsApp: o sistema enviará um código de
+     confirmação por SMS para que o senhor valide o número.
+
+     <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+       <tr>
+         <td style="padding-right:10px;">
+           <a href="https://apps.apple.com/br/app/telegram-messenger/id686449807"
+              style="display:inline-block; background:rgba(201,162,79,.09); border:1px solid rgba(201,162,79,.40); border-radius:8px; color:#c9a24f; font-family:${SANS}; font-size:12px; font-weight:600; letter-spacing:.3px; padding:10px 18px; text-decoration:none;">
+             ↓ App Store — iPhone
+           </a>
+         </td>
+         <td>
+           <a href="https://play.google.com/store/apps/details?id=org.telegram.messenger"
+              style="display:inline-block; background:rgba(201,162,79,.09); border:1px solid rgba(201,162,79,.40); border-radius:8px; color:#c9a24f; font-family:${SANS}; font-size:12px; font-weight:600; letter-spacing:.3px; padding:10px 18px; text-decoration:none;">
+             ↓ Google Play — Android
+           </a>
+         </td>
+       </tr>
+     </table>`,
+  );
+
+  // ── Passo 2 — Encontrar o canal ──────────────────────────────────────────────
+  const passo2 = passoCard(
+    2,
+    "Encontre o canal oficial do Instituto Pádua",
+    `Com o Telegram instalado e a conta criada, o senhor precisará encontrar o nosso canal
+     de comunicação. Veja exatamente como fazer:<br><br>
+
+     Na tela inicial do Telegram, observe o canto superior direito da tela — há um ícone
+     de <strong style="color:#d4c4a8;">lupa</strong> (símbolo de busca). Toque nele.
+     Uma barra de busca aparecerá na parte superior. Digite exatamente o seguinte endereço:<br><br>
+
+     <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+       <tr><td align="center" style="padding:4px 0 16px;">
+         <div style="
+           display:inline-block;
+           background:rgba(0,0,0,.30);
+           border-left:3px solid rgba(201,162,79,.75);
+           border-radius:0 10px 10px 0;
+           padding:14px 22px;
+           font-family:monospace; font-size:19px; color:#c9a24f; letter-spacing:1.5px;">
+           @Paduaclinica_bot
+         </div>
+       </td></tr>
+     </table>
+
+     Na lista de resultados que aparecer, selecione o item cujo <strong style="color:#d4c4a8;">nome
+     exibido</strong> é <em>Instituto Padua</em>. Ao toque, a tela de conversa do canal será aberta.<br><br>
+
+     <strong style="color:#d4c4a8; font-size:13px; letter-spacing:.3px;">Prefere acessar diretamente?</strong><br>
+     Se estiver lendo esta mensagem no celular, toque no botão dourado ao final deste e-mail.
+     Ele o levará diretamente ao canal sem necessidade de digitar nada.`,
+  );
+
+  // ── Passo 3 — Enviar a senha de validação ────────────────────────────────────
+  const passo3 = passoCard(
+    3,
+    "Inicie a conversa e envie a sua senha de ativação",
+    `Ao abrir o canal <em>Instituto Padua</em>, o senhor verá, na parte inferior da tela,
+     um botão de cor <strong style="color:#d4c4a8;">azul</strong> escrito
+     <em>"Iniciar"</em> — ou, caso o Telegram esteja configurado em inglês, <em>"Start"</em>.
+     Toque nesse botão para habilitar a conversa.<br><br>
+
+     Em seguida, no campo de texto que aparecerá na parte de baixo da tela — o mesmo campo
+     onde se digita qualquer mensagem —, <strong style="color:#d4c4a8;">copie e cole a senha
+     abaixo</strong> e toque no ícone de envio (uma seta azul apontando para a direita,
+     no canto direito do campo de texto):<br><br>
+
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+       <tr><td align="center" style="padding:4px 0 20px;">
+         <div style="
+           display:inline-block;
+           background:rgba(201,162,79,.07);
+           border:2px solid rgba(201,162,79,.55);
+           border-radius:14px;
+           padding:20px 40px;
+           box-shadow:0 0 32px rgba(201,162,79,.12), 0 0 0 6px rgba(201,162,79,.04);">
+           <div style="color:#8a9ab5; font-family:${SANS}; font-size:10px; letter-spacing:3.5px; text-transform:uppercase; margin-bottom:10px;">Sua senha de ativação</div>
+           <div style="color:#f0d070; font-family:monospace; font-size:30px; font-weight:700; letter-spacing:7px; text-shadow:0 0 22px rgba(240,208,112,.28);">${data.validationPassword}</div>
+           <div style="color:#5a6a82; font-family:${SANS}; font-size:11px; margin-top:10px; letter-spacing:.5px;">pessoal · intransferível · uso único</div>
+         </div>
+       </td></tr>
+     </table>
+
+     Após o envio, o senhor receberá uma mensagem automática de boas-vindas confirmando
+     que o vínculo foi realizado com sucesso. A partir desse momento, todas as comunicações
+     clínicas do Instituto Pádua — lembretes de sessão, resultados de exames, orientações
+     do Dr. Caio — chegarão também por este canal. O senhor poderá inclusive nos enviar mensagens,
+     e a equipe as receberá prontamente.`,
+    true,
+  );
+
+  // ── E-mail montado ───────────────────────────────────────────────────────────
   const blocosHtml: string[] = [`
-    <tr><td style="padding:28px 32px 0;">
-      <p style="margin:0 0 20px; color:#c2cee0; font-size:15px; line-height:1.7;">
-        A partir de agora o <strong style="color:#f3ead6;">Instituto Pádua</strong> também se comunica com você pelo
-        <strong style="color:#c9a24f;">Telegram</strong> — um canal seguro e instantâneo para lembretes, resultados e orientações do Dr. Caio.
+    ${divider}
+
+    <tr><td style="padding:32px 36px 16px;">
+      <p style="margin:0 0 14px; color:#c2cee0; font-family:${SERIF}; font-size:16px; line-height:1.85; text-align:left;">
+        É com satisfação que comunicamos que o <strong style="color:#f3ead6;">Instituto Pádua</strong>
+        passa a oferecer o <strong style="color:#c9a24f;">Telegram</strong> como canal de comunicação
+        clínica direta com os seus pacientes.
       </p>
-      <p style="margin:0 0 22px; color:#7686a3; font-size:13px;">Siga os 3 passos abaixo para ativar em menos de 2 minutos:</p>
+      <p style="margin:0 0 14px; color:#b0c2d8; font-family:${SANS}; font-size:14px; line-height:1.85;">
+        Por meio deste canal, o senhor receberá lembretes de sessões, resultados de exames,
+        orientações personalizadas do Dr. Caio e atualizações do seu protocolo de tratamento —
+        de forma segura, instantânea e sem custo algum.
+      </p>
+      <p style="margin:0; color:#8a9ab5; font-family:${SANS}; font-size:13px; line-height:1.75;">
+        O Telegram funciona de maneira muito semelhante ao WhatsApp. A ativação do canal é simples
+        e leva menos de dois minutos. Siga com atenção os três passos descritos abaixo,
+        com todas as instruções de que o senhor precisará.
+      </p>
     </td></tr>
 
-    <tr><td style="padding:0 32px;">
+    ${divider}
+
+    <tr><td style="padding:8px 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-             style="background:rgba(255,255,255,.03); border:1px solid rgba(201,162,79,.14); border-radius:12px; padding:0;">
-        <tr><td style="padding:18px 20px; ${passoStyle}">
-          <div style="${rowStyle}">
-            <span style="${numStyle}">1</span>
-            <div style="${stepTextStyle}">
-              <strong style="color:#f3ead6;">Baixe o Telegram</strong><br>
-              Gratuito para iPhone e Android. Sem anúncios, sem custo.<br>
-              <a href="https://apps.apple.com/app/telegram-messenger/id686449807" style="${storeBtn}">App Store (iPhone)</a>
-              <a href="https://play.google.com/store/apps/details?id=org.telegram.messenger" style="${storeBtn}">Google Play (Android)</a>
-            </div>
-          </div>
-        </td></tr>
-        <tr><td style="padding:18px 20px; ${passoStyle}">
-          <div style="${rowStyle}">
-            <span style="${numStyle}">2</span>
-            <div style="${stepTextStyle}">
-              <strong style="color:#f3ead6;">Encontre o bot do Instituto Pádua</strong><br>
-              Dentro do Telegram, toque em <strong>Buscar</strong> e procure por:<br>
-              <a href="${BOT_LINK}" style="color:#c9a24f; font-weight:700; font-size:16px; text-decoration:none;">${BOT_USERNAME}</a><br>
-              <span style="color:#7686a3; font-size:12px;">ou acesse diretamente: ${BOT_LINK}</span>
-            </div>
-          </div>
-        </td></tr>
-        <tr><td style="padding:18px 20px;">
-          <div style="${rowStyle}">
-            <span style="${numStyle}">3</span>
-            <div style="${stepTextStyle}">
-              <strong style="color:#f3ead6;">Envie sua senha de ativação</strong><br>
-              Toque em <strong>Iniciar</strong> e envie EXATAMENTE esta senha (copie e cole):<br>
-              <div style="margin-top:10px; background:rgba(201,162,79,.10); border:2px solid rgba(201,162,79,.50); border-radius:8px; padding:12px 18px; display:inline-block;">
-                <span style="color:#c9a24f; font-size:22px; font-weight:700; letter-spacing:4px; font-family:monospace;">${data.validationPassword}</span>
-              </div><br>
-              <span style="color:#7686a3; font-size:12px; margin-top:6px; display:block;">Você receberá uma confirmação automática na mesma hora.</span>
-            </div>
-          </div>
-        </td></tr>
+             style="background:linear-gradient(180deg,rgba(14,26,52,.70) 0%,rgba(10,19,40,.55) 100%);
+                    border:1px solid rgba(201,162,79,.18);
+                    border-radius:16px; overflow:hidden;
+                    box-shadow:0 8px 40px rgba(0,0,0,.30), 0 0 0 1px rgba(201,162,79,.06) inset;">
+        ${passo1}
+        ${passo2}
+        ${passo3}
       </table>
     </td></tr>
 
-    <tr><td style="padding:24px 32px 4px; text-align:center;">
-      <a href="${BOT_LINK}"
-         style="display:inline-block; background:linear-gradient(135deg,#c9a24f 0%,#e8c97a 50%,#c9a24f 100%); color:#0a1430; font-weight:700; font-size:15px; padding:14px 36px; border-radius:999px; text-decoration:none; letter-spacing:0.5px;">
-        Abrir @Paduaclinica_bot
-      </a>
-    </td></tr>
+    ${divider}
 
-    <tr><td style="padding:16px 32px 28px;">
-      <p style="margin:0; color:#7686a3; font-size:12px; text-align:center; line-height:1.6;">
-        Dúvidas? Entre em contato pelo WhatsApp: <strong style="color:#c2cee0;">(11) 94655-4000</strong><br>
-        Esta senha é pessoal e intransferível. Não a compartilhe com outras pessoas.
+    <tr><td style="padding:22px 36px 12px;">
+      <p style="margin:0; color:#7686a3; font-family:${SANS}; font-size:12px; line-height:1.9; text-align:center;">
+        Caso tenha qualquer dificuldade em alguma das etapas acima, nossa equipe estará pronta para auxiliá-lo.<br>
+        Entre em contato pelo WhatsApp: <strong style="color:#c2cee0;">(11) 94655-4000</strong><br>
+        <span style="color:#4e5e78;">A senha de ativação é pessoal e intransferível. Por segurança, não a compartilhe com terceiros.</span>
       </p>
     </td></tr>
   `];
 
   const doc: PaxterDoc = {
-    eyebrow: `Olá, ${data.clientName}`,
-    titulo: "Ative o Telegram com o Instituto Pádua",
+    eyebrow: `Para ${primeiroNome} — Novo canal de comunicação`,
+    titulo: "Ative o seu Telegram\ncom o Instituto Pádua",
     paragrafos: [],
     blocosHtml,
-    assunto: "Instituto Pádua | Ative o Telegram — 3 passos simples",
+    botao: {
+      label: "Abrir Instituto Pádua no Telegram",
+      url: BOT_LINK,
+    },
+    notaRodape: "Se o botão acima não abrir, abra o Telegram e pesquise por @Paduaclinica_bot",
+    assunto: "Instituto Pádua — Ative o seu canal Telegram em 3 passos",
   };
-  const envio = await enviarMensagemPaxter(doc, { email: data.clientEmail, nome: data.clientName }, ["EMAIL"], { baseUrl: baseUrlFromEnv() });
+
+  const envio = await enviarMensagemPaxter(
+    doc,
+    { email: data.clientEmail, nome: data.clientName },
+    ["EMAIL"],
+    { baseUrl: baseUrlFromEnv() },
+  );
   const r0 = envio.resultados[0];
   return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
 }
