@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useGetESignatureSettings } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -531,7 +532,7 @@ export default function Cartorio() {
                         }}
                         className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/60"
                       >
-                        <span className="font-medium">{c.name}</span>
+                        <span className="font-medium">{tituloProprio(c.name)}</span>
                         {c.cpf && <span className="ml-2 text-[11px] text-muted-foreground">{c.cpf}</span>}
                       </button>
                     ))}

@@ -3,6 +3,7 @@
 // Mínimo 2 caracteres → debounce 300ms → GET /api/clients?search=...&limit=20
 
 import { useRef, useEffect } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { Search, X, Loader2 } from "lucide-react";
 import { useCockpitSearch } from "./hooks/useCockpitSearch";
 
@@ -117,7 +118,7 @@ export default function CockpitSearch({
                   className="font-bold truncate text-primary"
                   style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14 }}
                 >
-                  {r.name}
+                  {tituloProprio(r.name)}
                 </div>
                 {r.cpf && (
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">

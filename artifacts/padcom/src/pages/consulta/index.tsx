@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   Stethoscope,
   ClipboardList,
@@ -441,7 +442,7 @@ export default function ConsultaProntuario() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 Em atendimento
               </p>
-              <p className="text-sm font-semibold">{clienteAtual.name}</p>
+              <p className="text-sm font-semibold">{tituloProprio(clienteAtual.name)}</p>
             </div>
           )}
         </div>

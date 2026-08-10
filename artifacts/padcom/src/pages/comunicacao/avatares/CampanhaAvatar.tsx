@@ -6,6 +6,7 @@
  * Mostra barra de progresso em tempo real por polling no GET de campanha.
  */
 import { useState, useEffect, useRef } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   Users, Search, Send, Loader2, CheckCircle2, XCircle,
@@ -216,7 +217,7 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
                     className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                   >
                     <User className="inline w-3 h-3 mr-1.5 opacity-50" />
-                    {c.name}
+                    {tituloProprio(c.name)}
                     {c.phone && (
                       <span className="ml-2 text-xs text-white/40">
                         {c.phone.replace(/\d(?=\d{4})/g, "*")}

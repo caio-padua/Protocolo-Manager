@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
@@ -985,7 +986,7 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
       <div className="panel-3d rounded-xl overflow-hidden">
         <div className="login-card-topbar px-5 py-4">
           <p className="text-muted-foreground text-xs uppercase tracking-widest">BEM-VINDO(A)</p>
-          <h2 className="text-primary font-black text-2xl mt-0.5">{firstName(data.client.name)}</h2>
+          <h2 className="text-primary font-black text-2xl mt-0.5">{firstName(tituloProprio(data.client.name))}</h2>
         </div>
         {/* Meta grid 2×2 */}
         <div className="grid grid-cols-2 gap-2 p-3">

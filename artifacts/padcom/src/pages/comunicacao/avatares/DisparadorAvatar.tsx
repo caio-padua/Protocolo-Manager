@@ -7,6 +7,7 @@
  * Suporta canal VOICE (áudio ElevenLabs) e VIDEO (vídeo HeyGen, assíncrono).
  */
 import { useState, useRef, useEffect } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { Mic, Video, Search, Send, Loader2, CheckCircle2, XCircle, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -185,7 +186,7 @@ export function DisparadorAvatar({ avatares, apiBase }: Props) {
                   className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/5"
                 >
                   <User className="inline w-3 h-3 mr-1.5 opacity-50" />
-                  {c.name}
+                  {tituloProprio(c.name)}
                   {c.phone && <span className="ml-2 text-xs text-white/40">{c.phone.replace(/\d(?=\d{4})/g, "*")}</span>}
                 </button>
               </li>

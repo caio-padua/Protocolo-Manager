@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   useListAgendaResources,
   useCreateAgendaResource,
@@ -932,7 +933,7 @@ export default function AgendaMotor() {
               <SelectContent>
                 {(clients ?? []).map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
+                    {tituloProprio(c.name)}
                   </SelectItem>
                 ))}
               </SelectContent>

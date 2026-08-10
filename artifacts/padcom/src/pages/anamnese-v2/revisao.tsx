@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   AlertTriangle,
   ChevronRight,
@@ -449,7 +450,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                   className="flex items-center justify-between gap-2 rounded-md border border-gray-100 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-800">{c.name}</p>
+                    <p className="truncate text-sm font-semibold text-gray-800">{tituloProprio(c.name)}</p>
                     <p className="text-xs text-gray-400">
                       {c.phone ? c.phone : "sem telefone cadastrado"}
                     </p>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { Upload, CheckCircle, Loader2, AlertCircle, FileUp, User, ChevronRight } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PAXTER_SITE_URL } from "@/lib/brand";
@@ -269,7 +270,7 @@ export default function Portal() {
               <div className="bg-[#11203c] border border-[#223358] rounded-md px-4 py-3 flex items-center justify-between">
                 <div>
                   <p className="text-[#7e93b8] text-xs uppercase tracking-wider">CLIENTE</p>
-                  <p className="text-white font-semibold text-sm">{client.name}</p>
+                  <p className="text-white font-semibold text-sm">{tituloProprio(client.name)}</p>
                 </div>
                 <button onClick={handleRestart} className="text-[#7e93b8] text-xs underline hover:text-white">
                   Trocar

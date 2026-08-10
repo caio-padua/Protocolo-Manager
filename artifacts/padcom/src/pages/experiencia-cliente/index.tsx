@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { Users, Eye, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { useListClients } from "@workspace/api-client-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
@@ -99,7 +100,7 @@ export default function ExperienciaCliente() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-primary font-black text-sm uppercase tracking-wide truncate">
-                    {selected.name}
+                    {tituloProprio(selected.name)}
                   </p>
                   {selected.cpf && (
                     <p className="text-muted-foreground text-xs font-mono mt-0.5">

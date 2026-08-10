@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useListClients, useListPayments, getListPaymentsQueryKey, type Payment } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -254,7 +255,7 @@ export default function LancadorNfse() {
           <div className="concave-3d mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
               <User className="w-3.5 h-3.5" />
-              {client ? client.name : "Nenhum cliente selecionado"}
+              {client ? tituloProprio(client.name) : "Nenhum cliente selecionado"}
             </span>
             {client && client.cpf && (
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">CPF {client.cpf}</span>

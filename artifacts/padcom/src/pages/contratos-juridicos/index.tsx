@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   FileSignature, RefreshCw, Sparkles, Edit3, Eye,
   Save, X, BookOpen, FlaskConical, Syringe, Lock,
@@ -689,7 +690,7 @@ export default function ContratosJuridicos() {
                         className="w-full text-left px-3 py-2 hover:bg-primary/5 text-sm flex justify-between gap-2"
                         onClick={() => selecionarCliente(c)}
                       >
-                        <span className="font-medium">{c.name}</span>
+                        <span className="font-medium">{tituloProprio(c.name)}</span>
                         <span className="text-muted-foreground text-xs font-mono">{c.cpf ?? "—"}</span>
                       </button>
                     ))}
@@ -701,7 +702,7 @@ export default function ContratosJuridicos() {
 
                 {clienteSel && (
                   <div className="mt-1.5 concave-3d px-3 py-2 text-sm flex items-center justify-between">
-                    <span><strong>{clienteSel.name}</strong> · {clienteSel.cpf ?? "—"}</span>
+                    <span><strong>{tituloProprio(clienteSel.name)}</strong> · {clienteSel.cpf ?? "—"}</span>
                     <button
                       className="text-muted-foreground hover:text-destructive text-xs ml-2"
                       onClick={() => { setClienteSel(null); setBuscaCliente(""); setProtocoloSel(null); setCodigosEmitir(new Set()); }}

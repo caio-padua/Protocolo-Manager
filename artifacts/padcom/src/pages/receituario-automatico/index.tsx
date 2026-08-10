@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
-import { cn } from "@/lib/utils";
+import { cn, tituloProprio } from "@/lib/utils";
 import PrescricaoPage from "@/pages/prescricao";
 import ExamesPage from "@/pages/exames";
 
@@ -1173,7 +1173,7 @@ export default function ReceituarioAutomatico() {
             className="flex items-center gap-2 cursor-pointer select-none flex-1"
           >
             <span className="text-[10px] uppercase tracking-widest font-black text-muted-foreground">
-              {agendas.length} programa(s) {clienteSel ? `de ${clienteSel.name}` : ""}
+              {agendas.length} programa(s) {clienteSel ? `de ${tituloProprio(clienteSel.name)}` : ""}
             </span>
             {agendasOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
                          : <ChevronDown className="w-4 h-4 text-muted-foreground" />}

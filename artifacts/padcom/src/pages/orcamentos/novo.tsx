@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useLocation } from "wouter";
 import {
   useListBudgetCatalog,
@@ -264,7 +265,7 @@ export default function MontagemOrcamento() {
                   <SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem cliente</SelectItem>
-                    {clients?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    {clients?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{tituloProprio(c.name)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

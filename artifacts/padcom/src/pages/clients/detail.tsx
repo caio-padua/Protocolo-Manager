@@ -1,4 +1,5 @@
 import { useRoute, Link } from "wouter";
+import { tituloProprio } from "@/lib/utils";
 import { useGetClient, getGetClientQueryKey, useListProtocols, useListSessions, useListPayments, getListPaymentsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -162,7 +163,7 @@ export default function ClientDetail() {
               {client.name.substring(0, 2).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-primary uppercase">{client.name}</h1>
+              <h1 className="text-2xl font-black tracking-tight text-primary uppercase">{tituloProprio(client.name)}</h1>
               <div className="flex items-center gap-3 mt-1">
                 <div className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">
                   CPF: {client.cpf}

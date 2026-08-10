@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -415,7 +416,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paciente</p>
-        <div className="mt-1 text-lg font-semibold text-slate-100">{client?.name}</div>
+        <div className="mt-1 text-lg font-semibold text-slate-100">{client?.name ? tituloProprio(client.name) : ""}</div>
         <div className="text-xs text-slate-400">
           {[client?.cpf ? `CPF ${client.cpf}` : null, idade ? `${idade} anos` : null, client?.phone, client?.email]
             .filter(Boolean)

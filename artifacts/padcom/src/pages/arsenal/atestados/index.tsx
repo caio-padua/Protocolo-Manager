@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ElementType } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   FileSignature, User, Stethoscope, FileText, Eye, CheckCircle2,
   ExternalLink, Download, Layers, Clock, CalendarDays,
@@ -371,7 +372,7 @@ export default function AtestadosPage() {
                   Atestado Médico
                 </div>
                 <div className="mt-4 space-y-1 text-sm text-slate-700">
-                  <p><span className="font-semibold">Cliente:</span> {clienteSel?.name || "—"}</p>
+                  <p><span className="font-semibold">Cliente:</span> {clienteSel?.name ? tituloProprio(clienteSel.name) : "—"}</p>
                   <p className="text-xs text-slate-500">CPF: {clienteSel?.cpf || "—"}</p>
                   <p className="text-xs" style={{ color: NAVY }}>
                     Tipo: {TIPOS.find((t) => t.value === tipo)?.label}

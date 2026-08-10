@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useListClients, useCreateAnamneseSession } from "@workspace/api-client-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useToast } from "@/hooks/use-toast";
@@ -117,7 +118,7 @@ export default function CockpitAnamnese() {
             {cliente ? (
               <>
                 <div className="text-[13px] font-semibold uppercase tracking-wide text-white">
-                  {cliente.name}
+                  {tituloProprio(cliente.name)}
                 </div>
                 <div className="text-[11px] text-slate-300">
                   {cliente.cpf ? `CPF ${cliente.cpf}` : "CPF não informado"}

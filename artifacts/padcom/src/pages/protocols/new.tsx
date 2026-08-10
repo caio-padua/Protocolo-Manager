@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useCreateProtocol, useValidateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -306,7 +307,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2">
                 <User className="h-3.5 w-3.5" /> Cliente
               </div>
-              <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedClient?.name}</p>
+              <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedClient?.name ? tituloProprio(selectedClient.name) : ""}</p>
               <p className="text-xs text-muted-foreground tabular-nums font-medium mt-1">{selectedClient?.cpf}</p>
             </div>
             <div className="p-4 panel-3d-sub">
@@ -445,7 +446,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
               {clientIdProp != null ? (
                 <div className="field-engraved rounded-md px-3 py-2.5">
                   <span className="font-bold uppercase tracking-tight text-sm">
-                    {selectedClient?.name ?? "Cliente selecionado"}
+                    {selectedClient?.name ? tituloProprio(selectedClient.name) : "Cliente selecionado"}
                   </span>
                   {selectedClient?.cpf && (
                     <span className="ml-2 text-xs text-muted-foreground tabular-nums font-medium">{selectedClient.cpf}</span>

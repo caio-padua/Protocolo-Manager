@@ -5,6 +5,7 @@
 // Pedido CEO 23/07/2026.
 
 import { useState, useEffect, useRef } from "react";
+import { tituloProprio } from "@/lib/utils";
 import { MapPin, Search, UserRound, X, Loader2 } from "lucide-react";
 import { useListClients } from "@workspace/api-client-react";
 import ProcedenciaDocumentosBloco from "@/components/ProcedenciaDocumentosBloco";
@@ -155,7 +156,7 @@ export default function ProcedenciaExamesPage() {
                       style={{ color: NAVY, borderColor: "#f0ebe0" }}
                       onMouseDown={() => selecionar(c)}
                     >
-                      <span className="font-semibold">{c.name}</span>
+                      <span className="font-semibold">{tituloProprio(c.name)}</span>
                       {c.cpf && <span className="ml-2 text-[11px] text-slate-400">{c.cpf}</span>}
                     </button>
                   ))

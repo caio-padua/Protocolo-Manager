@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { tituloProprio } from "@/lib/utils";
 import {
   CheckCircle,
   Loader2,
@@ -570,7 +571,7 @@ export default function Anamnese() {
               <div className="bg-[#1a3a3a] border border-[#1e4a4a] rounded-md px-4 py-3 flex items-center justify-between">
                 <div>
                   <p className="text-[#6b9b9b] text-xs uppercase tracking-wider">CLIENTE</p>
-                  <p className="text-white font-semibold text-sm">{client.name}</p>
+                  <p className="text-white font-semibold text-sm">{tituloProprio(client.name)}</p>
                 </div>
                 <button onClick={handleRestart} className="text-[#6b9b9b] text-xs underline hover:text-white">Trocar</button>
               </div>
