@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireCollaborator } from "./collaborator";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import {
   db,
@@ -16,6 +17,7 @@ import {
   sendPreSessionEmail,
   sendPostSessionEmail,
   isEmailConfigured,
+  sendTelegramOnboardingEmail,
   type PreSessionEmailData,
   type PostSessionEmailData,
 } from "../lib/email-service";
@@ -618,6 +620,39 @@ router.post("/email/send-copy", async (req, res): Promise<void> => {
     res.json({ ok: result.success, to, messageId: result.messageId, error: result.error });
   } catch (err) {
     res.status(500).json({ error: "erro_send_copy", detalhe: String(err) });
+  }
+});
+
+// ── POST /api/email/telegram-onboarding/:clientId ─────────────────────────
+// Envia e-mail PADAXOR (navy/gold) ensinando o paciente a ativar o Telegram
+// com @Paduaclinica_bot. Requer colaborador autenticado.
+router.post("/email/telegram-onboarding/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  const clientId = Number(req.params.clientId);
+  if (!Number.isInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
+
+  const [client] = await db
+    .select({ name: clientsTable.name, email: clientsTable.email, validationPassword: clientsTable.validationPassword })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId))
+    .limit(1);
+
+  if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
+  if (!client.validationPassword) { res.status(422).json({ error: "Cliente sem senha de validação — gere primeiro em Cadastro" }); return; }
+
+  try {
+    const result = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: client.validationPassword,
+    });
+    if (result.success) {
+      res.json({ ok: true, message: `E-mail de onboarding Telegram enviado para ${client.email}` });
+    } else {
+      res.status(500).json({ error: result.error ?? "Falha no envio" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "erro_telegram_onboarding", detalhe: String(err) });
   }
 });
 

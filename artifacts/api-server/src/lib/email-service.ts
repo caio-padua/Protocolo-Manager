@@ -575,6 +575,106 @@ export async function sendArrivalEmail(data: ArrivalEmailData): Promise<{ succes
   return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
 }
 
+// ── Telegram Onboarding ───────────────────────────────────────────────────────
+// Bot da clínica: @Paduaclinica_bot | https://t.me/Paduaclinica_bot
+export interface TelegramOnboardingData {
+  clientName: string;
+  clientEmail: string;
+  validationPassword: string; // senha de vinculação (clients.validationPassword)
+}
+
+/**
+ * Envia e-mail PADAXOR ensinando o paciente a baixar o Telegram e ativar
+ * a comunicação com o Instituto Pádua via @Paduaclinica_bot.
+ * Layout: fundo navy/ouro, 3 passos visuais + senha destacada + botão CTA.
+ */
+export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData): Promise<{ success: boolean; error?: string }> {
+  const BOT_LINK = "https://t.me/Paduaclinica_bot";
+  const BOT_USERNAME = "@Paduaclinica_bot";
+
+  const passoStyle = "padding:16px 0; border-bottom:1px solid rgba(201,162,79,.14);";
+  const numStyle = "display:inline-block; width:32px; height:32px; border-radius:50%; background:rgba(201,162,79,.18); border:1.5px solid rgba(201,162,79,.55); color:#c9a24f; font-size:15px; font-weight:700; line-height:30px; text-align:center; margin-right:12px; flex-shrink:0;";
+  const rowStyle = "display:flex; align-items:flex-start;";
+  const stepTextStyle = "color:#c2cee0; font-size:14px; line-height:1.65; padding-top:4px;";
+  const storeBtn = "display:inline-block; background:rgba(201,162,79,.12); border:1px solid rgba(201,162,79,.35); border-radius:8px; color:#c9a24f; font-size:12px; padding:6px 14px; margin:4px 4px 0 0; text-decoration:none;";
+
+  const blocosHtml: string[] = [`
+    <tr><td style="padding:28px 32px 0;">
+      <p style="margin:0 0 20px; color:#c2cee0; font-size:15px; line-height:1.7;">
+        A partir de agora o <strong style="color:#f3ead6;">Instituto Pádua</strong> também se comunica com você pelo
+        <strong style="color:#c9a24f;">Telegram</strong> — um canal seguro e instantâneo para lembretes, resultados e orientações do Dr. Caio.
+      </p>
+      <p style="margin:0 0 22px; color:#7686a3; font-size:13px;">Siga os 3 passos abaixo para ativar em menos de 2 minutos:</p>
+    </td></tr>
+
+    <tr><td style="padding:0 32px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="background:rgba(255,255,255,.03); border:1px solid rgba(201,162,79,.14); border-radius:12px; padding:0;">
+        <tr><td style="padding:18px 20px; ${passoStyle}">
+          <div style="${rowStyle}">
+            <span style="${numStyle}">1</span>
+            <div style="${stepTextStyle}">
+              <strong style="color:#f3ead6;">Baixe o Telegram</strong><br>
+              Gratuito para iPhone e Android. Sem anúncios, sem custo.<br>
+              <a href="https://apps.apple.com/app/telegram-messenger/id686449807" style="${storeBtn}">App Store (iPhone)</a>
+              <a href="https://play.google.com/store/apps/details?id=org.telegram.messenger" style="${storeBtn}">Google Play (Android)</a>
+            </div>
+          </div>
+        </td></tr>
+        <tr><td style="padding:18px 20px; ${passoStyle}">
+          <div style="${rowStyle}">
+            <span style="${numStyle}">2</span>
+            <div style="${stepTextStyle}">
+              <strong style="color:#f3ead6;">Encontre o bot do Instituto Pádua</strong><br>
+              Dentro do Telegram, toque em <strong>Buscar</strong> e procure por:<br>
+              <a href="${BOT_LINK}" style="color:#c9a24f; font-weight:700; font-size:16px; text-decoration:none;">${BOT_USERNAME}</a><br>
+              <span style="color:#7686a3; font-size:12px;">ou acesse diretamente: ${BOT_LINK}</span>
+            </div>
+          </div>
+        </td></tr>
+        <tr><td style="padding:18px 20px;">
+          <div style="${rowStyle}">
+            <span style="${numStyle}">3</span>
+            <div style="${stepTextStyle}">
+              <strong style="color:#f3ead6;">Envie sua senha de ativação</strong><br>
+              Toque em <strong>Iniciar</strong> e envie EXATAMENTE esta senha (copie e cole):<br>
+              <div style="margin-top:10px; background:rgba(201,162,79,.10); border:2px solid rgba(201,162,79,.50); border-radius:8px; padding:12px 18px; display:inline-block;">
+                <span style="color:#c9a24f; font-size:22px; font-weight:700; letter-spacing:4px; font-family:monospace;">${data.validationPassword}</span>
+              </div><br>
+              <span style="color:#7686a3; font-size:12px; margin-top:6px; display:block;">Você receberá uma confirmação automática na mesma hora.</span>
+            </div>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+
+    <tr><td style="padding:24px 32px 4px; text-align:center;">
+      <a href="${BOT_LINK}"
+         style="display:inline-block; background:linear-gradient(135deg,#c9a24f 0%,#e8c97a 50%,#c9a24f 100%); color:#0a1430; font-weight:700; font-size:15px; padding:14px 36px; border-radius:999px; text-decoration:none; letter-spacing:0.5px;">
+        Abrir @Paduaclinica_bot
+      </a>
+    </td></tr>
+
+    <tr><td style="padding:16px 32px 28px;">
+      <p style="margin:0; color:#7686a3; font-size:12px; text-align:center; line-height:1.6;">
+        Dúvidas? Entre em contato pelo WhatsApp: <strong style="color:#c2cee0;">(11) 94655-4000</strong><br>
+        Esta senha é pessoal e intransferível. Não a compartilhe com outras pessoas.
+      </p>
+    </td></tr>
+  `];
+
+  const doc: PaxterDoc = {
+    eyebrow: `Olá, ${data.clientName}`,
+    titulo: "Ative o Telegram com o Instituto Pádua",
+    paragrafos: [],
+    blocosHtml,
+    assunto: "Instituto Pádua | Ative o Telegram — 3 passos simples",
+  };
+  const envio = await enviarMensagemPaxter(doc, { email: data.clientEmail, nome: data.clientName }, ["EMAIL"], { baseUrl: baseUrlFromEnv() });
+  const r0 = envio.resultados[0];
+  return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
+}
+
 export async function isEmailConfigured(): Promise<boolean> {
   return isGmailConnected();
 }

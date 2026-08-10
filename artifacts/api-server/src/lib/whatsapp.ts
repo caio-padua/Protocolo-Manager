@@ -9,10 +9,31 @@
 // status final chega de forma assíncrona no webhook POST /api/whatsapp/status, que
 // atualiza a linha por MessageSid. O telefone é guardado inteiro no banco (dado
 // nativo do cliente); a API/tela é que mascaram. Nunca logamos o token.
-import { db, whatsappMensagensLogTable } from "@workspace/db";
+import { db, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { getSecret } from "./secure-settings";
+import { sendTelegram } from "./telegram";
+
+/**
+ * Espelha uma mensagem para o Telegram do cliente (fire-and-forget).
+ * Não bloqueia o envio via WhatsApp. Fail-safe: ignora erros silenciosamente.
+ */
+async function espelharParaTelegram(clienteId: number, message: string): Promise<void> {
+  try {
+    const [c] = await db
+      .select({ telegramChatId: clientsTable.telegramChatId })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, clienteId))
+      .limit(1);
+    if (c?.telegramChatId) {
+      await sendTelegram(c.telegramChatId, message);
+      logger.info({ clienteId }, "[whatsapp→telegram] espelho enviado");
+    }
+  } catch (err) {
+    logger.warn({ err, clienteId }, "[whatsapp→telegram] falha no espelho — WhatsApp não afetado");
+  }
+}
 
 interface TwilioCreds {
   accountSid: string | null;
@@ -202,6 +223,8 @@ export async function sendWhatsapp(
   opts: SendWhatsappOptions = {},
 ): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
+  // Espelho Telegram: dispara em paralelo (fire-and-forget), não bloqueia o WhatsApp
+  if (opts.clienteId) void espelharParaTelegram(opts.clienteId, message);
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) {

@@ -124,6 +124,7 @@
 - [perguntaId nao e chave de identidade](anamnese-perguntaid-nao-unico.md) — pergunta_id REPETE (Q030); identidade de linha usa o `id` numerico, nunca perguntaId (guard de DELETE).
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
 - [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
+- [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CEO.
 - [Slack Monitor de LLMs — canal padaxor-projeto](slack-monitor-llms.md) — canal #padaxor-projeto ID=C0BLW5S7GQL; PADAXOR_SLACK_CHANNEL_ID=env var shared; googledrive.files.create exige Readable stream (não Buffer) para body.
 - [Slack Report Formato V2 — cabeçalho + tabela + handoff](slack-report-formato-v2.md) — 3 blocos novos: contexto com quem preencheu; tabela emoldurada de CONCLUÍDOS (cols A:I); handoffs inter-LLM via coluna I da planilha.
 - [LLM Monitor dispatch — padrão de histórico dual-canal](llm-monitor-dispatch-padrao.md) — telegramSkipped NÃO é ambosOk; early return removido para step 4 sempre rodar; chatId TEST_FORCE_FAIL testa fallback sem API real.

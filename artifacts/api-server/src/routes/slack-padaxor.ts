@@ -271,11 +271,21 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
     const data = await resp.json() as { ok: boolean; result?: any[]; description?: string };
 
     if (!data.ok) {
-      // getUpdates falha quando webhook está ativo — informar o CEO
+      // getUpdates falha quando webhook está ativo — tenta getMe para identificar o bot
+      let botInfo: { id: number; username?: string; first_name?: string } | null = null;
+      try {
+        const meResp = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5_000) });
+        const meData = await meResp.json() as { ok: boolean; result?: { id: number; username?: string; first_name?: string } };
+        if (meData.ok && meData.result) botInfo = meData.result;
+      } catch { /* sem info */ }
+
       res.json({
         chatIdConfigurado,
+        bot: botInfo
+          ? { id: botInfo.id, username: botInfo.username ? `@${botInfo.username}` : null, nome: botInfo.first_name ?? null, link: botInfo.username ? `https://t.me/${botInfo.username}` : null }
+          : null,
         erroGetUpdates: data.description ?? "getUpdates retornou ok=false",
-        aviso: "Se o webhook estiver ativo, getUpdates não funciona. Use @userinfobot no Telegram para obter o chatId.",
+        aviso: "Webhook ativo — getUpdates desabilitado (correto). Bot identificado por getMe acima.",
         instrucao: [
           "1. No Telegram, abra @userinfobot e envie qualquer mensagem",
           "2. O bot responde com o seu ID numérico (ex: 8911159822)",

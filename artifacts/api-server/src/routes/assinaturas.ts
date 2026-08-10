@@ -38,6 +38,7 @@ import { contextoPaciente } from "../lib/assinatura/contexto";
 import type { ProvedorCodigo } from "../lib/assinatura/types";
 import { logger } from "../lib/logger";
 import { getSecret } from "../lib/secure-settings";
+import { sendTelegram } from "../lib/telegram.js";
 
 // ---------------------------------------------------------------------------
 // Webhook (livre — registrado antes do guard).
@@ -358,37 +359,94 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       return;
     }
 
-    // Defesa 2 — prova de posse pela senha de validação do cliente.
     const texto: string = typeof msg.text === "string" ? msg.text : "";
+    const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+
+    // ── PASSO 1: verifica se este chatId já está vinculado a algum cliente ───
+    const [clienteJaVinculado] = await db
+      .select({ id: clientsTable.id, name: clientsTable.name, cpf: clientsTable.cpf })
+      .from(clientsTable)
+      .where(eq(clientsTable.telegramChatId, chatId))
+      .limit(1);
+
+    if (clienteJaVinculado) {
+      // ── Modo INBOX: cliente vinculado enviou mensagem → encaminha ao CEO ──
+      if (texto && chatIdCEO) {
+        const cpfDisplay = (clienteJaVinculado.cpf || "00000000000")
+          .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+        const repasse =
+          `💬 <b>Mensagem via Telegram</b>\n\n` +
+          `<b>De:</b> ${clienteJaVinculado.name}\n` +
+          `<b>CPF:</b> ${cpfDisplay}\n\n` +
+          `"${texto}"\n\n` +
+          `──────────────────\n` +
+          `Responda em: Cockpit → ${clienteJaVinculado.name.split(" ")[0]}`;
+        void sendTelegram(chatIdCEO, repasse);
+        logger.info({ clienteId: clienteJaVinculado.id }, "[telegram] mensagem encaminhada ao CEO");
+      }
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
     const textoLimpo = texto.trim().toUpperCase();
     if (textoLimpo) {
-      candidatos.add(textoLimpo); // mensagem inteira
-      for (const tok of textoLimpo.split(/\s+/)) if (tok) candidatos.add(tok); // ex.: "/vincular SENHA"
+      candidatos.add(textoLimpo);
+      for (const tok of textoLimpo.split(/\s+/)) if (tok) candidatos.add(tok);
     }
 
-    // validationPassword NÃO é UNIQUE no schema: uma colisão (dois clientes com a
-    // mesma senha) tornaria o "primeiro match" um vínculo ao cliente errado. Por
-    // segurança, exigimos correspondência ÚNICA — múltiplos matches = não vincula
-    // ninguém (evento auditado), tratando ambiguidade como falha de segurança.
-    let alvo: { id: number } | undefined;
+    // validationPassword NÃO é UNIQUE — colisão = recusa segura
+    let alvo: { id: number; name: string } | undefined;
     let ambiguo = false;
     if (candidatos.size > 0) {
       const rows = await db
-        .select({ id: clientsTable.id, vp: clientsTable.validationPassword })
+        .select({ id: clientsTable.id, name: clientsTable.name, vp: clientsTable.validationPassword })
         .from(clientsTable);
       const matches = rows.filter((r) => r.vp && candidatos.has(r.vp.trim().toUpperCase()));
-      if (matches.length === 1) alvo = { id: matches[0].id };
+      if (matches.length === 1) alvo = { id: matches[0].id, name: matches[0].name };
       else if (matches.length > 1) ambiguo = true;
     }
 
     if (ambiguo) {
       logger.warn("[telegram] vínculo recusado: senha de validação ambígua (colisão)");
     } else if (alvo) {
+      // ── Vinculação confirmada ─────────────────────────────────────────────
       await db.update(clientsTable).set({ telegramChatId: chatId }).where(eq(clientsTable.id, alvo.id));
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
+
+      // Boas-vindas ao cliente
+      const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
+      void sendTelegram(
+        chatId,
+        `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
+        `Seu Telegram está agora vinculado ao <b>Instituto Pádua</b>.\n\n` +
+        `A partir de agora você receberá aqui:\n` +
+        `• Lembretes de sessões\n` +
+        `• Resultados de exames\n` +
+        `• Orientações do Dr. Caio\n\n` +
+        `Você também pode nos enviar mensagens e a equipe receberá.`,
+      );
+
+      // Notifica CEO sobre nova vinculação
+      if (chatIdCEO) {
+        void sendTelegram(
+          chatIdCEO,
+          `✅ <b>Novo cliente vinculou o Telegram</b>\n\nCliente: ${alvo.name}`,
+        );
+      }
     } else {
-      logger.info("[telegram] update sem prova de posse válida (ignorado)");
+      // ── Mensagem sem prova de posse válida — envia instrução ao cliente ──
+      if (texto) {
+        void sendTelegram(
+          chatId,
+          `👋 Olá!\n\n` +
+          `Para ativar a comunicação com o <b>Instituto Pádua</b>, envie a sua <b>senha de validação</b> ` +
+          `que foi enviada por e-mail ou WhatsApp.\n\n` +
+          `Dúvidas? WhatsApp: (11) 94655-4000`,
+        );
+      }
+      logger.info("[telegram] update sem prova de posse — instrução enviada ao cliente");
     }
     res.status(200).json({ ok: true });
   } catch (err) {
