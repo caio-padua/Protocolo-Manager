@@ -694,14 +694,14 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 95, termo: "funil de onboarding",
     leigo:       "É o acompanhamento da triagem: sabe quantos pacientes vieram ao pronto-socorro, quantos foram avaliados e quantos internaram.",
     explicacao:  "Sequência de etapas mensuráveis de um processo com registro de onde o usuário avança ou abandona — identifica gargalos.",
-    ondeUsar:    "Tabela onboarding_eventos (Task #124): registra device + seção aberta + timestamp por paciente no Guia Digital.",
+    ondeUsar:    "Tabela onboarding_eventos (Task #66): registra device + seção aberta + timestamp por paciente no Guia Digital.",
     funcaoUsual: "Quantos pacientes instalaram o PWA? / Onde param no guia? / Qual seção tem mais abandono?",
   },
   {
     numero: 96, termo: "QR Code",
     leigo:       "É o código de barras moderno que a câmera do celular lê em um segundo — como um atalho impresso no papel que leva direto ao site.",
     explicacao:  "Quick Response Code — matriz bidimensional de pontos que codifica uma URL ou dado, lida instantaneamente pela câmera sem app especial.",
-    ondeUsar:    "Card no /guia-digital quando acessado por computador (Task #127) — permite o paciente abrir o guia no celular apontando a câmera.",
+    ondeUsar:    "Card no /guia-digital quando acessado por computador (Task #72) — permite o paciente abrir o guia no celular apontando a câmera.",
     funcaoUsual: "Como o paciente abre no celular a partir do computador? / O que é aquele quadrado com pontinhos?",
   },
 ];
