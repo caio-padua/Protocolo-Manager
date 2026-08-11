@@ -726,7 +726,7 @@ export default function GuiaDigital() {
 
           {/* Rodapé */}
           <div className="panel-3d rounded-[8px] overflow-hidden">
-            <div className="relative bg-primary px-5 py-6 text-center space-y-2">
+            <div className="relative px-5 py-6 text-center space-y-2" style={{ background: "#0e2244" }}>
               <div className="leva-fabric" aria-hidden="true" />
               <div className="relative z-[1] space-y-2">
                 <p

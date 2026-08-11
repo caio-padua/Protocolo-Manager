@@ -1030,6 +1030,16 @@ body,
   background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
 }
 
+/* ── Wrapper base do Guia Digital — herança de cor correta ─────────────────────
+   O .dark fica em .guia-digital (não em :root). Tailwind define color só no body,
+   que está fora do escopo .dark. Sem esta regra, filhos que herdam color do body
+   recebem texto navy-escuro sobre fundo navy-escuro em dark mode.
+   Declarar color explicitamente aqui força todos os descendentes a usar a variável
+   --foreground do escopo correto (claro=navy, escuro=quase-branco). */
+.guia-digital {
+  color: hsl(var(--foreground));
+}
+
 /* ── Pele de terno claro — Guia Digital do Paciente (light mode only) ──────────
    Mesma paleta champanhe-linho da área do paciente. Seletor :not(.dark) garante
    zero impacto no tema escuro. Decretado quando o CEO aprovou a área do paciente. */
