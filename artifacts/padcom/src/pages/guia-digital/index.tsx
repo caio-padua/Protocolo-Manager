@@ -300,9 +300,10 @@ function GuiaIphone() {
       <Passo n={1} texto="Abra o Safari no seu iPhone (ícone de bússola azul)" />
       <Passo
         n={2}
-        texto={`Na barra de endereço, acesse: ${config.areaUrl}`}
+        texto="Na barra de endereço, acesse o endereço abaixo:"
         detalhe="Ou toque no link recebido pelo WhatsApp — ele abre direto."
       />
+      <UrlInsert url={config.areaUrl} />
       <Passo
         n={3}
         texto="Toque no botão Compartilhar na barra inferior"
@@ -321,7 +322,8 @@ function GuiaIphone() {
 
       <PlacaGrupo texto="🖥 Computador Mac — Safari" />
       <Passo n={1} texto="Abra o Safari no seu Mac" />
-      <Passo n={2} texto={`Digite o endereço: ${config.areaUrl}`} />
+      <Passo n={2} texto="Digite o endereço abaixo na barra do Safari:" />
+      <UrlInsert url={config.areaUrl} />
       <Passo
         n={3}
         texto="O site funciona direto no navegador — não precisa instalar nada"
@@ -343,9 +345,10 @@ function GuiaAndroid() {
       <Passo n={1} texto="Abra o Chrome no seu celular" />
       <Passo
         n={2}
-        texto={`Na barra de endereço, acesse: ${config.areaUrl}`}
+        texto="Na barra de endereço, acesse:"
         detalhe="Ou toque no link recebido pelo WhatsApp."
       />
+      <UrlInsert url={config.areaUrl} />
       <Passo n={3} texto="Toque nos 3 pontinhos no canto superior direito" />
       <Passo
         n={4}
@@ -361,14 +364,16 @@ function GuiaAndroid() {
         texto="Samsung Internet é o ícone azul com globo, pré-instalado em celulares Samsung."
       />
       <Passo n={1} texto="Abra o Samsung Internet" />
-      <Passo n={2} texto={`Acesse: ${config.areaUrl}`} />
+      <Passo n={2} texto="Acesse:" />
+      <UrlInsert url={config.areaUrl} />
       <Passo n={3} texto="Toque nas 3 linhas no canto inferior direito" />
       <Passo n={4} texto="Toque em → Adicionar página à → Tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
 
       <PlacaGrupo texto="📲 Firefox ou Edge" />
       <Passo n={1} texto="Abra o Firefox ou Edge" />
-      <Passo n={2} texto={`Acesse: ${config.areaUrl}`} />
+      <Passo n={2} texto="Acesse:" />
+      <UrlInsert url={config.areaUrl} />
       <Passo n={3} texto="Toque nos 3 pontinhos → Instalar ou → Adicionar à tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
     </div>
@@ -385,7 +390,8 @@ function GuiaComputador() {
         texto="No computador, o aplicativo pode ser instalado pelo Chrome ou Edge. Funciona como um programa separado, sem abrir o navegador toda vez."
       />
       <Passo n={1} texto="Abra o Chrome ou o Edge no seu computador" />
-      <Passo n={2} texto={`Na barra de endereço, cole ou digite: ${config.areaUrl}`} />
+      <Passo n={2} texto="Cole ou digite na barra de endereço:" />
+      <UrlInsert url={config.areaUrl} />
       <Passo
         n={3}
         texto="Procure o ícone de instalação na barra de endereço"
@@ -402,7 +408,8 @@ function GuiaComputador() {
       />
 
       <PlacaGrupo texto="🖥 Firefox ou Safari (Mac)" />
-      <Passo n={1} texto={`Abra o navegador e acesse: ${config.areaUrl}`} />
+      <Passo n={1} texto="Abra o navegador e acesse:" />
+      <UrlInsert url={config.areaUrl} />
       <Passo
         n={2}
         texto="O site funciona normalmente — não precisa instalar"
@@ -423,8 +430,9 @@ function GuiaLogin() {
       <Passo
         n={1}
         texto="Abra o aplicativo no celular ou acesse pelo navegador"
-        detalhe={`Endereço: ${config.areaUrl}`}
+        detalhe="Endereço da Área do Paciente:"
       />
+      <UrlInsert url={config.areaUrl} />
       <Passo
         n={2}
         texto="No campo CPF, digite seus 11 números"
@@ -491,48 +499,10 @@ function GuiaTelegram() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card QR Code — só exibido no computador (device === "desktop")
-// Paciente aponta a câmera do celular e o guia abre direto no dispositivo certo
+// UrlInsert — URL em insert côncavo + copiar. Vai DENTRO de cada seção.
 // ─────────────────────────────────────────────────────────────────────────────
-function CardQRCode() {
-  // window.location.href inclui ?tenant= se presente — link correto por clínica
-  const url = window.location.href;
-  return (
-    <div className="panel-3d rounded-[8px] overflow-hidden">
-      <div className="px-5 py-5 flex flex-col items-center gap-4 text-center">
-        {/* Título em placa bevel */}
-        <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest">
-          📱 Abrir no celular
-        </div>
-
-        {/* QR Code — fundo branco garante leitura em qualquer tema */}
-        <div className="rounded-[8px] p-3 bg-white shadow-inner">
-          <QRCodeSVG
-            value={url}
-            size={180}
-            fgColor="#1a2744"
-            bgColor="#ffffff"
-            level="M"
-          />
-        </div>
-
-        {/* Instrução em Lora (fonte do paciente) */}
-        <p className="leva-q m-0 text-[0.9rem] text-muted-foreground leading-relaxed">
-          Quer instalar no seu celular?
-          <br />
-          Aponte a câmera para este código
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Card de link — URL visível em insert côncavo + botão copiar
-// ─────────────────────────────────────────────────────────────────────────────
-function CardLink() {
+function UrlInsert({ url }: { url: string }) {
   const [copiado, setCopiado] = useState(false);
-  const url = window.location.href;
   const copiar = () => {
     navigator.clipboard?.writeText(url).then(() => {
       setCopiado(true);
@@ -540,33 +510,35 @@ function CardLink() {
     });
   };
   return (
-    <div className="panel-3d rounded-[8px] px-5 py-4">
-      <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest mb-3">
-        🔗 Link deste Guia
+    <div className="flex items-stretch gap-2 mt-2 mb-3">
+      <div
+        className="concave-3d flex-1 px-3 py-2 text-[11px] font-mono text-primary/75 break-all rounded-[6px] cursor-pointer select-all leading-snug"
+        onClick={copiar}
+        title="Toque para copiar"
+      >
+        {url}
       </div>
-      <div className="flex items-stretch gap-3">
-        {/* URL em insert côncavo — selecionar tudo ao clicar facilita copiar manual */}
-        <div
-          className="concave-3d flex-1 px-4 py-3 text-[11px] text-primary/80 break-all font-mono rounded-[6px] leading-relaxed select-all cursor-text"
-          onClick={copiar}
-          title="Clique para copiar"
-        >
-          {url}
-        </div>
-        <button
-          onClick={copiar}
-          className="btn-3d-soft shrink-0 flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-[5px]"
-          title="Copiar link"
-        >
-          {copiado ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-          <span className="text-[9px] font-black uppercase tracking-wide">
-            {copiado ? "Copiado" : "Copiar"}
-          </span>
-        </button>
-      </div>
-      <p className="leva-q m-0 mt-2 text-[0.78rem] text-muted-foreground leading-relaxed">
-        Copie e envie ao paciente pelo WhatsApp, SMS ou e-mail.
-      </p>
+      <button
+        onClick={copiar}
+        className="btn-3d-soft shrink-0 flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-[5px]"
+        title="Copiar endereço"
+      >
+        {copiado ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        <span className="text-[8px] font-black uppercase tracking-wide">
+          {copiado ? "Copiado" : "Copiar"}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MiniQRHeader — QR em bevel insert para o header fixo (sticky)
+// ─────────────────────────────────────────────────────────────────────────────
+function MiniQRHeader({ url }: { url: string }) {
+  return (
+    <div className="bevel-3d rounded-[6px] p-1.5 shrink-0" title="Aponte a câmera do celular para abrir no celular">
+      <QRCodeSVG value={url} size={34} fgColor="#1a2744" bgColor="#f3ecdd" level="L" />
     </div>
   );
 }
@@ -637,130 +609,145 @@ export default function GuiaDigital() {
     desktop: "computador",
   };
 
+  // URL desta página (inclui ?tenant= se presente)
+  const guiaUrl = window.location.href;
+
   return (
     <GuiaConfigContext.Provider value={config}>
-    <div className={`${themeClass} relative min-h-screen bg-background text-foreground`}>
+    {/*
+      Wrapper principal — idêntico à Área do Cliente:
+      leva-fabric no nível raiz (cobre toda a página); background reage ao tema.
+    */}
+    <div
+      className={`${themeClass} guia-digital relative`}
+      style={{
+        minHeight: "100vh",
+        background: theme === "dark"
+          ? "linear-gradient(160deg,#0b1e3a 0%,#0e2244 55%,#122a50 100%)"
+          : "#f3ecdd",
+      }}
+    >
+      <div className="leva-fabric" aria-hidden="true" />
+      <div className="relative z-[1] flex flex-col min-h-screen">
 
-      {/* ── Header navy + leva-fabric (risca de giz, luz+escuro automático) ──── */}
-      <header className="relative bg-primary px-5 py-5">
-        <div className="leva-fabric" aria-hidden="true" />
-        <div className="relative z-[1] flex items-center gap-4">
-          <PaxterSymbolGlass size={44} tone="dark" />
-          <div className="flex-1 min-w-0">
-            <img
-              src="/brand/padaxor-wordmark-trim.png"
-              alt="PADAXOR"
-              className="h-[22px] object-contain object-left"
-              draggable={false}
+        {/* ── Header — panel-3d sticky, igual à Área do Cliente ─────────────── */}
+        <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
+
+          {/* Esquerda: símbolo glass + wordmark + subtítulo */}
+          <div className="flex items-center gap-2.5">
+            <PaxterSymbolGlass
+              size={40}
+              tone={theme === "dark" ? "dark" : "light"}
+              sharp={true}
             />
-            <p
-              className="m-0 mt-1 text-[0.8rem] tracking-[0.12em] text-accent/80"
-              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 600, letterSpacing: "0.12em" }}
+            <div className="flex flex-col items-start gap-0.5">
+              <img
+                src="/brand/padaxor-wordmark-trim.png"
+                alt="PADAXOR"
+                style={{ height: 22, width: "auto", objectFit: "contain" }}
+                draggable={false}
+              />
+              <p
+                className="text-accent m-0"
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontWeight: 600,
+                  fontSize: 9,
+                  letterSpacing: "0.10em",
+                }}
+              >
+                Guia Digital do Paciente
+              </p>
+            </div>
+          </div>
+
+          {/* Direita: QR em bevel (congelado com o header sticky) + toggle tema */}
+          <div className="flex items-center gap-2">
+            <MiniQRHeader url={guiaUrl} />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          </div>
+        </header>
+
+        {/* ── Navegação rápida — 5 botões em grade, mesma largura, linhas verticais ── */}
+        <div className="px-4 py-2.5 border-b border-border/40 bg-card/80">
+          <div className="grid grid-cols-5 gap-1.5 max-w-lg mx-auto">
+            {SECOES.map(({ id, key, icon: Icon, titulo }) => (
+              <button
+                key={key}
+                onClick={() => navegar(id, key)}
+                className="btn-3d-soft flex flex-col items-center justify-center gap-1 py-2 px-1 text-[9px] font-black uppercase tracking-wide rounded-[5px]"
+              >
+                <Icon className="w-3 h-3 shrink-0" />
+                <span className="truncate w-full text-center leading-none">
+                  {titulo.split(" ")[0]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Corpo ─────────────────────────────────────────────────────────── */}
+        <div className="max-w-lg mx-auto px-4 py-5 space-y-4 w-full">
+
+          {/* Banner: dispositivo detectado */}
+          <div className="panel-3d rounded-[8px] px-5 py-3 flex items-start gap-3">
+            <span className="paxter-led paxter-led-green shrink-0 mt-1.5" />
+            <div className="flex-1 space-y-0.5">
+              <p className="m-0 text-[11px] font-black uppercase tracking-widest text-primary">
+                Dispositivo detectado
+              </p>
+              <p className="leva-q m-0 text-[0.9rem] text-primary/80 leading-snug">
+                Você está num <strong>{deviceLabel[device]}</strong>.
+                A seção certa já está aberta abaixo.
+              </p>
+              <p className="leva-q m-0 text-[0.78rem] text-muted-foreground leading-relaxed pt-0.5">
+                Toque no ícone <Volume2 className="inline w-3 h-3 mx-0.5 opacity-70" /> ao lado de cada passo para ouvir em voz alta.
+              </p>
+            </div>
+          </div>
+
+          {/* Linha ouro separadora */}
+          <div className="h-px bg-accent/20" />
+
+          {/* Seções colapsáveis */}
+          {SECOES.map(({ id, key, icon, titulo, subtitulo }) => (
+            <Secao
+              key={key}
+              id={id}
+              icon={icon}
+              titulo={titulo}
+              subtitulo={subtitulo}
+              aberta={aberta[key]}
+              onToggle={() => toggle(key)}
             >
-              Guia Digital do Paciente
-            </p>
+              {conteudo[key]}
+            </Secao>
+          ))}
+
+          {/* Rodapé */}
+          <div className="panel-3d rounded-[8px] overflow-hidden">
+            <div className="relative bg-primary px-5 py-6 text-center space-y-2">
+              <div className="leva-fabric" aria-hidden="true" />
+              <div className="relative z-[1] space-y-2">
+                <p
+                  className="m-0 text-accent font-black uppercase tracking-widest"
+                  style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1rem" }}
+                >
+                  Ficou com dúvida?
+                </p>
+                <p className="leva-q m-0 text-white/70 text-[0.9rem] leading-relaxed">
+                  Entre em contato com o {config.clinicaNome} pelo WhatsApp ou telefone.
+                  <br />Estamos aqui para ajudar!
+                </p>
+                <div className="h-px bg-accent/20 mt-4" />
+                <p className="m-0 text-accent/40 text-[0.65rem] uppercase tracking-widest mt-3">
+                  {config.clinicaNome} — Clinical Intelligence System
+                </p>
+              </div>
+            </div>
           </div>
-          {/* Toggle claro/escuro — ouro, cantos quadrados Paxter */}
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+
         </div>
-      </header>
-
-      {/* ── Hero — faixa navy com leva-fabric ────────────────────────────────── */}
-      <div className="relative bg-primary" style={{ borderTop: "1px solid rgba(212,175,55,0.15)" }}>
-        <div className="leva-fabric" aria-hidden="true" />
-        <div className="relative z-[1] px-5 pt-2 pb-6 text-center">
-          <p
-            className="leva-q text-white text-[1.15rem] font-semibold leading-snug m-0"
-            style={{ fontFamily: "'Lora', Georgia, serif" }}
-          >
-            Olá! Aqui você aprende a usar o {config.clinicaNome} no seu celular e computador.
-          </p>
-          <p
-            className="leva-q text-white/60 text-[0.9rem] mt-2 m-0 leading-relaxed"
-            style={{ fontFamily: "'Lora', Georgia, serif" }}
-          >
-            Siga os passos da seção do seu dispositivo.
-            <br />
-            Toque no ícone <Volume2 className="inline w-3.5 h-3.5 mx-0.5 opacity-70" /> ao lado de cada passo para ouvir em voz alta.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Navegação rápida — acesso direto a cada seção ────────────────────── */}
-      <div className="px-4 py-3 border-b border-border bg-card flex flex-wrap gap-2 items-center">
-        {SECOES.map(({ id, key, icon: Icon, titulo }) => (
-          <button
-            key={key}
-            onClick={() => navegar(id, key)}
-            className="btn-3d-soft flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-[5px]"
-          >
-            <Icon className="w-3 h-3" />
-            {titulo.split(" ")[0]}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Corpo ───────────────────────────────────────────────────────────── */}
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
-
-        {/* Banner de dispositivo detectado */}
-        <div className="panel-3d rounded-[8px] px-5 py-3 flex items-start gap-3">
-          <span className="paxter-led paxter-led-green shrink-0 mt-1.5" />
-          <div className="flex-1 space-y-0.5">
-            <p className="m-0 text-[11px] font-black uppercase tracking-widest text-primary">
-              Dispositivo detectado
-            </p>
-            <p className="leva-q m-0 text-[0.9rem] text-primary/80 leading-snug">
-              Você está num <strong>{deviceLabel[device]}</strong>. A seção certa já está aberta abaixo.
-            </p>
-          </div>
-        </div>
-
-        {/* QR Code — só no computador, para o paciente abrir no celular */}
-        {device === "desktop" && <CardQRCode />}
-
-        {/* Card do link — URL visível em insert côncavo, fácil de compartilhar */}
-        <CardLink />
-
-        {/* Linha ouro separadora */}
-        <div className="h-px bg-accent/20" />
-
-        {/* Seções colapsáveis */}
-        {SECOES.map(({ id, key, icon, titulo, subtitulo }) => (
-          <Secao
-            key={key}
-            id={id}
-            icon={icon}
-            titulo={titulo}
-            subtitulo={subtitulo}
-            aberta={aberta[key]}
-            onToggle={() => toggle(key)}
-          >
-            {conteudo[key]}
-          </Secao>
-        ))}
-
-        {/* Rodapé */}
-        <div className="panel-3d rounded-[8px] overflow-hidden">
-          <div className="relative bg-primary px-5 py-6 text-center space-y-2">
-            <div className="leva-fabric" aria-hidden="true" />
-            <p
-              className="m-0 text-accent font-black text-sm uppercase tracking-widest"
-              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1rem" }}
-            >
-              Ficou com dúvida?
-            </p>
-            <p className="leva-q m-0 text-white/70 text-[0.9rem] leading-relaxed">
-              Entre em contato com o {config.clinicaNome} pelo WhatsApp ou telefone.
-              <br />Estamos aqui para ajudar!
-            </p>
-            <div className="h-px bg-accent/20 mt-4" />
-            <p className="m-0 text-accent/40 text-[0.65rem] uppercase tracking-widest mt-3">
-              {config.clinicaNome} — Clinical Intelligence System
-            </p>
-          </div>
-        </div>
-
       </div>
     </div>
     </GuiaConfigContext.Provider>
