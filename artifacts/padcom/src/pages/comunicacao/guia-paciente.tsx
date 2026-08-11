@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
@@ -259,6 +260,28 @@ export default function GuiaPaciente() {
             {copiado ? "Copiado!" : "Copiar"}
           </button>
         </div>
+
+        {/* ── Mini QR para conferência do CEO ── */}
+        {slug && (
+          <div className="flex items-start gap-4">
+            <div className="panel-3d rounded-xl p-3 flex-shrink-0 self-start">
+              <QRCodeSVG
+                value={guiaUrl}
+                size={180}
+                level="M"
+                includeMargin={false}
+                bgColor="transparent"
+                fgColor="var(--color-primary, #0d1b2a)"
+              />
+            </div>
+            <div className="space-y-1 pt-1">
+              <p className="text-primary text-[10px] font-black uppercase tracking-widest">Confirmar link</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Aponte a câmera do celular para conferir se o link com <span className="font-mono font-semibold">?tenant={slug}</span> está correto antes de enviá-lo ao paciente.
+              </p>
+            </div>
+          </div>
+        )}
 
         <p className="text-muted-foreground text-xs">
           Este link abre o guia diretamente no celular do paciente. Você pode copiar e enviar manualmente pelo WhatsApp, SMS ou e-mail.
