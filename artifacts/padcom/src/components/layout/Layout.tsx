@@ -86,6 +86,7 @@ const navigation: NavEntry[] = [
     icon: Calendar,
     children: [
       { name: "Marcação de Consulta", href: "/agendar", icon: CalendarDays },
+      { name: "Marcação (Modelo Antigo)", href: "/agendar-antigo", icon: CalendarDays },
       { name: "Agenda Diária", href: "/agenda", icon: Calendar },
       { name: "Motor de Agenda", href: "/agenda/motor", icon: CalendarCog },
       { name: "Clientes", href: "/clients", icon: Users },

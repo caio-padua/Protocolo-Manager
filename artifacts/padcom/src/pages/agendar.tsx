@@ -222,9 +222,10 @@ function MenuSectionLabel({ theme, children }: { theme: "dark" | "light"; childr
   );
 }
 
-export default function Agendar() {
+export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "antigo" } = {}) {
   const [, setLocation] = useLocation();
   const { theme, toggle } = useScreenTheme();
+  const themeClass = theme === "dark" ? "dark" : "";
   const [flow, setFlow] = useState<"menu" | "estetico" | "drcaio" | "assistente" | "outras">("menu");
 
   const { data: contents = [], isLoading: isLoadingContents } = useListSiteContent();
@@ -262,7 +263,7 @@ export default function Agendar() {
 
   if (isLoadingContents) {
     return (
-      <div className={theme === "dark" ? "dark" : ""}>
+      <div className={themeClass}>
         <div className="min-h-screen bg-background flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-accent animate-spin" />
         </div>
@@ -270,121 +271,176 @@ export default function Agendar() {
     );
   }
 
-  return (
-    <div className={theme === "dark" ? "dark" : ""}>
-    <div className="min-h-[100dvh] bg-background text-foreground font-sans flex flex-col">
-      {/* Header Público — mesmo TERNO risca de giz dos paineis (claro linho / escuro navy),
-          para a caixinha superior (simbolo PAXTER + botao de tema) casar com o painel de baixo. */}
-      <header
-        className="relative overflow-hidden panel-3d sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border rounded-none rounded-b-lg"
-        style={{ background: theme === "dark"
-          ? "linear-gradient(180deg, #13233f 0%, #0d1830 100%)"
-          : "linear-gradient(180deg, #faf6ee 0%, #f1e9d8 100%)" }}
-      >
-        <div className="leva-fabric" aria-hidden="true" />
-        <div className="relative z-[1] flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone="dark" />
+  // ── Fluxos compartilhados entre os dois modelos (sem hooks — só JSX) ─────
+  const flows = (
+    <>
+      {flow === "menu" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center space-y-2 mt-4">
+            <h2 className="text-2xl font-serif text-primary">Como podemos ajudar?</h2>
+            <p className="text-sm text-muted-foreground">Escolha o serviço desejado para iniciar seu atendimento.</p>
           </div>
-          <ThemeToggle theme={theme} onToggle={toggle} />
+
+          {videoItem?.mediaUrl && <VideoPlayer url={videoItem.mediaUrl} />}
+
+          {/* Dr. Caio — destaque máximo, mais largo (muda por tema) */}
+          <FlagshipDrCaio theme={theme} name={btnDrCaio} onClick={() => setFlow("drcaio")} />
+
+          {/* Corpo Clínico — agrupador recuado (mais estreito que o Dr. Caio) */}
+          <div className="px-2 space-y-3">
+            <MenuSectionLabel theme={theme}>CORPO CLÍNICO</MenuSectionLabel>
+            <CardGrupo
+              Icon={Stethoscope}
+              name={stripConsultaCom(btnAssistente)}
+              role="Escolha o profissional para consulta"
+              onClick={() => setFlow("assistente")}
+            />
+          </div>
+
+          {/* Outros serviços — agrupador recuado */}
+          <div className="px-2 space-y-3">
+            <MenuSectionLabel theme={theme}>OUTROS SERVIÇOS</MenuSectionLabel>
+            <CardGrupo
+              Icon={Sparkles}
+              name={stripConsultaCom(btnOutras)}
+              role="Injetáveis, estética e mais"
+              onClick={() => setFlow("outras")}
+            />
+          </div>
         </div>
-      </header>
+      )}
 
-      <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
-        {flow === "menu" && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-center space-y-2 mt-4">
-              <h2 className="text-2xl font-serif text-primary">Como podemos ajudar?</h2>
-              <p className="text-sm text-muted-foreground">Escolha o serviço desejado para iniciar seu atendimento.</p>
-            </div>
-
-            {videoItem?.mediaUrl && <VideoPlayer url={videoItem.mediaUrl} />}
-
-            {/* Dr. Caio — destaque máximo, mais largo (muda por tema) */}
-            <FlagshipDrCaio theme={theme} name={btnDrCaio} onClick={() => setFlow("drcaio")} />
-
-            {/* Corpo Clínico — agrupador recuado (mais estreito que o Dr. Caio) */}
-            <div className="px-2 space-y-3">
-              <MenuSectionLabel theme={theme}>CORPO CLÍNICO</MenuSectionLabel>
-              <CardGrupo
-                Icon={Stethoscope}
-                name={stripConsultaCom(btnAssistente)}
-                role="Escolha o profissional para consulta"
-                onClick={() => setFlow("assistente")}
-              />
-            </div>
-
-            {/* Outros serviços — agrupador recuado */}
-            <div className="px-2 space-y-3">
-              <MenuSectionLabel theme={theme}>OUTROS SERVIÇOS</MenuSectionLabel>
-              <CardGrupo
-                Icon={Sparkles}
-                name={stripConsultaCom(btnOutras)}
-                role="Injetáveis, estética e mais"
-                onClick={() => setFlow("outras")}
-              />
-            </div>
+      {flow === "outras" && (
+        <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <button onClick={() => setFlow("menu")} className="w-8 h-8 shrink-0 rounded-md bg-card border border-border flex items-center justify-center text-primary hover:bg-muted transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <h2 className="font-serif text-xl text-primary truncate">Outras Categorias</h2>
           </div>
-        )}
-
-        {flow === "outras" && (
-          <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
-            <div className="flex items-center gap-3 mb-2">
-              <button onClick={() => setFlow("menu")} className="w-8 h-8 shrink-0 rounded-md bg-card border border-border flex items-center justify-center text-primary hover:bg-muted transition-colors">
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <h2 className="font-serif text-xl text-primary truncate">Outras Categorias</h2>
-            </div>
-            <div className="space-y-3">
-              <CardGrupo
-                Icon={Syringe}
-                eyebrow="INJETÁVEIS"
-                name={btnInjetavel}
-                role="Protocolos e anamnese"
-                onClick={() => setLocation("/anamnese/v2")}
-              />
-              <CardGrupo
-                Icon={Sparkles}
-                eyebrow="ESTÉTICA"
-                name={btnEstetico}
-                role="Procedimentos estéticos"
-                onClick={() => setFlow("estetico")}
-              />
-            </div>
+          <div className="space-y-3">
+            <CardGrupo
+              Icon={Syringe}
+              eyebrow="INJETÁVEIS"
+              name={btnInjetavel}
+              role="Protocolos e anamnese"
+              onClick={() => setLocation("/anamnese/v2")}
+            />
+            <CardGrupo
+              Icon={Sparkles}
+              eyebrow="ESTÉTICA"
+              name={btnEstetico}
+              role="Procedimentos estéticos"
+              onClick={() => setFlow("estetico")}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {flow === "estetico" && (
-          <EsteticoFlow
-            onBack={() => setFlow("menu")}
-            title={btnEstetico}
-            payText={txtEstetico}
-            payLink={linkEstetico}
-          />
-        )}
+      {flow === "estetico" && (
+        <EsteticoFlow
+          onBack={() => setFlow("menu")}
+          title={btnEstetico}
+          payText={txtEstetico}
+          payLink={linkEstetico}
+        />
+      )}
 
-        {flow === "drcaio" && (
-          <DrCaioFlow
-            onBack={() => setFlow("menu")}
-            title={btnDrCaio}
-            payTextConcierge={txtConcierge}
-            payLink={linkConcierge}
-            theme={theme}
-          />
-        )}
+      {flow === "drcaio" && (
+        <DrCaioFlow
+          onBack={() => setFlow("menu")}
+          title={btnDrCaio}
+          payTextConcierge={txtConcierge}
+          payLink={linkConcierge}
+          theme={theme}
+        />
+      )}
 
-        {flow === "assistente" && (
-          <AssistenteFlow
-            onBack={() => setFlow("menu")}
-            title={btnAssistente}
-            payText={txtAssistente}
-            payLink={linkAssistente}
-          />
-        )}
-      </main>
-    </div>
+      {flow === "assistente" && (
+        <AssistenteFlow
+          onBack={() => setFlow("menu")}
+          title={btnAssistente}
+          payText={txtAssistente}
+          payLink={linkAssistente}
+        />
+      )}
+    </>
+  );
+
+  // ── MODELO ANTIGO — preservado sem exclusão (ordem CEO 11/08/2026). ────────
+  // Terno risca de giz no HEADER (panel-3d), corpo neutro bg-background.
+  // Acessível via /agendar-antigo | menu "Marcação (Modelo Antigo)".
+  if (_variant === "antigo") {
+    return (
+      <div className={themeClass}>
+      <div className="min-h-[100dvh] bg-background text-foreground font-sans flex flex-col">
+        <header
+          className="relative overflow-hidden panel-3d sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border rounded-none rounded-b-lg"
+          style={{ background: theme === "dark"
+            ? "linear-gradient(180deg, #13233f 0%, #0d1830 100%)"
+            : "linear-gradient(180deg, #faf6ee 0%, #f1e9d8 100%)" }}
+        >
+          <div className="leva-fabric" aria-hidden="true" />
+          <div className="relative z-[1] flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone="dark" />
+            </div>
+            <ThemeToggle theme={theme} onToggle={toggle} />
+          </div>
+        </header>
+        <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
+          {flows}
+        </main>
+      </div>
+      </div>
+    );
+  }
+
+  // ── MODELO NOVO (padrão desde 11/08/2026) — pele de terno claro no CORPO. ──
+  // INVERSO do antigo: corpo recebe champanhe-linho (#f3ecdd), topo é flat/liso.
+  return (
+    <div
+      className={`${themeClass} agendar-novo relative`}
+      style={{
+        minHeight: "100vh",
+        background: theme === "dark"
+          ? "linear-gradient(160deg,#0b1e3a 0%,#0e2244 55%,#122a50 100%)"
+          : "#f3ecdd",
+      }}
+    >
+      <div className="leva-fabric" aria-hidden="true" />
+      <div className="relative z-[1] flex flex-col min-h-screen">
+        {/* Header flat — sem panel-3d: terno fica no corpo, topo é neutro/translúcido */}
+        <header
+          className="sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border/60"
+          style={{
+            background: theme === "dark"
+              ? "rgba(11,30,58,0.90)"
+              : "rgba(243,236,221,0.88)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          } as React.CSSProperties}
+        >
+          <div className="flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone={theme === "dark" ? "dark" : "light"} />
+            </div>
+            <ThemeToggle theme={theme} onToggle={toggle} />
+          </div>
+        </header>
+        <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
+          {flows}
+        </main>
+      </div>
     </div>
   );
+}
+
+/** Modelo anterior — preservado sem exclusão (ordem CEO 11/08/2026).
+ *  Terno risca de giz no header (panel-3d), corpo neutro bg-background.
+ *  Rota: /agendar-antigo | Menu: "Marcação (Modelo Antigo)". */
+export function AgendarAntigo() {
+  return <Agendar _variant="antigo" />;
 }
 
 // --- DOOR 2: ESTETICOS ---

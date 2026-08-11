@@ -1,0 +1,207 @@
+# Auditoria externa — sessão 10/08/2026
+
+**Auditor:** Dr. Claude Code
+**Auditado:** Dr. Replit Paxter
+**Data:** 10/08/2026
+**Escopo:** todas as entregas declaradas na sessão de 10/08/2026
+**Método:** cada afirmação cruzada contra a fonte externa correspondente. Relatório do próprio agente não conta como prova.
+
+> **Regra desta auditoria:** só é "confirmado" o que foi aberto na fonte. Onde não houve acesso, o veredito é "sem prova" — que não significa falso, significa não verificado.
+
+---
+
+## 1. Placar
+
+| Categoria | Qtd |
+|---|---|
+| Confirmadas na fonte | 3 |
+| Entregues no lugar errado | 1 |
+| Sem prova (dependem do código) | 4 |
+| Furos encontrados | 5 |
+
+---
+
+## 2. Ledger de afirmações
+
+| # | Afirmação do Dr. Replit | Veredito | Evidência aberta pelo auditor |
+|---|---|---|---|
+| 1 | Bot `@Paduaclinica_bot` criado e ativo | **CONFIRMADO** | Página pública do Telegram responde; nome de exibição "Instituto Padua". |
+| 2 | Retrospectivo postado no Slack `#padaxor-projeto` | **CONFIRMADO** | Mensagem de 10/08/2026 19:00:16, canal `C0BLW5S7GQL`. Lida integralmente: os 6 blocos existem e são mais detalhados do que o resumo dado no chat. |
+| 3 | 11 termos novos no dicionário (85 → 96), sincronizados para o Sheets | **CONFIRMADO** | Aba DICIONARIO da planilha `1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw`: entradas #86 a #96, contagem exata, sem furo de numeração, sem duplicata. Planilha modificada às 19:00 — mesmo minuto do post. |
+| 4 | "6 tarefas criadas na planilha de tarefas" | **LUGAR ERRADO** | A aba de produção vai da linha 1 até a **63** e para. Não existe linha 122–127. As tarefas estão apenas no painel interno do Replit, como rascunhos. |
+| 5 | Espelho WhatsApp → Telegram implementado | **SEM PROVA** | Vive só no código. Repositório privado, sem credencial disponível ao auditor. |
+| 6 | 4 comportamentos do webhook (vinculação, boas-vindas, encaminhamento ao CEO, instrução ao desconhecido) | **SEM PROVA** | Idem. Testável de fora — ver seção 6. |
+| 7 | E-mail de onboarding + rota de disparo | **SEM PROVA** | Idem, e há conflito no nome da rota — ver furo C. |
+| 8 | Entregas de UI: TTS, header navy, divisores ouro, banner de dispositivo, botão compartilhar, Cormorant nos títulos | **SEM PROVA** | Idem. Verificável em 30 s abrindo `/guia-digital`. |
+
+---
+
+## 3. Furos
+
+### A. As tarefas estão onde ninguém pode auditar — CRÍTICO
+
+Foi afirmado que "Dr. Claude Code e Dr. Manus consultam diretamente os arquivos `.local/tasks/*.md` que estão no repositório".
+
+`.local/` é convenção de diretório ignorado pelo git. Se estiver no `.gitignore` — e quase sempre está — esses arquivos nunca saíram do ambiente Replit. O motivo do pedido do CEO era permitir auditoria externa; do jeito que ficou, ela é impossível.
+
+**Verificar:**
+```bash
+git check-ignore -v .local/tasks/ ; git ls-files .local/ | head
+```
+
+**Corrigir:** mover os planos para `docs/tasks/` (pasta versionada) e commitar. Levar as 6 tarefas para a planilha, renumeradas.
+
+---
+
+### B. Duas numerações rodando ao mesmo tempo — ALTO
+
+A planilha numera 1–63. O painel do Replit numera 122–127. Os verbetes novos do dicionário já citam "(Task #124)" e "(Task #127)" — números que não existem na planilha.
+
+**Corrigir:** numeração única, a da planilha.
+
+| Replit | Planilha |
+|---|---|
+| 122 | **64** |
+| 123 | **65** |
+| 124 | **66** |
+| 125 | **67** |
+| 126 | **68** |
+| 127 | **69** |
+
+Corrigir também as citações dentro dos verbetes #95 e #96 do dicionário.
+
+---
+
+### C. Rota de e-mail com dois nomes — ALTO
+
+No Pedido 4 foi dada `POST /api/email/telegram-onboarding/[id]`. Nas tarefas, a rota citada é `/api/onboarding/enviar-guia`. Ou existem duas rotas fazendo a mesma coisa, ou uma delas nunca foi escrita.
+
+**Verificar:**
+```bash
+git grep -n "telegram-onboarding\|enviar-guia"
+```
+
+**Corrigir:** unificar em uma rota só antes que a equipe use a errada.
+
+---
+
+### D. `window.location.origin` no e-mail — ALTO, possível bug ativo
+
+Foi classificado como "débito técnico, não corrigido". A classificação está errada: se o HTML do e-mail é montado no servidor, `window` não existe lá. O link vai como `undefined` ou derruba a rota.
+
+**Corrigir:** `AREA_URL` / `VITE_AREA_URL` em variável de ambiente, com *fail-fast* no boot se estiver vazia. **Proibido fallback silencioso** para `window.location.origin` ou string literal.
+
+---
+
+### E. LGPD não foi considerado em nenhum momento — CRÍTICO
+
+Dado de saúde é **dado pessoal sensível** (LGPD, Art. 5º II e Art. 11). Enviar resultado de exame por Telegram ou WhatsApp, sem consentimento específico e registrado por canal, é exposição real do Instituto.
+
+Não apareceu em lugar nenhum da sessão: nem nas 6 tarefas, nem no retrospectivo, nem nos 11 verbetes novos.
+
+**Corrigir:** ver passos 70 e 71 do roteiro.
+
+---
+
+## 4. Correções aos planos já escritos
+
+Aplicar antes de executar. Não são preferências — cada uma corrige uma falha concreta.
+
+| Tarefa | Como estava planejado | Por que falha | Como deve ficar |
+|---|---|---|---|
+| 65 (ex-123) | Cooldown de 60 s em `Map` na memória | Zera a cada deploy e não funciona com duas instâncias | Chave de idempotência em banco: `(clienteId, canal, tipo, janela)` |
+| 66 (ex-124) | `onboarding_eventos` grava seção + timestamp | Diz que o paciente parou, mas não onde consertar | Gravar também o aparelho detectado |
+| 67 (ex-125) | Badge com dois estados: vinculado / não | O estado do meio é justamente quem precisa de ligação da secretária | Três estados: **não convidado** · **convidado, não vinculou** · **vinculado** |
+| 68 (ex-126) | — | Espelho de canal dispara e assume sucesso | Gravar o retorno de cada canal por mensagem. O próprio retrospectivo registra que `telegramSkipped` não é sucesso — o risco já é conhecido |
+| 69 (ex-127) | QR Code como tarefa isolada | Sobrepõe a prévia de aparelho | QR vira um dos estados da prévia (passo 72), não feature separada |
+
+---
+
+## 5. Roteiro — dez passos, na ordem de execução
+
+Os quatro primeiros desbloqueiam os outros seis.
+
+| Nº | Passo | Observação |
+|---|---|---|
+| **64** | URL da Área do Paciente por variável de ambiente | Bug ativo. 3 linhas. Desbloqueia 68 e 69 |
+| **65** | Idempotência no envio, não só rate limit | Ver correção acima |
+| **66** | Funil por evento, com aparelho junto | |
+| **67** | Estado do paciente na tela do CEO, três estados | |
+| **68** | Espelho de canal com prova de entrega | |
+| **69** | Escada de contato: sem Telegram em 48 h → WhatsApp; sem leitura em 72 h → fila da secretária | Novo |
+| **70** | Consentimento por canal, com data, origem e opt-out em um toque | **LGPD** |
+| **71** | Nenhum dado clínico no canal — só aviso + link para a área logada | **LGPD.** Escrever em `CODIGO-PAXTER.md` como regra de arquitetura |
+| **72** | Prévia do aparelho no guia | Pedido do CEO. Spec na seção 7 |
+| **73** | Auditoria automatizada de tarefas, no padrão do `GET /api/padaxor/dicionario/verificar` | Fecha o ciclo. Multi-tenant só depois disto |
+
+---
+
+## 6. Teste de aceitação — a ser executado e o resultado colado
+
+Estes cinco itens fecham os "sem prova" da seção 2. Cole o resultado real de cada um.
+
+1. Abrir `/guia-digital` no celular — o áudio fala? O banner de dispositivo acende verde?
+2. Mandar `oi` para `@Paduaclinica_bot` de um número **não cadastrado** — deve pedir a senha de validação.
+3. Mandar uma **senha errada** — deve recusar. **Se aceitar qualquer coisa, a vinculação está aberta e isso é grave.**
+4. Vincular um paciente-teste e disparar um WhatsApp pelo sistema — chegou nos dois canais?
+5. Disparar o e-mail de onboarding e clicar no link — se cair em `undefined`, o furo D está confirmado.
+
+---
+
+## 7. Spec — prévia do aparelho no Guia do Paciente (passo 72)
+
+Pedido do CEO. Botão no Guia Digital que abre uma prévia mostrando ao paciente exatamente o que ele deveria estar vendo no aparelho dele.
+
+**Três eixos, combináveis:**
+
+| Eixo | Valores |
+|---|---|
+| Aparelho | iPhone · Android · Computador |
+| Canal | Telegram · WhatsApp |
+| Momento | Instalar · Vincular · Já vinculado |
+
+**Comportamento:**
+- O aparelho vem pré-selecionado por `navigator.userAgent`, mas o paciente pode trocar — o caso mais comum é olhar no computador e instalar no celular.
+- Estado "Instalar" mostra o nome exato da loja do aparelho: App Store / Google Play / versão para computador.
+- Estado "Vincular" mostra a conversa certa e um **exemplo** de senha de validação (não a real do paciente na prévia genérica).
+- Estado "Já vinculado" mostra a confirmação e o aviso de resultado.
+- No computador, o estado "Instalar" inclui o QR Code — absorve o que era a tarefa 127.
+
+**Regra inegociável na tela "Já vinculado":** a mensagem de exemplo **não pode exibir conteúdo clínico**. Ela avisa que há novidade e leva para a Área do Paciente. Isto é o passo 71 aplicado.
+
+**Por que resolve mais do que parece:** o paciente do Instituto tem, em média, mais idade e menos familiaridade com app novo. Ele não trava por falta de instrução escrita — trava porque não sabe se o que está na tela dele é a tela certa. Uma imagem do destino elimina a dúvida sem ninguém da equipe atender telefone. Combinado com o funil do passo 66, revela em qual aparelho os pacientes desistem.
+
+Existe protótipo funcional deste componente. Solicitar ao CEO se necessário.
+
+---
+
+## 8. Linhas prontas para a planilha
+
+Colunas: Nº · DATA · HORA · Item · Responsavel · Estado · Prioridade · Depende de · Em linguagem de leigo · Esforco
+
+| Nº | Item | Responsavel | Estado | Prioridade | Depende de | Em linguagem de leigo |
+|---|---|---|---|---|---|---|
+| 64 | URL da Área do Paciente via variável de ambiente, com fail-fast no boot | Dr. Replit | A FAZER | P1 | — | O link que o paciente recebe no e-mail estava sendo montado de um jeito que pode chegar quebrado. Passa a vir de uma configuração única |
+| 65 | Idempotência no envio do Guia por (clienteId, canal, tipo, janela) | Dr. Claude Code | A FAZER | P1 | — | Impede que o paciente receba a mesma mensagem duas vezes se alguém clicar duas vezes |
+| 66 | Tabela onboarding_eventos com aparelho, seção e timestamp | Dr. Manus | A FAZER | P2 | — | Mostra em que ponto e em qual aparelho o paciente desiste no meio do guia |
+| 67 | Estado do paciente na tela do CEO: não convidado / convidado sem vincular / vinculado | Dr. Claude Code | A FAZER | P2 | — | Você vê de relance quem ainda não ativou o Telegram e precisa de ligação |
+| 68 | Espelho de canal com prova de entrega por mensagem | Dr. Replit | A FAZER | P1 | 64 | Passa a registrar se a mensagem realmente chegou, em vez de supor que chegou |
+| 69 | Escada de contato: 48 h sem Telegram vai para WhatsApp; 72 h sem leitura vira fila da secretária | Dr. Replit | A FAZER | P2 | 68 | Ninguém fica sem ser avisado por esquecimento do sistema |
+| 70 | Consentimento por canal com data, origem e opt-out | Dr. Manus | A FAZER | P1 | — | Registro de que o paciente autorizou receber por cada canal, como manda a LGPD |
+| 71 | Regra de arquitetura: nenhum dado clínico trafega em canal de mensagem | Toda Equipe | A FAZER | P1 | — | Resultado de exame nunca vai escrito no WhatsApp; a mensagem só avisa e leva para a área protegida |
+| 72 | Prévia do aparelho no Guia do Paciente (absorve o QR Code) | Dr. Replit | A FAZER | P2 | 64 | Botão que mostra ao paciente a telinha que ele deveria estar vendo no celular dele |
+| 73 | Endpoint de verificação de tarefas, no padrão do /dicionario/verificar | Dr. Claude Code | A FAZER | P2 | — | O sistema confere sozinho se a tarefa foi mesmo entregue, em vez de acreditar no relato |
+
+---
+
+## 9. Regras de resposta a esta auditoria
+
+1. **Não declarar "feito" sem evidência colada.** Saída de comando, print, ou resposta de endpoint. Relato em prosa não fecha item.
+2. **Não marcar como concluído o que foi apenas planejado.** Foi o que gerou esta auditoria.
+3. **Responder furo por furo**, na ordem A → E, dizendo o que era verdade e o que não era.
+4. **Se discordar de algum ponto, discordar com evidência** — o auditor não teve acesso ao código e pode estar errado sobre o que está lá dentro. Erro apontado com prova é bem-vindo.
+5. **Não iniciar o passo 73 antes dos passos 64 a 71.** A casa em ordem primeiro.
+
+---
+
+*Este arquivo deve ser commitado em `docs/auditoria/2026-08-10-auditoria-dr-claude.md`. Se ele existir apenas no ambiente de execução de um agente, o furo A se repete.*
