@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { useScreenTheme } from "@/components/theme/useScreenTheme";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
 const AREA_URL_DEFAULT = import.meta.env.VITE_AREA_URL
@@ -91,8 +93,18 @@ function useTTS() {
     window.speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(texto);
     utt.lang  = "pt-BR";
-    utt.rate  = 0.88;
-    utt.pitch = 1.0;
+    utt.rate  = 0.82;   // ritmo pausado — locutor jornalístico
+    utt.pitch = 0.82;   // timbre grave — Cid Moreira / William Bonner
+    // Tentar voz masculina pt-BR disponível no sistema
+    const voices = window.speechSynthesis.getVoices();
+    const mascPtBR = voices.find((v) =>
+      /pt[-_]BR/i.test(v.lang) &&
+      /Daniel|Lucas|Ricardo|Leandro|Felipe|Google.*Brasil|male/i.test(v.name)
+    );
+    const anyPtBR = voices.find((v) => /pt[-_]BR/i.test(v.lang));
+    const anyPt   = voices.find((v) => /^pt/i.test(v.lang));
+    const escolhida = mascPtBR ?? anyPtBR ?? anyPt;
+    if (escolhida) utt.voice = escolhida;
     utt.onstart = () => setFalando(true);
     utt.onend   = () => { setFalando(false); activeRef.current = null; };
     utt.onerror = () => { setFalando(false); activeRef.current = null; };
@@ -516,28 +528,46 @@ function CardQRCode() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Botão compartilhar — copia URL
+// Card de link — URL visível em insert côncavo + botão copiar
 // ─────────────────────────────────────────────────────────────────────────────
-function BotaoCompartilhar() {
+function CardLink() {
   const [copiado, setCopiado] = useState(false);
+  const url = window.location.href;
   const copiar = () => {
-    const url = window.location.href;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => {
-        setCopiado(true);
-        setTimeout(() => setCopiado(false), 2500);
-      });
-    }
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    });
   };
   return (
-    <button
-      onClick={copiar}
-      className="btn-3d-soft flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-[5px]"
-      title="Copiar link deste guia"
-    >
-      {copiado ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-      {copiado ? "Copiado!" : "Compartilhar"}
-    </button>
+    <div className="panel-3d rounded-[8px] px-5 py-4">
+      <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest mb-3">
+        🔗 Link deste Guia
+      </div>
+      <div className="flex items-stretch gap-3">
+        {/* URL em insert côncavo — selecionar tudo ao clicar facilita copiar manual */}
+        <div
+          className="concave-3d flex-1 px-4 py-3 text-[11px] text-primary/80 break-all font-mono rounded-[6px] leading-relaxed select-all cursor-text"
+          onClick={copiar}
+          title="Clique para copiar"
+        >
+          {url}
+        </div>
+        <button
+          onClick={copiar}
+          className="btn-3d-soft shrink-0 flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-[5px]"
+          title="Copiar link"
+        >
+          {copiado ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          <span className="text-[9px] font-black uppercase tracking-wide">
+            {copiado ? "Copiado" : "Copiar"}
+          </span>
+        </button>
+      </div>
+      <p className="leva-q m-0 mt-2 text-[0.78rem] text-muted-foreground leading-relaxed">
+        Copie e envie ao paciente pelo WhatsApp, SMS ou e-mail.
+      </p>
+    </div>
   );
 }
 
@@ -555,17 +585,13 @@ const SECOES = [
 
 type SecKey = typeof SECOES[number]["key"];
 
-// Padrão pinstripe ouro sobre navy (terno risca de giz)
-const PINSTRIPE: React.CSSProperties = {
-  backgroundImage: [
-    "repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(212,175,55,0.09) 47px, rgba(212,175,55,0.09) 48px)",
-    "repeating-linear-gradient(180deg, transparent, transparent 47px, rgba(212,175,55,0.04) 47px, rgba(212,175,55,0.04) 48px)",
-  ].join(", "),
-};
+// leva-fabric — risca de giz ouro/navy vem do index.css (light + dark automático)
 
 export default function GuiaDigital() {
   const device = detectDevice();
   const config = useGuiaConfigLoader();
+  const { theme, toggle: toggleTheme } = useScreenTheme();
+  const themeClass = theme === "dark" ? "dark" : "";
 
   const [aberta, setAberta] = useState<Record<SecKey, boolean>>(() => ({
     iphone:     device === "iphone",
@@ -613,52 +639,54 @@ export default function GuiaDigital() {
 
   return (
     <GuiaConfigContext.Provider value={config}>
-    <div className="min-h-screen bg-background">
+    <div className={`${themeClass} relative min-h-screen bg-background text-foreground`}>
 
-      {/* ── Header navy + pinstripe risca de giz ─────────────────────────────── */}
-      <header className="bg-primary px-5 py-5 flex items-center gap-4" style={PINSTRIPE}>
-        <PaxterSymbolGlass size={44} tone="dark" />
-        <div className="flex-1 min-w-0">
-          <img
-            src="/brand/padaxor-wordmark-trim.png"
-            alt="PADAXOR"
-            className="h-[22px] object-contain object-left"
-            draggable={false}
-          />
-          <p
-            className="m-0 mt-1 text-[0.8rem] tracking-[0.12em] text-accent/80"
-            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 600, letterSpacing: "0.12em" }}
-          >
-            Guia Digital do Paciente
-          </p>
+      {/* ── Header navy + leva-fabric (risca de giz, luz+escuro automático) ──── */}
+      <header className="relative bg-primary px-5 py-5">
+        <div className="leva-fabric" aria-hidden="true" />
+        <div className="relative z-[1] flex items-center gap-4">
+          <PaxterSymbolGlass size={44} tone="dark" />
+          <div className="flex-1 min-w-0">
+            <img
+              src="/brand/padaxor-wordmark-trim.png"
+              alt="PADAXOR"
+              className="h-[22px] object-contain object-left"
+              draggable={false}
+            />
+            <p
+              className="m-0 mt-1 text-[0.8rem] tracking-[0.12em] text-accent/80"
+              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontWeight: 600, letterSpacing: "0.12em" }}
+            >
+              Guia Digital do Paciente
+            </p>
+          </div>
+          {/* Toggle claro/escuro — ouro, cantos quadrados Paxter */}
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
 
-      {/* ── Hero — faixa navy mais clara ─────────────────────────────────────── */}
-      <div
-        className="bg-primary px-5 pt-2 pb-6 text-center"
-        style={{
-          borderTop: "1px solid rgba(212,175,55,0.15)",
-          ...PINSTRIPE,
-        }}
-      >
-        <p
-          className="leva-q text-white text-[1.15rem] font-semibold leading-snug m-0"
-          style={{ fontFamily: "'Lora', Georgia, serif" }}
-        >
-          Olá! Aqui você aprende a usar o {config.clinicaNome} no seu celular e computador.
-        </p>
-        <p
-          className="leva-q text-white/60 text-[0.9rem] mt-2 m-0 leading-relaxed"
-          style={{ fontFamily: "'Lora', Georgia, serif" }}
-        >
-          Siga os passos da seção do seu dispositivo.
-          <br />
-          Toque no ícone <Volume2 className="inline w-3.5 h-3.5 mx-0.5 opacity-70" /> ao lado de cada passo para ouvir em voz alta.
-        </p>
+      {/* ── Hero — faixa navy com leva-fabric ────────────────────────────────── */}
+      <div className="relative bg-primary" style={{ borderTop: "1px solid rgba(212,175,55,0.15)" }}>
+        <div className="leva-fabric" aria-hidden="true" />
+        <div className="relative z-[1] px-5 pt-2 pb-6 text-center">
+          <p
+            className="leva-q text-white text-[1.15rem] font-semibold leading-snug m-0"
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+          >
+            Olá! Aqui você aprende a usar o {config.clinicaNome} no seu celular e computador.
+          </p>
+          <p
+            className="leva-q text-white/60 text-[0.9rem] mt-2 m-0 leading-relaxed"
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+          >
+            Siga os passos da seção do seu dispositivo.
+            <br />
+            Toque no ícone <Volume2 className="inline w-3.5 h-3.5 mx-0.5 opacity-70" /> ao lado de cada passo para ouvir em voz alta.
+          </p>
+        </div>
       </div>
 
-      {/* ── Navegação rápida + botão compartilhar ────────────────────────────── */}
+      {/* ── Navegação rápida — acesso direto a cada seção ────────────────────── */}
       <div className="px-4 py-3 border-b border-border bg-card flex flex-wrap gap-2 items-center">
         {SECOES.map(({ id, key, icon: Icon, titulo }) => (
           <button
@@ -670,9 +698,6 @@ export default function GuiaDigital() {
             {titulo.split(" ")[0]}
           </button>
         ))}
-        <div className="ml-auto">
-          <BotaoCompartilhar />
-        </div>
       </div>
 
       {/* ── Corpo ───────────────────────────────────────────────────────────── */}
@@ -694,6 +719,9 @@ export default function GuiaDigital() {
         {/* QR Code — só no computador, para o paciente abrir no celular */}
         {device === "desktop" && <CardQRCode />}
 
+        {/* Card do link — URL visível em insert côncavo, fácil de compartilhar */}
+        <CardLink />
+
         {/* Linha ouro separadora */}
         <div className="h-px bg-accent/20" />
 
@@ -714,7 +742,8 @@ export default function GuiaDigital() {
 
         {/* Rodapé */}
         <div className="panel-3d rounded-[8px] overflow-hidden">
-          <div className="bg-primary px-5 py-6 text-center space-y-2" style={PINSTRIPE}>
+          <div className="relative bg-primary px-5 py-6 text-center space-y-2">
+            <div className="leva-fabric" aria-hidden="true" />
             <p
               className="m-0 text-accent font-black text-sm uppercase tracking-widest"
               style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1rem" }}
