@@ -38,6 +38,8 @@ CF_AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/c68f93d5feb576ea286297
 PADAXOR_AI_BYPASS = "true"
 PADAXOR_SLACK_CHANNEL_ID = "C0BLW5S7GQL"
 PADAXOR_TELEGRAM_CHAT_ID = "8911159822"
+VITE_AREA_URL = "https://e4777049-2482-4493-bc8d-9ddd502ce731-00-33xz3y36vyw2i.riker.replit.dev/area"
+VITE_SITE_URL = "https://e4777049-2482-4493-bc8d-9ddd502ce731-00-33xz3y36vyw2i.riker.replit.dev"
 
 [userenv.development]
 ZAPSIGN_BASE_URL = "https://api.zapsign.com.br"
