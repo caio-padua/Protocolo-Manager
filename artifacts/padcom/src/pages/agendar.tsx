@@ -500,6 +500,73 @@ export function AgendarAntigo() {
   return <Agendar _variant="antigo" />;
 }
 
+// ── SELECT PAXTER — substitui <select> nativo; visual Paxter up-bevel ────────
+function PaxterSelect({
+  value, onChange, options, isDark, placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  isDark: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const label = options.find(o => o.value === value)?.label ?? placeholder ?? "Selecionar";
+  const bg = isDark
+    ? "linear-gradient(180deg, #243860 0%, #1a2e52 55%, #122244 100%)"
+    : "linear-gradient(180deg, #ffffff 0%, #f3ead8 55%, #e4d6bc 100%)";
+  const border = isDark ? "rgba(100,148,210,0.22)" : "rgba(184,146,77,0.36)";
+  const shadow = isDark
+    ? "0 3px 8px rgba(0,0,0,0.44), inset 0 2px 0 rgba(255,255,255,0.11), inset 0 -3px 6px rgba(0,0,0,0.30)"
+    : "0 3px 7px rgba(7,22,43,0.17), inset 0 2px 0 rgba(255,255,255,0.96), inset 0 -3px 6px rgba(7,22,43,0.07)";
+  const textColor = isDark ? "rgba(200,218,245,0.88)" : "rgba(22,40,74,0.82)";
+
+  return (
+    <div style={{ position: "relative", zIndex: open ? 40 : "auto" }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{
+        width: "100%", background: bg, border: `1px solid ${border}`,
+        borderRadius: open ? "8px 8px 0 0" : 8, boxShadow: shadow,
+        padding: "11px 14px", color: textColor, fontSize: 14, textAlign: "left",
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+        transition: "all 0.18s ease",
+      }}>
+        <span>{label}</span>
+        <span style={{ color: "#c2a05a", fontSize: 11, marginLeft: 8 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0,
+          background: isDark ? "linear-gradient(180deg, #1e3464 0%, #152850 100%)" : "linear-gradient(180deg, #fdfbf5 0%, #f6eddb 100%)",
+          border: `1px solid ${border}`, borderTop: "none",
+          borderRadius: "0 0 8px 8px", overflow: "hidden",
+          boxShadow: isDark ? "0 10px 24px rgba(0,0,0,0.6)" : "0 8px 20px rgba(7,22,43,0.18)",
+          zIndex: 50,
+        }}>
+          {options.map((opt, i) => {
+            const isSel = opt.value === value;
+            return (
+              <button key={opt.value} type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                style={{
+                  width: "100%", textAlign: "left", padding: "11px 14px",
+                  background: isSel
+                    ? "linear-gradient(180deg, #f4e2a8 0%, #c2a05a 55%, #8a6d2f 100%)"
+                    : "transparent",
+                  color: isSel ? "#16284a" : textColor,
+                  border: "none",
+                  borderTop: i > 0 ? `1px solid ${isDark ? "rgba(100,148,210,0.12)" : "rgba(184,146,77,0.18)"}` : "none",
+                  cursor: "pointer", fontSize: 14, fontWeight: isSel ? 600 : 400,
+                  transition: "background 0.12s ease",
+                }}
+              >{opt.label}</button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CALENDÁRIO PAXTER — substitui <input type="date"> nativo; visual Paxter ──
 function PaxterCalendar({
   value, onChange, isDark, minDate,
@@ -1255,10 +1322,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           transition: all .18s ease; border-radius: 8px;
         }
         .dc-luxo .dc-chip[data-active="true"] {
-          background: linear-gradient(180deg, #f4e2a8 0%, #c2a05a 55%, #8a6d2f 100%);
-          border-color: rgba(194,160,90,0.60);
-          color: #1a3060;
-          box-shadow: 0 4px 10px rgba(194,160,90,0.44), inset 0 2px 0 rgba(255,255,255,0.65), inset 0 -2px 4px rgba(100,70,20,0.22);
+          background: linear-gradient(180deg, #9a7832 0%, #b8922a 40%, #c2a05a 100%);
+          border-color: rgba(138,109,47,0.72);
+          color: #fff8e8;
+          box-shadow: inset 0 3px 7px rgba(80,50,10,0.42), inset 0 1px 3px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.28);
+          transform: translateY(1px);
         }
         .dc-luxo .dc-concierge {
           background: ${isDark ? "linear-gradient(180deg, #1d335c 0%, #16284a 100%)" : "linear-gradient(180deg, #ffffff 0%, #f4f2ee 100%)"};
@@ -1476,63 +1544,66 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
           {/* VIA COMUM — grade distante seg-sex */}
           {stage === "comum" && (
-            <div className="flex flex-col gap-7">
-              <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-2">V. Via Comum</h3>
-                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>Escolha um horário disponível.</p>
-              </section>
-
-              <div className="flex flex-col gap-4">
-                {viaComum.days.map((d) => (
-                  <div key={d.date} className="flex flex-col gap-2">
-                    <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{d.label}</p>
-                    <div className="flex flex-wrap gap-2.5">
-                      {[d.morning, d.afternoon].map((t) => {
-                        const active = chosenSlotDate === d.date && chosenSlotTime === t;
-                        return (
-                          <button
-                            key={`${d.date}-${t}`}
-                            type="button"
-                            onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t); }}
-                            data-active={active}
-                            className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+            <div className={`panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+              <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+                <span className="dc-serif italic dc-gold text-base tracking-wide">V. Via Comum</span>
               </div>
+              <div className="login-card-body px-5 py-5 flex flex-col gap-5">
+                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>Escolha um horário disponível.</p>
 
-              {errorMsg && (
-                <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <p>{errorMsg}</p>
+                <div className="flex flex-col gap-4">
+                  {viaComum.days.map((d) => (
+                    <div key={d.date} className="flex flex-col gap-2">
+                      <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-400" : "text-stone-500"}`}>{d.label}</p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {[d.morning, d.afternoon].map((t) => {
+                          const active = chosenSlotDate === d.date && chosenSlotTime === t;
+                          return (
+                            <button
+                              key={`${d.date}-${t}`}
+                              type="button"
+                              onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t); }}
+                              data-active={active}
+                              className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                            >
+                              {t}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
 
-              <button
-                onClick={() => submit("fila")}
-                disabled={!chosenSlotTime || createReq.isPending}
-                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-              >
-                {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
-              </button>
+                {errorMsg && (
+                  <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <p>{errorMsg}</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => submit("fila")}
+                  disabled={!chosenSlotTime || createReq.isPending}
+                  className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  {createReq.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Confirmar meu horário <ArrowRight className="w-4 h-4" /></>}
+                </button>
+              </div>
             </div>
           )}
 
           {/* PAY — concierge: pagamento + preferência (dia + horário) */}
           {stage === "pay" && (
-            <div className="flex flex-col gap-7">
-              <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-3">VI. A Prioridade</h3>
-                <div className={`flex flex-col gap-3 text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
-                  <p>{payTextConcierge}</p>
-                  <p>Para reservar seu horário com prioridade, o senhor antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> — 20% do valor da consulta (total de R$ 750,00). O restante é pago no dia do atendimento.</p>
-                </div>
-              </section>
+            <div className={`panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+              <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+                <span className="dc-serif italic dc-gold text-base tracking-wide">VI. A Prioridade</span>
+              </div>
+            <div className="login-card-body px-5 py-5 flex flex-col gap-5">
+              <div className={`flex flex-col gap-3 text-[15px] leading-relaxed ${isDark ? "text-stone-300" : "text-[#16284a]"}`}>
+                <p>{payTextConcierge}</p>
+                <p>Para reservar seu horário com prioridade, o senhor antecipa <strong className="dc-gold font-semibold">R$ 150,00</strong> — 20% do valor da consulta (total de R$ 750,00). O restante é pago no dia do atendimento.</p>
+              </div>
 
               {/* Resumo do horario ja escolhido no estagio "oferta" (agenda REAL). */}
               {chosenSlotDate && chosenSlotTime && (
@@ -1703,92 +1774,107 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 </div>
               )}
             </div>
+            </div>
           )}
 
           {/* OFERTA — agenda REAL confrontada ANTES do pagamento */}
           {stage === "oferta" && (
-            <div className="dc-reveal flex flex-col gap-7">
-              <section>
-                <h3 className="dc-serif italic dc-gold text-xl mb-2">V. O Encaixe</h3>
-                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-600"}`}>
+            <div className={`dc-reveal panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+              <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+                <span className="dc-serif italic dc-gold text-base tracking-wide">V. O Encaixe</span>
+              </div>
+              <div className="login-card-body px-5 py-5 flex flex-col gap-5">
+                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>
                   A Helena confrontou a agenda. Diga a sua preferência e ela revela as aberturas reais:
                 </p>
-              </section>
 
-              {/* Preferencia (dia + periodo) que filtra a agenda REAL. */}
-              <div className="grid grid-cols-2 gap-6">
-                <div className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
-                  <select className="dc-input dc-select" value={prefWeekday} onChange={(e) => { setPrefWeekday(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}>
-                    <option value="">Qualquer dia</option>
-                    <option value="1">Segunda-feira</option>
-                    <option value="2">Terça-feira</option>
-                    <option value="3">Quarta-feira</option>
-                    <option value="4">Quinta-feira</option>
-                    <option value="5">Sexta-feira</option>
-                    <option value="6">Sábado</option>
-                  </select>
+                {/* Preferencia (dia + periodo) que filtra a agenda REAL. */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
+                    <PaxterSelect
+                      isDark={isDark}
+                      value={prefWeekday}
+                      onChange={(v) => { setPrefWeekday(v); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                      placeholder="Qualquer dia"
+                      options={[
+                        { value: "", label: "Qualquer dia" },
+                        { value: "1", label: "Segunda-feira" },
+                        { value: "2", label: "Terça-feira" },
+                        { value: "3", label: "Quarta-feira" },
+                        { value: "4", label: "Quinta-feira" },
+                        { value: "5", label: "Sexta-feira" },
+                        { value: "6", label: "Sábado" },
+                      ]}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
+                    <PaxterSelect
+                      isDark={isDark}
+                      value={prefPeriod}
+                      onChange={(v) => { setPrefPeriod(v as "" | "manha" | "tarde"); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                      placeholder="Qualquer período"
+                      options={[
+                        { value: "", label: "Qualquer período" },
+                        { value: "manha", label: "Manhã" },
+                        { value: "tarde", label: "Tarde" },
+                      ]}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
-                  <select className="dc-input dc-select" value={prefPeriod} onChange={(e) => { setPrefPeriod(e.target.value as "" | "manha" | "tarde"); setChosenSlotDate(""); setChosenSlotTime(""); }}>
-                    <option value="">Qualquer período</option>
-                    <option value="manha">Manhã</option>
-                    <option value="tarde">Tarde</option>
-                  </select>
-                </div>
-              </div>
 
-              {/* Aberturas reais vindas do motor (offerQuery). */}
-              {offerQuery.isFetching ? (
-                <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <p className="text-sm">Verificando as aberturas na agenda…</p>
-                </div>
-              ) : offerQuery.data && offerQuery.data.days.length > 0 ? (
-                <div className="flex flex-col gap-4">
-                  {offerQuery.data.days.map((d) => (
-                    <div key={d.date} className="flex flex-col gap-2">
-                      <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>{formatSlotDay(new Date(`${d.date}T12:00:00`))}</p>
-                      <div className="flex flex-wrap gap-2.5">
-                        {d.times.map((t) => {
-                          const active = chosenSlotDate === d.date && chosenSlotTime === t.time;
-                          return (
-                            <button
-                              key={`${d.date}-${t.time}`}
-                              type="button"
-                              onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t.time); }}
-                              data-active={active}
-                              className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                            >
-                              {t.time}
-                            </button>
-                          );
-                        })}
+                {/* Aberturas reais vindas do motor (offerQuery). */}
+                {offerQuery.isFetching ? (
+                  <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <p className="text-sm">Verificando as aberturas na agenda…</p>
+                  </div>
+                ) : offerQuery.data && offerQuery.data.days.length > 0 ? (
+                  <div className="flex flex-col gap-4">
+                    {offerQuery.data.days.map((d) => (
+                      <div key={d.date} className="flex flex-col gap-2">
+                        <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-400" : "text-stone-500"}`}>{formatSlotDay(new Date(`${d.date}T12:00:00`))}</p>
+                        <div className="flex flex-wrap gap-2.5">
+                          {d.times.map((t) => {
+                            const active = chosenSlotDate === d.date && chosenSlotTime === t.time;
+                            return (
+                              <button
+                                key={`${d.date}-${t.time}`}
+                                type="button"
+                                onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t.time); }}
+                                data-active={active}
+                                className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                              >
+                                {t.time}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={`p-4 rounded-lg text-sm ${isDark ? "bg-stone-900/40 border border-white/10 text-stone-400" : "bg-stone-50 border border-stone-200 text-stone-600"}`}>
-                  Nenhuma abertura para essa preferência. Tente outro dia ou período.
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className={`p-4 rounded-lg text-sm ${isDark ? "bg-stone-900/40 border border-white/10 text-stone-400" : "bg-stone-50 border border-stone-200 text-stone-600"}`}>
+                    Nenhuma abertura para essa preferência. Tente outro dia ou período.
+                  </div>
+                )}
 
-              {errorMsg && (
-                <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <p>{errorMsg}</p>
-                </div>
-              )}
+                {errorMsg && (
+                  <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <p>{errorMsg}</p>
+                  </div>
+                )}
 
-              <button
-                onClick={() => { setErrorMsg(""); setStage("pay"); }}
-                disabled={!chosenSlotTime}
-                className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-              >
-                Reservar este horário <ArrowRight className="w-4 h-4" />
-              </button>
+                <button
+                  onClick={() => { setErrorMsg(""); setStage("pay"); }}
+                  disabled={!chosenSlotTime}
+                  className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  Reservar este horário <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1800,6 +1886,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 // --- DOOR 4: CORPO CLÍNICO / PROFISSIONAIS ---
 // Fluxo estratificado em 4 passos: Área -> Especialização -> Profissional -> Horário.
 function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => void; title: string; payText: string; payLink: string }) {
+  const { theme } = useScreenTheme();
+  const isDark = theme === "dark";
   const { data: areas = [], isLoading: isLoadingAreas } = useListSchedulingAreas();
   const { data: professionals = [], isLoading: isLoadingPros } = useListSchedulingProfessionals();
 
@@ -1879,9 +1967,33 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
   if (success) return <SuccessState onBack={onBack} />;
 
   const isLoading = isLoadingAreas || isLoadingPros;
+  const chipBg = isDark
+    ? "linear-gradient(180deg, #243860 0%, #1a2e52 55%, #122244 100%)"
+    : "linear-gradient(180deg, #ffffff 0%, #f3ead8 55%, #e4d6bc 100%)";
+  const chipBorder = isDark ? "rgba(100,148,210,0.22)" : "rgba(184,146,77,0.36)";
+  const chipShadow = isDark
+    ? "0 3px 8px rgba(0,0,0,0.44), inset 0 2px 0 rgba(255,255,255,0.11), inset 0 -3px 6px rgba(0,0,0,0.30)"
+    : "0 3px 7px rgba(7,22,43,0.17), inset 0 2px 0 rgba(255,255,255,0.96), inset 0 -3px 6px rgba(7,22,43,0.07)";
+  const chipColor = isDark ? "rgba(200,218,245,0.82)" : "rgba(22,40,74,0.76)";
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+    <div className="asst-flow space-y-6 animate-in slide-in-from-right-8 duration-300">
+      <style>{`
+        .asst-flow .dc-chip {
+          background: ${chipBg};
+          border: 1px solid ${chipBorder};
+          box-shadow: ${chipShadow};
+          color: ${chipColor};
+          transition: all .18s ease; border-radius: 8px; cursor: pointer;
+        }
+        .asst-flow .dc-chip[data-active="true"] {
+          background: linear-gradient(180deg, #9a7832 0%, #b8922a 40%, #c2a05a 100%);
+          border-color: rgba(138,109,47,0.72);
+          color: #fff8e8;
+          box-shadow: inset 0 3px 7px rgba(80,50,10,0.42), inset 0 1px 3px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.28);
+          transform: translateY(1px);
+        }
+      `}</style>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={onBack} className="w-8 h-8 shrink-0 rounded-md bg-card border border-border flex items-center justify-center text-primary hover:bg-muted transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -1911,12 +2023,13 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
                   <button
                     key={a.id}
                     onClick={() => handleAreaChange(a.id)}
-                    className={`text-left p-3 rounded-lg border transition-colors flex items-center gap-2 ${
-                      sel ? "border-accent bg-accent/10" : "border-border bg-card hover:border-accent"
-                    }`}
+                    data-active={sel}
+                    className="dc-chip text-left p-3 rounded-lg flex items-center gap-2"
                   >
-                    {isMedico ? <Stethoscope className="w-4 h-4 text-accent shrink-0" /> : <HeartPulse className="w-4 h-4 text-accent shrink-0" />}
-                    <span className="font-sans font-bold text-foreground text-sm leading-tight">{a.name}</span>
+                    {isMedico
+                      ? <Stethoscope className="w-4 h-4 shrink-0" style={{ color: sel ? "#fff8e8" : "#c2a05a" }} />
+                      : <HeartPulse className="w-4 h-4 shrink-0" style={{ color: sel ? "#fff8e8" : "#c2a05a" }} />}
+                    <span className="font-sans font-bold text-sm leading-tight">{a.name}</span>
                   </button>
                 );
               })}
@@ -1941,9 +2054,8 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
                       <button
                         key={s.id}
                         onClick={() => handleSpecialtyChange(s.id)}
-                        className={`px-3 py-2 rounded-md border text-sm font-semibold transition-colors ${
-                          sel ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:border-accent"
-                        }`}
+                        data-active={sel}
+                        className="dc-chip px-4 py-2 rounded-md text-sm font-semibold"
                       >
                         {s.name}
                       </button>
@@ -1971,24 +2083,22 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
                       <button
                         key={p.id}
                         onClick={() => handleProChange(p.id)}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors flex items-center justify-between gap-2 ${
-                          sel ? "border-accent bg-accent/10" : "border-border bg-card hover:border-accent"
-                        }`}
+                        data-active={sel}
+                        className="dc-chip w-full text-left p-3 flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center flex-wrap gap-2">
-                            <span className="font-sans font-bold text-foreground text-sm">{p.name}</span>
-                            <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                              p.professionalType === "medico" ? "bg-primary/10 text-primary" : "bg-accent/15 text-accent"
-                            }`}>
+                            <span className="font-sans font-bold text-sm">{p.name}</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+                              style={{ background: sel ? "rgba(255,255,255,0.15)" : "rgba(194,160,90,0.18)", color: sel ? "#fff8e8" : "#c2a05a" }}>
                               {p.professionalType === "medico" ? "Médico" : "Não-médico"}
                             </span>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
+                          <div className="text-xs mt-0.5" style={{ opacity: 0.65 }}>
                             {p.specialtyName}{registro ? ` (${registro})` : ""}
                           </div>
                         </div>
-                        {sel && <CheckCircle className="w-5 h-5 text-accent shrink-0" />}
+                        {sel && <CheckCircle className="w-5 h-5 shrink-0" style={{ color: "#fff8e8" }} />}
                       </button>
                     );
                   })}
@@ -2008,12 +2118,10 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
                 </div>
               ) : (
                 <>
-                  <input
-                    type="date"
-                    min={new Date().toISOString().split("T")[0]}
+                  <PaxterCalendar
                     value={date}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    className="field-engraved w-full h-11 px-3 rounded-md text-sm text-foreground focus:outline-none"
+                    onChange={(v) => handleDateChange(v)}
+                    isDark={isDark}
                   />
 
                   {date && (
@@ -2039,9 +2147,8 @@ function AssistenteFlow({ onBack, title, payText, payLink }: { onBack: () => voi
                                 <button
                                   key={i}
                                   onClick={() => setTime(s.time)}
-                                  className={`h-10 rounded border text-sm font-semibold transition-colors ${
-                                    isSel ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:border-accent"
-                                  }`}
+                                  data-active={isSel}
+                                  className="dc-chip h-10 text-sm font-semibold"
                                 >
                                   {s.time}
                                 </button>
