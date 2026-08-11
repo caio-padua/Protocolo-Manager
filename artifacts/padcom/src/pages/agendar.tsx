@@ -500,6 +500,140 @@ export function AgendarAntigo() {
   return <Agendar _variant="antigo" />;
 }
 
+// ── CALENDÁRIO PAXTER — substitui <input type="date"> nativo; visual Paxter ──
+function PaxterCalendar({
+  value, onChange, isDark, minDate,
+}: {
+  value: string;       // "YYYY-MM-DD" ou ""
+  onChange: (v: string) => void;
+  isDark: boolean;
+  minDate?: string;    // "YYYY-MM-DD"; default = hoje
+}) {
+  const todayStr = isoLocal(new Date());
+  const min = minDate ?? todayStr;
+  const parsed = value ? new Date(value + "T12:00:00") : new Date();
+  const [viewYear, setViewYear] = useState(parsed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(parsed.getMonth());
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const monthLabel = new Date(viewYear, viewMonth, 1)
+    .toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  const DOW = ["D", "S", "T", "Q", "Q", "S", "S"];
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: Array<number | null> = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const c = {
+    bg:     isDark ? "#0c1d38" : "#fdf8f0",
+    border: isDark ? "rgba(100,148,210,0.26)" : "rgba(184,146,77,0.42)",
+    text:   isDark ? "#c8d7f0" : "#16284a",
+    muted:  isDark ? "rgba(100,148,210,0.40)" : "rgba(22,40,74,0.30)",
+    navBg:  isDark ? "rgba(255,255,255,0.07)" : "rgba(22,40,74,0.05)",
+  };
+
+  return (
+    <div style={{
+      background: c.bg,
+      border: `1px solid ${c.border}`,
+      borderRadius: 10,
+      padding: "14px 12px 12px",
+      boxShadow: isDark
+        ? "inset 0 3px 8px rgba(0,0,0,0.52), inset 0 -1px 0 rgba(255,255,255,0.07)"
+        : "inset 0 3px 6px rgba(7,22,43,0.20), inset 0 -1px 0 rgba(255,255,255,0.94)",
+    }}>
+      {/* Navegação mês */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button type="button" onClick={prevMonth} style={{
+          width: 30, height: 30, borderRadius: 6, border: `1px solid ${c.border}`,
+          background: c.navBg, color: "#c2a05a", cursor: "pointer",
+          fontSize: 18, lineHeight: "1", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>‹</button>
+        <span style={{
+          fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 14,
+          background: "linear-gradient(135deg, #f4e2a8 0%, #c2a05a 50%, #8a6d2f 100%)",
+          WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent",
+          textTransform: "capitalize",
+        }}>{monthLabel}</span>
+        <button type="button" onClick={nextMonth} style={{
+          width: 30, height: 30, borderRadius: 6, border: `1px solid ${c.border}`,
+          background: c.navBg, color: "#c2a05a", cursor: "pointer",
+          fontSize: 18, lineHeight: "1", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>›</button>
+      </div>
+
+      {/* Cabeçalho D S T Q Q S S */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+        {DOW.map((d, i) => (
+          <div key={i} style={{
+            textAlign: "center", fontSize: 10, fontWeight: 700,
+            letterSpacing: "0.12em", color: c.muted, paddingBottom: 4,
+          }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Grade de dias */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} style={{ height: 32 }} />;
+          const iso = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const isSel   = iso === value;
+          const isToday = iso === todayStr;
+          const isPast  = iso < min;
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={isPast}
+              onClick={() => onChange(iso)}
+              style={{
+                height: 32, borderRadius: 6, border: "none",
+                cursor: isPast ? "default" : "pointer",
+                fontSize: 13, fontWeight: isSel ? 700 : 400,
+                opacity: isPast ? 0.26 : 1,
+                transition: "all 0.14s ease",
+                background: isSel
+                  ? "linear-gradient(180deg, #f4e2a8 0%, #c2a05a 55%, #8a6d2f 100%)"
+                  : isToday
+                  ? (isDark ? "rgba(194,160,90,0.18)" : "rgba(194,160,90,0.13)")
+                  : "transparent",
+                color: isSel ? "#16284a" : isToday ? "#c2a05a" : c.text,
+                boxShadow: isSel
+                  ? "0 2px 6px rgba(194,160,90,0.50), inset 0 1px 0 rgba(255,255,255,0.62)"
+                  : isToday
+                  ? "0 0 0 1px rgba(194,160,90,0.55)"
+                  : "none",
+              }}
+            >{day}</button>
+          );
+        })}
+      </div>
+
+      {/* Limpar */}
+      {value && (
+        <div style={{ textAlign: "right", marginTop: 8 }}>
+          <button type="button" onClick={() => onChange("")} style={{
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: 11, color: c.muted, letterSpacing: "0.08em", textDecoration: "underline",
+          }}>Limpar</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- DOOR 2: ESTETICOS ---
 function EsteticoFlow({ onBack, title, payText, payLink }: { onBack: () => void; title: string; payText: string; payLink: string }) {
   const [name, setName] = useState("");
@@ -628,9 +762,6 @@ function TernoFarol({ pct, children, band, fill, isDark }: { pct: number; childr
           ? "linear-gradient(180deg, #13233f 0%, #0d1830 100%)"
           : "linear-gradient(180deg, #faf6ee 0%, #f1e9d8 100%)" }}
       >
-        {/* TECIDO TERNO: risca de giz sobre creme no CLARO, linho marinho no ESCURO
-            (mesma .leva-fabric da anamnese). Fica atras do conteudo (z-0). */}
-        <div className="leva-fabric" aria-hidden="true" />
         {/* TOPO: simbolo respirando + texto editorial, SEMPRE visivel */}
         <div className="relative z-[1] flex-1 flex flex-col items-center justify-center text-center gap-4">{children}</div>
         {/* BAIXO: faixa de status (cor = estado) a esquerda + WELL da % FIXO no canto
@@ -1084,29 +1215,50 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
           -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         }
         .dc-luxo .dc-input {
-          width: 100%; background: transparent; border: none;
-          border-bottom: 1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(22,40,74,0.2)"};
-          padding: 13px 0; font-size: 15px; color: ${isDark ? "#e8edf6" : "#16284a"};
-          outline: none; transition: border-color .3s ease; border-radius: 0;
+          width: 100%;
+          background: ${isDark
+            ? "linear-gradient(180deg, hsl(215 52% 8%) 0%, hsl(215 46% 13%) 45%)"
+            : "linear-gradient(180deg, #ece6d6 0%, #faf6ec 42%)"};
+          border: 1px solid ${isDark ? "rgba(100,148,210,0.26)" : "rgba(184,146,77,0.42)"};
+          border-radius: 8px;
+          box-shadow: ${isDark
+            ? "inset 0 3px 8px rgba(0,0,0,0.58), inset 0 8px 14px rgba(0,0,0,0.28), inset 0 -1px 0 rgba(255,255,255,0.08)"
+            : "inset 0 3px 6px rgba(7,22,43,0.22), inset 0 8px 12px rgba(7,22,43,0.09), inset 0 -1px 0 rgba(255,255,255,0.92)"};
+          padding: 12px 14px; font-size: 15px; color: ${isDark ? "#e8edf6" : "#16284a"};
+          outline: none; transition: border-color .3s ease, box-shadow .3s ease;
         }
-        .dc-luxo .dc-input:focus { border-bottom-color: #c2a05a; }
+        .dc-luxo .dc-input:focus {
+          border-color: #c2a05a;
+          box-shadow: ${isDark
+            ? "inset 0 3px 8px rgba(0,0,0,0.58), inset 0 8px 14px rgba(0,0,0,0.28), inset 0 -1px 0 rgba(255,255,255,0.08), 0 0 0 2px rgba(194,160,90,0.22)"
+            : "inset 0 3px 6px rgba(7,22,43,0.22), inset 0 8px 12px rgba(7,22,43,0.09), inset 0 -1px 0 rgba(255,255,255,0.92), 0 0 0 2px rgba(194,160,90,0.25)"};
+        }
         .dc-luxo .dc-input::placeholder {
-          color: ${isDark ? "rgba(255,255,255,0.32)" : "rgba(22,40,74,0.4)"};
+          color: ${isDark ? "rgba(255,255,255,0.28)" : "rgba(22,40,74,0.38)"};
           font-family: 'Playfair Display', Georgia, serif; font-style: italic;
         }
+        .dc-luxo .dc-input:disabled { opacity: 0.55; cursor: not-allowed; }
         .dc-luxo .dc-select {
           appearance: none;
           background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${isDark ? "%23c2a05a" : "%238a6d2f"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
           background-repeat: no-repeat; background-position: right 2px center; background-size: 1em; padding-right: 22px;
         }
         .dc-luxo .dc-chip {
-          border: 1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(22,40,74,0.2)"};
-          background: transparent; color: ${isDark ? "rgba(255,255,255,0.72)" : "rgba(22,40,74,0.72)"};
-          transition: all .25s ease; border-radius: 6px;
+          background: ${isDark
+            ? "linear-gradient(180deg, #243860 0%, #1a2e52 55%, #122244 100%)"
+            : "linear-gradient(180deg, #ffffff 0%, #f3ead8 55%, #e4d6bc 100%)"};
+          border: 1px solid ${isDark ? "rgba(100,148,210,0.22)" : "rgba(184,146,77,0.36)"};
+          box-shadow: ${isDark
+            ? "0 3px 8px rgba(0,0,0,0.44), inset 0 2px 0 rgba(255,255,255,0.11), inset 0 -3px 6px rgba(0,0,0,0.30)"
+            : "0 3px 7px rgba(7,22,43,0.17), inset 0 2px 0 rgba(255,255,255,0.96), inset 0 -3px 6px rgba(7,22,43,0.07)"};
+          color: ${isDark ? "rgba(200,218,245,0.82)" : "rgba(22,40,74,0.76)"};
+          transition: all .18s ease; border-radius: 8px;
         }
         .dc-luxo .dc-chip[data-active="true"] {
-          border-color: #c2a05a; color: ${isDark ? "#f4e2a8" : "#8a6d2f"};
-          background: rgba(194,160,90,0.1);
+          background: linear-gradient(180deg, #f4e2a8 0%, #c2a05a 55%, #8a6d2f 100%);
+          border-color: rgba(194,160,90,0.60);
+          color: #1a3060;
+          box-shadow: 0 4px 10px rgba(194,160,90,0.44), inset 0 2px 0 rgba(255,255,255,0.65), inset 0 -2px 4px rgba(100,70,20,0.22);
         }
         .dc-luxo .dc-concierge {
           background: ${isDark ? "linear-gradient(180deg, #1d335c 0%, #16284a 100%)" : "linear-gradient(180deg, #ffffff 0%, #f4f2ee 100%)"};
@@ -1116,8 +1268,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         }
         .dc-luxo .dc-reveal { animation: dcReveal .6s cubic-bezier(0.16,1,0.3,1) both; }
         @keyframes dcReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .dc-luxo .dc-breathe { display: inline-flex; animation: dcBreathe 3s ease-in-out infinite; }
-        @keyframes dcBreathe { 0%, 100% { transform: scale(0.97); opacity: .94; } 50% { transform: scale(1.03); opacity: 1; } }
+        .dc-luxo .dc-breathe { display: inline-flex; animation: dcBreathe 3.5s ease-in-out infinite; }
+        @keyframes dcBreathe { 0%, 100% { transform: scale(0.78); opacity: .80; } 50% { transform: scale(1.20); opacity: 1; } }
         .dc-luxo .dc-amber {
           background: ${isDark ? "linear-gradient(180deg, rgba(194,160,90,0.16), rgba(138,109,47,0.07))" : "linear-gradient(180deg, rgba(244,226,168,0.5), rgba(194,160,90,0.14))"};
           border: 1px solid rgba(194,160,90,0.4);
@@ -1179,14 +1331,12 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
             <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
               <span className="dc-serif italic dc-gold text-base tracking-wide">III. O Tempo</span>
             </div>
-            <div className="login-card-body px-5 py-4 space-y-2">
+            <div className="login-card-body px-5 py-4 space-y-3">
               <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Para quando você gostaria? *</span>
-              <input
-                type="date"
+              <PaxterCalendar
                 value={earliestDate}
-                onChange={(e) => { setEarliestDate(e.target.value); setChosenSlotDate(""); setChosenSlotTime(""); }}
-                className="dc-input"
-                style={{ colorScheme: isDark ? "dark" : "light" }}
+                onChange={(v) => { setEarliestDate(v); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                isDark={isDark}
               />
             </div>
           </div>
