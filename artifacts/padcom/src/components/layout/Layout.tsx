@@ -117,6 +117,7 @@ const navigation: NavEntry[] = [
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
       { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
+      { name: "Importar Exames do Drive", href: "/importar-drive", icon: DownloadCloud },
     ],
   },
   {
@@ -149,6 +150,7 @@ const navigation: NavEntry[] = [
       { name: "Modelos de Documento", href: "/arsenal/modelos", icon: Files },
       { name: "Receituário Automático", href: "/receituario-automatico", icon: Calendar },
       { name: "Validação de Receituário", href: "/arsenal/preview-validacao", icon: ShieldCheck },
+      { name: "Drive Watcher — Vigilância de Exames", href: "/arsenal/drive-watcher", icon: DownloadCloud },
     ],
   },
   {
@@ -190,6 +192,7 @@ const navigation: NavEntry[] = [
       { name: "Central de Auditoria", href: "/comunicacao/central-auditoria", icon: ShieldCheck },
       { name: "Guia Digital — Enviar ao Paciente", href: "/comunicacao/guia-paciente", icon: BookOpen },
       { name: "Painel de Domínios & Aliases", href: "/comunicacao/dominios", icon: Globe },
+      { name: "Avatares — Motor de Voz", href: "/comunicacao/avatares", icon: Bot },
     ],
   },
   {
@@ -197,9 +200,11 @@ const navigation: NavEntry[] = [
     icon: Settings,
     children: [
       { name: "Empresas Licenciadas", href: "/cadastros/empresas-licenciadas", icon: Building2 },
+      { name: "Cadastro de Empresas", href: "/cadastros/empresas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
       { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
+      { name: "Equipe (Cadastro Interno)", href: "/cadastros/equipe", icon: Users },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
