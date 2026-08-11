@@ -12,6 +12,7 @@ import {
   Apple, Smartphone, Monitor, LogIn, MessageCircle,
   ChevronDown, ChevronUp, Volume2, VolumeX, Copy, CheckCheck,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
@@ -478,6 +479,43 @@ function GuiaTelegram() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Card QR Code — só exibido no computador (device === "desktop")
+// Paciente aponta a câmera do celular e o guia abre direto no dispositivo certo
+// ─────────────────────────────────────────────────────────────────────────────
+function CardQRCode() {
+  // window.location.href inclui ?tenant= se presente — link correto por clínica
+  const url = window.location.href;
+  return (
+    <div className="panel-3d rounded-[8px] overflow-hidden">
+      <div className="px-5 py-5 flex flex-col items-center gap-4 text-center">
+        {/* Título em placa bevel */}
+        <div className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest">
+          📱 Abrir no celular
+        </div>
+
+        {/* QR Code — fundo branco garante leitura em qualquer tema */}
+        <div className="rounded-[8px] p-3 bg-white shadow-inner">
+          <QRCodeSVG
+            value={url}
+            size={180}
+            fgColor="#1a2744"
+            bgColor="#ffffff"
+            level="M"
+          />
+        </div>
+
+        {/* Instrução em Lora (fonte do paciente) */}
+        <p className="leva-q m-0 text-[0.9rem] text-muted-foreground leading-relaxed">
+          Quer instalar no seu celular?
+          <br />
+          Aponte a câmera para este código
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Botão compartilhar — copia URL
 // ─────────────────────────────────────────────────────────────────────────────
 function BotaoCompartilhar() {
@@ -652,6 +690,9 @@ export default function GuiaDigital() {
             </p>
           </div>
         </div>
+
+        {/* QR Code — só no computador, para o paciente abrir no celular */}
+        {device === "desktop" && <CardQRCode />}
 
         {/* Linha ouro separadora */}
         <div className="h-px bg-accent/20" />
