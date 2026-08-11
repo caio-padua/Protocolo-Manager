@@ -735,24 +735,23 @@ export default function GuiaDigital() {
 
           {/* Rodapé */}
           <div className="panel-3d rounded-[8px] overflow-hidden">
-            <div className="relative px-5 py-6 text-center space-y-2" style={{ background: "#0e2244" }}>
-              <div className="leva-fabric" aria-hidden="true" />
-              <div className="relative z-[1] space-y-2">
-                <p
-                  className="m-0 text-accent font-black uppercase tracking-widest"
-                  style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1rem" }}
-                >
-                  Ficou com dúvida?
-                </p>
-                <p className="leva-q m-0 text-white/70 text-[0.9rem] leading-relaxed">
-                  Entre em contato com o {config.clinicaNome} pelo WhatsApp ou telefone.
-                  <br />Estamos aqui para ajudar!
-                </p>
-                <div className="h-px bg-accent/20 mt-4" />
-                <p className="m-0 text-accent/40 text-[0.65rem] uppercase tracking-widest mt-3">
-                  {config.clinicaNome} — Clinical Intelligence System
-                </p>
-              </div>
+            <div className="login-card-topbar px-5 py-2.5 flex items-center justify-center border-b border-border/60">
+              <p
+                className="m-0 text-accent font-black uppercase tracking-widest text-center"
+                style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem" }}
+              >
+                Ficou com dúvida?
+              </p>
+            </div>
+            <div className="login-card-body px-5 py-5 text-center space-y-3">
+              <p className="m-0 text-[0.9rem] leading-relaxed text-foreground/70">
+                Entre em contato com o {config.clinicaNome} pelo WhatsApp ou telefone.
+                <br />Estamos aqui para ajudar!
+              </p>
+              <div className="h-px bg-border/40" />
+              <p className="m-0 text-accent/50 text-[0.65rem] uppercase tracking-widest">
+                {config.clinicaNome} — Clinical Intelligence System
+              </p>
             </div>
           </div>
 

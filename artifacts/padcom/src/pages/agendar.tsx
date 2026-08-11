@@ -1673,13 +1673,23 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
               {!invoiceUrl ? (
                 /* Passo 1: gerar a cobranca real */
-                <button
-                  onClick={handleGenerateCharge}
-                  disabled={chargePending}
-                  className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-                >
-                  {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{payMethod === "card" ? "Pagar com cartão — R$ 150,00" : "Gerar cobrança PIX de R$ 150,00"} <ArrowRight className="w-4 h-4" /></>}
-                </button>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleGenerateCharge}
+                    disabled={chargePending}
+                    className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                  >
+                    {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{payMethod === "card" ? "Pagar com cartão — R$ 150,00" : "Gerar cobrança PIX de R$ 150,00"} <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+                  {/* Saída segura: voltar para escolher outro horário */}
+                  <button
+                    type="button"
+                    onClick={() => { setErrorMsg(""); setStage("oferta"); }}
+                    className={`text-xs text-center underline-offset-4 hover:underline ${isDark ? "text-stone-500 hover:text-stone-300" : "text-stone-400 hover:text-stone-600"}`}
+                  >
+                    ← Voltar e escolher outro horário
+                  </button>
+                </div>
               ) : (
                 /* Passo 2: pagar DENTRO do Paxter — QR + copia-e-cola PIX inline */
                 <div className="flex flex-col gap-4">
@@ -1748,6 +1758,23 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                       <p className="text-sm">Aguardando a confirmação do pagamento... assim que cair, seguimos automaticamente.</p>
                     </div>
+                  )}
+
+                  {/* Saída segura: cancelar ANTES do pagamento ser confirmado */}
+                  {payStatus !== "pago" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceUrl("");
+                        setPixQrImage(null);
+                        setPixPayload(null);
+                        setPayStatus("aguardando");
+                        setErrorMsg("");
+                      }}
+                      className={`text-xs text-center underline-offset-4 hover:underline ${isDark ? "text-stone-500 hover:text-stone-300" : "text-stone-400 hover:text-stone-600"}`}
+                    >
+                      ← Cancelar e mudar forma de pagamento
+                    </button>
                   )}
 
                   {/* R2: se a confirmacao do horario falhou (pago mas sem reservar),
