@@ -423,7 +423,7 @@ export default function AnamneseV2() {
 
   return (
     <div
-      className={`${themeClass} anamnese-solo relative min-h-screen pb-36 text-foreground`}
+      className={`${themeClass} anamnese-solo${theme !== "dark" ? " anamnese-light" : ""} relative min-h-screen pb-36 text-foreground`}
       style={{ ["--brand" as any]: NAVY }}
     >
       {/* TECIDO TERNO — faixa sutil ao fundo de toda a tela (linho marinho no escuro,
