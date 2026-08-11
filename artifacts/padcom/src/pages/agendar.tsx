@@ -1142,36 +1142,44 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       </div>
 
       {stage === "form" ? (
-        <div className="flex flex-col gap-12">
-          {/* Ato I — Credenciais */}
-          <section>
-            <h3 className="dc-serif italic dc-gold text-xl mb-6">I. Suas Credenciais</h3>
-            <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-5">
+          {/* ── PAINEL I — Suas Credenciais ─────────────────────────────── */}
+          <div className={`panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+            <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+              <span className="dc-serif italic dc-gold text-base tracking-wide">I. Suas Credenciais</span>
+            </div>
+            <div className="login-card-body px-5 py-4 space-y-2">
               <input className="dc-input" placeholder="Nome completo" value={name} onChange={(e) => setName(e.target.value)} />
               <input className="dc-input" type="tel" placeholder="Telefone / WhatsApp" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-2 gap-3">
                 <input className="dc-input" type="tel" placeholder="CPF (opcional)" value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} />
                 <input className="dc-input" type="email" placeholder="E-mail (opcional)" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
             </div>
-          </section>
+          </div>
 
-          {/* Ato II — Desejo */}
-          <section>
-            <h3 className="dc-serif italic dc-gold text-xl mb-6">II. O Desejo</h3>
-            <p className={`text-[11px] uppercase tracking-widest mb-4 font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>O que motiva sua busca?</p>
-            <div className="flex flex-wrap gap-2.5 mb-5">
-              {["Harmonização", "Rejuvenescimento", "Toxina Botulínica", "Protocolos Corporais", "Avaliação Exclusiva"].map((m) => (
-                <button key={m} type="button" onClick={() => setDesire(m)} data-active={desire === m} className="dc-chip px-4 py-2.5 text-sm">{m}</button>
-              ))}
+          {/* ── PAINEL II — O Desejo ─────────────────────────────────────── */}
+          <div className={`panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+            <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+              <span className="dc-serif italic dc-gold text-base tracking-wide">II. O Desejo</span>
             </div>
-            <input className="dc-input" placeholder="Ou descreva em suas próprias palavras..." value={desire} onChange={(e) => setDesire(e.target.value)} />
-          </section>
+            <div className="login-card-body px-5 py-4 space-y-4">
+              <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-500" : "text-stone-400"}`}>O que motiva sua busca?</p>
+              <div className="flex flex-wrap gap-2.5">
+                {["Harmonização", "Rejuvenescimento", "Toxina Botulínica", "Protocolos Corporais", "Avaliação Exclusiva"].map((m) => (
+                  <button key={m} type="button" onClick={() => setDesire(m)} data-active={desire === m} className="dc-chip px-4 py-2.5 text-sm">{m}</button>
+                ))}
+              </div>
+              <input className="dc-input" placeholder="Ou descreva em suas próprias palavras..." value={desire} onChange={(e) => setDesire(e.target.value)} />
+            </div>
+          </div>
 
-          {/* Ato III — O Tempo. Só o calendário: a data desejada alimenta a janela. */}
-          <section>
-            <h3 className="dc-serif italic dc-gold text-xl mb-6">III. O Tempo</h3>
-            <div className="flex flex-col gap-1">
+          {/* ── PAINEL III — O Tempo ─────────────────────────────────────── */}
+          <div className={`panel-3d rounded-xl overflow-hidden ${isDark ? "dark" : ""}`}>
+            <div className="login-card-topbar px-5 py-3 flex items-center gap-2 border-b border-border/60">
+              <span className="dc-serif italic dc-gold text-base tracking-wide">III. O Tempo</span>
+            </div>
+            <div className="login-card-body px-5 py-4 space-y-2">
               <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Para quando você gostaria? *</span>
               <input
                 type="date"
@@ -1181,7 +1189,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 style={{ colorScheme: isDark ? "dark" : "light" }}
               />
             </div>
-          </section>
+          </div>
 
           {errorMsg && (
             <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
