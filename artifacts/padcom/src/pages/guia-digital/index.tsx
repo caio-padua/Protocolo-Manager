@@ -18,8 +18,17 @@ import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
-const AREA_URL_DEFAULT = import.meta.env.VITE_AREA_URL
-  ?? `${window.location.origin}${import.meta.env.BASE_URL}area`.replace(/([^:])\/\//g, "$1/");
+//
+// VITE_AREA_URL é OBRIGATÓRIA em produção.
+// Fallback para window.location.origin foi REMOVIDO: no Replit development ela
+// produz uma URL efêmera (.replit.dev) que muda a cada reinício do contêiner.
+// Se não configurada, o guia exibe um aviso visível em vez de um link quebrado.
+//
+const AREA_URL_DEFAULT: string =
+  import.meta.env.VITE_AREA_URL
+    ? String(import.meta.env.VITE_AREA_URL)
+    : "⚠️ [VITE_AREA_URL NÃO CONFIGURADA — obrigatória antes do lançamento]";
+
 const API_BASE  = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 // ── Configuração multi-tenant do Guia Digital ─────────────────────────────────

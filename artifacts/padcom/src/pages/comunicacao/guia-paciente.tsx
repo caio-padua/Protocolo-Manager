@@ -13,7 +13,16 @@ import { useListClients } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
-const GUIA_BASE   = `${window.location.origin}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/");
+
+// VITE_SITE_URL é OBRIGATÓRIA em produção (ex: "https://app.padcon.com.br").
+// Fallback para window.location.origin foi REMOVIDO: no Replit development ela
+// produz uma URL efêmera que muda a cada reinício — o link enviado ao paciente quebraria.
+const _siteBase = import.meta.env.VITE_SITE_URL
+  ?? import.meta.env.VITE_AREA_URL?.replace(/\/area\/?$/, "")
+  ?? null;
+const GUIA_BASE: string = _siteBase
+  ? `${_siteBase}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/")
+  : "⚠️ [VITE_SITE_URL NÃO CONFIGURADA — obrigatória antes do lançamento]";
 
 // ── Config da empresa logada (para gerar link com ?tenant=slug) ───────────────
 interface MinhaConfig { slug: string | null; clinicaNome: string; }
