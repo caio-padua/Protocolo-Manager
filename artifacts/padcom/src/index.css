@@ -1001,6 +1001,35 @@ body,
   --elite-gold:#b8924d; --elite-gold-soft:#c2a05a; --elite-gold-light:#d9bd7e;
 }
 
+/* ── Pele de terno claro — painéis da Área do Paciente (light mode only) ──────
+   O panel-3d global começa em #ffffff (ideal para o fundo admin escuro/neutro).
+   Na área do paciente o fundo é #f3ecdd (creme quente): o branco puro destoa.
+   Solução: gradiente champanhe-linho nos painéis — mais quente, sem perder o 3D.
+   .area-elite:not(.dark) — garantia de zero impacto no tema escuro.            */
+.area-elite:not(.dark) .panel-3d,
+.area-elite:not(.dark) .panel-3d-sub {
+  background: linear-gradient(145deg, #faf5eb 0%, #f2e9d4 48%, #e8dcc6 100%);
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.36),
+    0 16px 28px -10px rgba(7, 22, 43, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.09);
+}
+.area-elite:not(.dark) .bevel-3d {
+  background: linear-gradient(180deg, #faf5eb 0%, #f2e9d4 55%, #e8dcc6 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.11),
+    0 16px 24px -10px rgba(7, 22, 43, 0.38),
+    0 7px 12px -4px rgba(7, 22, 43, 0.24);
+}
+.area-elite:not(.dark) .screen-3d {
+  background: linear-gradient(150deg, #faf5eb 0%, #f0e7d4 100%);
+}
+.area-elite:not(.dark) .btn-3d-soft {
+  background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
+}
+
 /* Fundos de pagina e cartoes -> marfim quente / azul-claro elegante */
 .area-elite .bg-slate-50  { background-color:#f4f1ea; }
 .area-elite .bg-slate-100 { background-color:#e9e4d8; }
