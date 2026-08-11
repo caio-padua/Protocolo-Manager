@@ -1,0 +1,62 @@
+Deixa eu ver o que de fato rodou.
+
+Achei o problema — e não foi culpa sua.
+
+O `winget` abriu uma pergunta interativa antes de instalar:
+
+```
+Do you agree to all the source agreements terms?
+[Y] Yes  [N] No:
+```
+
+Cada vez que você clicou no play, o texto do comando foi enviado **como resposta** a essa pergunta. Como não é "Y" nem "N", ele reperguntou. Ficou em laço — por isso o `y` que você digitou no chat também não chegou lá. Nada foi instalado.
+
+Vou rodar a versão que não pergunta nada:
+
+O install foi para segundo plano sem produzir saída — isso normalmente é o Windows esperando a confirmação de administrador. Vou olhar a tela.
+
+Opa — **isso aqui mudou a auditoria.** A tela agora está com o `/guia-digital` aberto ao vivo. Deixa eu ampliar.
+
+Confirmei duas coisas na tela ao vivo. Vou atualizar o arquivo que vai pro Dr. Replit antes de você mandar.
+
+## Sobre o play — não precisa fazer nada, e nada quebrou
+
+O `winget` abriu uma pergunta antes de instalar ("aceita os termos da fonte? [Y]/[N]"). Cada clique no play mandou o **texto do comando** como resposta a essa pergunta. Como não era Y nem N, ele reperguntou. Rodou em círculo. Aquele `y` que você digitou no chat era pra ir ali — mas o chat e o terminal são caixas separadas.
+
+Duas coisas:
+
+1. **Clique dentro do painel do terminal e aperte `Ctrl+C`** pra limpar a pergunta travada.
+2. Já reiniciei a instalação com as flags que pulam a pergunta. Está rodando em segundo plano — te aviso quando terminar.
+
+Erro meu ter te dado um comando que abre prompt interativo. O certo era desde o começo:
+
+```bash
+winget install --id GitHub.cli --source winget --accept-source-agreements --accept-package-agreements
+```
+
+## O que apareceu na tela vale mais que a instalação
+
+Quando tirei o print pra procurar a janela de administrador, o `/guia-digital` estava aberto ao vivo. Consegui auditar o que estava travado como "sem prova":
+
+**Confirmado — ele entregou a UI mesmo.** Ícone de alto-falante em cada passo, header navy com PADAXOR em ouro, passos numerados com divisores, alternador de tema. Está tudo lá, como descrito.
+
+**Furo novo — ele disse que não fez algo que fez.** Na lista "honesta" consta *"QR code no desktop — ❌ não construído"*. O QR Code está renderizado no canto superior direito do header. Não é desonestidade, é perda de rastreio do próprio trabalho — mas tem custo: a tarefa 127 foi planejada pra construir uma coisa que já existe. Se você tivesse aprovado, era retrabalho pago.
+
+**E o furo grave — confirmado, e pior do que eu tinha estimado.** O link que o guia manda o paciente copiar é:
+
+```
+https://e4777049-2482-4493-bc8d-9ddd502ce731-00-33xz3y36vyw2i.riker.replit.dev/area
+```
+
+Isso é a URL **efêmera de desenvolvimento** do Replit. Ela muda quando o contêiner é recriado. Todo paciente que salvar esse link perde o acesso sem aviso nenhum.
+
+Eu tinha classificado como "possível bug". Estava sendo conservador demais. É pior que sair `undefined`, porque **funciona no teste e quebra depois** — ninguém descobre até um paciente ligar reclamando.
+
+A pergunta que precisa de resposta hoje: **algum e-mail de onboarding já foi disparado pra paciente real com esse link?** Se foi, esses links têm prazo de validade e precisam ser reenviados quando o domínio definitivo entrar.
+
+Mandei o arquivo atualizado — **use esse, descarta o anterior**. O placar mudou de 3 confirmadas pra 4, apareceu o furo F, e o furo D subiu pra crítico. Acrescente uma linha na mensagem pro Dr. Replit:
+
+```
+Antes de tudo, responda: algum e-mail de onboarding já foi enviado para
+paciente real com a URL .replit.dev? Se sim, quantos e para quem.
+```

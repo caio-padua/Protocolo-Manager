@@ -16,6 +16,8 @@ import {
 } from "@workspace/api-client-react";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
+import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import {
@@ -396,41 +398,96 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
     );
   }
 
-  // ── MODELO NOVO (padrão desde 11/08/2026) — pele de terno claro no CORPO. ──
-  // INVERSO do antigo: corpo recebe champanhe-linho (#f3ecdd), topo é flat/liso.
+  // ── MODELO NOVO (padrão desde 11/08/2026) — mesmo DNA visual da Área do Cliente. ──
+  // Corpo recebe champanhe-linho (#f3ecdd) com leva-fabric; header panel-3d igual ao /area.
+  const isDark = theme === "dark";
   return (
     <div
       className={`${themeClass} agendar-novo relative`}
       style={{
         minHeight: "100vh",
-        background: theme === "dark"
+        background: isDark
           ? "linear-gradient(160deg,#0b1e3a 0%,#0e2244 55%,#122a50 100%)"
           : "#f3ecdd",
       }}
     >
       <div className="leva-fabric" aria-hidden="true" />
       <div className="relative z-[1] flex flex-col min-h-screen">
-        {/* Header flat — sem panel-3d: terno fica no corpo, topo é neutro/translúcido */}
-        <header
-          className="sticky top-0 z-20 px-3 sm:px-4 py-3 border-b border-border/60"
-          style={{
-            background: theme === "dark"
-              ? "rgba(11,30,58,0.90)"
-              : "rgba(243,236,221,0.88)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-          } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between gap-2 min-w-0 max-w-5xl mx-auto w-full">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <PaxterLockup orientation="horizontal" symbolPx={34} wordWidth={130} showTagline tone={theme === "dark" ? "dark" : "light"} />
+        {/* Header panel-3d — mesmo padrão do /area (Área do Paciente) */}
+        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
+            <div className="flex flex-col items-start gap-1">
+              {/* Wordmark PAXTER — arte oficial */}
+              <img
+                src="/brand/paxter-wordmark.png"
+                alt="PAXTER"
+                style={{ height: 24, width: "auto", objectFit: "contain" }}
+                draggable={false}
+              />
+              <p
+                className="text-accent"
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontWeight: 600, fontSize: 10,
+                  letterSpacing: "0.10em",
+                }}
+              >
+                AGENDAMENTO
+              </p>
             </div>
-            <ThemeToggle theme={theme} onToggle={toggle} />
           </div>
+          <ThemeToggle theme={theme} onToggle={toggle} />
         </header>
         <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
           {flows}
         </main>
+        <AgendarTernoFooter theme={theme} />
+      </div>
+      <AgendarPadconWatermark />
+    </div>
+  );
+}
+
+// ── Rodapé de assinatura terno (idêntico ao da Área do Cliente) ──────────────
+function AgendarTernoFooter({ theme = "light" }: { theme?: string }) {
+  const isDark = theme === "dark";
+  return (
+    <footer
+      style={{
+        position: "relative", overflow: "hidden",
+        background: isDark ? "#0d1f3a" : "#f0e8d4",
+        borderTop:    `1px solid ${isDark ? "rgba(194,160,90,0.30)" : "rgba(138,109,47,0.35)"}`,
+        borderBottom: `2px solid ${isDark ? "rgba(194,160,90,0.65)" : "rgba(138,109,47,0.55)"}`,
+        padding: "9px 16px 10px",
+      }}
+    >
+      <div className="leva-fabric" aria-hidden="true" style={{ opacity: isDark ? 0.70 : 0.55 }} />
+      <div className="relative z-10 flex items-center justify-between max-w-lg mx-auto" style={{ gap: 12 }}>
+        <img
+          src="/brand/padaxor-wordmark-trim.png" alt="PADAXOR"
+          style={{ height: 18, width: "auto", objectFit: "contain", opacity: isDark ? 0.92 : 0.85 }}
+          draggable={false}
+        />
+        <div style={{ flex: 1, height: 1, background: isDark
+          ? "linear-gradient(90deg,rgba(194,160,90,0.10),rgba(194,160,90,0.30),rgba(194,160,90,0.10))"
+          : "linear-gradient(90deg,rgba(138,109,47,0.10),rgba(138,109,47,0.25),rgba(138,109,47,0.10))" }}
+        />
+        <PaxterWordmarkArt width={72} tone={isDark ? "dark" : "light"} />
+      </div>
+    </footer>
+  );
+}
+
+// ── Carimbo PADCON — canto inferior direito ───────────────────────────────────
+function AgendarPadconWatermark() {
+  return (
+    <div className="fixed right-3 z-50 pointer-events-none select-none" style={{ bottom: "76px" }} aria-hidden="true">
+      <div className="flex flex-col items-end gap-0.5 opacity-70">
+        <PadconWordmark height={20} outlined />
+        <p className="text-muted-foreground text-right" style={{ fontSize: 7, letterSpacing: "0.07em", lineHeight: 1.2 }}>
+          Advanced Systems Architecture
+        </p>
       </div>
     </div>
   );
