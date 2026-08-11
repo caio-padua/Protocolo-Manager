@@ -11,8 +11,22 @@ import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE  = import.meta.env.BASE_URL.replace(/\/$/, "");
-const GUIA_URL  = `${window.location.origin}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/");
+const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
+const GUIA_BASE   = `${window.location.origin}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/");
+
+// ── Config da empresa logada (para gerar link com ?tenant=slug) ───────────────
+interface MinhaConfig { slug: string | null; clinicaNome: string; }
+
+function useMinhaConfig(): MinhaConfig {
+  const [cfg, setCfg] = useState<MinhaConfig>({ slug: null, clinicaNome: "Instituto Pádua" });
+  useEffect(() => {
+    fetch(`${API_BASE}/api/onboarding/minha-config`)
+      .then((r) => r.ok ? r.json() as Promise<MinhaConfig> : Promise.reject())
+      .then((d) => setCfg({ slug: d.slug ?? null, clinicaNome: d.clinicaNome || "Instituto Pádua" }))
+      .catch(() => {/* usa fallback silenciosamente */});
+  }, []);
+  return cfg;
+}
 
 // ── Badge de status Telegram ──────────────────────────────────────────────────
 type TgStatus = { vinculado: boolean; desde: string | null };
@@ -86,6 +100,12 @@ type EnvioResult = {
 export default function GuiaPaciente() {
   const { data: clientes } = useListClients();
   const { toast } = useToast();
+  const { slug, clinicaNome } = useMinhaConfig();
+
+  // Link do guia — inclui ?tenant=slug para multi-clínica quando disponível
+  const guiaUrl = slug
+    ? `${GUIA_BASE}?tenant=${encodeURIComponent(slug)}`
+    : GUIA_BASE;
 
   const [clientId, setClientId] = useState<number | null>(null);
   const [copiado,  setCopiado]  = useState(false);
@@ -125,12 +145,12 @@ export default function GuiaPaciente() {
 
   // ── Copiar link ──────────────────────────────────────────────────────────
   const copiarLink = useCallback(() => {
-    navigator.clipboard.writeText(GUIA_URL).then(() => {
+    navigator.clipboard.writeText(guiaUrl).then(() => {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
       toast({ title: "Link copiado!", description: "Cole no WhatsApp ou e-mail." });
     });
-  }, [toast]);
+  }, [guiaUrl, toast]);
 
   // ── Enviar guia ─────────────────────────────────────────────────────────
   async function enviar(canais: Canal[]) {
@@ -141,7 +161,7 @@ export default function GuiaPaciente() {
       const res = await fetch(`${API_BASE}/api/onboarding/enviar-guia`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, canais, guiaUrl: GUIA_URL }),
+        body: JSON.stringify({ clientId, canais, guiaUrl }),
       });
 
       // ── 429: disparo duplo bloqueado pelo servidor ──
@@ -230,7 +250,7 @@ export default function GuiaPaciente() {
         <p className="text-primary text-xs font-black uppercase tracking-widest">Link do Guia Digital</p>
 
         <div className="concave-3d rounded-lg p-3 flex items-center gap-3">
-          <span className="flex-1 text-xs text-muted-foreground break-all font-mono">{GUIA_URL}</span>
+          <span className="flex-1 text-xs text-muted-foreground break-all font-mono">{guiaUrl}</span>
           <button
             onClick={copiarLink}
             className="btn-3d-soft flex items-center gap-1.5 px-3 py-2 text-xs font-black uppercase"
@@ -312,15 +332,15 @@ export default function GuiaPaciente() {
           Prévia — o que o paciente vai receber
         </p>
         <div className="concave-3d rounded-lg p-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-          {`🏥 *Instituto Pádua — Seu Guia Digital*
+          {`🏥 *${clinicaNome} — Seu Guia Digital*
 
 Olá${selected ? `, ${selected.name.split(" ")[0]}` : ""}! 👋
 
-Preparamos um passo a passo especial para você instalar o aplicativo do Instituto Pádua no seu celular e aprender a usar o Telegram.
+Preparamos um passo a passo especial para você instalar o aplicativo do ${clinicaNome} no seu celular e aprender a usar o Telegram.
 
 É bem simples! Clique no link abaixo e siga as instruções na tela:
 
-👉 ${GUIA_URL}
+👉 ${guiaUrl}
 
 Qualquer dúvida, estamos à disposição! 😊`}
         </div>

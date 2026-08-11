@@ -19,7 +19,7 @@ export const onboardingRouter = Router();
 // Router público — POST /evento pode ser chamado pelo browser do paciente sem auth
 export const onboardingPublicRouter = Router();
 
-// ── Boot migration — tabela de eventos de onboarding ─────────────────────────
+// ── Boot migration — tabela de eventos e coluna area_url nas empresas ────────
 (async () => {
   try {
     await db.execute(sqlRaw`
@@ -31,6 +31,8 @@ export const onboardingPublicRouter = Router();
         ts         TIMESTAMPTZ DEFAULT now()
       )
     `);
+    // area_url: URL pública da Área do Paciente por empresa
+    await db.execute(sqlRaw`ALTER TABLE empresas ADD COLUMN IF NOT EXISTS area_url TEXT`);
   } catch (e) {
     // não bloqueia o boot
     console.warn("[onboarding] migration warning:", e);
@@ -166,6 +168,63 @@ onboardingPublicRouter.post("/evento", async (req: Request, res: Response): Prom
   } catch {
     // falha silenciosa — não impedir o paciente
     res.json({ ok: false });
+  }
+});
+
+// ── GET /api/onboarding/config ───────────────────────────────────────────────
+// Rota PÚBLICA — sem auth. Retorna config de UI por slug de empresa.
+// Registrada em onboardingPublicRouter.
+onboardingPublicRouter.get("/config", async (req: Request, res: Response): Promise<void> => {
+  const tenant = String(req.query.tenant ?? "").trim().toLowerCase();
+  if (!tenant) {
+    res.status(400).json({ error: "tenant obrigatório" });
+    return;
+  }
+  try {
+    const result = await db.execute(
+      sqlRaw`SELECT nome, telegram_bot_username, area_url FROM empresas WHERE slug = ${tenant} LIMIT 1`
+    );
+    const row = result.rows[0] as
+      | { nome: string; telegram_bot_username: string | null; area_url: string | null }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: "tenant não encontrado" });
+      return;
+    }
+    res.json({
+      clinicaNome: row.nome,
+      botHandle:   row.telegram_bot_username ?? null,
+      areaUrl:     row.area_url ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ── GET /api/onboarding/minha-config ─────────────────────────────────────────
+// Rota PROTEGIDA — CEO usa para saber o slug da própria empresa ao gerar links.
+// Registrada em onboardingRouter (antes do driveWatcherRouter).
+onboardingRouter.get("/minha-config", async (req: Request, res: Response): Promise<void> => {
+  const empresaId = req.tenantContext?.empresaId ?? 5;
+  try {
+    const result = await db.execute(
+      sqlRaw`SELECT nome, slug, telegram_bot_username, area_url FROM empresas WHERE id = ${empresaId} LIMIT 1`
+    );
+    const row = result.rows[0] as
+      | { nome: string; slug: string | null; telegram_bot_username: string | null; area_url: string | null }
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: "Empresa não encontrada" });
+      return;
+    }
+    res.json({
+      clinicaNome: row.nome,
+      slug:        row.slug ?? null,
+      botHandle:   row.telegram_bot_username ?? null,
+      areaUrl:     row.area_url ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
 });
 

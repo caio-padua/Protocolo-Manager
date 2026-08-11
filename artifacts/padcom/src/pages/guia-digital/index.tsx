@@ -7,7 +7,7 @@
  * Audio: Web Speech API — TTS nativo pt-BR, zero custo, zero API externa.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   Apple, Smartphone, Monitor, LogIn, MessageCircle,
   ChevronDown, ChevronUp, Volume2, VolumeX, Copy, CheckCheck,
@@ -15,9 +15,51 @@ import {
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
-const AREA_URL  = import.meta.env.VITE_AREA_URL
+const AREA_URL_DEFAULT = import.meta.env.VITE_AREA_URL
   ?? `${window.location.origin}${import.meta.env.BASE_URL}area`.replace(/([^:])\/\//g, "$1/");
 const API_BASE  = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+
+// ── Configuração multi-tenant do Guia Digital ─────────────────────────────────
+interface GuiaConfig {
+  clinicaNome: string;
+  botHandle:   string;  // ex: "@Paduaclinica_bot"
+  botLink:     string;  // ex: "t.me/Paduaclinica_bot"
+  areaUrl:     string;
+}
+
+const DEFAULT_CONFIG: GuiaConfig = {
+  clinicaNome: "Instituto Pádua",
+  botHandle:   "@Paduaclinica_bot",
+  botLink:     "t.me/Paduaclinica_bot",
+  areaUrl:     AREA_URL_DEFAULT,
+};
+
+const GuiaConfigContext = createContext<GuiaConfig>(DEFAULT_CONFIG);
+
+// Hook: lê ?tenant= da URL e busca a config no backend.
+// Nunca bloqueia a renderização — usa DEFAULT_CONFIG enquanto carrega.
+function useGuiaConfigLoader(): GuiaConfig {
+  const [config, setConfig] = useState<GuiaConfig>(DEFAULT_CONFIG);
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get("tenant");
+    if (!slug) return; // sem tenant → usa fallback Instituto Pádua
+    fetch(`${API_BASE}/api/onboarding/config?tenant=${encodeURIComponent(slug)}`)
+      .then((r) => r.ok
+        ? r.json() as Promise<{ clinicaNome: string; botHandle: string | null; areaUrl: string | null }>
+        : Promise.reject())
+      .then((d) => {
+        const handle = d.botHandle ?? DEFAULT_CONFIG.botHandle;
+        setConfig({
+          clinicaNome: d.clinicaNome || DEFAULT_CONFIG.clinicaNome,
+          botHandle:   handle,
+          botLink:     `t.me/${handle.replace(/^@/, "")}`,
+          areaUrl:     d.areaUrl || DEFAULT_CONFIG.areaUrl,
+        });
+      })
+      .catch(() => {/* fallback silencioso — Instituto Pádua permanece */});
+  }, []);
+  return config;
+}
 
 // ── Evento de analytics — silencioso, nunca bloqueia o paciente ───────────────
 function registrarEvento(device: string, secao: string): void {
@@ -233,6 +275,7 @@ function Secao({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function GuiaIphone() {
+  const config = useContext(GuiaConfigContext);
   return (
     <div>
       <Alerta
@@ -244,7 +287,7 @@ function GuiaIphone() {
       <Passo n={1} texto="Abra o Safari no seu iPhone (ícone de bússola azul)" />
       <Passo
         n={2}
-        texto={`Na barra de endereço, acesse: ${AREA_URL}`}
+        texto={`Na barra de endereço, acesse: ${config.areaUrl}`}
         detalhe="Ou toque no link recebido pelo WhatsApp — ele abre direto."
       />
       <Passo
@@ -260,12 +303,12 @@ function GuiaIphone() {
       <Passo n={5} texto="Toque em → Adicionar no canto superior direito" />
       <Alerta
         tipo="ok"
-        texto="Pronto! O ícone do Instituto Pádua aparece na sua tela inicial. Toque nele para entrar a qualquer hora!"
+        texto={`Pronto! O ícone do ${config.clinicaNome} aparece na sua tela inicial. Toque nele para entrar a qualquer hora!`}
       />
 
       <PlacaGrupo texto="🖥 Computador Mac — Safari" />
       <Passo n={1} texto="Abra o Safari no seu Mac" />
-      <Passo n={2} texto={`Digite o endereço: ${AREA_URL}`} />
+      <Passo n={2} texto={`Digite o endereço: ${config.areaUrl}`} />
       <Passo
         n={3}
         texto="O site funciona direto no navegador — não precisa instalar nada"
@@ -276,6 +319,7 @@ function GuiaIphone() {
 }
 
 function GuiaAndroid() {
+  const config = useContext(GuiaConfigContext);
   return (
     <div>
       <PlacaGrupo primeiro texto="📲 Instalar pelo Chrome (recomendado)" />
@@ -286,7 +330,7 @@ function GuiaAndroid() {
       <Passo n={1} texto="Abra o Chrome no seu celular" />
       <Passo
         n={2}
-        texto={`Na barra de endereço, acesse: ${AREA_URL}`}
+        texto={`Na barra de endereço, acesse: ${config.areaUrl}`}
         detalhe="Ou toque no link recebido pelo WhatsApp."
       />
       <Passo n={3} texto="Toque nos 3 pontinhos no canto superior direito" />
@@ -304,14 +348,14 @@ function GuiaAndroid() {
         texto="Samsung Internet é o ícone azul com globo, pré-instalado em celulares Samsung."
       />
       <Passo n={1} texto="Abra o Samsung Internet" />
-      <Passo n={2} texto={`Acesse: ${AREA_URL}`} />
+      <Passo n={2} texto={`Acesse: ${config.areaUrl}`} />
       <Passo n={3} texto="Toque nas 3 linhas no canto inferior direito" />
       <Passo n={4} texto="Toque em → Adicionar página à → Tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
 
       <PlacaGrupo texto="📲 Firefox ou Edge" />
       <Passo n={1} texto="Abra o Firefox ou Edge" />
-      <Passo n={2} texto={`Acesse: ${AREA_URL}`} />
+      <Passo n={2} texto={`Acesse: ${config.areaUrl}`} />
       <Passo n={3} texto="Toque nos 3 pontinhos → Instalar ou → Adicionar à tela inicial" />
       <Alerta tipo="ok" texto="Pronto!" />
     </div>
@@ -319,6 +363,7 @@ function GuiaAndroid() {
 }
 
 function GuiaComputador() {
+  const config = useContext(GuiaConfigContext);
   return (
     <div>
       <PlacaGrupo primeiro texto="🖥 Chrome ou Edge — instalar como aplicativo" />
@@ -327,7 +372,7 @@ function GuiaComputador() {
         texto="No computador, o aplicativo pode ser instalado pelo Chrome ou Edge. Funciona como um programa separado, sem abrir o navegador toda vez."
       />
       <Passo n={1} texto="Abra o Chrome ou o Edge no seu computador" />
-      <Passo n={2} texto={`Na barra de endereço, cole ou digite: ${AREA_URL}`} />
+      <Passo n={2} texto={`Na barra de endereço, cole ou digite: ${config.areaUrl}`} />
       <Passo
         n={3}
         texto="Procure o ícone de instalação na barra de endereço"
@@ -344,7 +389,7 @@ function GuiaComputador() {
       />
 
       <PlacaGrupo texto="🖥 Firefox ou Safari (Mac)" />
-      <Passo n={1} texto={`Abra o navegador e acesse: ${AREA_URL}`} />
+      <Passo n={1} texto={`Abra o navegador e acesse: ${config.areaUrl}`} />
       <Passo
         n={2}
         texto="O site funciona normalmente — não precisa instalar"
@@ -355,6 +400,7 @@ function GuiaComputador() {
 }
 
 function GuiaLogin() {
+  const config = useContext(GuiaConfigContext);
   return (
     <div>
       <Alerta
@@ -364,7 +410,7 @@ function GuiaLogin() {
       <Passo
         n={1}
         texto="Abra o aplicativo no celular ou acesse pelo navegador"
-        detalhe={`Endereço: ${AREA_URL}`}
+        detalhe={`Endereço: ${config.areaUrl}`}
       />
       <Passo
         n={2}
@@ -380,18 +426,19 @@ function GuiaLogin() {
       <Alerta tipo="ok" texto="Você está dentro! Veja seus protocolos, consultas e documentos." />
       <Alerta
         tipo="aviso"
-        texto="Se der erro, verifique se digitou o CPF completo com 11 números e a data correta. Qualquer problema, entre em contato com o Instituto."
+        texto="Se der erro, verifique se digitou o CPF completo com 11 números e a data correta. Qualquer problema, entre em contato com o consultório."
       />
     </div>
   );
 }
 
 function GuiaTelegram() {
+  const config = useContext(GuiaConfigContext);
   return (
     <div>
       <Alerta
         tipo="info"
-        texto="O Telegram é um aplicativo gratuito de mensagens — parecido com o WhatsApp. Quando vinculado, você recebe as mensagens do Instituto Pádua por lá também."
+        texto={`O Telegram é um aplicativo gratuito de mensagens — parecido com o WhatsApp. Quando vinculado, você recebe as mensagens do ${config.clinicaNome} por lá também.`}
       />
 
       <PlacaGrupo primeiro texto="1 — Instale o Telegram (se ainda não tiver)" />
@@ -400,7 +447,7 @@ function GuiaTelegram() {
       <Passo n={3} texto="Crie sua conta com seu número de celular (igual ao WhatsApp)" />
       <Alerta tipo="ok" texto="O Telegram é gratuito e seguro. Mais de 900 milhões de pessoas usam no mundo." />
 
-      <PlacaGrupo texto="2 — Vincule ao Instituto Pádua" />
+      <PlacaGrupo texto={`2 — Vincule ao ${config.clinicaNome}`} />
       <Alerta
         tipo="aviso"
         texto="Antes de começar, peça ao consultório para gerar a sua senha de ativação. Você receberá uma senha de 6 letras pelo WhatsApp."
@@ -408,8 +455,8 @@ function GuiaTelegram() {
       <Passo n={1} texto="Abra o Telegram no seu celular" />
       <Passo
         n={2}
-        texto="Toque na lupa e pesquise por: @Paduaclinica_bot"
-        detalhe="Ou toque diretamente neste link: t.me/Paduaclinica_bot"
+        texto={`Toque na lupa e pesquise por: ${config.botHandle}`}
+        detalhe={`Ou toque diretamente neste link: ${config.botLink}`}
       />
       <Passo n={3} texto="Toque em INICIAR ou escreva /start e envie" />
       <Passo
@@ -425,7 +472,7 @@ function GuiaTelegram() {
       <PlacaGrupo texto="3 — Pelo computador" />
       <Passo n={1} texto="Acesse: web.telegram.org no navegador do seu computador" />
       <Passo n={2} texto="Entre com o mesmo número de celular — use o QR Code ou o código SMS" />
-      <Passo n={3} texto="Procure @Paduaclinica_bot na lista de conversas" />
+      <Passo n={3} texto={`Procure ${config.botHandle} na lista de conversas`} />
     </div>
   );
 }
@@ -480,6 +527,7 @@ const PINSTRIPE: React.CSSProperties = {
 
 export default function GuiaDigital() {
   const device = detectDevice();
+  const config = useGuiaConfigLoader();
 
   const [aberta, setAberta] = useState<Record<SecKey, boolean>>(() => ({
     iphone:     device === "iphone",
@@ -526,6 +574,7 @@ export default function GuiaDigital() {
   };
 
   return (
+    <GuiaConfigContext.Provider value={config}>
     <div className="min-h-screen bg-background">
 
       {/* ── Header navy + pinstripe risca de giz ─────────────────────────────── */}
@@ -559,7 +608,7 @@ export default function GuiaDigital() {
           className="leva-q text-white text-[1.15rem] font-semibold leading-snug m-0"
           style={{ fontFamily: "'Lora', Georgia, serif" }}
         >
-          Olá! Aqui você aprende a usar o Instituto Pádua no seu celular e computador.
+          Olá! Aqui você aprende a usar o {config.clinicaNome} no seu celular e computador.
         </p>
         <p
           className="leva-q text-white/60 text-[0.9rem] mt-2 m-0 leading-relaxed"
@@ -632,17 +681,18 @@ export default function GuiaDigital() {
               Ficou com dúvida?
             </p>
             <p className="leva-q m-0 text-white/70 text-[0.9rem] leading-relaxed">
-              Entre em contato com o Instituto Pádua pelo WhatsApp ou telefone.
+              Entre em contato com o {config.clinicaNome} pelo WhatsApp ou telefone.
               <br />Estamos aqui para ajudar!
             </p>
             <div className="h-px bg-accent/20 mt-4" />
             <p className="m-0 text-accent/40 text-[0.65rem] uppercase tracking-widest mt-3">
-              Instituto Pádua — Clinical Intelligence System
+              {config.clinicaNome} — Clinical Intelligence System
             </p>
           </div>
         </div>
 
       </div>
     </div>
+    </GuiaConfigContext.Provider>
   );
 }

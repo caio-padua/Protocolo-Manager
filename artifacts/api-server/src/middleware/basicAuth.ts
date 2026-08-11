@@ -21,6 +21,12 @@
  *    /api/whatsapp/status  — Twilio StatusCallback
  *    /api/asaas            — webhook + cobranças (requireCollaborator interno)
  *
+ *  Onboarding do paciente (público — navegador do paciente sem auth):
+ *    /api/onboarding/evento  — registro de evento de analytics do Guia Digital
+ *    /api/onboarding/config  — config de UI por tenant (slug), sem dado sensível
+ *    (rotas protegidas /api/onboarding/stats e /api/onboarding/minha-config
+ *     mantêm o basicAuth; passam via Bearer do colaborador)
+ *
  * ATENÇÃO: este middleware deve vir DEPOIS do cors() em app.ts.
  * O preflight OPTIONS do navegador não carrega credencial; se o Basic Auth
  * vier antes do CORS, o padcom leva 401 no preflight e não fala com a API.
@@ -51,6 +57,9 @@ const BYPASS_PREFIXES = [
   "/api/vitrine-contatos", // POST público (formulário de contato da homepage Parxis/Lovable); GET/PATCH com requireCollaborator interno
   "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
   "/api/collaborator/me",    // revalidação da sessão pelo navegador; exige Bearer via requireCollaborator
+  // Onboarding do paciente — público (Guia Digital abre no browser do paciente sem auth):
+  "/api/onboarding/evento",  // POST analytics — paciente dispara ao abrir seção
+  "/api/onboarding/config",  // GET config de UI por ?tenant=slug — sem dado sensível
 ];
 
 function isPublicPath(path: string): boolean {
