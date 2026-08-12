@@ -122,6 +122,7 @@
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas.
 - [Drive-watcher + planilha comparativa de analitos](drive-watcher-analitos.md) — importação automática a cada 4h; extractPdfText retorna objeto .text; PlanilhaComparativa pivot no prontuário.
 - [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Selecionar cliente…"; cpf+phone+photoUrl obrigatórios no map; skill em .agents/skills/skill-paxter-client-selector/SKILL.md.
+- [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PROTOCOLO-PLANILHA.md.
 - [Fila de triagem != resultados crus](triagem-fila-vs-crus.md) — zerar Sala de Triagem nao zera exam_results sem code; adimensional (razao/indice) sem unidade nao e pendencia.
 - [perguntaId nao e chave de identidade](anamnese-perguntaid-nao-unico.md) — pergunta_id REPETE (Q030); identidade de linha usa o `id` numerico, nunca perguntaId (guard de DELETE).
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
