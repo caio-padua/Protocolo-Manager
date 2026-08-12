@@ -700,9 +700,13 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
           .set({ paymentStatus: "expirado" })
           .where(eq(schedulingRequestsTable.id, sreq.id));
         // Trava de escassez: cobrança concierge expirou sem pagamento → registra falha.
+        // eventId = "webhook:{sreq.id}:expirado:{payment.id}" — determinístico e único
+        // por (sreq, desfecho, cobrança). Também grava scheduling_request_id para o
+        // guard do caso 9 (polling não duplica quando webhook chegou primeiro).
         if (sreq.path === "concierge" && sreq.entrada === "dr_caio") {
-          await registrarFalha(sreq.patientCpf).catch((err: unknown) =>
-            req.log.error({ err: String(err), id: sreq.id }, "registrarFalha concierge (webhook overdue) falhou"),
+          const whEventId = `webhook:${sreq.id}:expirado:${payment.id}`;
+          await registrarFalha(sreq.patientCpf, whEventId, sreq.id).catch((err: unknown) =>
+            req.log.error({ err: String(err), id: sreq.id, whEventId }, "registrarFalha concierge (webhook overdue) falhou"),
           );
         }
       }
@@ -720,9 +724,11 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
           .set({ paymentStatus: "cancelado" })
           .where(eq(schedulingRequestsTable.id, sreq.id));
         // Trava de escassez: cobrança concierge cancelada/estornada → registra falha.
+        // Mesmo padrão de eventId: webhook:{sreq.id}:cancelado:{payment.id}
         if (sreq.path === "concierge" && sreq.entrada === "dr_caio") {
-          await registrarFalha(sreq.patientCpf).catch((err: unknown) =>
-            req.log.error({ err: String(err), id: sreq.id }, "registrarFalha concierge (webhook cancelado) falhou"),
+          const whEventId = `webhook:${sreq.id}:cancelado:${payment.id}`;
+          await registrarFalha(sreq.patientCpf, whEventId, sreq.id).catch((err: unknown) =>
+            req.log.error({ err: String(err), id: sreq.id, whEventId }, "registrarFalha concierge (webhook cancelado) falhou"),
           );
         }
       }

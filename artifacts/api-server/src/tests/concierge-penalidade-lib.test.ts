@@ -154,26 +154,36 @@ describe("getPenalidade — derivação por número de falhas", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("registrarFalha", () => {
-  it("CPF nulo → não chama o banco", async () => {
-    await registrarFalha(null);
+  it("CPF nulo → não chama o banco (retorna antes do guard de eventId)", async () => {
+    // CPF inválido: retorna antes de checar eventId — sem erro, sem banco
+    await registrarFalha(null, "evt-test-null-cpf");
     expect(mockExec()).not.toHaveBeenCalled();
   });
 
   it("CPF de 10 dígitos → não chama o banco", async () => {
-    await registrarFalha(CPF_CURTO);
+    await registrarFalha(CPF_CURTO, "evt-test-short-cpf");
     expect(mockExec()).not.toHaveBeenCalled();
   });
 
-  it("CPF válido → chama db.execute uma vez (INSERT ON CONFLICT DO UPDATE)", async () => {
-    mockExec().mockResolvedValueOnce(qr([], 1));
-    await registrarFalha(CPF_VALIDO);
-    expect(mockExec()).toHaveBeenCalledTimes(1);
+  it("eventId vazio → lança erro (guard caso 7)", async () => {
+    await expect(registrarFalha(CPF_VALIDO, "")).rejects.toThrow("eventId obrigatório");
   });
 
-  it("CPF com formatação → normaliza antes de inserir (1 chamada)", async () => {
-    mockExec().mockResolvedValueOnce(qr([], 1));
-    await registrarFalha("123.456.789-01");
-    expect(mockExec()).toHaveBeenCalledTimes(1);
+  it("eventId só espaços → lança erro (guard caso 7)", async () => {
+    await expect(registrarFalha(CPF_VALIDO, "   ")).rejects.toThrow("eventId obrigatório");
+  });
+
+  it("CPF válido → chama db.execute (INSERT CTE ON CONFLICT DO UPDATE)", async () => {
+    // mockResolvedValue (sem Once) cobre todas as chamadas internas (ensure* + CTE)
+    mockExec().mockResolvedValue(qr([], 1));
+    await registrarFalha(CPF_VALIDO, "evt-abc123");
+    expect(mockExec()).toHaveBeenCalled();
+  });
+
+  it("CPF com formatação → normaliza e acessa o banco", async () => {
+    mockExec().mockResolvedValue(qr([], 1));
+    await registrarFalha("123.456.789-01", "evt-formatted-cpf");
+    expect(mockExec()).toHaveBeenCalled();
   });
 });
 

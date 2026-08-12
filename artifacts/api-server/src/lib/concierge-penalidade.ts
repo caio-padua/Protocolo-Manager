@@ -33,6 +33,7 @@ export interface Penalidade {
 // ─── Bootstrap das tabelas (lazy, singleton por processo) ────────────────────
 let _tableReady: Promise<void> | null = null;
 let _auditTableReady: Promise<void> | null = null;
+let _eventosTableReady: Promise<void> | null = null;
 
 async function ensureTable(): Promise<void> {
   if (!_tableReady) {
@@ -273,17 +274,51 @@ export async function listAuditoriaResets(rawCpf: string): Promise<AuditoriaRow[
 }
 
 /**
- * Garante que a tabela de dedup de eventos existe (criada uma vez por boot).
- * Separada de ensureTable() para não misturar as duas responsabilidades.
+ * Garante que a tabela de dedup de eventos existe e possui a coluna
+ * scheduling_request_id (adicionada em 12/08/2026 para o guard do caso 9).
+ * Singleton por processo — evita roundtrips repetidos ao banco.
  */
 async function ensureEventosTable(): Promise<void> {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS concierge_webhook_eventos (
-      event_id   TEXT        PRIMARY KEY,
-      cpf        TEXT        NOT NULL,
-      registrado_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
+  if (!_eventosTableReady) {
+    _eventosTableReady = (async () => {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS concierge_webhook_eventos (
+          event_id               TEXT        PRIMARY KEY,
+          cpf                    TEXT        NOT NULL,
+          scheduling_request_id  INTEGER,
+          registrado_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      // Idempotente: adiciona coluna se já existia antes do 12/08/2026.
+      await db.execute(sql`
+        ALTER TABLE concierge_webhook_eventos
+        ADD COLUMN IF NOT EXISTS scheduling_request_id INTEGER
+      `);
+    })().catch((err: unknown) => {
+      _eventosTableReady = null;
+      throw err;
+    });
+  }
+  return _eventosTableReady;
+}
+
+/**
+ * Retorna true se já existe um evento de WEBHOOK (não de polling) registrado
+ * para este scheduling_request_id. Usado pelo polling para evitar contagem dupla
+ * quando webhook e polling observam o mesmo desfecho (caso 9).
+ */
+export async function jaTemEventoWebhookParaSreq(
+  schedulingRequestId: number,
+): Promise<boolean> {
+  await ensureEventosTable();
+  const result = await db.execute(sql`
+    SELECT 1
+    FROM concierge_webhook_eventos
+    WHERE scheduling_request_id = ${schedulingRequestId}
+      AND event_id NOT LIKE 'poll:%'
+    LIMIT 1
   `);
+  return result.rows.length > 0;
 }
 
 /**
@@ -307,8 +342,20 @@ async function ensureEventosTable(): Promise<void> {
  */
 export async function registrarFalha(
   rawCpf: string | null | undefined,
-  eventId: string,          // OBRIGATÓRIO — sem sobrecarga opcional
+  eventId: string,                    // OBRIGATÓRIO — sem sobrecarga opcional
+  schedulingRequestId?: number,       // opcional: permite o guard do caso 9
 ): Promise<void> {
+  // Caso 7 — guard runtime: eventId vazio é tão perigoso quanto ausente.
+  // Um eventId vazio colidiria com qualquer outro evento vazio e dedup-aria
+  // penalidades legítimas em silêncio.
+  if (!eventId || eventId.trim().length === 0) {
+    throw new Error(
+      "registrarFalha: eventId obrigatório — parâmetro vazio ou ausente. " +
+      "Webhook: usar 'webhook:{sreq.id}:{desfecho}:{payment.id}'. " +
+      "Polling: usar 'poll:{row.id}:{asaasChargeId}:{mapped}'.",
+    );
+  }
+
   const cpf = normCpf(rawCpf);
   if (cpf.length < 11) return; // CPF ausente/inválido: não penaliza
 
@@ -319,8 +366,8 @@ export async function registrarFalha(
   // ON CONFLICT DO NOTHING na tabela de eventos: se não inseriu, não penaliza.
   await db.execute(sql`
     WITH novo_evento AS (
-      INSERT INTO concierge_webhook_eventos (event_id, cpf)
-      VALUES (${eventId}, ${cpf})
+      INSERT INTO concierge_webhook_eventos (event_id, cpf, scheduling_request_id)
+      VALUES (${eventId}, ${cpf}, ${schedulingRequestId ?? null})
       ON CONFLICT (event_id) DO NOTHING
       RETURNING event_id
     )

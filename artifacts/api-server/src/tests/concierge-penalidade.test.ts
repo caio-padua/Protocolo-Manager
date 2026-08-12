@@ -209,23 +209,28 @@ describe("registrarFalha — incremento de tentativas no banco", () => {
   });
 
   it("CPF válido → acessa o banco (INSERT/ON CONFLICT)", async () => {
-    await registrarFalha(CPF_VALIDO);
+    await registrarFalha(CPF_VALIDO, "evt-valido-1");
     expect(mockExecute).toHaveBeenCalled();
   });
 
   it("CPF inválido → NÃO chama o banco", async () => {
-    await registrarFalha(CPF_INVALIDO);
+    await registrarFalha(CPF_INVALIDO, "evt-invalido-1");
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it("CPF null → NÃO chama o banco", async () => {
-    await registrarFalha(null);
+    await registrarFalha(null, "evt-null-cpf");
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it("eventId vazio → lança erro antes de chamar o banco (guard caso 7)", async () => {
+    await expect(registrarFalha(CPF_VALIDO, "")).rejects.toThrow("eventId obrigatório");
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it("CPF com pontuação mas 11 dígitos → normalizado e acessa banco", async () => {
     const callsBefore = mockExecute.mock.calls.length;
-    await registrarFalha("123.456.789-01");
+    await registrarFalha("123.456.789-01", "evt-pontuacao-1");
     expect(mockExecute.mock.calls.length).toBeGreaterThan(callsBefore);
   });
 });
@@ -280,28 +285,28 @@ describe("Transição de estado via registrarFalha() + getPenalidade() — state
     expect(pen.tentativas).toBe(0);
 
     // 1ª falha → +7 dias
-    await registrarFalha(CPF);
+    await registrarFalha(CPF, "evt-stateful-1");
     pen = await getPenalidade(CPF);
     expect(pen.bloqueado).toBe(false);
     expect(pen.penalidade_dias).toBe(7);
     expect(pen.tentativas).toBe(1);
 
     // 2ª falha → +30 dias
-    await registrarFalha(CPF);
+    await registrarFalha(CPF, "evt-stateful-2");
     pen = await getPenalidade(CPF);
     expect(pen.bloqueado).toBe(false);
     expect(pen.penalidade_dias).toBe(30);
     expect(pen.tentativas).toBe(2);
 
     // 3ª falha → bloqueado permanente
-    await registrarFalha(CPF);
+    await registrarFalha(CPF, "evt-stateful-3");
     pen = await getPenalidade(CPF);
     expect(pen.bloqueado).toBe(true);
     expect(pen.penalidade_dias).toBe(0);
     expect(pen.tentativas).toBe(3);
 
     // 4ª falha em cima de bloqueado → permanece bloqueado (sem piorar)
-    await registrarFalha(CPF);
+    await registrarFalha(CPF, "evt-stateful-4");
     pen = await getPenalidade(CPF);
     expect(pen.bloqueado).toBe(true);
     expect(pen.tentativas).toBe(4);
@@ -311,9 +316,9 @@ describe("Transição de estado via registrarFalha() + getPenalidade() — state
     makeStatefulMock();
     const CPF_CURTO = "99999";
 
-    await registrarFalha(CPF_CURTO);
-    await registrarFalha(CPF_CURTO);
-    await registrarFalha(CPF_CURTO);
+    await registrarFalha(CPF_CURTO, "evt-curto-1");
+    await registrarFalha(CPF_CURTO, "evt-curto-2");
+    await registrarFalha(CPF_CURTO, "evt-curto-3");
 
     // Banco não foi chamado
     expect(mockExecute).not.toHaveBeenCalled();
