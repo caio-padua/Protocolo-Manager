@@ -263,3 +263,10 @@ id = "wwYhtWgZsatYUp_gCAynk"
 uri = "file://cartas/2026-07-27_DR-CODE_vitrine-gate-leads.md"
 type = "text"
 title = "Carta ao Dr. Code — Processo completo da onda portao-captacao"
+
+[[outputs]]
+id = "B3nA7GO9-zE2X1FIfSSGn"
+uri = "file://tmp-preview/protocolo-carluccia-31.pdf"
+type = "pdf"
+title = "Protocolo Carlúcia — PDF Real (Motor Paxter)"
+description = "Protocolo 31 da Carlúcia gerado ao vivo pelo api-server. Inclui: radar de 7 dimensões (página 3), matrix de benefícios, fichas individuais de cada substância e seção financeira. CoQ10 IM · PQQ IM · Testosterona 200mg IM · Tirzepatida 5mg SC · Progesterona Pellet · Gestrinona Pellet — R$ 3.385,28."
