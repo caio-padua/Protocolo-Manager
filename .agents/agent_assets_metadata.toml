@@ -291,3 +291,10 @@ uri = "file://docs/briefing-manus-protocolo-pdf.md"
 type = "text"
 title = "Carta ao Dr. Manus — Arquitetura do Protocolo PDF"
 description = "Briefing completo: onde estão os arquivos, como funciona a fiação de dados, estrutura de páginas, radar chart, cadernos jurídicos separados, oportunidades de melhoria e o rebrand PADAXOR."
+
+[[outputs]]
+id = "4TfTd7G-gI3EIN5fQCD2H"
+uri = "file://PlanoNutricional_Carlucia.pdf"
+type = "pdf"
+title = "Plano Nutricional — Carlucia Ferreira de Andrade"
+description = "PDF gerado pelo motor real (Claude + pdf-lib) e efetivamente enviado por e-mail via Gmail (confirmado na API do Gmail com label SENT)."
