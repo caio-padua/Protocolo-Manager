@@ -273,21 +273,62 @@ export async function listAuditoriaResets(rawCpf: string): Promise<AuditoriaRow[
 }
 
 /**
- * Registra UMA falha para o CPF (cobrança concierge gerada e não paga).
- * Idempotente do ponto de vista da tabela — incrementa sempre que chamado.
- * O chamador é responsável por chamar apenas uma vez por evento de falha real.
+ * Garante que a tabela de dedup de eventos existe (criada uma vez por boot).
+ * Separada de ensureTable() para não misturar as duas responsabilidades.
  */
-export async function registrarFalha(rawCpf: string | null | undefined): Promise<void> {
+async function ensureEventosTable(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS concierge_webhook_eventos (
+      event_id   TEXT        PRIMARY KEY,
+      cpf        TEXT        NOT NULL,
+      registrado_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+/**
+ * Registra UMA falha para o CPF (cobrança concierge não paga).
+ *
+ * Idempotente garantido por CTE atômico:
+ *   1. Tenta inserir o event_id em concierge_webhook_eventos.
+ *   2. Se já existe (ON CONFLICT DO NOTHING), o CTE não retorna linha
+ *      e o UPSERT de pontuação não dispara — penalidade não duplica.
+ *   3. Se inseriu, faz o UPSERT em concierge_penalidades.
+ *
+ * eventId é OBRIGATÓRIO. Parâmetro opcional deixaria vivo o caminho que
+ * incrementa sempre — foi por esse caminho que a regressão anterior entrou.
+ *
+ * Formatos de eventId:
+ *   Webhook Asaas  → event.id do payload (ex: "evt_abc123")
+ *   Polling        → "poll:<row.id>:<status>:<row.updated_at>"
+ *                    O carimbo de tempo é obrigatório: sem ele, um pedido
+ *                    que expira, reabre e expira de novo gera id idêntico e
+ *                    a segunda expiração — real — desaparece em silêncio.
+ */
+export async function registrarFalha(
+  rawCpf: string | null | undefined,
+  eventId: string,          // OBRIGATÓRIO — sem sobrecarga opcional
+): Promise<void> {
   const cpf = normCpf(rawCpf);
   if (cpf.length < 11) return; // CPF ausente/inválido: não penaliza
 
   await ensureTable();
+  await ensureEventosTable();
 
+  // CTE atômico: dedup de evento + UPSERT de pontuação num único SQL.
+  // ON CONFLICT DO NOTHING na tabela de eventos: se não inseriu, não penaliza.
   await db.execute(sql`
+    WITH novo_evento AS (
+      INSERT INTO concierge_webhook_eventos (event_id, cpf)
+      VALUES (${eventId}, ${cpf})
+      ON CONFLICT (event_id) DO NOTHING
+      RETURNING event_id
+    )
     INSERT INTO concierge_penalidades
       (cpf, tentativas_falha, bloqueado_permanente, ultima_falha_at, atualizado_at)
-    VALUES
-      (${cpf}, 1, FALSE, NOW(), NOW())
+    SELECT
+      ${cpf}, 1, FALSE, NOW(), NOW()
+    FROM novo_evento
     ON CONFLICT (cpf) DO UPDATE
     SET
       tentativas_falha     = concierge_penalidades.tentativas_falha + 1,
@@ -297,5 +338,6 @@ export async function registrarFalha(rawCpf: string | null | undefined): Promise
                              END,
       ultima_falha_at      = NOW(),
       atualizado_at        = NOW()
+    WHERE EXISTS (SELECT 1 FROM novo_evento)
   `);
 }

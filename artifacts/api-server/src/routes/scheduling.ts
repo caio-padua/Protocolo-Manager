@@ -780,14 +780,19 @@ router.get(
           );
         }
         // Trava de escassez: registra falha quando concierge nao foi pago.
-        // O polling e idempotente: o hook so roda na PRIMEIRA transicao (mapped != row).
+        // eventId inclui row.updated_at para que um pedido que expira, reabre
+        // e expira de novo gere ids distintos — a segunda expiracao e real.
         if (
           (mapped === "expirado" || mapped === "cancelado") &&
           row.path === "concierge" &&
           row.entrada === "dr_caio"
         ) {
-          registrarFalha(row.patientCpf).catch((err) =>
-            req.log.error({ err: String(err), id }, "registrarFalha concierge (polling) falhou"),
+          // asaasChargeId muda quando uma nova cobranca e criada (reativacao).
+          // Garante que a segunda expiracao real de um mesmo pedido nao seja engolida
+          // pelo dedup — sem precisar de coluna updated_at na tabela.
+          const pollEventId = `poll:${row.id}:${row.asaasChargeId ?? "nocharge"}:${mapped}`;
+          registrarFalha(row.patientCpf, pollEventId).catch((err) =>
+            req.log.error({ err: String(err), id, pollEventId }, "registrarFalha concierge (polling) falhou"),
           );
         }
       }
