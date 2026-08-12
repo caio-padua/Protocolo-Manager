@@ -1,0 +1,41 @@
+Dr. Replit, o Manus vai rodar a bateria #81-A agora no commit a9cb27a.
+Enquanto ela roda, você NÃO começa o #77 nem o #82 — os dois tocam
+concierge-penalidade.ts, o mesmo arquivo do #75. Se a bateria achar algo,
+você vai precisar patchar esse arquivo, e não pode estar disputando ele
+com outra tarefa. Foi exatamente assim que a regressão nasceu.
+
+O QUE FAZER AGORA — nesta ordem:
+
+1. RESPONDA AO MANUS O "OK" que ele pediu: confirme que a9cb27a é a versão
+   mais recente e estável, e que não há nada em branch local sem push.
+   Ele está esperando isso para executar.
+
+2. LIMPEZA DA COLUNA MÓDULO na planilha. É mecânico, rápido e
+   interrompível — pode parar no meio se a bateria voltar vermelha.
+   - Apague os valores herdados de "Esforco" em todas as linhas anteriores
+     ao #74. Hoje o item #40 tem Módulo = "feito" e o #45 tem "a definir".
+   - Depois preencha o módulo real por bloco.
+   - Vazio é melhor que mentira. Um cabeçalho que mente quebra o #73.
+
+3. FIQUE DISPONÍVEL. Não entre em refatoração longa. Se a bateria voltar
+   vermelha, o patch do #75 é o caminho crítico e trava a equipe inteira.
+
+PREVISÃO: o Dr. Code acrescentou um caso 9 à bateria e a expectativa é que
+ele FALHE. O caso é: o polling registra poll:{id}:expirado:{ts} e o Asaas
+manda PAYMENT_OVERDUE com o event.id dele, para o mesmo pedido. São dois
+eventIds legitimamente diferentes, a dedup funciona certinho, e o paciente
+leva 2 pontos por uma única cobrança vencida.
+
+A idempotência deduplica REENTREGA DO MESMO EVENTO. Ela não deduplica DOIS
+OBSERVADORES DO MESMO FATO — e polling e webhook são exatamente isso.
+
+Se o caso 9 falhar, NÃO mexa na dedup, que está correta. A correção é o
+polling só registrar quando não existir evento de webhook para aquele
+scheduling_request, mesmo desfecho, dentro da janela. Já vá pensando nisso.
+
+SE A BATERIA VOLTAR VERDE: seu próximo item é o #84 — agendar.tsx tratando
+throttled e requiresVerification além de blocked. Arquivo diferente,
+nenhum conflito. O contrato está congelado na seção 6.3 da ARQUITETURA.md,
+então dá para construir mesmo antes do #80 existir.
+
+Continua valendo: nada fecha sem hash de commit E saída de teste colada.
