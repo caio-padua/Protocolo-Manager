@@ -3,6 +3,7 @@
  *
  * Permite ao CEO visualizar e resetar manualmente clientes bloqueados
  * ou penalizados pelo motor de escassez do Concierge.
+ * Exibe histórico de resets (auditoria) por CPF.
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -14,6 +15,9 @@ import {
   CheckCircle2,
   Loader2,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +39,17 @@ interface PenalidadeRow {
   atualizado_at: string;
 }
 
+interface AuditoriaRow {
+  id: number;
+  cpf_mascarado: string;
+  resetado_por: string;
+  resetado_at: string;
+  tentativas_anteriores: number;
+}
+
 interface ModalState {
   open: boolean;
+  mode: "reset" | "historico";
   cpfMascarado: string;
   cpfInput: string;
   confirmado: boolean;
@@ -44,6 +57,7 @@ interface ModalState {
 
 const MODAL_INICIAL: ModalState = {
   open: false,
+  mode: "reset",
   cpfMascarado: "",
   cpfInput: "",
   confirmado: false,
@@ -98,6 +112,122 @@ function PenalidadeBadge({ row }: { row: PenalidadeRow }) {
   );
 }
 
+function HistoricoResets({
+  cpfMascarado,
+  cpfCompleto,
+  base,
+}: {
+  cpfMascarado: string;
+  cpfCompleto: string;
+  base: string;
+}) {
+  const [rows, setRows] = useState<AuditoriaRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErro(null);
+    fetch(`${base}/api/admin/concierge-penalidade/${encodeURIComponent(cpfCompleto)}/historico`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (!j.ok) throw new Error(j.error ?? "Erro");
+        setRows(j.rows ?? []);
+      })
+      .catch((e) => {
+        if (!cancelled) setErro(e instanceof Error ? e.message : "Erro");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [base, cpfCompleto]);
+
+  if (loading) {
+    return (
+      <tr>
+        <td colSpan={6} className="px-6 py-3 bg-muted/20">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Carregando histórico…
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (erro) {
+    return (
+      <tr>
+        <td colSpan={6} className="px-6 py-3 bg-muted/20">
+          <p className="text-xs text-red-500">{erro}</p>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td colSpan={6} className="px-6 py-3 bg-muted/10 border-b border-border/40">
+        <div className="flex items-center gap-1.5 mb-2">
+          <History className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            Histórico de resets — {cpfMascarado}
+          </span>
+        </div>
+        {rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">Nenhum reset registrado ainda.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground pr-6">
+                  Data do reset
+                </th>
+                <th className="text-left pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground pr-6">
+                  Resetado por
+                </th>
+                <th className="text-left pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Tentativas anteriores
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-border/20">
+                  <td className="py-1 pr-6 tabular-nums text-muted-foreground">
+                    {formatDate(r.resetado_at)}
+                  </td>
+                  <td className="py-1 pr-6 font-medium">{r.resetado_por}</td>
+                  <td className="py-1">
+                    <span
+                      className={`font-bold ${
+                        r.tentativas_anteriores >= 3
+                          ? "text-red-600"
+                          : r.tentativas_anteriores >= 2
+                            ? "text-amber-600"
+                            : r.tentativas_anteriores === 1
+                              ? "text-yellow-600"
+                              : "text-emerald-600"
+                      }`}
+                    >
+                      {r.tentativas_anteriores}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export default function ConciergePenalidades() {
   const [rows, setRows] = useState<PenalidadeRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -107,6 +237,8 @@ export default function ConciergePenalidades() {
   const [resetting, setResetting] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
   const [modal, setModal] = useState<ModalState>(MODAL_INICIAL);
+  // Map of cpfMascarado → cpfCompleto for expanded history rows
+  const [expandido, setExpandido] = useState<Record<string, string>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -157,18 +289,53 @@ export default function ConciergePenalidades() {
     const prefill = cpfDoFiltro.length === 11 ? cpfDoFiltro : "";
     setModal({
       open: true,
+      mode: "reset",
       cpfMascarado,
       cpfInput: prefill,
       confirmado: false,
     });
   }
 
-  /** Executa o PATCH de reset após validação no modal. */
-  async function confirmarReset() {
+  /** Abre o modal para digitar o CPF e ver o histórico de resets. */
+  function abrirModalHistorico(cpfMascarado: string) {
+    // Se já está expandido, fecha
+    if (expandido[cpfMascarado] !== undefined) {
+      setExpandido((prev) => {
+        const next = { ...prev };
+        delete next[cpfMascarado];
+        return next;
+      });
+      return;
+    }
+    // Se o filtro já tem o CPF completo, abre direto sem modal
+    const cpfDoFiltro = filtro.replace(/\D/g, "");
+    if (cpfDoFiltro.length === 11) {
+      setExpandido((prev) => ({ ...prev, [cpfMascarado]: cpfDoFiltro }));
+      return;
+    }
+    // Caso contrário, pede via modal
+    setModal({
+      open: true,
+      mode: "historico",
+      cpfMascarado,
+      cpfInput: "",
+      confirmado: false,
+    });
+  }
+
+  /** Executa a ação confirmada no modal (reset ou abrir histórico). */
+  async function confirmarAcao() {
     const cpfLimpo = modal.cpfInput.replace(/\D/g, "");
     if (cpfLimpo.length < 11) return;
-    if (!modal.confirmado) return;
 
+    if (modal.mode === "historico") {
+      setExpandido((prev) => ({ ...prev, [modal.cpfMascarado]: cpfLimpo }));
+      setModal(MODAL_INICIAL);
+      return;
+    }
+
+    // mode === "reset"
+    if (!modal.confirmado) return;
     setModal((m) => ({ ...m, open: false }));
     setResetting(modal.cpfMascarado);
     setFeedback(null);
@@ -180,6 +347,12 @@ export default function ConciergePenalidades() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
       setFeedback({ msg: j.message ?? "Resetado.", ok: true });
+      // Fecha histórico expandido para este CPF (CEO pode reabrir para ver o novo registro)
+      setExpandido((prev) => {
+        const next = { ...prev };
+        delete next[modal.cpfMascarado];
+        return next;
+      });
       void carregar(filtro);
     } catch (e) {
       setFeedback({ msg: e instanceof Error ? e.message : "Erro", ok: false });
@@ -189,11 +362,12 @@ export default function ConciergePenalidades() {
   }
 
   const cpfValido = modal.cpfInput.replace(/\D/g, "").length === 11;
-  const podeConfirmar = cpfValido && modal.confirmado;
+  const podeConfirmar =
+    cpfValido && (modal.mode === "historico" || modal.confirmado);
 
   return (
     <div className="space-y-6">
-      {/* Modal de confirmação de reset */}
+      {/* Modal — reset e histórico compartilham o mesmo Dialog */}
       <Dialog
         open={modal.open}
         onOpenChange={(open) => !open && setModal(MODAL_INICIAL)}
@@ -201,8 +375,17 @@ export default function ConciergePenalidades() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-black uppercase tracking-widest">
-              <RotateCcw className="w-4 h-4 text-amber-500" />
-              Confirmar reset de penalidade
+              {modal.mode === "reset" ? (
+                <>
+                  <RotateCcw className="w-4 h-4 text-amber-500" />
+                  Confirmar reset de penalidade
+                </>
+              ) : (
+                <>
+                  <History className="w-4 h-4 text-muted-foreground" />
+                  Histórico de resets
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
               Cliente:{" "}
@@ -234,20 +417,22 @@ export default function ConciergePenalidades() {
               )}
             </div>
 
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5 accent-amber-500 w-4 h-4 rounded"
-                checked={modal.confirmado}
-                onChange={(e) =>
-                  setModal((m) => ({ ...m, confirmado: e.target.checked }))
-                }
-              />
-              <span className="text-xs text-foreground/80 leading-snug">
-                Confirmo o reset para este cliente — todas as tentativas serão
-                zeradas e o bloqueio removido.
-              </span>
-            </label>
+            {modal.mode === "reset" && (
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-amber-500 w-4 h-4 rounded"
+                  checked={modal.confirmado}
+                  onChange={(e) =>
+                    setModal((m) => ({ ...m, confirmado: e.target.checked }))
+                  }
+                />
+                <span className="text-xs text-foreground/80 leading-snug">
+                  Confirmo o reset para este cliente — todas as tentativas serão
+                  zeradas e o bloqueio removido.
+                </span>
+              </label>
+            )}
           </div>
 
           <DialogFooter className="gap-2">
@@ -261,12 +446,25 @@ export default function ConciergePenalidades() {
             </Button>
             <Button
               size="sm"
-              className="btn-3d gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              className={
+                modal.mode === "reset"
+                  ? "btn-3d gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  : "btn-3d gap-1.5"
+              }
               disabled={!podeConfirmar}
-              onClick={() => void confirmarReset()}
+              onClick={() => void confirmarAcao()}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Resetar
+              {modal.mode === "reset" ? (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Resetar
+                </>
+              ) : (
+                <>
+                  <History className="w-3.5 h-3.5" />
+                  Ver histórico
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -385,64 +583,93 @@ export default function ConciergePenalidades() {
                   Atualizado
                 </th>
                 <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  Ação
+                  Ações
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr
-                  key={`${row.cpf_mascarado}-${i}`}
-                  className="border-b border-border/30 hover:bg-muted/30 transition-colors"
-                >
-                  <td className="px-4 py-3 font-mono text-xs tracking-wider">
-                    {row.cpf_mascarado}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`font-bold tabular-nums ${
-                        row.tentativas_falha >= 3
-                          ? "text-red-600"
-                          : row.tentativas_falha >= 2
-                            ? "text-amber-600"
-                            : row.tentativas_falha === 1
-                              ? "text-yellow-600"
-                              : "text-emerald-600"
-                      }`}
+              {rows.map((row, i) => {
+                const isExpanded = expandido[row.cpf_mascarado] !== undefined;
+                return (
+                  <>
+                    <tr
+                      key={`${row.cpf_mascarado}-${i}`}
+                      className="border-b border-border/30 hover:bg-muted/30 transition-colors"
                     >
-                      {row.tentativas_falha}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <PenalidadeBadge row={row} />
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {formatDate(row.ultima_falha_at)}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {formatDate(row.atualizado_at)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="btn-3d-soft gap-1 text-xs h-7 px-2.5"
-                      disabled={
-                        resetting === row.cpf_mascarado ||
-                        row.tentativas_falha === 0
-                      }
-                      onClick={() => abrirModalReset(row.cpf_mascarado)}
-                    >
-                      {resetting === row.cpf_mascarado ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <RotateCcw className="w-3 h-3" />
-                      )}
-                      Resetar
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+                      <td className="px-4 py-3 font-mono text-xs tracking-wider">
+                        {row.cpf_mascarado}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`font-bold tabular-nums ${
+                            row.tentativas_falha >= 3
+                              ? "text-red-600"
+                              : row.tentativas_falha >= 2
+                                ? "text-amber-600"
+                                : row.tentativas_falha === 1
+                                  ? "text-yellow-600"
+                                  : "text-emerald-600"
+                          }`}
+                        >
+                          {row.tentativas_falha}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <PenalidadeBadge row={row} />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDate(row.ultima_falha_at)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDate(row.atualizado_at)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="btn-3d-soft gap-1 text-xs h-7 px-2.5"
+                            onClick={() => abrirModalHistorico(row.cpf_mascarado)}
+                            title="Ver histórico de resets"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="w-3 h-3" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3" />
+                            )}
+                            <History className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="btn-3d-soft gap-1 text-xs h-7 px-2.5"
+                            disabled={
+                              resetting === row.cpf_mascarado ||
+                              row.tentativas_falha === 0
+                            }
+                            onClick={() => abrirModalReset(row.cpf_mascarado)}
+                          >
+                            {resetting === row.cpf_mascarado ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <RotateCcw className="w-3 h-3" />
+                            )}
+                            Resetar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <HistoricoResets
+                        key={`hist-${row.cpf_mascarado}`}
+                        cpfMascarado={row.cpf_mascarado}
+                        cpfCompleto={expandido[row.cpf_mascarado]}
+                        base={base}
+                      />
+                    )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
           {loading && (

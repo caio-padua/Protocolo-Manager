@@ -23,11 +23,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Hoist mocks ANTES do vi.mock (evita "Cannot access before initialization") ─
-const { mockExecute } = vi.hoisted(() => ({ mockExecute: vi.fn() }));
+const { mockExecute, mockTransaction } = vi.hoisted(() => ({
+  mockExecute: vi.fn(),
+  mockTransaction: vi.fn(),
+}));
 
 // ── Mock do @workspace/db ─────────────────────────────────────────────────────
 vi.mock("@workspace/db", () => ({
-  db: { execute: mockExecute },
+  db: { execute: mockExecute, transaction: mockTransaction },
   professionalsTable: {},
   agendaResourcesTable: {},
   schedulingRequestsTable: {},
@@ -47,7 +50,7 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // ── Importação após os mocks ──────────────────────────────────────────────────
-import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
+import { getPenalidade, registrarFalha, resetarPenalidade } from "../lib/concierge-penalidade.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -318,5 +321,104 @@ describe("Transição de estado via registrarFalha() + getPenalidade() — state
     const pen = await getPenalidade(CPF_CURTO);
     expect(pen.bloqueado).toBe(false);
     expect(pen.penalidade_dias).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloco 5 — resetarPenalidade: transação atômica com auditoria
+//
+// resetarPenalidade() usa db.transaction(). O mock de transaction recebe um
+// callback e executa-o com um objeto `tx` que simula SELECT/UPDATE/INSERT via
+// um mockTx.execute controlável por cada teste.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("resetarPenalidade — transação atômica + registro de auditoria", () => {
+  /** Cria um tx mock com execute configurável e passa para o callback. */
+  function setupTransaction(txExecute: ReturnType<typeof vi.fn>) {
+    mockTransaction.mockImplementation(async (callback: (tx: { execute: typeof txExecute }) => Promise<unknown>) => {
+      return callback({ execute: txExecute });
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // ensureTable e ensureAuditTable chamam db.execute; por padrão retornam vazio
+    mockExecute.mockResolvedValue({ rows: [] });
+  });
+
+  it("CPF inválido (<11 dígitos) → retorna false sem chamar transaction", async () => {
+    const result = await resetarPenalidade("99999999", "CEO");
+    expect(result).toBe(false);
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("CPF não encontrado no banco → retorna false sem fazer UPDATE/INSERT", async () => {
+    const txExecute = vi.fn().mockResolvedValue({ rows: [] }); // SELECT FOR UPDATE → vazio
+    setupTransaction(txExecute);
+
+    const result = await resetarPenalidade(CPF_VALIDO, "CEO");
+
+    expect(result).toBe(false);
+    // Apenas o SELECT FOR UPDATE foi chamado (1 chamada); UPDATE e INSERT não foram executados.
+    // Nota: sqlContentOf do SELECT FOR UPDATE contém "UPDATE" como substring —
+    // por isso verificamos contagem de calls (1) ao invés de ausência da palavra "UPDATE".
+    expect(txExecute).toHaveBeenCalledTimes(1);
+    const sqls = txExecute.mock.calls.map(([q]: [unknown]) => sqlContentOf(q));
+    expect(sqls[0]).toContain("SELECT");
+    expect(sqls.some((s) => s.includes("INSERT"))).toBe(false);
+  });
+
+  it("Reset bem-sucedido → retorna true e registra tentativas_anteriores corretas", async () => {
+    const TENTATIVAS = 2;
+    const txExecute = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ tentativas_falha: TENTATIVAS }] }) // SELECT FOR UPDATE
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                    // UPDATE
+      .mockResolvedValueOnce({ rows: [] });                                // INSERT auditoria
+
+    setupTransaction(txExecute);
+
+    const result = await resetarPenalidade(CPF_VALIDO, "CEO");
+
+    expect(result).toBe(true);
+
+    // Verifica que os 3 statements foram emitidos na ordem certa
+    const sqls = txExecute.mock.calls.map(([q]: [unknown]) => sqlContentOf(q));
+    expect(sqls[0]).toContain("SELECT");
+    expect(sqls[1]).toContain("UPDATE");
+    expect(sqls[2]).toContain("INSERT");
+
+    // O INSERT de auditoria recebe tentativas_anteriores = TENTATIVAS
+    // Como sql é mockado como (...args)=>args, os valores interpolados ficam nos args[1..n]
+    const insertArgs = txExecute.mock.calls[2][0] as unknown[];
+    const interpolated = insertArgs.slice(1); // valores interpolados
+    expect(interpolated).toContain(TENTATIVAS);
+  });
+
+  it("Falha no INSERT de auditoria → transaction propaga o erro (rollback implícito)", async () => {
+    const txExecute = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ tentativas_falha: 3 }] }) // SELECT FOR UPDATE
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })            // UPDATE
+      .mockRejectedValueOnce(new Error("auditoria indisponível")); // INSERT falha
+
+    setupTransaction(txExecute);
+
+    // A transação deve rejeitar; o chamador recebe o erro
+    await expect(resetarPenalidade(CPF_VALIDO, "CEO")).rejects.toThrow("auditoria indisponível");
+  });
+
+  it("Reset de CPF bloqueado (3 tentativas) registra tentativas_anteriores=3", async () => {
+    const txExecute = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ tentativas_falha: 3 }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [] });
+
+    setupTransaction(txExecute);
+
+    const result = await resetarPenalidade(CPF_VALIDO, "Operador");
+
+    expect(result).toBe(true);
+    const insertArgs = txExecute.mock.calls[2][0] as unknown[];
+    const interpolated = insertArgs.slice(1);
+    expect(interpolated).toContain(3);          // tentativas_anteriores
+    expect(interpolated).toContain("Operador"); // resetado_por
   });
 });

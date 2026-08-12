@@ -30,8 +30,9 @@ export interface Penalidade {
   tentativas: number;      // total de falhas registradas
 }
 
-// ─── Bootstrap da tabela (lazy, singleton por processo) ──────────────────────
+// ─── Bootstrap das tabelas (lazy, singleton por processo) ────────────────────
 let _tableReady: Promise<void> | null = null;
+let _auditTableReady: Promise<void> | null = null;
 
 async function ensureTable(): Promise<void> {
   if (!_tableReady) {
@@ -48,12 +49,32 @@ async function ensureTable(): Promise<void> {
       `)
       .then(() => undefined)
       .catch((err: unknown) => {
-        // Reseta o singleton para tentar de novo na próxima chamada.
         _tableReady = null;
         throw err;
       });
   }
   return _tableReady;
+}
+
+async function ensureAuditTable(): Promise<void> {
+  if (!_auditTableReady) {
+    _auditTableReady = db
+      .execute(sql`
+        CREATE TABLE IF NOT EXISTS concierge_penalidades_auditoria (
+          id                   SERIAL      PRIMARY KEY,
+          cpf                  TEXT        NOT NULL,
+          resetado_por         TEXT        NOT NULL DEFAULT 'CEO',
+          resetado_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          tentativas_anteriores INTEGER    NOT NULL DEFAULT 0
+        )
+      `)
+      .then(() => undefined)
+      .catch((err: unknown) => {
+        _auditTableReady = null;
+        throw err;
+      });
+  }
+  return _auditTableReady;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -153,27 +174,100 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
   }));
 }
 
+export interface AuditoriaRow {
+  id: number;
+  cpf_mascarado: string;
+  resetado_por: string;
+  resetado_at: string;
+  tentativas_anteriores: number;
+}
+
 /**
  * Reseta a penalidade de um CPF: zera tentativas e remove o bloqueio.
- * Se o CPF não existir, não faz nada (sem erro).
+ * Registra um evento na tabela de auditoria com quem resetou e quantas
+ * tentativas existiam antes do reset.
+ *
+ * Executa tudo dentro de uma única transação com SELECT … FOR UPDATE para
+ * garantir que:
+ *   1. O contador lido em tentativas_anteriores é exatamente o que foi resetado.
+ *   2. Se o INSERT de auditoria falhar, o UPDATE de reset também sofre rollback.
+ *   3. Resets concorrentes não produzem leituras inconsistentes.
+ *
+ * Retorna false se o CPF não existir (sem erro).
  */
-export async function resetarPenalidade(rawCpf: string): Promise<boolean> {
+export async function resetarPenalidade(
+  rawCpf: string,
+  resetadoPor = "CEO",
+): Promise<boolean> {
   const cpf = normCpf(rawCpf);
   if (cpf.length < 11) return false;
 
   await ensureTable();
+  await ensureAuditTable();
+
+  return db.transaction(async (tx) => {
+    // Bloqueia a linha para evitar race condition entre leitura e update
+    const antes = await tx.execute(
+      sql`SELECT tentativas_falha FROM concierge_penalidades WHERE cpf = ${cpf} LIMIT 1 FOR UPDATE`,
+    );
+    const antesRow = antes.rows[0] as { tentativas_falha: number | string } | undefined;
+    if (!antesRow) return false; // CPF não existe — nada a resetar
+
+    const tentativasAnteriores = Number(antesRow.tentativas_falha) || 0;
+
+    // Reseta a penalidade
+    await tx.execute(sql`
+      UPDATE concierge_penalidades
+      SET
+        tentativas_falha     = 0,
+        bloqueado_permanente = FALSE,
+        ultima_falha_at      = NULL,
+        atualizado_at        = NOW()
+      WHERE cpf = ${cpf}
+    `);
+
+    // Insere na auditoria — se falhar, o UPDATE acima sofre rollback integral
+    await tx.execute(sql`
+      INSERT INTO concierge_penalidades_auditoria
+        (cpf, resetado_por, resetado_at, tentativas_anteriores)
+      VALUES
+        (${cpf}, ${resetadoPor}, NOW(), ${tentativasAnteriores})
+    `);
+
+    return true;
+  });
+}
+
+/**
+ * Lista o histórico de resets de um CPF para exibição no painel CEO.
+ * CPF é mascarado na saída.
+ */
+export async function listAuditoriaResets(rawCpf: string): Promise<AuditoriaRow[]> {
+  const cpf = normCpf(rawCpf);
+  if (cpf.length < 11) return [];
+
+  await ensureAuditTable();
 
   const result = await db.execute(sql`
-    UPDATE concierge_penalidades
-    SET
-      tentativas_falha     = 0,
-      bloqueado_permanente = FALSE,
-      ultima_falha_at      = NULL,
-      atualizado_at        = NOW()
+    SELECT
+      id,
+      CONCAT(SUBSTRING(cpf,1,3), '.***.***-', SUBSTRING(cpf,10,2)) AS cpf_mascarado,
+      resetado_por,
+      resetado_at,
+      tentativas_anteriores
+    FROM concierge_penalidades_auditoria
     WHERE cpf = ${cpf}
+    ORDER BY resetado_at DESC
+    LIMIT 50
   `);
 
-  return (result.rowCount ?? 0) > 0;
+  return (result.rows as Array<Record<string, unknown>>).map((r) => ({
+    id: Number(r.id),
+    cpf_mascarado: String(r.cpf_mascarado ?? ""),
+    resetado_por: String(r.resetado_por ?? "CEO"),
+    resetado_at: String(r.resetado_at ?? ""),
+    tentativas_anteriores: Number(r.tentativas_anteriores ?? 0),
+  }));
 }
 
 /**
