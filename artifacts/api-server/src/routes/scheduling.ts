@@ -30,6 +30,7 @@ import {
 import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
+import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 
 const router: IRouter = Router();
 
@@ -757,6 +758,17 @@ router.get(
             req.log.error({ err: String(err), id }, "finalizeConciergeBooking (polling) falhou"),
           );
         }
+        // Trava de escassez: registra falha quando concierge nao foi pago.
+        // O polling e idempotente: o hook so roda na PRIMEIRA transicao (mapped != row).
+        if (
+          (mapped === "expirado" || mapped === "cancelado") &&
+          row.path === "concierge" &&
+          row.entrada === "dr_caio"
+        ) {
+          registrarFalha(row.patientCpf).catch((err) =>
+            req.log.error({ err: String(err), id }, "registrarFalha concierge (polling) falhou"),
+          );
+        }
       }
       res.json({
         status: mapped,
@@ -863,7 +875,8 @@ router.get(
 
 // Oferta de horarios REAL do concierge (Dr. Caio): confronta a agenda de verdade
 // ANTES do pagamento. Publico (o funil /agendar e publico). Stateless — nao cria
-// nada, so calcula. Query: weekday (1..6), period (manha|tarde), earliest (YYYY-MM-DD).
+// nada, so calcula. Query: weekday (1..6), period (manha|tarde), earliest (YYYY-MM-DD),
+// cpf (digits only — consulta penalidade sem criar nada).
 router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
   const rawWeekday = req.query.weekday;
   const weekday =
@@ -873,17 +886,45 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
   const rawEarliest = req.query.earliest;
   const earliest =
     typeof rawEarliest === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawEarliest) ? rawEarliest : null;
+  const rawCpf = req.query.cpf;
+  const cpf = typeof rawCpf === "string" ? rawCpf : null;
+
   try {
+    // ── Trava de escassez: verifica penalidade do CPF ANTES de calcular a oferta ──
+    const pen = await getPenalidade(cpf);
+    if (pen.bloqueado) {
+      // 4ª+ tentativa: concierge indisponível — redireciona para via normal.
+      res.json({
+        blocked: true,
+        motivo: "concierge_bloqueado",
+        tentativas: pen.tentativas,
+        mensagem:
+          "Após múltiplas tentativas não concluídas, o acesso ao Concierge foi suspenso. " +
+          "Por favor, utilize a Via Comum para agendar.",
+      });
+      return;
+    }
+
+    // Aplica offset de penalidade ao piso de datas (torna datas mais distantes).
+    let effectiveEarliest = earliest;
+    if (pen.penalidade_dias > 0) {
+      const base = earliest ?? new Date().toISOString().slice(0, 10);
+      const d = new Date(`${base}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + pen.penalidade_dias);
+      effectiveEarliest = d.toISOString().slice(0, 10);
+    }
+
     const offer = await computeConciergeOffer({
       preferredWeekday: weekday,
       preferredPeriod: period,
-      earliestDate: earliest,
+      earliestDate: effectiveEarliest,
     });
     if (!offer) {
       res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
       return;
     }
-    res.json(offer);
+    // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso).
+    res.json({ ...offer, penalidade_dias: pen.penalidade_dias, tentativas: pen.tentativas });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao calcular a oferta Concierge");
     res.status(500).json({ error: "Falha ao calcular a oferta de horários." });
