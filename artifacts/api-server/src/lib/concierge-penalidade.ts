@@ -96,6 +96,86 @@ export async function getPenalidade(rawCpf: string | null | undefined): Promise<
   return derivar(t, Boolean(row.bloqueado_permanente));
 }
 
+export interface PenalidadeRow {
+  cpf_mascarado: string;
+  tentativas_falha: number;
+  bloqueado_permanente: boolean;
+  ultima_falha_at: string | null;
+  criado_at: string;
+  atualizado_at: string;
+}
+
+/**
+ * Lista todas as penalidades registradas (CEO). CPF retorna mascarado.
+ * Filtro opcional por CPF parcial (raw, dígitos).
+ */
+export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]> {
+  await ensureTable();
+
+  const digitosFiltro = (filtro ?? "").replace(/\D/g, "");
+
+  const result = await db.execute(
+    digitosFiltro.length >= 3
+      ? sql`
+          SELECT
+            CONCAT(SUBSTRING(cpf,1,3), '.***.***-', SUBSTRING(cpf,10,2)) AS cpf_mascarado,
+            tentativas_falha,
+            bloqueado_permanente,
+            ultima_falha_at,
+            criado_at,
+            atualizado_at
+          FROM concierge_penalidades
+          WHERE cpf ILIKE ${'%' + digitosFiltro + '%'}
+          ORDER BY atualizado_at DESC
+          LIMIT 200
+        `
+      : sql`
+          SELECT
+            CONCAT(SUBSTRING(cpf,1,3), '.***.***-', SUBSTRING(cpf,10,2)) AS cpf_mascarado,
+            tentativas_falha,
+            bloqueado_permanente,
+            ultima_falha_at,
+            criado_at,
+            atualizado_at
+          FROM concierge_penalidades
+          ORDER BY atualizado_at DESC
+          LIMIT 200
+        `,
+  );
+
+  return (result.rows as Array<Record<string, unknown>>).map((r) => ({
+    cpf_mascarado: String(r.cpf_mascarado ?? ""),
+    tentativas_falha: Number(r.tentativas_falha ?? 0),
+    bloqueado_permanente: Boolean(r.bloqueado_permanente),
+    ultima_falha_at: r.ultima_falha_at ? String(r.ultima_falha_at) : null,
+    criado_at: String(r.criado_at ?? ""),
+    atualizado_at: String(r.atualizado_at ?? ""),
+  }));
+}
+
+/**
+ * Reseta a penalidade de um CPF: zera tentativas e remove o bloqueio.
+ * Se o CPF não existir, não faz nada (sem erro).
+ */
+export async function resetarPenalidade(rawCpf: string): Promise<boolean> {
+  const cpf = normCpf(rawCpf);
+  if (cpf.length < 11) return false;
+
+  await ensureTable();
+
+  const result = await db.execute(sql`
+    UPDATE concierge_penalidades
+    SET
+      tentativas_falha     = 0,
+      bloqueado_permanente = FALSE,
+      ultima_falha_at      = NULL,
+      atualizado_at        = NOW()
+    WHERE cpf = ${cpf}
+  `);
+
+  return (result.rowCount ?? 0) > 0;
+}
+
 /**
  * Registra UMA falha para o CPF (cobrança concierge gerada e não paga).
  * Idempotente do ponto de vista da tabela — incrementa sempre que chamado.
