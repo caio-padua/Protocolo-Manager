@@ -1,0 +1,117 @@
+Dr. Replit, decisão fechada. Duas entregas, em commits SEPARADOS e
+SEQUENCIAIS. Nunca as duas ao mesmo tempo — as duas tocam scheduling.ts, e
+foi disso que nasceu a regressão da semana.
+
+═══ COMMIT 1 — REMOVER O GUARD (desbloqueia o #75 e a fila inteira) ═══
+
+DECISÃO: opção B. O guard sai inteiro, não é alterado para receber
+desfecho.
+
+Motivo, para você registrar junto: com a Solução B que você já entregou no
+9a0c930, polling e webhook geram o MESMO eventId para o mesmo fato. A
+PRIMARY KEY já deduplica os dois cenários. O guard não cobre um único caso
+que a PK não cubra, e ainda roda ANTES do CTE — fora da atomicidade,
+criando corrida. Código que só pode errar e nunca acertar, sai.
+
+  1. Remover jaTemEventoParaSreq() — a definição e TODAS as chamadas.
+     A que importa está no polling, scheduling.ts ~linha 797.
+
+  2. Na mesma migração, três colunas. Todas ADD COLUMN, Regra 5:
+
+     ALTER TABLE concierge_webhook_eventos
+       ADD COLUMN scheduling_request_id INT,
+       ADD COLUMN desfecho TEXT,
+       ADD COLUMN asaas_event_id TEXT;
+
+     As duas primeiras deixam pronto o índice único sobre o fato, que é a
+     proteção no banco caso alguém mude a função de id no futuro. A
+     terceira é a auditoria que a Solução B tirou da chave — o invariante 1
+     exige que toda penalidade tenha origem rastreável.
+
+  3. Corrigir a ARQUITETURA. Está gravado "guard 9A fica" como decisão
+     formalizada, e é o inverso do que vale. Troque por:
+
+     "Guard removido — a PRIMARY KEY do eventId compartilhado torna a
+     verificação prévia redundante e introduz corrida fora do CTE."
+
+     Registre o MOTIVO, não só a decisão. Sem isso alguém reintroduz o
+     guard daqui a um mês achando que está reforçando a proteção.
+
+  4. Cancelar a Task #175. Ela é duplicata do #84, que já está na planilha
+     desde ontem com o mesmo dono e a mesma dependência.
+
+═══ COMMIT 2 — #87, FIX DA REATIVAÇÃO ═══
+
+O fix que o Dr. Manus propôs tem um buraco. Não aplique como está.
+
+  const cobrancaViva =
+    fresh.asaasChargeId && fresh.asaasInvoiceUrl &&
+    fresh.paymentStatus !== "expirado" &&
+    fresh.paymentStatus !== "cancelado";
+
+Isso é lista de exclusão: conhece só dois status ruins. "estornado",
+"recusado", "chargeback" ou qualquer status novo do Asaas passa como viva
+e devolve link morto. O bug volta sozinho, em silêncio.
+
+E o reflexo de inverter para lista de permissão é PIOR: se o status for
+"pago", uma lista de pendentes cai no ramo de criação e GERA SEGUNDA
+COBRANÇA PARA QUEM JÁ PAGOU.
+
+São três estados, não dois:
+
+  const TERMINAL_FALHA = new Set([
+    "expirado","cancelado","estornado","recusado","chargeback"
+  ]);
+  const TERMINAL_SUCESSO = new Set(["pago","confirmado","recebido"]);
+
+  // 1. Já pago — devolve a existente, NUNCA cria outra
+  if (fresh.asaasChargeId && TERMINAL_SUCESSO.has(fresh.paymentStatus)) {
+    return { created:false, jaPago:true, ...fresh };
+  }
+
+  // 2. Falha terminal — cai para a criação de cobrança nova
+  if (fresh.asaasChargeId && TERMINAL_FALHA.has(fresh.paymentStatus)) {
+    // segue para criar
+  }
+
+  // 3. Qualquer outra coisa, INCLUSIVE status desconhecido —
+  //    devolve a existente. NUNCA cria.
+  else if (fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
+    return { created:false, ...fresh };
+  }
+
+REGRA QUE FECHA ISSO: status desconhecido nunca cria cobrança. Falha
+fechada do lado do dinheiro.
+
+Status desconhecido devolvendo link morto é chateação e o paciente liga
+para a clínica. Status desconhecido gerando cobrança duplicada é dinheiro
+do cartão do paciente. Os dois erros não têm o mesmo peso.
+
+═══ O QUE VOCÊ COLA AO ENTREGAR ═══
+
+Três saídas, nesta ordem, por commit:
+
+  1. git diff --stat
+     Quero ver quantas linhas saíram e entraram. Foi um saldo de -261/+97
+     que escondeu a regressão do #75.
+
+  2. git grep -n "jaTemEventoParaSreq"
+     Esperado no commit 1: nenhuma ocorrência. Nem definição, nem chamada.
+
+  3. \d concierge_webhook_eventos
+     Mostrando as três colunas novas.
+
+Não é desconfiança. O modo de falha desta semana foi commit desfazendo
+commit anterior sem ninguém ver, e essas três saídas tornam isso impossível
+de passar batido.
+
+═══ O QUE NÃO FAZER ═══
+
+  - Não altere a ARQUITETURA por conta própria em nada além da linha do
+    guard. Quem propõe mudança de norma escreve a proposta; quem aprova
+    sou eu.
+  - Não marque o #75 como CONCLUÍDO. Quem fecha é o Dr. Manus depois de
+    rodar a bateria com o caso 15 — mesmo sreq, OVERDUE depois CHARGEBACK,
+    passando pelo polling. Os 23/23 anteriores passaram COM o defeito vivo,
+    porque nenhum deles atravessa o guard.
+  - Não comece o #77 nem o #82. Continuam tocando concierge-penalidade.ts.
