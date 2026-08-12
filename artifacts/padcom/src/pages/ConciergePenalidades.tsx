@@ -17,6 +17,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface PenalidadeRow {
   cpf_mascarado: string;
@@ -26,6 +34,20 @@ interface PenalidadeRow {
   criado_at: string;
   atualizado_at: string;
 }
+
+interface ModalState {
+  open: boolean;
+  cpfMascarado: string;
+  cpfInput: string;
+  confirmado: boolean;
+}
+
+const MODAL_INICIAL: ModalState = {
+  open: false,
+  cpfMascarado: "",
+  cpfInput: "",
+  confirmado: false,
+};
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -84,6 +106,7 @@ export default function ConciergePenalidades() {
   const [filtro, setFiltro] = useState("");
   const [resetting, setResetting] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [modal, setModal] = useState<ModalState>(MODAL_INICIAL);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -127,20 +150,31 @@ export default function ConciergePenalidades() {
     };
   }, [filtro, carregar]);
 
-  async function resetar(cpfMascarado: string) {
-    // Para o reset precisamos do CPF completo — como o CEO filtra por CPF e a
-    // rota aceita dígitos parciais, pedimos confirmação e usamos o filtro atual.
-    // Internamente o backend normaliza e faz o match exato.
-    const cpfCompleto = prompt(
-      `Digite o CPF completo (somente números) do cliente ${cpfMascarado} para confirmar o reset:`,
-    );
-    if (!cpfCompleto || cpfCompleto.replace(/\D/g, "").length < 11) return;
+  /** Abre o modal de confirmação de reset.
+   * Se o filtro ativo já for um CPF completo (11 dígitos), pré-preenche o campo. */
+  function abrirModalReset(cpfMascarado: string) {
+    const cpfDoFiltro = filtro.replace(/\D/g, "");
+    const prefill = cpfDoFiltro.length === 11 ? cpfDoFiltro : "";
+    setModal({
+      open: true,
+      cpfMascarado,
+      cpfInput: prefill,
+      confirmado: false,
+    });
+  }
 
-    setResetting(cpfMascarado);
+  /** Executa o PATCH de reset após validação no modal. */
+  async function confirmarReset() {
+    const cpfLimpo = modal.cpfInput.replace(/\D/g, "");
+    if (cpfLimpo.length < 11) return;
+    if (!modal.confirmado) return;
+
+    setModal((m) => ({ ...m, open: false }));
+    setResetting(modal.cpfMascarado);
     setFeedback(null);
     try {
       const r = await fetch(
-        `${base}/api/admin/concierge-penalidade/${encodeURIComponent(cpfCompleto.replace(/\D/g, ""))}`,
+        `${base}/api/admin/concierge-penalidade/${encodeURIComponent(cpfLimpo)}`,
         { method: "PATCH" },
       );
       const j = await r.json().catch(() => ({}));
@@ -154,8 +188,90 @@ export default function ConciergePenalidades() {
     }
   }
 
+  const cpfValido = modal.cpfInput.replace(/\D/g, "").length === 11;
+  const podeConfirmar = cpfValido && modal.confirmado;
+
   return (
     <div className="space-y-6">
+      {/* Modal de confirmação de reset */}
+      <Dialog
+        open={modal.open}
+        onOpenChange={(open) => !open && setModal(MODAL_INICIAL)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black uppercase tracking-widest">
+              <RotateCcw className="w-4 h-4 text-amber-500" />
+              Confirmar reset de penalidade
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Cliente:{" "}
+              <span className="font-mono font-bold text-foreground">
+                {modal.cpfMascarado}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                CPF completo (somente números)
+              </label>
+              <Input
+                className="concave-3d font-mono tracking-widest text-sm"
+                placeholder="00000000000"
+                maxLength={14}
+                value={modal.cpfInput}
+                onChange={(e) =>
+                  setModal((m) => ({ ...m, cpfInput: e.target.value }))
+                }
+                autoFocus={modal.cpfInput === ""}
+              />
+              {modal.cpfInput && !cpfValido && (
+                <p className="text-[11px] text-red-500">
+                  CPF deve ter 11 dígitos numéricos.
+                </p>
+              )}
+            </div>
+
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-amber-500 w-4 h-4 rounded"
+                checked={modal.confirmado}
+                onChange={(e) =>
+                  setModal((m) => ({ ...m, confirmado: e.target.checked }))
+                }
+              />
+              <span className="text-xs text-foreground/80 leading-snug">
+                Confirmo o reset para este cliente — todas as tentativas serão
+                zeradas e o bloqueio removido.
+              </span>
+            </label>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="btn-3d-soft"
+              onClick={() => setModal(MODAL_INICIAL)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              className="btn-3d gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={!podeConfirmar}
+              onClick={() => void confirmarReset()}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Resetar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Cabeçalho */}
       <div className="bevel-3d px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -187,12 +303,22 @@ export default function ConciergePenalidades() {
 
       {/* Regra de penalidades */}
       <div className="panel-3d-sub px-4 py-3 text-xs text-muted-foreground space-y-1">
-        <p className="font-bold text-foreground/80 uppercase tracking-wider mb-1">Legenda de penalidades</p>
+        <p className="font-bold text-foreground/80 uppercase tracking-wider mb-1">
+          Legenda de penalidades
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <span><span className="font-bold text-emerald-700">0 falhas</span> — acesso normal</span>
-          <span><span className="font-bold text-yellow-700">1 falha</span> — datas mín. +7 dias</span>
-          <span><span className="font-bold text-amber-700">2 falhas</span> — datas mín. +30 dias</span>
-          <span><span className="font-bold text-red-700">≥3 falhas</span> — bloqueado permanente</span>
+          <span>
+            <span className="font-bold text-emerald-700">0 falhas</span> — acesso normal
+          </span>
+          <span>
+            <span className="font-bold text-yellow-700">1 falha</span> — datas mín. +7 dias
+          </span>
+          <span>
+            <span className="font-bold text-amber-700">2 falhas</span> — datas mín. +30 dias
+          </span>
+          <span>
+            <span className="font-bold text-red-700">≥3 falhas</span> — bloqueado permanente
+          </span>
         </div>
       </div>
 
@@ -234,7 +360,9 @@ export default function ConciergePenalidades() {
       ) : rows.length === 0 && !loading ? (
         <div className="panel-3d-sub px-4 py-10 text-center text-muted-foreground text-sm">
           <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-emerald-500" />
-          {filtro ? "Nenhum CPF encontrado com esse filtro." : "Nenhuma penalidade registrada."}
+          {filtro
+            ? "Nenhum CPF encontrado com esse filtro."
+            : "Nenhuma penalidade registrada."}
         </div>
       ) : (
         <div className="panel-3d-sub overflow-x-auto">
@@ -299,8 +427,11 @@ export default function ConciergePenalidades() {
                       size="sm"
                       variant="outline"
                       className="btn-3d-soft gap-1 text-xs h-7 px-2.5"
-                      disabled={resetting === row.cpf_mascarado || row.tentativas_falha === 0}
-                      onClick={() => void resetar(row.cpf_mascarado)}
+                      disabled={
+                        resetting === row.cpf_mascarado ||
+                        row.tentativas_falha === 0
+                      }
+                      onClick={() => abrirModalReset(row.cpf_mascarado)}
                     >
                       {resetting === row.cpf_mascarado ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
