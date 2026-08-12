@@ -414,15 +414,24 @@ export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<
 
 export interface ProtocolEmailData {
   clientName: string;
+
   clientEmail: string;
+
   protocolTitle: string;
+
   professionalName: string;
+
   startDate: string;
+
   substances: Array<{ name: string; color: string; totalSessions: number }>;
+
   pdfBuffer: Buffer;
+
   pdfFileName: string;
-  // RAS FAP como segundo anexo (opcional — quando disponível, vai junto no mesmo e-mail)
+  /** RAS FAP PREMIUM — anexado automaticamente ao fechar o protocolo. */
+
   rasFapBuffer?: Buffer;
+
   rasFapFileName?: string;
 }
 
@@ -457,6 +466,7 @@ export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ succ
   const anexos: PaxterDoc["anexos"] = [
     { filename: data.pdfFileName, content: data.pdfBuffer, contentType: "application/pdf" },
   ];
+  // Anexa o RAS FAP PREMIUM quando disponível (gerado automaticamente ao fechar o protocolo).
   if (data.rasFapBuffer && data.rasFapBuffer.length > 0) {
     anexos.push({
       filename: data.rasFapFileName ?? "RAS_FAP.pdf",

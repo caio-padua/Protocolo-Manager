@@ -12,6 +12,7 @@ import {
   uploadToFolderById,
   shareWithClient,
   isDriveConnected,
+  formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail, sendProtocolOnboardingEmail } from "../lib/email-service";
 import { buildEventsForSessions } from "../lib/session-ics";
@@ -418,6 +419,85 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
         }
       } catch (err: any) {
         console.error("Protocol document Drive upload error:", err.message);
+      }
+
+      // === RAS FAP PREMIUM: gerar + salvar no Drive ===
+      let rasFapBuffer: Buffer | undefined;
+      let rasFapFileName: string | undefined;
+      try {
+        // Monta sessoes no formato esperado pelo motor do RAS FAP.
+        const physicalSessions = docSessions.map(sess => ({
+          number: sess.number,
+          scheduledDate: sess.scheduledDate,
+          effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
+          nurseName: null as string | null,
+          substanceStatuses: sess.substanceStatuses,
+        }));
+
+        // Calcula idade do cliente.
+        let clientAge: number | undefined;
+        if (client.birthDate) {
+          const birth = new Date(client.birthDate);
+          const now = new Date();
+          clientAge = now.getFullYear() - birth.getFullYear();
+          if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
+        }
+
+        const rasFapBytes = await generatePhysicalRASPdf({
+          clientName: client.name,
+          clientCpf: client.cpf ?? "",
+          clientPhone: client.phone ?? undefined,
+          clientAge,
+          professionalName,
+          nurseName: nurseName || undefined,
+          unit: protocol.unit ?? "Instituto Pádua",
+          startDate: protocol.startDate,
+          protocolNumber: protocol.id,
+          valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          substances: substances.map(s => ({
+            name: s.name,
+            color: s.color,
+            totalSessions: s.totalSessions,
+            frequencyDays: s.intervalDays,
+            startDate: s.startDate,
+            procedureType: s.procedureType,
+            dose: s.dose,
+          })),
+          sessions: physicalSessions,
+        });
+
+        rasFapBuffer = Buffer.from(rasFapBytes);
+        rasFapFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
+
+        // Salvar RAS FAP no Drive (pasta compartilhada + pasta PROTOCOLOS do cliente).
+        if (await isDriveConnected()) {
+          const rasFapPromises: Promise<any>[] = [];
+
+          rasFapPromises.push(
+            uploadToFolderById(SHARED_RAS_FOLDER_ID, rasFapFileName, "application/pdf", rasFapBuffer)
+              .then(() => console.log(`RAS FAP uploaded to shared folder: ${rasFapFileName}`))
+              .catch(err => console.error("RAS FAP shared folder upload error:", err.message))
+          );
+
+          rasFapPromises.push(
+            ensureClientFolderStructure(client.name, client.cpf ?? "")
+              .then(async ({ subfolders }) => {
+                const protocolosFolderId = subfolders["PROTOCOLOS"];
+                if (protocolosFolderId && rasFapBuffer && rasFapFileName) {
+                  const result = await uploadFileToDrive(protocolosFolderId, rasFapFileName, "application/pdf", rasFapBuffer);
+                  if (client.email) {
+                    await shareWithClient(result.fileId, client.email);
+                  }
+                  console.log(`RAS FAP uploaded to client PROTOCOLOS: ${rasFapFileName}`);
+                }
+              })
+              .catch(err => console.error("RAS FAP client folder upload error:", err.message))
+          );
+
+          await Promise.all(rasFapPromises);
+        }
+      } catch (err: any) {
+        console.error("RAS FAP auto-generation error (non-blocking):", err.message);
       }
 
       try {
