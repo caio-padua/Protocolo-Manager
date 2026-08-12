@@ -151,7 +151,7 @@ describe("PATCH /api/admin/concierge-penalidade/:cpf", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.resetou).toBe(true);
-    expect(penLib.resetarPenalidade).toHaveBeenCalledWith(CPF_VALIDO);
+    expect(penLib.resetarPenalidade).toHaveBeenCalledWith(CPF_VALIDO, "CEO");
   });
 
   it("HTTP 200 + resetou=false + mensagem 'não encontrado' quando CPF não existe", async () => {

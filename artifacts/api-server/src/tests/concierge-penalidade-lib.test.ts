@@ -19,7 +19,7 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 // ── Mock de @workspace/db (ANTES de qualquer import da lib) ──────────────────
 vi.mock("@workspace/db", () => ({
-  db: { execute: vi.fn() },
+  db: { execute: vi.fn(), transaction: vi.fn() },
 }));
 
 // ── Imports APÓS o mock ──────────────────────────────────────────────────────
@@ -31,8 +31,10 @@ import {
   listPenalidades,
 } from "../lib/concierge-penalidade";
 
-// Alias curto para o spy já tipado.
+// Alias curto para os spies já tipados.
 const mockExec = () => vi.mocked(db.execute);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockTx   = () => vi.mocked(db.transaction as (cb: (tx: any) => Promise<unknown>) => Promise<unknown>);
 
 // Helper: encapsula o cast `as any` para mocks parciais do QueryResult.
 // O QueryResult real exige command/oid/fields que não importam aqui.
@@ -44,18 +46,35 @@ const qr = (rows: unknown[], rowCount = rows.length): any =>
 const CPF_VALIDO = "12345678901"; // 11 dígitos
 const CPF_CURTO  = "1234567890";  // 10 dígitos — ignorado pela lib
 
-// ── Aquecimento do singleton _tableReady ─────────────────────────────────────
-// A primeira chamada a ensureTable() faz CREATE TABLE + resolve o singleton.
-// Após isso todos os testes fazem apenas 1 chamada a db.execute (a query real).
+// ── Aquecimento dos singletons _tableReady e _auditTableReady ────────────────
+// A primeira chamada a ensureTable()     faz CREATE TABLE penalidades.
+// A primeira chamada a ensureAuditTable() faz CREATE TABLE auditoria.
+// Após o beforeAll ambos estão quentes e os testes fazem apenas a query real.
 beforeAll(async () => {
+  // Passo 1: aquece _tableReady via getPenalidade
   mockExec()
-    .mockResolvedValueOnce(qr([])) // CREATE TABLE IF NOT EXISTS
+    .mockResolvedValueOnce(qr([])) // CREATE TABLE penalidades
     .mockResolvedValueOnce(qr([])); // SELECT (0 linhas — fail-open)
   await getPenalidade(CPF_VALIDO);
+
+  // Passo 2: aquece _auditTableReady via resetarPenalidade
+  // ensureTable: já quente (sem execute)
+  // ensureAuditTable: precisa de 1 execute (CREATE TABLE auditoria)
+  // db.transaction: mockado para retornar false (CPF não encontrado no SELECT)
+  mockExec().mockResolvedValueOnce(qr([])); // CREATE TABLE auditoria
+  mockTx().mockImplementationOnce(async (callback) => {
+    const txExec = vi.fn().mockResolvedValueOnce(qr([])); // SELECT retorna 0 linhas
+    return callback({ execute: txExec });
+  });
+  await resetarPenalidade(CPF_VALIDO);
+
   vi.clearAllMocks();
 });
 
-beforeEach(() => vi.clearAllMocks());
+// resetAllMocks limpa tanto o histórico de chamadas quanto as filas de
+// mockResolvedValueOnce, evitando que valores não consumidos de um teste
+// contaminem o próximo.
+beforeEach(() => vi.resetAllMocks());
 
 // ─────────────────────────────────────────────────────────────────────────────
 // getPenalidade — fail-open para CPFs inválidos (sem chamar o banco)
@@ -168,23 +187,36 @@ describe("resetarPenalidade", () => {
     const r = await resetarPenalidade(CPF_CURTO);
     expect(r).toBe(false);
     expect(mockExec()).not.toHaveBeenCalled();
+    expect(mockTx()).not.toHaveBeenCalled();
   });
 
-  it("CPF válido encontrado → retorna true (rowCount=1)", async () => {
-    mockExec().mockResolvedValueOnce(qr([], 1));
+  it("CPF válido encontrado → retorna true (SELECT retorna linha)", async () => {
+    mockTx().mockImplementationOnce(async (callback) => {
+      const txExec = vi.fn()
+        .mockResolvedValueOnce(qr([{ tentativas_falha: 2 }])) // SELECT FOR UPDATE
+        .mockResolvedValueOnce(qr([], 1))                    // UPDATE
+        .mockResolvedValueOnce(qr([], 1));                   // INSERT auditoria
+      return callback({ execute: txExec });
+    });
     const r = await resetarPenalidade(CPF_VALIDO);
     expect(r).toBe(true);
   });
 
-  it("CPF válido não encontrado → retorna false (rowCount=0)", async () => {
-    mockExec().mockResolvedValueOnce(qr([], 0));
+  it("CPF válido não encontrado → retorna false (SELECT retorna 0 linhas)", async () => {
+    mockTx().mockImplementationOnce(async (callback) => {
+      const txExec = vi.fn().mockResolvedValueOnce(qr([])); // SELECT: nenhuma linha
+      return callback({ execute: txExec });
+    });
     const r = await resetarPenalidade(CPF_VALIDO);
     expect(r).toBe(false);
   });
 
   it("rowCount undefined (driver antigo) → retorna false sem lançar", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockExec().mockResolvedValueOnce({ rows: [] } as any);
+    mockTx().mockImplementationOnce(async (callback) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txExec = vi.fn().mockResolvedValueOnce({ rows: [] } as any); // 0 linhas
+      return callback({ execute: txExec });
+    });
     const r = await resetarPenalidade(CPF_VALIDO);
     expect(r).toBe(false);
   });
