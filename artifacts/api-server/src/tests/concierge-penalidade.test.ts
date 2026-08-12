@@ -103,8 +103,9 @@ function makeStatefulMock() {
       return { rows: [] };
     }
 
+
     if (sql.includes("SELECT")) {
-      if (state.tentativas === 0) return { rows: [] };
+      if (state.tentativas === 0) return { rows: [], rowCount: 0 };
       return {
         rows: [{
           tentativas_falha:     state.tentativas,
