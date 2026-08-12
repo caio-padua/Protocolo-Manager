@@ -623,7 +623,38 @@ router.post(
           .where(eq(schedulingRequestsTable.id, id))
           .limit(1);
 
-        if (fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
+        // #87 — Fix da reativação: três estados, não dois.
+        // Lista de exclusão ("expirado"|"cancelado") falhou porque "estornado",
+        // "recusado", "chargeback" e qualquer status novo passavam como vivo.
+        // Lista de permissão invertida é pior: "pago" cairia no ramo de criação
+        // e geraria segunda cobrança para quem já pagou (erro de dinheiro).
+        // Três estados fecham todos os casos.
+        // Regra que fecha: status desconhecido nunca cria cobrança.
+        const TERMINAL_FALHA = new Set([
+          "expirado", "cancelado", "estornado", "recusado", "chargeback",
+        ]);
+        const TERMINAL_SUCESSO = new Set(["pago", "confirmado", "recebido"]);
+        const statusAtual = fresh.paymentStatus ?? "";
+
+        // Estado 1: já pago — devolve a existente. NUNCA cria outra.
+        // Criar para quem já pagou = cobrar duas vezes (erro de dinheiro).
+        if (fresh.asaasChargeId && TERMINAL_SUCESSO.has(statusAtual)) {
+          return {
+            created: false,
+            jaPago: true,
+            requestId: fresh.id,
+            chargeId: fresh.asaasChargeId,
+            invoiceUrl: fresh.asaasInvoiceUrl,
+            amount: fresh.paymentAmount ?? (await resolveConciergeAmount()),
+            status: fresh.paymentStatus,
+          };
+        }
+
+        // Estado 2: falha terminal — cai para criação de nova cobrança (segue abaixo).
+        // Estado 3: status desconhecido ou aguardando — devolve a existente. NUNCA cria.
+        // Devolve link morto → paciente liga (chateação).
+        // Cria cobrança duplicada → cobra cartão do paciente (erro de dinheiro).
+        if (!TERMINAL_FALHA.has(statusAtual) && fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
           return {
             created: false,
             requestId: fresh.id,
