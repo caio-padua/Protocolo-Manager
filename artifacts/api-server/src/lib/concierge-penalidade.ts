@@ -47,6 +47,15 @@ async function ensureTable(): Promise<void> {
           atualizado_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `)
+      .then(() =>
+        db.execute(sql`
+          CREATE TABLE IF NOT EXISTS concierge_webhook_eventos (
+            event_id       TEXT        NOT NULL PRIMARY KEY,
+            cpf            TEXT        NOT NULL,
+            processado_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `),
+      )
       .then(() => undefined)
       .catch((err: unknown) => {
         _tableReady = null;
@@ -272,15 +281,61 @@ export async function listAuditoriaResets(rawCpf: string): Promise<AuditoriaRow[
 
 /**
  * Registra UMA falha para o CPF (cobrança concierge gerada e não paga).
- * Idempotente do ponto de vista da tabela — incrementa sempre que chamado.
- * O chamador é responsável por chamar apenas uma vez por evento de falha real.
+ *
+ * Com eventId (recomendado para webhooks externos):
+ *   Usa um único CTE atômico que insere o evento na tabela
+ *   `concierge_webhook_eventos` e, somente se a inserção suceder (evento novo),
+ *   executa o UPSERT da penalidade. Como as duas escritas estão na mesma
+ *   instrução SQL, são atomicamente consistentes:
+ *   - Se o CTE inteiro falhar → nenhum registro fica → retry funciona.
+ *   - Se o event_id já existir → ON CONFLICT DO NOTHING → dedup CTE retorna
+ *     0 linhas → SELECT FROM dedup retorna vazio → INSERT da penalidade não
+ *     dispara → reenvio do Asaas não duplica a penalidade.
+ *
+ * Sem eventId (legado):
+ *   Incrementa sempre — use apenas para registros internos sem identificador
+ *   de evento externo.
  */
-export async function registrarFalha(rawCpf: string | null | undefined): Promise<void> {
+export async function registrarFalha(
+  rawCpf: string | null | undefined,
+  eventId?: string,
+): Promise<void> {
   const cpf = normCpf(rawCpf);
   if (cpf.length < 11) return; // CPF ausente/inválido: não penaliza
 
   await ensureTable();
 
+  if (eventId) {
+    // ── CTE atômico: dedup do evento + UPSERT da penalidade em um único SQL ──
+    // Se o event_id já existir: dedup retorna 0 linhas → SELECT FROM dedup
+    // não produz nenhuma linha → INSERT da penalidade não acontece.
+    // Se o CTE falhar por completo: event_id NÃO fica gravado → próximo retry
+    // tenta novamente (comportamento correto para reprocessamento).
+    await db.execute(sql`
+      WITH dedup AS (
+        INSERT INTO concierge_webhook_eventos (event_id, cpf)
+        VALUES (${eventId}, ${cpf})
+        ON CONFLICT (event_id) DO NOTHING
+        RETURNING event_id
+      )
+      INSERT INTO concierge_penalidades
+        (cpf, tentativas_falha, bloqueado_permanente, ultima_falha_at, atualizado_at)
+      SELECT ${cpf}, 1, FALSE, NOW(), NOW()
+      FROM dedup
+      ON CONFLICT (cpf) DO UPDATE
+      SET
+        tentativas_falha     = concierge_penalidades.tentativas_falha + 1,
+        bloqueado_permanente = CASE
+                                 WHEN concierge_penalidades.tentativas_falha + 1 >= ${LIMITE_BLOQUEIO}
+                                 THEN TRUE ELSE FALSE
+                               END,
+        ultima_falha_at      = NOW(),
+        atualizado_at        = NOW()
+    `);
+    return;
+  }
+
+  // ── Caminho legado (sem eventId): incrementa sempre ───────────────────────
   await db.execute(sql`
     INSERT INTO concierge_penalidades
       (cpf, tentativas_falha, bloqueado_permanente, ultima_falha_at, atualizado_at)

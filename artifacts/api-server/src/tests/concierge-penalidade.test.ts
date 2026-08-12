@@ -84,36 +84,60 @@ function sqlContentOf(query: unknown): string {
 /**
  * Cria um mockImplementation stateful que simula o comportamento do banco:
  * - CREATE TABLE → no-op
- * - INSERT INTO  → incrementa tentativas; ativa bloqueio quando >= 3
- * - SELECT       → devolve estado atual
+ * - CTE atômico (WITH DEDUP AS … INSERT … FROM dedup):
+ *     detectado quando o SQL contém "WITH DEDUP AS" ou ambas as tabelas.
+ *     Com idempotentEvents=true: 2ª chamada com mesmo eventId → rowCount=0 (no-op).
+ *     Com idempotentEvents=false: sempre incrementa (cada CTE conta como nova falha).
+ * - INSERT INTO concierge_penalidades (legado, sem CTE) → incrementa
+ * - SELECT → devolve estado atual
  */
-function makeStatefulMock() {
+function makeStatefulMock(opts?: { idempotentEvents?: boolean }) {
   const state = { tentativas: 0, bloqueado: false };
+  const processedEvents = new Set<string>();
 
   mockExecute.mockImplementation(async (query: unknown) => {
-    const sql = sqlContentOf(query);
+    const sqlStr = sqlContentOf(query);
 
-    if (sql.includes("CREATE TABLE")) {
-      return { rows: [] };
+    if (sqlStr.includes("CREATE TABLE")) {
+      return { rows: [], rowCount: 0 };
     }
 
-    if (sql.includes("INSERT INTO")) {
+    // ── CTE atômico: contém o dedup de eventos + upsert de penalidade ────────
+    // query = [TemplateStringsArray, eventId, cpf, cpf, LIMITE_BLOQUEIO]
+    if (sqlStr.includes("WITH DEDUP AS") || sqlStr.includes("FROM DEDUP")) {
+      const args = query as unknown[];
+      // O primeiro valor interpolado é o eventId
+      const eventId = String(args[1] ?? "");
+      if (opts?.idempotentEvents && processedEvents.has(eventId)) {
+        // Simula ON CONFLICT DO NOTHING no dedup → SELECT FROM dedup → 0 linhas → penalty não dispara
+        return { rows: [], rowCount: 0 };
+      }
+      processedEvents.add(eventId);
+      // Evento novo: incrementa a penalidade
       state.tentativas++;
       if (state.tentativas >= 3) state.bloqueado = true;
-      return { rows: [] };
+      return { rows: [], rowCount: 1 };
     }
 
-    if (sql.includes("SELECT")) {
-      if (state.tentativas === 0) return { rows: [] };
+    // ── INSERT legado (sem eventId) ───────────────────────────────────────────
+    if (sqlStr.includes("INSERT INTO CONCIERGE_PENALIDADES")) {
+      state.tentativas++;
+      if (state.tentativas >= 3) state.bloqueado = true;
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (sqlStr.includes("SELECT")) {
+      if (state.tentativas === 0) return { rows: [], rowCount: 0 };
       return {
         rows: [{
           tentativas_falha:     state.tentativas,
           bloqueado_permanente: state.bloqueado,
         }],
+        rowCount: 1,
       };
     }
 
-    return { rows: [] };
+    return { rows: [], rowCount: 0 };
   });
 
   return state;
@@ -420,5 +444,85 @@ describe("resetarPenalidade — transação atômica + registro de auditoria", (
     const interpolated = insertArgs.slice(1);
     expect(interpolated).toContain(3);          // tentativas_anteriores
     expect(interpolated).toContain("Operador"); // resetado_por
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloco 6 — Idempotência por eventId: reenvio do webhook não duplica penalidade
+//
+// Prova que chamar registrarFalha(cpf, eventId) duas vezes com o MESMO eventId
+// só incrementa tentativas_falha uma vez. O mock stateful com idempotentEvents=true
+// simula o ON CONFLICT DO NOTHING da tabela concierge_webhook_eventos.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("registrarFalha com eventId — idempotência contra reenvios do Asaas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Mesmo eventId enviado duas vezes → tentativas incrementadas apenas uma vez", async () => {
+    const state = makeStatefulMock({ idempotentEvents: true });
+    const CPF = "44444444444";
+    const EVENT_ID = "PAYMENT_OVERDUE:pay_abc123";
+
+    // 1ª chamada: evento novo → deve registrar a falha
+    await registrarFalha(CPF, EVENT_ID);
+    expect(state.tentativas).toBe(1);
+
+    // 2ª chamada: mesmo eventId → ON CONFLICT DO NOTHING → NÃO incrementa
+    await registrarFalha(CPF, EVENT_ID);
+    expect(state.tentativas).toBe(1); // permanece 1, não vai para 2
+
+    // Confirma via getPenalidade: +7 dias (1 falha), não bloqueado
+    const pen = await getPenalidade(CPF);
+    expect(pen.bloqueado).toBe(false);
+    expect(pen.penalidade_dias).toBe(7);
+    expect(pen.tentativas).toBe(1);
+  });
+
+  it("EventIds diferentes → cada um incrementa normalmente", async () => {
+    const state = makeStatefulMock({ idempotentEvents: true });
+    const CPF = "55555555555";
+
+    await registrarFalha(CPF, "PAYMENT_OVERDUE:pay_111");
+    expect(state.tentativas).toBe(1);
+
+    await registrarFalha(CPF, "PAYMENT_DELETED:pay_222");
+    expect(state.tentativas).toBe(2);
+
+    const pen = await getPenalidade(CPF);
+    expect(pen.bloqueado).toBe(false);
+    expect(pen.penalidade_dias).toBe(30); // 2 falhas → +30 dias
+    expect(pen.tentativas).toBe(2);
+  });
+
+  it("Sem eventId → comportamento legado (incrementa sempre)", async () => {
+    const state = makeStatefulMock({ idempotentEvents: true });
+    const CPF = "66666666666";
+
+    await registrarFalha(CPF); // sem eventId
+    await registrarFalha(CPF); // sem eventId
+    // Sem guarda de evento: ambas as chamadas incrementam
+    expect(state.tentativas).toBe(2);
+  });
+
+  it("Reenvio em série do mesmo overdue de concierge não leva a bloqueio prematuro", async () => {
+    // Simula o Asaas reenviando PAYMENT_OVERDUE 5 vezes para a mesma cobrança.
+    // Com idempotência: apenas a 1ª conta. Sem idempotência: o paciente seria
+    // bloqueado após a 3ª.
+    const state = makeStatefulMock({ idempotentEvents: true });
+    const CPF = "77777777777";
+    const EVENT_ID = "PAYMENT_OVERDUE:pay_reenvio";
+
+    for (let i = 0; i < 5; i++) {
+      await registrarFalha(CPF, EVENT_ID);
+    }
+
+    // Só 1 falha registrada, não 5
+    expect(state.tentativas).toBe(1);
+    expect(state.bloqueado).toBe(false);
+
+    const pen = await getPenalidade(CPF);
+    expect(pen.bloqueado).toBe(false);
+    expect(pen.penalidade_dias).toBe(7); // 1 falha → +7 dias
   });
 });
