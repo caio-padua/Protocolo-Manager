@@ -34,10 +34,11 @@ vi.mock("@workspace/db", () => ({
 }));
 
 vi.mock("../lib/concierge-penalidade", () => ({
-  listPenalidades:   vi.fn(),
-  resetarPenalidade: vi.fn(),
-  getPenalidade:     vi.fn(),
-  registrarFalha:    vi.fn(),
+  listPenalidades:     vi.fn(),
+  resetarPenalidade:   vi.fn(),
+  getPenalidade:       vi.fn(),
+  registrarFalha:      vi.fn(),
+  listAuditoriaResets: vi.fn(),
 }));
 
 // ── Imports APÓS os mocks ────────────────────────────────────────────────────
@@ -69,13 +70,6 @@ const ROW_BLOQUEADO: import("../lib/concierge-penalidade").PenalidadeRow = {
   ultima_falha_at:      "2026-08-12T10:00:00.000Z",
   criado_at:            "2026-08-01T00:00:00.000Z",
   atualizado_at:        "2026-08-12T10:00:00.000Z",
-};
-
-const ROW_RESETADO: import("../lib/concierge-penalidade").PenalidadeRow = {
-  ...ROW_BLOQUEADO,
-  tentativas_falha:     0,
-  bloqueado_permanente: false,
-  ultima_falha_at:      null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,7 +208,7 @@ describe("Ciclo completo STATEFUL — registrarFalha×3 → listar → reset →
 
     const LIMITE = 3;
 
-    // registrarFalha: incrementa tentativas no store
+    // registrarFalha: insere ou incrementa tentativas no store
     vi.mocked(penLib.registrarFalha).mockImplementation(async (rawCpf) => {
       const cpf = String(rawCpf ?? "").replace(/\D/g, "");
       if (cpf.length < 11) return;
@@ -245,9 +239,12 @@ describe("Ciclo completo STATEFUL — registrarFalha×3 → listar → reset →
       return true;
     });
 
-    // listPenalidades: lê do store
+    // listPenalidades: lê do store, excluindo registros já zerados
+    // (espelha o filtro WHERE tentativas_falha > 0 OR bloqueado_permanente = TRUE da lib real)
     vi.mocked(penLib.listPenalidades).mockImplementation(async () =>
-      Array.from(store.values()),
+      Array.from(store.values()).filter(
+        (r) => r.tentativas_falha > 0 || r.bloqueado_permanente,
+      ),
     );
 
     const app = buildApp();
@@ -275,14 +272,11 @@ describe("Ciclo completo STATEFUL — registrarFalha×3 → listar → reset →
     expect(patch.body.ok).toBe(true);
     expect(patch.body.resetou).toBe(true);
 
-    // ── Passo 4: CEO relista — registro deve refletir o reset imediatamente ───
+    // ── Passo 4: CEO relista — linha zerada NÃO aparece (filtro da lib) ────────
     const lista2 = await request(app).get("/api/admin/concierge-penalidade");
 
     expect(lista2.status).toBe(200);
-    expect(lista2.body.total).toBe(1);
-    const row2 = lista2.body.rows[0];
-    expect(row2.tentativas_falha).toBe(0);
-    expect(row2.bloqueado_permanente).toBe(false);
-    expect(row2.ultima_falha_at).toBeNull();
+    expect(lista2.body.total).toBe(0);
+    expect(lista2.body.rows).toEqual([]);
   });
 });

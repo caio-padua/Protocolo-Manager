@@ -147,6 +147,7 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
             atualizado_at
           FROM concierge_penalidades
           WHERE cpf ILIKE ${'%' + digitosFiltro + '%'}
+            AND (tentativas_falha > 0 OR bloqueado_permanente = TRUE)
           ORDER BY atualizado_at DESC
           LIMIT 200
         `
@@ -159,6 +160,7 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
             criado_at,
             atualizado_at
           FROM concierge_penalidades
+          WHERE tentativas_falha > 0 OR bloqueado_permanente = TRUE
           ORDER BY atualizado_at DESC
           LIMIT 200
         `,

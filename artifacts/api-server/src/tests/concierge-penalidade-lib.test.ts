@@ -31,10 +31,9 @@ import {
   listPenalidades,
 } from "../lib/concierge-penalidade";
 
-// Alias curto para os spies já tipados.
+// Aliases curtos para os spies já tipados.
 const mockExec = () => vi.mocked(db.execute);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockTx   = () => vi.mocked(db.transaction as (cb: (tx: any) => Promise<unknown>) => Promise<unknown>);
+const mockTx   = () => vi.mocked(db.transaction);
 
 // Helper: encapsula o cast `as any` para mocks parciais do QueryResult.
 // O QueryResult real exige command/oid/fields que não importam aqui.
@@ -47,7 +46,7 @@ const CPF_VALIDO = "12345678901"; // 11 dígitos
 const CPF_CURTO  = "1234567890";  // 10 dígitos — ignorado pela lib
 
 // ── Aquecimento dos singletons _tableReady e _auditTableReady ────────────────
-// A primeira chamada a ensureTable()     faz CREATE TABLE penalidades.
+// A primeira chamada a ensureTable()      faz CREATE TABLE penalidades.
 // A primeira chamada a ensureAuditTable() faz CREATE TABLE auditoria.
 // Após o beforeAll ambos estão quentes e os testes fazem apenas a query real.
 beforeAll(async () => {
@@ -182,8 +181,16 @@ describe("registrarFalha", () => {
 // resetarPenalidade
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Helper para montar um mock de tx com execuções em sequência
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const makeTxExec = (...results: any[]) => {
+  const txExec = vi.fn();
+  results.forEach((r) => txExec.mockResolvedValueOnce(r));
+  return txExec;
+};
+
 describe("resetarPenalidade", () => {
-  it("CPF curto → retorna false, banco não chamado", async () => {
+  it("CPF curto → retorna false, transaction não chamada", async () => {
     const r = await resetarPenalidade(CPF_CURTO);
     expect(r).toBe(false);
     expect(mockExec()).not.toHaveBeenCalled();
@@ -191,34 +198,41 @@ describe("resetarPenalidade", () => {
   });
 
   it("CPF válido encontrado → retorna true (SELECT retorna linha)", async () => {
-    mockTx().mockImplementationOnce(async (callback) => {
-      const txExec = vi.fn()
-        .mockResolvedValueOnce(qr([{ tentativas_falha: 2 }])) // SELECT FOR UPDATE
-        .mockResolvedValueOnce(qr([], 1))                    // UPDATE
-        .mockResolvedValueOnce(qr([], 1));                   // INSERT auditoria
-      return callback({ execute: txExec });
-    });
+    const txExec = makeTxExec(
+      qr([{ tentativas_falha: 2 }]), // SELECT FOR UPDATE — linha encontrada
+      qr([], 1),                      // UPDATE reset
+      qr([], 1),                      // INSERT auditoria
+    );
+    mockTx().mockImplementationOnce(async (cb: (tx: { execute: typeof db.execute }) => Promise<boolean>) =>
+      cb({ execute: txExec }),
+    );
     const r = await resetarPenalidade(CPF_VALIDO);
     expect(r).toBe(true);
+    expect(mockTx()).toHaveBeenCalledTimes(1);
   });
 
   it("CPF válido não encontrado → retorna false (SELECT retorna 0 linhas)", async () => {
-    mockTx().mockImplementationOnce(async (callback) => {
-      const txExec = vi.fn().mockResolvedValueOnce(qr([])); // SELECT: nenhuma linha
-      return callback({ execute: txExec });
-    });
+    const txExec = makeTxExec(
+      qr([]), // SELECT FOR UPDATE — sem resultado
+    );
+    mockTx().mockImplementationOnce(async (cb: (tx: { execute: typeof db.execute }) => Promise<boolean>) =>
+      cb({ execute: txExec }),
+    );
     const r = await resetarPenalidade(CPF_VALIDO);
     expect(r).toBe(false);
   });
 
-  it("rowCount undefined (driver antigo) → retorna false sem lançar", async () => {
-    mockTx().mockImplementationOnce(async (callback) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const txExec = vi.fn().mockResolvedValueOnce({ rows: [] } as any); // 0 linhas
-      return callback({ execute: txExec });
-    });
-    const r = await resetarPenalidade(CPF_VALIDO);
-    expect(r).toBe(false);
+  it("CPF com formatação → normaliza e opera via transaction", async () => {
+    const txExec = makeTxExec(
+      qr([{ tentativas_falha: 1 }]), // SELECT FOR UPDATE
+      qr([], 1),                      // UPDATE
+      qr([], 1),                      // INSERT audit
+    );
+    mockTx().mockImplementationOnce(async (cb: (tx: { execute: typeof db.execute }) => Promise<boolean>) =>
+      cb({ execute: txExec }),
+    );
+    const r = await resetarPenalidade("123.456.789-01");
+    expect(r).toBe(true);
   });
 });
 
