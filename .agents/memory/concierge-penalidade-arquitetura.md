@@ -1,6 +1,6 @@
 ---
-name: Concierge Penalidade — arquitetura aprovada + idempotência resolvida
-description: Decisões arquiteturais da trava de escassez do Concierge. Inclui Option B (shared: eventId), guard 9A, decisão updated_at, e sequência de execução #75→#84.
+name: Concierge Penalidade — arquitetura aprovada + guard removido + reativação 3 estados
+description: Decisões arquiteturais da trava de escassez do Concierge. Guard 9A REMOVIDO. Formato shared: eventId. Três estados de reativação (#87). Sequência de execução.
 ---
 
 # Concierge Penalidade — Arquitetura Aprovada
@@ -35,11 +35,8 @@ Piso em 0,0. Score nunca negativo.
 | 2,0–2,9 | Segunda quebra | +30 dias + aviso |
 | ≥ 3,0 | Suspenso | 180 dias, retorno a 2,0 |
 
-### Decaimento e suspensão
-
-- Decaimento: −1,0 a cada 90 dias sem incidente (job mensal)
-- Suspensão: 180 dias → retorno automático ao nível 2,0 (não zero)
-- Reset ao pagar: parcial (−1,0). Nunca zera.
+Decaimento: −1,0 a cada 90 dias sem incidente (job mensal).
+Suspensão: 180 dias → retorno automático ao nível 2,0 (não zero).
 
 ## Idempotência — Option B (12/08/2026)
 
@@ -52,56 +49,66 @@ shared:{sreqId}:{asaasChargeId}:{desfecho}
 - Polling: `shared:${row.id}:${row.asaasChargeId ?? "nocharge"}:${mapped}`
 - Webhook: `shared:${sreq.id}:${payment.id}:expirado` (ou `:cancelado`)
 
-**Why:** `payment.id` (webhook) == `asaasChargeId` (polling) — mesmo ID Asaas.
-Dois caminhos observando o mesmo fato produzem `event_id` idêntico.
-`ON CONFLICT (event_id) DO NOTHING` no CTE deduplica atomicamente — sem race condition, sem query extra.
+**Why:** `payment.id` (webhook) == `asaasChargeId` (polling). Dois caminhos, mesmo fato, mesmo `event_id`. `ON CONFLICT (event_id) DO NOTHING` no CTE deduplica atomicamente.
 
-**Arquivos:** `lib/concierge-penalidade.ts`, `routes/scheduling.ts`, `routes/asaas.ts`
-**Commits:** `3bebcde` (Caso 7 + 9A), `0187c3d` (Caso 9B)
+### Guard duplo-observador (9A) — REMOVIDO em 12/08/2026
 
-### Guard duplo-observador (9A) — FICA
+**DECISÃO: Guard removido.** `jaTemEventoParaSreq` apagado da lib e do import.
 
-`jaTemEventoParaSreq(sreqId)` no caminho de polling: defense-in-depth.
-Checa se qualquer evento já existe para o sreqId antes de chamar `registrarFalha`.
-Economiza roundtrip. O CTE garante correção independentemente.
-**Não quebra** Cenários 5/6 (estão em `getPenalidade`, não em `registrarFalha`).
+**Motivo:** o guard verificava se `sreq` já tinha **qualquer** evento. Com `shared:{sreqId}:{chargeId}:{desfecho}`, dois eventos legítimos do mesmo sreq (OVERDUE→CHARGEBACK) têm `event_id` distintos. O guard cortava o segundo **antes do CTE**, engolindo penalidade legítima silenciosamente. Código que só pode errar e nunca acertar, sai.
+
+**CTE é suficiente:** `ON CONFLICT (event_id) DO NOTHING` garante atomicamente sem race condition.
 
 ### `updated_at` — NÃO será adicionado a `scheduling_requests`
 
-`asaasChargeId` é discriminador suficiente: muda quando nova cobrança é criada.
-Semânticamente mais preciso que `updated_at` (identifica qual cobrança, não quando mudou algo).
-Registrado formalmente na ARQUITETURA.md seção 5.4 (commit `d0f50c2`).
+`asaasChargeId` é discriminador suficiente. Decisão em ARQUITETURA.md seção 5.4.
+
+### Colunas de auditoria em `concierge_webhook_eventos` (12/08/2026)
+
+Adicionadas via `ADD COLUMN IF NOT EXISTS` em `ensureEventosTable()`:
+- `scheduling_request_id INTEGER` — qual sreq gerou o evento
+- `desfecho TEXT` — saída da auditoria
+- `asaas_event_id TEXT` — payment.id do Asaas (Invariante 1: origem rastreável)
+
+## Fix da reativação — #87 (12/08/2026): três estados, não dois
+
+```
+TERMINAL_FALHA = {expirado, cancelado, estornado, recusado, chargeback}
+TERMINAL_SUCESSO = {pago, confirmado, recebido}
+```
+
+| Estado | Condição | Ação |
+|---|---|---|
+| 1 — Já pago | `asaasChargeId` + `TERMINAL_SUCESSO` | Devolve existente. `jaPago:true`. NUNCA cria. |
+| 2 — Falha terminal | `asaasChargeId` + `TERMINAL_FALHA` | Cai para criação de nova cobrança. |
+| 3 — Desconhecido/aguardando | Qualquer outro status | Devolve existente. NUNCA cria. |
+
+**Why:** lista de exclusão (2 status) deixava "estornado/recusado/chargeback" passarem como vivos. Lista de permissão invertida era pior: "pago" geraria segunda cobrança para quem já pagou. Regra de fechamento: status desconhecido nunca dispara criação (falha fechada do lado do dinheiro).
+
+**Arquivo:** `artifacts/api-server/src/routes/scheduling.ts` — dentro do `db.transaction`.
 
 ## Verificação de identidade antes de penalizar
 
 - Camada 1 (sem identidade): fricção por dispositivo/sessão — não transferível.
 - Camada 2 (com identidade): penalidade no CPF só após código confirmado via canal vinculado.
-**Why:** CPF é dado público no Brasil. Sem verificação, terceiro queima CPF de paciente.
-
-## Decisões do CEO confirmadas
-
-- Reset ao pagar: SIM, parcial (−1,0). Nunca zera.
-- Bloqueio permanente: removido. Suspensão de 180 dias com retorno automático.
-- `updated_at` em `scheduling_requests`: NÃO adicionar.
-
-## Sequência de execução (#75 verde = ponto de partida)
-
-| Passo | Quem | Item |
-|---|---|---|
-| PRÓXIMO | Dr. Manus | #81-A (8 casos idempotência) |
-| Após #81-A | Dr. Code | #77 peso por desfecho |
-| Após #77 | Dr. Code | #78 janela + decaimento |
-| Após #75 | Dr. Code | #79 verificação por código (paralelo ao #77/#78) |
-| Após #79 | Dr. Manus | #80 fricção por dispositivo |
-| Após #77/#78/#79 | Dr. Manus | #81-B |
-| Após #80 | Dr. Manus | #81-C + #85 |
-| Após #81-C | Dr. Replit | #84 frontend throttled/requiresVerification |
 
 ## Guard backend (#76) — já implementado
 
-`POST /scheduling/requests` com `path=concierge` recebe 403 `CONCIERGE_BLOCKED`
-quando CPF está suspenso. Linhas 495 e 915 de `scheduling.ts` — não mexer.
+`POST /scheduling/requests` com `path=concierge` recebe 403 `CONCIERGE_BLOCKED`. Não mexer.
 
-## Testes: 48/48 passando (12/08/2026)
+## Sequência de execução (após guard removido)
+
+| Passo | Quem | Item | Status |
+|---|---|---|---|
+| PRÓXIMO | Dr. Manus | #81-A com caso 15 (OVERDUE→CHARGEBACK mesmo sreq) | Aguardando |
+| Após #81-A verde | Dr. Code | #77 peso por desfecho | Bloqueado |
+| Após #77 | Dr. Code | #78 janela + decaimento | Bloqueado |
+| Após #75 | Dr. Code | #79 verificação por código | Pronto para iniciar |
+| Após #79 | Dr. Manus | #80 fricção por dispositivo | Bloqueado |
+| Após #77/#78/#79 | Dr. Manus | #81-B | Bloqueado |
+| Após #80 | Dr. Manus | #81-C + #85 | Bloqueado |
+| Após #81-C | Dr. Replit | #84 frontend throttled/requiresVerification | Bloqueado |
+
+## Testes: 48/48 passando (12/08/2026, commit d8ee3a9)
 
 Arquivos: `src/tests/concierge-penalidade.test.ts` + `concierge-penalidade-lib.test.ts`
