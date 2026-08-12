@@ -16,6 +16,7 @@ import {
 } from "../lib/google-drive";
 import { sendProtocolEmail, sendProtocolOnboardingEmail } from "../lib/email-service";
 import { postSlackAlert } from "../lib/slack-reporter";
+import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
 import { isGmailConnected } from "../lib/google-gmail";
@@ -499,13 +500,14 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
         }
       } catch (err: any) {
         console.error("RAS FAP auto-generation error (non-blocking):", err.message);
-        const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
-        if (slackChannel) {
-          postSlackAlert(
-            slackChannel,
-            `⚠️ *RAS FAP não pôde ser gerado/salvo* para *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nErro: ${err.message}`,
-          ).catch(() => {});
-        }
+        await notifySlackRasFapFailure(
+          "drive",
+          client.name,
+          protocol.id,
+          protocol.title,
+          err.message,
+          process.env.PADAXOR_SLACK_CHANNEL_ID,
+        );
       }
 
       try {
@@ -549,13 +551,14 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
             console.log(`RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
           } catch (rasFapErr: any) {
             console.error("RAS FAP generation error (email seguirá sem ele):", rasFapErr.message);
-            const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
-            if (slackChannel) {
-              postSlackAlert(
-                slackChannel,
-                `⚠️ *RAS FAP não pôde ser anexado ao e-mail* de *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}). O e-mail foi enviado sem o anexo RAS FAP.\nErro: ${rasFapErr.message}`,
-              ).catch(() => {});
-            }
+            await notifySlackRasFapFailure(
+              "email",
+              client.name,
+              protocol.id,
+              protocol.title,
+              rasFapErr.message,
+              process.env.PADAXOR_SLACK_CHANNEL_ID,
+            );
           }
 
           const emailResult = await sendProtocolEmail({
