@@ -879,4 +879,224 @@ router.get("/ras-fichas-demo", async (req, res) => {
   }
 });
 
+// ============================================================================
+// POST /ras-fap/entregar-protocolo
+// Geração e envio do RAS FAP real para o paciente.
+// Na primeira entrega, o e-mail lista os RAS jurídicos relevantes ao protocolo.
+// Corpo: { clientId, substancias, titulo?, incluirCadernosJuridicos? }
+//   substancias[]: { nome, dose, via, sessoes, frequenciaDias, inicio, cor?, procedureType? }
+// Retorna 200 { queued: true, email } imediatamente; envio é assíncrono.
+// ============================================================================
+function buildEntregaBlocks(
+  substancias: Array<{ nome: string; dose: string; via: string; sessoes: number; frequenciaDias: number; inicio: string; cor?: string }>,
+  clientName: string,
+  titulo: string,
+  dataHojeBR: string,
+  incluirCadernosJuridicos: boolean,
+): string[] {
+  const primeiro = clientName.split(" ")[0] ?? clientName;
+  const cores: Record<string, string> = {
+    "COENZIMA Q10": "#3D7A7A",
+    "PQQ": "#c9a24f",
+    "TESTOSTERONA": "#7c9cf0",
+    "TIRZEPATIDA": "#45B8CC",
+    "PROGESTERONA": "#EC4899",
+    "GESTRINONA": "#8B5CF6",
+    "IMPLANTE": "#c9a24f",
+  };
+  function corDa(nome: string, explicit?: string): string {
+    if (explicit) return explicit;
+    const up = nome.toUpperCase();
+    for (const [k, v] of Object.entries(cores)) if (up.includes(k)) return v;
+    return "#7e90ab";
+  }
+  function freqLabel(dias: number): string {
+    if (dias === 0 || dias === 1) return "no ato";
+    if (dias === 7) return "a cada 7 dias";
+    if (dias === 15) return "a cada 15 dias";
+    if (dias === 30) return "a cada 30 dias";
+    if (dias >= 150) return "após 6 meses";
+    return `a cada ${dias} dias`;
+  }
+  const linhas = substancias.map(s => {
+    const cor = corDa(s.nome, s.cor);
+    return `
+      <tr>
+        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);vertical-align:top;">
+          <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${cor};margin-right:7px;vertical-align:middle;"></span>
+          <span style="font-size:13px;color:#f3ead6;font-weight:700;">${s.nome}</span>
+          <div style="font-size:11px;color:#7e90ab;margin-top:2px;">${s.dose} · ${s.via}</div>
+        </td>
+        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);text-align:center;font-size:13px;color:#c9a24f;font-weight:700;">${s.sessoes}</td>
+        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);font-size:12px;color:#c2cee0;">${freqLabel(s.frequenciaDias)}</td>
+      </tr>`;
+  }).join("");
+
+  const tabelaHtml = `
+    <table width="100%" cellpadding="0" cellspacing="0"
+      style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;margin-bottom:18px;">
+      <thead>
+        <tr style="background:#102043;">
+          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTÂNCIA</th>
+          <th style="padding:9px 14px;text-align:center;font-size:11px;color:#c9a24f;width:80px;">SESSÕES</th>
+          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;width:160px;">FREQUÊNCIA</th>
+        </tr>
+      </thead>
+      <tbody>${linhas}</tbody>
+    </table>`;
+
+  const avisoRAS = incluirCadernosJuridicos ? `
+    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-top:16px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#c9a24f;">Documentos jurídicos incluídos nesta entrega</p>
+      <p style="margin:0;font-size:12px;color:#c2cee0;line-height:1.7;">
+        Junto ao RAS FAP em anexo, você receberá separadamente os Consentimentos Informados referentes ao seu protocolo:<br>
+        <strong style="color:#f3ead6;">CGLO</strong> (Consentimento Global) · <strong style="color:#f3ead6;">CIMU</strong> (Injetáveis IM) ·
+        <strong style="color:#f3ead6;">CSUB</strong> (Substâncias Especiais) · <strong style="color:#f3ead6;">CINC</strong> (GLP-1/Incretinas) ·
+        <strong style="color:#f3ead6;">CIMP</strong> (Implantes e Pellets) · <strong style="color:#f3ead6;">TCLE</strong> (Consentimento Livre e Esclarecido) ·
+        <strong style="color:#f3ead6;">RAS-JUR</strong> (Registro Jurídico).<br>
+        Leia, assine e devolva antes da primeira sessão.
+      </p>
+    </div>` : "";
+
+  const avisoApresentar = `
+    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-radius:8px;padding:14px 18px;margin-top:16px;">
+      <p style="margin:0;font-size:12px;color:#c2cee0;line-height:1.6;">
+        <strong style="color:#c9a24f;">Importante:</strong>
+        Apresente o <strong style="color:#f3ead6;">RAS FAP</strong> em TODAS as sessões presenciais para rubrica da equipe de enfermagem.
+        Ele é o seu controle oficial de aplicações — guarde-o com cuidado.
+      </p>
+    </div>`;
+
+  return [`
+    <p style="font-size:15px;color:#c2cee0;margin:0 0 14px;line-height:1.7;">
+      ${primeiro}, o seu protocolo médico personalizado <strong style="color:#c9a24f;">${titulo}</strong>
+      foi elaborado pelo <strong style="color:#f3ead6;">Dr. Caio Henrique Fernandes Pádua</strong>
+      com início em <strong style="color:#c9a24f;">${dataHojeBR}</strong>.
+    </p>
+    <p style="font-size:15px;color:#c2cee0;margin:0 0 18px;line-height:1.7;">
+      O documento <strong style="color:#c9a24f;">RAS FAP</strong>
+      (Registro de Administração de Substâncias — Formulário de Auditoria de Procedimentos)
+      segue <strong style="color:#f3ead6;">em anexo</strong>, em formato PDF pronto para impressão.
+      Ele contém o cronograma completo das sessões e os espaços para rubrica presencial a cada aplicação.
+    </p>
+    ${tabelaHtml}
+    ${avisoApresentar}
+    ${avisoRAS}
+  `];
+}
+
+router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
+  const { clientId, substancias, titulo, incluirCadernosJuridicos } = req.body as {
+    clientId: number;
+    titulo?: string;
+    incluirCadernosJuridicos?: boolean;
+    substancias: Array<{
+      nome: string;
+      dose: string;
+      via: string;
+      sessoes: number;
+      frequenciaDias: number;
+      inicio: string; // YYYY-MM-DD
+      cor?: string;
+      procedureType?: string;
+    }>;
+  };
+
+  if (!clientId || !Array.isArray(substancias) || substancias.length === 0) {
+    res.status(400).json({ error: "clientId e substancias sao obrigatorios" });
+    return;
+  }
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) { res.status(404).json({ error: "Cliente nao encontrado" }); return; }
+  if (!client.email) { res.status(400).json({ error: "Cliente sem e-mail cadastrado" }); return; }
+
+  const agora = new Date(Date.now() - 3 * 60 * 60 * 1000); // BRT
+  const dd = String(agora.getUTCDate()).padStart(2, "0");
+  const mm = String(agora.getUTCMonth() + 1).padStart(2, "0");
+  const yy = String(agora.getUTCFullYear()).slice(2);
+  const anoFull = agora.getUTCFullYear();
+  const dataHojeBR = `${dd}/${mm}/${anoFull}`;
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+  const protocoloTitulo = titulo ?? "Protocolo de Longevidade Personalizado";
+
+  const idadeAnos = client.birthDate
+    ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+    : undefined;
+
+  let pdfBuffer: Buffer;
+  try {
+    const pdfBytes = await generatePhysicalRASPdf({
+      clientName: client.name,
+      clientCpf: client.cpf ?? "000.000.000-00",
+      clientPhone: client.phone ?? "",
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
+      unit: "Instituto Padua — Clinica Avancada",
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      valorTratamento: undefined,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+        dose: s.dose,
+      })),
+      sessions: [],
+    }, "PREMIUM");
+    pdfBuffer = Buffer.from(pdfBytes);
+  } catch (pdfErr: any) {
+    res.status(500).json({ error: "Erro ao gerar RAS FAP PDF", details: pdfErr.message });
+    return;
+  }
+
+  // Responde imediatamente; envio é assíncrono (não bloqueia cliente)
+  res.json({ queued: true, email: client.email, driveFileName });
+
+  (async () => {
+    try {
+      const blocos = buildEntregaBlocks(
+        substancias, client.name, protocoloTitulo, dataHojeBR,
+        incluirCadernosJuridicos ?? false,
+      );
+      const doc: PaxterDoc = {
+        eyebrow: `Olá, ${client.name.split(" ")[0]}`,
+        titulo: protocoloTitulo,
+        paragrafos: [],
+        blocosHtml: blocos,
+        anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
+      };
+      const envio = await enviarMensagemPaxter(
+        doc,
+        { email: client.email!, nome: client.name },
+        ["EMAIL"],
+        { baseUrl: absoluteBaseUrl(req) },
+      );
+      const r0 = envio.resultados[0];
+      if (r0?.sent) {
+        req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
+      } else {
+        req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
+      }
+    } catch (err: any) {
+      req.log.error(`RAS FAP entrega email error: ${err.message}`);
+    }
+    try {
+      if (await isDriveConnected()) {
+        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+        await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
+        req.log.info(`RAS FAP salvo no Drive: ${driveFileName}`);
+      }
+    } catch (err: any) {
+      req.log.error(`RAS FAP Drive error: ${err.message}`);
+    }
+  })();
+});
+
 export default router;
+
