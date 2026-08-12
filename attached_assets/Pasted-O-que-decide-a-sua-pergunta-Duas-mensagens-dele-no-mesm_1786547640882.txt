@@ -1,0 +1,172 @@
+O que decide a sua pergunta
+Duas mensagens dele, no mesmo canal, sobre o mesmo commit 9a0c930:
+
+11:56:22 — "BATERIA #81-A — RESULTADO FINAL. 23 passou / 0 falhou. Item #75 = CONCLUÍDO. Commit validado: 9a0c930"
+
+11:59:11, dois minutos e quarenta e nove segundos depois — "Verifiquei no código real (commit 9a0c930) e confirmo: o defeito está vivo. jaTemEventoParaSreq(sreqId) recebe apenas sreqId, sem desfecho. Guarda corta ANTES do CTE → o chargeback legítimo é engolido."
+
+Ele declarou o item concluído e três minutos depois confirmou defeito vivo no mesmo commit.
+
+É exatamente o padrão que passamos a semana corrigindo no Dr. Replit — declarar pronto e depois descobrir que não estava. Agora veio do árbitro.
+
+E tem uma consequência técnica pior
+Os 23 casos passaram com o defeito vivo. Isso não valida o #75 — isso mostra que a bateria tem um ponto cego exatamente onde está o defeito conhecido.
+
+O caso 11 dele testa "desfechos distintos → eventId distinto". Mas isso testa a geração do id, não o percurso completo pelo polling com o guard na frente. O guard corta antes do CTE, então o id nem chega a ser usado.
+
+O caso 15 que eu especifiquei — mesmo sreq, OVERDUE depois CHARGEBACK, passando pelo polling — é o único que atravessa o guard. Não está na bateria. Por isso 23/23.
+
+Uma leitura generosa é possível: o defeito do guard não é de idempotência, então o #75 poderia fechar e o guard virar item separado. Mas o guard nasceu como correção do próprio #75 — foi o 9A. Fechar o #75 com o 9A defeituoso não se sustenta.
+
+Minha recomendação: Dr. Replit aplica
+E o motivo mudou. Não é mais sobre quem tem mais precisão.
+
+Você tem dois agentes capazes de ler e escrever código — o Manus confirmou que pode dar push. Eu não sou o terceiro: sem acesso ao repositório, eu reviso raciocínio, não diff.
+
+Então a conta é simples: quem implementa não pode validar. Se o Manus implementa, quem valida é o Replit — e verificação é justamente a fraqueza dele. Se o Replit implementa, quem valida é o Manus — o melhor verificador do time na cadeira de verificador.
+
+E o episódio das 11:56 reforça isso, não enfraquece: até o melhor verificador erra. Razão a mais para colocá-lo onde o erro dele é pego, e não onde ele é a última barreira.
+
+Sobre o argumento de velocidade: o gargalo desta manhã não foi o Replit. Ele devolveu correção em minutos, duas vezes. O gargalo foram os retornos passando por você para decisão. Trocar quem executa não resolve isso.
+
+O que é urgente agora, antes da decisão
+O #75 está marcado CONCLUÍDO com defeito conhecido vivo. Isso precisa voltar antes de qualquer outra coisa — senão daqui a uma semana ninguém lembra e o guard fica.
+
+Mensagem para os dois
+DECISÃO DO CEO — GUARD 9A
+Dr. Manus: obrigado pela resposta honesta, e o Dr. Code errou mesmo sobre
+o push — fica corrigido. O arranjo dos quatro papéis está aprovado como
+vocês dois desenharam.
+QUEM APLICA: Dr. Replit. Não é sobre capacidade.
+São dois agentes que leem e escrevem código. O Dr. Code não é o terceiro —
+sem acesso ao repositório ele revisa raciocínio, não diff. Então quem
+implementa não pode validar. Se o Manus implementa, quem valida é o
+Replit, e verificação é a fraqueza dele. Se o Replit implementa, o Manus
+fica na cadeira de verificador, que é onde ele é melhor.
+Dr. Manus, você especifica o diff exato. Dr. Replit aplica e commita.
+Você valida. É o arranjo que vocês dois propuseram.
+--- ANTES DISSO: O #75 VOLTA PARA ABERTO ---
+Dr. Manus, às 11:56 você marcou o #75 como CONCLUÍDO com 23/23 verde, e
+às 11:59 confirmou defeito vivo no mesmo commit 9a0c930. Reverta o status
+na planilha e poste a correção no canal.
+E os 23/23 precisam de ressalva: eles passaram COM o defeito vivo. Isso
+não valida o #75 — mostra que a bateria não cobre o caminho onde o defeito
+está.
+Seu caso 11 testa a GERAÇÃO do eventId. O guard corta antes do CTE, então
+o id nem chega a ser usado. Nenhum dos 23 atravessa o guard.
+O caso 15 tem que passar pelo POLLING, mesmo sreq, OVERDUE depois
+CHARGEBACK, e as duas penalidades têm que registrar. Sem isso a bateria
+continua cega no mesmo ponto.
+--- DECISÃO TÉCNICA: OPÇÃO B ---
+Guard sai inteiro. Com a Solução B os dois observadores geram o mesmo
+eventId, e a PRIMARY KEY já deduplica tudo. O guard não cobre um caso
+sequer que a PK não cubra, e adiciona corrida fora do CTE. Código que só
+pode errar, nunca acertar, sai.
+Junto, na mesma migração, três ADD COLUMN:
+  scheduling_request_id INT, desfecho TEXT, asaas_event_id TEXT
+--- SEQUÊNCIA ---
+1. Dr. Manus: reverte #75, especifica o diff, escreve o caso 15
+2. Dr. Replit: remove o guard, aplica as 3 colunas, corrige a ARQUITETURA
+   ("guard 9A fica" → errado), cancela a Task #175 (duplicata do #84)
+3. Dr. Manus: roda a bateria com o caso 15
+4. Só então o #75 fecha
+Depois disso: #87, o fix da reativação — e com a correção de três estados
+que o Dr. Code apontou, não a lista de dois status. O caso "já pago" é o
+único desta série cuja falha tira dinheiro de paciente.
+Uma observação para você fechar a semana: o Manus reconheceu cinco pontos contra si mesmo na tabela que mandou, incluindo "a bateria que desenhei tinha furos". Isso é raro e é o comportamento que você quer premiar. O episódio das 11:56 não muda essa avaliação — muda só onde ele rende mais, que é verificando.
+
+ja mandei a mensagem ao manus. agora o que escrevo ao dr replit ?
+
+Ele pode começar sem esperar a spec do Manus — a remoção do guard já está definida e é deleção, não desenho. Mensagem:
+
+Dr. Replit, decisão fechada. Duas entregas, em commits SEPARADOS e
+SEQUENCIAIS. Nunca as duas ao mesmo tempo — as duas tocam scheduling.ts, e
+foi disso que nasceu a regressão da semana.
+═══ COMMIT 1 — REMOVER O GUARD (desbloqueia o #75 e a fila inteira) ═══
+DECISÃO: opção B. O guard sai inteiro, não é alterado para receber
+desfecho.
+Motivo, para você registrar junto: com a Solução B que você já entregou no
+9a0c930, polling e webhook geram o MESMO eventId para o mesmo fato. A
+PRIMARY KEY já deduplica os dois cenários. O guard não cobre um único caso
+que a PK não cubra, e ainda roda ANTES do CTE — fora da atomicidade,
+criando corrida. Código que só pode errar e nunca acertar, sai.
+  1. Remover jaTemEventoParaSreq() — a definição e TODAS as chamadas.
+     A que importa está no polling, scheduling.ts ~linha 797.
+  2. Na mesma migração, três colunas. Todas ADD COLUMN, Regra 5:
+     ALTER TABLE concierge_webhook_eventos
+       ADD COLUMN scheduling_request_id INT,
+       ADD COLUMN desfecho TEXT,
+       ADD COLUMN asaas_event_id TEXT;
+     As duas primeiras deixam pronto o índice único sobre o fato, que é a
+     proteção no banco caso alguém mude a função de id no futuro. A
+     terceira é a auditoria que a Solução B tirou da chave — o invariante 1
+     exige que toda penalidade tenha origem rastreável.
+  3. Corrigir a ARQUITETURA. Está gravado "guard 9A fica" como decisão
+     formalizada, e é o inverso do que vale. Troque por:
+     "Guard removido — a PRIMARY KEY do eventId compartilhado torna a
+     verificação prévia redundante e introduz corrida fora do CTE."
+     Registre o MOTIVO, não só a decisão. Sem isso alguém reintroduz o
+     guard daqui a um mês achando que está reforçando a proteção.
+  4. Cancelar a Task #175. Ela é duplicata do #84, que já está na planilha
+     desde ontem com o mesmo dono e a mesma dependência.
+═══ COMMIT 2 — #87, FIX DA REATIVAÇÃO ═══
+O fix que o Dr. Manus propôs tem um buraco. Não aplique como está.
+  const cobrancaViva =
+    fresh.asaasChargeId && fresh.asaasInvoiceUrl &&
+    fresh.paymentStatus !== "expirado" &&
+    fresh.paymentStatus !== "cancelado";
+Isso é lista de exclusão: conhece só dois status ruins. "estornado",
+"recusado", "chargeback" ou qualquer status novo do Asaas passa como viva
+e devolve link morto. O bug volta sozinho, em silêncio.
+E o reflexo de inverter para lista de permissão é PIOR: se o status for
+"pago", uma lista de pendentes cai no ramo de criação e GERA SEGUNDA
+COBRANÇA PARA QUEM JÁ PAGOU.
+São três estados, não dois:
+  const TERMINAL_FALHA = new Set([
+    "expirado","cancelado","estornado","recusado","chargeback"
+  ]);
+  const TERMINAL_SUCESSO = new Set(["pago","confirmado","recebido"]);
+  // 1. Já pago — devolve a existente, NUNCA cria outra
+  if (fresh.asaasChargeId && TERMINAL_SUCESSO.has(fresh.paymentStatus)) {
+    return { created:false, jaPago:true, ...fresh };
+  }
+  // 2. Falha terminal — cai para a criação de cobrança nova
+  if (fresh.asaasChargeId && TERMINAL_FALHA.has(fresh.paymentStatus)) {
+    // segue para criar
+  }
+  // 3. Qualquer outra coisa, INCLUSIVE status desconhecido —
+  //    devolve a existente. NUNCA cria.
+  else if (fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
+    return { created:false, ...fresh };
+  }
+REGRA QUE FECHA ISSO: status desconhecido nunca cria cobrança. Falha
+fechada do lado do dinheiro.
+Status desconhecido devolvendo link morto é chateação e o paciente liga
+para a clínica. Status desconhecido gerando cobrança duplicada é dinheiro
+do cartão do paciente. Os dois erros não têm o mesmo peso.
+═══ O QUE VOCÊ COLA AO ENTREGAR ═══
+Três saídas, nesta ordem, por commit:
+  1. git diff --stat
+     Quero ver quantas linhas saíram e entraram. Foi um saldo de -261/+97
+     que escondeu a regressão do #75.
+  2. git grep -n "jaTemEventoParaSreq"
+     Esperado no commit 1: nenhuma ocorrência. Nem definição, nem chamada.
+  3. \d concierge_webhook_eventos
+     Mostrando as três colunas novas.
+Não é desconfiança. O modo de falha desta semana foi commit desfazendo
+commit anterior sem ninguém ver, e essas três saídas tornam isso impossível
+de passar batido.
+═══ O QUE NÃO FAZER ═══
+  - Não altere a ARQUITETURA por conta própria em nada além da linha do
+    guard. Quem propõe mudança de norma escreve a proposta; quem aprova
+    sou eu.
+  - Não marque o #75 como CONCLUÍDO. Quem fecha é o Dr. Manus depois de
+    rodar a bateria com o caso 15 — mesmo sreq, OVERDUE depois CHARGEBACK,
+    passando pelo polling. Os 23/23 anteriores passaram COM o defeito vivo,
+    porque nenhum deles atravessa o guard.
+  - Não comece o #77 nem o #82. Continuam tocando concierge-penalidade.ts.
+Duas notas para você:
+
+Inverti a ordem que eu tinha dado antes. Eu havia dito "#87 primeiro, depois a Solução B" — mas a Solução B já entrou no 9a0c930. O que sobrou é a remoção do guard, que são poucas linhas e destrava o #75, que por sua vez destrava o Manus, o Dr. Code e toda a fila. O #87 é independente e vem logo atrás.
+
+Ele vai receber duas instruções diferentes sobre o #87 — a lista de dois status, do Manus, e os três estados, minha. Se a mensagem não deixar explícito qual vale, ele aplica a que ler primeiro. Por isso escrevi "não aplique como está" antes de mostrar o código.
