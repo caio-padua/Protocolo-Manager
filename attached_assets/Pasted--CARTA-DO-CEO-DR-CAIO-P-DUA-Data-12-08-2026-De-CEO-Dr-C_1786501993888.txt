@@ -1,0 +1,184 @@
+# CARTA DO CEO — DR. CAIO PÁDUA
+
+**Data:** 12/08/2026
+**De:** CEO Dr. Caio Pádua
+**Para:** Dr. Replit Paxter
+**Cópia:** Dr. Code · Dr. Manus · Dr. Claude
+**Assunto:** Ordem de serviço — Trava de Escassez do Concierge
+
+---
+
+Dr. Replit,
+
+Esta carta é ordem minha, do CEO. O que está aqui não é sugestão de agente para agente — é o que eu determinei depois de ler a auditoria do Dr. Code, a verificação do Dr. Manus e o seu próprio encerramento de sessão.
+
+Leia até o fim antes de tocar em qualquer arquivo.
+
+---
+
+## 1. O que eu reconheço do seu trabalho
+
+Começo por isto porque é verdade e porque quero que fique registrado.
+
+Você entregou muito e o que entregou funciona. O motor da trava, a tabela, os ganchos nos quatro eventos do Asaas, o painel vermelho, o banner âmbar, o painel de reset com log de auditoria. O guard do backend fechou um buraco real — antes dava para contornar a trava chamando a API direto, e agora não dá mais. Antes disso, na mesma semana, o guia digital inteiro com áudio, o bot do Telegram e onze termos no dicionário.
+
+Ninguém na equipe produz no seu ritmo. Isso não está em discussão.
+
+---
+
+## 2. O que precisa mudar, e é uma coisa só
+
+Em quatro rodadas de auditoria, o mesmo erro apareceu cinco vezes. Não é má-fé — eu sei que não é. É que **você relata o estado que pretendia deixar, e não o estado que existe.**
+
+Os fatos, todos conferidos na fonte por mim e pelo Dr. Code:
+
+- Os verbetes #95 e #96 do dicionário: você informou corrigidos, com o commit `5288d1a`. Dois dias depois continuavam com o texto antigo na aba DICIONARIO.
+- As tarefas #144 a #167: informadas como criadas. Nunca estiveram na planilha.
+- A carta da equipe afirma três vezes "Status na planilha: CONCLUÍDO" para os itens #74, #75 e #76. Naquele momento a planilha dizia A FAZER nos três.
+- O commit `b05883f` recebeu três descrições diferentes em documentos diferentes, e o Dr. Manus atribui o #75 a outro commit, o `8e7179d`.
+- E o item #75, que você fechou às 23:09: seis minutos depois o Dr. Manus mostrou, com `git diff`, que o commit seguinte tinha removido a funcionalidade.
+
+Falta **um passo** entre executar e reportar: abrir a fonte e conferir o que está lá. É barato e resolve os cinco casos.
+
+**Determinação:** a partir de agora, nenhum item é marcado CONCLUÍDO sem hash de commit **e** saída de teste colada. Prosa não fecha item. Isso é a Regra 9 da nossa própria Cartilha, e ela passa a valer de verdade.
+
+---
+
+## 3. A fonte única — leia antes de codificar
+
+O Dr. Code escreveu, a meu pedido, o documento `docs/concierge/ARQUITETURA.md`. Ele consolida tudo que foi decidido e aprovado: modelo de pontuação, faixas, janela, identidade, idempotência, fricção por dispositivo, textos de tela, bateria de testes, ordem de execução e invariantes.
+
+**Regra que passa a valer:** se qualquer documento divergir da ARQUITETURA.md — carta, postagem de Slack, spec de agente, linha de planilha —, **a ARQUITETURA vence** e o outro documento está errado e deve ser corrigido.
+
+Isso existe porque perdemos quatro rodadas com carta, planilha, Slack e spec carregando versões diferentes da mesma decisão. Correção aceita num canal sumia no outro. Acabou.
+
+**Primeira tarefa sua:** commitar esse arquivo em `docs/concierge/ARQUITETURA.md` e me mandar o hash.
+
+---
+
+## 4. Suas tarefas, em ordem
+
+### 4.1 — REFAZER O #75 (P0, é o que trava toda a fila)
+
+**O alvo mudou. Preste atenção nisto:**
+
+O guard **não** é o problema. As linhas 495 e 915 apenas consultam `getPenalidade` e bloqueiam. Estão corretas. **Não mexa nelas.**
+
+O defeito está no **polling, `scheduling.ts` linha 789**, que chama `registrarFalha(row.patientCpf)` sem identificador de evento. Foi o Dr. Manus quem localizou, corrigindo uma afirmação anterior dele mesmo.
+
+O que fazer:
+
+```typescript
+export async function registrarFalha(
+  rawCpf: string | null | undefined,
+  eventId: string,          // OBRIGATÓRIO — sem sobrecarga opcional
+): Promise<void>
+```
+
+O `eventId` **não pode ser opcional**. Parâmetro opcional deixa vivo o caminho que incrementa sempre, e foi por ele que a regressão passou. Além disso, penalidade sem origem rastreável é indefensável no dia em que um paciente reclamar comigo — e é para eu poder responder a esse paciente que estamos refazendo tudo isto.
+
+Formatos:
+
+| Origem | `eventId` |
+|---|---|
+| Webhook Asaas | `event.id` do payload |
+| Polling (linha 789) | `poll:${row.id}:${status}:${row.updated_at}` |
+
+O carimbo de tempo no polling é obrigatório. Sem ele, um pedido que expira, é reaberto e expira de novo gera identificador idêntico, e a segunda expiração — que é real — desaparece em silêncio.
+
+Implementação: CTE atômico, dedup e UPSERT num único SQL, tabela `concierge_webhook_eventos` com `event_id` como chave primária. **Sem caminho legado.**
+
+**Como você me prova que está feito:** dispare o mesmo `event.id` três vezes seguidas e cole a saída mostrando que a pontuação subiu uma vez só.
+
+### 4.2 — CORRIGIR O POST DAS 23:09 NO SLACK
+
+Sua mensagem de encerramento continua no `#padaxor-projeto` dizendo que #74, #75 e #76 estão CONCLUÍDO. Seis minutos depois veio o alerta de regressão. Quem ler o canal de cima para baixo pega a versão errada.
+
+Responda em thread naquela mensagem apontando para o alerta do Dr. Manus e para esta carta.
+
+### 4.3 — PADRONIZAR A PLANILHA
+
+As linhas dos itens #74 a #76 foram escritas com ordem de colunas diferente das linhas dos itens #57 a #73. Qualquer script que leia por posição de coluna vai ler errado — inclusive o #73, que é justamente o endpoint de verificação que eu quero pôr para funcionar.
+
+Ordem canônica: `Nº | Data | Hora | Descrição | Responsável | Estado | Prioridade | Depende de`.
+
+### 4.4 — DEPOIS, QUANDO CHEGAR A VEZ
+
+O item **#84** é seu: o frontend do `agendar.tsx` precisa tratar `throttled` e `requiresVerification`, além de `blocked`. Hoje a tela só conhece `blocked` — o paciente veria tela vazia. Isso entra depois do #80 do Dr. Manus.
+
+---
+
+## 5. O que você NÃO deve fazer
+
+1. **Não mexa nos guards** das linhas 495 e 915. Estão certos.
+2. **Não implemente o #80** com limite de 5 ofertas por dia com fallback por IP. Essa versão está **revogada** — ela barra paciente de rede compartilhada. A versão válida está na seção 6 da ARQUITETURA. O item é do Dr. Manus, mas registro aqui para você não implementar por engano ao ver a versão antiga em alguma carta.
+3. **Não use `db push`.** A tabela `concierge_penalidades` foi criada fora do Drizzle e o item #82 existe para migrá-la.
+4. **Não crie tabela nova fora do Drizzle.** A exceção histórica é uma só e já tem conserto marcado. Não vire padrão da casa.
+5. **Não marque nada como CONCLUÍDO sem teste colado.**
+
+---
+
+## 6. Como a orquestração funciona a partir de agora
+
+### 6.1 Ordem da fila e quem espera quem
+
+| # | Quem | Item | Só fecha quando |
+|---|---|---|---|
+| 1 | **Você** | #75 idempotência com `eventId` obrigatório | #81-A verde |
+| 2 | Dr. Manus | #81-A — 8 casos de idempotência | — |
+| 3 | Dr. Code | #77 peso por desfecho | #81-B verde |
+| 4 | Dr. Code | #78 janela, decaimento, suspensão | #81-B verde |
+| 5 | Dr. Code | #79 verificação por código no canal | #81-B verde |
+| 6 | Dr. Manus | #81-B — 8 casos de CPF, caso 21 do guard, faixas do #74 | — |
+| 7 | Dr. Manus | #80 fricção por dispositivo, versão da ARQUITETURA | #81-C verde |
+| 8 | Dr. Manus | #81-C — 4 casos de dispositivo + #85 CGNAT | — |
+| 9 | **Você** | #84 frontend trata `throttled` | — |
+| 10 | equipe | #82 Drizzle · #86 semântica · #83 Inteligência Comercial | — |
+
+**Nada avança do passo 1 para o 3 sem o bloco #81-A verde.** A bateria deixou de ser item no fim da fila e virou porta de saída de cada entrega. Foi assim que a regressão do #75 passou despercebida, e não vai passar de novo.
+
+### 6.2 Qual documento manda
+
+| Documento | Serve para |
+|---|---|
+| `docs/concierge/ARQUITETURA.md` | **Norma.** Em caso de divergência, vence |
+| Planilha de produção | Estado de cada item: quem, prioridade, dependência, status |
+| Slack `#padaxor-projeto` | Anúncio e handoff. Sempre com hash de commit |
+| Cartas em `cartas/` | Registro histórico. Não são norma |
+
+Alterar a ARQUITETURA exige: proposta escrita, meu aceite, commit e aviso no Slack com o hash. Mudança não anunciada não vale.
+
+### 6.3 Como você me reporta
+
+Toda entrega vem com quatro coisas, nesta ordem:
+
+1. Hash do commit
+2. Saída bruta do teste, colada — não resumida
+3. Confirmação de que a planilha foi atualizada, **reabrindo a planilha**, não pelo log do seu processo
+4. Postagem no `#padaxor-projeto` com o hash
+
+Sem os quatro, o item continua aberto.
+
+---
+
+## 7. Duas regras minhas que valem para tudo
+
+**O Concierge não recebe paciente real antes do item #79 estar no ar.** Enquanto a penalidade for gravada em CPF não verificado, qualquer pessoa com o CPF de um paciente meu pode bloqueá-lo. Não abro exceção para isso.
+
+**Discordância com prova continua bem-vinda.** O Dr. Code retirou um furo inteiro quando você mostrou que as duas rotas de e-mail eram diferentes. O Dr. Manus corrigiu uma afirmação própria em menos de uma hora. Se você achar que algo nesta carta está errado, responda no ponto, com a saída do comando. Eu prefiro isso a concordância.
+
+---
+
+## 8. O que eu quero de volta hoje
+
+1. Confirmação de que leu a ARQUITETURA inteira.
+2. Hash do commit dela em `docs/concierge/ARQUITETURA.md`.
+3. Prazo estimado para o #75.
+4. Se discordar de algo, o ponto e a prova.
+
+---
+
+Dr. Replit, o problema nunca foi capacidade sua. Foi que estávamos correndo mais rápido do que conseguíamos conferir. Esta carta desacelera o reporte para que a entrega possa continuar rápida.
+
+— **Dr. Caio Pádua**
+CEO · Instituto Pádua
