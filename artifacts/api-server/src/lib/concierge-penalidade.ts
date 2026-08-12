@@ -303,11 +303,15 @@ async function ensureEventosTable(): Promise<void> {
 }
 
 /**
- * Retorna true se já existe um evento de WEBHOOK (não de polling) registrado
- * para este scheduling_request_id. Usado pelo polling para evitar contagem dupla
- * quando webhook e polling observam o mesmo desfecho (caso 9).
+ * Retorna true se já existe QUALQUER evento registrado para este
+ * scheduling_request_id — seja de polling seja de webhook.
+ *
+ * Usado como guard de defesa-em-profundidade no polling: evita chamar
+ * registrarFalha quando a dedup do CTE já trataria o caso.
+ * Com o formato shared:{sreqId}:{chargeId}:{desfecho} em ambos os caminhos,
+ * o CTE ON CONFLICT já é suficiente; este guard economiza um roundtrip.
  */
-export async function jaTemEventoWebhookParaSreq(
+export async function jaTemEventoParaSreq(
   schedulingRequestId: number,
 ): Promise<boolean> {
   await ensureEventosTable();
@@ -315,11 +319,13 @@ export async function jaTemEventoWebhookParaSreq(
     SELECT 1
     FROM concierge_webhook_eventos
     WHERE scheduling_request_id = ${schedulingRequestId}
-      AND event_id NOT LIKE 'poll:%'
     LIMIT 1
   `);
   return result.rows.length > 0;
 }
+
+/** @deprecated Use jaTemEventoParaSreq — nome atualizado em 12/08/2026 */
+export const jaTemEventoWebhookParaSreq = jaTemEventoParaSreq;
 
 /**
  * Registra UMA falha para o CPF (cobrança concierge não paga).
@@ -333,12 +339,16 @@ export async function jaTemEventoWebhookParaSreq(
  * eventId é OBRIGATÓRIO. Parâmetro opcional deixaria vivo o caminho que
  * incrementa sempre — foi por esse caminho que a regressão anterior entrou.
  *
- * Formatos de eventId:
- *   Webhook Asaas  → event.id do payload (ex: "evt_abc123")
- *   Polling        → "poll:<row.id>:<status>:<row.updated_at>"
- *                    O carimbo de tempo é obrigatório: sem ele, um pedido
- *                    que expira, reabre e expira de novo gera id idêntico e
- *                    a segunda expiração — real — desaparece em silêncio.
+ * Formato ÚNICO de eventId (caso 9B — 12/08/2026):
+ *   Ambos os caminhos usam: "shared:{sreqId}:{asaasChargeId}:{desfecho}"
+ *   Polling  → `shared:${row.id}:${row.asaasChargeId ?? "nocharge"}:${mapped}`
+ *   Webhook  → `shared:${sreq.id}:${payment.id}:${desfecho}`
+ *
+ *   payment.id (webhook) == asaasChargeId (polling) — mesmo ID da cobrança Asaas.
+ *   Assim o ON CONFLICT (event_id) DO NOTHING deduplica atomicamente qualquer
+ *   ordem de chegada: polling-primeiro ou webhook-primeiro.
+ *   O asaasChargeId muda na reativação, gerando novo eventId — penalidade real
+ *   de uma segunda expiração não é engolida.
  */
 export async function registrarFalha(
   rawCpf: string | null | undefined,
