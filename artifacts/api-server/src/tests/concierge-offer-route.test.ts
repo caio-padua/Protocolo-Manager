@@ -4,12 +4,21 @@
  * Testes de integração controlada da rota GET /scheduling/concierge-offer.
  *
  * Cenários cobertos:
- *  7. CPF bloqueado  → resposta { blocked: true, motivo: "concierge_bloqueado" }
- *  8. CPF com 1 falha → earliestDate é offsetada em +7 dias antes de chamar computeConciergeOffer
+ *  7.  CPF bloqueado  → { blocked: true, motivo: "concierge_bloqueado" }
+ *  8.  CPF com 1 falha → earliestDate offsetada +7 dias
+ *  8b. CPF com 2 falhas → earliestDate offsetada +30 dias
+ *  8c. CPF sem penalidade → earliestDate sem alteração
+ *  8d. sem CPF → getPenalidade chamado com null
+ *  D1. Fingerprint extraído server-side (deriveFingerprint) — sem query param
+ *  D2. ≥ 6 ofertas/dia → requiresVerification:true na resposta, oferta calculada
+ *  D3. ≥ 50 ofertas/dia → throttled:true, computeConciergeOffer NÃO chamado
+ *  D4. Dispositivo livre → throttled:false, requiresVerification:false
+ *  D5. ?verified=1 na query NÃO bypassa (verified é server-side)
+ *  D6. Nenhum cenário de device throttle grava penalidade no CPF
  *
- * Estratégia: montar um express mínimo que usa o router real de scheduling,
- * mas com todos os módulos pesados mockados via vi.mock. Apenas
- * concierge-penalidade e agenda-concierge são configurados por teste.
+ * Estratégia: express mínimo com router real de scheduling; módulos pesados
+ * mockados via vi.mock. checkDeviceThrottle, deriveFingerprint e isDeviceVerified
+ * são controlados por teste.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -73,9 +82,12 @@ vi.mock("../lib/concierge-finalize.js", () => ({
 }));
 
 // ── Mocks configuráveis por teste ─────────────────────────────────────────────
-const mockGetPenalidade    = vi.fn();
-const mockRegistrarFalha   = vi.fn().mockResolvedValue(undefined);
-const mockComputeOffer     = vi.fn();
+const mockGetPenalidade       = vi.fn();
+const mockRegistrarFalha      = vi.fn().mockResolvedValue(undefined);
+const mockComputeOffer        = vi.fn();
+const mockCheckDeviceThrottle = vi.fn();
+const mockDeriveFingerprint   = vi.fn();
+const mockIsDeviceVerified    = vi.fn();
 
 vi.mock("../lib/concierge-penalidade.js", () => ({
   getPenalidade:  (...args: unknown[]) => mockGetPenalidade(...args),
@@ -84,6 +96,12 @@ vi.mock("../lib/concierge-penalidade.js", () => ({
 
 vi.mock("../lib/agenda-concierge.js", () => ({
   computeConciergeOffer: (...args: unknown[]) => mockComputeOffer(...args),
+}));
+
+vi.mock("../lib/concierge-device-throttle.js", () => ({
+  checkDeviceThrottle: (...args: unknown[]) => mockCheckDeviceThrottle(...args),
+  deriveFingerprint:   (...args: unknown[]) => mockDeriveFingerprint(...args),
+  isDeviceVerified:    (...args: unknown[]) => mockIsDeviceVerified(...args),
 }));
 
 // ── Importação do router (após todos os mocks) ────────────────────────────────
@@ -123,14 +141,25 @@ const OFERTA_SAMPLE = {
 const CPF_BLOQUEADO = "11111111111";
 const CPF_1_FALHA   = "22222222222";
 
+// Default device-throttle result: livre (não throttled, não requiresVerification).
+const DEVICE_FREE = {
+  allowed: true, remaining: 49, throttled: false, requiresVerification: false,
+};
+// Fingerprint sintético retornado pelo mock de deriveFingerprint
+const FP_MOCK = "abc123def456ab78";
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Testes
+// Testes — trava de escassez por CPF
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRegistrarFalha.mockResolvedValue(undefined);
+    // Por padrão: fingerprint estável, não verificado, device livre.
+    mockDeriveFingerprint.mockReturnValue(FP_MOCK);
+    mockIsDeviceVerified.mockResolvedValue(false);
+    mockCheckDeviceThrottle.mockResolvedValue(DEVICE_FREE);
   });
 
   // ── Cenário 7 ──────────────────────────────────────────────────────────────
@@ -217,7 +246,7 @@ describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", ()
     expect(callArgs.earliestDate).toBe("2026-09-01");
   });
 
-  it("Cenário 8c — sem CPF → getPenalidade chamado com null, oferta normal", async () => {
+  it("Cenário 8d — sem CPF → getPenalidade chamado com null, oferta normal", async () => {
     mockGetPenalidade.mockResolvedValue({
       bloqueado:      false,
       penalidade_dias: 0,
@@ -260,5 +289,154 @@ describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", ()
       .expect(500);
 
     expect(res.body.error).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trava por dispositivo (ARQUITETURA.md §6.2-6.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /scheduling/concierge-offer — trava por dispositivo (device throttle)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRegistrarFalha.mockResolvedValue(undefined);
+    // Penalidade CPF: sem penalidade (não interfere nos cenários de device throttle)
+    mockGetPenalidade.mockResolvedValue({ bloqueado: false, penalidade_dias: 0, tentativas: 0 });
+    // Fingerprint sempre derivado server-side — não de query param
+    mockDeriveFingerprint.mockReturnValue(FP_MOCK);
+    mockIsDeviceVerified.mockResolvedValue(false);
+  });
+
+  it("Cenário D1 — fingerprint derivado server-side de headers (não de query param)", async () => {
+    mockCheckDeviceThrottle.mockResolvedValue(DEVICE_FREE);
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+
+    const app = buildApp();
+    // Nem ?fingerprint= nem ?verified= enviados — fingerprint vem de deriveFingerprint()
+    await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&earliest=2026-09-01")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    // deriveFingerprint deve ter sido chamado com o objeto req
+    expect(mockDeriveFingerprint).toHaveBeenCalledTimes(1);
+    // checkDeviceThrottle deve receber o fingerprint derivado (FP_MOCK)
+    expect(mockCheckDeviceThrottle).toHaveBeenCalledWith(FP_MOCK, false);
+  });
+
+  it("Cenário D2 — dispositivo com 6+ ofertas → requiresVerification:true na resposta, oferta ainda calculada", async () => {
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: true,
+      remaining: 44,
+      throttled: false,
+      requiresVerification: true,
+      message: "Para seguir com a reserva, confirme seu contato — enviamos um código para o seu WhatsApp.",
+    });
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&earliest=2026-09-01")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(res.body.requiresVerification).toBe(true);
+    expect(res.body.throttled).toBe(false);
+    // Oferta ainda vem (fricção, não bloqueio)
+    expect(res.body.dates).toBeDefined();
+    // Não grava penalidade no CPF
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+  });
+
+  it("Cenário D3 — dispositivo com 50+ ofertas → throttled:true, rota retorna sem chamar computeConciergeOffer", async () => {
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      throttled: true,
+      requiresVerification: false,
+      message: "Limite diário de consultas atingido. Tente novamente amanhã.",
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&earliest=2026-09-01")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(res.body.throttled).toBe(true);
+    expect(res.body.requiresVerification).toBe(false);
+    // computeConciergeOffer NÃO deve ser chamado quando throttled
+    expect(mockComputeOffer).not.toHaveBeenCalled();
+    // Não grava penalidade no CPF
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+  });
+
+  it("Cenário D4 — dispositivo livre → throttled:false e requiresVerification:false na resposta", async () => {
+    mockCheckDeviceThrottle.mockResolvedValue(DEVICE_FREE);
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&earliest=2026-09-01")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(res.body.throttled).toBe(false);
+    expect(res.body.requiresVerification).toBe(false);
+  });
+
+  it("Cenário D5 — ?verified=1 na query NÃO bypassa trava (verified é server-side via isDeviceVerified)", async () => {
+    // Mesmo com ?verified=1 no query, a rota usa isDeviceVerified() — que retorna false aqui.
+    // O mock de checkDeviceThrottle recebe (fingerprint, false), não (fingerprint, true).
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: true, remaining: 44, throttled: false, requiresVerification: true,
+    });
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+
+    const app = buildApp();
+    await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&verified=1")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    // verified deve vir de isDeviceVerified (false), não do query param
+    expect(mockIsDeviceVerified).toHaveBeenCalledWith(FP_MOCK);
+    expect(mockCheckDeviceThrottle).toHaveBeenCalledWith(FP_MOCK, false);
+  });
+
+  it("Cenário D6 — dispositivo verificado server-side → nenhum dos flags (sem limite)", async () => {
+    // isDeviceVerified retorna true → checkDeviceThrottle recebe verified=true
+    mockIsDeviceVerified.mockResolvedValue(true);
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: true, remaining: 50, throttled: false, requiresVerification: false,
+    });
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(mockCheckDeviceThrottle).toHaveBeenCalledWith(FP_MOCK, true);
+    expect(res.body.throttled).toBe(false);
+    expect(res.body.requiresVerification).toBe(false);
+  });
+
+  it("Cenário D7 — nenhum cenário de device throttle grava penalidade no CPF", async () => {
+    // Throttled: também não grava
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: false, remaining: 0, throttled: true, requiresVerification: false,
+    });
+
+    const app = buildApp();
+    await request(app)
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&cpf=12345678901")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+    // getPenalidade nunca chega a ser chamado (rota retorna antes)
+    expect(mockGetPenalidade).not.toHaveBeenCalled();
   });
 });

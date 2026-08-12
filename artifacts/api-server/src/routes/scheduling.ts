@@ -31,6 +31,7 @@ import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
+import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
 
 const router: IRouter = Router();
 
@@ -652,14 +653,16 @@ router.post(
 
         // Estado 2: falha terminal — cai para criação de nova cobrança (segue abaixo).
         // Estado 3: status desconhecido ou aguardando — devolve a existente. NUNCA cria.
-        // Devolve link morto → paciente liga (chateação).
-        // Cria cobrança duplicada → cobra cartão do paciente (erro de dinheiro).
-        if (!TERMINAL_FALHA.has(statusAtual) && fresh.asaasChargeId && fresh.asaasInvoiceUrl) {
+        // "Status desconhecido nunca cria cobrança" (comentário §6.4, ARQUITETURA.md).
+        // A condição anterior exigia asaasInvoiceUrl, mas um charge pode existir sem
+        // invoiceUrl (bug de Asaas / corrida). Sem esse guard, a rota criaria uma segunda
+        // cobrança para um cartão que já tem uma charge pendente → erro de dinheiro.
+        if (!TERMINAL_FALHA.has(statusAtual) && fresh.asaasChargeId) {
           return {
             created: false,
             requestId: fresh.id,
             chargeId: fresh.asaasChargeId,
-            invoiceUrl: fresh.asaasInvoiceUrl,
+            invoiceUrl: fresh.asaasInvoiceUrl ?? null,
             amount: fresh.paymentAmount ?? (await resolveConciergeAmount()),
             status: fresh.paymentStatus,
           };
@@ -943,6 +946,10 @@ router.get(
 // ANTES do pagamento. Publico (o funil /agendar e publico). Stateless — nao cria
 // nada, so calcula. Query: weekday (1..6), period (manha|tarde), earliest (YYYY-MM-DD),
 // cpf (digits only — consulta penalidade sem criar nada).
+// Trava por dispositivo (ARQUITETURA.md §6.2-6.3):
+//   Fingerprint extraído SERVER-SIDE de User-Agent + IP mascarado /24.
+//   Estado "verified" via isDeviceVerified() server-side (task #79/#180).
+//   Nenhum desses parâmetros é aceito do cliente via query string.
 router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
   const rawWeekday = req.query.weekday;
   const weekday =
@@ -955,7 +962,27 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
   const rawCpf = req.query.cpf;
   const cpf = typeof rawCpf === "string" ? rawCpf : null;
 
+  // Fingerprint derivado SERVER-SIDE de User-Agent + IP mascarado (§6.2).
+  // verified via isDeviceVerified() server-side — nunca do cliente.
+  const fingerprint = deriveFingerprint(req);
+  const verified = await isDeviceVerified(fingerprint);
+
   try {
+    // ── Trava por dispositivo: verifica throttle ANTES de qualquer cálculo ──
+    // Nunca grava penalidade no CPF (ARQUITETURA.md §6.2 regra 6).
+    const deviceCheck = await checkDeviceThrottle(fingerprint, verified);
+    if (deviceCheck.throttled) {
+      // Teto antiautomação atingido (≥ 50 ofertas/dia).
+      res.json({
+        throttled: true,
+        requiresVerification: false,
+        message: deviceCheck.message,
+      });
+      return;
+    }
+    // Se requiresVerification=true, a fricção não bloqueia:
+    // a oferta é calculada normalmente e o flag é devolvido para o frontend.
+
     // ── Trava de escassez: verifica penalidade do CPF ANTES de calcular a oferta ──
     const pen = await getPenalidade(cpf);
     if (pen.bloqueado) {
@@ -989,8 +1016,16 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
       return;
     }
-    // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso).
-    res.json({ ...offer, penalidade_dias: pen.penalidade_dias, tentativas: pen.tentativas });
+    // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso)
+    // e com os flags de trava por dispositivo (throttled / requiresVerification).
+    res.json({
+      ...offer,
+      penalidade_dias: pen.penalidade_dias,
+      tentativas: pen.tentativas,
+      throttled: deviceCheck.throttled,
+      requiresVerification: deviceCheck.requiresVerification,
+      ...(deviceCheck.message ? { deviceMessage: deviceCheck.message } : {}),
+    });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao calcular a oferta Concierge");
     res.status(500).json({ error: "Falha ao calcular a oferta de horários." });

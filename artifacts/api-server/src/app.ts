@@ -9,6 +9,13 @@ import { basicAuthMiddleware } from "./middleware/basicAuth";
 
 const app: Express = express();
 
+// Replit usa um proxy reverso entre o cliente e o app.
+// trust proxy: 1 diz ao Express para confiar em 1 salto de proxy (o proxy Replit).
+// Com isso, req.ip resolve para o IP real do cliente (via XFF adicionado pelo proxy),
+// e NÃO para o XFF enviado pelo próprio cliente — essencial para o fingerprint
+// antiautomação do Concierge (ARQUITETURA.md §6.2).
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
