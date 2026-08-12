@@ -12,6 +12,7 @@ import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
+import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
 
 const rawPort = process.env["PORT"];
 
@@ -80,5 +81,15 @@ if (Number.isNaN(port) || port <= 0) {
     recoverStuckDocuments().catch((e) =>
       logger.error({ err: e }, "[ExamesLab] Falha na recuperacao de documentos presos"),
     );
+
+    // Limpeza preventiva de device_offer_limits no boot: apaga linhas com
+    // dia_brt > 2 dias atrás para não acumular entre restarts.
+    purgeOldDeviceOfferLimits()
+      .then((removed) =>
+        logger.info({ removed }, "[device-throttle] Limpeza de linhas antigas concluída no boot"),
+      )
+      .catch((e) =>
+        logger.error({ err: e }, "[device-throttle] Falha na limpeza de linhas antigas no boot"),
+      );
   });
 })();

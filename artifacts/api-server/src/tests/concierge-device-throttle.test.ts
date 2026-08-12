@@ -21,6 +21,7 @@
 
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 import type { Request } from "express";
+import type { QueryResult } from "pg";
 
 // ── Mock de @workspace/db ─────────────────────────────────────────────────────
 vi.mock("@workspace/db", () => ({
@@ -34,7 +35,7 @@ vi.mock("../lib/brt.js", () => ({
 
 // ── Imports após os mocks ─────────────────────────────────────────────────────
 import { db } from "@workspace/db";
-import { checkDeviceThrottle, deriveFingerprint } from "../lib/concierge-device-throttle.js";
+import { checkDeviceThrottle, deriveFingerprint, purgeOldDeviceOfferLimits } from "../lib/concierge-device-throttle.js";
 
 // Helper: monta retorno compatível com QueryResult<{ offer_count: number }>.
 // O QueryResult real exige command/oid/fields — irrelevantes aqui.
@@ -253,5 +254,71 @@ describe("checkDeviceThrottle — invariante: nenhum acesso à tabela concierge_
       const sqlStr = String(sqlArg);
       expect(sqlStr).not.toContain("penalidades");
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// purgeOldDeviceOfferLimits — limpeza de linhas antigas
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: QueryResult simulado com N linhas retornadas pelo DELETE … RETURNING.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const qrDeleted = (n: number): any => ({ rows: Array.from({ length: n }, () => ({ dummy: 1 })) });
+
+describe("purgeOldDeviceOfferLimits — limpeza e fronteira BRT/UTC", () => {
+  it("retorna o número de linhas removidas informado pelo banco", async () => {
+    // ensureTable (CREATE IF NOT EXISTS) já está quente — 1 chamada: DELETE
+    mockExec().mockResolvedValueOnce(qrDeleted(7));
+    const removed = await purgeOldDeviceOfferLimits();
+    expect(removed).toBe(7);
+  });
+
+  it("retorna 0 quando nenhuma linha antiga existe", async () => {
+    mockExec().mockResolvedValueOnce(qrDeleted(0));
+    const removed = await purgeOldDeviceOfferLimits();
+    expect(removed).toBe(0);
+  });
+
+  it("usa cutoff BRT (America/Sao_Paulo) e não CURRENT_DATE puro", async () => {
+    // O cutoff deve usar fuso explícito para não avançar 1 dia BRT em noites
+    // entre 21h BRT e meia-noite UTC (diferença UTC-3 do horário de Brasília).
+    mockExec().mockResolvedValueOnce(qrDeleted(0));
+    await purgeOldDeviceOfferLimits();
+
+    const calls = mockExec().mock.calls;
+    // A última chamada deve ser o DELETE — verificamos que inclui o fuso BRT.
+    // O sql`` do drizzle armazena as partes literais em queryChunks[].value.
+    const deleteSqlArg = calls[calls.length - 1]?.[0];
+    // O sql`` do drizzle armazena as partes literais em queryChunks[].value (array de strings).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chunks: unknown[] = (deleteSqlArg as any)?.queryChunks ?? [];
+    const fullSql = chunks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => (Array.isArray(c?.value) ? c.value.join("") : (typeof c?.value === "string" ? c.value : "")))
+      .join("");
+    expect(fullSql).toContain("America/Sao_Paulo");
+    // Não deve usar CURRENT_DATE puro (sem fuso explícito) como cutoff
+    expect(fullSql).not.toMatch(/WHERE\s+dia_brt\s*<\s*CURRENT_DATE/);
+  });
+
+  it("propaga falha de banco (lança) em vez de retornar 0 silenciosamente", async () => {
+    mockExec().mockRejectedValueOnce(new Error("DB timeout"));
+    // purgeOldDeviceOfferLimits NÃO tem catch interno — a exceção deve subir
+    await expect(purgeOldDeviceOfferLimits()).rejects.toThrow("DB timeout");
+  });
+
+  it("DELETE usa RETURNING para contar linhas — o SQL contém RETURNING", async () => {
+    mockExec().mockResolvedValueOnce(qrDeleted(3));
+    await purgeOldDeviceOfferLimits();
+
+    const calls = mockExec().mock.calls;
+    const deleteSqlArg = calls[calls.length - 1]?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chunks: unknown[] = (deleteSqlArg as any)?.queryChunks ?? [];
+    const fullSql = chunks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => (Array.isArray(c?.value) ? c.value.join("") : (typeof c?.value === "string" ? c.value : "")))
+      .join("");
+    expect(fullSql).toContain("RETURNING");
   });
 });

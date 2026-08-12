@@ -190,7 +190,32 @@ export function startWorkerJobs(logger: pino.Logger): void {
       );
     });
 
+  // ─── Job 7: Limpeza de device_offer_limits — diária às 03h BRT ────────────
+  // Apaga linhas com dia_brt < CURRENT_DATE - 2 dias para evitar crescimento
+  // indefinido da tabela (análogo ao cleanup de idempotência #165).
+  cron.schedule(
+    "0 3 * * *",
+    async () => {
+      try {
+        const { purgeOldDeviceOfferLimits } = await import(
+          "../../api-server/src/lib/concierge-device-throttle.js" as string
+        );
+        const removed = await purgeOldDeviceOfferLimits();
+        logger.info(
+          { removed },
+          "Worker: limpeza de device_offer_limits concluída"
+        );
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha na limpeza de device_offer_limits"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h"
   );
 }

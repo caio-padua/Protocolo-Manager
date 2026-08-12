@@ -119,6 +119,31 @@ async function ensureTable(): Promise<void> {
   return _tableReady;
 }
 
+// ─── Limpeza de linhas antigas ────────────────────────────────────────────────
+
+/**
+ * Apaga linhas de device_offer_limits com dia_brt anterior a 2 dias atrás
+ * no calendário BRT (America/Sao_Paulo).
+ *
+ * ⚠️  O cutoff usa `(NOW() AT TIME ZONE 'America/Sao_Paulo')::date` em vez de
+ * `CURRENT_DATE` porque `dia_brt` é gravado com `brtISODate()` (fuso BRT).
+ * `CURRENT_DATE` resolveria no fuso da sessão PostgreSQL (normalmente UTC), o que
+ * avançaria o corte em 1 dia BRT nas noites entre 21h BRT e meia-noite UTC e
+ * poderia apagar linhas ainda dentro do período de 2 dias protegido.
+ *
+ * Lança em caso de falha de banco para que boot e cron registrem o erro
+ * corretamente em vez de reportar "0 linhas removidas" silenciosamente.
+ */
+export async function purgeOldDeviceOfferLimits(): Promise<number> {
+  await ensureTable();
+  const result = await db.execute<{ dummy: number }>(sql`
+    DELETE FROM device_offer_limits
+     WHERE dia_brt < (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 2
+    RETURNING 1 AS dummy
+  `);
+  return (result.rows ?? (result as unknown as unknown[])).length;
+}
+
 // ─── checkDeviceThrottle ──────────────────────────────────────────────────────
 
 /**
