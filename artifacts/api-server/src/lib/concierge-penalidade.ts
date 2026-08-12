@@ -61,7 +61,7 @@ function normCpf(raw: string | null | undefined): string {
   return (raw ?? "").replace(/\D/g, "");
 }
 
-type PenalidadeRow = { tentativas_falha: string | number; bloqueado_permanente: boolean };
+type PenalidadeRawRow = { tentativas_falha: string | number; bloqueado_permanente: boolean };
 
 function derivar(t: number, permanente: boolean): Penalidade {
   if (permanente || t >= LIMITE_BLOQUEIO) {
@@ -89,7 +89,7 @@ export async function getPenalidade(rawCpf: string | null | undefined): Promise<
         WHERE cpf = ${cpf}
         LIMIT 1`,
   );
-  const row = result.rows[0] as PenalidadeRow | undefined;
+  const row = result.rows[0] as PenalidadeRawRow | undefined;
   if (!row) return { bloqueado: false, penalidade_dias: 0, tentativas: 0 };
 
   const t = Number(row.tentativas_falha) || 0;

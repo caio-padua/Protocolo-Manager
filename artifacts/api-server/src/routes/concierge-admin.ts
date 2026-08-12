@@ -36,7 +36,7 @@ router.patch(
   "/admin/concierge-penalidade/:cpf",
   requirePlatformOwner,
   async (req: Request, res: Response): Promise<void> => {
-    const { cpf } = req.params;
+    const cpf = String(req.params["cpf"] ?? "");
     if (!cpf || cpf.replace(/\D/g, "").length < 11) {
       res.status(400).json({ ok: false, error: "CPF inválido (mínimo 11 dígitos)" });
       return;
