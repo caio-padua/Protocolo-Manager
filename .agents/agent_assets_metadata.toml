@@ -277,3 +277,10 @@ uri = "file://tmp-preview/caderno-substancias-preview.html"
 type = "text"
 title = "Preview — Substâncias nos Cadernos Jurídicos"
 description = "Dados reais do protocolo 31 da Carlúcia. Uma substância por linha, dose limpa (sem ml), aplicações e frequência. Pellets com badge visual diferenciado."
+
+[[outputs]]
+id = "52O-iYF_CVkwuChsOb_d5"
+uri = "file://tmp-preview/caderno-screenshot.jpg"
+type = "image"
+title = "Como fica o bloco de substâncias nos cadernos — imagem renderizada"
+description = "Screenshot do design real. Cabeçalho navy, barra dourada, 4 colunas alinhadas, marcador lateral dourado, pellets com badge, dose limpa."
