@@ -13,6 +13,9 @@
  *  5. PAYMENT_OVERDUE onde só paymentsTable tem linha (sem sreq) → registrarFalha() NÃO chamado
  *  6. PAYMENT_REFUNDED de um sreq concierge → registrarFalha() chamado
  *  7. Token inválido no header             → 401, registrarFalha() NÃO chamado
+ *  8. PAYMENT_OVERDUE com ambas as tabelas tendo linha → registrarFalha() chamado uma vez
+ *  9. Payload sem payment.id               → 200 ignorado, registrarFalha() NÃO chamado
+ * 10. PAYMENT_CHARGEBACK_REQUESTED de sreq concierge → registrarFalha() chamado
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -305,5 +308,17 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
 
     expect(res.status).toBe(200);
     expect(mockRegistrarFalha).not.toHaveBeenCalled();
+  });
+
+  // ── Cenário 10: PAYMENT_CHARGEBACK_REQUESTED ─────────────────────────────
+  it("Cenário 10 — PAYMENT_CHARGEBACK_REQUESTED com sreq concierge → chama registrarFalha com CPF correto", async () => {
+    setupSelectMocks(null, SREQ_CONCIERGE);
+
+    const res = await postWebhook(app, "PAYMENT_CHARGEBACK_REQUESTED");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 });
