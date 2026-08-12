@@ -321,4 +321,52 @@ describe("purgeOldDeviceOfferLimits — limpeza e fronteira BRT/UTC", () => {
       .join("");
     expect(fullSql).toContain("RETURNING");
   });
+
+  // ── "Hoje permanece intacto" ──────────────────────────────────────────────
+  // Testes abaixo confirmam que o cutoff do DELETE exclui o dia atual BRT.
+  // Inspecionamos o SQL gerado (sql``) para verificar que o predicado usa
+  //   dia_brt < (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 2
+  // e não formas erradas como:
+  //   dia_brt < NOW()                 ← apagaria linhas de hoje (UTC pode avançar)
+  //   dia_brt < CURRENT_DATE          ← não ancora no fuso BRT
+  //   dia_brt < (... )::date          ← sem o "- 2", apagaria ontem e hoje
+
+  /** Helper reutilizável: extrai a string completa do sql`` da última chamada. */
+  async function captureDeleteSql(): Promise<string> {
+    mockExec().mockResolvedValueOnce(qrDeleted(0));
+    await purgeOldDeviceOfferLimits();
+    const calls = mockExec().mock.calls;
+    const deleteSqlArg = calls[calls.length - 1]?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chunks: unknown[] = (deleteSqlArg as any)?.queryChunks ?? [];
+    return chunks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => (Array.isArray(c?.value) ? c.value.join("") : (typeof c?.value === "string" ? c.value : "")))
+      .join("");
+  }
+
+  it("hoje permanece intacto — cutoff subtrai 2 dias (predicado inclui '- 2')", async () => {
+    // O predicado correto é: dia_brt < (... BRT ...)::date - 2
+    // Sem o "- 2", linhas de hoje e ontem seriam deletadas, zerando o throttle.
+    const fullSql = await captureDeleteSql();
+    expect(fullSql).toMatch(/- 2/);
+  });
+
+  it("hoje permanece intacto — não usa < NOW() puro como cutoff", async () => {
+    // < NOW() não está ancorado no fuso e avançaria o corte até meia-noite UTC,
+    // apagando linhas do dia atual BRT entre 21h e 00h (diferença UTC-3).
+    const fullSql = await captureDeleteSql();
+    expect(fullSql).not.toMatch(/dia_brt\s*<\s*NOW\(\)/i);
+  });
+
+  it("hoje permanece intacto — cutoff combina fuso BRT com subtração de 2 dias", async () => {
+    // O predicado esperado une os dois requisitos:
+    //   (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 2
+    // Verificamos que ambos estão na mesma expressão de DELETE.
+    const fullSql = await captureDeleteSql();
+    expect(fullSql).toContain("America/Sao_Paulo");
+    expect(fullSql).toMatch(/- 2/);
+    // Não deve haver referência a CURRENT_DATE sem o fuso explícito como cutoff
+    expect(fullSql).not.toMatch(/WHERE\s+dia_brt\s*<\s*CURRENT_DATE/);
+  });
 });
