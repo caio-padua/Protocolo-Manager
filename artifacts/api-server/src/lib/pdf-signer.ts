@@ -1077,6 +1077,149 @@ function procTypeLabel(t: string): string {
   return map[t] ?? t.toUpperCase();
 }
 
+// ── Radar de Foco (teia de aranha) ─────────────────────────────────────────
+
+interface RadarDim { label: string; value: number; } // 0 = ausente, 1 = Apoio, 2 = Foco, 3 = Foco principal
+
+function deriveRadarDimensions(substances: ProtocolDocSubstance[]): RadarDim[] {
+  type DimSpec = { label: string; bodyKeys: string[]; benefitKeys: string[] };
+  const DIMS: DimSpec[] = [
+    { label: "Energia",        bodyKeys: ["metabolismo","cardiovascular","performance_fisica"],       benefitKeys: ["energyBenefit","physicalPerformance"] },
+    { label: "Clareza Mental", bodyKeys: ["neurocognicao","neurologico"],                             benefitKeys: ["mentalClarity"] },
+    { label: "Imunidade",      bodyKeys: ["imunologico","hematologico"],                              benefitKeys: ["immuneSupport"] },
+    { label: "Ossos/Joints",   bodyKeys: ["osteoarticular"],                                         benefitKeys: [] },
+    { label: "Forca Muscular", bodyKeys: ["muscular","muscular_hipertrofia"],                        benefitKeys: ["muscleStrength"] },
+    { label: "Metabolismo",    bodyKeys: ["endocrino","hepatico","renal"],                           benefitKeys: ["longevityBenefit"] },
+    { label: "Longevidade",    bodyKeys: ["longevidade","libido_sexual","dermatologico"],            benefitKeys: ["qualityOfLifeImpact","libidoBenefit","skinHairNails"] },
+  ];
+
+  return DIMS.map(dim => {
+    let maxRaw = 0;
+    for (const sub of substances) {
+      if (sub.bodySystemEffects && typeof sub.bodySystemEffects === "object") {
+        for (const key of dim.bodyKeys) {
+          const v = impactNum((sub.bodySystemEffects as Record<string, unknown>)[key]);
+          if (v > maxRaw) maxRaw = v;
+        }
+      }
+      for (const bk of dim.benefitKeys) {
+        const bv = (sub as Record<string, unknown>)[bk];
+        if (bv && String(bv).trim().length > 0 && maxRaw < 3) maxRaw = 3;
+      }
+    }
+    let value = 0;
+    if (maxRaw >= 4.5) value = 3;
+    else if (maxRaw >= 2.5) value = 2;
+    else if (maxRaw >= 0.5) value = 1;
+    return { label: dim.label, value };
+  });
+}
+
+function drawRadarChart(
+  page: PDFPage,
+  fonts: Fonts,
+  cx: number,
+  cy: number,
+  radius: number,
+  dims: RadarDim[],
+): void {
+  const n = dims.length;
+  if (n < 3) return;
+  const TWO_PI = Math.PI * 2;
+
+  // PDF y-up, clockwise radar starting at top (π/2)
+  function ang(i: number): number { return Math.PI / 2 - (i / n) * TWO_PI; }
+  function ptR(i: number, r: number): { x: number; y: number } {
+    const a = ang(i);
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  }
+
+  // Pastel palette — elegant, not garish
+  const RING_C   = rgb(0.70, 0.77, 0.77);
+  const AXIS_C   = rgb(0.68, 0.76, 0.76);
+  const FILL_C   = rgb(0.86, 0.92, 0.87);   // mint-cream pastel
+  const STROKE_C = rgb(0.72, 0.58, 0.12);   // gold
+  const LBL_C    = rgb(0.08, 0.18, 0.20);   // dark navy
+
+  // 1. Concentric scale rings
+  const RING_NAMES = ["Apoio", "Foco", "Foco principal"];
+  for (let ring = 1; ring <= 3; ring++) {
+    const r = (ring / 3) * radius;
+    const segs: string[] = [];
+    for (let i = 0; i <= n; i++) {
+      const p = ptR(i % n, r);
+      segs.push(`${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+    }
+    segs.push("Z");
+    try {
+      page.drawSvgPath(segs.join(" "), {
+        x: 0, y: 0,
+        borderColor: RING_C,
+        borderWidth: ring === 3 ? 0.8 : 0.35,
+        borderOpacity: 0.7,
+        opacity: 0,
+      });
+    } catch {
+      for (let i = 0; i < n; i++) {
+        const p1 = ptR(i, r); const p2 = ptR((i + 1) % n, r);
+        page.drawLine({ start: p1, end: p2, thickness: ring === 3 ? 0.8 : 0.35, color: RING_C, opacity: 0.7 });
+      }
+    }
+    // Ring label at 0° (right side)
+    page.drawText(RING_NAMES[ring - 1], { x: cx + r + 3, y: cy - 3, size: 5.5, font: fonts.regular, color: RING_C });
+  }
+
+  // 2. Axes from center to outer ring
+  for (let i = 0; i < n; i++) {
+    const outer = ptR(i, radius);
+    page.drawLine({ start: { x: cx, y: cy }, end: outer, thickness: 0.35, color: AXIS_C, opacity: 0.6 });
+  }
+
+  // 3. Center dot
+  page.drawCircle({ x: cx, y: cy, size: 2, color: RING_C });
+
+  // 4. Filled data polygon
+  const dataPts = dims.map((d, i) => ptR(i, (Math.min(3, Math.max(0, d.value)) / 3) * radius));
+  const pathParts = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+  pathParts.push("Z");
+  try {
+    page.drawSvgPath(pathParts.join(" "), {
+      x: 0, y: 0,
+      color: FILL_C,
+      opacity: 0.45,
+      borderColor: STROKE_C,
+      borderWidth: 1.5,
+      borderOpacity: 0.9,
+    });
+  } catch {
+    for (let i = 0; i < n; i++) {
+      page.drawLine({ start: dataPts[i], end: dataPts[(i + 1) % n], thickness: 1.5, color: STROKE_C, opacity: 0.9 });
+    }
+  }
+
+  // 5. Data point dots
+  for (const p of dataPts) {
+    page.drawCircle({ x: p.x, y: p.y, size: 3.5, color: STROKE_C });
+  }
+
+  // 6. Axis labels — positioned beyond outer ring with smart horizontal alignment
+  const LABEL_PAD = 20;
+  for (let i = 0; i < n; i++) {
+    const a = ang(i);
+    const lx = cx + (radius + LABEL_PAD) * Math.cos(a);
+    const ly = cy + (radius + LABEL_PAD) * Math.sin(a);
+    const label = safeTxt(dims[i].label);
+    const lw = fonts.bold.widthOfTextAtSize(label, 7);
+    const cosA = Math.cos(a);
+    let ax = lx - lw / 2;
+    if (cosA > 0.55) ax = lx + 3;
+    else if (cosA < -0.55) ax = lx - lw - 3;
+    page.drawText(label, { x: ax, y: ly - 3.5, size: 7, font: fonts.bold, color: LBL_C });
+  }
+}
+
+// ── fim radar ────────────────────────────────────────────────────────────────
+
 export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): Promise<{ pdfBytes: Uint8Array; certInfo: any }> {
   const certInfo = getCertInfo();
   const { cert } = loadCertificate();
@@ -1242,6 +1385,96 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     currentPage.drawText("Estrelas = avaliacao geral de eficacia (1 a 5). Veja a ficha de cada substancia para o impacto por sistema.", {
       x: MARGIN, y, size: 6.5, font: fonts.regular, color: GRAY,
     });
+  }
+
+  // ============================================================
+  // PAGE: RADAR DE FOCO DO PROTOCOLO (teia de aranha)
+  // ============================================================
+  {
+    const page = newDocPage(pdfDoc, allPages);
+
+    // Fundo creme — pastel, elegante, nao branco puro
+    page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: rgb(0.98, 0.97, 0.95) });
+
+    let y = PAGE_H - MARGIN;
+
+    // Titulo centralizado
+    const titleTxt = "AREAS DE FOCO DO PROTOCOLO";
+    const titleW = fonts.bold.widthOfTextAtSize(titleTxt, 15);
+    page.drawText(titleTxt, { x: (PAGE_W - titleW) / 2, y, size: 15, font: fonts.bold, color: DARK_BLUE });
+    y -= 18;
+
+    const subTxt = "Quanto mais distante do centro, maior a prioridade definida no plano.";
+    const subW = fonts.regular.widthOfTextAtSize(subTxt, 8);
+    page.drawText(subTxt, { x: (PAGE_W - subW) / 2, y, size: 8, font: fonts.regular, color: GRAY });
+    y -= 16;
+
+    // Linha dourada sutil
+    page.drawLine({ start: { x: MARGIN + 80, y }, end: { x: PAGE_W - MARGIN - 80, y }, thickness: 0.6, color: GOLD_ACCENT, opacity: 0.55 });
+    y -= 28;
+
+    // Radar centralizado
+    const chartRadius = 150;
+    const cx = PAGE_W / 2;
+    const cy = y - chartRadius - 10;
+
+    const radarDims = deriveRadarDimensions(data.substances);
+    try {
+      drawRadarChart(page, fonts, cx, cy, chartRadius, radarDims);
+    } catch (radarErr: any) {
+      page.drawText(`[Radar indisponivel: ${String(radarErr.message ?? radarErr).slice(0, 60)}]`, {
+        x: MARGIN, y: cy, size: 8, font: fonts.regular, color: GRAY,
+      });
+    }
+
+    y = cy - chartRadius - 42;
+
+    // Disclaimer centralizado
+    const discTxt = "Este desenho mostra prioridades do plano — nao mede gravidade, resultado ou garantia de beneficio.";
+    const discW = fonts.regular.widthOfTextAtSize(discTxt, 7);
+    page.drawText(discTxt, { x: (PAGE_W - discW) / 2, y, size: 7, font: fonts.regular, color: GRAY });
+    y -= 28;
+
+    // Tabela de leitura por dimensao
+    if (y > MARGIN + 110) {
+      page.drawText("LEITURA POR DIMENSAO", { x: MARGIN, y, size: 8, font: fonts.bold, color: PETROL });
+      y -= 5;
+      page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 0.4, color: PETROL, opacity: 0.25 });
+      y -= 15;
+
+      const SCALE_WORDS = ["—", "Apoio", "Foco", "Foco principal"];
+      const colDim = 200;
+      const colNiv = 70;
+
+      // Cabecalho da tabela
+      page.drawRectangle({ x: MARGIN, y: y - 14, width: CONTENT_W, height: 18, color: PETROL_LIGHT });
+      page.drawText("Dimensao de Saude", { x: MARGIN + 6, y: y - 8, size: 6.5, font: fonts.bold, color: PETROL });
+      page.drawText("Nivel", { x: MARGIN + colDim + 4, y: y - 8, size: 6.5, font: fonts.bold, color: PETROL });
+      page.drawText("Significado no Protocolo", { x: MARGIN + colDim + colNiv + 4, y: y - 8, size: 6.5, font: fonts.bold, color: PETROL });
+      y -= 18;
+
+      for (let i = 0; i < radarDims.length; i++) {
+        const dim = radarDims[i];
+        if (i % 2 === 0) {
+          page.drawRectangle({ x: MARGIN, y: y - 14, width: CONTENT_W, height: 18, color: PETROL_LIGHT, opacity: 0.3 });
+        }
+        page.drawText(safeTxt(dim.label), { x: MARGIN + 6, y: y - 8, size: 7.5, font: fonts.regular, color: BLACK });
+
+        // Bolinhas de nivel (1-3 dots)
+        const dotX = MARGIN + colDim + 4;
+        for (let d = 1; d <= 3; d++) {
+          page.drawCircle({
+            x: dotX + (d - 1) * 14,
+            y: y - 6,
+            size: 4,
+            color: d <= dim.value ? GOLD_ACCENT : rgb(0.87, 0.87, 0.87),
+          });
+        }
+
+        page.drawText(SCALE_WORDS[dim.value] ?? "—", { x: MARGIN + colDim + colNiv + 4, y: y - 8, size: 7, font: fonts.regular, color: PETROL });
+        y -= 18;
+      }
+    }
   }
 
   // ============================================================
