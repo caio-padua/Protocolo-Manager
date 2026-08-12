@@ -88,6 +88,7 @@
 - [Card de profissional — padrão correto](card-profissional-padrao.md) — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase; upload foto=cópia fiel do ClientPhotoCard.
 - [Auditoria walking-dead: rotas x menu](auditoria-rotas-menu.md) — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.
 - [Trava de escassez Concierge — penalidade por CPF](concierge-penalidade.md) — 0/1/2/≥3 falhas → 0/+7/+30 dias/bloqueado; tabela concierge_penalidades; hook no webhook Asaas + polling scheduling.ts.
+- [Concierge Penalidade — arquitetura v2 aprovada Dr. Claude](concierge-penalidade-arquitetura.md) — peso por desfecho (cartão=0,25/cancela=1,0/chargeback=2,0/pago=−1,0); suspensão 180d; decaimento −1,0/90d; guard #159 feito; v2 para Dr. Code.
 - [Cockpit lembrete deriva da anamnese, não do protocolo](cockpit-lembrete-deriva-anamnese.md) — /cockpit/:id/emitir monta períodos do motor de anamnese (item_doenca), não dos protocol_items.
 - [WhatsApp 1600 chars (Twilio 21617) x Opus](whatsapp-limite-1600-opus.md) — mensagem rica do Opus estoura 1600; truncar <1500 em quebra de paragrafo antes de enviar.
 - [Lembrete de fórmula manipulada](lembrete-formula-manipulada.md) — nome canônico=TITL; parser+semAcento na lib @workspace/posologia; posologiaManual sobrevive a re-sync; 9 períodos JE..CE.
