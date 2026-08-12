@@ -1875,6 +1875,23 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                       </div>
                     )}
 
+                    {/* CPF leve — coletado ANTES dos selects para que a trava de escassez */}
+                    {/* verifique a penalidade já na primeira visita ao estágio oferta.    */}
+                    <div className="flex flex-col gap-1.5">
+                      <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>
+                        Seu CPF <span className={`normal-case ${isDark ? "text-stone-600" : "text-stone-400"}`}>(para verificar disponibilidade)</span>
+                      </span>
+                      <input
+                        className="dc-input"
+                        type="tel"
+                        placeholder="000.000.000-00"
+                        value={cpf}
+                        onChange={(e) => setCpf(formatCpf(e.target.value))}
+                        inputMode="numeric"
+                        autoComplete="off"
+                      />
+                    </div>
+
                     <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>
                       A Helena confrontou a agenda. Diga a sua preferência e ela revela as aberturas reais:
                     </p>
