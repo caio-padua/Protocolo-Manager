@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
+import { randomInt } from "node:crypto";
 import {
   db,
   professionalsTable,
@@ -32,12 +33,51 @@ import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
-import { verifyDeviceCode, getOrCreateChallenge } from "../lib/device-throttle.js";
 
 const router: IRouter = Router();
 
 // Valor padrao do sinal Concierge (R$). Configuravel por pay.conciergeValue.
 const CONCIERGE_AMOUNT_DEFAULT = 150;
+
+// ── Device OTP: criação lazy das tabelas ──────────────────────────────────────
+// device_verification_codes — armazena o código gerado (TTL 10 min)
+// device_verified_sessions — marca o dispositivo como verificado (TTL 30 dias)
+// Ambas criadas em raw SQL para não depender de Drizzle push em produção.
+let _verifyTablesReady: Promise<void> | null = null;
+
+async function ensureVerifyTables(): Promise<void> {
+  if (_verifyTablesReady) return _verifyTablesReady;
+  _verifyTablesReady = (async () => {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS device_verification_codes (
+        id SERIAL PRIMARY KEY,
+        device_fingerprint TEXT NOT NULL,
+        cpf TEXT NOT NULL,
+        code TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        failed_attempts INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    // Retrocompatível: adiciona a coluna em tabelas criadas antes desta versão.
+    await db.execute(sql`
+      ALTER TABLE device_verification_codes
+        ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS device_verified_sessions (
+        id SERIAL PRIMARY KEY,
+        device_fingerprint TEXT NOT NULL,
+        cpf TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL
+      )
+    `);
+  })().catch((err: unknown) => {
+    _verifyTablesReady = null;
+    throw err;
+  });
+  return _verifyTablesReady;
+}
 
 // Mapeia o status cru da cobranca Asaas para o nosso vocabulario interno.
 function mapAsaasPaymentStatus(
@@ -1017,19 +1057,6 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
       return;
     }
-
-    // Quando o dispositivo precisa de verificação, emite (ou reutiliza) um desafio OTP
-    // e devolve o challengeId ao frontend. O código só é enviado ao canal (WhatsApp/Telegram)
-    // por task #183; aqui garantimos que o challengeId existe e é válido.
-    let challengeId: number | undefined;
-    if (deviceCheck.requiresVerification) {
-      const cpfDigits = cpf ? cpf.replace(/\D/g, "") : "";
-      if (cpfDigits.length >= 11) {
-        const challenge = await getOrCreateChallenge({ cpf: cpfDigits, fingerprint });
-        challengeId = challenge.challengeId;
-      }
-    }
-
     // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso)
     // e com os flags de trava por dispositivo (throttled / requiresVerification).
     res.json({
@@ -1038,7 +1065,6 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       tentativas: pen.tentativas,
       throttled: deviceCheck.throttled,
       requiresVerification: deviceCheck.requiresVerification,
-      ...(challengeId !== undefined ? { challengeId } : {}),
       ...(deviceCheck.message ? { deviceMessage: deviceCheck.message } : {}),
     });
   } catch (err) {
@@ -1090,6 +1116,253 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
   res.json(formatRequest(row));
 });
 
+// POST /scheduling/send-verification-code — gera um OTP de 6 dígitos e envia
+// via WhatsApp para o telefone do paciente identificado pelo CPF. Público (funil
+// /agendar).
+//
+// SEGURANÇA: rate limit autoritativo totalmente dentro de uma única transação
+// com pg_advisory_xact_lock por (fingerprint, CPF). O lock serializa requisições
+// concorrentes do mesmo dispositivo+CPF, garantindo que o cooldown e o teto
+// diário não possam ser ultrapassados por corridas. A geração do código e a
+// confirmação de envio também ocorrem dentro da seção crítica.
+router.post("/scheduling/send-verification-code", async (req, res): Promise<void> => {
+  const rawCpf = String(req.body?.cpf ?? "").replace(/\D/g, "");
+  if (rawCpf.length < 11) {
+    res.status(400).json({ error: "CPF inválido." });
+    return;
+  }
+
+  const fingerprint = deriveFingerprint(req);
+  if (!fingerprint) {
+    res.status(400).json({ error: "Não foi possível identificar o dispositivo." });
+    return;
+  }
+
+  try {
+    await ensureVerifyTables();
+
+    // Busca o telefone ANTES da transação (leitura read-only, não precisa de lock).
+    const clients = await db
+      .select({ phone: clientsTable.phone })
+      .from(clientsTable)
+      .where(
+        sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${rawCpf}`,
+      )
+      .limit(1);
+
+    if (clients.length === 0 || !clients[0]?.phone) {
+      res.status(404).json({ error: "Paciente não encontrado ou sem telefone cadastrado." });
+      return;
+    }
+
+    const phone = clients[0].phone;
+
+    // ── Transação atômica com lock exclusivo por (fingerprint, CPF) ──────────
+    // pg_advisory_xact_lock serializa todas as requisições para o mesmo par —
+    // impossibilitando que duas requisições paralelas ultrapassem os limites.
+    type SendResult =
+      | { blocked: "cooldown" | "daily" }
+      | { blocked: null; code: string };
+
+    const lockKey = `otp:${fingerprint}:${rawCpf}`;
+    const txResult = await db.transaction(async (tx): Promise<SendResult> => {
+      // Lock exclusivo liberado automaticamente ao fim da transação.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+
+      // 1. Cooldown de 60s: bloqueia se existe código criado há menos de 60s
+      //    (expires_at = created_at + 10min → se sobram >9min, foi criado <1min atrás).
+      const cooldownRows = await tx.execute<{ id: number }>(sql`
+        SELECT id FROM device_verification_codes
+         WHERE device_fingerprint = ${fingerprint}
+           AND cpf = ${rawCpf}
+           AND expires_at > NOW() + INTERVAL '9 minutes'
+         LIMIT 1
+      `);
+      if (((cooldownRows.rows ?? cooldownRows) as { id: number }[]).length > 0) {
+        return { blocked: "cooldown" };
+      }
+
+      // 2. Limite diário de 5 envios por dispositivo+CPF
+      //    (expires_at > NOW() - 23h50min ≡ criado nas últimas 24h).
+      const dailyRows = await tx.execute<{ cnt: string }>(sql`
+        SELECT COUNT(*) AS cnt FROM device_verification_codes
+         WHERE device_fingerprint = ${fingerprint}
+           AND cpf = ${rawCpf}
+           AND expires_at > NOW() - INTERVAL '23 hours 50 minutes'
+      `);
+      const dailyCount = Number(
+        ((dailyRows.rows ?? dailyRows) as { cnt: string }[])[0]?.cnt ?? 0,
+      );
+      if (dailyCount >= 5) {
+        return { blocked: "daily" };
+      }
+
+      // Gera código de 6 dígitos com entropia criptográfica (nunca Math.random).
+      const code = String(randomInt(100000, 1000000));
+
+      // Insere novo código com validade de 10 minutos.
+      await tx.execute(sql`
+        INSERT INTO device_verification_codes (device_fingerprint, cpf, code, expires_at)
+        VALUES (${fingerprint}, ${rawCpf}, ${code}, NOW() + INTERVAL '10 minutes')
+      `);
+
+      return { blocked: null, code };
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    if (txResult.blocked === "cooldown") {
+      res.status(429).json({ error: "Aguarde 60 segundos antes de solicitar um novo código." });
+      return;
+    }
+    if (txResult.blocked === "daily") {
+      res.status(429).json({ error: "Limite diário de envios atingido. Tente novamente amanhã." });
+      return;
+    }
+
+    const code = txResult.code;
+
+    // Envia via WhatsApp FORA da transação (I/O lento não deve segurar o lock).
+    // NUNCA incluir o código numa URL/link de fallback — exporia o OTP a
+    // qualquer chamador que conheça o CPF (ataque de SMS pumping).
+    const message =
+      `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
+    const result = await sendWhatsapp(phone, message, { contexto: "device_verification" });
+
+    // Mascara o telefone para exibição: (***) *****-XXXX
+    const digits = phone.replace(/\D/g, "");
+    const maskedPhone = `(***) *****-${digits.slice(-4)}`;
+
+    if (!result.sent) {
+      // Fail-closed: sem link de fallback (link wa.me conteria o OTP em texto).
+      res.status(503).json({
+        sent: false,
+        maskedPhone,
+        error:
+          "Não foi possível enviar o código pelo WhatsApp. " +
+          "Verifique se o número cadastrado está correto ou entre em contato com a clínica.",
+      });
+      return;
+    }
+
+    res.json({ sent: true, maskedPhone });
+  } catch (err: unknown) {
+    req.log.error({ err: String(err) }, "Erro ao enviar código de verificação de dispositivo");
+    res.status(500).json({ error: "Falha ao enviar o código. Tente novamente." });
+  }
+});
+
+// POST /scheduling/verify-device — valida o OTP e insere sessão verificada.
+// Após sucesso, isDeviceVerified() retorna true e a fricção é removida.
+//
+// SEGURANÇA: toda a lógica (leitura, checagem e incremento de tentativas,
+// marcação de uso e criação de sessão) ocorre dentro de uma única transação
+// com pg_advisory_xact_lock. Isso previne corridas de brute-force paralelas
+// que ultrapassariam o teto de 5 tentativas antes do lockout ser observado.
+router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
+  const rawCode = String(req.body?.code ?? "").replace(/\D/g, "");
+  const rawCpf = String(req.body?.cpf ?? "").replace(/\D/g, "");
+
+  if (rawCode.length < 4 || rawCpf.length < 11) {
+    res.status(400).json({ message: "Dados inválidos." });
+    return;
+  }
+
+  const fingerprint = deriveFingerprint(req);
+  if (!fingerprint) {
+    res.status(400).json({ message: "Não foi possível identificar o dispositivo." });
+    return;
+  }
+
+  const MAX_ATTEMPTS = 5;
+
+  try {
+    await ensureVerifyTables();
+
+    type VerifyResult =
+      | { status: "no_code" }
+      | { status: "locked" }
+      | { status: "wrong"; remaining: number }
+      | { status: "ok" };
+
+    const lockKey = `otp:${fingerprint}:${rawCpf}`;
+    const result = await db.transaction(async (tx): Promise<VerifyResult> => {
+      // Lock exclusivo: serializa todas as tentativas de verificação para o
+      // mesmo dispositivo+CPF. Libera automaticamente ao fim da transação.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+
+      // Busca o código mais recente válido (não expirado e não utilizado).
+      const rows = await tx.execute<{
+        id: number;
+        code: string;
+        failed_attempts: number;
+      }>(sql`
+        SELECT id, code, failed_attempts
+          FROM device_verification_codes
+         WHERE device_fingerprint = ${fingerprint}
+           AND cpf = ${rawCpf}
+           AND expires_at > NOW()
+           AND used_at IS NULL
+         ORDER BY id DESC
+         LIMIT 1
+      `);
+
+      const row = (
+        (rows.rows ?? rows) as { id: number; code: string; failed_attempts: number }[]
+      )[0];
+
+      if (!row) return { status: "no_code" };
+      if (row.failed_attempts >= MAX_ATTEMPTS) return { status: "locked" };
+
+      if (row.code !== rawCode) {
+        // Incremento dentro da mesma transação: serializado pelo advisory lock,
+        // impossível ultrapassar MAX_ATTEMPTS com requisições paralelas.
+        await tx.execute(sql`
+          UPDATE device_verification_codes
+             SET failed_attempts = failed_attempts + 1
+           WHERE id = ${row.id}
+        `);
+        const remaining = MAX_ATTEMPTS - (row.failed_attempts + 1);
+        return { status: "wrong", remaining };
+      }
+
+      // Código correto: marca como usado (evita replay) e cria sessão verificada.
+      await tx.execute(sql`
+        UPDATE device_verification_codes SET used_at = NOW() WHERE id = ${row.id}
+      `);
+      await tx.execute(sql`
+        INSERT INTO device_verified_sessions (device_fingerprint, cpf, expires_at)
+        VALUES (${fingerprint}, ${rawCpf}, NOW() + INTERVAL '30 days')
+      `);
+
+      return { status: "ok" };
+    });
+
+    if (result.status === "no_code") {
+      res.status(422).json({ message: "Nenhum código válido encontrado. Solicite um novo código." });
+      return;
+    }
+    if (result.status === "locked") {
+      res.status(429).json({ message: "Limite de tentativas atingido. Solicite um novo código." });
+      return;
+    }
+    if (result.status === "wrong") {
+      res.status(422).json({
+        message:
+          result.remaining > 0
+            ? `Código inválido. ${result.remaining} tentativa${result.remaining === 1 ? "" : "s"} restante${result.remaining === 1 ? "" : "s"}.`
+            : "Código inválido. Limite de tentativas atingido — solicite um novo código.",
+      });
+      return;
+    }
+
+    // status === "ok"
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    req.log.error({ err: String(err) }, "Erro ao verificar código de dispositivo");
+    res.status(500).json({ message: "Falha ao verificar. Tente novamente." });
+  }
+});
+
 // POST /scheduling/requests/:id/send-reminder — monta o lembrete e envia por
 // WhatsApp/Twilio SE houver credenciais. Sem credenciais: responde sent:false
 // com o texto pronto (preview) e o link wa.me manual. Nunca cobra, nunca quebra.
@@ -1133,49 +1406,5 @@ router.post(
     });
   },
 );
-
-// ─── POST /scheduling/verify-device ──────────────────────────────────────────
-// Valida o código OTP enviado ao canal do paciente (WhatsApp/Telegram) e
-// libera o dispositivo da fricção de verificação (ARQUITETURA.md §6.3).
-//
-// Segurança: o fingerprint que libera o dispositivo vem EXCLUSIVAMENTE do
-// registro do desafio (device_contact_verifications), nunca de header HTTP.
-// Isso fecha o loop: OTP correto → INSERT em device_verified_sessions →
-// isDeviceVerified(fingerprint) retorna true → requiresVerification=false.
-router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
-  const body = req.body as { code?: unknown; cpf?: unknown; challengeId?: unknown };
-  const code = typeof body.code === "string" ? body.code.trim() : "";
-  const rawCpf = typeof body.cpf === "string" ? body.cpf : "";
-  const cpf = rawCpf.replace(/\D/g, "");
-  const challengeId =
-    typeof body.challengeId === "number" && Number.isInteger(body.challengeId) && body.challengeId > 0
-      ? body.challengeId
-      : null;
-
-  if (!code) {
-    res.status(400).json({ message: "Código não informado." });
-    return;
-  }
-  if (cpf.length < 11) {
-    res.status(400).json({ message: "CPF inválido." });
-    return;
-  }
-  if (challengeId === null) {
-    res.status(400).json({ message: "Identificador de desafio ausente ou inválido. Solicite um novo código." });
-    return;
-  }
-
-  try {
-    const result = await verifyDeviceCode(cpf, code, challengeId);
-    if (!result.ok) {
-      res.status(400).json({ message: result.message });
-      return;
-    }
-    res.json({ verified: true });
-  } catch (err) {
-    req.log.error({ err: String(err) }, "Erro ao verificar código de dispositivo");
-    res.status(500).json({ message: "Falha interna ao verificar o código." });
-  }
-});
 
 export default router;

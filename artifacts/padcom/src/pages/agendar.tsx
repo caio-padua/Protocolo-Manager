@@ -888,6 +888,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // challengeId emitido pelo servidor em concierge-offer → enviado de volta em verify-device.
   // Garante que atacante com apenas o CPF não pode expirar o OTP do paciente (§6.3).
   const [verifyChallengeid, setVerifyChallengeid] = useState<number | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeSending, setCodeSending] = useState(false);
+  const [codeSendError, setCodeSendError] = useState("");
+  const [maskedPhone, setMaskedPhone] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Pagamento real Concierge (Asaas): id da solicitacao + pagina hospedada + status ao vivo.
   const [requestId, setRequestId] = useState<number | null>(null);
@@ -961,6 +966,64 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     },
     enabled: stage === "oferta",
   });
+
+  // ── Verificação de dispositivo: envio do código OTP ──────────────────────────
+
+  const doSendCode = async () => {
+    if (codeSending || !cpfDigitsOffer || cpfDigitsOffer.length < 11) return;
+    setCodeSending(true);
+    setCodeSendError("");
+    try {
+      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const res = await fetch(`${BASE}/api/scheduling/send-verification-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf: cpfDigitsOffer }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        sent?: boolean;
+        maskedPhone?: string;
+        link?: string;
+        error?: string;
+      };
+      if (res.ok && body.sent !== false) {
+        // Código enviado com sucesso via WhatsApp.
+        setCodeSent(true);
+        setMaskedPhone(body.maskedPhone ?? "");
+        setResendCooldown(60);
+      } else if (res.status === 429) {
+        // Rate limit do servidor: o cooldown ainda está ativo.
+        setCodeSendError(body.error ?? "Aguarde antes de solicitar novo código.");
+        // Reinicia o cooldown visual em 60s para sincronizar com o servidor.
+        setResendCooldown(60);
+      } else {
+        // WhatsApp não disponível (503) ou outro erro: exibe mensagem sem link.
+        // O servidor nunca retorna link com OTP embutido (falha fechada).
+        setCodeSendError(body.error ?? "Falha ao enviar o código.");
+      }
+    } catch {
+      setCodeSendError("Falha ao enviar o código. Tente novamente.");
+    } finally {
+      setCodeSending(false);
+    }
+  };
+
+  // Auto-envia o código na primeira vez que requiresVerification se torna true.
+  const requiresVerification = offerQuery.data?.requiresVerification ?? false;
+  const codeSentRef = useRef(false);
+  useEffect(() => {
+    if (!requiresVerification || codeSentRef.current) return;
+    codeSentRef.current = true;
+    void doSendCode();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requiresVerification]);
+
+  // Cooldown de reenvio: decrementa 1s por tick enquanto resendCooldown > 0.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   // Confirmacao automatica: ao Asaas confirmar o PIX, confirma o horario ja
   // escolhido (PATCH) e vai direto ao sucesso — sem teatro pos-pagamento.
@@ -1866,12 +1929,32 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 ) : offerQuery.data?.requiresVerification ? (
                   /* VERIFICAÇÃO DE CONTATO — 6ª oferta do dia pede código do canal */
                   <div className="flex flex-col gap-4">
+                    {/* Banner de status do envio */}
                     <div className={`p-4 rounded-lg flex items-start gap-3 ${isDark ? "bg-amber-950/40 border border-amber-800/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
                       <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p className="text-xs leading-relaxed">
-                        Para seguir com a reserva, confirme seu contato — enviamos um código para o seu WhatsApp.
-                      </p>
+                      <div className="flex flex-col gap-1">
+                        {codeSending ? (
+                          <p className="text-xs leading-relaxed flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            Enviando código para o seu WhatsApp…
+                          </p>
+                        ) : codeSent ? (
+                          <p className="text-xs leading-relaxed">
+                            Código enviado para o WhatsApp cadastrado
+                            {maskedPhone ? ` ${maskedPhone}` : ""}.{" "}
+                            Digite-o abaixo para confirmar.
+                          </p>
+                        ) : codeSendError ? (
+                          <p className="text-xs leading-relaxed">{codeSendError}</p>
+                        ) : (
+                          <p className="text-xs leading-relaxed">
+                            Para seguir com a reserva, confirme seu contato — enviaremos um código para o seu WhatsApp.
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Input do código */}
                     <div className="flex flex-col gap-1.5">
                       <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>
                         Código de confirmação
@@ -1890,6 +1973,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                         <p className={`text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{verifyError}</p>
                       )}
                     </div>
+
+                    {/* Botão de confirmar */}
                     <button
                       type="button"
                       disabled={verifyCode.length < 4 || verifyLoading}
@@ -1922,6 +2007,18 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                     >
                       {verifyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                       Confirmar contato
+                    </button>
+
+                    {/* Botão de reenvio com cooldown */}
+                    <button
+                      type="button"
+                      disabled={codeSending || resendCooldown > 0}
+                      onClick={() => { void doSendCode(); }}
+                      className={`text-xs text-center transition-colors disabled:opacity-40 ${isDark ? "text-stone-500 hover:text-stone-300" : "text-stone-400 hover:text-stone-600"}`}
+                    >
+                      {resendCooldown > 0
+                        ? `Reenviar código em ${resendCooldown}s`
+                        : "Não recebeu? Reenviar código"}
                     </button>
                   </div>
                 ) : offerQuery.data?.blocked ? (
