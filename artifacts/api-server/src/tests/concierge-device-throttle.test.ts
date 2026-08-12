@@ -21,7 +21,7 @@
 
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 import type { Request } from "express";
-import type { QueryResult } from "pg";
+type QueryResult = { rows: Record<string, unknown>[] };
 
 // ── Mock de @workspace/db ─────────────────────────────────────────────────────
 vi.mock("@workspace/db", () => ({
@@ -182,7 +182,7 @@ describe("checkDeviceThrottle — fail-open", () => {
 
   it("Cenário 15b — INSERT retorna rows vazio → trata como count=1 (fail-open)", async () => {
     // rows vazio — nenhum registro retornado (borda do ON CONFLICT)
-    mockExec().mockResolvedValueOnce({ rows: [] });
+    mockExec().mockResolvedValueOnce(qrEmpty());
     const r = await checkDeviceThrottle("fp-empty-rows", false);
     // count=1 pelo fallback, portanto livre
     expect(r.throttled).toBe(false);

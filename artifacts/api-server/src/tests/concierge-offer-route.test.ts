@@ -104,6 +104,16 @@ vi.mock("../lib/concierge-device-throttle.js", () => ({
   isDeviceVerified:    (...args: unknown[]) => mockIsDeviceVerified(...args),
 }));
 
+// Mock de device-throttle.js: getOrCreateChallenge é chamado pela rota concierge-offer
+// quando requiresVerification=true e cpf está presente.
+const mockGetOrCreateChallenge = vi.fn().mockResolvedValue({ challengeId: 99, isNew: false });
+vi.mock("../lib/device-throttle.js", () => ({
+  getOrCreateChallenge:  (...args: unknown[]) => mockGetOrCreateChallenge(...args),
+  storeVerificationCode: vi.fn().mockResolvedValue({ challengeId: 99 }),
+  verifyDeviceCode:      vi.fn(),
+  isDeviceVerified:      vi.fn().mockResolvedValue(false),
+}));
+
 // ── Importação do router (após todos os mocks) ────────────────────────────────
 import schedulingRouter from "../routes/scheduling.js";
 
@@ -324,13 +334,37 @@ describe("GET /scheduling/concierge-offer — trava por dispositivo (device thro
     expect(mockCheckDeviceThrottle).toHaveBeenCalledWith(FP_MOCK, false);
   });
 
-  it("Cenário D2 — dispositivo com 6+ ofertas → requiresVerification:true na resposta, oferta ainda calculada", async () => {
+  it("Cenário D2 — dispositivo com 6+ ofertas + CPF → requiresVerification:true + challengeId emitido", async () => {
     mockCheckDeviceThrottle.mockResolvedValue({
       allowed: true,
       remaining: 44,
       throttled: false,
       requiresVerification: true,
       message: "Para seguir com a reserva, confirme seu contato — enviamos um código para o seu WhatsApp.",
+    });
+    mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
+    mockGetOrCreateChallenge.mockResolvedValue({ challengeId: 77, isNew: true });
+
+    const app = buildApp();
+    const res = await request(app)
+      // CPF necessário para getOrCreateChallenge ser chamado
+      .get("/scheduling/concierge-offer?weekday=3&period=manha&earliest=2026-09-01&cpf=12345678901")
+      .set("User-Agent", "Mozilla/5.0 Test Browser")
+      .expect(200);
+
+    expect(res.body.requiresVerification).toBe(true);
+    expect(res.body.throttled).toBe(false);
+    // challengeId deve constar na resposta para o frontend enviar de volta em verify-device
+    expect(res.body.challengeId).toBe(77);
+    // Oferta ainda vem (fricção, não bloqueio)
+    expect(res.body.dates).toBeDefined();
+    // Não grava penalidade no CPF
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+  });
+
+  it("Cenário D2b — requiresVerification:true sem CPF → sem challengeId na resposta", async () => {
+    mockCheckDeviceThrottle.mockResolvedValue({
+      allowed: true, remaining: 44, throttled: false, requiresVerification: true,
     });
     mockComputeOffer.mockResolvedValue(OFERTA_SAMPLE);
 
@@ -341,11 +375,10 @@ describe("GET /scheduling/concierge-offer — trava por dispositivo (device thro
       .expect(200);
 
     expect(res.body.requiresVerification).toBe(true);
-    expect(res.body.throttled).toBe(false);
-    // Oferta ainda vem (fricção, não bloqueio)
-    expect(res.body.dates).toBeDefined();
-    // Não grava penalidade no CPF
-    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+    // Sem CPF não há como emitir desafio OTP
+    expect(res.body.challengeId).toBeUndefined();
+    // getOrCreateChallenge NÃO deve ser chamado sem CPF
+    expect(mockGetOrCreateChallenge).not.toHaveBeenCalled();
   });
 
   it("Cenário D3 — dispositivo com 50+ ofertas → throttled:true, rota retorna sem chamar computeConciergeOffer", async () => {

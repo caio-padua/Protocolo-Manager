@@ -219,7 +219,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
   });
 
   // ── Cenário 2: PAYMENT_DELETED ───────────────────────────────────────────
@@ -231,7 +231,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
   });
 
   // ── Cenário 3: PAYMENT_RECEIVED ──────────────────────────────────────────
@@ -273,7 +273,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
 
     expect(res.status).toBe(200);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
   });
 
   // ── Cenário 7: Token inválido ────────────────────────────────────────────
@@ -298,7 +298,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     // Deve chamar exatamente uma vez (pelo sreq concierge)
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
   });
 
   // ── Cenário 9: body sem payment.id → ignorado, sem chamar registrarFalha ─
@@ -321,7 +321,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
   });
 
   // ── Cenário 11: PAYMENT_CHARGEBACK_REQUESTED, pagamento comum ────────────

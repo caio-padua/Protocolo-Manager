@@ -32,6 +32,7 @@ import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
+import { verifyDeviceCode, getOrCreateChallenge } from "../lib/device-throttle.js";
 
 const router: IRouter = Router();
 
@@ -1016,6 +1017,19 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
       return;
     }
+
+    // Quando o dispositivo precisa de verificação, emite (ou reutiliza) um desafio OTP
+    // e devolve o challengeId ao frontend. O código só é enviado ao canal (WhatsApp/Telegram)
+    // por task #183; aqui garantimos que o challengeId existe e é válido.
+    let challengeId: number | undefined;
+    if (deviceCheck.requiresVerification) {
+      const cpfDigits = cpf ? cpf.replace(/\D/g, "") : "";
+      if (cpfDigits.length >= 11) {
+        const challenge = await getOrCreateChallenge({ cpf: cpfDigits, fingerprint });
+        challengeId = challenge.challengeId;
+      }
+    }
+
     // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso)
     // e com os flags de trava por dispositivo (throttled / requiresVerification).
     res.json({
@@ -1024,6 +1038,7 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       tentativas: pen.tentativas,
       throttled: deviceCheck.throttled,
       requiresVerification: deviceCheck.requiresVerification,
+      ...(challengeId !== undefined ? { challengeId } : {}),
       ...(deviceCheck.message ? { deviceMessage: deviceCheck.message } : {}),
     });
   } catch (err) {
@@ -1118,5 +1133,49 @@ router.post(
     });
   },
 );
+
+// ─── POST /scheduling/verify-device ──────────────────────────────────────────
+// Valida o código OTP enviado ao canal do paciente (WhatsApp/Telegram) e
+// libera o dispositivo da fricção de verificação (ARQUITETURA.md §6.3).
+//
+// Segurança: o fingerprint que libera o dispositivo vem EXCLUSIVAMENTE do
+// registro do desafio (device_contact_verifications), nunca de header HTTP.
+// Isso fecha o loop: OTP correto → INSERT em device_verified_sessions →
+// isDeviceVerified(fingerprint) retorna true → requiresVerification=false.
+router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
+  const body = req.body as { code?: unknown; cpf?: unknown; challengeId?: unknown };
+  const code = typeof body.code === "string" ? body.code.trim() : "";
+  const rawCpf = typeof body.cpf === "string" ? body.cpf : "";
+  const cpf = rawCpf.replace(/\D/g, "");
+  const challengeId =
+    typeof body.challengeId === "number" && Number.isInteger(body.challengeId) && body.challengeId > 0
+      ? body.challengeId
+      : null;
+
+  if (!code) {
+    res.status(400).json({ message: "Código não informado." });
+    return;
+  }
+  if (cpf.length < 11) {
+    res.status(400).json({ message: "CPF inválido." });
+    return;
+  }
+  if (challengeId === null) {
+    res.status(400).json({ message: "Identificador de desafio ausente ou inválido. Solicite um novo código." });
+    return;
+  }
+
+  try {
+    const result = await verifyDeviceCode(cpf, code, challengeId);
+    if (!result.ok) {
+      res.status(400).json({ message: result.message });
+      return;
+    }
+    res.json({ verified: true });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao verificar código de dispositivo");
+    res.status(500).json({ message: "Falha interna ao verificar o código." });
+  }
+});
 
 export default router;

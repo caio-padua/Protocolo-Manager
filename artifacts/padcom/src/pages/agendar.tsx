@@ -885,6 +885,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   const [verifyCode, setVerifyCode] = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState("");
+  // challengeId emitido pelo servidor em concierge-offer → enviado de volta em verify-device.
+  // Garante que atacante com apenas o CPF não pode expirar o OTP do paciente (§6.3).
+  const [verifyChallengeid, setVerifyChallengeid] = useState<number | null>(null);
 
   // Pagamento real Concierge (Asaas): id da solicitacao + pagina hospedada + status ao vivo.
   const [requestId, setRequestId] = useState<number | null>(null);
@@ -948,6 +951,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         blocked?: boolean;
         throttled?: boolean;
         requiresVerification?: boolean;
+        challengeId?: number;
         motivo?: string;
         mensagem?: string;
         tentativas?: number;
@@ -1898,7 +1902,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                           const res = await fetch(`${BASE}/api/scheduling/verify-device`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ code: verifyCode, cpf: cpfDigitsOffer }),
+                            body: JSON.stringify({ code: verifyCode, cpf: cpfDigitsOffer, challengeId: offerQuery.data?.challengeId ?? verifyChallengeid }),
                           });
                           if (res.ok) {
                             // Código aceito — revalidar a oferta (o backend libera o dispositivo).

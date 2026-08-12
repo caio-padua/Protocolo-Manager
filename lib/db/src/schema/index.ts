@@ -61,4 +61,6 @@ export * from "./clinic-avatars";
 export * from "./avatar-uso-log";
 export * from "./avatar-envios";
 export * from "./telegram-inbox";
-export * from "./device-offer-limits";
+// device-throttle.ts é o superconjunto: exporta deviceContactVerificationsTable
+// + deviceOfferLimitsTable (com verified_at). device-offer-limits.ts é redundante.
+export * from "./device-throttle";
