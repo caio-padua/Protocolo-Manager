@@ -1219,7 +1219,9 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
       return;
     }
 
-    const code = txResult.code;
+    // After the two `blocked` guards above, txResult is narrowed to
+    // { blocked: null; code: string } — explicit cast for TS narrowing.
+    const code = (txResult as { blocked: null; code: string }).code;
 
     // Envia via WhatsApp FORA da transação (I/O lento não deve segurar o lock).
     // NUNCA incluir o código numa URL/link de fallback — exporia o OTP a

@@ -15,6 +15,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import type { CanalDistribuicao } from "../lib/assinatura/types";
+import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 
 const router = Router();
 
@@ -1184,37 +1185,29 @@ router.get("/cadernos-juridicos/resolver/:protocolId", async (req, res): Promise
     };
     const clinica = unitMap[protocol.unit || ""] ?? { nome: "Clínica Padcon · Tatuapé", endereco: "São Paulo — SP" };
 
-    // Detectar vias
+    // Resolução canônica via função compartilhada (mesma usada em entregar-protocolo)
+    const { codigos, hasIV, hasIM, hasImplant, hasSC, isGLP1, isPeptide, isLipo, isFormula } =
+      resolverCodigosCadernos(
+        items.map((i) => ({
+          nome: i.substanceName || "",
+          procedureType: i.procedureType,
+          categoryType: i.categoryType,
+        })),
+      );
+
+    // Rótulo das vias (para hidratação)
     const procedureTypes = [...new Set(items.map((i) => i.procedureType).filter(Boolean))] as string[];
-    const hasIV     = procedureTypes.includes("iv");
-    const hasIM     = procedureTypes.includes("im");
-    const hasImplant = procedureTypes.includes("implant");
-    const hasSC     = procedureTypes.includes("sc");
-
-    // Detectar substâncias especiais por nome (normalizado)
-    const normalize = (s: string) =>
-      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const allNames = items.map((i) => normalize(i.substanceName || "")).join(" ");
-
-    const isGLP1   = /semaglutida|tirzepatida|liraglutida|glp.?1|ozempic|wegovy|mounjaro|incretina/.test(allNames);
-    const isPeptide = /bpc.?157|tb.?500|ipamorelin|cjc.?1295|sermorelin|peptid|ghk|fragment|ghrp/.test(allNames);
-    const isLipo   = /fosfatidilcolina|pcdc|deoxicol|lipolit|melting/.test(allNames);
-    const isFormula = items.some(
-      (i) => i.categoryType === "formula" || i.categoryType === "manipulado" || hasSC,
-    );
+    const viaLabel: Record<string, string> = {
+      iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
+      implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
+    };
+    const viasLabel = procedureTypes.map((t) => viaLabel[t] ?? t).join(", ");
 
     // Lista de substâncias para o contrato: "Nome (Dose)"
     const substanciasList = items
       .map((i) => (i.dose ? `${i.substanceName} ${i.dose}` : (i.substanceName ?? "")))
       .filter(Boolean)
       .join(", ");
-
-    // Rótulo das vias
-    const viaLabel: Record<string, string> = {
-      iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
-      implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
-    };
-    const viasLabel = procedureTypes.map((t) => viaLabel[t] ?? t).join(", ");
 
     // Data de início formatada
     const startDateFmt = protocol.startDate
@@ -1225,23 +1218,6 @@ router.get("/cadernos-juridicos/resolver/:protocolId", async (req, res): Promise
     const valorTotal = new Intl.NumberFormat("pt-BR", {
       style: "currency", currency: "BRL",
     }).format(protocol.totalValue ?? 0);
-
-    // Cadernos obrigatórios
-    const codigos = new Set<string>([
-      "CGLO", "TCLE", "CTCLE_G",
-      "CLGPD", "CPRIV", "CDIG",
-      "CFIN", "CGAR",
-      "CIMG", "RAS-JUR",
-    ]);
-
-    if (hasIV)      codigos.add("CEND");
-    if (hasIM)      codigos.add("CIMU");
-    if (hasImplant) codigos.add("CIMP");
-    if (isFormula)  codigos.add("CFOR");
-    if (isGLP1)     codigos.add("CINC");
-    if (isPeptide)  codigos.add("CPEP");
-    if (isLipo)     codigos.add("CLIP");
-    if (isGLP1 || isPeptide || isLipo) codigos.add("CSUB");
 
     const dadosHidratacao: Record<string, string> = {
       "cliente.nome":           client?.name ?? "",

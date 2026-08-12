@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable } from "@workspace/db";
+import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable } from "@workspace/db";
+import { enviarAssinatura } from "../lib/assinatura/service";
+import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf } from "../lib/pdf-signer";
 import {
   ensureClientFolderStructure,
@@ -287,6 +289,7 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       intervalDays: item.intervalDays,
       startDate: item.startDate,
       procedureType: sub?.procedureType ?? "iv",
+      categoryType: sub?.categoryType ?? null,
       unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
       description: sub?.description ?? undefined,
       mainFunction: sub?.mainFunction ?? undefined,
@@ -478,6 +481,131 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
           });
           if (emailResult.success) {
             console.log(`Protocol document email sent to ${client.email}${rasFapBuffer ? " (+ RAS FAP)" : ""}`);
+
+            // ── Cadernos Jurídicos na primeira entrega (idempotente por código) ──
+            // Gateado em: (a) sucesso do e-mail E (b) presença do RAS FAP em anexo.
+            // Se o RAS FAP não foi gerado, o paciente não recebeu o RAS — não despacha.
+            // Escopo inclui protocolId para distinguir entregas de protocolos distintos
+            // para o mesmo paciente. externalId determinístico impede duplicatas no ZapSign.
+            if (!rasFapBuffer) {
+              console.warn(`Cadernos jurídicos não despachados: RAS FAP ausente do e-mail para paciente ${client.id}`);
+            } else try {
+              const escopoEntrega = `RAS_FAP_ENTREGA:${protocolId}`;
+
+              const { codigos: codigosRequeridos } = resolverCodigosCadernos(
+                substances.map(s => ({
+                  nome: s.name,
+                  procedureType: s.procedureType,
+                  categoryType: s.categoryType,
+                })),
+              );
+
+              const jaEnviados = await db
+                .select({ codigo: assinaturaTemplatesTable.codigo })
+                .from(assinaturaSolicitacoesTable)
+                .innerJoin(
+                  assinaturaTemplatesTable,
+                  eq(assinaturaSolicitacoesTable.templateId, assinaturaTemplatesTable.id),
+                )
+                .where(
+                  and(
+                    eq(assinaturaSolicitacoesTable.pacienteId, client.id),
+                    eq(assinaturaSolicitacoesTable.escopo, escopoEntrega),
+                    inArray(assinaturaSolicitacoesTable.status as any, ["ENVIADO", "CONCLUIDO"] as any),
+                  ),
+                );
+              const codigosJaEnviados = new Set(jaEnviados.map(r => r.codigo));
+              const codigosFaltantes = [...codigosRequeridos].filter(c => !codigosJaEnviados.has(c));
+
+              if (codigosFaltantes.length === 0) {
+                console.log(`Cadernos jurídicos: todos já enviados para paciente ${client.id}`);
+              } else {
+                const templates = await db
+                  .select({
+                    id: assinaturaTemplatesTable.id,
+                    codigo: assinaturaTemplatesTable.codigo,
+                    titulo: assinaturaTemplatesTable.titulo,
+                    tipoDoc: assinaturaTemplatesTable.tipoDoc,
+                  })
+                  .from(assinaturaTemplatesTable)
+                  .where(
+                    and(
+                      inArray(assinaturaTemplatesTable.codigo, codigosFaltantes),
+                      eq(assinaturaTemplatesTable.ativo, true),
+                    ),
+                  );
+
+                if (templates.length === 0) {
+                  console.warn(`Cadernos jurídicos: nenhum template ativo para [${codigosFaltantes.join(",")}] — execute /api/cadernos-juridicos/seed`);
+                } else {
+                  const clientBirthDateFmt = client.birthDate
+                    ? new Date(client.birthDate + "T12:00:00").toLocaleDateString("pt-BR")
+                    : "";
+                  const startDateFmt = protocol.startDate
+                    ? new Date(protocol.startDate + "T12:00:00").toLocaleDateString("pt-BR")
+                    : "";
+                  const maxSessoes = substances.reduce((m, s) => Math.max(m, s.totalSessions), 0);
+                  const viasUnicas = [...new Set(substances.map(s => {
+                    const viaLabel: Record<string, string> = { iv: "Endovenosa (IV)", im: "Intramuscular (IM)", implant: "Implante Subcutâneo", sc: "Subcutânea (SC)" };
+                    return viaLabel[s.procedureType] ?? s.procedureType;
+                  }))].join(", ");
+                  const substanciasList = substances.map(s => s.name).join(", ");
+
+                  const hidratacao: Record<string, string> = {
+                    "cliente.nome":           client.name,
+                    "cliente.cpf":            client.cpf ?? "",
+                    "cliente.dataNascimento": clientBirthDateFmt,
+                    "cliente.email":          client.email ?? "",
+                    "cliente.telefone":       client.phone ?? "",
+                    "data.hoje":              new Date().toLocaleDateString("pt-BR"),
+                    "medico.nome":            professionalName,
+                    "medico.crm":             professionalCrm ?? "XXXXX",
+                    "medico.uf":              "SP",
+                    "clinica.nome":           protocol.unit ?? "Clínica Tatuapé — Padcon Conect",
+                    "clinica.endereco":       "São Paulo — SP",
+                    "clinica.email":          "contato@padconconect.com.br",
+                    "protocolo.titulo":       protocol.title,
+                    "protocolo.substancias":  substanciasList,
+                    "protocolo.vias":         viasUnicas,
+                    "protocolo.dataInicio":   startDateFmt,
+                    "protocolo.totalSessoes": String(maxSessoes),
+                    "protocolo.sessoes":      String(maxSessoes),
+                    "protocolo.valorTotal":   protocol.totalValue
+                      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
+                      : "",
+                    "protocolo.valor":        protocol.totalValue
+                      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
+                      : "",
+                    "pagamento.metodo":       "PIX",
+                    "pagamento.parcelas":     "1",
+                  };
+
+                  for (const tpl of templates) {
+                    try {
+                      // externalId determinístico: impede envelope duplicado no ZapSign
+                      // mesmo em retries concorrentes para o mesmo paciente+protocolo+caderno.
+                      await enviarAssinatura({
+                        pacienteId: client.id,
+                        templateCodigo: tpl.codigo,
+                        tipoDoc: tpl.tipoDoc as "TCLE" | "TERMO" | "RAS" | "OUTRO",
+                        titulo: tpl.titulo,
+                        escopo: escopoEntrega,
+                        externalId: `ras-fap-${client.id}-${protocolId}-${tpl.codigo}`,
+                        canais: ["EMAIL"],
+                        dados: hidratacao,
+                        incluirMedico: true,
+                      });
+                      console.log(`Caderno ${tpl.codigo} despachado para paciente ${client.id}`);
+                    } catch (cErr: any) {
+                      console.error(`Caderno ${tpl.codigo} falhou para paciente ${client.id}: ${cErr.message}`);
+                    }
+                  }
+                }
+              }
+            } catch (cadernosErr: any) {
+              console.error(`Cadernos jurídicos erro geral: ${cadernosErr.message}`);
+            }
+            // ── fim cadernos ─────────────────────────────────────────────────────
           } else {
             console.error("Protocol document email failed:", emailResult.error);
           }

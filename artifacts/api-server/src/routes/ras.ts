@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable } from "@workspace/db";
+import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable } from "@workspace/db";
+import { enviarAssinatura } from "../lib/assinatura/service";
+import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import {
   ListRASQueryParams,
   CreateRASBody,
@@ -1058,6 +1060,11 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
   res.json({ queued: true, email: client.email, driveFileName });
 
   (async () => {
+    // Rastreia se o e-mail do RAS FAP foi entregue com sucesso.
+    // Os cadernos jurídicos SÓ são despachados após entrega confirmada —
+    // se o e-mail falhar, a próxima tentativa de entrega reenviará tudo.
+    let rasEmailEnviado = false;
+
     try {
       const blocos = buildEntregaBlocks(
         substancias, client.name, protocoloTitulo, dataHojeBR,
@@ -1079,6 +1086,7 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
       );
       const r0 = envio.resultados[0];
       if (r0?.sent) {
+        rasEmailEnviado = true;
         req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
       } else {
         req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
@@ -1086,6 +1094,7 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
     } catch (err: any) {
       req.log.error(`RAS FAP entrega email error: ${err.message}`);
     }
+
     try {
       if (await isDriveConnected()) {
         const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
@@ -1095,6 +1104,141 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
     } catch (err: any) {
       req.log.error(`RAS FAP Drive error: ${err.message}`);
     }
+
+    // ── Cadernos Jurídicos (idempotente por código, gateado no e-mail) ──────
+    // Só despacha se o RAS FAP chegou ao paciente. Se o e-mail falhou, os
+    // cadernos ficam pendentes e a próxima chamada a entregar-protocolo tentará
+    // novamente (o check de faltantes garante que só os ausentes são enviados).
+    if (!rasEmailEnviado) {
+      req.log.warn(`Cadernos jurídicos não despachados: e-mail do RAS FAP não foi entregue para ${client.email}`);
+    } else {
+      try {
+        // ── Enriquecer substâncias com categoryType do banco ─────────────
+        // Necessário para detectar fórmulas magistrais (CFOR) via campo DB.
+        const nomesSubstancias = substancias.map((s) => s.nome);
+        const substanciasDb = nomesSubstancias.length > 0
+          ? await db
+              .select({ name: substancesTable.name, categoryType: substancesTable.categoryType })
+              .from(substancesTable)
+              .where(inArray(substancesTable.name, nomesSubstancias))
+          : [];
+        const categoryTypeByNome = new Map(substanciasDb.map((s) => [s.name, s.categoryType]));
+
+        // ── Seleção canônica via função compartilhada ─────────────────────
+        const { codigos: codigosRequeridos } = resolverCodigosCadernos(
+          substancias.map((s) => ({
+            nome: s.nome,
+            procedureType: s.procedureType,
+            via: s.via,
+            categoryType: categoryTypeByNome.get(s.nome) ?? null,
+          })),
+        );
+
+        // ── Quais códigos já foram despachados com sucesso? ───────────────
+        // Escopo scoped por clientId para dar idempotência por paciente.
+        // Faz join com template para obter o código; considera ENVIADO e CONCLUIDO.
+        const escopoEntrega = `RAS_FAP_ENTREGA:${clientId}`;
+        const jaEnviados = await db
+          .select({ codigo: assinaturaTemplatesTable.codigo })
+          .from(assinaturaSolicitacoesTable)
+          .innerJoin(
+            assinaturaTemplatesTable,
+            eq(assinaturaSolicitacoesTable.templateId, assinaturaTemplatesTable.id),
+          )
+          .where(
+            and(
+              eq(assinaturaSolicitacoesTable.pacienteId, clientId),
+              eq(assinaturaSolicitacoesTable.escopo, escopoEntrega),
+              inArray(assinaturaSolicitacoesTable.status as any, ["ENVIADO", "CONCLUIDO"] as any),
+            ),
+          );
+        const codigosJaEnviados = new Set(jaEnviados.map((r) => r.codigo));
+
+        // ── Faltantes = requeridos − já enviados ──────────────────────────
+        const codigosFaltantes = [...codigosRequeridos].filter(
+          (c) => !codigosJaEnviados.has(c),
+        );
+
+        if (codigosFaltantes.length === 0) {
+          req.log.info(`Cadernos jurídicos: todos já enviados para paciente ${clientId}`);
+        } else {
+          const templates = await db
+            .select({
+              id: assinaturaTemplatesTable.id,
+              codigo: assinaturaTemplatesTable.codigo,
+              titulo: assinaturaTemplatesTable.titulo,
+              tipoDoc: assinaturaTemplatesTable.tipoDoc,
+            })
+            .from(assinaturaTemplatesTable)
+            .where(
+              and(
+                inArray(assinaturaTemplatesTable.codigo, codigosFaltantes),
+                eq(assinaturaTemplatesTable.ativo, true),
+              ),
+            );
+
+          if (templates.length === 0) {
+            req.log.warn(
+              `Cadernos jurídicos: nenhum template ativo para [${codigosFaltantes.join(",")}] — execute /api/cadernos-juridicos/seed`,
+            );
+          } else {
+            const maxSessoes = substancias.reduce((m, s) => Math.max(m, s.sessoes), 0);
+            const viasUnicas = [...new Set(substancias.map((s) => s.via))].join(", ");
+
+            const hidratacao: Record<string, string> = {
+              "cliente.nome":           client.name,
+              "cliente.cpf":            client.cpf ?? "",
+              "cliente.dataNascimento": client.birthDate
+                ? new Date(client.birthDate + "T12:00:00").toLocaleDateString("pt-BR")
+                : "",
+              "cliente.email":          client.email ?? "",
+              "cliente.telefone":       client.phone ?? "",
+              "data.hoje":              dataHojeBR,
+              "medico.nome":            "Dr. Caio Henrique Fernandes Pádua",
+              "medico.crm":             "XXXXX",
+              "medico.uf":              "SP",
+              "clinica.nome":           "Clínica Tatuapé — Padcon Conect",
+              "clinica.endereco":       "São Paulo — SP",
+              "clinica.email":          "contato@padconconect.com.br",
+              "protocolo.titulo":       protocoloTitulo,
+              "protocolo.substancias":  substancias.map((s) => s.nome).join(", "),
+              "protocolo.vias":         viasUnicas,
+              "protocolo.dataInicio":   dataHojeBR,
+              "protocolo.totalSessoes": String(maxSessoes),
+              "protocolo.sessoes":      String(maxSessoes),
+              "protocolo.valor":        "",
+              "protocolo.valorTotal":   "",
+              "pagamento.metodo":       "PIX",
+              "pagamento.parcelas":     "1",
+            };
+
+            for (const tpl of templates) {
+              try {
+                // externalId determinístico: impede envelope duplicado no ZapSign
+                // mesmo em retries concorrentes para o mesmo paciente+caderno.
+                await enviarAssinatura({
+                  pacienteId: clientId,
+                  templateCodigo: tpl.codigo,
+                  tipoDoc: tpl.tipoDoc as "TCLE" | "TERMO" | "RAS" | "OUTRO",
+                  titulo: tpl.titulo,
+                  escopo: escopoEntrega,
+                  externalId: `ras-fap-${clientId}-${tpl.codigo}`,
+                  canais: ["EMAIL"],
+                  dados: hidratacao,
+                  incluirMedico: true,
+                });
+                req.log.info(`Caderno ${tpl.codigo} despachado para paciente ${clientId}`);
+              } catch (cErr: any) {
+                req.log.error(`Caderno ${tpl.codigo} falhou para paciente ${clientId}: ${cErr.message}`);
+              }
+            }
+          }
+        }
+      } catch (cadernosErr: any) {
+        req.log.error(`Cadernos jurídicos erro geral: ${cadernosErr.message}`);
+      }
+    }
+    // ── fim cadernos ───────────────────────────────────────────────────────
   })();
 });
 
