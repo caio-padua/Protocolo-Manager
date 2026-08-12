@@ -284,3 +284,10 @@ uri = "file://tmp-preview/caderno-screenshot.jpg"
 type = "image"
 title = "Como fica o bloco de substâncias nos cadernos — imagem renderizada"
 description = "Screenshot do design real. Cabeçalho navy, barra dourada, 4 colunas alinhadas, marcador lateral dourado, pellets com badge, dose limpa."
+
+[[outputs]]
+id = "aPal6LvFafTa15hVN76UT"
+uri = "file://docs/briefing-manus-protocolo-pdf.md"
+type = "text"
+title = "Carta ao Dr. Manus — Arquitetura do Protocolo PDF"
+description = "Briefing completo: onde estão os arquivos, como funciona a fiação de dados, estrutura de páginas, radar chart, cadernos jurídicos separados, oportunidades de melhoria e o rebrand PADAXOR."
