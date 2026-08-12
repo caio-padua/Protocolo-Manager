@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react";
+import { getCollabToken } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import {
   Camera,
@@ -205,7 +206,10 @@ export function ClientPhotoCard({ clientId, photoUrl, clientEmail, onUpdated }: 
   const fetchHistory = async () => {
     if (!ready) return;
     try {
-      const res = await fetch(`${apiBase}/client-photo/history/${clientId as number}`);
+      const token = getCollabToken();
+      const res = await fetch(`${apiBase}/client-photo/history/${clientId as number}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const data = (await res.json()) as PhotoHistory[];
         setHistoryPhotos(data);
