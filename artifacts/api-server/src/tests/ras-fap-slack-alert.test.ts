@@ -11,7 +11,7 @@
  * injeção de dependência — sem Express, banco de dados ou Google Drive.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 
 // ---------------------------------------------------------------------------
@@ -194,7 +194,95 @@ describe("notifySlackRasFapFailure — contexto email", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Bloco 3 — conteúdo da mensagem por contexto
+// Bloco 3 — comportamento quando PADAXOR_SLACK_CHANNEL_ID não está no ambiente
+// ---------------------------------------------------------------------------
+
+describe("notifySlackRasFapFailure — PADAXOR_SLACK_CHANNEL_ID ausente no ambiente", () => {
+  /**
+   * Simula o que a rota faz em produção quando a variável de ambiente
+   * não está configurada: passa process.env.PADAXOR_SLACK_CHANNEL_ID
+   * (que resolve para undefined) como slackChannel.
+   *
+   * Expectativas:
+   *  - A função não lança nem rejeita (silêncio seguro).
+   *  - O log de erro É chamado — a falha não é engolida silenciosamente.
+   *  - postAlert NÃO é chamado — sem channel, sem POST ao Slack.
+   */
+
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env.PADAXOR_SLACK_CHANNEL_ID;
+    delete process.env.PADAXOR_SLACK_CHANNEL_ID;
+  });
+
+  afterEach(() => {
+    if (savedEnv !== undefined) {
+      process.env.PADAXOR_SLACK_CHANNEL_ID = savedEnv;
+    } else {
+      delete process.env.PADAXOR_SLACK_CHANNEL_ID;
+    }
+  });
+
+  it("termina sem erro mesmo com env ausente (contexto drive)", async () => {
+    const deps = makeDeps();
+    await expect(
+      notifySlackRasFapFailure(
+        "drive", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+        ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("registra o erro no log mesmo sem canal Slack (contexto drive)", async () => {
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "drive", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+    );
+    expect(deps.logError).toHaveBeenCalledOnce();
+  });
+
+  it("NÃO chama postAlert quando env está ausente (contexto drive)", async () => {
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "drive", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+    );
+    expect(deps.postAlert).not.toHaveBeenCalled();
+  });
+
+  it("termina sem erro mesmo com env ausente (contexto email)", async () => {
+    const deps = makeDeps();
+    await expect(
+      notifySlackRasFapFailure(
+        "email", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+        ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("registra o erro no log mesmo sem canal Slack (contexto email)", async () => {
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "email", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+    );
+    expect(deps.logError).toHaveBeenCalledOnce();
+  });
+
+  it("NÃO chama postAlert quando env está ausente (contexto email)", async () => {
+    const deps = makeDeps();
+    await notifySlackRasFapFailure(
+      "email", CLIENT_NAME, PROTOCOL_ID, PROTOCOL_TITLE,
+      ERROR_MSG, process.env.PADAXOR_SLACK_CHANNEL_ID, deps,
+    );
+    expect(deps.postAlert).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bloco 4 — conteúdo da mensagem por contexto
 // ---------------------------------------------------------------------------
 
 describe("notifySlackRasFapFailure — diferença de conteúdo por contexto", () => {
