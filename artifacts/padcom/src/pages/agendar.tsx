@@ -881,6 +881,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Estado do modal de verificação de contato (requiresVerification).
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
   // Pagamento real Concierge (Asaas): id da solicitacao + pagina hospedada + status ao vivo.
   const [requestId, setRequestId] = useState<number | null>(null);
   // Crachá HMAC desta solicitacao (emitido na criacao). Vai em todas as rotas
@@ -941,6 +946,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       if (!res.ok) throw new Error("Falha ao buscar oferta");
       return res.json() as Promise<{
         blocked?: boolean;
+        throttled?: boolean;
+        requiresVerification?: boolean;
         motivo?: string;
         mensagem?: string;
         tentativas?: number;
@@ -1839,8 +1846,82 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
               </div>
               <div className="login-card-body px-5 py-5 flex flex-col gap-5">
 
-                {/* BLOQUEIO PERMANENTE — concierge indisponível após 3+ tentativas */}
-                {offerQuery.data?.blocked ? (
+                {/* THROTTLE — teto rígido antiautomação (50 ofertas/dia por dispositivo) */}
+                {offerQuery.data?.throttled ? (
+                  <div className="flex flex-col gap-4">
+                    <div className={`p-4 rounded-lg flex items-start gap-3 ${isDark ? "bg-red-950/40 border border-red-800 text-red-300" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm font-semibold">Limite de acessos atingido</p>
+                        <p className="text-xs leading-relaxed">
+                          Limite de acessos atingido. Tente novamente amanhã.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : offerQuery.data?.requiresVerification ? (
+                  /* VERIFICAÇÃO DE CONTATO — 6ª oferta do dia pede código do canal */
+                  <div className="flex flex-col gap-4">
+                    <div className={`p-4 rounded-lg flex items-start gap-3 ${isDark ? "bg-amber-950/40 border border-amber-800/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                      <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
+                      <p className="text-xs leading-relaxed">
+                        Para seguir com a reserva, confirme seu contato — enviamos um código para o seu WhatsApp.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>
+                        Código de confirmação
+                      </span>
+                      <input
+                        className="dc-input"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="000000"
+                        maxLength={8}
+                        value={verifyCode}
+                        onChange={(e) => { setVerifyCode(e.target.value.replace(/\D/g, "")); setVerifyError(""); }}
+                        autoComplete="one-time-code"
+                      />
+                      {verifyError && (
+                        <p className={`text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{verifyError}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={verifyCode.length < 4 || verifyLoading}
+                      onClick={async () => {
+                        if (!verifyCode) return;
+                        setVerifyLoading(true);
+                        setVerifyError("");
+                        try {
+                          const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+                          const res = await fetch(`${BASE}/api/scheduling/verify-device`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ code: verifyCode, cpf: cpfDigitsOffer }),
+                          });
+                          if (res.ok) {
+                            // Código aceito — revalidar a oferta (o backend libera o dispositivo).
+                            await offerQuery.refetch();
+                            setVerifyCode("");
+                          } else {
+                            const body = await res.json().catch(() => ({}));
+                            setVerifyError((body as { message?: string }).message ?? "Código inválido. Verifique e tente novamente.");
+                          }
+                        } catch {
+                          setVerifyError("Falha ao verificar. Tente novamente.");
+                        } finally {
+                          setVerifyLoading(false);
+                        }
+                      }}
+                      className="w-full py-3 rounded-lg border border-stone-300 text-sm font-medium tracking-wide hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {verifyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Confirmar contato
+                    </button>
+                  </div>
+                ) : offerQuery.data?.blocked ? (
+                  /* BLOQUEIO PERMANENTE — concierge indisponível após 3+ tentativas */
                   <div className="flex flex-col gap-4">
                     <div className={`p-4 rounded-lg flex items-start gap-3 ${isDark ? "bg-red-950/40 border border-red-800 text-red-300" : "bg-red-50 border border-red-200 text-red-700"}`}>
                       <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
