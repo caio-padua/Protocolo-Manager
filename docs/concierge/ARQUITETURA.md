@@ -147,18 +147,35 @@ export async function registrarFalha(
 
 **`eventId` não pode ser opcional.** Um parâmetro opcional deixa vivo um caminho que incrementa sempre, e foi por esse caminho que a regressão passou. Além disso, penalidade sem origem rastreável é indefensável quando um paciente reclamar — e a defensabilidade é o motivo do redesenho inteiro.
 
-### 5.3 Formato do `eventId` por origem
+### 5.3 Formato canônico do `eventId` — Option B (12/08/2026)
 
-| Origem | Formato | Observação |
-|---|---|---|
-| Webhook Asaas | `event.id` do payload | identificador do provedor |
-| Polling de status | `poll:${row.id}:${status}:${row.updated_at}` | ver 5.4 |
+Ambos os caminhos usam o **mesmo** formato:
 
-### 5.4 Por que o carimbo de tempo no polling
+```
+shared:{sreqId}:{asaasChargeId}:{desfecho}
+```
 
-`poll:${row.id}:${status}` sozinho é determinístico — bom para deduplicar reentrega. Mas se um `scheduling_request` for para `expirado`, for reaberto e expirar de novo, o identificador é idêntico e a **segunda expiração, que é real, desaparece em silêncio**.
+| Caminho | Exemplo de valor |
+|---|---|
+| Webhook `PAYMENT_OVERDUE` | `shared:42:pay_abc123:expirado` |
+| Webhook `PAYMENT_DELETED` | `shared:42:pay_abc123:cancelado` |
+| Polling (status `expirado`) | `shared:42:pay_abc123:expirado` |
 
-Incluir `row.updated_at` mantém a dedup da reentrega e elimina o falso-negativo.
+`payment.id` (webhook) == `asaasChargeId` (polling) — mesmo identificador Asaas.
+Os dois caminhos que observam o mesmo fato produzem `event_id` idêntico.
+`ON CONFLICT (event_id) DO NOTHING` no CTE deduplica atomicamente — qualquer ordem de chegada.
+
+### 5.4 Por que `asaasChargeId` e não `updated_at`
+
+A especificação anterior usava `row.updated_at` como discriminador de reativação.
+`scheduling_requests` não possui coluna `updated_at`. O discriminador correto é `asaasChargeId`:
+
+- Muda exatamente quando uma nova cobrança é criada no Asaas — o mesmo evento que separa dois vencimentos reais do mesmo pedido.
+- É semanticamente mais preciso: identifica qual cobrança venceu, não apenas quando algo mudou.
+- Em produção, todo `sreq` concierge com status `expirado` tem `asaasChargeId` preenchido.
+- O fallback `?? "nocharge"` cobre desenvolvimento sem charge criada.
+
+**`updated_at` não será adicionado a `scheduling_requests`.** Decisão registrada: 12/08/2026.
 
 ### 5.5 Implementação
 
