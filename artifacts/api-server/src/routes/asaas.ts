@@ -700,10 +700,8 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
           .set({ paymentStatus: "expirado" })
           .where(eq(schedulingRequestsTable.id, sreq.id));
         // Trava de escassez: cobrança concierge expirou sem pagamento → registra falha.
-        // eventId determinístico (evento:chargeId) garante idempotência contra reenvios do Asaas.
         if (sreq.path === "concierge" && sreq.entrada === "dr_caio") {
-          const eventId = `${event}:${payment.id}`;
-          await registrarFalha(sreq.patientCpf, eventId).catch((err: unknown) =>
+          await registrarFalha(sreq.patientCpf).catch((err: unknown) =>
             req.log.error({ err: String(err), id: sreq.id }, "registrarFalha concierge (webhook overdue) falhou"),
           );
         }
@@ -722,10 +720,8 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
           .set({ paymentStatus: "cancelado" })
           .where(eq(schedulingRequestsTable.id, sreq.id));
         // Trava de escassez: cobrança concierge cancelada/estornada → registra falha.
-        // eventId determinístico (evento:chargeId) garante idempotência contra reenvios do Asaas.
         if (sreq.path === "concierge" && sreq.entrada === "dr_caio") {
-          const eventId = `${event}:${payment.id}`;
-          await registrarFalha(sreq.patientCpf, eventId).catch((err: unknown) =>
+          await registrarFalha(sreq.patientCpf).catch((err: unknown) =>
             req.log.error({ err: String(err), id: sreq.id }, "registrarFalha concierge (webhook cancelado) falhou"),
           );
         }

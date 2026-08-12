@@ -482,6 +482,27 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     }
   }
 
+  // Guard #159 — bloquear no BACKEND quando paciente está suspenso do Concierge.
+  // O frontend já exibe a tela de bloqueio, mas qualquer chamada direta à API
+  // (bypassando o frontend) seria aceita sem este guard. Fail-closed: se não há
+  // CPF informado, passa — a penalidade não pode ser atribuída a identidade
+  // não verificada (conforme revisão Dr. Claude 12/08/2026).
+  if (
+    entrada === "dr_caio" &&
+    data.path === "concierge" &&
+    data.patientCpf
+  ) {
+    const pen = await getPenalidade(data.patientCpf);
+    if (pen.bloqueado_permanente) {
+      res.status(403).json({
+        error:
+          "Este CPF está suspenso do canal Concierge. Utilize a via comum para agendar.",
+        code: "CONCIERGE_BLOCKED",
+      });
+      return;
+    }
+  }
+
   // Braco de pagamento default por entrada (estrutura; sem cobranca real).
   const paymentArm =
     data.paymentArm ??

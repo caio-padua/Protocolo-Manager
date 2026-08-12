@@ -6,8 +6,8 @@
  * (PAYMENT_DELETED), e que NÃO chama em PAYMENT_RECEIVED.
  *
  * Cenários cobertos:
- *  1. PAYMENT_OVERDUE de um sreq concierge → registrarFalha() chamado com CPF + eventId
- *  2. PAYMENT_DELETED de um sreq concierge → registrarFalha() chamado com CPF + eventId
+ *  1. PAYMENT_OVERDUE de um sreq concierge → registrarFalha() chamado com CPF correto
+ *  2. PAYMENT_DELETED de um sreq concierge → registrarFalha() chamado com CPF correto
  *  3. PAYMENT_RECEIVED                     → registrarFalha() NÃO é chamado
  *  4. PAYMENT_OVERDUE de sreq com path≠concierge → registrarFalha() NÃO é chamado
  *  5. PAYMENT_OVERDUE onde só paymentsTable tem linha (sem sreq) → registrarFalha() NÃO chamado
@@ -15,9 +15,8 @@
  *  7. Token inválido no header             → 401, registrarFalha() NÃO chamado
  *  8. PAYMENT_OVERDUE com ambas as tabelas tendo linha → registrarFalha() chamado uma vez
  *  9. Payload sem payment.id               → 200 ignorado, registrarFalha() NÃO chamado
- * 10. PAYMENT_CHARGEBACK_REQUESTED de sreq concierge → registrarFalha() chamado com CPF + eventId
- * 11. Reenvio do mesmo evento (idempotência) → registrarFalha() chamado com mesmo eventId
- * 12. PAYMENT_CHARGEBACK_REQUESTED de sreq com path≠concierge → registrarFalha() NÃO chamado
+ * 10. PAYMENT_CHARGEBACK_REQUESTED de sreq concierge → registrarFalha() chamado
+ * 11. PAYMENT_CHARGEBACK_REQUESTED de sreq com path≠concierge → registrarFalha() NÃO chamado
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -211,7 +210,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
   });
 
   // ── Cenário 1: PAYMENT_OVERDUE ───────────────────────────────────────────
-  it("Cenário 1 — PAYMENT_OVERDUE com sreq concierge → chama registrarFalha com CPF + eventId", async () => {
+  it("Cenário 1 — PAYMENT_OVERDUE com sreq concierge → chama registrarFalha com CPF correto", async () => {
     setupSelectMocks(null, SREQ_CONCIERGE);
 
     const res = await postWebhook(app, "PAYMENT_OVERDUE");
@@ -219,11 +218,11 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, `PAYMENT_OVERDUE:${CHARGE_ID}`);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 
   // ── Cenário 2: PAYMENT_DELETED ───────────────────────────────────────────
-  it("Cenário 2 — PAYMENT_DELETED com sreq concierge → chama registrarFalha com CPF + eventId", async () => {
+  it("Cenário 2 — PAYMENT_DELETED com sreq concierge → chama registrarFalha com CPF correto", async () => {
     setupSelectMocks(null, SREQ_CONCIERGE);
 
     const res = await postWebhook(app, "PAYMENT_DELETED");
@@ -231,7 +230,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, `PAYMENT_DELETED:${CHARGE_ID}`);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 
   // ── Cenário 3: PAYMENT_RECEIVED ──────────────────────────────────────────
@@ -266,14 +265,14 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
   });
 
   // ── Cenário 6: PAYMENT_REFUNDED ──────────────────────────────────────────
-  it("Cenário 6 — PAYMENT_REFUNDED com sreq concierge → chama registrarFalha com eventId", async () => {
+  it("Cenário 6 — PAYMENT_REFUNDED com sreq concierge → chama registrarFalha", async () => {
     setupSelectMocks(null, SREQ_CONCIERGE);
 
     const res = await postWebhook(app, "PAYMENT_REFUNDED");
 
     expect(res.status).toBe(200);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, `PAYMENT_REFUNDED:${CHARGE_ID}`);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 
   // ── Cenário 7: Token inválido ────────────────────────────────────────────
@@ -298,7 +297,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     // Deve chamar exatamente uma vez (pelo sreq concierge)
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, `PAYMENT_OVERDUE:${CHARGE_ID}`);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 
   // ── Cenário 9: body sem payment.id → ignorado, sem chamar registrarFalha ─
@@ -313,7 +312,7 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
   });
 
   // ── Cenário 10: PAYMENT_CHARGEBACK_REQUESTED ─────────────────────────────
-  it("Cenário 10 — PAYMENT_CHARGEBACK_REQUESTED com sreq concierge → chama registrarFalha com CPF + eventId", async () => {
+  it("Cenário 10 — PAYMENT_CHARGEBACK_REQUESTED com sreq concierge → chama registrarFalha com CPF correto", async () => {
     setupSelectMocks(null, SREQ_CONCIERGE);
 
     const res = await postWebhook(app, "PAYMENT_CHARGEBACK_REQUESTED");
@@ -321,36 +320,11 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
-    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, `PAYMENT_CHARGEBACK_REQUESTED:${CHARGE_ID}`);
+    expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF);
   });
 
-  // ── Cenário 11: Reenvio do mesmo evento (idempotência por eventId) ────────
-  it("Cenário 11 — reenvio do mesmo PAYMENT_OVERDUE → registrarFalha chamado com mesmo eventId em ambas as chamadas", async () => {
-    // Simula dois envios idênticos do Asaas (reenvio por timeout).
-    // O webhook apenas repassa o eventId para registrarFalha(); a
-    // idempotência real é resolvida dentro de registrarFalha() na camada de
-    // persistência. Aqui confirmamos que o eventId é sempre passado e é
-    // determinístico (evento:chargeId), permitindo o dedup no banco.
-    setupSelectMocks(null, SREQ_CONCIERGE);
-    await postWebhook(app, "PAYMENT_OVERDUE");
-
-    // Segunda chamada: reconfigura os mocks para o segundo envio
-    setupSelectMocks(null, SREQ_CONCIERGE);
-    await postWebhook(app, "PAYMENT_OVERDUE");
-
-    // registrarFalha foi chamado duas vezes com o MESMO eventId determinístico.
-    // Isso prova que o eventId não muda entre reenvios — a camada de DB é quem
-    // descarta o segundo com ON CONFLICT DO NOTHING.
-    expect(mockRegistrarFalha).toHaveBeenCalledTimes(2);
-    const calls = mockRegistrarFalha.mock.calls;
-    expect(calls[0]).toEqual([PATIENT_CPF, `PAYMENT_OVERDUE:${CHARGE_ID}`]);
-    expect(calls[1]).toEqual([PATIENT_CPF, `PAYMENT_OVERDUE:${CHARGE_ID}`]);
-    // Ambas as chamadas usam o mesmo eventId → o banco rejeita a segunda silenciosamente.
-    expect(calls[0][1]).toBe(calls[1][1]);
-  });
-
-  // ── Cenário 12: PAYMENT_CHARGEBACK_REQUESTED, pagamento comum ────────────
-  it("Cenário 12 — PAYMENT_CHARGEBACK_REQUESTED com sreq path≠concierge → registrarFalha NÃO é chamado", async () => {
+  // ── Cenário 11: PAYMENT_CHARGEBACK_REQUESTED, pagamento comum ────────────
+  it("Cenário 11 — PAYMENT_CHARGEBACK_REQUESTED com sreq path≠concierge → registrarFalha NÃO é chamado", async () => {
     setupSelectMocks(null, SREQ_NORMAL);
 
     const res = await postWebhook(app, "PAYMENT_CHARGEBACK_REQUESTED");
