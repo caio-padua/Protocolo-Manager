@@ -270,3 +270,10 @@ uri = "file://tmp-preview/protocolo-carluccia-31.pdf"
 type = "pdf"
 title = "Protocolo Carlúcia — PDF Real (Motor Paxter)"
 description = "Protocolo 31 da Carlúcia gerado ao vivo pelo api-server. Inclui: radar de 7 dimensões (página 3), matrix de benefícios, fichas individuais de cada substância e seção financeira. CoQ10 IM · PQQ IM · Testosterona 200mg IM · Tirzepatida 5mg SC · Progesterona Pellet · Gestrinona Pellet — R$ 3.385,28."
+
+[[outputs]]
+id = "0n9968gdTUn0aJhb-bpiA"
+uri = "file://tmp-preview/caderno-substancias-preview.html"
+type = "text"
+title = "Preview — Substâncias nos Cadernos Jurídicos"
+description = "Dados reais do protocolo 31 da Carlúcia. Uma substância por linha, dose limpa (sem ml), aplicações e frequência. Pellets com badge visual diferenciado."
