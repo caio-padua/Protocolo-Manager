@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   useListSiteContent,
   useListSchedulingAreas,
@@ -7,8 +8,6 @@ import {
   useGetAgendaSlots,
   useCreateSchedulingRequest,
   useCreateConciergeCharge,
-  useGetConciergeOffer,
-  getGetConciergeOfferQueryKey,
   useGetSchedulingPaymentStatus,
   getGetSchedulingPaymentStatusQueryKey,
   useUpdateSchedulingRequest,
@@ -919,16 +918,37 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
 
   // Oferta REAL do concierge: confronta a agenda de verdade (escassez / dia
   // vizinho / contiguidade) ANTES do pagamento. So dispara no estagio "oferta".
-  const offerParams = {
-    weekday: prefWeekday ? Number(prefWeekday) : undefined,
-    period: prefPeriod || undefined,
-    earliest: earliestDate || undefined,
-  };
-  const offerQuery = useGetConciergeOffer(offerParams, {
-    query: {
-      queryKey: getGetConciergeOfferQueryKey(offerParams),
-      enabled: stage === "oferta",
+  // Inclui CPF na query para a trava de escassez verificar penalidade no servidor.
+  const cpfDigitsOffer = cpf.replace(/\D/g, "");
+  const offerQuery = useQuery({
+    queryKey: [
+      "concierge-offer",
+      prefWeekday,
+      prefPeriod,
+      earliestDate,
+      cpfDigitsOffer,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (prefWeekday) params.set("weekday", prefWeekday);
+      if (prefPeriod) params.set("period", prefPeriod);
+      if (earliestDate) params.set("earliest", earliestDate);
+      if (cpfDigitsOffer.length >= 11) params.set("cpf", cpfDigitsOffer);
+      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const res = await fetch(
+        `${BASE}/api/scheduling/concierge-offer?${params.toString()}`,
+      );
+      if (!res.ok) throw new Error("Falha ao buscar oferta");
+      return res.json() as Promise<{
+        blocked?: boolean;
+        motivo?: string;
+        mensagem?: string;
+        tentativas?: number;
+        penalidade_dias?: number;
+        days?: { date: string; times: { time: string }[] }[];
+      }>;
     },
+    enabled: stage === "oferta",
   });
 
   // Confirmacao automatica: ao Asaas confirmar o PIX, confirma o horario ja
@@ -1681,14 +1701,21 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                   >
                     {chargePending ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{payMethod === "card" ? "Pagar com cartão — R$ 150,00" : "Gerar cobrança PIX de R$ 150,00"} <ArrowRight className="w-4 h-4" /></>}
                   </button>
-                  {/* Saída segura: voltar para escolher outro horário */}
-                  <button
-                    type="button"
-                    onClick={() => { setErrorMsg(""); setStage("oferta"); }}
-                    className={`text-xs text-center underline-offset-4 hover:underline ${isDark ? "text-stone-500 hover:text-stone-300" : "text-stone-400 hover:text-stone-600"}`}
-                  >
-                    ← Voltar e escolher outro horário
-                  </button>
+                  {/* Saída segura: voltar para escolher outro horário.
+                      Aviso: ao voltar e não concluir o pagamento, a data
+                      selecionada pode ser afastada nas próximas tentativas. */}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => { setErrorMsg(""); setStage("oferta"); }}
+                      className={`text-xs text-center underline-offset-4 hover:underline ${isDark ? "text-stone-500 hover:text-stone-300" : "text-stone-400 hover:text-stone-600"}`}
+                    >
+                      ← Voltar e escolher outro horário
+                    </button>
+                    <p className={`text-[10px] text-center leading-relaxed ${isDark ? "text-stone-600" : "text-stone-400"}`}>
+                      Se a cobrança for gerada mas não paga, as próximas datas disponíveis serão mais distantes.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 /* Passo 2: pagar DENTRO do Paxter — QR + copia-e-cola PIX inline */
@@ -1811,96 +1838,135 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                 <span className="dc-serif italic dc-gold text-base tracking-wide">V. O Encaixe</span>
               </div>
               <div className="login-card-body px-5 py-5 flex flex-col gap-5">
-                <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>
-                  A Helena confrontou a agenda. Diga a sua preferência e ela revela as aberturas reais:
-                </p>
 
-                {/* Preferencia (dia + periodo) que filtra a agenda REAL. */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
-                    <PaxterSelect
-                      isDark={isDark}
-                      value={prefWeekday}
-                      onChange={(v) => { setPrefWeekday(v); setChosenSlotDate(""); setChosenSlotTime(""); }}
-                      placeholder="Qualquer dia"
-                      options={[
-                        { value: "", label: "Qualquer dia" },
-                        { value: "1", label: "Segunda-feira" },
-                        { value: "2", label: "Terça-feira" },
-                        { value: "3", label: "Quarta-feira" },
-                        { value: "4", label: "Quinta-feira" },
-                        { value: "5", label: "Sexta-feira" },
-                        { value: "6", label: "Sábado" },
-                      ]}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
-                    <PaxterSelect
-                      isDark={isDark}
-                      value={prefPeriod}
-                      onChange={(v) => { setPrefPeriod(v as "" | "manha" | "tarde"); setChosenSlotDate(""); setChosenSlotTime(""); }}
-                      placeholder="Qualquer período"
-                      options={[
-                        { value: "", label: "Qualquer período" },
-                        { value: "manha", label: "Manhã" },
-                        { value: "tarde", label: "Tarde" },
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {/* Aberturas reais vindas do motor (offerQuery). */}
-                {offerQuery.isFetching ? (
-                  <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                    <p className="text-sm">Verificando as aberturas na agenda…</p>
-                  </div>
-                ) : offerQuery.data && offerQuery.data.days.length > 0 ? (
+                {/* BLOQUEIO PERMANENTE — concierge indisponível após 3+ tentativas */}
+                {offerQuery.data?.blocked ? (
                   <div className="flex flex-col gap-4">
-                    {offerQuery.data.days.map((d) => (
-                      <div key={d.date} className="flex flex-col gap-2">
-                        <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-400" : "text-stone-500"}`}>{formatSlotDay(new Date(`${d.date}T12:00:00`))}</p>
-                        <div className="flex flex-wrap gap-2.5">
-                          {d.times.map((t) => {
-                            const active = chosenSlotDate === d.date && chosenSlotTime === t.time;
-                            return (
-                              <button
-                                key={`${d.date}-${t.time}`}
-                                type="button"
-                                onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t.time); }}
-                                data-active={active}
-                                className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
-                              >
-                                {t.time}
-                              </button>
-                            );
-                          })}
-                        </div>
+                    <div className={`p-4 rounded-lg flex items-start gap-3 ${isDark ? "bg-red-950/40 border border-red-800 text-red-300" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm font-semibold">Concierge indisponível</p>
+                        <p className="text-xs leading-relaxed">
+                          {offerQuery.data.mensagem ??
+                            "Após múltiplas tentativas não concluídas, o acesso ao Concierge foi suspenso. Por favor, utilize a Via Comum para agendar."}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setVia(""); setStage("vias"); }}
+                      className="w-full py-3 rounded-lg border border-stone-300 text-sm font-medium tracking-wide hover:bg-stone-50 transition-colors"
+                    >
+                      Ir para a Via Comum
+                    </button>
                   </div>
                 ) : (
-                  <div className={`p-4 rounded-lg text-sm ${isDark ? "bg-stone-900/40 border border-white/10 text-stone-400" : "bg-stone-50 border border-stone-200 text-stone-600"}`}>
-                    Nenhuma abertura para essa preferência. Tente outro dia ou período.
-                  </div>
-                )}
+                  <>
+                    {/* AVISO DE PENALIDADE — datas afastadas por tentativas anteriores */}
+                    {(offerQuery.data?.penalidade_dias ?? 0) > 0 && (
+                      <div className={`p-3 rounded-lg flex items-start gap-2.5 text-xs leading-relaxed ${isDark ? "bg-amber-950/40 border border-amber-800/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <p>
+                          Devido a tentativas anteriores não concluídas, as datas disponíveis foram
+                          avançadas em <strong>{offerQuery.data!.penalidade_dias} dia{offerQuery.data!.penalidade_dias !== 1 ? "s" : ""}</strong>.
+                          {offerQuery.data!.tentativas === 2 &&
+                            " Uma nova tentativa cancelada suspenderá o Concierge permanentemente."}
+                        </p>
+                      </div>
+                    )}
 
-                {errorMsg && (
-                  <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <p>{errorMsg}</p>
-                  </div>
-                )}
+                    <p className={`text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>
+                      A Helena confrontou a agenda. Diga a sua preferência e ela revela as aberturas reais:
+                    </p>
 
-                <button
-                  onClick={() => { setErrorMsg(""); setStage("pay"); }}
-                  disabled={!chosenSlotTime}
-                  className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-                >
-                  Reservar este horário <ArrowRight className="w-4 h-4" />
-                </button>
+                    {/* Preferencia (dia + periodo) que filtra a agenda REAL. */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Dia da semana</span>
+                        <PaxterSelect
+                          isDark={isDark}
+                          value={prefWeekday}
+                          onChange={(v) => { setPrefWeekday(v); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                          placeholder="Qualquer dia"
+                          options={[
+                            { value: "", label: "Qualquer dia" },
+                            { value: "1", label: "Segunda-feira" },
+                            { value: "2", label: "Terça-feira" },
+                            { value: "3", label: "Quarta-feira" },
+                            { value: "4", label: "Quinta-feira" },
+                            { value: "5", label: "Sexta-feira" },
+                            { value: "6", label: "Sábado" },
+                          ]}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-stone-500" : "text-stone-400"}`}>Período</span>
+                        <PaxterSelect
+                          isDark={isDark}
+                          value={prefPeriod}
+                          onChange={(v) => { setPrefPeriod(v as "" | "manha" | "tarde"); setChosenSlotDate(""); setChosenSlotTime(""); }}
+                          placeholder="Qualquer período"
+                          options={[
+                            { value: "", label: "Qualquer período" },
+                            { value: "manha", label: "Manhã" },
+                            { value: "tarde", label: "Tarde" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Aberturas reais vindas do motor (offerQuery). */}
+                    {offerQuery.isFetching ? (
+                      <div className={`p-4 rounded-lg flex items-center gap-3 ${isDark ? "bg-amber-950/30 border border-amber-900/60 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <p className="text-sm">Verificando as aberturas na agenda…</p>
+                      </div>
+                    ) : offerQuery.data?.days && offerQuery.data.days.length > 0 ? (
+                      <div className="flex flex-col gap-4">
+                        {offerQuery.data.days.map((d) => (
+                          <div key={d.date} className="flex flex-col gap-2">
+                            <p className={`text-[11px] uppercase tracking-widest font-semibold ${isDark ? "text-stone-400" : "text-stone-500"}`}>{formatSlotDay(new Date(`${d.date}T12:00:00`))}</p>
+                            <div className="flex flex-wrap gap-2.5">
+                              {d.times.map((t) => {
+                                const active = chosenSlotDate === d.date && chosenSlotTime === t.time;
+                                return (
+                                  <button
+                                    key={`${d.date}-${t.time}`}
+                                    type="button"
+                                    onClick={() => { setChosenSlotDate(d.date); setChosenSlotTime(t.time); }}
+                                    data-active={active}
+                                    className="dc-chip px-5 py-2.5 text-sm font-medium tracking-wide"
+                                  >
+                                    {t.time}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={`p-4 rounded-lg text-sm ${isDark ? "bg-stone-900/40 border border-white/10 text-stone-400" : "bg-stone-50 border border-stone-200 text-stone-600"}`}>
+                        Nenhuma abertura para essa preferência. Tente outro dia ou período.
+                      </div>
+                    )}
+
+                    {errorMsg && (
+                      <div className={`p-3 rounded text-xs flex items-start gap-2 ${isDark ? "bg-red-950/40 border border-red-900 text-red-400" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <p>{errorMsg}</p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => { setErrorMsg(""); setStage("pay"); }}
+                      disabled={!chosenSlotTime}
+                      className="w-full py-4 bg-gradient-to-b from-[#f4e2a8] via-[#c2a05a] to-[#8a6d2f] text-[#16284a] rounded-lg font-bold uppercase tracking-[0.2em] text-xs shadow-[0_4px_14px_rgba(194,160,90,0.3)] hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                    >
+                      Reservar este horário <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
