@@ -274,9 +274,13 @@ export async function listAuditoriaResets(rawCpf: string): Promise<AuditoriaRow[
 }
 
 /**
- * Garante que a tabela de dedup de eventos existe e possui a coluna
- * scheduling_request_id (adicionada em 12/08/2026 para o guard do caso 9).
+ * Garante que a tabela de dedup de eventos existe com todas as colunas de auditoria.
  * Singleton por processo — evita roundtrips repetidos ao banco.
+ *
+ * Colunas de auditoria (além do event_id PRIMARY KEY):
+ *   scheduling_request_id — qual sreq gerou o evento (para índice futuro)
+ *   desfecho              — "expirado" | "cancelado" etc. (auditoria — sai do eventId)
+ *   asaas_event_id        — payment.id do Asaas (invariante 1: origem rastreável)
  */
 async function ensureEventosTable(): Promise<void> {
   if (!_eventosTableReady) {
@@ -289,10 +293,18 @@ async function ensureEventosTable(): Promise<void> {
           registrado_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
-      // Idempotente: adiciona coluna se já existia antes do 12/08/2026.
+      // Idempotentes: adicionam colunas se ainda não existem.
       await db.execute(sql`
         ALTER TABLE concierge_webhook_eventos
         ADD COLUMN IF NOT EXISTS scheduling_request_id INTEGER
+      `);
+      await db.execute(sql`
+        ALTER TABLE concierge_webhook_eventos
+        ADD COLUMN IF NOT EXISTS desfecho TEXT
+      `);
+      await db.execute(sql`
+        ALTER TABLE concierge_webhook_eventos
+        ADD COLUMN IF NOT EXISTS asaas_event_id TEXT
       `);
     })().catch((err: unknown) => {
       _eventosTableReady = null;
@@ -301,31 +313,6 @@ async function ensureEventosTable(): Promise<void> {
   }
   return _eventosTableReady;
 }
-
-/**
- * Retorna true se já existe QUALQUER evento registrado para este
- * scheduling_request_id — seja de polling seja de webhook.
- *
- * Usado como guard de defesa-em-profundidade no polling: evita chamar
- * registrarFalha quando a dedup do CTE já trataria o caso.
- * Com o formato shared:{sreqId}:{chargeId}:{desfecho} em ambos os caminhos,
- * o CTE ON CONFLICT já é suficiente; este guard economiza um roundtrip.
- */
-export async function jaTemEventoParaSreq(
-  schedulingRequestId: number,
-): Promise<boolean> {
-  await ensureEventosTable();
-  const result = await db.execute(sql`
-    SELECT 1
-    FROM concierge_webhook_eventos
-    WHERE scheduling_request_id = ${schedulingRequestId}
-    LIMIT 1
-  `);
-  return result.rows.length > 0;
-}
-
-/** @deprecated Use jaTemEventoParaSreq — nome atualizado em 12/08/2026 */
-export const jaTemEventoWebhookParaSreq = jaTemEventoParaSreq;
 
 /**
  * Registra UMA falha para o CPF (cobrança concierge não paga).

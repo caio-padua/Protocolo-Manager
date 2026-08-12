@@ -183,11 +183,27 @@ CTE atômico: dedup do evento e UPSERT da pontuação num único SQL. `ON CONFLI
 
 Tabela `concierge_webhook_eventos`, com `event_id` como chave primária.
 
-### 5.6 Onde está o defeito hoje
+### 5.6 Guard do polling (Caso 9A) — REMOVIDO em 12/08/2026
 
-**No polling, `scheduling.ts` linha 789.** Verificado pelo Dr. Manus em 12/08.
+**Decisão:** Guard removido — a PRIMARY KEY do `eventId` compartilhado torna a verificação prévia redundante e introduz corrida fora do CTE.
 
-Os guards das linhas **495** e **915** apenas consultam `getPenalidade` e bloqueiam. **Não penalizam, e estão corretos.** Não mexer neles.
+**Motivo:** `jaTemEventoParaSreq(sreqId)` verificava se já existia **qualquer** evento para o `sreq` antes de chamar `registrarFalha`. Com o formato `shared:{sreqId}:{chargeId}:{desfecho}`, dois eventos legítimos do mesmo sreq (ex.: `OVERDUE` seguido de `CHARGEBACK`) têm `event_id` distintos — a PK não conflita, ambos devem registrar. O guard cortava o segundo evento **antes do CTE**, engolindo a penalidade silenciosamente. Código que só pode errar e nunca acertar, sai.
+
+**O CTE é suficiente:** `ON CONFLICT (event_id) DO NOTHING` garante atomicamente que o mesmo fato não duplica — sem race condition, sem roundtrip extra.
+
+Os guards das linhas **495** e **915** apenas consultam `getPenalidade` e bloqueiam o Concierge. **Não penalizam, e estão corretos.** Não mexer neles.
+
+### 5.7 Colunas de auditoria em `concierge_webhook_eventos`
+
+Adicionadas via `ADD COLUMN IF NOT EXISTS` em `ensureEventosTable()` (12/08/2026):
+
+| Coluna | Tipo | Propósito |
+|---|---|---|
+| `scheduling_request_id` | `INTEGER` | Qual sreq gerou o evento — base para índice único futuro sobre o fato |
+| `desfecho` | `TEXT` | Saída da auditoria: valor que estava embutido no `event_id` |
+| `asaas_event_id` | `TEXT` | `payment.id` do Asaas — satisfaz o Invariante 1 (origem rastreação) |
+
+**Por que separadas do `event_id`:** o `event_id` é chave de dedup, não de consulta. Separar os campos garante que a auditoria não dependa de parsear a string da chave.
 
 ---
 

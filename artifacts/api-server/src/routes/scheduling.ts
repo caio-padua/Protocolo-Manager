@@ -30,7 +30,7 @@ import {
 import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
-import { getPenalidade, jaTemEventoParaSreq, registrarFalha } from "../lib/concierge-penalidade.js";
+import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 
 const router: IRouter = Router();
 
@@ -794,19 +794,12 @@ router.get(
           // qualquer ordem de chegada — polling-primeiro OU webhook-primeiro.
           // asaasChargeId muda na reativação: segundo vencimento real gera novo id.
           const sharedEventId = `shared:${row.id}:${row.asaasChargeId ?? "nocharge"}:${mapped}`;
-          // Guard de defesa-em-profundidade: se qualquer evento já foi gravado para
-          // este sreq, economiza o roundtrip ao banco (o CTE já trataria).
-          jaTemEventoParaSreq(row.id)
-            .then((jaRegistrou) => {
-              if (jaRegistrou) {
-                req.log.info(
-                  { id, sharedEventId },
-                  "registrarFalha concierge (polling) ignorado — evento já registrado para este sreq",
-                );
-                return;
-              }
-              return registrarFalha(row.patientCpf, sharedEventId, row.id);
-            })
+          // Caso 9B — dedup atômica via CTE + PRIMARY KEY (event_id).
+          // Guard do polling (Caso 9A) REMOVIDO em 12/08/2026:
+          // polling e webhook geram o mesmo eventId → PK já deduplica qualquer ordem.
+          // Guard adicional introduzia corrida fora do CTE e bloqueava desfechos legítimos
+          // quando sreq já tinha um evento de tipo diferente (ex.: OVERDUE antes de CHARGEBACK).
+          registrarFalha(row.patientCpf, sharedEventId, row.id)
             .catch((err) =>
               req.log.error({ err: String(err), id, sharedEventId }, "registrarFalha concierge (polling) falhou"),
             );
