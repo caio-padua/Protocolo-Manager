@@ -731,10 +731,24 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
             // ── fim cadernos ─────────────────────────────────────────────────────
           } else {
             console.error("Protocol document email failed:", emailResult.error);
+            const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+            if (slackChannel) {
+              postSlackAlert(
+                slackChannel,
+                `🚨 *E-mail do protocolo não entregue* ao paciente *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email}\nMotivo: ${emailResult.error ?? "desconhecido"}`,
+              ).catch(() => {});
+            }
           }
         }
       } catch (err: any) {
         console.error("Protocol document email error:", err.message);
+        const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+        if (slackChannel) {
+          postSlackAlert(
+            slackChannel,
+            `🚨 *Falha ao tentar enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email ?? "não informado"}\nErro inesperado: ${err.message}`,
+          ).catch(() => {});
+        }
       }
     })();
   } catch (err: any) {
