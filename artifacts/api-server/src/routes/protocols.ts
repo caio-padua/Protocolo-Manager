@@ -3,7 +3,7 @@ import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable } from "@workspace/db";
-import { generateProtocolDocumentPdf } from "../lib/pdf-signer";
+import { generateProtocolDocumentPdf, generatePhysicalRASPdf } from "../lib/pdf-signer";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
@@ -423,6 +423,43 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
           const mm = protocol.startDate.slice(5, 7);
           const dd = protocol.startDate.slice(8, 10);
           const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
+          const rasFapFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+          // Gera o RAS FAP PDF para incluir como segundo anexo no mesmo e-mail
+          let rasFapBuffer: Buffer | undefined;
+          try {
+            const rasFapBytes = await generatePhysicalRASPdf({
+              clientName: client.name,
+              clientCpf: client.cpf ?? "000.000.000-00",
+              clientPhone: client.phone ?? "",
+              clientAge: client.birthDate
+                ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+                : undefined,
+              professionalName,
+              nurseName,
+              unit: protocol.unit ?? "Instituto Padua",
+              startDate: protocol.startDate,
+              protocolNumber: `FAP-${yy}${mm}${dd}-${protocol.id}`,
+              valorTratamento: protocol.totalValue
+                ? `R$ ${Number(protocol.totalValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                : undefined,
+              substances: substances.map(s => ({
+                name: s.name,
+                color: s.color,
+                totalSessions: s.totalSessions,
+                frequencyDays: s.intervalDays ?? 7,
+                startDate: s.startDate ?? protocol.startDate,
+                procedureType: s.procedureType as "iv" | "im" | "sc" | "implant",
+                dose: s.dose,
+              })),
+              sessions: [],
+            }, "PREMIUM");
+            rasFapBuffer = Buffer.from(rasFapBytes);
+            console.log(`RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
+          } catch (rasFapErr: any) {
+            console.error("RAS FAP generation error (email seguirá sem ele):", rasFapErr.message);
+          }
+
           const emailResult = await sendProtocolEmail({
             clientName: client.name,
             clientEmail: client.email,
@@ -436,9 +473,11 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
             })),
             pdfBuffer,
             pdfFileName: driveFileName,
+            rasFapBuffer,
+            rasFapFileName,
           });
           if (emailResult.success) {
-            console.log(`Protocol document email sent to ${client.email}`);
+            console.log(`Protocol document email sent to ${client.email}${rasFapBuffer ? " (+ RAS FAP)" : ""}`);
           } else {
             console.error("Protocol document email failed:", emailResult.error);
           }

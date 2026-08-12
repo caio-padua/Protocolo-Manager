@@ -421,6 +421,9 @@ export interface ProtocolEmailData {
   substances: Array<{ name: string; color: string; totalSessions: number }>;
   pdfBuffer: Buffer;
   pdfFileName: string;
+  // RAS FAP como segundo anexo (opcional — quando disponível, vai junto no mesmo e-mail)
+  rasFapBuffer?: Buffer;
+  rasFapFileName?: string;
 }
 
 function protocolBlocks(data: ProtocolEmailData): string[] {
@@ -451,16 +454,22 @@ function protocolBlocks(data: ProtocolEmailData): string[] {
 }
 
 export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ success: boolean; error?: string }> {
+  const anexos: PaxterDoc["anexos"] = [
+    { filename: data.pdfFileName, content: data.pdfBuffer, contentType: "application/pdf" },
+  ];
+  if (data.rasFapBuffer && data.rasFapBuffer.length > 0) {
+    anexos.push({
+      filename: data.rasFapFileName ?? "RAS_FAP.pdf",
+      content: data.rasFapBuffer,
+      contentType: "application/pdf",
+    });
+  }
   const doc: PaxterDoc = {
     eyebrow: `Prezado(a) Sr(a). ${data.clientName}`,
     titulo: "Protocolo medico personalizado",
     paragrafos: ["Seu protocolo medico personalizado foi elaborado. Veja os detalhes abaixo."],
     blocosHtml: protocolBlocks(data),
-    anexos: [{
-      filename: data.pdfFileName,
-      content: data.pdfBuffer,
-      contentType: "application/pdf",
-    }],
+    anexos,
     assunto: "PAXTER | Protocolo medico personalizado",
   };
   const envio = await enviarMensagemPaxter(doc, { email: data.clientEmail, nome: data.clientName }, ["EMAIL"], { baseUrl: baseUrlFromEnv() });
