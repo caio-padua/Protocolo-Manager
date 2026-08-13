@@ -203,6 +203,7 @@ function MontarCardapio() {
     nomePaciente: string;
     caloriasAlvo: number;
     estiloAlimentar?: string;
+    usedFallbackDownload?: boolean;
   } | null>(null);
 
   // ---- Conta TDEE ao vivo (espelha o backend) ----
@@ -408,6 +409,7 @@ function MontarCardapio() {
           nomePaciente: result.nomePaciente,
           caloriasAlvo: result.caloriasAlvo,
           estiloAlimentar: result.estiloAlimentar,
+          usedFallbackDownload: result.usedFallbackDownload,
         });
       }
     },
@@ -835,15 +837,25 @@ function MontarCardapio() {
           {pendingEmail && (
             <div className="panel-3d-sub border-l-4 border-primary p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-primary" />
+                {pendingEmail.usedFallbackDownload
+                  ? <Download className="h-4 w-4 text-primary" />
+                  : <Eye className="h-4 w-4 text-primary" />}
                 <span className="text-[11px] font-black uppercase tracking-widest text-primary">
-                  Revisão concluída?
+                  Revisar e confirmar envio
                 </span>
               </div>
               <p className="text-sm text-foreground">
-                O PDF foi aberto em nova aba para revisão.{" "}
+                {pendingEmail.usedFallbackDownload
+                  ? <>O PDF foi <span className="font-bold">baixado</span> para o seu computador (popup bloqueado pelo navegador). Revise o arquivo e, quando estiver pronto:</>
+                  : <>O PDF foi aberto em nova aba para revisão.</>}{" "}
                 <span className="font-bold">Enviar para {pendingEmail.nomePaciente}?</span>
               </p>
+              {pendingEmail.usedFallbackDownload && (
+                <p className="text-[11px] text-muted-foreground">
+                  Plano: <span className="font-bold text-foreground">{pendingEmail.caloriasAlvo} kcal</span>
+                  {pendingEmail.estiloAlimentar ? <> · {pendingEmail.estiloAlimentar}</> : null}
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <Button
                   className="btn-3d"
