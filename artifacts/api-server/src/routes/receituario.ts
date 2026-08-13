@@ -599,8 +599,8 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
       return;
     }
 
-    // Auto-carrega Dr. Caio (id=6) para o nome na assinatura
-    const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, 6));
+    // Carrega o médico responsável (isPrimaryDoctor=true) — reflete edições da tela de configurações
+    const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.isPrimaryDoctor, true));
     const profName = medico?.name ?? "Dr. Caio Henrique Fernandes Pádua";
 
     // Gera PDF assinado a partir do PNG do motor HTML
@@ -685,12 +685,12 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
   try {
     const clientId = Number(req.query.clientId ?? 11);
     const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-    const [medico]  = await db.select().from(professionalsTable).where(eq(professionalsTable.id, 6));
+    const [medico]  = await db.select().from(professionalsTable).where(eq(professionalsTable.isPrimaryDoctor, true));
     const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, 8));
 
     const assetsBaseUrl = "http://localhost:80/padcom";
     const dataEmissao   = new Date().toISOString().slice(0, 10);
-    const crmRqe = (medico as any)?.crm ?? "CRM SP 123456";
+    const crmRqe = (medico as any)?.registrationNumber ?? (medico as any)?.crm ?? "CRM SP 123456";
 
     const html = buildPrescricaoHtml({
       medicoNome: medico?.name ?? "Dr. Caio Henrique Fernandes Pádua",
