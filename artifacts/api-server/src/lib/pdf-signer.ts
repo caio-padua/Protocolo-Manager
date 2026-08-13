@@ -1879,6 +1879,7 @@ function drawPremiumCover(
   pf: PremiumFonts,
   symbolImg: EmbeddedPng | null,
   wordmarkImg: EmbeddedPng | null,
+  padconImg: EmbeddedPng | null,
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
@@ -1976,6 +1977,17 @@ function drawPremiumCover(
     pg.drawText(`E-mail: ${em}`, { x: MARGIN, y: PAGE_H - 582, size: 6, font: pf.manReg, color: MIST_P, opacity: 0.7 });
   }
 
+  // ── Canto inferior esquerdo: lockup PADCON (símbolo + wordmark + tagline) ────
+  // Arte oficial padcon-platform.png — 1001×957 px, fundo transparente confirmado.
+  // "Loguinho" discreto: 52 pt de altura, largura calculada pelo ratio nativo.
+  if (padconImg) {
+    try {
+      const pcH = 52;
+      const pcW = pcH * (padconImg.width / padconImg.height);
+      pg.drawImage(padconImg, { x: MARGIN, y: 36, width: pcW, height: pcH });
+    } catch { /* best-effort */ }
+  }
+
   const footTxt = "Documento clinico individual — PADAXOR Clinical Intelligence System — tecnologia PADCON — Pagina 1";
   pg.drawText(footTxt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: MIST_P, opacity: 0.6 });
 }
@@ -2024,16 +2036,17 @@ export async function buildProtocolDocumentLayout(
     cgReg: fb.regular, cgBold: fb.bold, cgSemiBold: fb.bold,
     manReg: fb.regular, manBold: fb.bold,
   }));
-  const [symbolImg, wordmarkImg, qrImg] = await Promise.all([
+  const [symbolImg, wordmarkImg, padconImg, qrImg] = await Promise.all([
     embedBrandPng(pdfDoc, "padaxor-symbol-medalhao.png"),
     embedBrandPng(pdfDoc, "padaxor-wordmark-trim.png"),
+    embedBrandPng(pdfDoc, "padcon-platform.png"),
     embedPaxterQr(pdfDoc),
   ]);
 
   const allPages: PDFPage[] = [];
 
   // ── Checkpoint B: Capa premium PADAXOR ──────────────────────────────────────
-  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg);
+  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconImg);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
   // (overflow é gerenciado dentro de drawSubstancePremiumPage)
