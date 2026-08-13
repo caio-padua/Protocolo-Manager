@@ -7,6 +7,7 @@ import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritic
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAiTenant, logAiUsage } from "../lib/ai-central";
+import { verificarCadeia, type EmpresaRoyaltyInfo } from "../lib/royalty";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -329,9 +330,81 @@ router.get("/empresas/:id/integracoes", async (req, res): Promise<void> => {
   });
 });
 
+// ── Helper: valida hierarquia antes de persistir empresaMaeId ────────────────
+//
+// Regra: profundidade máxima = 1 (filho direto do Platform Owner).
+// Fail-closed: cadeia incompleta, raiz não-PO ou ciclo → 422.
+//
+// empresaIdEditando (PUT only): a empresa cujo empresaMaeId está sendo alterado.
+//   - Auto-referência é bloqueada explicitamente.
+//   - Se a empresa editada tem filhos e ficaria em profundidade 1, esses filhos
+//     passariam para profundidade 2 → também bloqueado.
+//   - Ciclo via descendente: se empresaMaeId é um descendente da empresa editada,
+//     a cadeia ATUAL (sem a mudança aplicada) vai até o PO e a empresa editada
+//     aparece antes — detectado automaticamente pela profundidade do novo pai.
+//
+async function validarHierarquia(
+  empresaMaeId: number | null | undefined,
+  empresaIdEditando?: number,
+): Promise<string | null> {
+  if (!empresaMaeId) return null; // sem pai → empresa raiz → sempre OK
+
+  // Auto-referência explícita (PUT onde id === empresaMaeId)
+  if (empresaIdEditando !== undefined && empresaMaeId === empresaIdEditando) {
+    return "Uma empresa não pode ser sua própria empresa-mãe.";
+  }
+
+  const todasEmpresas = await db.select({
+    id: empresasTable.id,
+    nome: empresasTable.nome,
+    empresaMaeId: empresasTable.empresaMaeId,
+    royaltyPercent: empresasTable.royaltyPercent,
+    isPlatformOwner: empresasTable.isPlatformOwner,
+  }).from(empresasTable);
+
+  // Usamos a lista COMPLETA (sem excluir a empresa editada).
+  // Para PUT, a empresa editada ainda tem seu empresaMaeId ANTIGO no banco —
+  // isso é correto para verificar se o novo pai proposto pertence a uma cadeia
+  // válida que termine no PO. A exclusão incorreta ocultava ciclos via descendente.
+  const lista = todasEmpresas as EmpresaRoyaltyInfo[];
+
+  // Verificar se o novo pai proposto pertence a uma cadeia válida até o PO.
+  const check = verificarCadeia(empresaMaeId, lista);
+  if (!check.ok) {
+    return `Não é possível criar sub-licenciado neste nível da hierarquia. ${check.motivo}`;
+  }
+
+  // A nova empresa (ou empresa editada) ficaria em check.profundidade + 1.
+  // Máximo permitido = 1, ou seja, o novo pai DEVE ser o próprio Platform Owner (profundidade 0).
+  if (check.profundidade + 1 > 1) {
+    return "Não é possível criar sub-licenciado neste nível da hierarquia.";
+  }
+
+  // PUT: a empresa editada ficaria em profundidade 1.
+  // Qualquer filho existente passaria para profundidade 2 → proibido.
+  if (empresaIdEditando !== undefined) {
+    const temFilhos = lista.some(e => e.empresaMaeId === empresaIdEditando);
+    if (temFilhos) {
+      return (
+        "Não é possível mover esta empresa para este nível porque seus " +
+        "sub-licenciados ficariam fora da hierarquia permitida (profundidade > 1)."
+      );
+    }
+  }
+
+  return null;
+}
+
 router.post("/empresas", async (req, res): Promise<void> => {
   const body = req.body;
   if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
+
+  // ── Trava anti-pirâmide: rejeita empresaMaeId que criaria profundidade > 1 ──
+  const errHierarquia = await validarHierarquia(body.empresaMaeId ?? null);
+  if (errHierarquia) {
+    res.status(422).json({ error: errHierarquia });
+    return;
+  }
 
   const nick = (body.nick || body.nome).toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "").slice(0, 20);
   const zohoSugerido = body.zohoEmail || `${nick}@padcon.com.br`;
@@ -360,6 +433,15 @@ router.post("/empresas", async (req, res): Promise<void> => {
 router.put("/empresas/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  // ── Trava anti-pirâmide: só valida se empresaMaeId está sendo alterado ──
+  if (req.body.empresaMaeId !== undefined) {
+    const errHierarquia = await validarHierarquia(req.body.empresaMaeId ?? null, id);
+    if (errHierarquia) {
+      res.status(422).json({ error: errHierarquia });
+      return;
+    }
+  }
 
   const updates: Record<string, unknown> = { atualizadoEm: new Date() };
   const todosCampos = [...CAMPOS_EMPRESA, ...CAMPOS_CREDENCIAL_ESCRITA];

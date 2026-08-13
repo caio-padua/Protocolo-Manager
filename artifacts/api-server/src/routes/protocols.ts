@@ -20,6 +20,7 @@ import { postSlackAlert } from "../lib/slack-reporter";
 import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
+import { requireCollaborator } from "./collaborator";
 import { isGmailConnected } from "../lib/google-gmail";
 import {
   ListProtocolsQueryParams,
@@ -998,22 +999,21 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
 });
 
 // ── Diagnóstico de certificado para a Carta de Tratamento ────────────────────
-// Rota pública de smoke-test: valida que o certificado PAdES está configurado
-// e carregável sem precisar gerar um PDF completo. Útil no Railway antes de
-// emitir para um cliente real.
-router.get("/protocols/carta-pdf-certcheck", async (_req, res): Promise<void> => {
+// Rota protegida (requireCollaborator): valida que o certificado PAdES está
+// configurado e carregável sem precisar gerar um PDF completo.
+// CPF e dados sensíveis do titular NÃO são retornados — apenas metadados
+// de validade e emissor, necessários para diagnóstico operacional.
+router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const info = getCertInfo();
     res.json({
       ok: true,
       message: "Certificado carregado com sucesso — assinatura PAdES disponível.",
       cert: {
-        subject:   info.subject,
         issuer:    info.issuer,
         serial:    info.serial,
         validFrom: info.validFrom,
         validTo:   info.validTo,
-        cpf:       info.cpf,
       },
     });
   } catch (err: any) {

@@ -72,6 +72,135 @@ export class RoyaltyCadeiaProibidaError extends Error {
   }
 }
 
+// ── Verificação de cadeia hierárquica (fail-closed) ───────────────────────────
+
+export type CadeiaCheck =
+  | { ok: true; profundidade: number }
+  | { ok: false; motivo: string };
+
+/**
+ * Verifica se a empresa `empresaMaeId` pertence a uma cadeia hierárquica
+ * que TERMINA no Platform Owner, e retorna a profundidade dessa empresa.
+ *
+ * - PO → { ok: true, profundidade: 0 }
+ * - Filho direto do PO → { ok: true, profundidade: 1 }  ← máximo permitido
+ * - Neto do PO → { ok: true, profundidade: 2 }          ← bloqueado na rota
+ *
+ * **Fail-closed**: qualquer anomalia retorna { ok: false, motivo }.
+ * Isso inclui: empresa ausente no índice, cadeia que não chega ao PO,
+ * raiz que não é PO, e ciclo na hierarquia.
+ *
+ * Use para validar `empresaMaeId` ANTES de persistir um cadastro de empresa.
+ */
+export function verificarCadeia(
+  empresaMaeId: number,
+  empresas: EmpresaRoyaltyInfo[]
+): CadeiaCheck {
+  const byId = new Map<number, EmpresaRoyaltyInfo>(
+    empresas.map((e) => [e.id, e])
+  );
+
+  const mae = byId.get(empresaMaeId);
+  if (!mae) {
+    return {
+      ok: false,
+      motivo: `Empresa-mãe ID ${empresaMaeId} não encontrada na hierarquia.`,
+    };
+  }
+
+  // O próprio PO é a raiz: profundidade 0.
+  if (mae.isPlatformOwner) return { ok: true, profundidade: 0 };
+
+  const visitados = new Set<number>([empresaMaeId]);
+  let profundidade = 0;
+  let cursor: EmpresaRoyaltyInfo = mae;
+
+  while (cursor.empresaMaeId !== null && cursor.empresaMaeId !== undefined) {
+    const pai = byId.get(cursor.empresaMaeId);
+
+    if (!pai) {
+      return {
+        ok: false,
+        motivo: `Empresa ID ${cursor.empresaMaeId} referenciada mas não encontrada — cadeia incompleta.`,
+      };
+    }
+
+    profundidade += 1;
+
+    if (pai.isPlatformOwner) {
+      // Chegamos ao topo: a cadeia é válida.
+      return { ok: true, profundidade };
+    }
+
+    if (visitados.has(pai.id)) {
+      return {
+        ok: false,
+        motivo: `Ciclo detectado na hierarquia (empresa ID ${pai.id} aparece mais de uma vez).`,
+      };
+    }
+
+    visitados.add(pai.id);
+    cursor = pai;
+  }
+
+  // O loop terminou sem encontrar o Platform Owner — raiz não é PO.
+  return {
+    ok: false,
+    motivo: `A cadeia de empresaMaeId não termina no Platform Owner.`,
+  };
+}
+
+// ── Função auxiliar: mede a profundidade de uma empresa na hierarquia ─────────
+
+/**
+ * Retorna quantos saltos separam `empresaId` do Platform Owner.
+ * Usado internamente por calcularRoyalty().
+ *
+ * @throws Error se empresaId não for encontrado na lista ou se houver ciclo.
+ */
+export function medirProfundidade(
+  empresaId: number,
+  empresas: EmpresaRoyaltyInfo[]
+): number {
+  const byId = new Map<number, EmpresaRoyaltyInfo>(
+    empresas.map((e) => [e.id, e])
+  );
+
+  const empresa = byId.get(empresaId);
+  if (!empresa) {
+    throw new Error(
+      `medirProfundidade: empresa ID ${empresaId} não encontrada na lista fornecida.`
+    );
+  }
+
+  if (empresa.isPlatformOwner) return 0;
+
+  const visitados = new Set<number>([empresaId]);
+  let profundidade = 0;
+  let cursor: EmpresaRoyaltyInfo = empresa;
+
+  while (cursor.empresaMaeId !== null && cursor.empresaMaeId !== undefined) {
+    const pai = byId.get(cursor.empresaMaeId);
+    if (!pai) break; // pai ausente — retorna parcial (royalty.ts trata separado)
+
+    profundidade += 1;
+
+    if (pai.isPlatformOwner) break;
+
+    if (visitados.has(pai.id)) {
+      throw new Error(
+        `medirProfundidade: ciclo detectado na hierarquia. ` +
+        `Empresa ID ${pai.id} aparece mais de uma vez.`
+      );
+    }
+
+    visitados.add(pai.id);
+    cursor = pai;
+  }
+
+  return profundidade;
+}
+
 // ── Função principal ──────────────────────────────────────────────────────────
 
 /**

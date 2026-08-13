@@ -1182,23 +1182,20 @@ function drawRadarChart(
   // 3. Center dot
   page.drawCircle({ x: cx, y: cy, size: 2, color: RING_C });
 
-  // 4. Filled data polygon — triângulos fan do centro (pdf-lib renderiza fill nativo)
+  // 4. Filled data polygon — caminho SVG fechado (drawSvgPath suportado pelo pdf-lib@1.17.1)
   const dataPts = dims.map((d, i) => ptR(i, (Math.min(3, Math.max(0, d.value)) / 3) * radius));
-  for (let i = 0; i < n; i++) {
-    const a = dataPts[i];
-    const b = dataPts[(i + 1) % n];
-    try {
-      page.drawTriangle(
-        { x: cx, y: cy },
-        { x: a.x, y: a.y },
-        { x: b.x, y: b.y },
-        { color: FILL_C, opacity: 0.42, borderColor: FILL_C, borderWidth: 0 },
-      );
-    } catch {
-      /* pdf-lib sem drawTriangle — fallback silencioso */
-    }
+  try {
+    const polySegs = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+    polySegs.push("Z");
+    page.drawSvgPath(polySegs.join(" "), {
+      x: 0, y: 0,
+      color: FILL_C, opacity: 0.42,
+      borderColor: FILL_C, borderWidth: 0,
+    });
+  } catch {
+    /* fallback silencioso se o path for inválido */
   }
-  // Contorno dourado por cima dos triângulos
+  // Contorno dourado por cima do polígono
   for (let i = 0; i < n; i++) {
     page.drawLine({ start: dataPts[i], end: dataPts[(i + 1) % n], thickness: 1.5, color: STROKE_C, opacity: 0.9 });
   }
