@@ -1,16 +1,15 @@
-// ============================================================================
-// ROTA: Gerador de PDF de Plano Nutricional — PADAXOR
+// -- ROTA: Gerador de PDF de Plano Nutricional -- PADAXOR
 // POST /api/dieta/emitir-pdf
-//   Recebe parâmetros antropométricos + clientId opcional
+//   Recebe parametros antropometricos + clientId opcional
 //   Gera PDF completo via Claude + pdf-lib
 //   Opcionalmente envia por e-mail (campo enviarEmail: true)
-// ============================================================================
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import {
   db,
   clientsTable,
+  professionalsTable,
   dietaPrescricaoTable,
   dietaPrescricaoItemTable,
 } from "@workspace/db";
@@ -21,6 +20,7 @@ import { sendGmailMessage } from "../lib/google-gmail";
 import { renderPaxterEmail } from "../lib/messaging/render-email";
 import { baseUrlFromEnv } from "../lib/messaging/base-url";
 import type { PaxterDoc } from "../lib/messaging/types";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
@@ -66,6 +66,55 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     emailDestino = body.email ?? cliente.email ?? null;
   }
 
+  // Buscar médico responsável (isPrimaryDoctor = true)
+  const [medicoRow] = await db
+    .select({
+      nome: professionalsTable.name,
+      crm: professionalsTable.crm,
+      registrationCouncil: professionalsTable.registrationCouncil,
+      registrationNumber: professionalsTable.registrationNumber,
+      especialidade: professionalsTable.specialty,
+      signatureUrl: professionalsTable.signatureUrl,
+    })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.isPrimaryDoctor, true))
+    .limit(1);
+
+  let medicoAssinatura: import("../lib/dieta-pdf").MedicoAssinatura | null = null;
+  if (medicoRow) {
+    // Preferir registrationNumber (novo campo) se disponível, fallback para crm (legado)
+    const crmFinal = medicoRow.registrationNumber ?? medicoRow.crm ?? "";
+    if (medicoRow.nome && crmFinal) {
+      let signatureImageBytes: Buffer | null = null;
+      let signatureMime: string | null = null;
+
+      if (medicoRow.signatureUrl) {
+        try {
+          // signatureUrl é "/api/storage/objects/uploads/signatures/xxx.ext"
+          // getObjectEntityFile espera "/objects/uploads/signatures/xxx.ext"
+          const objectPath = medicoRow.signatureUrl.replace(/^\/api\/storage/, "");
+          const svc = new ObjectStorageService();
+          const file = await svc.getObjectEntityFile(objectPath);
+          const [buf] = await file.download();
+          signatureImageBytes = buf;
+          // Inferir MIME pelo nome do arquivo
+          signatureMime = medicoRow.signatureUrl.endsWith(".png") ? "image/png" : "image/jpeg";
+        } catch {
+          // Assinatura indisponível no storage — continua sem imagem (placeholder)
+        }
+      }
+
+      medicoAssinatura = {
+        nome: medicoRow.nome,
+        crm: crmFinal,
+        registrationCouncil: medicoRow.registrationCouncil ?? "CRM",
+        especialidade: medicoRow.especialidade,
+        signatureImageBytes,
+        signatureMime,
+      };
+    }
+  }
+
   // Calcular TDEE/meta se não fornecidos
   const conta = calcularTdee({
     pesoKg: body.pesoKg,
@@ -97,6 +146,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
       caloriasAlvo,
       tmb,
       tdee,
+      medico: medicoAssinatura,
     });
     pdfBytes = resultado.pdfBytes;
     plano = resultado.plano;

@@ -29,8 +29,18 @@ const MT      = 50;   // margem topo (após header)
 const MB      = 52;   // margem rodapé
 const CW      = PAGE_W - ML - MR;   // largura útil
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
-
+export interface MedicoAssinatura {
+  nome: string;
+  /** Número de registro (CRM, COREN, CRP, CRN…) */
+  crm: string;
+  /** Conselho que emitiu o registro (ex: "CRM", "COREN"). Default: "CRM". */
+  registrationCouncil?: string | null;
+  especialidade?: string | null;
+  /** Bytes brutos da imagem de assinatura (PNG ou JPEG). Null = sem assinatura. */
+  signatureImageBytes?: Buffer | Uint8Array | null;
+  /** MIME type da imagem — "image/png" | "image/jpeg". */
+  signatureMime?: string | null;
+}
 export interface DietaPdfInput {
   nomePaciente: string;
   email?: string | null;
@@ -45,6 +55,7 @@ export interface DietaPdfInput {
   tmb: number;
   tdee: number;
   dataEmissao?: string;  // YYYY-MM-DD, default = hoje BRT
+  medico?: MedicoAssinatura | null;
 }
 
 interface ItemRefeicao {
@@ -308,8 +319,121 @@ function drawOpcaoRefeicao(
   return y;
 }
 
-// ─── Construção das páginas ───────────────────────────────────────────────────
+/**
+ * Desenha o bloco de assinatura do médico responsável no rodapé da última
+ * página. Embute a imagem da assinatura quando disponível; caso contrário,
+ * renderiza linha tracejada para assinatura manuscrita.
+ * Se medico for null/undefined, exibe placeholder completo para preenchimento manual.
+ *
+ * ATENÇÃO: esta função é async pois pode chamar page.doc.embedPng / embedJpg.
+ */
+async function buildRodapeAssinatura(
+  page: PDFPage,
+  fonts: Fonts,
+  pdfDoc: PDFDocument,
+  medico: MedicoAssinatura | null | undefined,
+  yStart: number,
+): Promise<number> {
+  const BLOCK_H = 64;
+  const y = yStart;
 
+  // Fundo navy do bloco
+  page.drawRectangle({ x: ML, y: y - BLOCK_H, width: CW, height: BLOCK_H, color: NAVY });
+
+  // Linha dourada no topo do bloco
+  page.drawLine({
+    start: { x: ML, y },
+    end:   { x: ML + CW, y },
+    thickness: 1.2,
+    color: GOLD,
+  });
+
+  // Coluna esquerda: área de assinatura pictórica (imagem ou linha tracejada)
+  const colW = CW * 0.44;
+  dt(page, "Assinatura do Profissional Responsavel", {
+    x: ML + 8, y: y - 12, size: 6, font: fonts.regular, color: rgb(0.65, 0.65, 0.65),
+  });
+
+  if (medico?.signatureImageBytes && medico.signatureImageBytes.length > 0) {
+    // Embutir imagem da assinatura
+    try {
+      const imgBytes = medico.signatureImageBytes instanceof Buffer
+        ? new Uint8Array(medico.signatureImageBytes)
+        : medico.signatureImageBytes;
+
+      const isPng = !medico.signatureMime || medico.signatureMime === "image/png";
+      const embeddedImg = isPng
+        ? await pdfDoc.embedPng(imgBytes)
+        : await pdfDoc.embedJpg(imgBytes);
+
+      const imgMaxW = colW - 16;
+      const imgMaxH = 36;
+      const dims = embeddedImg.scaleToFit(imgMaxW, imgMaxH);
+      page.drawImage(embeddedImg, {
+        x: ML + 8,
+        y: y - 20 - dims.height,
+        width: dims.width,
+        height: dims.height,
+      });
+    } catch {
+      // Fallback: linha tracejada se a imagem não puder ser embebida
+      page.drawLine({
+        start: { x: ML + 8, y: y - 40 },
+        end:   { x: ML + colW - 8, y: y - 40 },
+        thickness: 0.5,
+        color: rgb(0.40, 0.40, 0.55),
+        dashArray: [3, 3],
+      });
+    }
+  } else {
+    // Sem imagem: linha tracejada para assinatura manuscrita
+    page.drawLine({
+      start: { x: ML + 8, y: y - 40 },
+      end:   { x: ML + colW - 8, y: y - 40 },
+      thickness: 0.5,
+      color: rgb(0.40, 0.40, 0.55),
+      dashArray: [3, 3],
+    });
+  }
+
+  // Coluna direita: nome + número de registro + especialidade
+  const rxStart = ML + colW + 12;
+  const rxW = CW - colW - 20;
+
+  if (medico) {
+    const council = safe(medico.registrationCouncil ?? "CRM");
+    dt(page, "PROFISSIONAL RESPONSAVEL PELO PLANO", {
+      x: rxStart, y: y - 11, size: 5.5, font: fonts.bold, color: rgb(0.65, 0.65, 0.65),
+    });
+    dt(page, safe(medico.nome), {
+      x: rxStart, y: y - 25, size: 9, font: fonts.bold, color: WHITE, maxWidth: rxW,
+    });
+    dt(page, `${council} ${safe(medico.crm)}`, {
+      x: rxStart, y: y - 37, size: 7.5, font: fonts.regular, color: GOLD,
+    });
+    if (medico.especialidade) {
+      dt(page, safe(medico.especialidade), {
+        x: rxStart, y: y - 49, size: 6, font: fonts.italic, color: rgb(0.75, 0.75, 0.75), maxWidth: rxW,
+      });
+    }
+  } else {
+    dt(page, "PROFISSIONAL RESPONSAVEL PELO PLANO", {
+      x: rxStart, y: y - 11, size: 5.5, font: fonts.bold, color: rgb(0.65, 0.65, 0.65),
+    });
+    page.drawLine({
+      start: { x: rxStart, y: y - 28 },
+      end:   { x: rxStart + rxW, y: y - 28 },
+      thickness: 0.5,
+      color: rgb(0.40, 0.40, 0.55),
+      dashArray: [3, 3],
+    });
+    dt(page, "Conselho ______  N. _________________", {
+      x: rxStart, y: y - 42, size: 7, font: fonts.regular, color: rgb(0.50, 0.50, 0.60),
+    });
+  }
+
+  return y - BLOCK_H;
+}
 async function buildCoverPage(
   pdfDoc: PDFDocument,
   fonts: Fonts,
@@ -531,6 +655,7 @@ async function buildSuplementacaoPage(
   plano: PlanoGerado,
   pageNum: number,
   totalPages: number,
+  medico?: MedicoAssinatura | null,
 ): Promise<PDFPage> {
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   drawPageHeader(page, fonts, "Plano Nutricional Personalizado", input.nomePaciente, pageNum, totalPages);
@@ -606,14 +731,11 @@ async function buildSuplementacaoPage(
     y -= 6;
   }
 
-  // Rodapé institucional
-  if (y > MB + 30) {
-    page.drawRectangle({ x: ML, y: y - 28, width: CW, height: 30, color: NAVY });
-    dt(page, "PADAXOR  ·  Clinical Intelligence System", { x: ML + 8, y: y - 12, size: 8, font: fonts.bold, color: GOLD });
-    dt(page, "Este plano é personalizado e intransferível. O acompanhamento clínico é indispensável.", {
-      x: ML + 8, y: y - 22, size: 6.5, font: fonts.regular, color: rgb(0.78, 0.78, 0.78)
-    });
-  }
+  // ─── Assinatura médica (sempre na última página) ──────────────────────────
+  // Reservar 68px acima do rodapé impresso (MB). Se não houver espaço, empurra
+  // o bloco logo acima do footer do header (mínimo visível).
+  const sigY = Math.max(y > MB + 70 ? y : MB + 70, MB + 70);
+  await buildRodapeAssinatura(page, fonts, pdfDoc, medico, sigY);
 
   return page;
 }
@@ -663,8 +785,8 @@ export async function gerarDietaPdf(input: DietaPdfInput): Promise<DietaPdfResul
     await buildRefeicaoPage(pdfDoc, fonts, input, ref, pageNum++, totalPages);
   }
 
-  // Última página: Suplementação + Monitoramento
-  await buildSuplementacaoPage(pdfDoc, fonts, input, plano, pageNum, totalPages);
+  // Última página: Suplementação + Monitoramento + Assinatura
+  await buildSuplementacaoPage(pdfDoc, fonts, input, plano, pageNum, totalPages, input.medico);
 
   const pdfBytes = await pdfDoc.save();
   return { pdfBytes, plano };

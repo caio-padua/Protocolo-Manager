@@ -294,14 +294,7 @@ description = "Briefing completo: onde estão os arquivos, como funciona a fiaç
 
 [[outputs]]
 id = "4TfTd7G-gI3EIN5fQCD2H"
-uri = "file://PlanoNutricional_Carlucia.pdf"
+uri = "file://PlanoNutricional_exemplo.pdf"
 type = "pdf"
-title = "Plano Nutricional — Carlucia Ferreira de Andrade"
-description = "PDF gerado pelo motor real (Claude + pdf-lib) e efetivamente enviado por e-mail via Gmail (confirmado na API do Gmail com label SENT)."
-
-[[outputs]]
-id = "sIJhxy0O15QOcTi6FCB7e"
-uri = "file://PlanoNutricional_Carlucia_Fernandes_CORRETO.pdf"
-type = "pdf"
-title = "Plano Nutricional — Carlucia Santos Fernandes (correto)"
-description = "PDF gerado pelo motor real e ENVIADO para o e-mail cadastrado da paciente real (ID 11). Prescrição também gravada no histórico do Órgão Dieta (ID 5)."
+title = "Plano Nutricional — Exemplo (validação do motor PDF)"
+description = "PDF gerado pelo motor real (Claude + pdf-lib) para validação do fluxo de emissão. Dado real removido por política de privacidade."
