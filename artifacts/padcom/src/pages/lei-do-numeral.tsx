@@ -374,7 +374,7 @@ export default function LeiDoNumeral() {
       <Zona
         n="4"
         titulo="Os tres moldes — escolha com os olhos"
-        linhaFina="Clique num molde: a tela inteira se reescreve nele, inclusive os cards das zonas 1, 2 e 5."
+        linhaFina="Molde A travado pelo CEO em 13 de agosto de 2026. Clique para comparar: a tela inteira se reescreve no molde escolhido, inclusive os cards das zonas 1, 2 e 5."
       >
         <div className="grid gap-4 md:grid-cols-3">
           {moldes.map((m) => {
@@ -400,7 +400,7 @@ export default function LeiDoNumeral() {
                       className="bevel-3d rounded-[3px] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em]"
                       style={{ color: VERDE }}
                     >
-                      Recomendado
+                      Padrao oficial
                     </span>
                   )}
                 </div>
@@ -543,7 +543,7 @@ export default function LeiDoNumeral() {
                 ["2", "Aplicar no Painel de Controle — os 4 cards", "FEITO"],
                 ["3", "Varrer todas as telas de dinheiro (orcamento, financeiro, cobranca)", "AGUARDA ORDEM"],
                 ["4", "Levar a mesma lei para os PDFs (carta, receituario, dossie)", "AGUARDA ORDEM"],
-                ["5", "Gravar a lei na skill de layout, para nunca mais divergir", "AGUARDA ORDEM"],
+                ["5", "Gravar a lei na skill de layout, para nunca mais divergir", "FEITO"],
               ].map(([n, o, e]) => (
                 <tr key={n} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
                   <td className="px-3 py-2" style={{ fontFamily: "var(--app-font-display)", fontWeight: 700 }}>

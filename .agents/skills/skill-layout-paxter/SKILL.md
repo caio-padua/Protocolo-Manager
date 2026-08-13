@@ -125,6 +125,49 @@ O CEO adotou o Cardo como fonte secundaria e deixou a escolha dos casos com o ag
 Ele entra no dia em que o primeiro documento usar leitura corrida serifada. Fonte que ninguem usa
 nao e carregada — isso e proposital, nao esquecimento.
 
+## LEI DO NUMERAL — "O Mostrador" — travada pelo CEO em 13/08/2026
+
+Numero **nao e digito**: e uma EXPRESSAO com anatomia — simbolo, parte inteira, separador,
+centavos, unidade. Todas as partes saem do MESMO material, com hierarquia interna. Um mostrador
+de relogio fino nao mistura metais; a peca numerica do Paxter tambem nao.
+
+**Origem:** em 13/08/2026 o CEO flagrou "R$ 3.385,00" no Painel de Controle com o cifrao em Inter
+e os algarismos em EB Garamond — dois materiais na mesma peca.
+
+**Regra unica:** toda expressao numerica visivel nasce de `components/numeral/Numeral.tsx`
+(`Valor`, `Percentual`, `Medida`, `Numeral`). **Proibido** formatar dinheiro ou porcentagem a mao
+no JSX. **Proibido** `toFixed()` para EXIBIR — ele devolve ponto decimal americano ("17.0%").
+
+### Molde oficial: A — Mostrador Pleno (escolha do CEO em 13/08/2026)
+
+| Molde | Centavos | Onde usar |
+|---|---|---|
+| **A — Pleno (PADRAO)** | mesmo corpo do inteiro, opacidade 82% | **padrao do sistema**: painel, lista, cobranca, orcamento |
+| B — Alto | elevados e menores, como relojoaria | so peca de vitrine: carta, proposta, capa de PDF |
+| C — Tecnico | tudo na linha de base, sem elevacao | planilha densa, relatorio contabil, extrato |
+
+Quem nao passar molde recebe o A. So passar `molde` para fugir do padrao, e com motivo.
+
+### As 4 armadilhas ja pagas (nao repetir)
+
+1. **A gaveta `PaxmedNum` NUNCA conserta dinheiro.** Ela cobre `U+0030-0039`, so os dez
+   algarismos. O **"R" de "R$" e letra**; poe-la na gaveta serifaria menu, botao e tabela do
+   sistema inteiro. A gaveta e rede de seguranca para numero solto em frase, nao lei.
+2. **Nao aplicar a gaveta DENTRO da peca.** A pilha `--app-font-display` ja e EB Garamond; somar a
+   gaveta (que carrega `size-adjust: 115.1%`, calibrado para casar com o Inter) deixaria o
+   algarismo ~15% maior que o simbolo ao lado.
+3. **Dado ausente NAO vira zero.** `Math.abs(null)` da 0 em silencio, e "R$ 0,00" numa tela de
+   receita e mentira contabil. Valor nao finito mostra travessao e se declara indisponivel.
+4. **Espacamento so por margem de CSS quebra o texto.** Numero montado com varios `<span>` precisa
+   de espaco inquebravel DE VERDADE; so com margem, copiar entrega "R$3.385,00" grudado e o Ctrl+F
+   por "R$ 3.385" nao acha nada.
+
+**Peso:** o corpo principal vai a **800**, que e o maximo REAL do EB Garamond. `font-black` (900)
+faz o programa falsificar peso — o mesmo defeito que aposentou o Cormorant.
+
+**Tela viva de referencia:** rota `/lei-do-numeral` (fora do menu), 8 zonas, com o defeito antigo
+e o corrigido lado a lado e os tres moldes clicaveis.
+
 ### 2.1.1 Historico da fonte principal
 
 **Decisao do CEO em 13/08/2026.** O **Cormorant Garamond foi APOSENTADO** do

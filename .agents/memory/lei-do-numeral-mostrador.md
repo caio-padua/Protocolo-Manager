@@ -32,7 +32,9 @@ decimal americano ("17.0%"), contra o padrao brasileiro.
    de espaco inquebravel DE VERDADE entre simbolo e algarismo; so com margem, o copiar-e-colar
    entrega "R$3.385,00" grudado e o Ctrl+F por "R$ 3.385" nao acha.
 
-## Tres moldes
+## Tres moldes — o CEO travou o A em 13/08/2026
 
-Pleno (padrao) · Alto (centavos elevados, peca de vitrine) · Tecnico (tudo na linha de base).
+Pleno (**PADRAO do sistema**) · Alto (centavos elevados, so peca de vitrine e capa de PDF) ·
+Tecnico (tudo na linha de base, planilha e extrato). Quem nao escolher recebe o Pleno.
 A tela viva que compara os tres, com o defeito antigo lado a lado, e a rota `/lei-do-numeral`.
+A doutrina completa esta na skill de layout, secao "LEI DO NUMERAL".
