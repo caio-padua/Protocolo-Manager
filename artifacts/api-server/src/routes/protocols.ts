@@ -669,7 +669,7 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
                     substances.map((s, idx) =>
                       `<tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f7faf8"}">` +
                       `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9"><strong>${s.name}</strong></td>` +
-                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose}</td>` +
+                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose.replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim()}</td>` +
                       `<td style="text-align:center;padding:5px 10px;border-bottom:1px solid #e8ede9">${s.totalSessions}</td>` +
                       `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : "dose única"}</td>` +
                       `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${viaMapHid[s.procedureType] ?? s.procedureType.toUpperCase()}</td>` +
