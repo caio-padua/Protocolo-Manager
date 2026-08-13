@@ -15,6 +15,7 @@ const EvolucaoPanel      = lazy(() => import("./panels/EvolucaoPanel"));
 const AnamnesePanel      = lazy(() => import("./panels/AnamnesePanel"));
 const DocumentosPanel    = lazy(() => import("./panels/DocumentosCockpitPanel"));
 const ProtocolosPanel    = lazy(() => import("./panels/ProtocolosPanel"));
+const DietaTreinoPanel   = lazy(() => import("./panels/DietaTreinoPanel"));
 const FinanceiroPanel    = lazy(() => import("./panels/FinanceiroPanel"));
 const CadastroPanel      = lazy(() => import("./panels/CadastroPanel"));
 
@@ -44,6 +45,7 @@ export default function CockpitContent({ clientId, aba }: CockpitContentProps) {
       {aba === "anamnese"    && <AnamnesePanel    clientId={clientId} />}
       {aba === "documentos"  && <DocumentosPanel  clientId={clientId} />}
       {aba === "protocolos"  && <ProtocolosPanel  clientId={clientId} />}
+      {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
       {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
       {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}
     </Suspense>

@@ -4,10 +4,13 @@ import {
   FileText, FlaskConical, Stethoscope, ClipboardList,
   ArrowLeft, Calendar, User, CheckCircle2, Clock,
   ExternalLink, AlertCircle, Download, FolderOpen, Plus,
+  Utensils, Dumbbell, Mail,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { getCollabToken } from "@/lib/collab-auth";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -16,7 +19,7 @@ import { ptBR } from "date-fns/locale";
 // Inspirado no modelo Support Clinic, com design Paxter navy/ouro.
 // ============================================================================
 
-type Tab = "prescricoes" | "protocolos" | "exames-indicados" | "exames-recebidos";
+type Tab = "prescricoes" | "protocolos" | "exames-indicados" | "exames-recebidos" | "dieta-treino";
 
 interface ProntuarioData {
   client: {
@@ -70,6 +73,33 @@ interface ProntuarioData {
     collectionDate: string | null;
     labName: string | null;
   }[];
+  dietaPrescricoes?: {
+    id: number;
+    objetivo: string | null;
+    estiloAlimentar: string | null;
+    caloriasAlvo: number | null;
+    status: string;
+    createdAt: string;
+  }[];
+  dietaPlanos?: {
+    id: number;
+    nomePaciente: string;
+    objetivo: string | null;
+    estrategia: string | null;
+    caloriasAlvo: number | null;
+    emailDestino: string | null;
+    emailEnviado: boolean;
+    temPdf: boolean;
+    emitidoEm: string;
+  }[];
+  treinoPrescricoes?: {
+    id: number;
+    objetivo: string | null;
+    divisao: string | null;
+    frequenciaSemanal: number | null;
+    status: string;
+    createdAt: string;
+  }[];
 }
 
 function fmtDate(val: string | null | undefined): string {
@@ -119,27 +149,81 @@ function StatusExame({ status }: { status: string }) {
   );
 }
 
+function StatusTreino({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    rascunho: { label: "RASCUNHO", cls: "bg-gray-200 text-gray-700" },
+    ativa: { label: "ATIVA", cls: "bg-emerald-100 text-emerald-800" },
+    encerrada: { label: "ENCERRADA", cls: "bg-red-100 text-red-700" },
+  };
+  const s = map[status] ?? { label: status.toUpperCase(), cls: "bg-gray-100 text-gray-600" };
+  return (
+    <span className={`inline-block text-[10px] font-bold tracking-widest px-2 py-0.5 rounded ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function StatusDieta({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    rascunho: { label: "RASCUNHO", cls: "bg-gray-200 text-gray-700" },
+    ativa: { label: "ATIVA", cls: "bg-emerald-100 text-emerald-800" },
+    encerrada: { label: "ENCERRADA", cls: "bg-red-100 text-red-700" },
+  };
+  const s = map[status] ?? { label: status.toUpperCase(), cls: "bg-gray-100 text-gray-600" };
+  return (
+    <span className={`inline-block text-[10px] font-bold tracking-widest px-2 py-0.5 rounded ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "prescricoes",       label: "Prescrições",         icon: <FileText className="w-4 h-4" /> },
   { key: "protocolos",        label: "Protocolos",          icon: <Stethoscope className="w-4 h-4" /> },
   { key: "exames-indicados",  label: "Exames Solicitados",  icon: <ClipboardList className="w-4 h-4" /> },
   { key: "exames-recebidos",  label: "Exames Recebidos",    icon: <FlaskConical className="w-4 h-4" /> },
+  { key: "dieta-treino",      label: "Dieta e Treino",      icon: <Utensils className="w-4 h-4" /> },
 ];
 
 export default function Prontuario() {
   const [, params] = useRoute("/clients/:id/prontuario");
   const id = parseInt(params?.id || "0", 10);
+  const { toast } = useToast();
 
   const [data, setData] = useState<ProntuarioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("prescricoes");
 
+  async function handleDownloadDietaPdf(planoId: number, nomePaciente: string) {
+    const token = getCollabToken();
+    try {
+      const r = await fetch(`/api/dieta/planos-emitidos/${planoId}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error((d as { error?: string }).error ?? "Falha ao baixar PDF");
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}_${planoId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      toast({ title: "Erro ao baixar PDF", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     fetch(`/api/prontuario/${id}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("collab_token") ?? ""}` },
+      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
       .then(setData)
@@ -168,7 +252,10 @@ export default function Prontuario() {
     );
   }
 
-  const { client, prescricoes, protocolos, examesIndicados, examesRecebidos, analitos = [] } = data;
+  const {
+    client, prescricoes, protocolos, examesIndicados, examesRecebidos,
+    analitos = [], dietaPrescricoes = [], dietaPlanos = [], treinoPrescricoes = [],
+  } = data;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f5f7f9]">
@@ -227,12 +314,13 @@ export default function Prontuario() {
         </div>
 
         {/* Contadores rápidos */}
-        <div className="grid grid-cols-4 gap-3 mt-5">
+        <div className="grid grid-cols-5 gap-3 mt-5">
           {[
             { label: "Prescrições",        count: prescricoes.length,        tab: "prescricoes" as Tab },
             { label: "Protocolos",         count: protocolos.length,         tab: "protocolos" as Tab },
             { label: "Exames Solicitados", count: examesIndicados.length,    tab: "exames-indicados" as Tab },
             { label: "Exames Recebidos",   count: examesRecebidos.length,    tab: "exames-recebidos" as Tab },
+            { label: "Dieta e Treino",     count: dietaPrescricoes.length + dietaPlanos.length + treinoPrescricoes.length, tab: "dieta-treino" as Tab },
           ].map((item) => (
             <button
               key={item.tab}
@@ -484,6 +572,133 @@ export default function Prontuario() {
 
             {/* Planilha comparativa de analitos */}
             <PlanilhaComparativa analitos={analitos} />
+          </div>
+        )}
+
+        {/* ABA: Dieta e Treino */}
+        {tab === "dieta-treino" && (
+          <div className="space-y-6">
+
+            {/* Prescrições de dieta (motor manual/determinístico) */}
+            <div>
+              <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest mb-3">
+                Prescrições de Dieta ({dietaPrescricoes.length})
+              </h2>
+              {dietaPrescricoes.length === 0 ? (
+                <EmptyState icon={<Utensils />} label="Nenhuma prescrição de dieta cadastrada" />
+              ) : (
+                <div className="space-y-2">
+                  {dietaPrescricoes.map((d) => (
+                    <div
+                      key={d.id}
+                      className="bg-white rounded-[6px] border border-gray-200 px-4 py-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Utensils className="w-5 h-5 text-[#1a2744]/50" />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900">
+                            {d.objetivo || "Prescrição de dieta"}
+                            {d.estiloAlimentar && ` · ${d.estiloAlimentar}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
+                            {d.caloriasAlvo != null && <span>{Math.round(d.caloriasAlvo)} kcal/dia</span>}
+                            <span>Criada em {fmtDateTime(d.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <StatusDieta status={d.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Planos nutricionais emitidos */}
+            <div>
+              <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest mb-3">
+                Planos Nutricionais Emitidos ({dietaPlanos.length})
+              </h2>
+              {dietaPlanos.length === 0 ? (
+                <EmptyState icon={<Utensils />} label="Nenhum plano nutricional emitido" />
+              ) : (
+                <div className="space-y-2">
+                  {dietaPlanos.map((p) => (
+                    <div
+                      key={p.id}
+                      className="bg-white rounded-[6px] border border-gray-200 px-4 py-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Utensils className="w-5 h-5 text-[#1a2744]/50" />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900">
+                            {p.objetivo || "Plano nutricional"}
+                            {p.estrategia && ` · ${p.estrategia}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {p.caloriasAlvo != null && <span>{Math.round(p.caloriasAlvo)} kcal/dia</span>}
+                            <span>Emitido em {fmtDateTime(p.emitidoEm)}</span>
+                            {p.emailEnviado && p.emailDestino ? (
+                              <span className="flex items-center gap-1 text-emerald-600">
+                                <Mail className="w-3 h-3" /> Enviado a {p.emailDestino}
+                              </span>
+                            ) : (
+                              <span className="text-amber-600">Não enviado por e-mail</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {p.temPdf ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-[#1a2744] h-7 px-2"
+                          onClick={() => handleDownloadDietaPdf(p.id, p.nomePaciente)}
+                        >
+                          <Download className="w-3 h-3 mr-1" /> PDF
+                        </Button>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 uppercase tracking-widest">PDF indisponível</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fichas de treino prescritas */}
+            <div>
+              <h2 className="text-sm font-semibold text-[#1a2744] uppercase tracking-widest mb-3">
+                Fichas de Treino ({treinoPrescricoes.length})
+              </h2>
+              {treinoPrescricoes.length === 0 ? (
+                <EmptyState icon={<Dumbbell />} label="Nenhuma ficha de treino prescrita" />
+              ) : (
+                <div className="space-y-2">
+                  {treinoPrescricoes.map((t) => (
+                    <div
+                      key={t.id}
+                      className="bg-white rounded-[6px] border border-gray-200 px-4 py-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Dumbbell className="w-5 h-5 text-[#1a2744]/50" />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900">
+                            {t.objetivo || "Ficha de treino"}
+                            {t.divisao && ` · ${t.divisao}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
+                            {t.frequenciaSemanal != null && <span>{t.frequenciaSemanal}x/semana</span>}
+                            <span>Criada em {fmtDate(t.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <StatusTreino status={t.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
