@@ -1254,13 +1254,19 @@ interface PremiumFonts {
 async function loadPremiumFonts(pdfDoc: PDFDocument): Promise<PremiumFonts> {
   const { default: fontkit } = await import("@pdf-lib/fontkit");
   pdfDoc.registerFontkit(fontkit);
-  const fd = path.resolve(import.meta.dirname, "../assets/fonts");
+  const readFont = async (n: string): Promise<Buffer> => {
+    let last: unknown;
+    for (const p of assetCandidates(path.join("fonts", n))) {
+      try { return await fs.promises.readFile(p); } catch (e) { last = e; }
+    }
+    throw last;
+  };
   const [cgRegB, cgBoldB, cgSemiBoldB, manRegB, manBoldB] = await Promise.all([
-    fs.promises.readFile(path.join(fd, "CormorantGaramond-Regular.woff")),
-    fs.promises.readFile(path.join(fd, "CormorantGaramond-Bold.woff")),
-    fs.promises.readFile(path.join(fd, "CormorantGaramond-SemiBold.woff")),
-    fs.promises.readFile(path.join(fd, "Manrope-Regular.woff")),
-    fs.promises.readFile(path.join(fd, "Manrope-Bold.woff")),
+    readFont("CormorantGaramond-Regular.woff"),
+    readFont("CormorantGaramond-Bold.woff"),
+    readFont("CormorantGaramond-SemiBold.woff"),
+    readFont("Manrope-Regular.woff"),
+    readFont("Manrope-Bold.woff"),
   ]);
   // CRÍTICO: { subset: true } é OBRIGATÓRIO para fonte .woff.
   // Sem o recorte (subset), o pdf-lib embute o arquivo .woff comprimido cru dentro do
@@ -1277,13 +1283,35 @@ async function loadPremiumFonts(pdfDoc: PDFDocument): Promise<PremiumFonts> {
   return { cgReg, cgBold, cgSemiBold, manReg, manBold };
 }
 
-async function embedPadaxorSymbol(pdfDoc: PDFDocument): Promise<Awaited<ReturnType<PDFDocument["embedPng"]>> | null> {
-  try {
-    const buf = await fs.promises.readFile(
-      path.resolve(import.meta.dirname, "../assets/brand/03-loginho-vidro-sistema.png"),
-    );
-    return await pdfDoc.embedPng(buf);
-  } catch { return null; }
+// Artes oficiais da marca, em PNG com fundo transparente de verdade.
+// NUNCA usar captura de tela de slide/apresentação aqui: a antiga
+// "03-loginho-vidro-sistema.png" era um print 574x314 que trazia o número "03"
+// e a legenda do slide embutidos no próprio pixel, e ainda era esticada para
+// 120x90 (proporção errada). O símbolo correto é 381x369 (praticamente
+// quadrado) e o wordmark é 1740x225 — ambos com canal alfa, portanto flutuam
+// sobre o navy sem placa, sem moldura e sem retângulo de fundo.
+type EmbeddedPng = Awaited<ReturnType<PDFDocument["embedPng"]>>;
+
+// Resolve um arquivo da pasta assets nos três cenários possíveis:
+//  - bundle de produção: __dirname = dist        → ../assets
+//  - código-fonte direto: __dirname = src/lib    → ../../assets
+//  - variação onde assets já está ao lado        → ./assets
+function assetCandidates(rel: string): string[] {
+  return [
+    path.resolve(import.meta.dirname, "../assets", rel),
+    path.resolve(import.meta.dirname, "../../assets", rel),
+    path.resolve(import.meta.dirname, "assets", rel),
+  ];
+}
+
+async function embedBrandPng(pdfDoc: PDFDocument, fileName: string): Promise<EmbeddedPng | null> {
+  for (const p of assetCandidates(fileName)) {
+    try {
+      const buf = await fs.promises.readFile(p);
+      return await pdfDoc.embedPng(buf);
+    } catch { /* tenta o próximo caminho */ }
+  }
+  return null;
 }
 
 function maskCpf(cpf: string | undefined): string {
@@ -1806,7 +1834,8 @@ function drawPremiumCover(
   allPages: PDFPage[],
   data: ProtocolDocumentData,
   pf: PremiumFonts,
-  symbolImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null,
+  symbolImg: EmbeddedPng | null,
+  wordmarkImg: EmbeddedPng | null,
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
@@ -1818,24 +1847,40 @@ function drawPremiumCover(
   pg.drawText(docLbl, { x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(docLbl, 7), y: PAGE_H - 32, size: 7, font: pf.manBold, color: GOLD_P });
   pg.drawLine({ start: { x: MARGIN, y: PAGE_H - 56 }, end: { x: PAGE_W - MARGIN, y: PAGE_H - 56 }, thickness: 0.5, color: GOLD_P, opacity: 0.3 });
 
-  // Symbol (120×90 pt, centered)
+  // ── LOCKUP DA MARCA: símbolo 3D + wordmark PADAXOR ──────────────────────────
+  // Decisão do CEO (13/08/2026): o símbolo ("R" com "X") TEM de aparecer, e vem
+  // sempre acompanhado da palavra PADAXOR. Ambos são a arte renderizada oficial,
+  // desenhada na PROPORÇÃO NATIVA (nunca esticada) e sem qualquer placa atrás.
+  let cursorY = PAGE_H - 118;
+
   if (symbolImg) {
     try {
-      pg.drawImage(symbolImg, { x: (PAGE_W - 120) / 2, y: PAGE_H - 195, width: 120, height: 90 });
-    } catch { /* best-effort */ }
+      // Proporção nativa preservada: escala pela altura desejada, largura sai do arquivo.
+      const symH = 74;
+      const symW = symH * (symbolImg.width / symbolImg.height);
+      pg.drawImage(symbolImg, { x: (PAGE_W - symW) / 2, y: cursorY - symH, width: symW, height: symH });
+      cursorY -= symH + 26;
+    } catch { /* best-effort: capa nunca deixa de ser gerada */ }
   }
 
-  // Wordmark
-  const kickerTxt = "SISTEMA CLINICO INTELIGENTE";
-  const kW = pf.manBold.widthOfTextAtSize(kickerTxt, 7);
-  pg.drawText(kickerTxt, { x: (PAGE_W - kW) / 2, y: PAGE_H - 230, size: 7, font: pf.manBold, color: GOLD_P });
+  // Wordmark PADAXOR: arte oficial em ouro 3D. Só cai para texto se o arquivo faltar.
+  if (wordmarkImg) {
+    try {
+      const wmW = 216;
+      const wmH = wmW * (wordmarkImg.height / wordmarkImg.width);
+      pg.drawImage(wordmarkImg, { x: (PAGE_W - wmW) / 2, y: cursorY - wmH, width: wmW, height: wmH });
+      cursorY -= wmH + 16;
+    } catch { /* best-effort */ }
+  } else {
+    const padaxorW = pf.cgBold.widthOfTextAtSize("PADAXOR", 42);
+    pg.drawText("PADAXOR", { x: (PAGE_W - padaxorW) / 2, y: cursorY - 34, size: 42, font: pf.cgBold, color: WHITE });
+    cursorY -= 50;
+  }
 
-  const padaxorW = pf.cgBold.widthOfTextAtSize("PADAXOR", 42);
-  pg.drawText("PADAXOR", { x: (PAGE_W - padaxorW) / 2, y: PAGE_H - 278, size: 42, font: pf.cgBold, color: WHITE });
-
+  // Assinatura única sob o wordmark (regra de marca: uma só frase, serifada, ouro).
   const cisTxt = "Clinical Intelligence System";
-  const cisW = pf.manReg.widthOfTextAtSize(cisTxt, 9);
-  pg.drawText(cisTxt, { x: (PAGE_W - cisW) / 2, y: PAGE_H - 303, size: 9, font: pf.manReg, color: GOLD_P });
+  const cisW = pf.cgSemiBold.widthOfTextAtSize(cisTxt, 10);
+  pg.drawText(cisTxt, { x: (PAGE_W - cisW) / 2, y: cursorY, size: 10, font: pf.cgSemiBold, color: GOLD_P });
 
   const sepLen = 180;
   pg.drawLine({ start: { x: (PAGE_W - sepLen) / 2, y: PAGE_H - 322 }, end: { x: (PAGE_W + sepLen) / 2, y: PAGE_H - 322 }, thickness: 0.8, color: GOLD_P, opacity: 0.5 });
@@ -1936,15 +1981,16 @@ export async function buildProtocolDocumentLayout(
     cgReg: fb.regular, cgBold: fb.bold, cgSemiBold: fb.bold,
     manReg: fb.regular, manBold: fb.bold,
   }));
-  const [symbolImg, qrImg] = await Promise.all([
-    embedPadaxorSymbol(pdfDoc),
+  const [symbolImg, wordmarkImg, qrImg] = await Promise.all([
+    embedBrandPng(pdfDoc, "padaxor-symbol-medalhao.png"),
+    embedBrandPng(pdfDoc, "padaxor-wordmark-trim.png"),
     embedPaxterQr(pdfDoc),
   ]);
 
   const allPages: PDFPage[] = [];
 
   // ── Checkpoint B: Capa premium PADAXOR ──────────────────────────────────────
-  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg);
+  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
   // (overflow é gerenciado dentro de drawSubstancePremiumPage)
