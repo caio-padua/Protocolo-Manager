@@ -298,3 +298,10 @@ uri = "file://PlanoNutricional_Carlucia.pdf"
 type = "pdf"
 title = "Plano Nutricional — Carlucia Ferreira de Andrade"
 description = "PDF gerado pelo motor real (Claude + pdf-lib) e efetivamente enviado por e-mail via Gmail (confirmado na API do Gmail com label SENT)."
+
+[[outputs]]
+id = "sIJhxy0O15QOcTi6FCB7e"
+uri = "file://PlanoNutricional_Carlucia_Fernandes_CORRETO.pdf"
+type = "pdf"
+title = "Plano Nutricional — Carlucia Santos Fernandes (correto)"
+description = "PDF gerado pelo motor real e ENVIADO para o e-mail cadastrado da paciente real (ID 11). Prescrição também gravada no histórico do Órgão Dieta (ID 5)."

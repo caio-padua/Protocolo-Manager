@@ -8,7 +8,12 @@
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, clientsTable } from "@workspace/db";
+import {
+  db,
+  clientsTable,
+  dietaPrescricaoTable,
+  dietaPrescricaoItemTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { gerarDietaPdf } from "../lib/dieta-pdf";
 import { calcularTdee } from "../lib/dieta-calc";
@@ -77,8 +82,9 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
 
   // Gerar PDF (pode levar 30-90 segundos pelo Claude)
   let pdfBytes: Uint8Array;
+  let plano: Awaited<ReturnType<typeof gerarDietaPdf>>["plano"];
   try {
-    pdfBytes = await gerarDietaPdf({
+    const resultado = await gerarDietaPdf({
       nomePaciente,
       email: emailDestino,
       sexo: body.sexo,
@@ -92,6 +98,8 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
       tmb,
       tdee,
     });
+    pdfBytes = resultado.pdfBytes;
+    plano = resultado.plano;
   } catch (err) {
     req.log?.error?.({ err }, "Falha ao gerar PDF de dieta");
     res.status(500).json({
@@ -99,6 +107,56 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
       detail: (err as Error)?.message ?? String(err),
     });
     return;
+  }
+
+  // Persistir a prescrição REAL na tabela do Órgão Dieta (dieta_prescricao +
+  // dieta_prescricao_item), para que apareça no histórico do cliente igual a
+  // qualquer cardápio montado manualmente na tela "Montar cardápio". Sem isso,
+  // o PDF fica desconectado do sistema (não aparece em GET /dieta/prescricoes).
+  let prescricaoId: number | null = null;
+  if (body.clientId) {
+    prescricaoId = await db.transaction(async (tx) => {
+      const [prescricao] = await tx
+        .insert(dietaPrescricaoTable)
+        .values({
+          clientId: body.clientId!,
+          objetivo: body.objetivo,
+          estiloAlimentar: body.estiloAlimentar ?? null,
+          pesoKg: body.pesoKg,
+          alturaCm: body.alturaCm,
+          idade: body.idade,
+          sexo: body.sexo,
+          nivelAtividade: body.nivelAtividade,
+          tmb,
+          tdee,
+          caloriasAlvo,
+          status: "ativa",
+          observacao: "Plano nutricional emitido em PDF (opção 1 de cada refeição registrada aqui; PDF completo tem 3 opções).",
+        })
+        .returning();
+
+      const itemRows = plano.refeicoes.flatMap((ref, refIdx) => {
+        const opcao1 = ref.opcoes.find((o) => o.numero === 1) ?? ref.opcoes[0];
+        if (!opcao1) return [];
+        return opcao1.itens.map((item, itemIdx) => ({
+          prescricaoId: prescricao.id,
+          refeicao: ref.id,
+          horario: ref.horario.split("–")[0]?.trim() ?? null,
+          ordem: refIdx * 100 + itemIdx,
+          alimentoNome: item.nome,
+          quantidadeG: item.pesoG,
+          kcal: item.kcal,
+          proteinaG: item.proteinaG,
+          observacao: `${item.medidaCaseira} · opção 1 de 3 (ver PDF)`,
+        }));
+      });
+
+      if (itemRows.length > 0) {
+        await tx.insert(dietaPrescricaoItemTable).values(itemRows);
+      }
+
+      return prescricao.id;
+    });
   }
 
   // Enviar por e-mail se solicitado
@@ -153,6 +211,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     tdee,
     emailDestino,
     email: emailResult,
+    prescricaoId,
     pdfBytes: Buffer.from(pdfBytes).toString("base64"),
   });
 });

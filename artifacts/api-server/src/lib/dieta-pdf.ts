@@ -624,7 +624,12 @@ async function buildSuplementacaoPage(
  * Gera o PDF completo do plano nutricional para um paciente.
  * Retorna os bytes do PDF.
  */
-export async function gerarDietaPdf(input: DietaPdfInput): Promise<Uint8Array> {
+export interface DietaPdfResultado {
+  pdfBytes: Uint8Array;
+  plano: PlanoGerado;
+}
+
+export async function gerarDietaPdf(input: DietaPdfInput): Promise<DietaPdfResultado> {
   // 1. Gerar conteúdo via Claude
   const plano = await gerarConteudoPlano(input);
 
@@ -661,5 +666,6 @@ export async function gerarDietaPdf(input: DietaPdfInput): Promise<Uint8Array> {
   // Última página: Suplementação + Monitoramento
   await buildSuplementacaoPage(pdfDoc, fonts, input, plano, pageNum, totalPages);
 
-  return pdfDoc.save();
+  const pdfBytes = await pdfDoc.save();
+  return { pdfBytes, plano };
 }
