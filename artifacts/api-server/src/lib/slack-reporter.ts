@@ -47,6 +47,18 @@ export async function slackGet(path: string) {
   return resp.json() as Promise<{ ok: boolean; error?: string; channels?: any[]; messages?: any[]; [k: string]: any }>;
 }
 
+/**
+ * Envia uma mensagem de alerta simples para um canal Slack.
+ * Fail-safe: engole erros para não bloquear o fluxo principal.
+ */
+export async function postSlackAlert(channelId: string, text: string): Promise<void> {
+  try {
+    await slackPost("chat.postMessage", { channel: channelId, text });
+  } catch (err: any) {
+    logger.error("postSlackAlert failed:", err.message);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Constantes
 // ---------------------------------------------------------------------------

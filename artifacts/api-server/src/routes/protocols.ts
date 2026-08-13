@@ -15,6 +15,8 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail, sendProtocolOnboardingEmail } from "../lib/email-service";
+import { postSlackAlert } from "../lib/slack-reporter";
+import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
 import { isGmailConnected } from "../lib/google-gmail";
@@ -498,6 +500,14 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
         }
       } catch (err: any) {
         console.error("RAS FAP auto-generation error (non-blocking):", err.message);
+        await notifySlackRasFapFailure(
+          "drive",
+          client.name,
+          protocol.id,
+          protocol.title,
+          err.message,
+          process.env.PADAXOR_SLACK_CHANNEL_ID,
+        );
       }
 
       try {
@@ -541,6 +551,14 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
             console.log(`RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
           } catch (rasFapErr: any) {
             console.error("RAS FAP generation error (email seguirá sem ele):", rasFapErr.message);
+            await notifySlackRasFapFailure(
+              "email",
+              client.name,
+              protocol.id,
+              protocol.title,
+              rasFapErr.message,
+              process.env.PADAXOR_SLACK_CHANNEL_ID,
+            );
           }
 
           const emailResult = await sendProtocolEmail({
@@ -629,7 +647,32 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
                     const viaLabel: Record<string, string> = { iv: "Endovenosa (IV)", im: "Intramuscular (IM)", implant: "Implante Subcutâneo", sc: "Subcutânea (SC)" };
                     return viaLabel[s.procedureType] ?? s.procedureType;
                   }))].join(", ");
-                  const substanciasList = substances.map(s => s.name).join(", ");
+                  // Tabela HTML enriquecida: substância ↓ dose ↓ sessões ↓ frequência ↓ via
+                  // Usada em {{protocolo.substancias}} nos cadernos jurídicos via ZapSign.
+                  const viaMapHid: Record<string, string> = {
+                    iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
+                    implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
+                  };
+                  const substanciasTable =
+                    `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11px">` +
+                    `<thead><tr style="background:#f0f4f2">` +
+                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Substância</th>` +
+                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Dose</th>` +
+                    `<th style="text-align:center;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Sessões</th>` +
+                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Frequência</th>` +
+                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Via</th>` +
+                    `</tr></thead><tbody>` +
+                    substances.map((s, idx) =>
+                      `<tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f7faf8"}">` +
+                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9"><strong>${s.name}</strong></td>` +
+                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose}</td>` +
+                      `<td style="text-align:center;padding:5px 10px;border-bottom:1px solid #e8ede9">${s.totalSessions}</td>` +
+                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : "dose única"}</td>` +
+                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${viaMapHid[s.procedureType] ?? s.procedureType.toUpperCase()}</td>` +
+                      `</tr>`
+                    ).join("") +
+                    `</tbody></table>`;
+                  const substanciasList = substanciasTable;
 
                   const hidratacao: Record<string, string> = {
                     "cliente.nome":           client.name,
@@ -688,10 +731,24 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
             // ── fim cadernos ─────────────────────────────────────────────────────
           } else {
             console.error("Protocol document email failed:", emailResult.error);
+            const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+            if (slackChannel) {
+              postSlackAlert(
+                slackChannel,
+                `🚨 *E-mail do protocolo não entregue* ao paciente *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email}\nMotivo: ${emailResult.error ?? "desconhecido"}`,
+              ).catch(() => {});
+            }
           }
         }
       } catch (err: any) {
         console.error("Protocol document email error:", err.message);
+        const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+        if (slackChannel) {
+          postSlackAlert(
+            slackChannel,
+            `🚨 *Falha ao tentar enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email ?? "não informado"}\nErro inesperado: ${err.message}`,
+          ).catch(() => {});
+        }
       }
     })();
   } catch (err: any) {

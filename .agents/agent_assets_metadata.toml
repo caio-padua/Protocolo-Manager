@@ -263,3 +263,31 @@ id = "wwYhtWgZsatYUp_gCAynk"
 uri = "file://cartas/2026-07-27_DR-CODE_vitrine-gate-leads.md"
 type = "text"
 title = "Carta ao Dr. Code — Processo completo da onda portao-captacao"
+
+[[outputs]]
+id = "B3nA7GO9-zE2X1FIfSSGn"
+uri = "file://tmp-preview/protocolo-carluccia-31.pdf"
+type = "pdf"
+title = "Protocolo Carlúcia — PDF Real (Motor Paxter)"
+description = "Protocolo 31 da Carlúcia gerado ao vivo pelo api-server. Inclui: radar de 7 dimensões (página 3), matrix de benefícios, fichas individuais de cada substância e seção financeira. CoQ10 IM · PQQ IM · Testosterona 200mg IM · Tirzepatida 5mg SC · Progesterona Pellet · Gestrinona Pellet — R$ 3.385,28."
+
+[[outputs]]
+id = "0n9968gdTUn0aJhb-bpiA"
+uri = "file://tmp-preview/caderno-substancias-preview.html"
+type = "text"
+title = "Preview — Substâncias nos Cadernos Jurídicos"
+description = "Dados reais do protocolo 31 da Carlúcia. Uma substância por linha, dose limpa (sem ml), aplicações e frequência. Pellets com badge visual diferenciado."
+
+[[outputs]]
+id = "52O-iYF_CVkwuChsOb_d5"
+uri = "file://tmp-preview/caderno-screenshot.jpg"
+type = "image"
+title = "Como fica o bloco de substâncias nos cadernos — imagem renderizada"
+description = "Screenshot do design real. Cabeçalho navy, barra dourada, 4 colunas alinhadas, marcador lateral dourado, pellets com badge, dose limpa."
+
+[[outputs]]
+id = "aPal6LvFafTa15hVN76UT"
+uri = "file://docs/briefing-manus-protocolo-pdf.md"
+type = "text"
+title = "Carta ao Dr. Manus — Arquitetura do Protocolo PDF"
+description = "Briefing completo: onde estão os arquivos, como funciona a fiação de dados, estrutura de páginas, radar chart, cadernos jurídicos separados, oportunidades de melhoria e o rebrand PADAXOR."

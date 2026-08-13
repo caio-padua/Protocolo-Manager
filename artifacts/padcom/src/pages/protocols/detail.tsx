@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,6 +45,7 @@ export default function ProtocolDetail() {
   const id = params ? parseInt(params.id) : 0;
   const { toast } = useToast();
   const [physicalRasLoading, setPhysicalRasLoading] = useState(false);
+  const [reenviarRasLoading, setReenviarRasLoading] = useState(false);
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
@@ -169,6 +170,28 @@ export default function ProtocolDetail() {
               >
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
                 {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
+              </Button>
+              <Button
+                className="btn-3d-soft"
+                disabled={reenviarRasLoading}
+                onClick={async () => {
+                  setReenviarRasLoading(true);
+                  try {
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/reenviar-email`, { method: "POST" });
+                    const body = await resp.json().catch(() => null);
+                    if (!resp.ok) {
+                      throw new Error(body?.error || "Erro ao reenviar RAS FAP");
+                    }
+                    toast({ title: "RAS FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
+                  } catch (err: any) {
+                    toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" });
+                  } finally {
+                    setReenviarRasLoading(false);
+                  }
+                }}
+              >
+                {reenviarRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                {reenviarRasLoading ? "Enviando..." : "Reenviar RAS FAP"}
               </Button>
               <Button
                 className="btn-3d"
