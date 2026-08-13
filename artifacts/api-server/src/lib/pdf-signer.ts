@@ -1141,6 +1141,12 @@ function drawRadarChart(
   if (n < 3) return;
   const TWO_PI = Math.PI * 2;
 
+  // drawSvgPath interpreta o path em coordenadas SVG (y para BAIXO) a partir da
+  // opção `y`. Com y:0 o desenho cai fora da página (polígono/anéis invisíveis).
+  // Correção: ancorar em y=pageH e converter cada ponto para svgY = pageH - pageY.
+  const pageH = page.getHeight();
+  const svgY = (pageYVal: number): number => pageH - pageYVal;
+
   // PDF y-up, clockwise radar starting at top (π/2)
   function ang(i: number): number { return Math.PI / 2 - (i / n) * TWO_PI; }
   function ptR(i: number, r: number): { x: number; y: number } {
@@ -1162,12 +1168,12 @@ function drawRadarChart(
     const segs: string[] = [];
     for (let i = 0; i <= n; i++) {
       const p = ptR(i % n, r);
-      segs.push(`${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+      segs.push(`${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${svgY(p.y).toFixed(1)}`);
     }
     segs.push("Z");
     try {
       page.drawSvgPath(segs.join(" "), {
-        x: 0, y: 0,
+        x: 0, y: pageH,
         borderColor: RING_C,
         borderWidth: ring === 3 ? 0.8 : 0.35,
         borderOpacity: 0.7,
@@ -1195,10 +1201,10 @@ function drawRadarChart(
   // 4. Filled data polygon — caminho SVG fechado (drawSvgPath suportado pelo pdf-lib@1.17.1)
   const dataPts = dims.map((d, i) => ptR(i, (Math.min(3, Math.max(0, d.value)) / 3) * radius));
   try {
-    const polySegs = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
+    const polySegs = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${svgY(p.y).toFixed(1)}`);
     polySegs.push("Z");
     page.drawSvgPath(polySegs.join(" "), {
-      x: 0, y: 0,
+      x: 0, y: pageH,
       color: FILL_C, opacity: 0.42,
       borderColor: FILL_C, borderWidth: 0,
     });

@@ -150,3 +150,4 @@
 - [Rebase "limpo" pode esconder conflito semântico](rebase-limpo-conflito-semantico.md) — sem marcadores de conflito ≠ sem bug; sempre buildar/bootar após continueMergeResolution antes de markTaskComplete.
 - [Apify — contrato REST assíncrono (run/poll/dataset)](apify-async-run-contract.md) — nunca usar run-sync (bloqueia até 300s); runs/actor-runs embrulham em {data}, dataset/items não.
 - [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
+- [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
