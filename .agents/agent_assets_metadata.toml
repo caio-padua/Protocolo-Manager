@@ -305,3 +305,10 @@ uri = "file://docs/PROTOCOLO_CARLUCIA_V2_LAYOUT.pdf"
 type = "pdf"
 title = "Protocolo Carlúcia — Layout Atualizado (melhorias Dr. Manus)"
 description = "PDF gerado com todas as melhorias: PADAXOR na capa e cabeçalhos, fichas navy/ouro, dose limpa sem '/2 ML', rótulos do radar em PT-BR, contorno dourado do radar."
+
+[[outputs]]
+id = "242vzHTraJ7YYyb7tRvlY"
+uri = "file://documentos/protocolo-31-carlucia-carta-premium.pdf"
+type = "pdf"
+title = "Protocolo 31 — Carta de Tratamento Premium (Carlucia Santos Fernandes)"
+description = "Documento de 11 páginas, assinado digitalmente com certificado ICP-Brasil. Contém capa, seis fichas de substância com grade fixa, página de perguntas para a consulta, resumo financeiro e folha de assinatura."

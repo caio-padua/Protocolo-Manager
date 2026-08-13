@@ -796,7 +796,9 @@ function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: Carta
 
 async function loadFonts(pdfDoc: PDFDocument): Promise<CartaFonts> {
   pdfDoc.registerFontkit(fontkit);
-  const embed = (name: string) => pdfDoc.embedFont(readFont(name));
+  // { subset: true } OBRIGATÓRIO em fonte .woff — sem ele o PDF sai ilegível
+  // ("Embedded font file may be invalid"). Ver specs/carta-tratamento-premium-v2.md.
+  const embed = (name: string) => pdfDoc.embedFont(readFont(name), { subset: true });
   return {
     cgReg:      await embed("CormorantGaramond-Regular.woff"),
     cgSemi:     await embed("CormorantGaramond-SemiBold.woff"),

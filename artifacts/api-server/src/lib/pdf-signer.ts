@@ -848,6 +848,9 @@ interface ProtocolDocSubstance {
   // Checkpoint D — Bindings adicionados para Carta de Tratamento Premium (Item #88)
   composicao?: string;
   posologia?: string;
+  // Cabeçalho de identidade (spec R3) — classificação vinda do cadastro.
+  categoryType?: string | null;
+  category?: string | null;
 }
 
 interface ProtocolDocSession {
@@ -1126,6 +1129,9 @@ function drawRadarChart(
   cy: number,
   radius: number,
   dims: RadarDim[],
+  // Aditivo e opcional: coluna estreita precisa de rótulo menor, senão o texto
+  // dos eixos invade a coluna vizinha. Default preserva o comportamento antigo.
+  labelSize = 7,
 ): void {
   const n = dims.length;
   if (n < 3) return;
@@ -1206,18 +1212,18 @@ function drawRadarChart(
   }
 
   // 6. Axis labels — positioned beyond outer ring with smart horizontal alignment
-  const LABEL_PAD = 20;
+  const LABEL_PAD = labelSize <= 6 ? 12 : 20;
   for (let i = 0; i < n; i++) {
     const a = ang(i);
     const lx = cx + (radius + LABEL_PAD) * Math.cos(a);
     const ly = cy + (radius + LABEL_PAD) * Math.sin(a);
     const label = safeTxt(dims[i].label);
-    const lw = fonts.bold.widthOfTextAtSize(label, 7);
+    const lw = fonts.bold.widthOfTextAtSize(label, labelSize);
     const cosA = Math.cos(a);
     let ax = lx - lw / 2;
     if (cosA > 0.55) ax = lx + 3;
     else if (cosA < -0.55) ax = lx - lw - 3;
-    page.drawText(label, { x: ax, y: ly - 3.5, size: 7, font: fonts.bold, color: LBL_C });
+    page.drawText(label, { x: ax, y: ly - 3.5, size: labelSize, font: fonts.bold, color: LBL_C });
   }
 }
 
@@ -1256,12 +1262,17 @@ async function loadPremiumFonts(pdfDoc: PDFDocument): Promise<PremiumFonts> {
     fs.promises.readFile(path.join(fd, "Manrope-Regular.woff")),
     fs.promises.readFile(path.join(fd, "Manrope-Bold.woff")),
   ]);
+  // CRÍTICO: { subset: true } é OBRIGATÓRIO para fonte .woff.
+  // Sem o recorte (subset), o pdf-lib embute o arquivo .woff comprimido cru dentro do
+  // PDF; nenhum leitor consegue descomprimi-lo e o texto sai como quadradinhos/pontos
+  // ("Embedded font file may be invalid"). Com subset:true o fontkit reescreve a fonte
+  // em TrueType puro contendo só os glifos usados. NUNCA remover esta opção.
   const [cgReg, cgBold, cgSemiBold, manReg, manBold] = await Promise.all([
-    pdfDoc.embedFont(cgRegB),
-    pdfDoc.embedFont(cgBoldB),
-    pdfDoc.embedFont(cgSemiBoldB),
-    pdfDoc.embedFont(manRegB),
-    pdfDoc.embedFont(manBoldB),
+    pdfDoc.embedFont(cgRegB,     { subset: true }),
+    pdfDoc.embedFont(cgBoldB,    { subset: true }),
+    pdfDoc.embedFont(cgSemiBoldB,{ subset: true }),
+    pdfDoc.embedFont(manRegB,    { subset: true }),
+    pdfDoc.embedFont(manBoldB,   { subset: true }),
   ]);
   return { cgReg, cgBold, cgSemiBold, manReg, manBold };
 }
@@ -1336,6 +1347,116 @@ function deriveRadarDimensionsForSubstance(sub: ProtocolDocSubstance): RadarDim[
   return deriveRadarDimensions([sub]);
 }
 
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  GRADE FIXA — LEI DO DOCUMENTO (spec R2, ordem do CEO 13/08/2026)        ║
+// ║                                                                          ║
+// ║  O CEO tem TDAH de HIPERFOCO. Padrão que muda de página para página      ║
+// ║  gera desconforto de leitura. Portanto:                                  ║
+// ║                                                                          ║
+// ║   1. Toda ficha tem os MESMOS blocos, na MESMA ordem, nas MESMAS coords. ║
+// ║   2. Campo sem dado NUNCA desaparece — recebe placeholder elegante.      ║
+// ║   3. Proibido reflow: conteúdo não sobe para preencher buraco.           ║
+// ║                                                                          ║
+// ║  Quem alterar esta ficha DEVE manter a grade. Ver:                       ║
+// ║  specs/carta-tratamento-premium-v2.md                                    ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+/** Placeholder para valor curto ausente (grade R2.2). */
+const EMPTY_SHORT = "—";
+/** Placeholder para bloco de texto ausente (grade R2.2). */
+const EMPTY_LONG = "A definir em avaliação clínica.";
+/** Tom suave para placeholder: presente, porém discreto — não compete com o dado real. */
+const EMPTY_C = rgb(158 / 255, 152 / 255, 138 / 255);
+
+/** Um bloco narrativo da ficha: rótulo fixo + campo de origem. */
+interface NarrativeBlock {
+  label: string;
+  value: string | undefined;
+  safety?: boolean;
+}
+
+/**
+ * Grade narrativa CANÔNICA. Esta lista define a ficha inteira.
+ * Toda substância desenha TODOS estes blocos, tenha dado ou não (R2.1/R2.2).
+ * Rótulos em português do CEO, herdando a linguagem humana validada (R4.1).
+ */
+function narrativeGrid(sub: ProtocolDocSubstance): NarrativeBlock[] {
+  return [
+    { label: "O QUE É",                  value: sub.description },
+    { label: "FUNÇÃO NO SEU PLANO",      value: sub.mainFunction },
+    { label: "O QUE PODE SER PERCEBIDO", value: sub.perceivedEffects },
+    { label: "COMPOSIÇÃO",               value: sub.composicao },
+    { label: "POSOLOGIA",                value: sub.posologia },
+    { label: "SEGURANÇA",                value: sub.contraindications, safety: true },
+    { label: "CIÊNCIA & INDICAÇÃO",      value: sub.scientificEvidence },
+  ];
+}
+
+/** Os 10 benefícios por área do cadastro, sempre na mesma ordem (R3.1). */
+function benefitGrid(sub: ProtocolDocSubstance): Array<{ label: string; value: string | undefined }> {
+  return [
+    { label: "Longevidade",        value: sub.longevityBenefit },
+    { label: "Qualidade de vida",  value: sub.qualityOfLifeImpact },
+    { label: "Sono",               value: sub.sleepBenefit },
+    { label: "Energia",            value: sub.energyBenefit },
+    { label: "Libido",             value: sub.libidoBenefit },
+    { label: "Performance física", value: sub.physicalPerformance },
+    { label: "Força muscular",     value: sub.muscleStrength },
+    { label: "Clareza mental",     value: sub.mentalClarity },
+    { label: "Pele, cabelo, unhas",value: sub.skinHairNails },
+    { label: "Imunidade",          value: sub.immuneSupport },
+  ];
+}
+
+/**
+ * Escreve texto com quebra automática, devolvendo o que NÃO coube.
+ * Placeholder é desenhado em itálico-claro quando o valor está vazio (R2.2),
+ * garantindo que o bloco ocupe seu lugar na grade mesmo sem dado.
+ */
+function drawGridText(
+  pg: PDFPage,
+  pf: PremiumFonts,
+  x: number,
+  startY: number,
+  w: number,
+  value: string | undefined,
+  floorY: number,
+  size = 7.4,
+  lineH = 10.2,
+): { endY: number; overflow: string } {
+  const txt = safeTxt(value ?? "").trim();
+  if (!txt) {
+    // Campo vazio: placeholder no lugar exato — a grade não se move (R2.2/R2.4).
+    pg.drawText(EMPTY_LONG, { x, y: startY, size, font: pf.cgReg, color: EMPTY_C });
+    return { endY: startY - lineH, overflow: "" };
+  }
+  const lines = wrapText(txt, pf.manReg, size, w);
+  let y = startY;
+  let i = 0;
+  for (; i < lines.length; i++) {
+    if (y - lineH < floorY) break;
+    pg.drawText(lines[i], { x, y, size, font: pf.manReg, color: INK_P });
+    y -= lineH;
+  }
+  return { endY: y, overflow: i < lines.length ? lines.slice(i).join(" ") : "" };
+}
+
+/** Rótulo de bloco com filete — âncora visual repetida em toda ficha (R2.1). */
+function drawGridLabel(
+  pg: PDFPage,
+  pf: PremiumFonts,
+  x: number,
+  y: number,
+  w: number,
+  label: string,
+  safety = false,
+): number {
+  const c = safety ? SAFETY_C : GOLD_P;
+  pg.drawText(label, { x, y, size: 6, font: pf.manBold, color: c });
+  pg.drawLine({ start: { x, y: y - 4.5 }, end: { x: x + w, y: y - 4.5 }, thickness: 0.5, color: c, opacity: 0.45 });
+  return y - 15;
+}
+
 // ── Checkpoint C: Ficha individual por substância (1 por A4) ─────────────────
 function drawSubstancePremiumPage(
   pdfDoc: PDFDocument,
@@ -1359,157 +1480,189 @@ function drawSubstancePremiumPage(
   const stW = pf.manBold.widthOfTextAtSize(sheetTxt, 6.5);
   pg.drawText(sheetTxt, { x: MARGIN + CONTENT_W - stW - 4, y: PAGE_H - MARGIN - 16, size: 6.5, font: pf.manBold, color: GOLD_P });
 
-  const rawName = safeTxt(sub.name).toUpperCase();
+  // Nome: encolhe até 11pt e, se ainda assim não couber (nome absurdamente longo),
+  // trunca com reticências. Sem isso o texto vazava para fora da faixa navy.
+  const NAME_MAX_W = CONTENT_W - 140;
+  let rawName = safeTxt(sub.name).toUpperCase();
   let nameSize = 27;
-  while (pf.cgBold.widthOfTextAtSize(rawName, nameSize) > CONTENT_W - 140 && nameSize > 16) nameSize -= 0.5;
+  while (pf.cgBold.widthOfTextAtSize(rawName, nameSize) > NAME_MAX_W && nameSize > 11) nameSize -= 0.5;
+  while (rawName.length > 4 && pf.cgBold.widthOfTextAtSize(rawName, nameSize) > NAME_MAX_W) {
+    rawName = rawName.slice(0, -2) + "…";
+  }
   pg.drawText(rawName, { x: MARGIN + 10, y: PAGE_H - MARGIN - 38, size: nameSize, font: pf.cgBold, color: WHITE });
 
-  const routeTxt = procTypeLabel(sub.procedureType);
+  // Classificação do cadastro (spec R3 — cabeçalho de identidade).
+  // categoryType/category viajam no DTO; se ausentes, a linha continua existindo
+  // exibindo só a via, sem buraco na faixa.
+  const classParts = [safeTxt(sub.categoryType ?? "").trim(), safeTxt(sub.category ?? "").trim()]
+    .filter(Boolean)
+    .map(s => s.toUpperCase());
+  const routeTxt = [procTypeLabel(sub.procedureType), ...classParts].join("  ·  ");
   pg.drawText(routeTxt, { x: MARGIN + 10, y: bandY + 10, size: 7, font: pf.manBold, color: GOLD_P });
 
   const cleanDose = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
-  const doW = pf.manReg.widthOfTextAtSize(cleanDose, 7);
-  pg.drawText(cleanDose, { x: MARGIN + CONTENT_W - doW - 4, y: bandY + 10, size: 7, font: pf.manReg, color: MIST_P });
+  const doW = pf.manReg.widthOfTextAtSize(cleanDose || EMPTY_SHORT, 7);
+  pg.drawText(cleanDose || EMPTY_SHORT, { x: MARGIN + CONTENT_W - doW - 4, y: bandY + 10, size: 7, font: pf.manReg, color: MIST_P });
 
-  // Prescription row
-  const presY = bandY - 36;
-  pg.drawRectangle({ x: MARGIN, y: presY, width: CONTENT_W, height: 32, color: MIST_P, opacity: 0.45 });
-  const halfCW = CONTENT_W / 2;
-  const presL = [
-    { lbl: "DOSE", val: cleanDose },
-    { lbl: "VIA", val: procTypeLabel(sub.procedureType).split("(")[0].trim() },
-    { lbl: "SESSOES", val: String(sub.totalSessions) },
+  // ── GRADE 1: prescrição — 6 células fixas, sempre presentes (R2/R3) ────────
+  const presY = bandY - 42;
+  const PRES_H = 38;
+  pg.drawRectangle({ x: MARGIN, y: presY, width: CONTENT_W, height: PRES_H, color: MIST_P, opacity: 0.42 });
+  const presCells: Array<{ lbl: string; val: string }> = [
+    { lbl: "DOSE PRESCRITA",  val: cleanDose },
+    { lbl: "VIA",             val: procTypeLabel(sub.procedureType).split("(")[0].trim() },
+    { lbl: "SESSÕES",         val: sub.totalSessions > 0 ? String(sub.totalSessions) : "" },
+    { lbl: "INTERVALO",       val: sub.intervalDays > 0 ? `${sub.intervalDays} dias` : "" },
+    { lbl: "TEMPO ATÉ EFEITO",val: safeTxt(sub.timeToEffect) },
+    { lbl: "ESCALA CLÍNICA",  val: sub.starRating != null && sub.starRating > 0 ? `${sub.starRating} de 5` : "" },
   ];
-  const presR = [
-    { lbl: "INTERVALO", val: `${sub.intervalDays} dias` },
-    { lbl: "TEMPO PARA EFEITO", val: safeTxt(sub.timeToEffect) || "A avaliar" },
-  ];
-  let ppx = MARGIN + 8;
-  for (const f of presL) {
-    pg.drawText(f.lbl, { x: ppx, y: presY + 22, size: 4.7, font: pf.manBold, color: INK_P });
-    const vt = f.val.length > 20 ? f.val.slice(0, 18) + "…" : f.val;
-    pg.drawText(vt, { x: ppx, y: presY + 10, size: 9, font: pf.cgBold, color: NAVY_P });
-    ppx += halfCW / presL.length;
-  }
-  ppx = MARGIN + halfCW + 8;
-  for (const f of presR) {
-    pg.drawText(f.lbl, { x: ppx, y: presY + 22, size: 4.7, font: pf.manBold, color: INK_P });
-    const vt = f.val.length > 24 ? f.val.slice(0, 22) + "…" : f.val;
-    pg.drawText(vt, { x: ppx, y: presY + 10, size: 9, font: pf.cgBold, color: NAVY_P });
-    ppx += halfCW / presR.length;
+  const cellW = CONTENT_W / presCells.length;
+  for (let ci = 0; ci < presCells.length; ci++) {
+    const cx0 = MARGIN + ci * cellW;
+    if (ci > 0) {
+      pg.drawLine({ start: { x: cx0, y: presY + 4 }, end: { x: cx0, y: presY + PRES_H - 4 }, thickness: 0.4, color: LINE_P });
+    }
+    pg.drawText(presCells[ci].lbl, { x: cx0 + 5, y: presY + PRES_H - 12, size: 4.4, font: pf.manBold, color: INK_P });
+    const raw = presCells[ci].val;
+    const has = raw.trim().length > 0;
+    const shown = has ? raw : EMPTY_SHORT;
+    const cellFont = has ? pf.cgBold : pf.cgReg;
+    // Fonte adaptativa + quebra em 2 linhas. Valores longos (ex.: "Energia em 2-3
+    // semanas, beneficio cardiovascular gradual") vazavam para a célula vizinha;
+    // agora encolhem e quebram dentro do próprio compartimento.
+    let vs = 9;
+    while (cellFont.widthOfTextAtSize(shown, vs) > cellW - 10 && vs > 5.2) vs -= 0.25;
+    const cellLines = cellFont.widthOfTextAtSize(shown, vs) > cellW - 10
+      ? wrapText(shown, cellFont, vs, cellW - 10).slice(0, 2)
+      : [shown];
+    for (let li = 0; li < cellLines.length; li++) {
+      pg.drawText(cellLines[li], {
+        x: cx0 + 5,
+        y: presY + (cellLines.length > 1 ? 13 : 9) - li * (vs + 1.5),
+        size: vs,
+        font: cellFont,
+        color: has ? NAVY_P : EMPTY_C,
+      });
+    }
   }
 
-  // Main body: 2 columns
-  const bodyY = presY - 14;
-  const leftW = 228;
-  const rightX = MARGIN + leftW + 14;
-  const rightW = CONTENT_W - leftW - 14;
-  let leftY = bodyY;
-  let rightY = bodyY;
+  // ── GRADE 2: duas colunas de altura fixa ───────────────────────────────────
+  const bodyTop = presY - 20;
+  const leftW = 200;
+  const rightX = MARGIN + leftW + 16;
+  const rightW = CONTENT_W - leftW - 16;
+  const FLOOR = 74; // piso reservado ao rodapé — idêntico em toda ficha
 
-  // Left: vertical bars
+  // COLUNA ESQUERDA — painéis visuais, posições FIXAS (R2.1).
+  // Cada painel ocupa sua faixa mesmo sem dado, exibindo aviso discreto (R2.2).
+  let leftY = bodyTop;
+
+  // Painel A: impacto por sistema
+  leftY = drawGridLabel(pg, pf, MARGIN, leftY, leftW, "IMPACTO POR SISTEMA");
   const bse = sub.bodySystemEffects;
-  if (bse && typeof bse === "object" && Object.keys(bse as object).length > 0) {
-    pg.drawText("IMPACTO POR SISTEMA (0-5)", { x: MARGIN, y: leftY, size: 5.5, font: pf.manBold, color: GOLD_P });
-    leftY -= 12;
-    leftY = drawVerticalSystemMap(pg, pf, MARGIN + 10, leftY, leftW - 12, bse as Record<string, unknown>);
+  const hasBse = bse && typeof bse === "object" && Object.keys(bse as object).length > 0;
+  const SYS_PANEL_H = 118;
+  const sysFloor = leftY - SYS_PANEL_H;
+  if (hasBse) {
+    drawVerticalSystemMap(pg, pf, MARGIN + 10, leftY, leftW - 14, bse as Record<string, unknown>);
+  } else {
+    pg.drawText("Mapa de sistemas não cadastrado.", { x: MARGIN, y: leftY - 12, size: 6.6, font: pf.cgReg, color: EMPTY_C });
   }
+  leftY = sysFloor; // posição fixa: não depende de quantas barras existem
 
-  // Left: radar individual
-  if (leftY > 150) {
+  // Painel B: radar de foco — sempre no mesmo lugar
+  leftY = drawGridLabel(pg, pf, MARGIN, leftY, leftW, "PERFIL DE FOCO");
+  const RADAR_R = 58;
+  const rcy = leftY - RADAR_R - 8;
+  try {
     const dims = deriveRadarDimensionsForSubstance(sub);
-    const radarR = Math.min(60, (leftY - 120) / 2);
-    if (radarR > 20) {
-      const rcx = MARGIN + leftW / 2;
-      const rcy = leftY - radarR - 16;
-      pg.drawText("PERFIL DE FOCO", { x: MARGIN, y: leftY, size: 5.5, font: pf.manBold, color: GOLD_P });
-      leftY -= 14;
-      const radFonts: Fonts = { regular: pf.manReg, bold: pf.manBold };
-      try { drawRadarChart(pg, radFonts, rcx, rcy, radarR, dims); } catch { /* best-effort */ }
+    if (dims.some(d => d.value > 0)) {
+      // labelSize 5.2: a coluna esquerda é estreita — rótulo maior invadiria a
+      // coluna de narrativa à direita (defeito visto na validação de 13/08/2026).
+      drawRadarChart(pg, { regular: pf.manReg, bold: pf.manBold }, MARGIN + leftW / 2 - 6, rcy, RADAR_R, dims, 5.2);
+    } else {
+      pg.drawText("Perfil de foco a definir.", { x: MARGIN, y: leftY - 12, size: 6.6, font: pf.cgReg, color: EMPTY_C });
     }
+  } catch { /* best-effort: nunca derruba a geração */ }
+  leftY = rcy - RADAR_R - 26;
+
+  // Painel C: benefícios por área — os 10 do cadastro, SEMPRE os 10 (R3.1).
+  // Correção do parecer do architect: o loop antigo usava `break`, que fazia
+  // sumir os benefícios finais da grade E descartava o dado cadastrado deles.
+  // Agora TODO benefício é processado: o que não couber na folha é desenhado
+  // até onde há espaço e o restante segue íntegro para a continuação.
+  leftY = drawGridLabel(pg, pf, MARGIN, leftY, leftW, "BENEFÍCIOS POR ÁREA");
+  const benefits = benefitGrid(sub);
+  const benefitOverflow: Array<[string, string]> = [];
+  for (const b of benefits) {
+    const val = safeTxt(b.value ?? "").trim();
+    const key = `BENEFÍCIO · ${b.label.toUpperCase()}`;
+
+    if (leftY - 10 < FLOOR) {
+      // Acabou a folha: nada é perdido — o benefício inteiro vai para a continuação.
+      if (val) benefitOverflow.push([key, val]);
+      continue;
+    }
+    pg.drawText(b.label, { x: MARGIN, y: leftY, size: 5.6, font: pf.manBold, color: val ? NAVY_P : EMPTY_C });
+    leftY -= 8;
+    if (val) {
+      const lines = wrapText(val, pf.manReg, 6.2, leftW - 6);
+      let used = 0;
+      for (; used < lines.length && used < 2; used++) {
+        if (leftY - 8 < FLOOR) break;
+        pg.drawText(lines[used], { x: MARGIN + 4, y: leftY, size: 6.2, font: pf.manReg, color: INK_P });
+        leftY -= 7.6;
+      }
+      if (used < lines.length) benefitOverflow.push([key, lines.slice(used).join(" ")]);
+    } else {
+      pg.drawText(EMPTY_SHORT, { x: MARGIN + 4, y: leftY, size: 6.2, font: pf.cgReg, color: EMPTY_C });
+      leftY -= 7.6;
+    }
+    leftY -= 2;
   }
 
-  // Right: clinical text sections.
-  // Retorna o texto NÃO-RENDERIZADO (linhas que não couberam na ficha).
-  // "" = tudo foi exibido; texto completo = seção não teve espaço nenhum.
-  // Trabalha com LINHAS (não chars) para evitar truncamento por offset fixo.
-  function drawSecPremium(label: string, text: string | undefined, safety = false): string {
-    if (!text?.trim()) return "";
-    const fullText = safeTxt(text);
-    if (rightY - 20 < 80) return fullText; // sem espaço: overflow renderiza tudo
+  // COLUNA DIREITA — narrativa clínica na ordem canônica, sempre completa (R2.1).
+  // Correção do parecer do architect: antes, faltando espaço, o `continue` pulava
+  // o drawGridLabel e o rótulo SUMIA da ficha — a grade deixava de ser invariável.
+  // Agora o rótulo é SEMPRE desenhado; só o corpo do texto migra para a continuação.
+  // ORÇAMENTO DE ESPAÇO POR BLOCO — garante que os 7 rótulos SEMPRE caibam.
+  // Correção final do parecer do architect: reservar espaço antecipadamente é a
+  // única forma de a grade ser realmente invariável. Um bloco longo não pode
+  // consumir a folha e empurrar os rótulos seguintes para fora da ficha.
+  const grid = narrativeGrid(sub);
+  const MIN_BODY_H = 10;         // ao menos uma linha de corpo/placeholder
+  const availableH = bodyTop - FLOOR;
+  const perBlockH = availableH / grid.length;
 
-    const sc = safety ? SAFETY_C : GOLD_P;
-    pg.drawText(label, { x: rightX, y: rightY, size: 5.5, font: pf.manBold, color: sc });
-    rightY -= 4;
-    pg.drawLine({ start: { x: rightX, y: rightY }, end: { x: rightX + rightW, y: rightY }, thickness: 0.4, color: sc, opacity: 0.4 });
-    rightY -= 9;
+  let rightY = bodyTop;
+  const narrativeOverflow: Array<[string, string]> = [];
+  for (let bi = 0; bi < grid.length; bi++) {
+    const blk = grid[bi];
+    const full = safeTxt(blk.value ?? "").trim();
 
-    const allLines = wrapText(fullText, pf.manReg, 6.8, rightW);
-    let lastRendered = -1;
-    for (let li = 0; li < allLines.length; li++) {
-      if (rightY - 9 < 76) break; // sem espaço — parar aqui
-      pg.drawText(allLines[li], { x: rightX, y: rightY, size: 6.8, font: pf.manReg, color: INK_P });
-      rightY -= 9.2;
-      lastRendered = li;
+    // ÂNCORA FIXA: o bloco começa SEMPRE na sua coordenada de cota, jamais em
+    // função do tamanho do texto anterior. É isto que torna a grade invariável —
+    // a ficha 1 e a ficha 6 têm os 7 rótulos exatamente na mesma altura da folha.
+    // O corpo que não couber na cota vai para a continuação.
+    const blockCeil = bodyTop - bi * perBlockH;
+    rightY = blockCeil;
+    const blockFloor = Math.max(FLOOR, bodyTop - (bi + 1) * perBlockH);
+
+    // O rótulo é desenhado SEMPRE — é a âncora visual da grade (R2.1).
+    rightY = drawGridLabel(pg, pf, rightX, rightY, rightW, blk.label, blk.safety);
+
+    if (rightY - MIN_BODY_H < FLOOR) {
+      // Caso extremo: nem uma linha cabe. O rótulo já está na folha; o corpo migra.
+      if (full) narrativeOverflow.push([blk.label, full]);
+      continue;
     }
-    rightY -= 5;
-
-    // Linhas não renderizadas → devolver como texto para o overflow
-    if (lastRendered < allLines.length - 1) {
-      return allLines.slice(lastRendered + 1).join(" ");
-    }
-    return "";
+    const r = drawGridText(pg, pf, rightX, rightY, rightW, blk.value, blockFloor);
+    rightY = r.endY - 8;
+    if (r.overflow) narrativeOverflow.push([blk.label, r.overflow]);
   }
 
-  const cRem  = drawSecPremium("COMPOSICAO",         sub.composicao);
-  const mfRem = drawSecPremium("FUNCAO PRINCIPAL",   sub.mainFunction);
-  const dRem  = drawSecPremium("DESCRICAO",          sub.description);
-  const peRem = drawSecPremium("EFEITOS PERCEBIDOS", sub.perceivedEffects);
-
-  // Mapa tipado — evita cast unsafe ProtocolDocSubstance→Record<string,unknown>
-  const subBenefits: Record<string, string | undefined> = {
-    longevityBenefit:    sub.longevityBenefit,
-    energyBenefit:       sub.energyBenefit,
-    sleepBenefit:        sub.sleepBenefit,
-    libidoBenefit:       sub.libidoBenefit,
-    mentalClarity:       sub.mentalClarity,
-    immuneSupport:       sub.immuneSupport,
-    physicalPerformance: sub.physicalPerformance,
-    muscleStrength:      sub.muscleStrength,
-    skinHairNails:       sub.skinHairNails,
-    qualityOfLifeImpact: sub.qualityOfLifeImpact,
-  };
-  const bDims = BENEFIT_DIMS.filter(d => {
-    const v = subBenefits[d.key];
-    return v && v.trim();
-  });
-  if (bDims.length > 0 && rightY > 90) {
-    pg.drawText("DIMENSOES DE BENEFICIO", { x: rightX, y: rightY, size: 5.5, font: pf.manBold, color: GOLD_P });
-    rightY -= 13;
-    for (const d of bDims) {
-      if (rightY - 9 < 76) break;
-      const val = subBenefits[d.key] ?? "";
-      pg.drawText(safeTxt(`${d.label.slice(0, 16)}: ${val.slice(0, 45)}`), { x: rightX + 4, y: rightY, size: 6.5, font: pf.manReg, color: INK_P });
-      rightY -= 9;
-    }
-    rightY -= 4;
-  }
-
-  const ciRem  = drawSecPremium("CONTRAINDICACOES",     sub.contraindications, true);
-  const seRem  = drawSecPremium("EVIDENCIA CIENTIFICA", sub.scientificEvidence);
-  const posRem = drawSecPremium("POSOLOGIA",            sub.posologia);
-
-  // Overflow pages para todos os campos com texto restante não renderizado.
-  const overflowFields: Array<[string, string]> = [
-    ["COMPOSICAO",           cRem],
-    ["FUNCAO PRINCIPAL",     mfRem],
-    ["DESCRICAO",            dRem],
-    ["EFEITOS PERCEBIDOS",   peRem],
-    ["CONTRAINDICACOES",     ciRem],
-    ["EVIDENCIA CIENTIFICA", seRem],
-    ["POSOLOGIA",            posRem],
-  ];
-  for (const [lbl, rem] of overflowFields) {
+  // Continuações — mesma identidade visual da ficha (R6.2)
+  for (const [lbl, rem] of [...narrativeOverflow, ...benefitOverflow]) {
     if (rem.trim()) drawOverflowPage(pdfDoc, allPages, sub.name, lbl, rem, pf);
   }
 }
@@ -1536,18 +1689,113 @@ function drawOverflowPage(
   const FOOTER_RESERVE = 68;
   const linesPerPage = Math.max(1, Math.floor((PAGE_H - MARGIN * 2 - HEADER_H - FOOTER_RESERVE) / LINE_H));
 
-  for (let ovpg = 0; ovpg * linesPerPage < allLines.length; ovpg++) {
+  // Teto de segurança (parecer do architect): um campo do cadastro preenchido com
+  // texto gigantesco geraria centenas de páginas e esgotaria memória/tempo.
+  // 3 páginas por campo é folga larga para uso clínico real; o excedente é
+  // sinalizado ao leitor em vez de silenciosamente descartado.
+  const MAX_OVERFLOW_PAGES = 3;
+  const totalPagesNeeded = Math.ceil(allLines.length / linesPerPage);
+  const pagesToDraw = Math.min(totalPagesNeeded, MAX_OVERFLOW_PAGES);
+  const truncated = totalPagesNeeded > MAX_OVERFLOW_PAGES;
+
+  for (let ovpg = 0; ovpg < pagesToDraw; ovpg++) {
     const pg = newDocPage(pdfDoc, allPages);
     pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
     let y = PAGE_H - MARGIN;
-    const header = `${safeTxt(subName).toUpperCase()} — ${label} (cont. ${ovpg + 2})`;
-    pg.drawText(header, { x: MARGIN, y, size: 11, font: pf.cgBold, color: NAVY_P });
+    // Mesmo ajuste de nome da ficha-base: encolhe e, no limite, trunca.
+    // Sem isso um nome extremo vazaria para fora da folha nesta página.
+    let header = `${safeTxt(subName).toUpperCase()} — ${label} (cont. ${ovpg + 2})`;
+    let hSize = 11;
+    while (pf.cgBold.widthOfTextAtSize(header, hSize) > CONTENT_W && hSize > 7) hSize -= 0.25;
+    while (header.length > 8 && pf.cgBold.widthOfTextAtSize(header, hSize) > CONTENT_W) {
+      header = header.slice(0, -2) + "…";
+    }
+    pg.drawText(header, { x: MARGIN, y, size: hSize, font: pf.cgBold, color: NAVY_P });
     y -= 5;
     pg.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.8, color: GOLD_P });
     y -= 14;
     for (const ln of allLines.slice(ovpg * linesPerPage, (ovpg + 1) * linesPerPage)) {
       pg.drawText(ln, { x: MARGIN, y, size: 7.2, font: pf.manReg, color: INK_P });
       y -= LINE_H;
+    }
+    // Aviso honesto: nunca cortar texto clínico em silêncio.
+    if (truncated && ovpg === pagesToDraw - 1) {
+      y -= 8;
+      pg.drawText(
+        "Conteúdo extenso: o restante deste campo está disponível no seu prontuário. Peça ao consultório se desejar a versão completa.",
+        { x: MARGIN, y, size: 6.8, font: pf.cgReg, color: EMPTY_C },
+      );
+    }
+  }
+}
+
+/**
+ * Página "LEVE ESTAS PERGUNTAS" (spec R4.3).
+ * Fecha o documento com perguntas que o paciente leva à consulta — o documento
+ * deixa de ser só informativo e vira instrumento de diálogo clínico.
+ * As perguntas são fixas e genéricas de propósito: NÃO inventam dado clínico
+ * sobre o paciente nem sobre a substância (linha vermelha da spec).
+ */
+function drawQuestionsPage(
+  pdfDoc: PDFDocument,
+  allPages: PDFPage[],
+  data: ProtocolDocumentData,
+  pf: PremiumFonts,
+): void {
+  const pg = newDocPage(pdfDoc, allPages);
+  pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
+
+  const BAND_H = 62;
+  const bandY = PAGE_H - MARGIN - BAND_H;
+  pg.drawRectangle({ x: MARGIN, y: bandY, width: CONTENT_W, height: BAND_H, color: NAVY_P });
+  pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 3, width: CONTENT_W, height: 3, color: GOLD_P });
+  pg.drawText("LEVE ESTAS PERGUNTAS", { x: MARGIN + 12, y: PAGE_H - MARGIN - 34, size: 22, font: pf.cgBold, color: WHITE });
+  pg.drawText("PARA A SUA PRÓXIMA CONSULTA", { x: MARGIN + 12, y: bandY + 12, size: 7, font: pf.manBold, color: GOLD_P });
+
+  let y = bandY - 30;
+  const intro = `${safeTxt(data.clientName).split(" ")[0]}, este espaço é seu. Anote o que sentir ao longo do plano e leve estas perguntas ao seu médico.`;
+  for (const ln of wrapText(intro, pf.manReg, 8, CONTENT_W)) {
+    pg.drawText(ln, { x: MARGIN, y, size: 8, font: pf.manReg, color: INK_P });
+    y -= 11;
+  }
+  y -= 14;
+
+  const questions = [
+    "Como vou perceber que o plano está funcionando para mim?",
+    "Em quanto tempo devo esperar os primeiros sinais de resultado?",
+    "O que é considerado normal sentir nos primeiros dias após cada sessão?",
+    "Quais sinais devem me fazer entrar em contato imediatamente?",
+    "Preciso mudar algo na alimentação, no sono ou nos treinos durante o plano?",
+    "Algum medicamento ou suplemento que uso hoje interfere neste plano?",
+    "O que acontece se eu precisar remarcar uma sessão?",
+    "Como será feito o acompanhamento entre uma sessão e outra?",
+    "Quais exames serão repetidos para medir a minha evolução?",
+    "O que muda no meu plano depois que este ciclo terminar?",
+  ];
+
+  for (let i = 0; i < questions.length; i++) {
+    if (y - 34 < 90) break;
+    // Numeral em Cormorant — mesma âncora visual das fichas
+    pg.drawText(String(i + 1).padStart(2, "0"), { x: MARGIN, y: y - 2, size: 13, font: pf.cgBold, color: GOLD_P });
+    const qx = MARGIN + 26;
+    const qw = CONTENT_W - 26;
+    let qy = y;
+    for (const ln of wrapText(questions[i], pf.manReg, 8.2, qw)) {
+      pg.drawText(ln, { x: qx, y: qy, size: 8.2, font: pf.manReg, color: INK_P });
+      qy -= 11;
+    }
+    // Linha pautada para anotação manuscrita
+    qy -= 5;
+    pg.drawLine({ start: { x: qx, y: qy }, end: { x: qx + qw, y: qy }, thickness: 0.4, color: LINE_P });
+    y = qy - 16;
+  }
+
+  if (y > 96) {
+    pg.drawText("ANOTAÇÕES", { x: MARGIN, y, size: 6, font: pf.manBold, color: GOLD_P });
+    y -= 12;
+    while (y > 88) {
+      pg.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + CONTENT_W, y }, thickness: 0.4, color: LINE_P, opacity: 0.7 });
+      y -= 16;
     }
   }
 }
@@ -1703,6 +1951,9 @@ export async function buildProtocolDocumentLayout(
   for (let si = 0; si < data.substances.length; si++) {
     drawSubstancePremiumPage(pdfDoc, allPages, data.substances[si], si, data.substances.length, pf, fb);
   }
+
+  // ── "Leve estas perguntas" — página de diálogo com o médico (spec R4.3) ──────
+  drawQuestionsPage(pdfDoc, allPages, data, pf);
 
   // ── Cronograma de sessões (premium grid) ─────────────────────────────────────
   if (data.sessions.length > 0) {

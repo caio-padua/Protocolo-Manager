@@ -316,6 +316,8 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       immuneSupport: sub?.immuneSupport ?? undefined,
       composicao: sub?.composicao ?? undefined,
       posologia: sub?.posologia ?? undefined,
+      // Classificação do cadastro — vai ao cabeçalho de identidade da ficha (spec R3).
+      category: sub?.category ?? undefined,
     };
   });
 
