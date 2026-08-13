@@ -5,7 +5,7 @@ import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
-import { generateProtocolDocumentPdf, generatePhysicalRASPdf } from "../lib/pdf-signer";
+import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
 import {
   ensureClientFolderStructure,
@@ -995,6 +995,34 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
   res.json({ icsContent, filename });
 });
 
+// ── Diagnóstico de certificado para a Carta de Tratamento ────────────────────
+// Rota pública de smoke-test: valida que o certificado PAdES está configurado
+// e carregável sem precisar gerar um PDF completo. Útil no Railway antes de
+// emitir para um cliente real.
+router.get("/protocols/carta-pdf-certcheck", async (_req, res): Promise<void> => {
+  try {
+    const info = getCertInfo();
+    res.json({
+      ok: true,
+      message: "Certificado carregado com sucesso — assinatura PAdES disponível.",
+      cert: {
+        subject:   info.subject,
+        issuer:    info.issuer,
+        serial:    info.serial,
+        validFrom: info.validFrom,
+        validTo:   info.validTo,
+        cpf:       info.cpf,
+      },
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      ok: false,
+      message: "Certificado não configurado ou senha incorreta.",
+      details: err.message,
+    });
+  }
+});
+
 // ── Carta de Tratamento Premium PADAXOR (layout Dr. Manus Item #88) ──────────
 // Rota nova — não interfere com document-pdf (Regra de Ouro).
 router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
@@ -1064,13 +1092,29 @@ router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
       sessions: sessions.map(s => ({ status: s.status })),
     });
 
-    const { pdfBytes } = await generateProtocolLetterPdf(dto);
+    const { pdfBytes, certInfo } = await generateProtocolLetterPdf(dto);
 
     const slug     = client.name.replace(/\s+/g, "_");
     const filename = `CARTA_TRATAMENTO_${slug}_${protocolId}.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBytes.length);
+
+    // Expõe informações do certificado PAdES nos headers de resposta para que
+    // o CEO possa confirmar (via DevTools / curl -I) que a assinatura ICP-Brasil
+    // foi embutida corretamente antes de enviar a carta a um cliente real.
+    const ci = certInfo as Record<string, unknown>;
+    if (ci?.subject)    res.setHeader("X-Cert-Subject",    String(ci.subject));
+    if (ci?.issuer)     res.setHeader("X-Cert-Issuer",     String(ci.issuer));
+    if (ci?.validFrom)  res.setHeader("X-Cert-Valid-From", String(ci.validFrom));
+    if (ci?.validTo)    res.setHeader("X-Cert-Valid-To",   String(ci.validTo));
+    if (ci?.cpf)        res.setHeader("X-Cert-CPF",        String(ci.cpf));
+    if (ci?.signerName) res.setHeader("X-Cert-Signer",     String(ci.signerName));
+
+    console.info(
+      `[carta-pdf] protocolo=${protocolId} cliente="${client.name}" cert-subject="${ci?.subject ?? "N/A"}" cert-valid-to="${ci?.validTo ?? "N/A"}"`,
+    );
+
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
     console.error("[carta-pdf] erro:", err.message);
