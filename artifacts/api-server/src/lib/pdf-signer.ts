@@ -1879,7 +1879,8 @@ function drawPremiumCover(
   pf: PremiumFonts,
   symbolImg: EmbeddedPng | null,
   wordmarkImg: EmbeddedPng | null,
-  padconImg: EmbeddedPng | null,
+  padconSymbol: EmbeddedPng | null,
+  padconWords: EmbeddedPng | null,
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
@@ -1977,15 +1978,28 @@ function drawPremiumCover(
     pg.drawText(`E-mail: ${em}`, { x: MARGIN, y: PAGE_H - 582, size: 6, font: pf.manReg, color: MIST_P, opacity: 0.7 });
   }
 
-  // ── Canto inferior esquerdo: lockup PADCON (símbolo + wordmark + tagline) ────
-  // Arte oficial padcon-platform.png — 1001×957 px, fundo transparente confirmado.
-  // "Loguinho" discreto: 52 pt de altura, largura calculada pelo ratio nativo.
-  if (padconImg) {
+  // ── Canto inferior DIREITO: símbolo hex à esquerda + wordmark/frase à direita ─
+  // Layout horizontal: [símbolo] | [PADCON + Platform® + Advanced Systems Architecture]
+  // Ambos alinhados pela base, sobre o navy sem placa.
+  {
+    const grpH = 48; // altura do grupo inteiro
+    const gap   = 6; // espaço entre símbolo e palavras
+
+    const symH  = padconSymbol ? grpH : 0;
+    const symW  = padconSymbol ? symH * (padconSymbol.width  / padconSymbol.height)  : 0;
+    const wrdH  = padconWords  ? grpH : 0;
+    const wrdW  = padconWords  ? wrdH * (padconWords.width   / padconWords.height)   : 0;
+
+    const totalW = symW + (padconSymbol && padconWords ? gap : 0) + wrdW;
+    const grpX   = PAGE_W - MARGIN - totalW;
+    const grpY   = 34; // base do grupo; rodapé em y=22 fica abaixo
+
     try {
-      const pcH = 52;
-      const pcW = pcH * (padconImg.width / padconImg.height);
-      pg.drawImage(padconImg, { x: MARGIN, y: 36, width: pcW, height: pcH });
-    } catch { /* best-effort */ }
+      if (padconSymbol && symW > 0)
+        pg.drawImage(padconSymbol, { x: grpX, y: grpY, width: symW, height: symH });
+      if (padconWords && wrdW > 0)
+        pg.drawImage(padconWords,  { x: grpX + symW + gap, y: grpY, width: wrdW, height: wrdH });
+    } catch { /* best-effort — capa nunca falha por ausência de logo */ }
   }
 
   const footTxt = "Documento clinico individual — PADAXOR Clinical Intelligence System — tecnologia PADCON — Pagina 1";
@@ -2036,17 +2050,18 @@ export async function buildProtocolDocumentLayout(
     cgReg: fb.regular, cgBold: fb.bold, cgSemiBold: fb.bold,
     manReg: fb.regular, manBold: fb.bold,
   }));
-  const [symbolImg, wordmarkImg, padconImg, qrImg] = await Promise.all([
+  const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg] = await Promise.all([
     embedBrandPng(pdfDoc, "padaxor-symbol-medalhao.png"),
     embedBrandPng(pdfDoc, "padaxor-wordmark-trim.png"),
-    embedBrandPng(pdfDoc, "padcon-platform.png"),
+    embedBrandPng(pdfDoc, "padcon-symbol.png"),   // símbolo hexagonal isolado
+    embedBrandPng(pdfDoc, "padcon-words.png"),     // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
   ]);
 
   const allPages: PDFPage[] = [];
 
   // ── Checkpoint B: Capa premium PADAXOR ──────────────────────────────────────
-  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconImg);
+  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
   // (overflow é gerenciado dentro de drawSubstancePremiumPage)
