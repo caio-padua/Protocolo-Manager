@@ -1,4 +1,6 @@
 import express, { type Express } from "express";
+import fs from "fs";
+import path from "path";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -48,6 +50,16 @@ app.use(corsMiddleware);
 app.use(helmetMiddleware);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+// Rota pública — serve o PDF de pré-visualização da capa sem autenticação.
+// Remove este bloco quando a tarefa de validação visual estiver concluída.
+app.get("/preview-capa.pdf", (_req, res) => {
+  const p = path.resolve(import.meta.dirname, "../assets/preview-capa.pdf");
+  if (!fs.existsSync(p)) { res.status(404).send("preview não encontrado"); return; }
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", "inline; filename=capa-padaxor.pdf");
+  fs.createReadStream(p).pipe(res);
+});
+
 app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
