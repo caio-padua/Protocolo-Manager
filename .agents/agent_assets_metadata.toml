@@ -319,3 +319,10 @@ uri = "file://documentos/protocolo-capa-preview-padaxor.pdf"
 type = "pdf"
 title = "Capa PADAXOR + PADCON — Pré-visualização"
 description = "Lockup PADAXOR no centro + loguinho PADCON Platform® no canto inferior esquerdo."
+
+[[outputs]]
+id = "HLYZU6FoMz-WaPXwtp3lJ"
+uri = "file://documentos/comparativo-numerais-fontes.png"
+type = "image"
+title = "Algarismo nativo x algarismo adaptado — 13 fontes no PDF real"
+description = "Cada linha foi desenhada dentro de um PDF de verdade, usando o arquivo cru da fonte, sem pedir nenhuma correção. A linha vermelha é o Cormorant Garamond sem adaptação. A cinza é a versão que adaptei hoje. As verdes não precisam de adaptação nenhuma."
