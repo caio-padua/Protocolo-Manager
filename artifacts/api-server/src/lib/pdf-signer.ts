@@ -1308,14 +1308,25 @@ function assetCandidates(rel: string): string[] {
   ];
 }
 
+// R8 — Fallback SOMENTE para arquivo fisicamente ausente (ENOENT).
+// Se o arquivo existe mas está corrompido ou é inválido, lança o erro —
+// silenciar erros não-ENOENT esconderia problemas de produção.
 async function embedBrandPng(pdfDoc: PDFDocument, fileName: string): Promise<EmbeddedPng | null> {
+  let lastNonEnoent: unknown = null;
   for (const p of assetCandidates(fileName)) {
+    let buf: Buffer;
     try {
-      const buf = await fs.promises.readFile(p);
-      return await pdfDoc.embedPng(buf);
-    } catch { /* tenta o próximo caminho */ }
+      buf = await fs.promises.readFile(p);
+    } catch (e: unknown) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") continue; // arquivo ausente neste caminho → tenta o próximo
+      lastNonEnoent = e; // outro erro (permissão, I/O) → registra mas continua tentando
+      continue;
+    }
+    // Arquivo lido: tentar embutir. Erro de decodificação (PNG corrompido) = re-lança.
+    return await pdfDoc.embedPng(buf);
   }
-  return null;
+  if (lastNonEnoent) throw lastNonEnoent; // re-lança erro não-ENOENT do último candidato
+  return null; // todos os candidatos eram ENOENT → arquivo fisicamente ausente
 }
 
 function maskCpf(cpf: string | undefined): string {
