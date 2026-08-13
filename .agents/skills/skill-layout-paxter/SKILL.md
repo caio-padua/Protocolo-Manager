@@ -95,13 +95,39 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 
 ### 2.1 Tipografia
 
-| Familia | Uso | Onde |
-|---|---|---|
-| Lora (serifa humanista) | Texto de PERGUNTA da anamnese do cliente (calma, legivel, leitura longa) | `.leva-q` (index.css); carregada via Google Fonts em `artifacts/padcom/index.html` |
-| Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros genericos) | padrao do app |
-| **EB Garamond** (serifa grife — FONTE UNICA do sistema) | Nome do paciente (chip header), TITULOS e **valores financeiros de destaque** (KPI de pagamento, totais) | `fontFamily: "'EB Garamond', serif"` |
+## LEI DAS 4 FONTES — travada pelo CEO em 13/08/2026
 
-**FONTE UNICA — decisao do CEO em 13/08/2026.** O **Cormorant Garamond foi APOSENTADO** do
+Este quadro e a LEI. Quatro fontes, quatro trabalhos, sem sobreposicao. Antes de escrever
+qualquer `fontFamily` nova, ache o trabalho na coluna 2 e use a fonte da coluna 1.
+**Se o trabalho nao estiver na tabela, NAO invente fonte: pergunte ao CEO.**
+
+| Fonte | Trabalho (o unico que ela faz) | Onde vive | Pesos reais |
+|---|---|---|---|
+| **EB Garamond** — a PRINCIPAL | TITULO, nome de paciente, ALGARISMO e valor financeiro. Tela e PDF. | `fontFamily: "'EB Garamond', serif"`; pilhas `--app-font-serif` e `--app-font-display`; `.ttf` em `artifacts/api-server/assets/fonts` | 400 a **800** + italico |
+| **Inter** — a OPERACIONAL | Toda a UI funcional: botao, rotulo de KPI, dado de tabela, texto de sistema. | pilha `--app-font-sans` (com a gaveta `PaxmedNum` na frente) | familia completa |
+| **Lora** — a da LEITURA NA TELA | Texto de PERGUNTA da anamnese do cliente. **PERMANENTE — decisao do CEO em 24/06/2026, reafirmada em 13/08/2026.** Nao trocar por nada. | `.leva-q` no `index.css`; Google Fonts no `index.html` do padcom | 400 a 700 + italico |
+| **Cardo** — a SECUNDARIA, do DOCUMENTO | Paragrafo de leitura corrida DENTRO de documento em PDF que o paciente le (blocos narrativos da Carta de Tratamento e afins). | so `.ttf` no `artifacts/api-server/assets/fonts` — **nao carrega no navegador** | 400 e 700, sem 800, sem negrito-italico |
+
+### Cardo — as 4 proibicoes (decisao do CEO em 13/08/2026)
+
+O CEO adotou o Cardo como fonte secundaria e deixou a escolha dos casos com o agente. Para que
+"alguns casos" nunca vire "qualquer caso", os limites ficam escritos aqui:
+
+1. **Cardo NUNCA em numero, KPI, total ou valor financeiro.** Numero e sempre EB Garamond.
+2. **Cardo NUNCA em titulo pesado.** Ele so tem 400 e 700; pedir mais faz o programa falsificar
+   peso — exatamente o defeito que aposentou o Cormorant.
+3. **Cardo NUNCA em tela do aplicativo.** Na tela ja existem duas donas: Lora para a leitura do
+   cliente e Inter para a operacao. Cardo e fonte de DOCUMENTO.
+4. **Cardo NUNCA escrito a mao dentro de um componente.** Entra por variavel/constante do gerador,
+   nunca `fontFamily: "'Cardo', serif"` solto no meio de uma tela.
+
+**Estado hoje:** o Cardo esta ADOTADO na doutrina, mas ainda **nao esta montado em nenhum arquivo**.
+Ele entra no dia em que o primeiro documento usar leitura corrida serifada. Fonte que ninguem usa
+nao e carregada — isso e proposital, nao esquecimento.
+
+### 2.1.1 Historico da fonte principal
+
+**Decisao do CEO em 13/08/2026.** O **Cormorant Garamond foi APOSENTADO** do
 sistema inteiro (tela e PDF). Motivo: o algarismo do Cormorant e old-style (baixo, com descida) e
 so ficava alto depois de uma cirurgia manual no arquivo da fonte — um remendo que ninguem
 conseguiria reproduzir num documento novo. O EB Garamond ja nasce com algarismo alto e de largura
@@ -121,6 +147,8 @@ anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses 
 | `fontVariantNumeric` | `lining-nums tabular-nums` | Redundante no EB Garamond (ja e assim de fabrica), mas mantido como cinto de seguranca |
 | `letterSpacing` | `0.01em` | Pequeno ar entre digitos serifados melhora leitura |
 | `fontWeight` | `700` (`font-bold`) ou `800` (`font-extrabold`) conforme tamanho | KPI grande = extrabold; card secundario = bold. **800 e o peso mais pesado que existe de verdade no EB Garamond — nao pedir 900, o navegador falsificaria.** |
+| Cor PENDENTE (KPI) | `text-red-500` | Unico local onde vermelho e permitido — campinho bevel de resumo |
+| Cor demais valores | `text-primary` | Normal, sem alarme cromatico |
 
 **GAVETA DE NUMERAIS ("PaxmedNum") — onde ela entra e onde NAO entra:**
 

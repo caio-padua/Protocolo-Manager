@@ -1,13 +1,30 @@
 ---
-name: Fonte unica do sistema — EB Garamond (Cormorant aposentado)
-description: Decisao do CEO de 13/08/2026 sobre a serifa unica do Paxter/PADCOM, por que o Cormorant saiu, e as duas armadilhas tecnicas da troca (gaveta de numerais e subset no PDF).
+name: Lei das 4 fontes do Paxter — EB Garamond principal, Cardo secundaria
+description: Decisao do CEO de 13/08/2026 sobre o elenco de fontes do Paxter/PADCOM, por que o Cormorant saiu, e as duas armadilhas tecnicas da troca (gaveta de numerais e subset no PDF).
 ---
 
-# EB Garamond e a fonte serifada UNICA do sistema
+# Lei das 4 fontes (CEO, 13/08/2026)
 
-Titulos, nomes de paciente, valores financeiros e algarismos saem todos em **EB Garamond**.
+Quatro fontes, quatro trabalhos, sem sobreposicao. O quadro normativo completo, com as proibicoes,
+esta na secao "LEI DAS 4 FONTES" de `.agents/skills/skill-layout-paxter/SKILL.md`.
+
+| Fonte | Trabalho unico |
+|---|---|
+| **EB Garamond** (principal) | Titulo, nome de paciente, algarismo, valor financeiro — tela e PDF |
+| **Inter** (operacional) | UI funcional: botao, rotulo, dado de tabela |
+| **Lora** (leitura na tela) | Pergunta da anamnese do cliente — **PERMANENTE**, o CEO reafirmou em 13/08/2026 |
+| **Cardo** (secundaria) | Paragrafo de leitura corrida dentro de documento em PDF |
+
 **Cormorant Garamond esta APOSENTADO** (tela e PDF). Playfair Display e Marcellus tambem nao
 sao serifa de titulo — sobrevivem apenas dentro de peles decorativas ja travadas.
+
+**Cardo:** adotado na doutrina, mas de proposito ainda **nao montado em nenhum arquivo** — entra
+no primeiro documento que precisar de leitura corrida serifada. Nunca em numero, nunca em titulo
+pesado (so tem 400 e 700), nunca em tela do aplicativo, nunca escrito a mao num componente.
+
+**Why (a divisao Lora x Cardo):** o CEO cogitou o Cardo para leitura longa; a vaga de leitura na
+TELA ja e da Lora desde 24/06/2026. Em vez de duas serifadas disputando o mesmo trabalho, a
+fronteira ficou sendo o SUPORTE: Lora le na tela, Cardo le no papel/PDF.
 
 **Why:** o Cormorant faz algarismo old-style (baixo, com descida abaixo da linha). Para o numero
 sair alto era preciso operar o arquivo `.woff` a mao com `fontTools`. O CEO vetou a solucao com um
