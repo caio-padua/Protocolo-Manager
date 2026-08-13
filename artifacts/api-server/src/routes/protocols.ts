@@ -313,6 +313,8 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       mentalClarity: sub?.mentalClarity ?? undefined,
       skinHairNails: sub?.skinHairNails ?? undefined,
       immuneSupport: sub?.immuneSupport ?? undefined,
+      composicao: sub?.composicao ?? undefined,
+      posologia: sub?.posologia ?? undefined,
     };
   });
 
