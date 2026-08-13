@@ -77,8 +77,6 @@ export const modules: ModuleMap = {
   "./components/mockups/paxter-luz/CintilarDiamante.tsx": () => import("../components/mockups/paxter-luz/CintilarDiamante.tsx"),
   "./components/mockups/paxter-luz/ReflexoCursor.tsx": () => import("../components/mockups/paxter-luz/ReflexoCursor.tsx"),
   "./components/mockups/paxter-luz/RespiroEspecular.tsx": () => import("../components/mockups/paxter-luz/RespiroEspecular.tsx"),
-  "./components/mockups/validacao/FilaValidacao.tsx": () => import("../components/mockups/validacao/FilaValidacao.tsx"),
-  "./components/mockups/validacao/MesaValidacao.tsx": () => import("../components/mockups/validacao/MesaValidacao.tsx"),
   "./components/mockups/receituario-especial/AF1.tsx": () => import("../components/mockups/receituario-especial/AF1.tsx"),
   "./components/mockups/receituario-especial/AF2.tsx": () => import("../components/mockups/receituario-especial/AF2.tsx"),
   "./components/mockups/receituario-especial/AF3.tsx": () => import("../components/mockups/receituario-especial/AF3.tsx"),
@@ -101,5 +99,7 @@ export const modules: ModuleMap = {
   "./components/mockups/receituario-especial/VarB.tsx": () => import("../components/mockups/receituario-especial/VarB.tsx"),
   "./components/mockups/receituario-especial/VarC.tsx": () => import("../components/mockups/receituario-especial/VarC.tsx"),
   "./components/mockups/receituario-especial/VarD.tsx": () => import("../components/mockups/receituario-especial/VarD.tsx"),
+  "./components/mockups/validacao/FilaValidacao.tsx": () => import("../components/mockups/validacao/FilaValidacao.tsx"),
+  "./components/mockups/validacao/MesaValidacao.tsx": () => import("../components/mockups/validacao/MesaValidacao.tsx"),
   "./components/mockups/vitrine-demo/VitrineDemo.tsx": () => import("../components/mockups/vitrine-demo/VitrineDemo.tsx")
 };
