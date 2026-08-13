@@ -144,3 +144,5 @@
 - [tsc --build ignora .ts editado sem rebuild da lib](tsc-build-dist-projeto-referencias.md) — project references resolvem contra dist/ compilado; rodar `typecheck:libs` após mudar lib/db/src/schema antes de typecheckar consumidores.
 - [Select controlado nasce com "", nunca undefined](radix-select-value-undefined-controlled.md) — `value={id?String(id):undefined}` dispara warning uncontrolled→controlled; usar "" como sentinela desde o primeiro render.
 - [Rebase "limpo" pode esconder conflito semântico](rebase-limpo-conflito-semantico.md) — sem marcadores de conflito ≠ sem bug; sempre buildar/bootar após continueMergeResolution antes de markTaskComplete.
+- [Apify — contrato REST assíncrono (run/poll/dataset)](apify-async-run-contract.md) — nunca usar run-sync (bloqueia até 300s); runs/actor-runs embrulham em {data}, dataset/items não.
+- [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.

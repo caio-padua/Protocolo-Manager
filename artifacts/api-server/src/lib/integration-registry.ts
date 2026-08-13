@@ -179,6 +179,30 @@ export const INTEGRATIONS: Record<string, IntegrationDef> = {
       },
     ],
   },
+  apify: {
+    provider: "apify",
+    label: "Apify (Central de Pesquisa)",
+    allowCustom: true,
+    fields: [
+      {
+        field: "apiToken",
+        label: "Token de API",
+        kind: "secret",
+        key: "apify.apiToken",
+        secret: true,
+        envName: "APIFY_API_TOKEN",
+        placeholder: "Cole o token de API do Apify (console.apify.com → Settings → Integrations)",
+      },
+      {
+        field: "precoInsumoActorId",
+        label: "Actor — Pesquisa de Preço de Insumo",
+        kind: "config",
+        key: "apify.precoInsumoActorId",
+        secret: false,
+        placeholder: "apify/google-search-scraper",
+      },
+    ],
+  },
 };
 
 export function getIntegration(provider: string): IntegrationDef | undefined {

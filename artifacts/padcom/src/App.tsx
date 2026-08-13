@@ -27,6 +27,7 @@ import Sncr from "@/pages/sncr";
 import MegaAnamnese from "@/pages/mega-anamnese";
 import Catalogos from "@/pages/catalogos";
 import Dieta from "@/pages/dieta";
+import CentralPesquisa from "@/pages/central-pesquisa";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import Cockpit from "@/pages/cockpit";
@@ -231,6 +232,7 @@ function Router() {
             </Route>
             <Route path="/catalogos" component={Catalogos} />
             <Route path="/dieta" component={Dieta} />
+            <Route path="/central-pesquisa" component={CentralPesquisa} />
             <Route path="/treino" component={Treino} />
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />

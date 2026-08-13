@@ -65,6 +65,7 @@ const ENV_FALLBACK: Record<string, string> = {
   "gupshup.apiKey": "GUPSHUP_API_KEY",
   "gupshup.appName": "GUPSHUP_APP_NAME",
   "gupshup.sourceNumber": "GUPSHUP_SOURCE_NUMBER",
+  "apify.apiToken": "APIFY_API_TOKEN",
 };
 
 function encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {

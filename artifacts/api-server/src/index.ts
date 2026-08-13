@@ -9,6 +9,7 @@ import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
 import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
+import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -53,6 +54,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("dieta_receitas + colunas de preço do catálogo: schema pronto antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar schema de receitas/preços da Dieta — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePesquisasSchema();
+    logger.info("pesquisas (Central de Pesquisa/Apify): schema pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar schema da Central de Pesquisa — abortando boot");
     process.exit(1);
   }
 
