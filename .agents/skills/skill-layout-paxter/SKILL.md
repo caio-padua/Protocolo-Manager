@@ -128,7 +128,10 @@ nao e carregada — isso e proposital, nao esquecimento.
 ### 2.1.1 Historico da fonte principal
 
 **Decisao do CEO em 13/08/2026.** O **Cormorant Garamond foi APOSENTADO** do
-sistema inteiro (tela e PDF). Motivo: o algarismo do Cormorant e old-style (baixo, com descida) e
+**aplicativo PADCOM (`artifacts/padcom`) e dos dois geradores de PDF**. Escopo exato, para nao
+mentir: as vitrines de marca `parxis-site` e `vitrine-demo` AINDA usam Cormorant e nao foram
+tocadas — la nao existe numero de sistema nem valor financeiro, entao o defeito nao aparece.
+Limpar as vitrines depende de ordem do CEO. Motivo: o algarismo do Cormorant e old-style (baixo, com descida) e
 so ficava alto depois de uma cirurgia manual no arquivo da fonte — um remendo que ninguem
 conseguiria reproduzir num documento novo. O EB Garamond ja nasce com algarismo alto e de largura
 fixa, e tem peso REAL de 400 a 800 com italico, entao nao depende do navegador engrossar letra.
