@@ -134,3 +134,4 @@
 - [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
+- [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
