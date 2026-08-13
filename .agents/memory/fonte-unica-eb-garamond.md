@@ -15,8 +15,12 @@ esta na secao "LEI DAS 4 FONTES" de `.agents/skills/skill-layout-paxter/SKILL.md
 | **Lora** (leitura na tela) | Pergunta da anamnese do cliente — **PERMANENTE**, o CEO reafirmou em 13/08/2026 |
 | **Cardo** (secundaria) | Paragrafo de leitura corrida dentro de documento em PDF |
 
-**Cormorant Garamond esta APOSENTADO** (tela e PDF). Playfair Display e Marcellus tambem nao
-sao serifa de titulo — sobrevivem apenas dentro de peles decorativas ja travadas.
+**Cormorant Garamond esta APOSENTADO.** Escopo real, verificado por `grep` em 13/08/2026:
+zero ocorrencias no codigo-fonte de `artifacts/padcom`, nos dois geradores de PDF e — depois
+da segunda ordem do CEO no mesmo dia — tambem nas vitrines `parxis-site` e `vitrine-demo`.
+Ainda sobrevive de proposito em `mockup-sandbox` (arquivo de mockups) e nos `.woff` guardados
+em `assets/fonts` (Regra de Ouro: nao apagar). Playfair Display e Marcellus tambem nao sao
+serifa de titulo — sobrevivem apenas dentro de peles decorativas ja travadas.
 
 **Cardo:** adotado na doutrina, mas de proposito ainda **nao montado em nenhum arquivo** — entra
 no primeiro documento que precisar de leitura corrida serifada. Nunca em numero, nunca em titulo
@@ -45,6 +49,17 @@ so **EB Garamond** e **Cardo** alinham. Crimson Text e Libre Caslon Display nao 
 Libre Caslon Display ainda tem um unico estilo (sem negrito e sem italico).
 Desempate entre as duas: o Cardo so tem os pesos 400 e 700, o que obrigaria a falsificar o peso
 pesado — exatamente o remendo que motivou a troca.
+
+Larguras dos dez digitos, medidas direto no arquivo (em `em`; variacao = mais largo menos mais
+estreito; zero significa coluna alinhada de fabrica):
+
+| Fonte | Largura | Variacao | Alinha sozinha |
+|---|---|---|---|
+| Cardo (Regular e Bold) | 0,5122 | 0,0000 | sim |
+| EB Garamond | 0,4800 | 0,0000 | sim |
+| Cormorant Garamond | — | 0,1570 | nao |
+| Inter | — | 0,2393 | nao |
+| Lora | — | 0,2570 | nao |
 
 ## Armadilha 1 — a gaveta de numerais "PaxmedNum"
 

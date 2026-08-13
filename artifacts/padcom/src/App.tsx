@@ -83,6 +83,7 @@ import Abertura from "@/pages/abertura";
 import MarcaMolde from "@/pages/marca-molde";
 import PawardsDemo from "@/pages/pawards-demo";
 import TipografiaDemo from "@/pages/tipografia";
+import LeiDoNumeral from "@/pages/lei-do-numeral";
 import OrcamentosList from "@/pages/orcamentos";
 import MontagemOrcamento from "@/pages/orcamentos/novo";
 import Parametrizacao from "@/pages/orcamentos/parametrizacao";
@@ -163,6 +164,7 @@ function Router() {
       <Route path="/marca-molde" component={MarcaMolde} />
       <Route path="/pawards" component={PawardsDemo} />
       <Route path="/tipografia" component={TipografiaDemo} />
+      <Route path="/lei-do-numeral" component={LeiDoNumeral} />
       <Route>
         <Layout>
           <Switch>

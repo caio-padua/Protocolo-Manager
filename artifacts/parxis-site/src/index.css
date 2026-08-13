@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;500&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&family=Cinzel:wght@400;500&family=Inter:wght@300;400;500;600&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -113,8 +113,10 @@
   --ring: 42 88% 52%;
 
   --app-font-sans:    'Inter', sans-serif;
-  --app-font-serif:   'Playfair Display', 'Cormorant Garamond', Georgia, serif;
-  --app-font-label:   'Cinzel', 'Cormorant Garamond', serif;
+  /* LEI DAS 4 FONTES (CEO, 13/08/2026): Cormorant aposentado; a serifa de
+     apoio agora e EB Garamond, igual ao sistema PADCOM. */
+  --app-font-serif:   'EB Garamond', 'Playfair Display', Georgia, serif;
+  --app-font-label:   'Cinzel', 'EB Garamond', serif;
   --app-font-display: 'Cinzel', serif;
   --app-font-mono:    ui-monospace, Menlo, Monaco, Consolas, monospace;
 

@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { Activity, AlertTriangle, Calendar as CalendarIcon, CheckCircle2, Clock, ClipboardCheck, Info, Loader2, TrendingUp, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Valor, Percentual, Numeral } from "@/components/numeral/Numeral";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -156,28 +157,30 @@ export default function Dashboard() {
           {[
             {
               label: "Sessoes Hoje",
-              value: summary.sessionsTodayCount,
+              value: <Numeral>{summary.sessionsTodayCount}</Numeral>,
               sub: `${summary.sessionsThisWeekCount} esta semana`,
               icon: CalendarIcon,
               color: "hsl(39, 41%, 51%)",
             },
             {
               label: "Protocolos Ativos",
-              value: summary.activeProtocols,
+              value: <Numeral>{summary.activeProtocols}</Numeral>,
               sub: `${summary.totalClients} clientes no total`,
               icon: Activity,
               color: "hsl(214, 54%, 19%)",
             },
             {
               label: "Receita do Mes",
-              value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summary.revenueThisMonth),
+              /* LEI DO NUMERAL: a peca desenha cifrao + inteiro + centavos no mesmo material. */
+              value: <Valor valor={summary.revenueThisMonth} />,
               sub: `${summary.pendingPaymentsCount} pagamentos pendentes`,
               icon: TrendingUp,
               color: "hsl(39, 46%, 41%)",
             },
             {
               label: "Taxa de Conclusao",
-              value: `${summary.completionRate.toFixed(1)}%`,
+              /* virgula decimal, padrao brasileiro — antes saia "17.0%" com ponto. */
+              value: <Percentual valor={summary.completionRate} />,
               sub: `${summary.missedSessionsCount} faltas recentes`,
               icon: CheckCircle2,
               color: summary.completionRate >= 70 ? "hsl(142, 71%, 45%)" : "hsl(0, 72%, 51%)",
@@ -194,7 +197,8 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="screen-3d p-3 flex flex-col items-center justify-center">
-                    <div className="text-2xl font-black tracking-tight text-primary">{kpi.value}</div>
+                    {/* 800 e o peso mais pesado REAL do EB Garamond; font-black (900) seria falsificado. */}
+                    <div className="text-2xl font-extrabold tracking-tight text-primary">{kpi.value}</div>
                     <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70 mt-1">{kpi.sub}</p>
                   </div>
                 </CardContent>

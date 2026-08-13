@@ -9,7 +9,7 @@ import React from "react";
 // ============================================================================
 
 export const LOCKUP_STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=EB+Garamond:ital,wght@0,500;0,600;0,700;0,800;1,500&display=swap');
 
 /* ---------- FACE de ouro polido (bandas de reflexo) ---------- */
 .gold-face-dark {
@@ -63,7 +63,7 @@ export const LOCKUP_STYLE = `
 
 /* ---------- Tipos ---------- */
 .font-cinzel { font-family: 'Cinzel', serif; }
-.font-cormorant { font-family: 'Cormorant Garamond', serif; }
+.font-cormorant { font-family: 'EB Garamond', serif; }
 
 .pax-word {
   font-family: 'Cinzel', serif;
@@ -73,7 +73,7 @@ export const LOCKUP_STYLE = `
   display: inline-block;
 }
 .pax-cis {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'EB Garamond', serif;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.1;
@@ -87,7 +87,7 @@ export const LOCKUP_STYLE = `
   display: inline-block;
 }
 .pax-fine {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'EB Garamond', serif;
   font-style: italic;
   font-weight: 500;
   letter-spacing: 0.01em;

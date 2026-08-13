@@ -168,7 +168,9 @@
   --chart-5: 280 65% 60%;
 
   --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: 'Cormorant Garamond', Georgia, serif;
+  /* LEI DAS 4 FONTES (CEO, 13/08/2026): EB Garamond e a serifa unica.
+     Cormorant Garamond aposentado — errava a largura do algarismo. */
+  --app-font-serif: 'EB Garamond', Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: .5rem; /* 8px */
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00); /*replace with H S L */

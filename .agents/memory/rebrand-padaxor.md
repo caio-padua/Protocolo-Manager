@@ -36,10 +36,13 @@ o nome de um arquivo vizinho, que pode estar duas gerações atrasado.
 
 - QR do rodapé da Carta aponta para `paxter.com.br` (constante `PAXTER_SITE_URL`) —
   duas gerações atrás. O domínio definitivo nunca foi decidido pelo CEO.
-- Cerca de 37 arquivos ainda escrevem PADAXOR (telas, e-mails, Telegram, Slack, outros
-  geradores de PDF).
-- Outros geradores de PDF (atestado, dieta) ainda escrevem "Paxter".
+- A esmagadora maioria do sistema ainda escreve PAXTER — inclusive a marca do menu
+  lateral e o subtítulo do Painel de Controle. PADAXOR e PARXIS aparecem em minoria.
+  Contar com `grep` antes de afirmar qualquer número: ele muda toda semana.
+- QR/domínio, nomes de arquivo de arte, diretórios de artefato e nomes de rota também
+  carregam a marca antiga — cada categoria decide diferente se acompanha ou não.
 
 **How to apply:** rebrand em massa exige ordem explícita do CEO (Regra de Ouro). Não
 varrer o sistema por conta própria; corrigir o artefato em que se está trabalhando e
-reportar o resto.
+reportar o resto. Reafirmado pelo CEO em 13/08/2026: "não existe mais parxis, paxter,
+padaxor — agora é paxmed" — mas a ordem foi de VOCABULÁRIO, não de varredura.

@@ -22,6 +22,7 @@
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
 - [serializeLocation mapeia campos explicitamente](serialize-location-campos.md) — nova coluna Drizzle não aparece no response até ser adicionada em serializeLocation(); getCertInfo() retorna { subject, issuer, serial, validFrom, validTo, cpf }.
 - [Precedência < vs ?? no for-loop](precedencia-comparacao-vs-nullish.md) — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
+- [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta "R$" porque o R é letra.
 - [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/2026.
 - [SaaS Multi-tenant ONDA A/B/C](saas-multitenant-onda-abc.md) — schema piramide (empresas), migration SQL manual nas 35 tabelas clinicas (nunca db push), backfill empresa_id=5, tenantContextMiddleware registrado em app.ts.
 - [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
