@@ -298,3 +298,10 @@ uri = "file://PlanoNutricional_exemplo.pdf"
 type = "pdf"
 title = "Plano Nutricional — Exemplo (validação do motor PDF)"
 description = "PDF gerado pelo motor real (Claude + pdf-lib) para validação do fluxo de emissão. Dado real removido por política de privacidade."
+
+[[outputs]]
+id = "bPtOSr08jQFzZne9uce0f"
+uri = "file://docs/PROTOCOLO_CARLUCIA_V2_LAYOUT.pdf"
+type = "pdf"
+title = "Protocolo Carlúcia — Layout Atualizado (melhorias Dr. Manus)"
+description = "PDF gerado com todas as melhorias: PADAXOR na capa e cabeçalhos, fichas navy/ouro, dose limpa sem '/2 ML', rótulos do radar em PT-BR, contorno dourado do radar."

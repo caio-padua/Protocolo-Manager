@@ -908,7 +908,7 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `Instituto Padua · Paxter - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Padua · Padaxor - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
 }
@@ -919,9 +919,9 @@ function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages:
 // em diante. PADCON + frase em ingles fica no RODAPE (drawDocFooter).
 function drawDocHeaderBrand(page: PDFPage, fonts: Fonts) {
   const tag = "Clinical Intelligence System";
-  const nameW = fonts.bold.widthOfTextAtSize("PAXTER", 9);
+  const nameW = fonts.bold.widthOfTextAtSize("PADAXOR", 9);
   const tagW = fonts.regular.widthOfTextAtSize(tag, 6);
-  page.drawText("PAXTER", { x: PAGE_W - MARGIN - nameW, y: PAGE_H - 26, size: 9, font: fonts.bold, color: PETROL });
+  page.drawText("PADAXOR", { x: PAGE_W - MARGIN - nameW, y: PAGE_H - 26, size: 9, font: fonts.bold, color: DARK_BLUE });
   page.drawText(tag, { x: PAGE_W - MARGIN - tagW, y: PAGE_H - 34, size: 6, font: fonts.regular, color: GOLD_ACCENT });
 }
 
@@ -1084,13 +1084,13 @@ interface RadarDim { label: string; value: number; } // 0 = ausente, 1 = Apoio, 
 function deriveRadarDimensions(substances: ProtocolDocSubstance[]): RadarDim[] {
   type DimSpec = { label: string; bodyKeys: string[]; benefitKeys: string[] };
   const DIMS: DimSpec[] = [
-    { label: "Energia",        bodyKeys: ["metabolismo","cardiovascular","performance_fisica"],       benefitKeys: ["energyBenefit","physicalPerformance"] },
-    { label: "Clareza Mental", bodyKeys: ["neurocognicao","neurologico"],                             benefitKeys: ["mentalClarity"] },
-    { label: "Imunidade",      bodyKeys: ["imunologico","hematologico"],                              benefitKeys: ["immuneSupport"] },
-    { label: "Ossos/Joints",   bodyKeys: ["osteoarticular"],                                         benefitKeys: [] },
-    { label: "Forca Muscular", bodyKeys: ["muscular","muscular_hipertrofia"],                        benefitKeys: ["muscleStrength"] },
-    { label: "Metabolismo",    bodyKeys: ["endocrino","hepatico","renal"],                           benefitKeys: ["longevityBenefit"] },
-    { label: "Longevidade",    bodyKeys: ["longevidade","libido_sexual","dermatologico"],            benefitKeys: ["qualityOfLifeImpact","libidoBenefit","skinHairNails"] },
+    { label: "Energia",              bodyKeys: ["metabolismo","cardiovascular","performance_fisica"],       benefitKeys: ["energyBenefit","physicalPerformance"] },
+    { label: "Clareza Mental",       bodyKeys: ["neurocognicao","neurologico"],                             benefitKeys: ["mentalClarity"] },
+    { label: "Imunidade",            bodyKeys: ["imunologico","hematologico"],                              benefitKeys: ["immuneSupport"] },
+    { label: "Ossos e Articulacoes", bodyKeys: ["osteoarticular"],                                         benefitKeys: [] },
+    { label: "Forca Muscular",       bodyKeys: ["muscular","muscular_hipertrofia"],                        benefitKeys: ["muscleStrength"] },
+    { label: "Saude Metabolica",     bodyKeys: ["endocrino","hepatico","renal"],                           benefitKeys: ["longevityBenefit"] },
+    { label: "Longevidade",          bodyKeys: ["longevidade","libido_sexual","dermatologico"],            benefitKeys: ["qualityOfLifeImpact","libidoBenefit","skinHairNails"] },
   ];
 
   return DIMS.map(dim => {
@@ -1178,23 +1178,25 @@ function drawRadarChart(
   // 3. Center dot
   page.drawCircle({ x: cx, y: cy, size: 2, color: RING_C });
 
-  // 4. Filled data polygon
+  // 4. Filled data polygon — triângulos fan do centro (pdf-lib renderiza fill nativo)
   const dataPts = dims.map((d, i) => ptR(i, (Math.min(3, Math.max(0, d.value)) / 3) * radius));
-  const pathParts = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-  pathParts.push("Z");
-  try {
-    page.drawSvgPath(pathParts.join(" "), {
-      x: 0, y: 0,
-      color: FILL_C,
-      opacity: 0.45,
-      borderColor: STROKE_C,
-      borderWidth: 1.5,
-      borderOpacity: 0.9,
-    });
-  } catch {
-    for (let i = 0; i < n; i++) {
-      page.drawLine({ start: dataPts[i], end: dataPts[(i + 1) % n], thickness: 1.5, color: STROKE_C, opacity: 0.9 });
+  for (let i = 0; i < n; i++) {
+    const a = dataPts[i];
+    const b = dataPts[(i + 1) % n];
+    try {
+      page.drawTriangle(
+        { x: cx, y: cy },
+        { x: a.x, y: a.y },
+        { x: b.x, y: b.y },
+        { color: FILL_C, opacity: 0.42, borderColor: FILL_C, borderWidth: 0 },
+      );
+    } catch {
+      /* pdf-lib sem drawTriangle — fallback silencioso */
     }
+  }
+  // Contorno dourado por cima dos triângulos
+  for (let i = 0; i < n; i++) {
+    page.drawLine({ start: dataPts[i], end: dataPts[(i + 1) % n], thickness: 1.5, color: STROKE_C, opacity: 0.9 });
   }
 
   // 5. Data point dots
@@ -1226,9 +1228,9 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} - ${data.clientName}`);
-  pdfDoc.setAuthor("Instituto Padua - Paxter");
+  pdfDoc.setAuthor("Instituto Padua - Padaxor");
   pdfDoc.setSubject("Protocolo Medico Personalizado");
-  pdfDoc.setCreator("Sistema Paxter");
+  pdfDoc.setCreator("Sistema Padaxor");
 
   const fonts: Fonts = {
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -1247,7 +1249,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 160, width: CONTENT_W + 20, height: 3, color: GOLD_ACCENT });
 
-    page.drawText("PAXTER", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
+    page.drawText("PADAXOR", { x: MARGIN, y: PAGE_H - 100, size: 36, font: fonts.bold, color: WHITE });
     page.drawText("Clinical Intelligence System", { x: MARGIN, y: PAGE_H - 125, size: 14, font: fonts.regular, color: GOLD_ACCENT });
 
     page.drawRectangle({ x: MARGIN - 10, y: PAGE_H - 175, width: CONTENT_W + 20, height: 1, color: rgb(1, 1, 1, 0.2) });
@@ -1289,7 +1291,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     page.drawText("VALOR DO PROTOCOLO", { x: MARGIN, y, size: 8, font: fonts.regular, color: rgb(0.6, 0.7, 0.7) });
     page.drawText(totalFormatted, { x: MARGIN + 160, y, size: 14, font: fonts.bold, color: GOLD_ACCENT });
 
-    page.drawText("Desenvolvido pela Padcon · Paxter", { x: MARGIN, y: 50, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
+    page.drawText("Desenvolvido pela Padcon · Padaxor", { x: MARGIN, y: 50, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
     page.drawText(`${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, { x: MARGIN, y: 38, size: 7, font: fonts.regular, color: rgb(0.4, 0.5, 0.5) });
   }
 
@@ -1503,10 +1505,11 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
     let y = PAGE_H - MARGIN;
 
     const drawHeaderBand = (pg: PDFPage, cont: boolean): number => {
-      pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 40, width: CONTENT_W, height: 50, color: PETROL });
+      pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 40, width: CONTENT_W, height: 50, color: DARK_BLUE });
       pg.drawText(safeTxt(sub.name).toUpperCase() + (cont ? " (CONT.)" : ""), { x: MARGIN + 15, y: PAGE_H - MARGIN - 10, size: 16, font: fonts.bold, color: WHITE });
       pg.drawText(procTypeLabel(sub.procedureType), { x: MARGIN + 15, y: PAGE_H - MARGIN - 28, size: 8, font: fonts.regular, color: GOLD_ACCENT });
-      const doseInfo = `Dose: ${safeTxt(sub.dose)} | ${sub.totalSessions} sessoes | Intervalo: ${sub.intervalDays} dias`;
+      const cleanDose = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
+      const doseInfo = `Dose: ${cleanDose} | ${sub.totalSessions} sessoes | Intervalo: ${sub.intervalDays} dias`;
       const diW = fonts.regular.widthOfTextAtSize(doseInfo, 7.5);
       pg.drawText(doseInfo, { x: PAGE_W - MARGIN - 15 - diW, y: PAGE_H - MARGIN - 20, size: 7.5, font: fonts.regular, color: rgb(0.7, 0.85, 0.85) });
       pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 42, width: CONTENT_W, height: 3, color: subColor });

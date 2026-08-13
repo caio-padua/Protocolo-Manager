@@ -18,6 +18,7 @@ A marca visível ao cliente é **PADAXOR** a partir de 25/07/2026.
 ## Estado da aplicação
 
 - **Aplicado em 25/07/2026**: tela pública `/consulta-receituario` — wordmark, rodapé, toggle de tema.
+- **Aplicado em 13/08/2026**: pdf-signer.ts — todos os 7 locais com "PAXTER" trocados por "PADAXOR" (footer, header de marca, capa tamanho 36, setAuthor, setCreator, rodapé da capa). Header de marca agora usa DARK_BLUE (navy) em vez de PETROL.
 - **Pendente**: rebrand global (sidebar, e-mails, WhatsApp, banner, etc.) aguarda ordem explícita do CEO.
 
 ## How to apply
