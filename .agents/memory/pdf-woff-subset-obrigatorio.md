@@ -18,6 +18,20 @@ só arquivos `.woff`/`.woff2` carregados do disco.
 **How to apply:** todo `embedFont` que recebe buffer de arquivo leva
 `{ subset: true }`. Vale para qualquer gerador novo de PDF do projeto.
 
+## EXCECAO — fonte que e INSTANCIA de fonte variavel
+
+Se o `.ttf`/`.woff` foi gerado instanciando uma fonte variavel (por exemplo com
+`fontTools.varLib.instancer`), a regra **inverte**: `{ subset: true }` corrompe a
+fonte e o PDF abre com metade das letras faltando. Comprovado em 13/08/2026 com o
+EB Garamond, tanto em `.woff` quanto em `.ttf`.
+
+Solucao: recortar a fonte ANTES, com `python3 -m fontTools.subset ... --unicodes=...`,
+salvar em `.ttf` e embutir com `{ subset: false }`. Um mesmo gerador pode precisar das
+duas regras ao mesmo tempo (Manrope com `true`, EB Garamond com `false`) — nao unificar.
+
+Sintoma para reconhecer: o PDF nao da erro nenhum, o `pdffonts` mostra a fonte embutida,
+mas na imagem renderizada aparecem letras soltas e espacos onde deveria haver texto.
+
 ## A prova que NUNCA pode ser pulada
 
 HTTP 200 + tamanho do arquivo + log de envio **não provam nada** sobre a

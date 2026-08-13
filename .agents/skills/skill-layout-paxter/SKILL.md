@@ -99,7 +99,16 @@ todas as classes 3D — ao criar classe nova, criar tambem a variante `.dark`.
 |---|---|---|
 | Lora (serifa humanista) | Texto de PERGUNTA da anamnese do cliente (calma, legivel, leitura longa) | `.leva-q` (index.css); carregada via Google Fonts em `artifacts/padcom/index.html` |
 | Inter / sans do sistema | Toda a UI funcional (rotulos KPI, botoes, dados, numeros genericos) | padrao do app |
-| **Cormorant Garamond** (serifa grife) | Nome do paciente (chip header) + **valores financeiros de destaque** (KPI de pagamento, totais) | `fontFamily: "'Cormorant Garamond', serif"` |
+| **EB Garamond** (serifa grife — FONTE UNICA do sistema) | Nome do paciente (chip header), TITULOS e **valores financeiros de destaque** (KPI de pagamento, totais) | `fontFamily: "'EB Garamond', serif"` |
+
+**FONTE UNICA — decisao do CEO em 13/08/2026.** O **Cormorant Garamond foi APOSENTADO** do
+sistema inteiro (tela e PDF). Motivo: o algarismo do Cormorant e old-style (baixo, com descida) e
+so ficava alto depois de uma cirurgia manual no arquivo da fonte — um remendo que ninguem
+conseguiria reproduzir num documento novo. O EB Garamond ja nasce com algarismo alto e de largura
+fixa, e tem peso REAL de 400 a 800 com italico, entao nao depende do navegador engrossar letra.
+Medicoes que sustentam a decisao: dos 54 arquivos de fonte comparados, so EB Garamond e Cardo
+alinham numero em coluna sozinhos; o Cormorant tinha o pior algarismo dos 54.
+**Nunca reintroduzir Cormorant, Playfair ou Marcellus como serifa de titulo/nome.**
 
 Regra (decisao do CEO, 24/06/2026): a serifa **Lora** e reservada a LEITURA do cliente (pergunta da
 anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses continuam sans/MAIUSCULO.
@@ -108,10 +117,26 @@ anamnese). NUNCA usar serifa em rotulo KPI, botao ou dado operacional — esses 
 
 | Atributo | Valor | Motivo |
 |---|---|---|
-| `fontFamily` | `'Cormorant Garamond', serif` | Serifa grife ja aprovada; numerais elegantes, nao "grosseiros" |
-| `fontVariantNumeric` | `lining-nums tabular-nums` | `lining-nums` = todos os digitos mesma altura; `tabular-nums` = mesma largura (colunas alinhadas) |
+| `fontFamily` | `'EB Garamond', serif` | Serifa grife unica do sistema; algarismo alto e tabular NATIVOS, sem adaptacao |
+| `fontVariantNumeric` | `lining-nums tabular-nums` | Redundante no EB Garamond (ja e assim de fabrica), mas mantido como cinto de seguranca |
 | `letterSpacing` | `0.01em` | Pequeno ar entre digitos serifados melhora leitura |
-| `fontWeight` | `700` (`font-bold`) ou `900` (`font-black`) conforme tamanho | KPI grande = black; card secundario = bold |
+| `fontWeight` | `700` (`font-bold`) ou `800` (`font-extrabold`) conforme tamanho | KPI grande = extrabold; card secundario = bold. **800 e o peso mais pesado que existe de verdade no EB Garamond — nao pedir 900, o navegador falsificaria.** |
+
+**GAVETA DE NUMERAIS ("PaxmedNum") — onde ela entra e onde NAO entra:**
+
+| Pilha de fonte | Leva a gaveta? | Motivo |
+|---|---|---|
+| `--app-font-sans` (Inter) | **SIM** — `"PaxmedNum", "Inter", sans-serif` | Faz o algarismo do texto sans sair em EB Garamond, com `size-adjust: 115.1%` para casar com a altura do numero do Inter |
+| `--app-font-serif` / `--app-font-display` | **NAO** — `"EB Garamond", Georgia, serif` | A pilha JA e EB Garamond: o algarismo e nativo e do tamanho certo. Meter a gaveta ali deixaria o numero 15% maior que a letra ao lado |
+| Outra fonte qualquer (Cinzel, Lora, Georgia, Playfair de pele travada) | **SIM** | A fonte de baixo NAO e EB Garamond, entao a gaveta continua fazendo o servico dela: dar algarismo serifado a um texto que nao teria |
+
+**A regra em uma frase:** so NAO prefixe `PaxmedNum` quando a proxima fonte da pilha ja for o
+proprio EB Garamond. Escrever `PaxmedNum, var(--app-font-display)` e ERRADO desde 13/08/2026.
+
+**FONTE NO PDF — duas regras opostas, nao unificar:** o `.woff` do Manrope exige
+`{ subset: true }`, mas o `.ttf` do EB Garamond exige `{ subset: false }`. As fontes do
+EB Garamond sao instancias de fonte variavel e o recorte do `fontkit` as corrompe (metade das
+letras some — comprovado em 13/08/2026). O recorte delas ja foi feito antes, com `fontTools`.
 | Cor PENDENTE (KPI) | `text-red-500` | Unico local onde vermelho e permitido — campinho bevel de resumo |
 | Cor demais valores | `text-primary` | Normal, sem alarme cromatico |
 

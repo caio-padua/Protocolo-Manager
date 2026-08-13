@@ -427,7 +427,7 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
               <p
                 className="text-accent"
                 style={{
-                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
+                  fontFamily: "'EB Garamond', serif",
                   fontWeight: 600, fontSize: 10,
                   letterSpacing: "0.10em",
                 }}

@@ -1266,21 +1266,27 @@ async function loadPremiumFonts(pdfDoc: PDFDocument): Promise<PremiumFonts> {
     throw last;
   };
   const [cgRegB, cgBoldB, cgSemiBoldB, manRegB, manBoldB] = await Promise.all([
-    readFont("CormorantGaramond-Regular-Lining.woff"),
-    readFont("CormorantGaramond-Bold-Lining.woff"),
-    readFont("CormorantGaramond-SemiBold-Lining.woff"),
+    readFont("EBGaramond-Regular.ttf"),
+    readFont("EBGaramond-Bold.ttf"),
+    readFont("EBGaramond-SemiBold.ttf"),
     readFont("Manrope-Regular.woff"),
     readFont("Manrope-Bold.woff"),
   ]);
-  // CRÍTICO: { subset: true } é OBRIGATÓRIO para fonte .woff.
-  // Sem o recorte (subset), o pdf-lib embute o arquivo .woff comprimido cru dentro do
-  // PDF; nenhum leitor consegue descomprimi-lo e o texto sai como quadradinhos/pontos
-  // ("Embedded font file may be invalid"). Com subset:true o fontkit reescreve a fonte
-  // em TrueType puro contendo só os glifos usados. NUNCA remover esta opção.
+  // ── DUAS REGRAS OPOSTAS, CADA UMA COM SEU MOTIVO. NAO UNIFICAR. ──────────────
+  // Manrope (.woff): { subset: true } e OBRIGATORIO. Sem o recorte, o pdf-lib
+  // embute o .woff comprimido cru; nenhum leitor descomprime e o texto sai em
+  // quadradinhos ("Embedded font file may be invalid").
+  //
+  // EB Garamond (.ttf): { subset: false } e OBRIGATORIO. Estas fontes sao
+  // INSTANCIAS de uma fonte variavel, e o recorte do fontkit as corrompe — o PDF
+  // abre com metade das letras faltando (comprovado em 13/08/2026, tanto em .woff
+  // quanto em .ttf). O recorte ja foi feito ANTES, com fontTools, direto no
+  // arquivo em assets/fonts (charset latino). Por isso o arquivo ja e pequeno e
+  // nao precisa que o pdf-lib recorte de novo.
   const [cgReg, cgBold, cgSemiBold, manReg, manBold] = await Promise.all([
-    pdfDoc.embedFont(cgRegB,     { subset: true }),
-    pdfDoc.embedFont(cgBoldB,    { subset: true }),
-    pdfDoc.embedFont(cgSemiBoldB,{ subset: true }),
+    pdfDoc.embedFont(cgRegB,     { subset: false }),
+    pdfDoc.embedFont(cgBoldB,    { subset: false }),
+    pdfDoc.embedFont(cgSemiBoldB,{ subset: false }),
     pdfDoc.embedFont(manRegB,    { subset: true }),
     pdfDoc.embedFont(manBoldB,   { subset: true }),
   ]);
@@ -1855,7 +1861,7 @@ function drawQuestionsPage(
 
   for (let i = 0; i < questions.length; i++) {
     if (y - 34 < 90) break;
-    // Numeral em Cormorant — mesma âncora visual das fichas
+    // Numeral em EB Garamond — mesma âncora visual das fichas
     pg.drawText(String(i + 1).padStart(2, "0"), { x: MARGIN, y: y - 2, size: 13, font: pf.cgBold, color: GOLD_P });
     const qx = MARGIN + 26;
     const qw = CONTENT_W - 26;

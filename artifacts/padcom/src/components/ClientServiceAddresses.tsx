@@ -207,7 +207,7 @@ export function ClientServiceAddresses({ clientId }: { clientId: number }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className="font-black text-sm uppercase tracking-tight text-foreground"
-                          style={{ fontFamily: "PaxmedNum, 'Playfair Display', serif" }}
+                          style={{ fontFamily: "'EB Garamond', serif" }}
                         >
                           {addr.label}
                         </span>
@@ -267,7 +267,7 @@ export function ClientServiceAddresses({ clientId }: { clientId: number }) {
           <DialogHeader>
             <DialogTitle
               className="text-base font-black tracking-tight"
-              style={{ fontFamily: "PaxmedNum, 'Playfair Display', serif" }}
+              style={{ fontFamily: "'EB Garamond', serif" }}
             >
               {editingId != null ? "Editar Endereço" : "Novo Endereço de Visita"}
             </DialogTitle>

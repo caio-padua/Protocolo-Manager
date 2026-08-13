@@ -13,7 +13,7 @@
  *   topToY(mm): converte mm a partir do TOPO da página para Y em pontos pdf-lib.
  *
  * Tipografia:
- *   Títulos/nomes  → Cormorant Garamond (cgReg / cgSemi / cgBold / cgSemiItal)
+ *   Títulos/nomes  → EB Garamond (cgReg / cgSemi / cgBold / cgSemiItal)
  *   Dados/rótulos  → Manrope (mrReg / mrBold)
  *   Fontes woff lidas de assets/fonts/ em runtime.
  */
@@ -796,16 +796,22 @@ function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: Carta
 
 async function loadFonts(pdfDoc: PDFDocument): Promise<CartaFonts> {
   pdfDoc.registerFontkit(fontkit);
-  // { subset: true } OBRIGATÓRIO em fonte .woff — sem ele o PDF sai ilegível
-  // ("Embedded font file may be invalid"). Ver specs/carta-tratamento-premium-v2.md.
-  const embed = (name: string) => pdfDoc.embedFont(readFont(name), { subset: true });
+  // ── DUAS REGRAS OPOSTAS, CADA UMA COM SEU MOTIVO. NAO UNIFICAR. ──────────────
+  // Manrope (.woff): { subset: true } OBRIGATORIO — sem o recorte o .woff entra
+  // comprimido cru e o PDF sai ilegivel ("Embedded font file may be invalid").
+  // EB Garamond (.ttf): { subset: false } OBRIGATORIO — sao INSTANCIAS de fonte
+  // variavel e o recorte do fontkit as corrompe (metade das letras some). O
+  // recorte ja foi feito antes, com fontTools, no arquivo em assets/fonts.
+  // Comprovado em 13/08/2026. Ver specs/carta-tratamento-premium-v2.md.
+  const embedWoff = (name: string) => pdfDoc.embedFont(readFont(name), { subset: true });
+  const embedTtf = (name: string) => pdfDoc.embedFont(readFont(name), { subset: false });
   return {
-    cgReg:      await embed("CormorantGaramond-Regular.woff"),
-    cgSemi:     await embed("CormorantGaramond-SemiBold.woff"),
-    cgBold:     await embed("CormorantGaramond-Bold.woff"),
-    cgSemiItal: await embed("CormorantGaramond-SemiBoldItalic.woff"),
-    mrReg:      await embed("Manrope-Regular.woff"),
-    mrBold:     await embed("Manrope-Bold.woff"),
+    cgReg:      await embedTtf("EBGaramond-Regular.ttf"),
+    cgSemi:     await embedTtf("EBGaramond-SemiBold.ttf"),
+    cgBold:     await embedTtf("EBGaramond-Bold.ttf"),
+    cgSemiItal: await embedTtf("EBGaramond-SemiBoldItalic.ttf"),
+    mrReg:      await embedWoff("Manrope-Regular.woff"),
+    mrBold:     await embedWoff("Manrope-Bold.woff"),
   };
 }
 

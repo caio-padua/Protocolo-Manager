@@ -10,12 +10,6 @@ type Serif = {
 
 const SERIFS: Serif[] = [
   {
-    id: "cormorant",
-    nome: "Cormorant Garamond",
-    familia: '"Cormorant Garamond", Georgia, serif',
-    carater: "Couture discreta · Hermès",
-  },
-  {
     id: "playfair",
     nome: "Playfair Display",
     familia: '"Playfair Display", Georgia, serif',

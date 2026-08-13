@@ -153,7 +153,7 @@ export default function DietaTreinoPanel({ clientId }: Props) {
           </div>
           <div
             className="text-3xl font-black tabular-nums"
-            style={{ color: NAVY, fontFamily: "PaxmedNum, 'Cormorant Garamond', serif" }}
+            style={{ color: NAVY, fontFamily: "'EB Garamond', serif" }}
           >
             {prescricoes.length}
           </div>
@@ -164,7 +164,7 @@ export default function DietaTreinoPanel({ clientId }: Props) {
           </div>
           <div
             className="text-3xl font-black tabular-nums"
-            style={{ color: NAVY, fontFamily: "PaxmedNum, 'Cormorant Garamond', serif" }}
+            style={{ color: NAVY, fontFamily: "'EB Garamond', serif" }}
           >
             {planos.length}
           </div>
@@ -175,7 +175,7 @@ export default function DietaTreinoPanel({ clientId }: Props) {
           </div>
           <div
             className="text-3xl font-black tabular-nums"
-            style={{ color: NAVY, fontFamily: "PaxmedNum, 'Cormorant Garamond', serif" }}
+            style={{ color: NAVY, fontFamily: "'EB Garamond', serif" }}
           >
             {treinos.length}
           </div>

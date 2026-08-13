@@ -1,4 +1,4 @@
-// ClientIdentity — avatar + nome Cormorant Garamond + badge de alarme clínico
+// ClientIdentity — avatar + nome EB Garamond + badge de alarme clínico
 // Posição: lado esquerdo do CockpitHeader quando cliente selecionado.
 // Segue skill-layout-paxter: serifa grife para nome; sem infantilidades.
 
@@ -67,7 +67,7 @@ export default function ClientIdentity({ client, alarmColor = "green" }: ClientI
               border: `2px solid ${GOLD}`,
               borderRadius: 6,
               color: GOLD,
-              fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
+              fontFamily: "'EB Garamond', serif",
               fontSize: 16,
               letterSpacing: "0.06em",
             }}
@@ -92,7 +92,7 @@ export default function ClientIdentity({ client, alarmColor = "green" }: ClientI
         <div
           className="font-bold leading-tight truncate max-w-[240px]"
           style={{
-            fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
+            fontFamily: "'EB Garamond', serif",
             fontSize: 18,
             color: "#fffbf0",
             textShadow: "0 1px 8px rgba(0,0,0,0.55)",

@@ -258,7 +258,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
         <Stethoscope className="h-3.5 w-3.5 shrink-0" style={{ color: GOLD }} />
         <span
           className="text-[13px] font-semibold uppercase tracking-[0.20em]"
-          style={{ fontFamily: "PaxmedNum, var(--app-font-display)", color: "#e7cd8f" }}
+          style={{ fontFamily: "var(--app-font-display)", color: "#e7cd8f" }}
         >
           Prontuário do Cliente
         </span>
@@ -313,7 +313,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
               className="truncate text-[18px] font-bold leading-snug"
               style={{
                 color: NAVY,
-                fontFamily: "PaxmedNum, var(--app-font-display)",
+                fontFamily: "var(--app-font-display)",
                 letterSpacing: "0.02em",
               }}
               title={client?.name}

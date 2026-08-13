@@ -181,7 +181,7 @@ export default function ConsultaReceituario() {
               <span
                 className="leading-none text-center"
                 style={{
-                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
+                  fontFamily: "'EB Garamond', serif",
                   fontSize: "11px",
                   fontWeight: 600,
                   letterSpacing: "0.10em",
@@ -333,7 +333,7 @@ export default function ConsultaReceituario() {
                             : (theme === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.80)"),
                           fontWeight: gold ? 700 : 400,
                           fontFamily: gold
-                            ? "PaxmedNum,'Cormorant Garamond','Georgia',serif"
+                            ? "'EB Garamond','Georgia',serif"
                             : mono ? "monospace" : undefined,
                           fontSize:   gold ? "15px" : mono ? "11px" : "13px",
                         }}>

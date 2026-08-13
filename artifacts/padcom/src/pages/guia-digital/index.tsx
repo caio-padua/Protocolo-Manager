@@ -271,7 +271,7 @@ function Secao({
         <div className="flex-1 min-w-0">
           <p
             className="m-0 text-sm font-black uppercase tracking-widest text-primary leading-none"
-            style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', Georgia, serif", fontWeight: 700, fontSize: "0.9rem" }}
+            style={{ fontFamily: "'EB Garamond', Georgia, serif", fontWeight: 700, fontSize: "0.9rem" }}
           >
             {titulo}
           </p>
@@ -659,7 +659,7 @@ export default function GuiaDigital() {
               <p
                 className="text-accent m-0"
                 style={{
-                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
+                  fontFamily: "'EB Garamond', serif",
                   fontWeight: 600,
                   fontSize: 9,
                   letterSpacing: "0.10em",
@@ -738,7 +738,7 @@ export default function GuiaDigital() {
             <div className="login-card-topbar px-5 py-2.5 flex items-center justify-center border-b border-border/60">
               <p
                 className="m-0 text-accent font-black uppercase tracking-widest text-center"
-                style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', Georgia, serif", fontSize: "0.9rem" }}
+                style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: "0.9rem" }}
               >
                 Ficou com dúvida?
               </p>

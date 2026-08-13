@@ -22,8 +22,7 @@
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
 - [serializeLocation mapeia campos explicitamente](serialize-location-campos.md) — nova coluna Drizzle não aparece no response até ser adicionada em serializeLocation(); getCertInfo() retorna { subject, issuer, serial, validFrom, validTo, cpf }.
 - [Precedência < vs ?? no for-loop](precedencia-comparacao-vs-nullish.md) — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
-- [Numerais Cormorant no sistema inteiro](numerais-cormorant-sistema.md) — 1 @font-face "PaxmedNum" com unicode-range só de dígitos troca todo número (web+PDF); algarismo alto CONGELADO no .woff via fontTools (cmap→.lf), não via feature CSS; size-adjust 111.9% medido; mono é exceção.
-- [Fonte de grife validada: Cormorant Garamond](fonte-grife-cormorant.md) — fonte serifada aprovada pelo CEO para títulos/nomes = Cormorant Garamond; Marcellus e Playfair nunca foram validadas; botoes/rotulos=Archivo/Inter; dados=Inter.
+- [Fonte unica do sistema: EB Garamond](fonte-unica-eb-garamond.md) — Cormorant APOSENTADO 13/08/2026; gaveta PaxmedNum so na pilha sans (size-adjust 115,1%); peso real max = 800; no PDF EB Garamond exige subset:false.
 - [SaaS Multi-tenant ONDA A/B/C](saas-multitenant-onda-abc.md) — schema piramide (empresas), migration SQL manual nas 35 tabelas clinicas (nunca db push), backfill empresa_id=5, tenantContextMiddleware registrado em app.ts.
 - [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
@@ -137,7 +136,7 @@
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
 - [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
-- [Fonte .woff em PDF exige subset:true](pdf-woff-subset-obrigatorio.md) — embedFont sem {subset:true} vira texto em pontinhos; HTTP 200 não prova nada, validar com pdffonts + pdftoppm e OLHAR a imagem.
+- [Fonte .woff em PDF exige subset:true](pdf-woff-subset-obrigatorio.md) — EXCECAO: instancia de fonte variavel inverte a regra (subset:true corrompe, recortar antes com fontTools e usar subset:false).
 - [Gerar PDF do protocolo DISPARA e-mail real](protocolo-document-pdf-envia-email.md) — GET /protocols/:id/document-pdf sobe no Drive e envia ao paciente; nunca usar em laço de validação.
 - [Carta de Tratamento Premium PDF (Item #88)](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [Git push/fetch — fallback de autenticação HTTPS](git-http-auth-fallback.md) — "Invalid username or token" no painel/terminal; checar divergência+working tree antes de credencial; GITHUB_PAT via http.extraHeader destrava só o terminal, não o painel.
