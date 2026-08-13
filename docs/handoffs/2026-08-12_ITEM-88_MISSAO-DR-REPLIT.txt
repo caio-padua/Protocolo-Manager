@@ -1,0 +1,37 @@
+ITEM 88 - CARTA DE TRATAMENTO PREMIUM PADAXOR
+AUTOR: DR. MANUS | STATUS: DIRETRIZ DO CEO PRONTA PARA EXECUCAO
+
+DR. REPLIT,
+
+MISSÃO
+Refatorar SOMENTE o PDF do protocolo do paciente para a Carta de Tratamento Premium PADAXOR. O resultado deve usar dados reais, uma substancia por folha A4, capa PADAXOR e leitura clinica em duas colunas.
+
+FONTE DE VERDADE
+1. CARTA_TECNICA_ITEM_88_PROTOCOLO_PREMIUM_PADAXOR.md
+2. lib/db/src/schema/substances.ts
+3. artifacts/api-server/src/routes/protocols.ts
+4. artifacts/api-server/src/lib/pdf-signer.ts
+
+ARQUIVOS DE EXECUCAO
+| Arquivo | Acao |
+| routes/protocols.ts | Projetar campos clinicos ja existentes para o DTO do PDF. Adicionar totalSessions e completedSessions. |
+| lib/pdf-signer.ts | Nova capa PADAXOR, mapa de barras VERTICAIS, uma ficha por substancia e novo header/footer. |
+| ativo oficial | Usar 03-loginho-vidro-sistema.png. Nao redesenhar o simbolo. |
+
+REGRAS DE OURO
+| Regra | Aplicacao |
+| Uma substancia = uma pagina A4 | Comecar nova pagina no inicio de cada dossie. Sem (CONT.). |
+| PADAXOR e marca principal | Capa central; canto superior direito nas internas. |
+| Clinica e emissora | Nome da unidade na capa e no rodape. Logo e slot reservado ate haver config de tenant. |
+| PADCON e secundario | Somente proveniencia tecnologica discreta no rodape. |
+| Dados reais somente | Campo vazio omite bloco. Nunca inventar beneficio, seguranca, score ou composicao. |
+| Sem estrelas e sem barra horizontal | Usar radar e barras verticais, imprimiveis em preto e branco. |
+| Sem migration | Este item so amplia DTO e muda renderizacao PDF. |
+
+TESTES OBRIGATORIOS
+Rodar 88-A a 88-K da carta tecnica. Entregar hash de commit, saida verde e PDF A4 de evidencia com no minimo tres substancias.
+
+LINHA VERMELHA
+Nao tocar em RAS FAP, regras de agendamento, banco, calculo de preco, estoque ou outros documentos. Nao fazer rename global de PAXTER neste commit; no PDF do paciente mostrar PADAXOR conforme diretriz do CEO.
+
+RESUMO EM 1 LINHA: implemente o PDF premium com o dado que ja existe, sem criar banco, sem inventar clinica e sem comprimir duas substancias na mesma folha.
