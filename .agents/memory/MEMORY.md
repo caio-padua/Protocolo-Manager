@@ -116,6 +116,7 @@
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
 - [ConsoleShell prop icon obrigatória](consoleshell-icon-obrigatorio.md) — ConsoleShell(_shared) tem `icon: LucideIcon` obrigatório; omitir = "Element type invalid" no runtime (tsc não detecta).
+- [Arte de marca — conferir data antes de usar](brand-asset-versao-mais-recente.md) — arquivo em src/assets é o mais VELHO; listar por data, oficial vem de attached_assets com nome versionado (LOGO_X_25 > LOGO_X_17); sem alfa, extrair com -fuzz+trim.
 - [Banner de marca = compor arte oficial](banner-marca-arte-oficial.md) — imagem estática (e-mail/WhatsApp/Telegram) NÃO roda CSS 3D; compor os PNGs oficiais, nunca redesenhar chapado.
 - [Lembrete por período do IHE (portar ao Manager)](ihe-mensageria-periodo.md) — motor cronobiológico: 1 msg POR JANELA (não por fórmula), 9 períodos canônicos, tolerância 5min, madrugada vazia.
 - [Cockpit v2 — arquitetura de componentes](cockpit-v2-arquitetura.md) — CockpitShell+lazy panels; URL=fonte de verdade; key={clientId} no Route; useListClients→useCockpitSearch.
