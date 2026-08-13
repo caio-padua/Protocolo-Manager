@@ -27,6 +27,9 @@ import {
   Inbox,
   CheckCircle2,
   XCircle,
+  FileText,
+  Loader2,
+  Mail,
 } from "lucide-react";
 
 // ============================================================================
@@ -177,6 +180,11 @@ function MontarCardapio() {
   const [janelaFim, setJanelaFim] = useState("20:00");
   const [itens, setItens] = useState<ItemLinha[]>([]);
 
+  // --- Emissão de PDF ---
+  const [caloriasAlvo, setCaloriasAlvo] = useState("");
+  const [estiloAlimentar, setEstiloAlimentar] = useState("");
+  const [enviarEmail, setEnviarEmail] = useState(false);
+
   // ---- Conta TDEE ao vivo (espelha o backend) ----
   const conta = useMemo(() => {
     const p = parseFloat(peso.replace(",", "."));
@@ -279,6 +287,119 @@ function MontarCardapio() {
   });
 
   const podeSalvar = clientId && itens.some((it) => it.alimentoId) && !algumForaJanela;
+
+  // --- Mutation: emitir PDF ---
+  // NOTE: pdfWin é aberto SINCRONO (antes do fetch) para não ser bloqueado por popup blocker.
+  // O ref persiste entre closure e onSuccess.
+  const pdfWinRef = { current: null as Window | null };
+
+  const emitirPdf = useMutation({
+    mutationFn: async () => {
+      const p = parseFloat(peso.replace(",", "."));
+      const a = parseFloat(altura.replace(",", "."));
+      const i = parseInt(idade, 10);
+      if (!p || !a || !i) throw new Error("Preencha Peso, Altura e Idade antes de emitir.");
+      if (enviarEmail && !clientId) throw new Error("Selecione um cliente para poder enviar por e-mail.");
+
+      // Abre aba em branco AGORA, enquanto ainda há user activation — antes do await longo
+      if (!enviarEmail) {
+        pdfWinRef.current = window.open("about:blank", "_blank");
+      }
+
+      const body: Record<string, unknown> = {
+        sexo,
+        objetivo,
+        pesoKg: p,
+        alturaCm: a,
+        idade: i,
+        nivelAtividade: atividade,
+        enviarEmail,
+      };
+      if (clientId) body.clientId = clientId;
+      if (caloriasAlvo) body.caloriasAlvo = parseFloat(caloriasAlvo.replace(",", "."));
+      if (estiloAlimentar.trim()) body.estiloAlimentar = estiloAlimentar.trim();
+
+      let r: Response;
+      try {
+        r = await fetch("/api/dieta/emitir-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (fetchErr) {
+        pdfWinRef.current?.close();
+        throw fetchErr;
+      }
+
+      if (!r.ok) {
+        pdfWinRef.current?.close();
+        const err = await r.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Falha ao gerar o plano nutricional.");
+      }
+
+      if (!enviarEmail) {
+        // Recebe PDF direto — navega a aba pré-aberta ou usa download anchor como fallback
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        if (pdfWinRef.current && !pdfWinRef.current.closed) {
+          pdfWinRef.current.location.href = url;
+        } else {
+          // Fallback: download programático (não depende de popup)
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = "PlanoNutricional.pdf";
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        return { modo: "download" as const };
+      }
+
+      const json = (await r.json()) as {
+        ok: boolean;
+        nomePaciente?: string;
+        emailDestino?: string;
+        email?: { success: boolean; messageId?: string; error?: string };
+      };
+      return { modo: "email" as const, ...json };
+    },
+    onSuccess: (result) => {
+      if (result.modo === "download") {
+        toast({ title: "PDF gerado!", description: "O plano nutricional foi aberto em nova aba." });
+      } else {
+        const entrega = result.email;
+        if (entrega && entrega.success === false) {
+          toast({
+            title: "PDF gerado, mas e-mail falhou",
+            description: entrega.error ?? "Não foi possível entregar o e-mail ao paciente.",
+            variant: "destructive",
+          });
+        } else if (!result.emailDestino) {
+          toast({
+            title: "PDF gerado",
+            description: "Cliente sem e-mail cadastrado — o plano não foi enviado.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Plano enviado por e-mail!",
+            description: `E-mail enviado para ${result.emailDestino}.`,
+          });
+        }
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Não foi possível emitir", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const podeEmitir =
+    !emitirPdf.isPending &&
+    !!peso.trim() &&
+    !!altura.trim() &&
+    !!idade.trim() &&
+    (!enviarEmail || !!clientId);
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
@@ -555,6 +676,98 @@ function MontarCardapio() {
           >
             {salvar.isPending ? "Salvando…" : "Salvar prescrição"}
           </Button>
+        </div>
+
+        {/* ---- Painel: Emitir Plano Nutricional PDF ---- */}
+        <div className="panel-3d p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" />
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-primary">
+              Emitir Plano Nutricional PDF
+            </h2>
+          </div>
+
+          <p className="text-[12px] text-muted-foreground">
+            Gera um plano alimentar completo via IA (Claude) com cardápio semanal, suplementação e tabela de acompanhamento.
+            Usa os dados antropométricos já preenchidos — confirme antes de emitir.
+          </p>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Calorias alvo (opcional)">
+              <Input
+                value={caloriasAlvo}
+                onChange={(e) => setCaloriasAlvo(e.target.value)}
+                inputMode="decimal"
+                placeholder="Calculado automaticamente"
+                className="field-engraved"
+              />
+            </Field>
+            <Field label="Estilo alimentar (opcional)">
+              <Input
+                value={estiloAlimentar}
+                onChange={(e) => setEstiloAlimentar(e.target.value)}
+                placeholder="Ex.: mediterrânea, low-carb…"
+                className="field-engraved"
+              />
+            </Field>
+          </div>
+
+          {/* Revisão dos parâmetros usados */}
+          <div className="screen-3d px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-black text-foreground">Parâmetros:</span>{" "}
+            {peso ? `${peso} kg` : <span className="text-amber-600 font-bold">peso ausente</span>}
+            {" · "}
+            {altura ? `${altura} cm` : <span className="text-amber-600 font-bold">altura ausente</span>}
+            {" · "}
+            {idade ? `${idade} anos` : <span className="text-amber-600 font-bold">idade ausente</span>}
+            {" · "}{sexo === "M" ? "Masculino" : "Feminino"}
+            {" · "}{atividade}
+            {" · "}{objetivo}
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={enviarEmail}
+              onChange={(e) => setEnviarEmail(e.target.checked)}
+              className="h-4 w-4 rounded border-border accent-primary"
+            />
+            <span className="flex items-center gap-1.5 text-sm text-foreground">
+              <Mail className="h-4 w-4 text-primary" />
+              Enviar por e-mail para o paciente após gerar
+            </span>
+          </label>
+
+          {!emitirPdf.isPending && (!peso.trim() || !altura.trim() || !idade.trim()) && (
+            <p className="text-[11px] text-amber-600 font-bold">
+              Preencha Peso, Altura e Idade na coluna esquerda para habilitar.
+            </p>
+          )}
+          {!emitirPdf.isPending && enviarEmail && !clientId && peso.trim() && altura.trim() && idade.trim() && (
+            <p className="text-[11px] text-amber-600 font-bold">
+              Selecione um cliente para poder enviar o plano por e-mail.
+            </p>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button
+              className="btn-3d"
+              disabled={!podeEmitir}
+              onClick={() => emitirPdf.mutate()}
+            >
+              {emitirPdf.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando plano… (pode levar até 90 s)
+                </>
+              ) : (
+                <>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Gerar e Emitir Plano
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
