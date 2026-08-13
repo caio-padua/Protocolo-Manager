@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -48,6 +48,8 @@ export default function ProtocolDetail() {
   const [reenviarRasLoading, setReenviarRasLoading] = useState(false);
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
   const [cartaPdfLoading, setCartaPdfLoading] = useState(false);
+  const [emitirLoading, setEmitirLoading] = useState(false);
+  const [emitirConfirm, setEmitirConfirm] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
 
@@ -225,6 +227,50 @@ export default function ProtocolDetail() {
                 {documentPdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
                 {documentPdfLoading ? "Gerando..." : "Protocolo Completo (PDF)"}
               </Button>
+              {/* Emitir ao Paciente — ação distinta com efeitos colaterais (Drive + e-mail + cadernos) */}
+              {emitirConfirm ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">Enviar e-mail real ao paciente?</span>
+                  <Button
+                    size="sm"
+                    className="btn-3d h-8 px-3 text-xs"
+                    disabled={emitirLoading}
+                    onClick={async () => {
+                      setEmitirLoading(true);
+                      setEmitirConfirm(false);
+                      try {
+                        const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, { method: "POST" });
+                        const body = await resp.json().catch(() => null);
+                        if (!resp.ok) {
+                          throw new Error(body?.details || body?.error || "Erro ao emitir protocolo");
+                        }
+                        toast({
+                          title: body?.emailSent ? "Protocolo emitido!" : "Protocolo enviado ao Drive",
+                          description: body?.message ?? "Concluído.",
+                        });
+                      } catch (err: any) {
+                        toast({ title: "Erro ao emitir", description: err.message, variant: "destructive" });
+                      } finally {
+                        setEmitirLoading(false);
+                      }
+                    }}
+                  >
+                    {emitirLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirmar"}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="btn-3d-soft h-8 px-3 text-xs" onClick={() => setEmitirConfirm(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  className="btn-3d"
+                  disabled={emitirLoading}
+                  onClick={() => setEmitirConfirm(true)}
+                >
+                  {emitirLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                  {emitirLoading ? "Emitindo..." : "Emitir ao Paciente"}
+                </Button>
+              )}
               <Button
                 className="btn-3d"
                 disabled={cartaPdfLoading}

@@ -393,377 +393,475 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(pdfBuffer);
+    // ── FIM da pré-visualização. Nenhum efeito colateral aqui. ───────────────
+    // Para subir no Drive, enviar e-mail e despachar cadernos jurídicos,
+    // use POST /protocols/:id/emit-document (ação explícita e distinta).
+  } catch (err: any) {
+    console.error("Protocol document PDF error:", err);
+    res.status(500).json({ error: "Erro ao gerar documento do protocolo", details: err.message });
+  }
+});
+
+// ── Emissão oficial com efeitos colaterais ────────────────────────────────────
+// POST /protocols/:id/emit-document
+// Gera o PDF do protocolo + RAS FAP, sobe os dois no Drive, envia e-mail ao
+// paciente e despacha os cadernos jurídicos (idempotente por escopo).
+// Ação DISTINTA e INTENCIONAL — use apenas quando o CEO decidir entregar.
+router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.id);
+  if (isNaN(protocolId)) {
+    res.status(400).json({ error: "Invalid protocol id" });
+    return;
+  }
+
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  if (!client) {
+    res.status(404).json({ error: "Client not found" });
+    return;
+  }
+
+  let professionalName = "Profissional";
+  let professionalCrm: string | null = null;
+  let nurseName: string | undefined;
+  if (protocol.professionalId) {
+    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+    if (prof) {
+      professionalName = prof.name;
+      professionalCrm = prof.crm ?? null;
+    }
+  }
+
+  const allProfs = await db.select().from(professionalsTable);
+  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  if (nurseProf) nurseName = nurseProf.name;
+
+  const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
+  const allSubstances = await db.select().from(substancesTable);
+  const substMap = new Map(allSubstances.map(s => [s.id, s]));
+
+  const substances = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    return {
+      name: sub?.name ?? `Substancia ${item.substanceId}`,
+      dose: item.dose,
+      color: sub?.color ?? "yellow",
+      totalSessions: item.totalSessions,
+      intervalDays: item.intervalDays,
+      startDate: item.startDate,
+      procedureType: sub?.procedureType ?? "iv",
+      categoryType: sub?.categoryType ?? null,
+      unitPrice: item.unitPrice || sub?.pricePerUnit || 0,
+      description: sub?.description ?? undefined,
+      mainFunction: sub?.mainFunction ?? undefined,
+      perceivedEffects: sub?.perceivedEffects ?? undefined,
+      timeToEffect: sub?.timeToEffect ?? undefined,
+      starRating: sub?.starRating ?? undefined,
+      bodySystemEffects: (sub?.bodySystemEffects as Record<string, string>) ?? undefined,
+      contraindications: sub?.contraindications ?? undefined,
+      scientificEvidence: sub?.scientificEvidence ?? undefined,
+      longevityBenefit: sub?.longevityBenefit ?? undefined,
+      qualityOfLifeImpact: sub?.qualityOfLifeImpact ?? undefined,
+      sleepBenefit: sub?.sleepBenefit ?? undefined,
+      energyBenefit: sub?.energyBenefit ?? undefined,
+      libidoBenefit: sub?.libidoBenefit ?? undefined,
+      physicalPerformance: sub?.physicalPerformance ?? undefined,
+      muscleStrength: sub?.muscleStrength ?? undefined,
+      mentalClarity: sub?.mentalClarity ?? undefined,
+      skinHairNails: sub?.skinHairNails ?? undefined,
+      immuneSupport: sub?.immuneSupport ?? undefined,
+      composicao: sub?.composicao ?? undefined,
+      posologia: sub?.posologia ?? undefined,
+      category: sub?.category ?? undefined,
+    };
+  });
+
+  const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
+  sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+
+  const docSessions = [];
+  for (const sess of sessions) {
+    const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
+    const substanceStatuses = apps
+      .filter(a => a.availability === "disp")
+      .map(a => {
+        const sub = substMap.get(a.substanceId);
+        return {
+          substanceName: sub?.name ?? "",
+          sessionNumber: a.sessionNumber,
+          totalSessions: a.totalSessions,
+          status: a.status,
+        };
+      });
+
+    docSessions.push({
+      number: sess.weekNumber,
+      scheduledDate: sess.scheduledDate,
+      status: sess.status,
+      substanceStatuses,
+    });
+  }
+
+  const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.protocolId, protocolId));
+
+  try {
+    // 1. Gerar PDF do protocolo
+    const { pdfBytes } = await generateProtocolDocumentPdf({
+      protocolId: protocol.id,
+      protocolTitle: protocol.title,
+      clientName: client.name,
+      clientCpf: client.cpf,
+      clientEmail: client.email,
+      clientPhone: client.phone ?? undefined,
+      clientBirthDate: client.birthDate ?? undefined,
+      professionalName,
+      professionalCrm,
+      nurseName,
+      unit: protocol.unit ?? "Instituto Pádua",
+      serviceType: protocol.serviceType,
+      startDate: protocol.startDate,
+      endDate: protocol.endDate,
+      totalValue: protocol.totalValue,
+      notes: protocol.notes,
+      substances,
+      sessions: docSessions,
+      payments: payments.map(p => ({
+        amount: p.amount,
+        method: p.method,
+        status: p.status,
+        dueDate: p.dueDate,
+        paidAt: p.paidAt,
+        description: p.description,
+        installments: p.installments,
+        cardLabel: p.cardLabel,
+      })),
+    });
+
+    const pdfBuffer = Buffer.from(pdfBytes);
+
+    const yy = protocol.startDate.slice(2, 4);
+    const mm = protocol.startDate.slice(5, 7);
+    const dd = protocol.startDate.slice(8, 10);
+    const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
 
     const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
 
-    (async () => {
-      try {
-        if (await isDriveConnected()) {
-          const yy = protocol.startDate.slice(2, 4);
-          const mm = protocol.startDate.slice(5, 7);
-          const dd = protocol.startDate.slice(8, 10);
-          const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
+    // 2. Upload Drive (protocolo)
+    if (await isDriveConnected()) {
+      const uploadPromises: Promise<any>[] = [];
 
-          const uploadPromises: Promise<any>[] = [];
+      uploadPromises.push(
+        uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
+          .then(() => console.log(`[emit] Protocol uploaded to shared folder: ${driveFileName}`))
+          .catch(err => console.error("[emit] Shared folder upload error:", err.message))
+      );
 
-          uploadPromises.push(
-            uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
-              .then(() => console.log(`Protocol document uploaded to shared folder: ${driveFileName}`))
-              .catch(err => console.error("Shared folder upload error:", err.message))
-          );
+      uploadPromises.push(
+        ensureClientFolderStructure(client.name, client.cpf)
+          .then(async ({ subfolders }) => {
+            const protocolosFolderId = subfolders["PROTOCOLOS"];
+            if (protocolosFolderId) {
+              const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
+              if (client.email) {
+                await shareWithClient(result.fileId, client.email);
+              }
+              console.log(`[emit] Protocol uploaded to client PROTOCOLOS: ${driveFileName}`);
+            }
+          })
+          .catch(err => console.error("[emit] Client folder upload error:", err.message))
+      );
 
-          uploadPromises.push(
-            ensureClientFolderStructure(client.name, client.cpf)
-              .then(async ({ subfolders }) => {
-                const protocolosFolderId = subfolders["PROTOCOLOS"];
-                if (protocolosFolderId) {
-                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
-                  if (client.email) {
-                    await shareWithClient(result.fileId, client.email);
-                  }
-                  console.log(`Protocol document uploaded to client PROTOCOLOS: ${driveFileName}`);
-                }
-              })
-              .catch(err => console.error("Client folder upload error:", err.message))
-          );
+      await Promise.all(uploadPromises);
+    }
 
-          await Promise.all(uploadPromises);
-        }
-      } catch (err: any) {
-        console.error("Protocol document Drive upload error:", err.message);
+    // 3. Gerar RAS FAP + upload Drive
+    let rasFapBuffer: Buffer | undefined;
+    const rasFapFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+    try {
+      const physicalSessions = docSessions.map(sess => ({
+        number: sess.number,
+        scheduledDate: sess.scheduledDate,
+        effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
+        nurseName: null as string | null,
+        substanceStatuses: sess.substanceStatuses,
+      }));
+
+      let clientAge: number | undefined;
+      if (client.birthDate) {
+        const birth = new Date(client.birthDate);
+        const now = new Date();
+        clientAge = now.getFullYear() - birth.getFullYear();
+        if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
       }
 
-      // === RAS FAP PREMIUM: gerar + salvar no Drive ===
-      let rasFapBuffer: Buffer | undefined;
-      let rasFapFileName: string | undefined;
+      const rasFapBytes = await generatePhysicalRASPdf({
+        clientName: client.name,
+        clientCpf: client.cpf ?? "000.000.000-00",
+        clientPhone: client.phone ?? "",
+        clientAge,
+        professionalName,
+        nurseName,
+        unit: protocol.unit ?? "Instituto Padua",
+        startDate: protocol.startDate,
+        protocolNumber: `FAP-${yy}${mm}${dd}-${protocol.id}`,
+        valorTratamento: protocol.totalValue
+          ? `R$ ${Number(protocol.totalValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+          : undefined,
+        substances: substances.map(s => ({
+          name: s.name,
+          color: s.color,
+          totalSessions: s.totalSessions,
+          frequencyDays: s.intervalDays ?? 7,
+          startDate: s.startDate ?? protocol.startDate,
+          procedureType: s.procedureType as "iv" | "im" | "sc" | "implant",
+          dose: s.dose,
+        })),
+        sessions: physicalSessions,
+      }, "PREMIUM");
+      rasFapBuffer = Buffer.from(rasFapBytes);
+      console.log(`[emit] RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
+
+      if (await isDriveConnected()) {
+        const rasFapPromises: Promise<any>[] = [];
+        rasFapPromises.push(
+          uploadToFolderById(SHARED_RAS_FOLDER_ID, rasFapFileName, "application/pdf", rasFapBuffer)
+            .then(() => console.log(`[emit] RAS FAP uploaded to shared folder: ${rasFapFileName}`))
+            .catch(err => console.error("[emit] RAS FAP shared folder upload error:", err.message))
+        );
+        rasFapPromises.push(
+          ensureClientFolderStructure(client.name, client.cpf ?? "")
+            .then(async ({ subfolders }) => {
+              const protocolosFolderId = subfolders["PROTOCOLOS"];
+              if (protocolosFolderId && rasFapBuffer) {
+                const result = await uploadFileToDrive(protocolosFolderId, rasFapFileName, "application/pdf", rasFapBuffer);
+                if (client.email) {
+                  await shareWithClient(result.fileId, client.email);
+                }
+                console.log(`[emit] RAS FAP uploaded to client PROTOCOLOS: ${rasFapFileName}`);
+              }
+            })
+            .catch(err => console.error("[emit] RAS FAP client folder upload error:", err.message))
+        );
+        await Promise.all(rasFapPromises);
+      }
+    } catch (rasFapErr: any) {
+      console.error("[emit] RAS FAP generation error:", rasFapErr.message);
+      await notifySlackRasFapFailure(
+        "drive",
+        client.name,
+        protocol.id,
+        protocol.title,
+        rasFapErr.message,
+        process.env.PADAXOR_SLACK_CHANNEL_ID,
+      );
+    }
+
+    // 4. E-mail ao paciente
+    let emailSent = false;
+    let emailError: string | undefined;
+    if (client.email && await isGmailConnected()) {
       try {
-        // Monta sessoes no formato esperado pelo motor do RAS FAP.
-        const physicalSessions = docSessions.map(sess => ({
-          number: sess.number,
-          scheduledDate: sess.scheduledDate,
-          effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
-          nurseName: null as string | null,
-          substanceStatuses: sess.substanceStatuses,
-        }));
-
-        // Calcula idade do cliente.
-        let clientAge: number | undefined;
-        if (client.birthDate) {
-          const birth = new Date(client.birthDate);
-          const now = new Date();
-          clientAge = now.getFullYear() - birth.getFullYear();
-          if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
-        }
-
-        const rasFapBytes = await generatePhysicalRASPdf({
+        const emailResult = await sendProtocolEmail({
           clientName: client.name,
-          clientCpf: client.cpf ?? "",
-          clientPhone: client.phone ?? undefined,
-          clientAge,
+          clientEmail: client.email,
+          protocolTitle: protocol.title,
           professionalName,
-          nurseName: nurseName || undefined,
-          unit: protocol.unit ?? "Instituto Pádua",
           startDate: protocol.startDate,
-          protocolNumber: protocol.id,
-          valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           substances: substances.map(s => ({
             name: s.name,
             color: s.color,
             totalSessions: s.totalSessions,
-            frequencyDays: s.intervalDays,
-            startDate: s.startDate,
-            procedureType: s.procedureType,
-            dose: s.dose,
           })),
-          sessions: physicalSessions,
+          pdfBuffer,
+          pdfFileName: driveFileName,
+          rasFapBuffer,
+          rasFapFileName,
         });
+        emailSent = emailResult.success;
+        emailError = emailResult.error;
 
-        rasFapBuffer = Buffer.from(rasFapBytes);
-        rasFapFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
+        if (emailResult.success) {
+          console.log(`[emit] E-mail enviado a ${client.email}${rasFapBuffer ? " (+ RAS FAP)" : ""}`);
 
-        // Salvar RAS FAP no Drive (pasta compartilhada + pasta PROTOCOLOS do cliente).
-        if (await isDriveConnected()) {
-          const rasFapPromises: Promise<any>[] = [];
+          // 5. Cadernos Jurídicos (idempotente por escopo)
+          if (!rasFapBuffer) {
+            console.warn(`[emit] Cadernos jurídicos não despachados: RAS FAP ausente para paciente ${client.id}`);
+          } else try {
+            const escopoEntrega = `RAS_FAP_ENTREGA:${protocolId}`;
 
-          rasFapPromises.push(
-            uploadToFolderById(SHARED_RAS_FOLDER_ID, rasFapFileName, "application/pdf", rasFapBuffer)
-              .then(() => console.log(`RAS FAP uploaded to shared folder: ${rasFapFileName}`))
-              .catch(err => console.error("RAS FAP shared folder upload error:", err.message))
-          );
-
-          rasFapPromises.push(
-            ensureClientFolderStructure(client.name, client.cpf ?? "")
-              .then(async ({ subfolders }) => {
-                const protocolosFolderId = subfolders["PROTOCOLOS"];
-                if (protocolosFolderId && rasFapBuffer && rasFapFileName) {
-                  const result = await uploadFileToDrive(protocolosFolderId, rasFapFileName, "application/pdf", rasFapBuffer);
-                  if (client.email) {
-                    await shareWithClient(result.fileId, client.email);
-                  }
-                  console.log(`RAS FAP uploaded to client PROTOCOLOS: ${rasFapFileName}`);
-                }
-              })
-              .catch(err => console.error("RAS FAP client folder upload error:", err.message))
-          );
-
-          await Promise.all(rasFapPromises);
-        }
-      } catch (err: any) {
-        console.error("RAS FAP auto-generation error (non-blocking):", err.message);
-        await notifySlackRasFapFailure(
-          "drive",
-          client.name,
-          protocol.id,
-          protocol.title,
-          err.message,
-          process.env.PADAXOR_SLACK_CHANNEL_ID,
-        );
-      }
-
-      try {
-        if (client.email && await isGmailConnected()) {
-          const yy = protocol.startDate.slice(2, 4);
-          const mm = protocol.startDate.slice(5, 7);
-          const dd = protocol.startDate.slice(8, 10);
-          const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
-          const rasFapFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-          // Gera o RAS FAP PDF para incluir como segundo anexo no mesmo e-mail
-          let rasFapBuffer: Buffer | undefined;
-          try {
-            const rasFapBytes = await generatePhysicalRASPdf({
-              clientName: client.name,
-              clientCpf: client.cpf ?? "000.000.000-00",
-              clientPhone: client.phone ?? "",
-              clientAge: client.birthDate
-                ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
-                : undefined,
-              professionalName,
-              nurseName,
-              unit: protocol.unit ?? "Instituto Padua",
-              startDate: protocol.startDate,
-              protocolNumber: `FAP-${yy}${mm}${dd}-${protocol.id}`,
-              valorTratamento: protocol.totalValue
-                ? `R$ ${Number(protocol.totalValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                : undefined,
-              substances: substances.map(s => ({
-                name: s.name,
-                color: s.color,
-                totalSessions: s.totalSessions,
-                frequencyDays: s.intervalDays ?? 7,
-                startDate: s.startDate ?? protocol.startDate,
-                procedureType: s.procedureType as "iv" | "im" | "sc" | "implant",
-                dose: s.dose,
+            const { codigos: codigosRequeridos } = resolverCodigosCadernos(
+              substances.map(s => ({
+                nome: s.name,
+                procedureType: s.procedureType,
+                categoryType: s.categoryType,
               })),
-              sessions: [],
-            }, "PREMIUM");
-            rasFapBuffer = Buffer.from(rasFapBytes);
-            console.log(`RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
-          } catch (rasFapErr: any) {
-            console.error("RAS FAP generation error (email seguirá sem ele):", rasFapErr.message);
-            await notifySlackRasFapFailure(
-              "email",
-              client.name,
-              protocol.id,
-              protocol.title,
-              rasFapErr.message,
-              process.env.PADAXOR_SLACK_CHANNEL_ID,
             );
-          }
 
-          const emailResult = await sendProtocolEmail({
-            clientName: client.name,
-            clientEmail: client.email,
-            protocolTitle: protocol.title,
-            professionalName,
-            startDate: protocol.startDate,
-            substances: substances.map(s => ({
-              name: s.name,
-              color: s.color,
-              totalSessions: s.totalSessions,
-            })),
-            pdfBuffer,
-            pdfFileName: driveFileName,
-            rasFapBuffer,
-            rasFapFileName,
-          });
-          if (emailResult.success) {
-            console.log(`Protocol document email sent to ${client.email}${rasFapBuffer ? " (+ RAS FAP)" : ""}`);
-
-            // ── Cadernos Jurídicos na primeira entrega (idempotente por código) ──
-            // Gateado em: (a) sucesso do e-mail E (b) presença do RAS FAP em anexo.
-            // Se o RAS FAP não foi gerado, o paciente não recebeu o RAS — não despacha.
-            // Escopo inclui protocolId para distinguir entregas de protocolos distintos
-            // para o mesmo paciente. externalId determinístico impede duplicatas no ZapSign.
-            if (!rasFapBuffer) {
-              console.warn(`Cadernos jurídicos não despachados: RAS FAP ausente do e-mail para paciente ${client.id}`);
-            } else try {
-              const escopoEntrega = `RAS_FAP_ENTREGA:${protocolId}`;
-
-              const { codigos: codigosRequeridos } = resolverCodigosCadernos(
-                substances.map(s => ({
-                  nome: s.name,
-                  procedureType: s.procedureType,
-                  categoryType: s.categoryType,
-                })),
+            const jaEnviados = await db
+              .select({ codigo: assinaturaTemplatesTable.codigo })
+              .from(assinaturaSolicitacoesTable)
+              .innerJoin(
+                assinaturaTemplatesTable,
+                eq(assinaturaSolicitacoesTable.templateId, assinaturaTemplatesTable.id),
+              )
+              .where(
+                and(
+                  eq(assinaturaSolicitacoesTable.pacienteId, client.id),
+                  eq(assinaturaSolicitacoesTable.escopo, escopoEntrega),
+                  inArray(assinaturaSolicitacoesTable.status as any, ["ENVIADO", "CONCLUIDO"] as any),
+                ),
               );
+            const codigosJaEnviados = new Set(jaEnviados.map(r => r.codigo));
+            const codigosFaltantes = [...codigosRequeridos].filter(c => !codigosJaEnviados.has(c));
 
-              const jaEnviados = await db
-                .select({ codigo: assinaturaTemplatesTable.codigo })
-                .from(assinaturaSolicitacoesTable)
-                .innerJoin(
-                  assinaturaTemplatesTable,
-                  eq(assinaturaSolicitacoesTable.templateId, assinaturaTemplatesTable.id),
-                )
+            if (codigosFaltantes.length === 0) {
+              console.log(`[emit] Cadernos jurídicos: todos já enviados para paciente ${client.id}`);
+            } else {
+              const templates = await db
+                .select({
+                  id: assinaturaTemplatesTable.id,
+                  codigo: assinaturaTemplatesTable.codigo,
+                  titulo: assinaturaTemplatesTable.titulo,
+                  tipoDoc: assinaturaTemplatesTable.tipoDoc,
+                })
+                .from(assinaturaTemplatesTable)
                 .where(
                   and(
-                    eq(assinaturaSolicitacoesTable.pacienteId, client.id),
-                    eq(assinaturaSolicitacoesTable.escopo, escopoEntrega),
-                    inArray(assinaturaSolicitacoesTable.status as any, ["ENVIADO", "CONCLUIDO"] as any),
+                    inArray(assinaturaTemplatesTable.codigo, codigosFaltantes),
+                    eq(assinaturaTemplatesTable.ativo, true),
                   ),
                 );
-              const codigosJaEnviados = new Set(jaEnviados.map(r => r.codigo));
-              const codigosFaltantes = [...codigosRequeridos].filter(c => !codigosJaEnviados.has(c));
 
-              if (codigosFaltantes.length === 0) {
-                console.log(`Cadernos jurídicos: todos já enviados para paciente ${client.id}`);
-              } else {
-                const templates = await db
-                  .select({
-                    id: assinaturaTemplatesTable.id,
-                    codigo: assinaturaTemplatesTable.codigo,
-                    titulo: assinaturaTemplatesTable.titulo,
-                    tipoDoc: assinaturaTemplatesTable.tipoDoc,
-                  })
-                  .from(assinaturaTemplatesTable)
-                  .where(
-                    and(
-                      inArray(assinaturaTemplatesTable.codigo, codigosFaltantes),
-                      eq(assinaturaTemplatesTable.ativo, true),
-                    ),
-                  );
+              if (templates.length > 0) {
+                const clientBirthDateFmt = client.birthDate
+                  ? new Date(client.birthDate + "T12:00:00").toLocaleDateString("pt-BR")
+                  : "";
+                const startDateFmt = protocol.startDate
+                  ? new Date(protocol.startDate + "T12:00:00").toLocaleDateString("pt-BR")
+                  : "";
+                const maxSessoes = substances.reduce((m, s) => Math.max(m, s.totalSessions), 0);
+                const viasUnicas = [...new Set(substances.map(s => {
+                  const viaLabel: Record<string, string> = { iv: "Endovenosa (IV)", im: "Intramuscular (IM)", implant: "Implante Subcutâneo", sc: "Subcutânea (SC)" };
+                  return viaLabel[s.procedureType] ?? s.procedureType;
+                }))].join(", ");
+                const viaMapHid: Record<string, string> = {
+                  iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
+                  implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
+                };
+                const substanciasTable =
+                  `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11px">` +
+                  `<thead><tr style="background:#f0f4f2">` +
+                  `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Substância</th>` +
+                  `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Dose</th>` +
+                  `<th style="text-align:center;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Sessões</th>` +
+                  `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Frequência</th>` +
+                  `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Via</th>` +
+                  `</tr></thead><tbody>` +
+                  substances.map((s, idx) =>
+                    `<tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f7faf8"}">` +
+                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9"><strong>${s.name}</strong></td>` +
+                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose.replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim()}</td>` +
+                    `<td style="text-align:center;padding:5px 10px;border-bottom:1px solid #e8ede9">${s.totalSessions}</td>` +
+                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : "dose única"}</td>` +
+                    `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${viaMapHid[s.procedureType] ?? s.procedureType.toUpperCase()}</td>` +
+                    `</tr>`
+                  ).join("") +
+                  `</tbody></table>`;
 
-                if (templates.length === 0) {
-                  console.warn(`Cadernos jurídicos: nenhum template ativo para [${codigosFaltantes.join(",")}] — execute /api/cadernos-juridicos/seed`);
-                } else {
-                  const clientBirthDateFmt = client.birthDate
-                    ? new Date(client.birthDate + "T12:00:00").toLocaleDateString("pt-BR")
-                    : "";
-                  const startDateFmt = protocol.startDate
-                    ? new Date(protocol.startDate + "T12:00:00").toLocaleDateString("pt-BR")
-                    : "";
-                  const maxSessoes = substances.reduce((m, s) => Math.max(m, s.totalSessions), 0);
-                  const viasUnicas = [...new Set(substances.map(s => {
-                    const viaLabel: Record<string, string> = { iv: "Endovenosa (IV)", im: "Intramuscular (IM)", implant: "Implante Subcutâneo", sc: "Subcutânea (SC)" };
-                    return viaLabel[s.procedureType] ?? s.procedureType;
-                  }))].join(", ");
-                  // Tabela HTML enriquecida: substância ↓ dose ↓ sessões ↓ frequência ↓ via
-                  // Usada em {{protocolo.substancias}} nos cadernos jurídicos via ZapSign.
-                  const viaMapHid: Record<string, string> = {
-                    iv: "Endovenosa (IV)", im: "Intramuscular (IM)",
-                    implant: "Implante Subcutâneo", sc: "Subcutânea (SC)",
-                  };
-                  const substanciasTable =
-                    `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11px">` +
-                    `<thead><tr style="background:#f0f4f2">` +
-                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Substância</th>` +
-                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Dose</th>` +
-                    `<th style="text-align:center;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Sessões</th>` +
-                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Frequência</th>` +
-                    `<th style="text-align:left;padding:5px 10px;border-bottom:1.5px solid #c8d0cc">Via</th>` +
-                    `</tr></thead><tbody>` +
-                    substances.map((s, idx) =>
-                      `<tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f7faf8"}">` +
-                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9"><strong>${s.name}</strong></td>` +
-                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.dose.replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim()}</td>` +
-                      `<td style="text-align:center;padding:5px 10px;border-bottom:1px solid #e8ede9">${s.totalSessions}</td>` +
-                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : "dose única"}</td>` +
-                      `<td style="padding:5px 10px;border-bottom:1px solid #e8ede9">${viaMapHid[s.procedureType] ?? s.procedureType.toUpperCase()}</td>` +
-                      `</tr>`
-                    ).join("") +
-                    `</tbody></table>`;
-                  const substanciasList = substanciasTable;
+                const hidratacao: Record<string, string> = {
+                  "cliente.nome":           client.name,
+                  "cliente.cpf":            client.cpf ?? "",
+                  "cliente.dataNascimento": clientBirthDateFmt,
+                  "cliente.email":          client.email ?? "",
+                  "cliente.telefone":       client.phone ?? "",
+                  "data.hoje":              new Date().toLocaleDateString("pt-BR"),
+                  "medico.nome":            professionalName,
+                  "medico.crm":             professionalCrm ?? "XXXXX",
+                  "medico.uf":              "SP",
+                  "clinica.nome":           protocol.unit ?? "Clínica Tatuapé — Padcon Conect",
+                  "clinica.endereco":       "São Paulo — SP",
+                  "clinica.email":          "contato@padconconect.com.br",
+                  "protocolo.titulo":       protocol.title,
+                  "protocolo.substancias":  substanciasTable,
+                  "protocolo.vias":         viasUnicas,
+                  "protocolo.dataInicio":   startDateFmt,
+                  "protocolo.totalSessoes": String(maxSessoes),
+                  "protocolo.sessoes":      String(maxSessoes),
+                  "protocolo.valorTotal":   protocol.totalValue
+                    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
+                    : "",
+                  "protocolo.valor":        protocol.totalValue
+                    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
+                    : "",
+                  "pagamento.metodo":       "PIX",
+                  "pagamento.parcelas":     "1",
+                };
 
-                  const hidratacao: Record<string, string> = {
-                    "cliente.nome":           client.name,
-                    "cliente.cpf":            client.cpf ?? "",
-                    "cliente.dataNascimento": clientBirthDateFmt,
-                    "cliente.email":          client.email ?? "",
-                    "cliente.telefone":       client.phone ?? "",
-                    "data.hoje":              new Date().toLocaleDateString("pt-BR"),
-                    "medico.nome":            professionalName,
-                    "medico.crm":             professionalCrm ?? "XXXXX",
-                    "medico.uf":              "SP",
-                    "clinica.nome":           protocol.unit ?? "Clínica Tatuapé — Padcon Conect",
-                    "clinica.endereco":       "São Paulo — SP",
-                    "clinica.email":          "contato@padconconect.com.br",
-                    "protocolo.titulo":       protocol.title,
-                    "protocolo.substancias":  substanciasList,
-                    "protocolo.vias":         viasUnicas,
-                    "protocolo.dataInicio":   startDateFmt,
-                    "protocolo.totalSessoes": String(maxSessoes),
-                    "protocolo.sessoes":      String(maxSessoes),
-                    "protocolo.valorTotal":   protocol.totalValue
-                      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
-                      : "",
-                    "protocolo.valor":        protocol.totalValue
-                      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(protocol.totalValue))
-                      : "",
-                    "pagamento.metodo":       "PIX",
-                    "pagamento.parcelas":     "1",
-                  };
-
-                  for (const tpl of templates) {
-                    try {
-                      // externalId determinístico: impede envelope duplicado no ZapSign
-                      // mesmo em retries concorrentes para o mesmo paciente+protocolo+caderno.
-                      await enviarAssinatura({
-                        pacienteId: client.id,
-                        templateCodigo: tpl.codigo,
-                        tipoDoc: tpl.tipoDoc as "TCLE" | "TERMO" | "RAS" | "OUTRO",
-                        titulo: tpl.titulo,
-                        escopo: escopoEntrega,
-                        externalId: `ras-fap-${client.id}-${protocolId}-${tpl.codigo}`,
-                        canais: ["EMAIL"],
-                        dados: hidratacao,
-                        incluirMedico: true,
-                      });
-                      console.log(`Caderno ${tpl.codigo} despachado para paciente ${client.id}`);
-                    } catch (cErr: any) {
-                      console.error(`Caderno ${tpl.codigo} falhou para paciente ${client.id}: ${cErr.message}`);
-                    }
+                for (const tpl of templates) {
+                  try {
+                    await enviarAssinatura({
+                      pacienteId: client.id,
+                      templateCodigo: tpl.codigo,
+                      tipoDoc: tpl.tipoDoc as "TCLE" | "TERMO" | "RAS" | "OUTRO",
+                      titulo: tpl.titulo,
+                      escopo: escopoEntrega,
+                      externalId: `ras-fap-${client.id}-${protocolId}-${tpl.codigo}`,
+                      canais: ["EMAIL"],
+                      dados: hidratacao,
+                      incluirMedico: true,
+                    });
+                    console.log(`[emit] Caderno ${tpl.codigo} despachado para paciente ${client.id}`);
+                  } catch (cErr: any) {
+                    console.error(`[emit] Caderno ${tpl.codigo} falhou para paciente ${client.id}: ${cErr.message}`);
                   }
                 }
+              } else {
+                console.warn(`[emit] Cadernos jurídicos: nenhum template ativo para [${codigosFaltantes.join(",")}]`);
               }
-            } catch (cadernosErr: any) {
-              console.error(`Cadernos jurídicos erro geral: ${cadernosErr.message}`);
             }
-            // ── fim cadernos ─────────────────────────────────────────────────────
-          } else {
-            console.error("Protocol document email failed:", emailResult.error);
-            const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
-            if (slackChannel) {
-              postSlackAlert(
-                slackChannel,
-                `🚨 *E-mail do protocolo não entregue* ao paciente *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email}\nMotivo: ${emailResult.error ?? "desconhecido"}`,
-              ).catch(() => {});
-            }
+          } catch (cadernosErr: any) {
+            console.error(`[emit] Cadernos jurídicos erro geral: ${cadernosErr.message}`);
+          }
+        } else {
+          console.error("[emit] E-mail falhou:", emailResult.error);
+          const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+          if (slackChannel) {
+            postSlackAlert(
+              slackChannel,
+              `🚨 *E-mail do protocolo não entregue* ao paciente *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email}\nMotivo: ${emailResult.error ?? "desconhecido"}`,
+            ).catch(() => {});
           }
         }
-      } catch (err: any) {
-        console.error("Protocol document email error:", err.message);
+      } catch (mailErr: any) {
+        emailError = mailErr.message;
+        console.error("[emit] Erro ao enviar e-mail:", mailErr.message);
         const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
         if (slackChannel) {
           postSlackAlert(
             slackChannel,
-            `🚨 *Falha ao tentar enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id} — ${protocol.title}).\nE-mail destino: ${client.email ?? "não informado"}\nErro inesperado: ${err.message}`,
+            `🚨 *Falha ao enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id}).\nErro: ${mailErr.message}`,
           ).catch(() => {});
         }
       }
-    })();
+    }
+
+    res.json({
+      ok: true,
+      emailSent,
+      emailError: emailError ?? null,
+      driveUploaded: await isDriveConnected(),
+      message: emailSent
+        ? `Protocolo emitido e e-mail enviado a ${client.email}.`
+        : `Protocolo gerado e subido no Drive. E-mail não enviado${emailError ? ": " + emailError : " (Gmail não conectado ou paciente sem e-mail)"}.`,
+    });
   } catch (err: any) {
-    console.error("Protocol document PDF error:", err);
-    res.status(500).json({ error: "Erro ao gerar documento do protocolo", details: err.message });
+    console.error("[emit] Erro geral:", err);
+    res.status(500).json({ error: "Erro ao emitir documento do protocolo", details: err.message });
   }
 });
 
