@@ -1984,26 +1984,47 @@ function drawPremiumCover(
   // Assinatura discreta de engenharia: o paciente não precisa notar; o médico que
   // examinar de perto, sim. Por isso é pequena e encostada no canto, nunca compete
   // com o lockup PADAXOR do centro da capa.
+  //
+  // Composição:  [hexágono] | [PADCON + Platform®]
+  //                           "Advanced Systems Architecture"   ← texto branco
+  //
+  // A frase em inglês NÃO vem embutida na arte. Em tamanho de assinatura ela vira
+  // um borrão ilegível em ouro sobre navy; por isso é desenhada como texto de
+  // verdade, em branco, que contrasta com o fundo e sobrevive ao zoom.
   {
-    const grpH   = 28; // altura do grupo inteiro (discreto, ~18% da largura da página)
-    const gap    = 5;  // espaço entre símbolo e palavras
-    const INSET  = 34; // recuo das bordas direita/inferior — menor que MARGIN, encosta no canto
+    const INSET   = 34;  // recuo das bordas direita/inferior — encosta no canto
+    const symH    = 34;  // altura do hexágono
+    const wrdH    = 21;  // altura de PADCON + Platform®
+    const gap     = 5;   // respiro horizontal entre símbolo e palavras
+    const tagSize = 6.5; // frase em inglês — dimensionada para ler, não para enfeitar
+    const tagGap  = 4;   // respiro entre a frase e a linha acima
 
-    const symH  = padconSymbol ? grpH : 0;
-    const symW  = padconSymbol ? symH * (padconSymbol.width  / padconSymbol.height)  : 0;
-    const wrdH  = padconWords  ? grpH : 0;
-    const wrdW  = padconWords  ? wrdH * (padconWords.width   / padconWords.height)   : 0;
+    const symW = padconSymbol ? symH * (padconSymbol.width / padconSymbol.height) : 0;
+    const wrdW = padconWords  ? wrdH * (padconWords.width  / padconWords.height)  : 0;
 
-    const totalW = symW + (padconSymbol && padconWords ? gap : 0) + wrdW;
-    const grpX   = PAGE_W - INSET - totalW;
-    const grpY   = 28; // base do grupo; rodapé em y=22 fica abaixo
+    const rowW = symW + (padconSymbol && padconWords ? gap : 0) + wrdW;
+    const tag  = "Advanced Systems Architecture";
+    const tagW = pf.manReg.widthOfTextAtSize(tag, tagSize);
+
+    const rightX = PAGE_W - INSET;         // borda direita comum a todos os elementos
+    const tagY   = 30;                     // base da frase; rodapé em y=22 fica abaixo
+    const rowY   = tagY + tagSize + tagGap; // base da linha símbolo+palavras
+    const rowX   = rightX - rowW;
 
     try {
       if (padconSymbol && symW > 0)
-        pg.drawImage(padconSymbol, { x: grpX, y: grpY, width: symW, height: symH });
+        pg.drawImage(padconSymbol, { x: rowX, y: rowY, width: symW, height: symH });
       if (padconWords && wrdW > 0)
-        pg.drawImage(padconWords,  { x: grpX + symW + gap, y: grpY, width: wrdW, height: wrdH });
+        // palavras centradas verticalmente contra o hexágono
+        pg.drawImage(padconWords, {
+          x: rowX + symW + gap,
+          y: rowY + (symH - wrdH) / 2,
+          width: wrdW,
+          height: wrdH,
+        });
     } catch { /* best-effort — capa nunca falha por ausência de logo */ }
+
+    pg.drawText(tag, { x: rightX - tagW, y: tagY, size: tagSize, font: pf.manReg, color: WHITE });
   }
 
   const footTxt = "Documento clinico individual — PADAXOR Clinical Intelligence System — tecnologia PADCON — Pagina 1";

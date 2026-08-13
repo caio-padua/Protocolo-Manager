@@ -26,3 +26,27 @@ com o nome. Listar por data, abrir a arte oficial mais recente, e conferir visua
 que a forma bate. Arte oficial vinda de `attached_assets/` normalmente **não tem alfa**
 (fundo branco sólido) — extrair com `-fuzz 12% -transparent white -trim +repage` e
 validar sobre magenta antes de embutir.
+
+## Nunca chutar coordenadas de `-crop`: medir o perfil de conteúdo
+
+Estimar o recorte "no olho" a partir da imagem exibida decepa parte da arte em silêncio
+(`-trim` depois apara o vazio e o resultado *parece* íntegro). Medir as faixas com
+conteúdo opaco antes de recortar:
+
+```bash
+magick arte.png -fuzz 12% -transparent white -alpha extract -threshold 20% \
+  -scale 1x70! -depth 8 txt: | awk -F'[,:() ]+' 'NR>1{print $2, $4}'
+```
+
+Linhas com valor 0 são os vãos entre elementos; é ali que o `-crop` pode cortar.
+
+**Why:** um hexágono foi entregue decepado ao CEO porque o crop parou 95 px antes do
+fim da figura, e o `-trim` posterior deixou a arte com aparência plausível.
+
+## Frase-assinatura ilegível: tirar da imagem e desenhar como texto
+
+Tagline embutida em raster (ex.: "Advanced Systems Architecture" dentro do PNG do
+wordmark) vira borrão quando o lockup é reduzido para assinatura de rodapé. Recortar a
+arte só até a última linha legível e desenhar a tagline com `drawText` em cor de alto
+contraste (branco sobre navy), dimensionada para ler.
+
