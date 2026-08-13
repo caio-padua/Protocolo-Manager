@@ -7,6 +7,8 @@ import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
+import { runSeedDieta } from "./lib/seed-dieta";
+import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -43,6 +45,26 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureTelegramInboxTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela telegram_inbox_messages — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureDietaReceitasSchema();
+    logger.info("dieta_receitas + colunas de preço do catálogo: schema pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar schema de receitas/preços da Dieta — abortando boot");
+    process.exit(1);
+  }
+
+  // Semeado (aguardado, não fire-and-forget): protocolos/catálogo/receitas
+  // precisam existir ANTES do listen, senão a primeira visita às telas novas
+  // de Dieta recebe lista vazia e o React Query trata como resultado final
+  // (só corrige com refresh manual). Mesmo tratamento crítico do schema acima.
+  try {
+    const r = await runSeedDieta((m) => logger.info({ seed: "dieta" }, m));
+    logger.info({ seed: "dieta", ...r }, "Tipos de dieta, catálogo e receitas semeados antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao semear tipos de dieta/receitas — abortando boot");
     process.exit(1);
   }
 

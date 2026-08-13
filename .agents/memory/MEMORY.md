@@ -138,3 +138,9 @@
 - [Carta de Tratamento Premium PDF (Item #88)](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [Git push/fetch — fallback de autenticação HTTPS](git-http-auth-fallback.md) — "Invalid username or token" no painel/terminal; checar divergência+working tree antes de credencial; GITHUB_PAT via http.extraHeader destrava só o terminal, não o painel.
 - [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.
+- ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro nome.
+- [unidadeCompraEquivalenteG — dual propósito](unidade-compra-equivalente-g.md) — 1 campo cobre conversão de embalagem E rendimento de cocção, na mesma base que kcal100g já usa; robô de preços deve preencher assim.
+- [drizzle-kit push pode propor DROP destrutivo por drift](drizzle-push-drift-destrutivo.md) — drift preexistente faz push de mudança aditiva pequena arrastar DROP de colunas com dados reais; preferir SQL bruto.
+- [tsc --build ignora .ts editado sem rebuild da lib](tsc-build-dist-projeto-referencias.md) — project references resolvem contra dist/ compilado; rodar `typecheck:libs` após mudar lib/db/src/schema antes de typecheckar consumidores.
+- [Select controlado nasce com "", nunca undefined](radix-select-value-undefined-controlled.md) — `value={id?String(id):undefined}` dispara warning uncontrolled→controlled; usar "" como sentinela desde o primeiro render.
+- [Rebase "limpo" pode esconder conflito semântico](rebase-limpo-conflito-semantico.md) — sem marcadores de conflito ≠ sem bug; sempre buildar/bootar após continueMergeResolution antes de markTaskComplete.

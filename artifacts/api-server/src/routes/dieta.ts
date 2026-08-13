@@ -6,10 +6,15 @@ import {
   dietaPrescricaoTable,
   dietaPrescricaoItemTable,
   dietaIndicacaoTable,
+  dietaReceitasTable,
+  dietaReceitaIngredientesTable,
+  dietaReceitaProtocolosTable,
+  UNIDADES_COMPRA,
+  CATEGORIAS_COMPRA,
   clientsTable,
   professionalsTable,
 } from "@workspace/db";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   calcularTdee,
@@ -24,6 +29,40 @@ import { computeMotor, type RespostaMotor } from "../lib/motor-anamnese";
 // ============================================================================
 
 const router: IRouter = Router();
+
+// Unidades de compra consideradas "discretas" (nao se compra fracao na pratica)
+// — a lista de compras arredonda ESSAS para cima; as demais (kg, g, l, ml,
+// continuas) mantem 2 casas decimais.
+const UNIDADES_DISCRETAS = new Set<string>(["dz", "un", "maco", "pacote"]);
+
+// Gera um slug ASCII estavel a partir do nome (ex.: "Low Carb" -> "low_carb").
+// A tela NUNCA pede pro CEO digitar `codigo` — ele so existe para permitir
+// seeds idempotentes; aqui garantimos que a criacao manual tambem funcione.
+function slugify(nome: string): string {
+  const base = nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  return base || "item";
+}
+
+// Deriva um `codigo` unico a partir do nome, tentando sufixos _2, _3... se
+// colidir. `existsFn` consulta a tabela certa (protocolos ou receitas).
+async function generateUniqueCodigo(
+  nome: string,
+  existsFn: (codigo: string) => Promise<boolean>,
+): Promise<string> {
+  const base = slugify(nome);
+  let candidato = base;
+  for (let tentativa = 2; tentativa <= 50; tentativa++) {
+    if (!(await existsFn(candidato))) return candidato;
+    candidato = `${base}_${tentativa}`;
+  }
+  return `${base}_${Date.now()}`;
+}
 
 // ---------------------------------------------------------------------------
 // 1) CATALOGO — a despensa de alimentos.
@@ -50,6 +89,11 @@ const AlimentoSchema = z.object({
   fibraG100g: z.number().optional().nullable(),
   indiceGlicemico: z.number().int().optional().nullable(),
   observacao: z.string().optional().nullable(),
+  // ---- Lista de compras (Task 234) ----
+  precoMedio: z.number().min(0).optional().nullable(),
+  unidadeCompra: z.enum(UNIDADES_COMPRA).optional().nullable(),
+  unidadeCompraEquivalenteG: z.number().min(0).optional().nullable(),
+  categoriaCompra: z.enum(CATEGORIAS_COMPRA).optional().nullable(),
 });
 
 router.post("/dieta/catalogo/alimentos", async (req, res): Promise<void> => {
@@ -65,6 +109,33 @@ router.post("/dieta/catalogo/alimentos", async (req, res): Promise<void> => {
   res.status(201).json(row);
 });
 
+// Edicao — cobre o "editavel a qualquer momento pela tela" do preco/unidade,
+// mas serve para qualquer campo do catalogo (todos opcionais no PATCH-like PUT).
+const AlimentoUpdateSchema = AlimentoSchema.partial();
+
+router.put("/dieta/catalogo/alimentos/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const parsed = AlimentoUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
+    return;
+  }
+  const [row] = await db
+    .update(dietaCatalogoAlimentosTable)
+    .set(parsed.data)
+    .where(eq(dietaCatalogoAlimentosTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Alimento nao encontrado" });
+    return;
+  }
+  res.json(row);
+});
+
 // ---------------------------------------------------------------------------
 // 4) PROTOCOLOS — modelos reutilizaveis de dieta.
 // ---------------------------------------------------------------------------
@@ -78,7 +149,9 @@ router.get("/dieta/protocolos", async (_req, res): Promise<void> => {
 });
 
 const ProtocoloSchema = z.object({
-  codigo: z.string().min(1),
+  // codigo e opcional: a tela de "Tipos de Dieta" nunca pede pro CEO digitar
+  // um slug tecnico — quando ausente, o servidor gera um a partir do nome.
+  codigo: z.string().min(1).optional(),
   nome: z.string().min(1),
   objetivo: z.string().optional().nullable(),
   estiloAlimentar: z.string().optional().nullable(),
@@ -95,8 +168,45 @@ router.post("/dieta/protocolos", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
     return;
   }
-  const [row] = await db.insert(dietaProtocolosTable).values(parsed.data).returning();
+  const codigo =
+    parsed.data.codigo ??
+    (await generateUniqueCodigo(parsed.data.nome, async (c) => {
+      const [existente] = await db
+        .select({ id: dietaProtocolosTable.id })
+        .from(dietaProtocolosTable)
+        .where(eq(dietaProtocolosTable.codigo, c));
+      return !!existente;
+    }));
+  const [row] = await db
+    .insert(dietaProtocolosTable)
+    .values({ ...parsed.data, codigo })
+    .returning();
   res.status(201).json(row);
+});
+
+const ProtocoloUpdateSchema = ProtocoloSchema.partial();
+
+router.put("/dieta/protocolos/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const parsed = ProtocoloUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
+    return;
+  }
+  const [row] = await db
+    .update(dietaProtocolosTable)
+    .set(parsed.data)
+    .where(eq(dietaProtocolosTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Tipo de dieta nao encontrado" });
+    return;
+  }
+  res.json(row);
 });
 
 // ---------------------------------------------------------------------------
@@ -522,6 +632,494 @@ router.patch("/dieta/prescricoes/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(row);
+});
+
+// ---------------------------------------------------------------------------
+// 5) RECEITAS — combinacao pronta de alimentos do catalogo que serve a um ou
+//    mais tipos de dieta (protocolos). Reusa calcularMacrosPorcao para os
+//    totais nutricionais. Nao mexe na emissao de PDF (dieta-pdf.ts).
+// ---------------------------------------------------------------------------
+interface ReceitaIngredienteRow {
+  id: number;
+  receitaId: number;
+  alimentoId: number;
+  quantidadeG: number;
+  ordem: number | null;
+  observacao: string | null;
+  alimentoNome: string | null;
+  kcal100g: number | null;
+  proteinaG100g: number | null;
+  carboidratoG100g: number | null;
+  gorduraG100g: number | null;
+}
+
+// Monta o payload "cheio" (ingredientes + tipos de dieta + totais nutricionais)
+// para um conjunto de receitas ja carregadas. Reaproveitado por GET lista,
+// GET por id, POST e PUT — todos devolvem exatamente este formato.
+async function montarReceitasResponse(
+  receitas: Array<typeof dietaReceitasTable.$inferSelect>,
+): Promise<Array<Record<string, unknown>>> {
+  if (receitas.length === 0) return [];
+  const ids = receitas.map((r) => r.id);
+
+  const ingredientesRows: ReceitaIngredienteRow[] = await db
+    .select({
+      id: dietaReceitaIngredientesTable.id,
+      receitaId: dietaReceitaIngredientesTable.receitaId,
+      alimentoId: dietaReceitaIngredientesTable.alimentoId,
+      quantidadeG: dietaReceitaIngredientesTable.quantidadeG,
+      ordem: dietaReceitaIngredientesTable.ordem,
+      observacao: dietaReceitaIngredientesTable.observacao,
+      alimentoNome: dietaCatalogoAlimentosTable.nome,
+      kcal100g: dietaCatalogoAlimentosTable.kcal100g,
+      proteinaG100g: dietaCatalogoAlimentosTable.proteinaG100g,
+      carboidratoG100g: dietaCatalogoAlimentosTable.carboidratoG100g,
+      gorduraG100g: dietaCatalogoAlimentosTable.gorduraG100g,
+    })
+    .from(dietaReceitaIngredientesTable)
+    .leftJoin(
+      dietaCatalogoAlimentosTable,
+      eq(dietaReceitaIngredientesTable.alimentoId, dietaCatalogoAlimentosTable.id),
+    )
+    .where(inArray(dietaReceitaIngredientesTable.receitaId, ids))
+    .orderBy(asc(dietaReceitaIngredientesTable.ordem));
+
+  const tiposRows = await db
+    .select({
+      receitaId: dietaReceitaProtocolosTable.receitaId,
+      protocoloId: dietaProtocolosTable.id,
+      codigo: dietaProtocolosTable.codigo,
+      nome: dietaProtocolosTable.nome,
+    })
+    .from(dietaReceitaProtocolosTable)
+    .innerJoin(
+      dietaProtocolosTable,
+      eq(dietaReceitaProtocolosTable.protocoloId, dietaProtocolosTable.id),
+    )
+    .where(inArray(dietaReceitaProtocolosTable.receitaId, ids));
+
+  return receitas.map((r) => {
+    const ingredientes = ingredientesRows.filter((i) => i.receitaId === r.id);
+    const tipos = tiposRows
+      .filter((t) => t.receitaId === r.id)
+      .map((t) => ({ protocoloId: t.protocoloId, codigo: t.codigo, nome: t.nome }));
+    const totaisBrutos = ingredientes.reduce(
+      (acc, ing) => {
+        const m = calcularMacrosPorcao(
+          {
+            kcal100g: ing.kcal100g,
+            proteinaG100g: ing.proteinaG100g,
+            carboidratoG100g: ing.carboidratoG100g,
+            gorduraG100g: ing.gorduraG100g,
+          },
+          ing.quantidadeG,
+        );
+        return {
+          kcal: acc.kcal + (m.kcal ?? 0),
+          proteinaG: acc.proteinaG + (m.proteinaG ?? 0),
+          carboidratoG: acc.carboidratoG + (m.carboidratoG ?? 0),
+          gorduraG: acc.gorduraG + (m.gorduraG ?? 0),
+        };
+      },
+      { kcal: 0, proteinaG: 0, carboidratoG: 0, gorduraG: 0 },
+    );
+    return {
+      ...r,
+      ingredientes: ingredientes.map((i) => ({
+        id: i.id,
+        alimentoId: i.alimentoId,
+        alimentoNome: i.alimentoNome,
+        quantidadeG: i.quantidadeG,
+        ordem: i.ordem,
+        observacao: i.observacao,
+      })),
+      tipos,
+      totais: {
+        kcal: Math.round(totaisBrutos.kcal),
+        proteinaG: Math.round(totaisBrutos.proteinaG * 10) / 10,
+        carboidratoG: Math.round(totaisBrutos.carboidratoG * 10) / 10,
+        gorduraG: Math.round(totaisBrutos.gorduraG * 10) / 10,
+      },
+    };
+  });
+}
+
+router.get("/dieta/receitas", async (req, res): Promise<void> => {
+  const protocoloIdRaw = req.query.protocoloId;
+  const ativoOnly = eq(dietaReceitasTable.ativo, true);
+  let receitas: Array<typeof dietaReceitasTable.$inferSelect>;
+
+  if (protocoloIdRaw != null && protocoloIdRaw !== "") {
+    const protocoloId = Number(protocoloIdRaw);
+    if (!Number.isInteger(protocoloId) || protocoloId <= 0) {
+      res.status(400).json({ error: "protocoloId invalido" });
+      return;
+    }
+    const links = await db
+      .select({ receitaId: dietaReceitaProtocolosTable.receitaId })
+      .from(dietaReceitaProtocolosTable)
+      .where(eq(dietaReceitaProtocolosTable.protocoloId, protocoloId));
+    const receitaIds = links.map((l) => l.receitaId);
+    receitas = receitaIds.length
+      ? await db
+          .select()
+          .from(dietaReceitasTable)
+          .where(and(ativoOnly, inArray(dietaReceitasTable.id, receitaIds)))
+          .orderBy(asc(dietaReceitasTable.nome))
+      : [];
+  } else {
+    receitas = await db.select().from(dietaReceitasTable).where(ativoOnly).orderBy(asc(dietaReceitasTable.nome));
+  }
+
+  res.json(await montarReceitasResponse(receitas));
+});
+
+router.get("/dieta/receitas/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const [receita] = await db.select().from(dietaReceitasTable).where(eq(dietaReceitasTable.id, id));
+  if (!receita) {
+    res.status(404).json({ error: "Receita nao encontrada" });
+    return;
+  }
+  const [full] = await montarReceitasResponse([receita]);
+  res.json(full);
+});
+
+const ReceitaIngredienteSchema = z.object({
+  alimentoId: z.number().int().positive(),
+  quantidadeG: z.number().min(0),
+  ordem: z.number().int().optional().nullable(),
+  observacao: z.string().optional().nullable(),
+});
+
+const ReceitaSchema = z.object({
+  // codigo e opcional: a tela de Receitas nunca pede um slug tecnico.
+  codigo: z.string().min(1).optional(),
+  nome: z.string().min(1),
+  modoPreparo: z.string().optional().nullable(),
+  // porcoes e NOT NULL no banco (default 1) — nunca nullable, so ausente/numero.
+  porcoes: z.number().int().positive().optional(),
+  tempoPreparoMin: z.number().int().positive().optional().nullable(),
+  observacao: z.string().optional().nullable(),
+  ingredientes: z.array(ReceitaIngredienteSchema).min(1),
+  protocoloIds: z.array(z.number().int().positive()).min(1),
+});
+
+async function validarFksReceita(
+  ingredientes: Array<{ alimentoId: number }>,
+  protocoloIds: number[],
+): Promise<{ alimentosInexistentes: number[]; protocolosInexistentes: number[] }> {
+  const alimentoIds = [...new Set(ingredientes.map((i) => i.alimentoId))];
+  const alimentosExistentes = alimentoIds.length
+    ? await db
+        .select({ id: dietaCatalogoAlimentosTable.id })
+        .from(dietaCatalogoAlimentosTable)
+        .where(inArray(dietaCatalogoAlimentosTable.id, alimentoIds))
+    : [];
+  const alimentosSet = new Set(alimentosExistentes.map((a) => a.id));
+  const alimentosInexistentes = alimentoIds.filter((aid) => !alimentosSet.has(aid));
+
+  const protocoloIdsUnicos = [...new Set(protocoloIds)];
+  const protocolosExistentes = protocoloIdsUnicos.length
+    ? await db
+        .select({ id: dietaProtocolosTable.id })
+        .from(dietaProtocolosTable)
+        .where(inArray(dietaProtocolosTable.id, protocoloIdsUnicos))
+    : [];
+  const protocolosSet = new Set(protocolosExistentes.map((p) => p.id));
+  const protocolosInexistentes = protocoloIdsUnicos.filter((pid) => !protocolosSet.has(pid));
+
+  return { alimentosInexistentes, protocolosInexistentes };
+}
+
+router.post("/dieta/receitas", async (req, res): Promise<void> => {
+  const parsed = ReceitaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
+    return;
+  }
+  const body = parsed.data;
+
+  const { alimentosInexistentes, protocolosInexistentes } = await validarFksReceita(
+    body.ingredientes,
+    body.protocoloIds,
+  );
+  if (alimentosInexistentes.length > 0) {
+    res.status(400).json({ error: "Alimento(s) inexistente(s) no catalogo", alimentoIds: alimentosInexistentes });
+    return;
+  }
+  if (protocolosInexistentes.length > 0) {
+    res.status(400).json({ error: "Tipo(s) de dieta inexistente(s)", protocoloIds: protocolosInexistentes });
+    return;
+  }
+
+  try {
+    const receita = await db.transaction(async (tx) => {
+      const codigo =
+        body.codigo ??
+        (await generateUniqueCodigo(body.nome, async (c) => {
+          const [existente] = await tx
+            .select({ id: dietaReceitasTable.id })
+            .from(dietaReceitasTable)
+            .where(eq(dietaReceitasTable.codigo, c));
+          return !!existente;
+        }));
+
+      const [novaReceita] = await tx
+        .insert(dietaReceitasTable)
+        .values({
+          codigo,
+          nome: body.nome,
+          modoPreparo: body.modoPreparo ?? null,
+          porcoes: body.porcoes ?? 1,
+          tempoPreparoMin: body.tempoPreparoMin ?? null,
+          observacao: body.observacao ?? null,
+        })
+        .returning();
+
+      await tx.insert(dietaReceitaIngredientesTable).values(
+        body.ingredientes.map((ing, idx) => ({
+          receitaId: novaReceita.id,
+          alimentoId: ing.alimentoId,
+          quantidadeG: ing.quantidadeG,
+          ordem: ing.ordem ?? idx + 1,
+          observacao: ing.observacao ?? null,
+        })),
+      );
+
+      await tx.insert(dietaReceitaProtocolosTable).values(
+        [...new Set(body.protocoloIds)].map((protocoloId) => ({ receitaId: novaReceita.id, protocoloId })),
+      );
+
+      return novaReceita;
+    });
+
+    const [full] = await montarReceitasResponse([receita]);
+    res.status(201).json(full);
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23503") {
+      res.status(400).json({ error: "Referencia invalida (chave estrangeira)" });
+      return;
+    }
+    if (code === "23505") {
+      res.status(409).json({ error: "Registro duplicado (chave unica)" });
+      return;
+    }
+    req.log.error({ err }, "Falha ao criar receita de dieta");
+    res.status(500).json({ error: "Falha ao criar receita" });
+  }
+});
+
+const ReceitaUpdateSchema = z.object({
+  nome: z.string().min(1).optional(),
+  modoPreparo: z.string().optional().nullable(),
+  // porcoes e NOT NULL no banco (default 1) — nunca nullable, so ausente/numero.
+  porcoes: z.number().int().positive().optional(),
+  tempoPreparoMin: z.number().int().positive().optional().nullable(),
+  observacao: z.string().optional().nullable(),
+  ativo: z.boolean().optional(),
+  ingredientes: z.array(ReceitaIngredienteSchema).min(1).optional(),
+  protocoloIds: z.array(z.number().int().positive()).min(1).optional(),
+});
+
+router.put("/dieta/receitas/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const parsed = ReceitaUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
+    return;
+  }
+  const body = parsed.data;
+
+  const [existente] = await db
+    .select({ id: dietaReceitasTable.id })
+    .from(dietaReceitasTable)
+    .where(eq(dietaReceitasTable.id, id));
+  if (!existente) {
+    res.status(404).json({ error: "Receita nao encontrada" });
+    return;
+  }
+
+  const { alimentosInexistentes, protocolosInexistentes } = await validarFksReceita(
+    body.ingredientes ?? [],
+    body.protocoloIds ?? [],
+  );
+  if (body.ingredientes && alimentosInexistentes.length > 0) {
+    res.status(400).json({ error: "Alimento(s) inexistente(s) no catalogo", alimentoIds: alimentosInexistentes });
+    return;
+  }
+  if (body.protocoloIds && protocolosInexistentes.length > 0) {
+    res.status(400).json({ error: "Tipo(s) de dieta inexistente(s)", protocoloIds: protocolosInexistentes });
+    return;
+  }
+
+  try {
+    const receita = await db.transaction(async (tx) => {
+      const { ingredientes, protocoloIds, ...scalarFields } = body;
+      if (Object.keys(scalarFields).length > 0) {
+        await tx.update(dietaReceitasTable).set(scalarFields).where(eq(dietaReceitasTable.id, id));
+      }
+      if (ingredientes) {
+        await tx.delete(dietaReceitaIngredientesTable).where(eq(dietaReceitaIngredientesTable.receitaId, id));
+        await tx.insert(dietaReceitaIngredientesTable).values(
+          ingredientes.map((ing, idx) => ({
+            receitaId: id,
+            alimentoId: ing.alimentoId,
+            quantidadeG: ing.quantidadeG,
+            ordem: ing.ordem ?? idx + 1,
+            observacao: ing.observacao ?? null,
+          })),
+        );
+      }
+      if (protocoloIds) {
+        await tx.delete(dietaReceitaProtocolosTable).where(eq(dietaReceitaProtocolosTable.receitaId, id));
+        await tx.insert(dietaReceitaProtocolosTable).values(
+          [...new Set(protocoloIds)].map((protocoloId) => ({ receitaId: id, protocoloId })),
+        );
+      }
+      const [row] = await tx.select().from(dietaReceitasTable).where(eq(dietaReceitasTable.id, id));
+      return row;
+    });
+
+    const [full] = await montarReceitasResponse([receita]);
+    res.json(full);
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23503") {
+      res.status(400).json({ error: "Referencia invalida (chave estrangeira)" });
+      return;
+    }
+    if (code === "23505") {
+      res.status(409).json({ error: "Registro duplicado (chave unica)" });
+      return;
+    }
+    req.log.error({ err }, "Falha ao atualizar receita de dieta");
+    res.status(500).json({ error: "Falha ao atualizar receita" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 6) LISTA DE COMPRAS — projeta o cardapio diario de uma prescricao sobre um
+//    periodo (7 ou 30 dias) e estima o custo usando o catalogo. So LE dados
+//    (prescricao + catalogo); nunca escreve. Nao mexe na emissao de PDF.
+// ---------------------------------------------------------------------------
+router.get("/dieta/prescricoes/:id/lista-compras", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+  const diasRaw = String(req.query.dias ?? "7");
+  if (diasRaw !== "7" && diasRaw !== "30") {
+    res.status(400).json({ error: "dias deve ser 7 ou 30" });
+    return;
+  }
+  const dias = Number(diasRaw);
+
+  const [prescricao] = await db.select().from(dietaPrescricaoTable).where(eq(dietaPrescricaoTable.id, id));
+  if (!prescricao) {
+    res.status(404).json({ error: "Prescricao nao encontrada" });
+    return;
+  }
+  const [client] = await db
+    .select({ id: clientsTable.id, name: clientsTable.name })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, prescricao.clientId));
+
+  const itensCardapio = await db
+    .select()
+    .from(dietaPrescricaoItemTable)
+    .where(eq(dietaPrescricaoItemTable.prescricaoId, id));
+
+  // Agrupar por alimentoId (catalogado) somando a quantidade diaria x dias;
+  // itens sem alimentoId (texto livre) vao num balde separado, por nome.
+  const totalGPorAlimento = new Map<number, number>();
+  const totalGSemCatalogo = new Map<string, number>();
+  for (const item of itensCardapio) {
+    const qtdDia = item.quantidadeG ?? 0;
+    if (qtdDia <= 0) continue;
+    if (item.alimentoId != null) {
+      totalGPorAlimento.set(item.alimentoId, (totalGPorAlimento.get(item.alimentoId) ?? 0) + qtdDia * dias);
+    } else if (item.alimentoNome) {
+      totalGSemCatalogo.set(item.alimentoNome, (totalGSemCatalogo.get(item.alimentoNome) ?? 0) + qtdDia * dias);
+    }
+  }
+
+  const alimentoIds = [...totalGPorAlimento.keys()];
+  const alimentos = alimentoIds.length
+    ? await db.select().from(dietaCatalogoAlimentosTable).where(inArray(dietaCatalogoAlimentosTable.id, alimentoIds))
+    : [];
+  const alimentoById = new Map(alimentos.map((a) => [a.id, a]));
+
+  const itens: Array<Record<string, unknown>> = [];
+  const itensSemPreco: Array<Record<string, unknown>> = [];
+
+  for (const [alimentoId, totalG] of totalGPorAlimento) {
+    const alimento = alimentoById.get(alimentoId);
+    const nome = alimento?.nome ?? `Alimento #${alimentoId}`;
+    if (
+      !alimento ||
+      alimento.precoMedio == null ||
+      !alimento.unidadeCompra ||
+      alimento.unidadeCompraEquivalenteG == null ||
+      alimento.unidadeCompraEquivalenteG <= 0
+    ) {
+      itensSemPreco.push({
+        alimentoId,
+        nome,
+        quantidadeTotalG: Math.round(totalG),
+        motivo: "Sem preco/unidade de compra cadastrados no catalogo",
+      });
+      continue;
+    }
+    const rawUnidades = totalG / alimento.unidadeCompraEquivalenteG;
+    const unidadesComprar = UNIDADES_DISCRETAS.has(alimento.unidadeCompra)
+      ? Math.ceil(rawUnidades)
+      : Math.round(rawUnidades * 100) / 100;
+    const custoItem = Math.round(unidadesComprar * alimento.precoMedio * 100) / 100;
+    itens.push({
+      alimentoId,
+      nome,
+      categoriaCompra: alimento.categoriaCompra,
+      quantidadeTotalG: Math.round(totalG),
+      unidadeCompra: alimento.unidadeCompra,
+      unidadesComprar,
+      precoUnitario: alimento.precoMedio,
+      custoItem,
+    });
+  }
+
+  const itensSemCatalogo = [...totalGSemCatalogo.entries()].map(([alimentoNome, totalG]) => ({
+    alimentoNome,
+    quantidadeTotalG: Math.round(totalG),
+    motivo: "Item sem vinculo no catalogo (texto livre) — cadastre o alimento para ter preco",
+  }));
+
+  itens.sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+  itensSemPreco.sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+
+  const custoTotalEstimado =
+    Math.round(itens.reduce((acc, it) => acc + (it.custoItem as number), 0) * 100) / 100;
+
+  res.json({
+    prescricaoId: id,
+    clientId: prescricao.clientId,
+    clientName: client?.name ?? null,
+    dias,
+    itens,
+    itensSemPreco,
+    itensSemCatalogo,
+    custoTotalEstimado,
+  });
 });
 
 export default router;

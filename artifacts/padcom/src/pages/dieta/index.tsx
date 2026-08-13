@@ -19,6 +19,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { Field, Metric } from "./shared";
+import TiposDeDieta from "./TiposDeDieta";
+import Receitas from "./Receitas";
+import ListaDeCompras from "./ListaDeCompras";
 import {
   Salad,
   Plus,
@@ -37,6 +41,9 @@ import {
   AlertCircle,
   SendHorizontal,
   Eye,
+  BookOpen,
+  ShoppingCart,
+  Utensils,
 } from "lucide-react";
 
 // -------------------------------------------------------------------------------
@@ -131,10 +138,19 @@ export default function DietaPage() {
       </header>
 
       <Tabs defaultValue="montar" className="space-y-5">
-        <TabsList className="bevel-3d">
+        <TabsList className="bevel-3d flex-wrap h-auto">
           <TabsTrigger value="montar">Montar cardápio</TabsTrigger>
           <TabsTrigger value="fila">Fila de indicação</TabsTrigger>
           <TabsTrigger value="historico">Histórico de Planos</TabsTrigger>
+          <TabsTrigger value="tipos" className="gap-1.5">
+            <Utensils className="h-3.5 w-3.5" /> Tipos de Dieta
+          </TabsTrigger>
+          <TabsTrigger value="receitas" className="gap-1.5">
+            <BookOpen className="h-3.5 w-3.5" /> Receitas
+          </TabsTrigger>
+          <TabsTrigger value="compras" className="gap-1.5">
+            <ShoppingCart className="h-3.5 w-3.5" /> Lista de Compras
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="montar">
@@ -145,6 +161,15 @@ export default function DietaPage() {
         </TabsContent>
         <TabsContent value="historico">
           <HistoricoPlanos />
+        </TabsContent>
+        <TabsContent value="tipos">
+          <TiposDeDieta />
+        </TabsContent>
+        <TabsContent value="receitas">
+          <Receitas />
+        </TabsContent>
+        <TabsContent value="compras">
+          <ListaDeCompras />
         </TabsContent>
       </Tabs>
     </div>
@@ -989,27 +1014,6 @@ interface PlanoEmitido {
   pdfBytes: number | null;
   emitidoEm: string;
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function Metric({ label, value, unit, gold }: { label: string; value: string; unit: string; gold?: boolean }) {
-  return (
-    <div className="concave-3d px-2 py-2">
-      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className={`text-lg font-black leading-none ${gold ? "text-primary" : "text-foreground"}`}>{value}</div>
-      <div className="text-[9px] uppercase tracking-widest text-muted-foreground/70">{unit}</div>
-    </div>
-  );
-}
-
 function HistoricoPlanos() {
   const { toast } = useToast();
   const [clienteId, setClienteId] = useState<number | null>(null);
