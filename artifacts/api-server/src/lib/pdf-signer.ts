@@ -2087,4 +2087,4 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   };
 }
 
-export { getCertInfo, loadCertificate };
+export { getCertInfo, loadCertificate, embedPadesSignature };

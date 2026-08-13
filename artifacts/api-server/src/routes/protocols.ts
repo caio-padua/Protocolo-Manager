@@ -6,6 +6,7 @@ import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, 
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf } from "../lib/pdf-signer";
+import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
@@ -992,6 +993,89 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
   const filename = `protocolo_${protocol.id}_${client?.name?.replace(/\s+/g, "_") ?? "cliente"}.ics`;
 
   res.json({ icsContent, filename });
+});
+
+// ── Carta de Tratamento Premium PADAXOR (layout Dr. Manus Item #88) ──────────
+// Rota nova — não interfere com document-pdf (Regra de Ouro).
+router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.id);
+  if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol) { res.status(404).json({ error: "Protocolo não encontrado" }); return; }
+
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+
+  let professionalName = "Profissional";
+  let professionalCrm: string | null = null;
+  if (protocol.professionalId) {
+    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+    if (prof) { professionalName = prof.name; professionalCrm = prof.crm ?? null; }
+  }
+
+  const items      = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
+  const allSubs    = await db.select().from(substancesTable);
+  const subMap     = new Map(allSubs.map(s => [s.id, s]));
+  const sessions   = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
+
+  const substances = items.map(item => {
+    const sub = subMap.get(item.substanceId);
+    return {
+      name:               sub?.name              ?? `Substancia ${item.substanceId}`,
+      dose:               item.dose,
+      color:              sub?.color             ?? "navy",
+      totalSessions:      item.totalSessions,
+      intervalDays:       item.intervalDays,
+      startDate:          item.startDate,
+      procedureType:      sub?.procedureType     ?? "iv",
+      timeToEffect:       sub?.timeToEffect,
+      starRating:         sub?.starRating,
+      bodySystemEffects:  (sub?.bodySystemEffects as Record<string, string>) ?? {},
+      description:        sub?.description,
+      mainFunction:       sub?.mainFunction,
+      perceivedEffects:   sub?.perceivedEffects,
+      contraindications:  sub?.contraindications,
+      scientificEvidence: sub?.scientificEvidence,
+      longevityBenefit:   sub?.longevityBenefit,
+      qualityOfLifeImpact: sub?.qualityOfLifeImpact,
+      sleepBenefit:       sub?.sleepBenefit,
+      energyBenefit:      sub?.energyBenefit,
+      libidoBenefit:      sub?.libidoBenefit,
+      physicalPerformance: sub?.physicalPerformance,
+      muscleStrength:     sub?.muscleStrength,
+      mentalClarity:      sub?.mentalClarity,
+      skinHairNails:      sub?.skinHairNails,
+      immuneSupport:      sub?.immuneSupport,
+    };
+  });
+
+  try {
+    const dto = buildCartaTratamentoDto({
+      protocolId:       protocol.id,
+      protocolTitle:    protocol.title,
+      clientName:       client.name,
+      clientCpf:        client.cpf,
+      professionalName,
+      professionalCrm,
+      unit:             protocol.unit ?? "Instituto Padua",
+      startDate:        protocol.startDate,
+      substances,
+      sessions: sessions.map(s => ({ status: s.status })),
+    });
+
+    const { pdfBytes } = await generateProtocolLetterPdf(dto);
+
+    const slug     = client.name.replace(/\s+/g, "_");
+    const filename = `CARTA_TRATAMENTO_${slug}_${protocolId}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBytes.length);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err: any) {
+    console.error("[carta-pdf] erro:", err.message);
+    res.status(500).json({ error: "Erro ao gerar carta", details: err.message });
+  }
 });
 
 export default router;
