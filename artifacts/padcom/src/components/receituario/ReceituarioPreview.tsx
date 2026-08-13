@@ -272,15 +272,15 @@ function FormulaReal({ f, cfg }: { f: RealFormula; cfg: { corpoFonteTitulo: stri
     <div style={{ marginBottom: "5mm", borderBottom: "0.3px dashed #e5e5e5", paddingBottom: "4mm" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
         <span style={{
-          fontWeight: 700, fontSize: 9, color: "#555", fontFamily: cfg.corpoFonteCorpo,
+          fontWeight: 700, fontSize: 9, color: "#555", fontFamily: `PaxmedNum, ${cfg.corpoFonteCorpo}`,
           minWidth: 18, textAlign: "right",
         }}>{String(f.numero).padStart(2, "0")}.</span>
-        <span style={{ fontWeight: 700, fontSize: 10, color: "#111", fontFamily: cfg.corpoFonteTitulo }}>
+        <span style={{ fontWeight: 700, fontSize: 10, color: "#111", fontFamily: `PaxmedNum, ${cfg.corpoFonteTitulo}` }}>
           {f.nome}
         </span>
       </div>
       {(f.via || f.forma) && (
-        <div style={{ marginLeft: 26, display: "flex", gap: "8mm", fontSize: 6.5, color: "#555", marginBottom: 4, fontFamily: cfg.corpoFonteCorpo }}>
+        <div style={{ marginLeft: 26, display: "flex", gap: "8mm", fontSize: 6.5, color: "#555", marginBottom: 4, fontFamily: `PaxmedNum, ${cfg.corpoFonteCorpo}` }}>
           {f.via && (
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ fontSize: 5.5, textTransform: "uppercase", letterSpacing: 1, color: "#aaa" }}>Via</span>
@@ -299,7 +299,7 @@ function FormulaReal({ f, cfg }: { f: RealFormula; cfg: { corpoFonteTitulo: stri
         {ativosLines.map((l, i) => <div key={i}>{l}</div>)}
       </div>
       {posologiaLines.length > 0 && (
-        <div style={{ marginLeft: 26, fontFamily: cfg.corpoFonteCorpo, fontSize: 7 }}>
+        <div style={{ marginLeft: 26, fontFamily: `PaxmedNum, ${cfg.corpoFonteCorpo}`, fontSize: 7 }}>
           {posologiaLines.map((l, i) => (
             <div key={i} style={{ color: "#0a7a6e", fontWeight: 600, marginBottom: 2 }}>▸ {l}</div>
           ))}
@@ -318,10 +318,10 @@ function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia,
     <div style={{ marginBottom: "5mm", borderBottom: "0.3px dashed #e5e5e5", paddingBottom: "4mm" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 3 }}>
         <span style={{
-          fontWeight: 700, fontSize: 9, color: "#555", fontFamily: fonteCorpo,
+          fontWeight: 700, fontSize: 9, color: "#555", fontFamily: `PaxmedNum, ${fonteCorpo}`,
           minWidth: 16, textAlign: "right",
         }}>{numero}</span>
-        <span style={{ fontWeight: 700, fontSize: 9.5, color: "#111", fontFamily: fonteTitulo }}>
+        <span style={{ fontWeight: 700, fontSize: 9.5, color: "#111", fontFamily: `PaxmedNum, ${fonteTitulo}` }}>
           {nome}
         </span>
       </div>
@@ -329,7 +329,7 @@ function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia,
         marginLeft: 24, display: "grid",
         gridTemplateColumns: "auto auto auto auto 1fr",
         gap: "0 12mm", fontSize: 6.5, color: "#555", marginBottom: 3,
-        fontFamily: fonteCorpo,
+        fontFamily: `PaxmedNum, ${fonteCorpo}`,
       }}>
         {[["Forma", forma], ["Concentração", concentracao], ["Quantidade", quantidade]].map(([l, v]) => (
           <div key={l} style={{ display: "flex", flexDirection: "column" }}>
@@ -338,7 +338,7 @@ function FormulaDemo({ numero, nome, forma, concentracao, quantidade, posologia,
           </div>
         ))}
       </div>
-      <div style={{ marginLeft: 24, fontSize: 6.5, color: "#444", fontFamily: fonteCorpo }}>
+      <div style={{ marginLeft: 24, fontSize: 6.5, color: "#444", fontFamily: `PaxmedNum, ${fonteCorpo}` }}>
         <b>Posologia:</b> {posologia}
       </div>
     </div>
@@ -490,7 +490,7 @@ export function ReceituarioPreview({
     <div style={{
       background: "#fff",
       width: 794, height: 1123,
-      fontFamily: "Georgia, serif",
+      fontFamily: "PaxmedNum, Georgia, serif",
       fontSize: 8,
       color: "#111",
       boxSizing: "border-box",
@@ -592,7 +592,7 @@ export function ReceituarioPreview({
       {/* ══ BLOCO CORPO (grid row 2: 1fr) — fórmulas preenchem o espaço restante ══ */}
       <div style={{ padding: "5mm 2mm 3mm", overflow: "hidden" }}>
         <div style={{ fontSize: 11, fontStyle: "italic", marginBottom: "4mm",
-          fontFamily: cfg.corpoFonteTitulo }}>
+          fontFamily: `PaxmedNum, ${cfg.corpoFonteTitulo}` }}>
           Prescrevo:
         </div>
 
@@ -636,14 +636,14 @@ export function ReceituarioPreview({
             ? <img src={cfg.assinaturaDataUrl} alt="Assinatura"
                 style={{ maxWidth: 130, maxHeight: 50, objectFit: "contain" }}/>
             : <div style={{
-                fontFamily: "Georgia, serif", fontStyle: "italic",
+                fontFamily: "PaxmedNum, Georgia, serif", fontStyle: "italic",
                 fontSize: 18, color: "#222", letterSpacing: 1, marginBottom: 3,
                 borderBottom: "0.5px solid #555", paddingBottom: 4, width: 130,
               }}>
                 {cfg.assinaturaTextoFallback || "Assinatura"}
               </div>
           }
-          <div style={{ fontSize: 6.5, color: "#333", marginTop: 4, fontFamily: cfg.corpoFonteCorpo }}>
+          <div style={{ fontSize: 6.5, color: "#333", marginTop: 4, fontFamily: `PaxmedNum, ${cfg.corpoFonteCorpo}` }}>
             {medicoData?.name || cfg.cabecalhoNome.split("—")[0]?.trim() || "Dr. Nome Completo"}<br/>
             {medicoData?.crm || "CRM SP 000.000 — RQE: 00.000"}<br/>
             {clinicaData?.address?.split(",")[1]?.trim()?.split("—")[0]?.trim() || "São Paulo"},

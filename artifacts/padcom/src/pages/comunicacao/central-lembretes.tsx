@@ -706,7 +706,7 @@ export default function CentralLembretes() {
               ) : previa ? (
                 <div
                   className="concave-3d whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-foreground/90"
-                  style={{ maxHeight: "50vh", overflowY: "auto", fontFamily: "'Georgia', serif" }}
+                  style={{ maxHeight: "50vh", overflowY: "auto", fontFamily: "PaxmedNum, 'Georgia', serif" }}
                 >
                   {previa}
                 </div>

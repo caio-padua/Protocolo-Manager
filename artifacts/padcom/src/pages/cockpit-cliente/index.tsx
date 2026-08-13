@@ -431,7 +431,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
             </span>
             <span
               className="text-[20px] font-bold leading-tight tracking-[0.08em] uppercase"
-              style={{ fontFamily: "var(--app-font-display)", color: "#e7cd8f", textShadow: "0 1px 8px rgba(0,0,0,0.55)" }}
+              style={{ fontFamily: "PaxmedNum, var(--app-font-display)", color: "#e7cd8f", textShadow: "0 1px 8px rgba(0,0,0,0.55)" }}
             >
               Cockpit da Consulta
             </span>
@@ -623,7 +623,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                   ].map(k => (
                     <div key={k.label} className="panel-3d-sub p-4 text-center border-none">
                       <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">{k.label}</div>
-                      <div className="text-3xl font-black tabular-nums" style={{ color: k.color, fontFamily: "'Cormorant Garamond', serif" }}>{k.value}</div>
+                      <div className="text-3xl font-black tabular-nums" style={{ color: k.color, fontFamily: "PaxmedNum, 'Cormorant Garamond', serif" }}>{k.value}</div>
                     </div>
                   ))}
                 </div>
@@ -771,7 +771,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                     <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Total Pago</div>
                     <div
                       className="text-3xl font-black tabular-nums"
-                      style={{ fontFamily: "'Cormorant Garamond', serif", color: "#16a34a", fontVariantNumeric: "lining-nums tabular-nums" }}
+                      style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", color: "#16a34a", fontVariantNumeric: "lining-nums tabular-nums" }}
                     >
                       {brl(totalPago)}
                     </div>
@@ -780,7 +780,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                     <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Pendente</div>
                     <div
                       className="text-3xl font-black tabular-nums"
-                      style={{ fontFamily: "'Cormorant Garamond', serif", color: totalPendente > 0 ? "#dc2626" : "#6b7280", fontVariantNumeric: "lining-nums tabular-nums" }}
+                      style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", color: totalPendente > 0 ? "#dc2626" : "#6b7280", fontVariantNumeric: "lining-nums tabular-nums" }}
                     >
                       {brl(totalPendente)}
                     </div>
@@ -977,7 +977,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                   <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> PAGAR
                                 </Button>
                               )}
-                              <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums" }}>
+                              <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums" style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums" }}>
                                 {brl(payment.amount)}
                               </div>
                             </div>

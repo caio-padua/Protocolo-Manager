@@ -2,6 +2,60 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   NUMERAIS PAXMED — Cormorant Garamond somente nos algarismos, no sistema inteiro
+   ------------------------------------------------------------------------------
+   Referencia aprovada pelo CEO: Area do Cliente > Contratos e Pagamentos, onde os
+   valores aparecem em Cormorant Garamond com algarismo alto.
+
+   COMO FUNCIONA: o "unicode-range" abaixo declara que esta face so sabe desenhar
+   os caracteres 0 a 9. Toda letra cai automaticamente para a proxima familia da
+   pilha (Inter / Playfair). Por isso a troca vale para o sistema inteiro sem
+   tocar em um unico componente, e some por completo se estes blocos sairem daqui.
+
+   size-adjust: 111.9% — MEDIDO na fonte, nao estimado. O algarismo alto do
+   Cormorant mede 0,650 em; o do Inter mede 0,7275 em. Sem esse ajuste todo numero
+   do sistema sairia cerca de 12% menor que a palavra ao lado dele.
+
+   ARQUIVO -Lining: o algarismo PADRAO do Cormorant e old-style (baixo, com descida
+   abaixo da linha). Em vez de depender da feature CSS "lnum" — que qualquer
+   componente poderia derrubar ao mexer em font-variant-numeric — o algarismo alto
+   foi CONGELADO dentro do arquivo .woff (cmap remapeado para os glifos .lf).
+   Assim o numero nasce alto mesmo sem nenhuma regra de feature.
+   "tnum": largura fixa, para numero em coluna nao dancar.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/CormorantGaramond-SemiBold-Lining.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 100 600;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 111.9%;
+}
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/CormorantGaramond-Bold-Lining.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 601 1000;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 111.9%;
+}
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/CormorantGaramond-SemiBoldItalic-Lining.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 100 1000;
+  font-style: italic;
+  font-display: swap;
+  size-adjust: 111.9%;
+}
+html {
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+
 /* Bloqueia pull-to-refresh nativo do iOS/Chrome — a faixa da nav não pode "puxar" a página */
 html,
 body,
@@ -128,9 +182,9 @@ body,
   --chart-4: 0 72% 51%;
   --chart-5: 280 65% 60%;
 
-  --app-font-sans: "Inter", sans-serif;
-  --app-font-serif: "Playfair Display", Georgia, serif;
-  --app-font-display: "Playfair Display", Georgia, serif;
+  --app-font-sans: "PaxmedNum", "Inter", sans-serif;
+  --app-font-serif: "PaxmedNum", "Playfair Display", Georgia, serif;
+  --app-font-display: "PaxmedNum", "Playfair Display", Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.375rem;
 

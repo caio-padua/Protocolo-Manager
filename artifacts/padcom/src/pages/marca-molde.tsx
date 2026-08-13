@@ -88,7 +88,7 @@ export default function MarcaMolde() {
         minHeight: "100vh",
         background: "#16181c",
         color: "#e9e4d8",
-        fontFamily: "'Inter','Segoe UI',sans-serif",
+        fontFamily: "PaxmedNum,'Inter','Segoe UI',sans-serif",
         padding: "40px 48px 56px",
       }}
     >

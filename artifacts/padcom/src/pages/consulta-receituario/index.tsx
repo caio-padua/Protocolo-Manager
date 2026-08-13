@@ -83,7 +83,7 @@ function PanelHeader({ icon: Icon, label, dark = false }: {
       <span
         className="text-[10px] font-black tracking-[0.26em] uppercase"
         style={{
-          fontFamily: "'Cinzel',serif",
+          fontFamily: "PaxmedNum, 'Cinzel',serif",
           color: dark ? "rgba(201,162,78,0.95)" : "rgba(201,162,78,0.85)",
         }}
       >
@@ -181,7 +181,7 @@ export default function ConsultaReceituario() {
               <span
                 className="leading-none text-center"
                 style={{
-                  fontFamily: "'Cormorant Garamond', serif",
+                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
                   fontSize: "11px",
                   fontWeight: 600,
                   letterSpacing: "0.10em",
@@ -225,7 +225,7 @@ export default function ConsultaReceituario() {
                     <ShieldX size={28} style={{ color: "#f87171" }} />
                     <span
                       className="text-base font-black tracking-[0.18em] uppercase"
-                      style={{ color: "#f87171", fontFamily: "'Cinzel',serif" }}
+                      style={{ color: "#f87171", fontFamily: "PaxmedNum, 'Cinzel',serif" }}
                     >
                       Documento Inválido
                     </span>
@@ -282,7 +282,7 @@ export default function ConsultaReceituario() {
                     <span
                       className="text-base font-black tracking-[0.20em] uppercase"
                       style={{
-                        fontFamily: "'Cinzel',serif",
+                        fontFamily: "PaxmedNum, 'Cinzel',serif",
                         color: theme === "dark" ? "#4ade80" : "#15803d",
                       }}
                     >
@@ -333,7 +333,7 @@ export default function ConsultaReceituario() {
                             : (theme === "dark" ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.80)"),
                           fontWeight: gold ? 700 : 400,
                           fontFamily: gold
-                            ? "'Cormorant Garamond','Georgia',serif"
+                            ? "PaxmedNum,'Cormorant Garamond','Georgia',serif"
                             : mono ? "monospace" : undefined,
                           fontSize:   gold ? "15px" : mono ? "11px" : "13px",
                         }}>
@@ -552,7 +552,7 @@ export default function ConsultaReceituario() {
                     target="_blank"
                     rel="noreferrer"
                     className="btn-3d w-full flex items-center justify-center gap-2 py-4 px-6 text-sm font-bold tracking-[0.14em] uppercase no-underline"
-                    style={{ fontFamily: "'Cinzel',serif" }}
+                    style={{ fontFamily: "PaxmedNum, 'Cinzel',serif" }}
                   >
                     <ExternalLink size={16} />
                     Abrir Receituário no Google Drive

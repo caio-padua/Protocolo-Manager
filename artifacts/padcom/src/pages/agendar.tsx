@@ -427,7 +427,7 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
               <p
                 className="text-accent"
                 style={{
-                  fontFamily: "'Cormorant Garamond', serif",
+                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
                   fontWeight: 600, fontSize: 10,
                   letterSpacing: "0.10em",
                 }}
@@ -628,7 +628,7 @@ function PaxterCalendar({
           fontSize: 18, lineHeight: "1", display: "flex", alignItems: "center", justifyContent: "center",
         }}>‹</button>
         <span style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 14,
+          fontFamily: "PaxmedNum, 'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 14,
           background: "linear-gradient(135deg, #f4e2a8 0%, #c2a05a 50%, #8a6d2f 100%)",
           WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent",
           textTransform: "capitalize",

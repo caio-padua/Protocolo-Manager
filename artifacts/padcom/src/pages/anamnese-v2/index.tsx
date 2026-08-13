@@ -641,7 +641,7 @@ export default function AnamneseV2() {
               <PaduaWordmark height={33} outlined />
               <span
                 className="footer-credit-padua mt-1 whitespace-nowrap text-center text-[10px] leading-none max-[380px]:whitespace-normal"
-                style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
+                style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Dr. Caio Pádua — Medical Director
               </span>
@@ -651,7 +651,7 @@ export default function AnamneseV2() {
               <PadconWordmark height={20} outlined />
               <span
                 className="footer-credit-padua mt-1 w-full whitespace-nowrap text-center text-[10px] leading-none"
-                style={{ fontFamily: "'Lora', Georgia, serif", fontStyle: "italic" }}
+                style={{ fontFamily: "PaxmedNum, 'Lora', Georgia, serif", fontStyle: "italic" }}
               >
                 Engineered by
               </span>

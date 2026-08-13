@@ -233,7 +233,7 @@ function BevelCelula({
       >
         <span
           className="line-clamp-2 text-[11px] leading-snug font-semibold tabular-nums"
-          style={{ color: cor, fontWeight: bold ? 700 : 600, fontFamily: "Inter, sans-serif" }}
+          style={{ color: cor, fontWeight: bold ? 700 : 600, fontFamily: "PaxmedNum, Inter, sans-serif" }}
         >
           {conteudo}
         </span>
@@ -360,7 +360,7 @@ export function DriveLinksField({ documentId }: { documentId: number }) {
               <div className="concave-3d px-2.5 py-2">
                 <span
                   className="block break-all select-all text-[11px] font-medium leading-snug"
-                  style={{ color: driveUrl ? NAVY : MUTED, fontFamily: "Inter, sans-serif" }}
+                  style={{ color: driveUrl ? NAVY : MUTED, fontFamily: "PaxmedNum, Inter, sans-serif" }}
                 >
                   {driveUrl ?? "Sem link do Drive para este documento"}
                 </span>

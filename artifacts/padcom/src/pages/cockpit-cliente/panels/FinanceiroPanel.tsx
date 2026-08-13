@@ -45,7 +45,7 @@ export default function FinanceiroPanel({ clientId }: Props) {
           <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Total Pago</div>
           <div
             className="text-3xl font-black"
-            style={{ fontFamily: "'Cormorant Garamond', serif", color: "#16a34a", fontVariantNumeric: "lining-nums tabular-nums" }}
+            style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", color: "#16a34a", fontVariantNumeric: "lining-nums tabular-nums" }}
           >
             {brl(fin.totalPago)}
           </div>
@@ -54,7 +54,7 @@ export default function FinanceiroPanel({ clientId }: Props) {
           <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-2">Pendente</div>
           <div
             className="text-3xl font-black"
-            style={{ fontFamily: "'Cormorant Garamond', serif", color: fin.totalPendente > 0 ? "#dc2626" : "#6b7280", fontVariantNumeric: "lining-nums tabular-nums" }}
+            style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", color: fin.totalPendente > 0 ? "#dc2626" : "#6b7280", fontVariantNumeric: "lining-nums tabular-nums" }}
           >
             {brl(fin.totalPendente)}
           </div>
@@ -229,7 +229,7 @@ export default function FinanceiroPanel({ clientId }: Props) {
                         <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> PAGAR
                       </Button>
                     )}
-                    <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums" }}>
+                    <div className="screen-3d px-3 py-1 font-black text-primary tabular-nums" style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums" }}>
                       {brl(payment.amount)}
                     </div>
                   </div>

@@ -575,7 +575,7 @@ export default function CartaEncantamento() {
 
             <div
               className="concave-3d whitespace-pre-wrap px-4 py-4 text-[13px] leading-relaxed text-foreground/90"
-              style={{ maxHeight: "62vh", overflowY: "auto", fontFamily: "'Georgia', serif" }}
+              style={{ maxHeight: "62vh", overflowY: "auto", fontFamily: "PaxmedNum, 'Georgia', serif" }}
             >
               {previaRealLoading ? "Carregando mensagem real…" : mensagemExibida}
             </div>

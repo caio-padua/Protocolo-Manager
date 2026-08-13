@@ -73,7 +73,7 @@ function ProgressBar({ completed, total }: ProgressBarProps) {
                 className="block leading-none font-black tracking-[0.18em] uppercase"
                 style={{
                   fontSize: "7px",
-                  fontFamily: "'Georgia', 'Times New Roman', serif",
+                  fontFamily: "PaxmedNum, 'Georgia', 'Times New Roman', serif",
                   color: reached ? GOLD_RICH : "hsl(var(--muted-foreground) / 0.22)",
                   textShadow: reached
                     ? `0 1px 0 ${GOLD_LIGHT}44`

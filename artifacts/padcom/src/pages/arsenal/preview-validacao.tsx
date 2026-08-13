@@ -58,7 +58,7 @@ export default function PreviewValidacao() {
         </div>
         <div>
           <h1 className="text-[13px] font-black tracking-[0.18em] uppercase"
-            style={{ fontFamily: "'Cinzel',serif", color: "rgba(201,162,78,0.90)" }}>
+            style={{ fontFamily: "PaxmedNum, 'Cinzel',serif", color: "rgba(201,162,78,0.90)" }}>
             Ferramenta de Validação de Receituário
           </h1>
           <p className="text-[11px] mt-0.5" style={{ color: "rgba(0,0,0,0.45)" }}>
@@ -77,7 +77,7 @@ export default function PreviewValidacao() {
             <div className="flex items-center gap-2 mb-1">
               <QrCode size={14} style={{ color: "rgba(201,162,78,0.75)" }} />
               <span className="text-[10px] font-bold tracking-[0.22em] uppercase"
-                style={{ fontFamily: "'Cinzel',serif", color: "rgba(201,162,78,0.75)" }}>
+                style={{ fontFamily: "PaxmedNum, 'Cinzel',serif", color: "rgba(201,162,78,0.75)" }}>
                 Token / QR Code
               </span>
             </div>
@@ -95,7 +95,7 @@ export default function PreviewValidacao() {
             <div className="flex gap-2">
               <button onClick={aplicar}
                 className="btn-3d flex-1 flex items-center justify-center gap-2 py-2 px-3 text-[11px] font-bold tracking-[0.14em] uppercase"
-                style={{ fontFamily: "'Cinzel',serif" }}>
+                style={{ fontFamily: "PaxmedNum, 'Cinzel',serif" }}>
                 <Eye size={13} />
                 Visualizar
               </button>
@@ -193,7 +193,7 @@ export default function PreviewValidacao() {
                   target="_blank"
                   rel="noreferrer"
                   className="btn-3d flex items-center justify-center gap-2 py-3 px-4 text-[12px] font-bold tracking-[0.14em] uppercase no-underline"
-                  style={{ fontFamily: "'Cinzel',serif" }}
+                  style={{ fontFamily: "PaxmedNum, 'Cinzel',serif" }}
                 >
                   <ArrowUpRight size={15} />
                   Abrir Tela Completa — Desktop

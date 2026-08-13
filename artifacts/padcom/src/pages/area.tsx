@@ -190,7 +190,7 @@ export default function Area() {
             <p
               className="text-accent"
               style={{
-                fontFamily: "'Cormorant Garamond', serif",
+                fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
                 fontWeight: 600, fontSize: 9,
                 letterSpacing: "0.10em",
               }}
@@ -208,7 +208,7 @@ export default function Area() {
           <span
             className="text-accent"
             style={{
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
               fontWeight: 600,
               fontSize: "1.05rem",
               letterSpacing: "0.04em",
@@ -465,7 +465,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               <p
                 className="text-accent"
                 style={{
-                  fontFamily: "'Cormorant Garamond', serif",
+                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
                   fontWeight: 600, fontSize: 10,
                   letterSpacing: "0.10em",
                 }}
@@ -1661,11 +1661,11 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">TOTAL PAGO</p>
-                <p className="text-primary font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPago)}</p>
+                <p className="text-primary font-black text-xl" style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPago)}</p>
               </div>
               <div className="concave-3d rounded-lg px-3 py-2">
                 <p className="text-[9px] font-black text-accent uppercase tracking-widest">PENDENTE</p>
-                <p className="text-red-500 font-black text-xl" style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPendente)}</p>
+                <p className="text-red-500 font-black text-xl" style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}>{brMoney(f.totalPendente)}</p>
               </div>
             </div>
             {f.payments.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">Nenhum pagamento registrado.</p>}
@@ -1674,7 +1674,7 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
                 <div className="flex items-center justify-between gap-2">
                   <p
                     className="text-primary font-black text-lg"
-                    style={{ fontFamily: "'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}
+                    style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "0.01em" }}
                   >
                     {brMoney(p.amount)}
                   </p>

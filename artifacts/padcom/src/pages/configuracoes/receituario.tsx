@@ -797,7 +797,7 @@ export default function ConfigReceituario() {
                     <option key={f.value} value={f.value}>{f.label}</option>
                   ))}
                 </select>
-                <div style={{ fontFamily: cfg.corpoFonteTitulo, marginTop: 6 }}
+                <div style={{ fontFamily: `PaxmedNum, ${cfg.corpoFonteTitulo}`, marginTop: 6 }}
                   className="text-sm text-gray-700 border border-dashed border-gray-200 rounded px-3 py-2 bg-gray-50">
                   01  Pré-visualização do nome do medicamento
                 </div>
@@ -811,7 +811,7 @@ export default function ConfigReceituario() {
                     <option key={f.value} value={f.value}>{f.label}</option>
                   ))}
                 </select>
-                <div style={{ fontFamily: cfg.corpoFonteCorpo, marginTop: 6 }}
+                <div style={{ fontFamily: `PaxmedNum, ${cfg.corpoFonteCorpo}`, marginTop: 6 }}
                   className="text-sm text-gray-500 border border-dashed border-gray-200 rounded px-3 py-2 bg-gray-50">
                   Posologia: Orientação demonstrativa a ser validada pelo prescritor.
                 </div>

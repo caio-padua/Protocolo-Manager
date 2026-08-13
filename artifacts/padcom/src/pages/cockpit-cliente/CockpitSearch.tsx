@@ -107,7 +107,7 @@ export default function CockpitSearch({
                   background: `linear-gradient(135deg, #1e3668 0%, #0f1e3a 100%)`,
                   border: `1.5px solid ${GOLD}`,
                   color: GOLD,
-                  fontFamily: "'Cormorant Garamond', serif",
+                  fontFamily: "PaxmedNum, 'Cormorant Garamond', serif",
                   fontSize: 13,
                 }}
               >
@@ -116,7 +116,7 @@ export default function CockpitSearch({
               <div className="min-w-0">
                 <div
                   className="font-bold truncate text-primary"
-                  style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14 }}
+                  style={{ fontFamily: "PaxmedNum, 'Cormorant Garamond', serif", fontSize: 14 }}
                 >
                   {tituloProprio(r.name)}
                 </div>

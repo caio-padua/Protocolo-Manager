@@ -1,5 +1,5 @@
-const SANS = '"Archivo", sans-serif';
-const BODY = '"Inter", sans-serif';
+const SANS = 'PaxmedNum, "Archivo", sans-serif';
+const BODY = 'PaxmedNum, "Inter", sans-serif';
 
 type Serif = {
   id: string;

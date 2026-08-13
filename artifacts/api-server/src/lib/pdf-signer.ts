@@ -1266,9 +1266,9 @@ async function loadPremiumFonts(pdfDoc: PDFDocument): Promise<PremiumFonts> {
     throw last;
   };
   const [cgRegB, cgBoldB, cgSemiBoldB, manRegB, manBoldB] = await Promise.all([
-    readFont("CormorantGaramond-Regular.woff"),
-    readFont("CormorantGaramond-Bold.woff"),
-    readFont("CormorantGaramond-SemiBold.woff"),
+    readFont("CormorantGaramond-Regular-Lining.woff"),
+    readFont("CormorantGaramond-Bold-Lining.woff"),
+    readFont("CormorantGaramond-SemiBold-Lining.woff"),
     readFont("Manrope-Regular.woff"),
     readFont("Manrope-Bold.woff"),
   ]);
@@ -1513,15 +1513,22 @@ function drawSubstancePremiumPage(
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
 
-  // Hero band
+  // ── Cabeçalho editorial da ficha ────────────────────────────────────────────
+  // A faixa navy cheia foi APOSENTADA a pedido do CEO (13/08/2026): pesava sobre
+  // o nome e fechava a folha logo na abertura. No lugar entra um cabeçalho de
+  // papel — nome em tinta navy sobre o marfim, ancorado por um fio de ouro em
+  // cima e um fio fino embaixo.
+  //
+  // INVARIANTE DA GRADE (R1/R3): BAND_H e bandY continuam com os MESMOS valores
+  // de antes. Tudo que vem abaixo do cabeçalho — grade de prescrição, blocos
+  // narrativos, benefícios — permanece na coordenada exata em toda ficha.
   const BAND_H = 70;
   const bandY = PAGE_H - MARGIN - BAND_H;
-  pg.drawRectangle({ x: MARGIN, y: bandY, width: CONTENT_W, height: BAND_H, color: NAVY_P });
   pg.drawRectangle({ x: MARGIN, y: PAGE_H - MARGIN - 3, width: CONTENT_W, height: 3, color: GOLD_P });
 
   const sheetTxt = `FICHA ${idx + 1} DE ${total}`;
   const stW = pf.manBold.widthOfTextAtSize(sheetTxt, 6.5);
-  pg.drawText(sheetTxt, { x: MARGIN + CONTENT_W - stW - 4, y: PAGE_H - MARGIN - 16, size: 6.5, font: pf.manBold, color: GOLD_P });
+  pg.drawText(sheetTxt, { x: MARGIN + CONTENT_W - stW, y: PAGE_H - MARGIN - 18, size: 6.5, font: pf.manBold, color: GOLD_P });
 
   // Nome: encolhe até 11pt e, se ainda assim não couber (nome absurdamente longo),
   // trunca com reticências. Sem isso o texto vazava para fora da faixa navy.
@@ -1532,7 +1539,7 @@ function drawSubstancePremiumPage(
   while (rawName.length > 4 && pf.cgBold.widthOfTextAtSize(rawName, nameSize) > NAME_MAX_W) {
     rawName = rawName.slice(0, -2) + "…";
   }
-  pg.drawText(rawName, { x: MARGIN + 10, y: PAGE_H - MARGIN - 38, size: nameSize, font: pf.cgBold, color: WHITE });
+  pg.drawText(rawName, { x: MARGIN, y: PAGE_H - MARGIN - 40, size: nameSize, font: pf.cgBold, color: NAVY_P });
 
   // Classificação do cadastro (spec R3 — cabeçalho de identidade).
   // categoryType/category viajam no DTO; se ausentes, a linha continua existindo
@@ -1541,11 +1548,13 @@ function drawSubstancePremiumPage(
     .filter(Boolean)
     .map(s => s.toUpperCase());
   const routeTxt = [procTypeLabel(sub.procedureType), ...classParts].join("  ·  ");
-  pg.drawText(routeTxt, { x: MARGIN + 10, y: bandY + 10, size: 7, font: pf.manBold, color: GOLD_P });
+  pg.drawText(routeTxt, { x: MARGIN, y: bandY + 9, size: 7, font: pf.manBold, color: GOLD_P });
+  // Fio fino fechando o cabecalho: substitui a borda que a faixa navy dava.
+  pg.drawLine({ start: { x: MARGIN, y: bandY + 1 }, end: { x: MARGIN + CONTENT_W, y: bandY + 1 }, thickness: 0.6, color: LINE_P });
 
   const cleanDose = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
   const doW = pf.manReg.widthOfTextAtSize(cleanDose || EMPTY_SHORT, 7);
-  pg.drawText(cleanDose || EMPTY_SHORT, { x: MARGIN + CONTENT_W - doW - 4, y: bandY + 10, size: 7, font: pf.manReg, color: MIST_P });
+  pg.drawText(cleanDose || EMPTY_SHORT, { x: MARGIN + CONTENT_W - doW, y: bandY + 9, size: 7, font: pf.manReg, color: INK_P });
 
   // ── GRADE 1: prescrição — 6 células fixas, sempre presentes (R2/R3) ────────
   const presY = bandY - 42;
