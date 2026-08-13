@@ -1,8 +1,22 @@
-// -- ROTA: Gerador de PDF de Plano Nutricional -- PADAXOR
+// ============================================================================
+// ROTA: Gerador de PDF de Plano Nutricional — PADAXOR
+//
 // POST /api/dieta/emitir-pdf
-//   Recebe parametros antropometricos + clientId opcional
-//   Gera PDF completo via Claude + pdf-lib
-//   Opcionalmente envia por e-mail (campo enviarEmail: true)
+//   Gera PDF via Claude + pdf-lib; busca médico responsável para assinar;
+//   persiste prescrição no Órgão Dieta; salva PDF no Object Storage e
+//   registra histórico em dieta_planos_emitidos.
+//   clientId é OPCIONAL para geração e download direto; obrigatório para
+//   persistir prescrição e histórico.
+//
+// GET  /api/dieta/planos-emitidos?clienteId=N      [requireCollaborator]
+//   Lista histórico de planos emitidos para um cliente.
+//
+// GET  /api/dieta/planos-emitidos/:id/pdf          [requireCollaborator]
+//   Baixa o PDF armazenado (anti-IDOR: filtra por empresa_id).
+//
+// POST /api/dieta/planos-emitidos/:id/reenviar     [requireCollaborator]
+//   Reenvia o PDF ao destinatário ORIGINAL gravado no registro.
+// ============================================================================
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
@@ -12,8 +26,9 @@ import {
   professionalsTable,
   dietaPrescricaoTable,
   dietaPrescricaoItemTable,
+  dietaPlanosEmitidosTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { gerarDietaPdf } from "../lib/dieta-pdf";
 import { calcularTdee } from "../lib/dieta-calc";
 import { sendGmailMessage } from "../lib/google-gmail";
@@ -21,12 +36,22 @@ import { renderPaxterEmail } from "../lib/messaging/render-email";
 import { baseUrlFromEnv } from "../lib/messaging/base-url";
 import type { PaxterDoc } from "../lib/messaging/types";
 import { ObjectStorageService } from "../lib/objectStorage";
+import {
+  ensureDietaPlanosTable,
+  uploadDietaPdf,
+  readDietaPdf,
+  listPlanosByCliente,
+  getPlanoById,
+} from "../lib/dieta-planos-storage";
+import { requireCollaborator } from "./collaborator";
+
+// Empresa padrão desta instalação (tenant único).
+const EMPRESA_ID = 5;
 
 const router: IRouter = Router();
 
 const EmitirPdfSchema = z.object({
   clientId: z.number().int().positive().optional().nullable(),
-  // Dados antropométricos (obrigatórios se clientId não tiver dados no DB)
   nomePaciente: z.string().min(1).optional(),
   email: z.string().email().optional().nullable(),
   sexo: z.enum(["F", "M"]).default("F"),
@@ -40,6 +65,7 @@ const EmitirPdfSchema = z.object({
   enviarEmail: z.boolean().default(false),
 });
 
+// ─── POST /api/dieta/emitir-pdf ───────────────────────────────────────────────
 router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const parsed = EmitirPdfSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -49,7 +75,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
 
   const body = parsed.data;
 
-  // Tentar buscar dados do cliente se clientId fornecido
+  // Resolver nome e e-mail do paciente
   let nomePaciente = body.nomePaciente ?? "Paciente";
   let emailDestino = body.email ?? null;
 
@@ -57,7 +83,10 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     const [cliente] = await db
       .select({ id: clientsTable.id, name: clientsTable.name, email: clientsTable.email })
       .from(clientsTable)
-      .where(eq(clientsTable.id, body.clientId));
+      .where(and(
+        eq(clientsTable.id, body.clientId),
+        eq(clientsTable.empresaId, EMPRESA_ID),
+      ));
     if (!cliente) {
       res.status(404).json({ error: "Cliente não encontrado", clientId: body.clientId });
       return;
@@ -66,7 +95,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     emailDestino = body.email ?? cliente.email ?? null;
   }
 
-  // Buscar médico responsável (isPrimaryDoctor = true)
+  // Buscar médico responsável (isPrimaryDoctor = true) — task #212
   const [medicoRow] = await db
     .select({
       nome: professionalsTable.name,
@@ -82,7 +111,6 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
 
   let medicoAssinatura: import("../lib/dieta-pdf").MedicoAssinatura | null = null;
   if (medicoRow) {
-    // Preferir registrationNumber (novo campo) se disponível, fallback para crm (legado)
     const crmFinal = medicoRow.registrationNumber ?? medicoRow.crm ?? "";
     if (medicoRow.nome && crmFinal) {
       let signatureImageBytes: Buffer | null = null;
@@ -90,17 +118,14 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
 
       if (medicoRow.signatureUrl) {
         try {
-          // signatureUrl é "/api/storage/objects/uploads/signatures/xxx.ext"
-          // getObjectEntityFile espera "/objects/uploads/signatures/xxx.ext"
           const objectPath = medicoRow.signatureUrl.replace(/^\/api\/storage/, "");
           const svc = new ObjectStorageService();
           const file = await svc.getObjectEntityFile(objectPath);
           const [buf] = await file.download();
           signatureImageBytes = buf;
-          // Inferir MIME pelo nome do arquivo
           signatureMime = medicoRow.signatureUrl.endsWith(".png") ? "image/png" : "image/jpeg";
         } catch {
-          // Assinatura indisponível no storage — continua sem imagem (placeholder)
+          // Assinatura indisponível — continua sem imagem
         }
       }
 
@@ -115,7 +140,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     }
   }
 
-  // Calcular TDEE/meta se não fornecidos
+  // Calcular TDEE/meta
   const conta = calcularTdee({
     pesoKg: body.pesoKg,
     alturaCm: body.alturaCm,
@@ -129,7 +154,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const tmb = conta.tmb ?? 0;
   const tdee = conta.tdee ?? 0;
 
-  // Gerar PDF (pode levar 30-90 segundos pelo Claude)
+  // Gerar PDF (30-90s via Claude)
   let pdfBytes: Uint8Array;
   let plano: Awaited<ReturnType<typeof gerarDietaPdf>>["plano"];
   try {
@@ -159,10 +184,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     return;
   }
 
-  // Persistir a prescrição REAL na tabela do Órgão Dieta (dieta_prescricao +
-  // dieta_prescricao_item), para que apareça no histórico do cliente igual a
-  // qualquer cardápio montado manualmente na tela "Montar cardápio". Sem isso,
-  // o PDF fica desconectado do sistema (não aparece em GET /dieta/prescricoes).
+  // Persistir a prescrição no Órgão Dieta (dieta_prescricao + dieta_prescricao_item)
   let prescricaoId: number | null = null;
   if (body.clientId) {
     prescricaoId = await db.transaction(async (tx) => {
@@ -209,6 +231,55 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     });
   }
 
+  // ── Salvar histórico (Object Storage + dieta_planos_emitidos) — task #211
+  let planoId: number | null = null;
+  let pdfStorageKey: string | null = null;
+  let storageError: string | null = null;
+
+  if (body.clientId) {
+    try {
+      await ensureDietaPlanosTable();
+
+      const [inserted] = await db
+        .insert(dietaPlanosEmitidosTable)
+        .values({
+          clienteId: body.clientId,
+          empresaId: EMPRESA_ID,
+          nomePaciente,
+          pesoKg: body.pesoKg,
+          alturaCm: body.alturaCm,
+          idade: body.idade,
+          sexo: body.sexo,
+          objetivo: body.objetivo,
+          estrategia: body.estiloAlimentar ?? null,
+          nivelAtividade: body.nivelAtividade,
+          caloriasAlvo,
+          tmb,
+          tdee,
+          emailDestino,
+          emailEnviado: false,
+          pdfBytes: pdfBytes.length,
+        })
+        .returning({ id: dietaPlanosEmitidosTable.id });
+
+      planoId = inserted?.id ?? null;
+
+      if (planoId) {
+        pdfStorageKey = await uploadDietaPdf(planoId, Buffer.from(pdfBytes));
+        await db
+          .update(dietaPlanosEmitidosTable)
+          .set({ pdfStorageKey })
+          .where(and(
+            eq(dietaPlanosEmitidosTable.id, planoId),
+            eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
+          ));
+      }
+    } catch (err) {
+      storageError = (err as Error)?.message ?? String(err);
+      req.log?.error?.({ err }, "Falha ao salvar histórico/PDF do plano nutricional");
+    }
+  }
+
   // Enviar por e-mail se solicitado
   let emailResult: { success: boolean; messageId?: string; error?: string } | null = null;
   if (body.enviarEmail && emailDestino) {
@@ -239,9 +310,20 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
         },
       ],
     });
+
+    // Atualizar emailEnviado no histórico
+    if (emailResult.success && planoId) {
+      await db
+        .update(dietaPlanosEmitidosTable)
+        .set({ emailEnviado: true })
+        .where(and(
+          eq(dietaPlanosEmitidosTable.id, planoId),
+          eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
+        )).catch(() => { /* não abortar */ });
+    }
   }
 
-  // Se pediu download (sem enviar email) — devolve o PDF diretamente
+  // Download direto (sem e-mail)
   if (!body.enviarEmail) {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
@@ -262,8 +344,156 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     emailDestino,
     email: emailResult,
     prescricaoId,
+    planoId,
+    pdfStorageKey,
+    historicoSalvo: planoId !== null && pdfStorageKey !== null,
+    historicoErro: storageError ?? undefined,
     pdfBytes: Buffer.from(pdfBytes).toString("base64"),
   });
+});
+
+// ─── GET /api/dieta/planos-emitidos ───────────────────────────────────────────
+router.get("/dieta/planos-emitidos", requireCollaborator, async (req, res): Promise<void> => {
+  const clienteId = Number(req.query.clienteId);
+  if (!clienteId || isNaN(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "clienteId é obrigatório e deve ser um inteiro positivo" });
+    return;
+  }
+
+  try {
+    const [cliente] = await db
+      .select({ id: clientsTable.id })
+      .from(clientsTable)
+      .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, EMPRESA_ID)));
+    if (!cliente) {
+      res.status(404).json({ error: "Cliente não encontrado" });
+      return;
+    }
+
+    const rows = await listPlanosByCliente(clienteId, EMPRESA_ID);
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        clienteId: r.clienteId,
+        nomePaciente: r.nomePaciente,
+        objetivo: r.objetivo,
+        estrategia: r.estrategia,
+        caloriasAlvo: r.caloriasAlvo,
+        pesoKg: r.pesoKg,
+        alturaCm: r.alturaCm,
+        emailDestino: r.emailDestino,
+        emailEnviado: r.emailEnviado,
+        temPdf: !!r.pdfStorageKey,
+        pdfBytes: r.pdfBytes,
+        emitidoEm: r.emitidoEm,
+      })),
+    );
+  } catch (err) {
+    req.log?.error?.({ err }, "Falha ao listar planos emitidos");
+    res.status(500).json({ error: "Falha ao carregar histórico" });
+  }
+});
+
+// ─── GET /api/dieta/planos-emitidos/:id/pdf ───────────────────────────────────
+router.get("/dieta/planos-emitidos/:id/pdf", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  try {
+    const plano = await getPlanoById(id, EMPRESA_ID);
+    if (!plano) {
+      res.status(404).json({ error: "Plano não encontrado" });
+      return;
+    }
+    if (!plano.pdfStorageKey) {
+      res.status(404).json({ error: "PDF não disponível para este plano" });
+      return;
+    }
+
+    const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
+    const filename = `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}_${id}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length.toString());
+    res.send(pdfBuffer);
+  } catch (err) {
+    req.log?.error?.({ err }, "Falha ao baixar PDF do plano emitido");
+    res.status(500).json({ error: "Falha ao baixar o PDF" });
+  }
+});
+
+// ─── POST /api/dieta/planos-emitidos/:id/reenviar ─────────────────────────────
+router.post("/dieta/planos-emitidos/:id/reenviar", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  try {
+    const plano = await getPlanoById(id, EMPRESA_ID);
+    if (!plano) {
+      res.status(404).json({ error: "Plano não encontrado" });
+      return;
+    }
+    if (!plano.pdfStorageKey) {
+      res.status(422).json({ error: "PDF não disponível para reenvio" });
+      return;
+    }
+
+    const emailDestino = plano.emailDestino;
+    if (!emailDestino) {
+      res.status(422).json({ error: "Este plano não tem e-mail de destino" });
+      return;
+    }
+
+    const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
+    const primeiroNome = plano.nomePaciente.split(" ")[0];
+    const doc: PaxterDoc = {
+      titulo: "Seu Plano Nutricional Personalizado",
+      paragrafos: [
+        `Olá, ${primeiroNome}!`,
+        "Segue o reenvio do seu Plano Alimentar Personalizado com base nos seus dados clínicos.",
+        `Meta energética: ${plano.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${plano.estrategia ?? "Personalizada"}`,
+        "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
+        "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
+      ],
+      notaRodape: "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
+    };
+    const baseUrl = baseUrlFromEnv();
+    const html = renderPaxterEmail(doc, baseUrl);
+
+    const emailResult = await sendGmailMessage({
+      to: emailDestino,
+      subject: `Plano Nutricional Personalizado — ${plano.nomePaciente}`,
+      html,
+      attachments: [
+        {
+          filename: `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+
+    if (emailResult.success) {
+      await db
+        .update(dietaPlanosEmitidosTable)
+        .set({ emailEnviado: true })
+        .where(and(
+          eq(dietaPlanosEmitidosTable.id, id),
+          eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
+        ));
+    }
+
+    res.json({ ok: emailResult.success, email: emailResult, emailDestino });
+  } catch (err) {
+    req.log?.error?.({ err }, "Falha ao reenviar plano emitido");
+    res.status(500).json({ error: "Falha ao reenviar o plano" });
+  }
 });
 
 export default router;

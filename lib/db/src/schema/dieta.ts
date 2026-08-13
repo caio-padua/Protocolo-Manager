@@ -141,6 +141,35 @@ export const dietaIndicacaoTable = pgTable("dieta_indicacao", {
     .where(sql`origem = 'motor' AND status = 'pendente'`),
 ]);
 
+// 5) PLANOS EMITIDOS — histórico de PDFs gerados pelo motor Claude.
+// Cada linha representa 1 emissão de PDF de plano nutricional completo.
+// O PDF fica permanentemente no Object Storage (pdfStorageKey = caminho lógico).
+export const dietaPlanosEmitidosTable = pgTable("dieta_planos_emitidos", {
+  id: serial("id").primaryKey(),
+  clienteId: integer("cliente_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
+  empresaId: integer("empresa_id").notNull().default(5),
+  // Parâmetros usados na geração (auditoria)
+  nomePaciente: text("nome_paciente").notNull(),
+  pesoKg: real("peso_kg"),
+  alturaCm: real("altura_cm"),
+  idade: integer("idade"),
+  sexo: text("sexo"),           // "M" | "F"
+  objetivo: text("objetivo"),
+  estrategia: text("estrategia"),  // estiloAlimentar
+  nivelAtividade: text("nivel_atividade"),
+  caloriasAlvo: real("calorias_alvo"),
+  tmb: real("tmb"),
+  tdee: real("tdee"),
+  // Entrega
+  emailDestino: text("email_destino"),
+  emailEnviado: boolean("email_enviado").notNull().default(false),
+  // Armazenamento
+  pdfStorageKey: text("pdf_storage_key"),    // caminho lógico no Object Storage
+  pdfBytes: integer("pdf_bytes"),            // tamanho do arquivo em bytes
+  // Auditoria
+  emitidoEm: timestamp("emitido_em", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---- Insert schemas + tipos derivados ----
 export const insertDietaAlimentoSchema = createInsertSchema(dietaCatalogoAlimentosTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDietaAlimento = z.infer<typeof insertDietaAlimentoSchema>;
@@ -161,3 +190,7 @@ export type DietaPrescricaoItem = typeof dietaPrescricaoItemTable.$inferSelect;
 export const insertDietaIndicacaoSchema = createInsertSchema(dietaIndicacaoTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDietaIndicacao = z.infer<typeof insertDietaIndicacaoSchema>;
 export type DietaIndicacao = typeof dietaIndicacaoTable.$inferSelect;
+
+export const insertDietaPlanoEmitidoSchema = createInsertSchema(dietaPlanosEmitidosTable).omit({ id: true, emitidoEm: true });
+export type InsertDietaPlanoEmitido = z.infer<typeof insertDietaPlanoEmitidoSchema>;
+export type DietaPlanoEmitido = typeof dietaPlanosEmitidosTable.$inferSelect;

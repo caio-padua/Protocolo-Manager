@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCollabToken } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,7 +31,12 @@ import {
   FileText,
   Loader2,
   Mail,
+  History,
+  Download,
+  Send,
+  AlertCircle,
 } from "lucide-react";
+import { getCollabToken } from "@/lib/collab-auth";
 
 // ============================================================================
 // ORGAO DIETA — ONDA A do Master Loop Paxter.
@@ -127,6 +133,7 @@ export default function DietaPage() {
         <TabsList className="bevel-3d">
           <TabsTrigger value="montar">Montar cardápio</TabsTrigger>
           <TabsTrigger value="fila">Fila de indicação</TabsTrigger>
+          <TabsTrigger value="historico">Histórico de Planos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="montar">
@@ -134,6 +141,9 @@ export default function DietaPage() {
         </TabsContent>
         <TabsContent value="fila">
           <FilaIndicacao />
+        </TabsContent>
+        <TabsContent value="historico">
+          <HistoricoPlanos />
         </TabsContent>
       </Tabs>
     </div>
@@ -857,6 +867,21 @@ function FilaIndicacao() {
   );
 }
 
+interface PlanoEmitido {
+  id: number;
+  clienteId: number;
+  nomePaciente: string;
+  objetivo: string | null;
+  estrategia: string | null;
+  caloriasAlvo: number | null;
+  pesoKg: number | null;
+  alturaCm: number | null;
+  emailDestino: string | null;
+  emailEnviado: boolean;
+  temPdf: boolean;
+  pdfBytes: number | null;
+  emitidoEm: string;
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
@@ -874,6 +899,251 @@ function Metric({ label, value, unit, gold }: { label: string; value: string; un
       <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className={`text-lg font-black leading-none ${gold ? "text-primary" : "text-foreground"}`}>{value}</div>
       <div className="text-[9px] uppercase tracking-widest text-muted-foreground/70">{unit}</div>
+    </div>
+  );
+}
+
+function HistoricoPlanos() {
+  const { toast } = useToast();
+  const [clienteId, setClienteId] = useState<number | null>(null);
+
+  const { data: clientes } = useQuery<Cliente[]>({
+    queryKey: ["dieta", "clientes"],
+    queryFn: async () => {
+      const r = await fetch("/api/clients");
+      if (!r.ok) throw new Error("Falha ao carregar clientes");
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d.data ?? []);
+    },
+  });
+
+  const {
+    data: planos,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<PlanoEmitido[]>({
+    queryKey: ["dieta", "planos-emitidos", clienteId],
+    queryFn: async () => {
+      if (!clienteId) return [];
+      const token = getCollabToken();
+      const r = await fetch(`/api/dieta/planos-emitidos?clienteId=${clienteId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error("Falha ao carregar histórico");
+      return r.json();
+    },
+    enabled: !!clienteId,
+  });
+
+  const [reenviando, setReenviando] = useState<number | null>(null);
+
+  async function handleDownload(plano: PlanoEmitido) {
+    const token = getCollabToken();
+    try {
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error((d as { error?: string }).error ?? "Falha ao baixar PDF");
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}_${plano.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      toast({ title: "Erro ao baixar PDF", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  async function handleReenviar(plano: PlanoEmitido) {
+    if (!plano.emailDestino) {
+      toast({ title: "Sem e-mail cadastrado", description: "Este plano não tem e-mail de destino.", variant: "destructive" });
+      return;
+    }
+    setReenviando(plano.id);
+    try {
+      const token = getCollabToken();
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/reenviar`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        throw new Error(d.error ?? "Falha ao reenviar");
+      }
+      toast({ title: "E-mail reenviado", description: `Plano enviado para ${plano.emailDestino}` });
+      refetch();
+    } catch (e: unknown) {
+      toast({ title: "Erro ao reenviar", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReenviando(null);
+    }
+  }
+
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatBytes(b: number | null) {
+    if (!b) return "—";
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Seletor de cliente */}
+      <div className="panel-3d p-4 max-w-sm">
+        <h2 className="mb-3 text-[11px] font-black uppercase tracking-widest text-primary">
+          Selecionar paciente
+        </h2>
+        <PaxterClientSelector
+          clientes={clientes ?? []}
+          value={clienteId}
+          onChange={setClienteId}
+          placeholder="Selecionar cliente…"
+        />
+      </div>
+
+      {!clienteId && (
+        <div className="panel-3d flex flex-col items-center justify-center gap-2 p-12 text-center">
+          <History className="h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            Selecione um paciente para ver os planos nutricionais já emitidos.
+          </p>
+        </div>
+      )}
+
+      {clienteId && isLoading && (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="panel-3d h-24 animate-pulse bg-primary/5" />
+          ))}
+        </div>
+      )}
+
+      {clienteId && isError && (
+        <div className="panel-3d border-l-4 border-red-500 p-4 flex items-center gap-3 text-sm font-bold text-red-600">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          Não foi possível carregar o histórico de planos.
+        </div>
+      )}
+
+      {clienteId && !isLoading && !isError && (planos ?? []).length === 0 && (
+        <div className="panel-3d flex flex-col items-center justify-center gap-2 p-12 text-center">
+          <FileText className="h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            Nenhum plano nutricional emitido para este paciente ainda.
+          </p>
+        </div>
+      )}
+
+      {(planos ?? []).length > 0 && (
+        <div className="panel-3d overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <History className="h-3.5 w-3.5" />
+              Planos emitidos — {(planos ?? []).length} {(planos ?? []).length === 1 ? "registro" : "registros"}
+            </h2>
+          </div>
+
+          <div className="divide-y divide-border/40">
+            {(planos ?? []).map((p) => (
+              <div key={p.id} className="flex items-start justify-between gap-4 px-4 py-4">
+                {/* Lado esquerdo: info */}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="concave-3d px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                      #{p.id}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDate(p.emitidoEm)}
+                    </span>
+                    {p.emailEnviado ? (
+                      <span className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" /> E-mail enviado
+                      </span>
+                    ) : (
+                      <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                        Sem e-mail
+                      </span>
+                    )}
+                    {!p.temPdf && (
+                      <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                        PDF indisponível
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                    {p.objetivo && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Objetivo:</b> {p.objetivo}
+                      </span>
+                    )}
+                    {p.caloriasAlvo && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Meta:</b> {p.caloriasAlvo} kcal/dia
+                      </span>
+                    )}
+                    {p.pesoKg && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Peso:</b> {p.pesoKg} kg
+                      </span>
+                    )}
+                    {p.estrategia && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Estratégia:</b> {p.estrategia}
+                      </span>
+                    )}
+                  </div>
+
+                  {p.emailDestino && (
+                    <p className="text-[11px] text-muted-foreground truncate max-w-xs">
+                      {p.emailDestino}
+                      {p.pdfBytes ? <span className="ml-2 opacity-60">· {formatBytes(p.pdfBytes)}</span> : null}
+                    </p>
+                  )}
+                </div>
+
+                {/* Lado direito: ações */}
+                <div className="flex shrink-0 gap-2">
+                  {p.temPdf && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bevel-3d gap-1.5"
+                      onClick={() => handleDownload(p)}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar PDF
+                    </Button>
+                  )}
+                  {p.temPdf && p.emailDestino && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bevel-3d gap-1.5"
+                      disabled={reenviando === p.id}
+                      onClick={() => handleReenviar(p)}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {reenviando === p.id ? "Enviando…" : "Reenviar"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
