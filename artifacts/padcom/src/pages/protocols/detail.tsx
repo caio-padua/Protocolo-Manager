@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,6 +47,7 @@ export default function ProtocolDetail() {
   const [physicalRasLoading, setPhysicalRasLoading] = useState(false);
   const [reenviarRasLoading, setReenviarRasLoading] = useState(false);
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
+  const [cartaPdfLoading, setCartaPdfLoading] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
 
@@ -223,6 +224,37 @@ export default function ProtocolDetail() {
               >
                 {documentPdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
                 {documentPdfLoading ? "Gerando..." : "Protocolo Completo (PDF)"}
+              </Button>
+              <Button
+                className="btn-3d"
+                disabled={cartaPdfLoading}
+                onClick={async () => {
+                  setCartaPdfLoading(true);
+                  try {
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-pdf`);
+                    if (!resp.ok) {
+                      const err = await resp.json().catch(() => null);
+                      throw new Error(err?.details || err?.error || "Erro ao gerar Carta de Tratamento");
+                    }
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const cd = resp.headers.get("Content-Disposition");
+                    const m = cd?.match(/filename="(.+)"/);
+                    a.download = m?.[1] ?? `CARTA_TRATAMENTO_${id}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "Carta de Tratamento gerada!", description: "PDF premium com capa, mapa de ênfases e assinatura digital." });
+                  } catch (err: any) {
+                    toast({ title: "Erro", description: err.message, variant: "destructive" });
+                  } finally {
+                    setCartaPdfLoading(false);
+                  }
+                }}
+              >
+                {cartaPdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Award className="h-4 w-4 mr-1" />}
+                {cartaPdfLoading ? "Gerando..." : "Carta Premium"}
               </Button>
             </>
           )}
