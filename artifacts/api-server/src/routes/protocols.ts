@@ -318,6 +318,10 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
       posologia: sub?.posologia ?? undefined,
       // Classificação do cadastro — vai ao cabeçalho de identidade da ficha (spec R3).
       category: sub?.category ?? undefined,
+      // Campos de posologia & logística auditados em task-266.
+      concentrationMg: sub?.concentrationMg ?? undefined,
+      volumeAmpola: sub?.volumeAmpola ?? undefined,
+      durationMinutes: sub?.durationMinutes ?? undefined,
     };
   });
 

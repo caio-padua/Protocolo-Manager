@@ -851,6 +851,10 @@ interface ProtocolDocSubstance {
   // Cabeçalho de identidade (spec R3) — classificação vinda do cadastro.
   categoryType?: string | null;
   category?: string | null;
+  // Campos de posologia & logística auditados em task-266.
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
+  durationMinutes?: number | null;
 }
 
 interface ProtocolDocSession {
@@ -1574,8 +1578,36 @@ function drawSubstancePremiumPage(
     }
   }
 
+  // ── GRADE 1b: segunda fila — concentração, volume e duração (task-266) ─────
+  // Estes 3 campos estavam cadastrados na substância mas nunca chegavam ao PDF.
+  // Campo sem dado exibe marcador "—" (grade invariável, R2.2).
+  const PRES2_H = 30;
+  const pres2Y = presY - PRES2_H;
+  pg.drawRectangle({ x: MARGIN, y: pres2Y, width: CONTENT_W, height: PRES2_H, color: MIST_P, opacity: 0.22 });
+  pg.drawLine({ start: { x: MARGIN, y: presY }, end: { x: MARGIN + CONTENT_W, y: presY }, thickness: 0.3, color: LINE_P });
+  const pres2Cells: Array<{ lbl: string; val: string }> = [
+    { lbl: "CONCENTRAÇÃO",   val: safeTxt(sub.concentrationMg) },
+    { lbl: "VOLUME (AMPOLA)",val: safeTxt(sub.volumeAmpola) },
+    { lbl: "DURAÇÃO (MIN)",  val: sub.durationMinutes != null && sub.durationMinutes > 0 ? String(sub.durationMinutes) : "" },
+  ];
+  const cell2W = CONTENT_W / pres2Cells.length;
+  for (let ci = 0; ci < pres2Cells.length; ci++) {
+    const cx0 = MARGIN + ci * cell2W;
+    if (ci > 0) {
+      pg.drawLine({ start: { x: cx0, y: pres2Y + 3 }, end: { x: cx0, y: pres2Y + PRES2_H - 3 }, thickness: 0.4, color: LINE_P });
+    }
+    pg.drawText(pres2Cells[ci].lbl, { x: cx0 + 5, y: pres2Y + PRES2_H - 10, size: 4.4, font: pf.manBold, color: INK_P });
+    const raw2 = pres2Cells[ci].val;
+    const has2 = raw2.trim().length > 0;
+    const shown2 = has2 ? raw2 : EMPTY_SHORT;
+    const cell2Font = has2 ? pf.cgBold : pf.cgReg;
+    let vs2 = 9;
+    while (cell2Font.widthOfTextAtSize(shown2, vs2) > cell2W - 10 && vs2 > 5.2) vs2 -= 0.25;
+    pg.drawText(shown2, { x: cx0 + 5, y: pres2Y + 9, size: vs2, font: cell2Font, color: has2 ? NAVY_P : EMPTY_C });
+  }
+
   // ── GRADE 2: duas colunas de altura fixa ───────────────────────────────────
-  const bodyTop = presY - 20;
+  const bodyTop = pres2Y - 20;
   const leftW = 200;
   const rightX = MARGIN + leftW + 16;
   const rightW = CONTENT_W - leftW - 16;
