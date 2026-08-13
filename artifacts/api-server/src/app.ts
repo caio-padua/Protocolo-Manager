@@ -53,10 +53,16 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // Rota pública — serve o PDF de pré-visualização da capa sem autenticação.
 // Remove este bloco quando a tarefa de validação visual estiver concluída.
 app.get("/preview-capa.pdf", (_req, res) => {
-  const p = path.resolve(import.meta.dirname, "../assets/preview-capa.pdf");
-  if (!fs.existsSync(p)) { res.status(404).send("preview não encontrado"); return; }
+  // Procura o arquivo em src/../assets (dev) e dist/../assets (produção)
+  const candidates = [
+    path.resolve(import.meta.dirname, "../assets/preview-capa.pdf"),
+    path.resolve(import.meta.dirname, "../../assets/preview-capa.pdf"),
+  ];
+  const p = candidates.find(c => fs.existsSync(c));
+  if (!p) { res.status(404).send("preview não encontrado"); return; }
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", "inline; filename=capa-padaxor.pdf");
+  res.setHeader("Cache-Control", "no-store");
   fs.createReadStream(p).pipe(res);
 });
 
