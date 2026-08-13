@@ -312,3 +312,10 @@ uri = "file://documentos/protocolo-31-carlucia-carta-premium.pdf"
 type = "pdf"
 title = "Protocolo 31 — Carta de Tratamento Premium (Carlucia Santos Fernandes)"
 description = "Documento de 11 páginas, assinado digitalmente com certificado ICP-Brasil. Contém capa, seis fichas de substância com grade fixa, página de perguntas para a consulta, resumo financeiro e folha de assinatura."
+
+[[outputs]]
+id = "x-ChshrIUOYNmfLE1Eb19"
+uri = "file://documentos/protocolo-capa-preview-padaxor.pdf"
+type = "pdf"
+title = "Capa PADAXOR — Pré-visualização"
+description = "Símbolo 3D dourado + wordmark PADAXOR oficial sobre navy. Abra para ver a capa do protocolo."
