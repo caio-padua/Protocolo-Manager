@@ -1,0 +1,71 @@
+ITEM #88 - CARTA DE MISSAO OPERACIONAL
+DE: DR. MANUS, ARBITRO CRUZADO
+PARA: DR. REPLIT, EXECUTOR
+COPIA: DR. CODE, VEREDITO TECNICO
+ESTADO: AGUARDANDO EXECUCAO TESTADA
+
+DOR ATUAL
+O sistema tem motor PDF, dados, radar, assinatura e PDF-LIB. O que falta nao e ferramenta: falta aplicar o layout aprovado no gerador real. O PDF atual ainda e verde-petroleo, tabela de estrelas e fichas que podem continuar em outra pagina. Isso NAO e a Carta Premium PADAXOR aprovada.
+
+ALVO UNICO DESTA RODADA
+Arquivos de codigo: artifacts/api-server/src/lib/pdf-signer.ts e artifacts/api-server/src/routes/protocols.ts.
+Nao alterar area.tsx, banco, schema, Drive, e-mail, RAS/FAP ou assinatura digital neste commit.
+Nao criar endpoint, tabela, coluna ou infraestrutura nova.
+
+FONTE DE VERDADE
+1. Visual: checkpoint 8fa338ba do projeto protocolo-premium-mockup.
+2. Especificacao executavel: docs/CARTA_OPERACIONAL_ITEM_88_DR_REPLIT.md.
+3. Tarefa oficial: #88, permanece AGUARDANDO ate hash + testes + PDF A4.
+
+REGRA VISUAL QUE VALE
+1. PADAXOR e a marca principal da capa.
+2. Clinica emissora (data.unit) e secundaria e variavel.
+3. PADCON e proveniencia discreta no rodape.
+4. Capa navy #16284a; ouro #9a7b32; marfim #faf8f3.
+5. Cormorant Garamond para titulos; Manrope para dados e corpo.
+6. Uma substancia por folha A4 principal. Nunca duas espremidas.
+7. Mapa de sistemas em BARRAS VERTICAIS a esquerda; radar da substancia a direita.
+8. Abaixo: duas colunas fixas. Esquerda = composicao/funcao e seguranca. Direita = beneficios e ciencia.
+9. PADAXOR no canto superior direito de toda pagina interna.
+10. Nunca: estrela, barra horizontal, PAXTER antigo, terceira coluna, texto clinico inventado ou truncado.
+
+CHECKPOINTS OBRIGATORIOS
+A. FUNDACAO
+- Add @pdf-lib/fontkit.
+- Copy simbolo oficial 03-loginho-vidro-sistema.png para artifacts/api-server/assets/brand.
+- Add fontes TTF em artifacts/api-server/assets/fonts.
+- Reutilizar build.mjs: ele ja copia assets para dist/assets.
+- Criar helpers de fontes, simbolo e tokens navy/ouro/marfim.
+- PROVA: typecheck verde + listar dist/assets.
+
+B. CAPA
+- Substituir bloco de capa de generateProtocolDocumentPdf.
+- Simbolo 160x160 pt; PADAXOR 42 pt; subtitulo Clinical Intelligent System.
+- Selo radial: sessoes concluidas / total; nunca inferir progresso.
+- CPF e e-mail mascarados; PADCON somente no rodape.
+- PROVA: PDF fixture capa + pagina interna.
+
+C. FICHA PRINCIPAL
+- Criar drawVerticalSystemMap, deriveRadarDimensionsForSubstance e drawSubstancePremiumPage.
+- Ler bodySystemEffects de cada substancia; usar seis maiores; eixo vertical 0-5.
+- Radar individual, nao do protocolo inteiro.
+- Usar geometria e tipografia da carta operacional.
+- PROVA: 88-A, 88-B, 88-C, 88-D, 88-F, 88-H, 88-I verdes.
+
+D. SEGURANCA E REGRESSAO
+- Projetar composicao e posologia ja existentes em routes/protocols.ts.
+- Textos longos de seguranca/ciencia criam pagina de continuacao; jamais truncar.
+- Rodar 88-E, 88-G, 88-J, 88-K; typecheck, test, PDF A4, assinatura e Drive.
+- PROVA: saida literal dos comandos + hash + PDF.
+
+RETORNO EXIGIDO POR CHECKPOINT
+ITEM #88 - CHECKPOINT {A/B/C/D}
+Commit: {hash}
+Arquivos: {lista}
+Provas: {comandos + saida}
+PDF: {caminho}
+Pendencias: {nenhuma ou lista}
+Pedido ao Dr. Code: {o que precisa validar}
+
+RESUMO EM 1 LINHA
+Implemente o PDF Premium no motor existente em quatro checkpoints, sem infraestrutura nova e sem fechar #88 antes de hash + bateria verde + PDF A4 revisado.

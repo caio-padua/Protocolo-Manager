@@ -1,0 +1,8 @@
+flowchart LR
+  A[Checkpoint A<br/>Fontes + Ativos + Tokens] --> B[Checkpoint B<br/>Capa PADAXOR + Header/Footer]
+  B --> C[Checkpoint C<br/>Ficha individual A4<br/>Barras verticais + Radar]
+  C --> D[Checkpoint D<br/>Overflow seguro + Bindings<br/>Testes + Assinatura]
+  D --> E{Hash + PDF A4<br/>88-A a 88-K verdes?}
+  E -- nao --> C
+  E -- sim --> F[Veredito<br/>Dr. Code + Dr. Manus]
+  F --> G[Planilha #88<br/>Atualizar somente com evidencia]
