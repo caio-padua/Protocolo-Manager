@@ -471,6 +471,16 @@ export function SubstanceEditForm({
                 <Field label="Tempo p/ resultado">
                   <Input value={form.timeToEffect ?? ""} onChange={(e) => setField("timeToEffect", e.target.value)} />
                 </Field>
+                <div className="col-span-2 sm:col-span-3">
+                  <Field label="Posologia (como usar — sai na Carta de Tratamento)">
+                    <Textarea
+                      placeholder="ex.: Aplicar 1 ampola IM, 1x por semana, por 8 semanas."
+                      value={form.posologia ?? ""}
+                      onChange={(e) => setField("posologia", e.target.value)}
+                      rows={2}
+                    />
+                  </Field>
+                </div>
               </div>
             </SectionCard>
 
