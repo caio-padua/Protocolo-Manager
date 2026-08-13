@@ -114,7 +114,7 @@ interface PlanoGerado {
 
 // ─── Claude call ─────────────────────────────────────────────────────────────
 
-async function gerarConteudoPlano(input: DietaPdfInput): Promise<PlanoGerado> {
+async function gerarConteudoPlano(input: DietaPdfInput, signal?: AbortSignal): Promise<PlanoGerado> {
   const client = anthropic;
 
   const imc = input.pesoKg / ((input.alturaCm / 100) ** 2);
@@ -148,11 +148,14 @@ REGRAS:
 
 Complete TODOS os campos com dados reais e realistas. Preencha as opcoes vazias de TODAS as 6 refeições. Responda APENAS o JSON sem texto extra.`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    messages: [{ role: "user", content: prompt }],
-  });
+  const message = await client.messages.create(
+    {
+      model: "claude-sonnet-4-6",
+      max_tokens: 8192,
+      messages: [{ role: "user", content: prompt }],
+    },
+    signal ? { signal } : undefined,
+  );
 
   const text = message.content[0].type === "text" ? message.content[0].text : "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -751,9 +754,9 @@ export interface DietaPdfResultado {
   plano: PlanoGerado;
 }
 
-export async function gerarDietaPdf(input: DietaPdfInput): Promise<DietaPdfResultado> {
+export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal): Promise<DietaPdfResultado> {
   // 1. Gerar conteúdo via Claude
-  const plano = await gerarConteudoPlano(input);
+  const plano = await gerarConteudoPlano(input, signal);
 
   // 2. Calcular total de páginas
   const totalPages = 2 + plano.refeicoes.length + 1; // capa + estratégia + 1/refeição + suplementação

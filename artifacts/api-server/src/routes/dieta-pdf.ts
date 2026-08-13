@@ -154,34 +154,53 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const tmb = conta.tmb ?? 0;
   const tdee = conta.tdee ?? 0;
 
-  // Gerar PDF (30-90s via Claude)
+  // Gerar PDF (pode levar 30-120 segundos pelo Claude)
+  // AbortController garante que a rota responda com 504 antes do gateway cortar a conexão.
+  const TIMEOUT_MS = Number(process.env.DIETA_PDF_TIMEOUT_MS ?? 120_000);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
+
   let pdfBytes: Uint8Array;
   let plano: Awaited<ReturnType<typeof gerarDietaPdf>>["plano"];
   try {
-    const resultado = await gerarDietaPdf({
-      nomePaciente,
-      email: emailDestino,
-      sexo: body.sexo,
-      objetivo: body.objetivo,
-      estiloAlimentar: body.estiloAlimentar,
-      pesoKg: body.pesoKg,
-      alturaCm: body.alturaCm,
-      idade: body.idade,
-      nivelAtividade: body.nivelAtividade,
-      caloriasAlvo,
-      tmb,
-      tdee,
-      medico: medicoAssinatura,
-    });
+    const resultado = await gerarDietaPdf(
+      {
+        nomePaciente,
+        email: emailDestino,
+        sexo: body.sexo,
+        objetivo: body.objetivo,
+        estiloAlimentar: body.estiloAlimentar,
+        pesoKg: body.pesoKg,
+        alturaCm: body.alturaCm,
+        idade: body.idade,
+        nivelAtividade: body.nivelAtividade,
+        caloriasAlvo,
+        tmb,
+        tdee,
+        medico: medicoAssinatura,
+      },
+      ac.signal,
+    );
     pdfBytes = resultado.pdfBytes;
     plano = resultado.plano;
   } catch (err) {
-    req.log?.error?.({ err }, "Falha ao gerar PDF de dieta");
-    res.status(500).json({
-      error: "Falha ao gerar o plano nutricional",
-      detail: (err as Error)?.message ?? String(err),
-    });
+    clearTimeout(timer);
+    const isTimeout =
+      (err instanceof Error && err.name === "AbortError") ||
+      ac.signal.aborted;
+    if (isTimeout) {
+      req.log?.warn?.({ timeoutMs: TIMEOUT_MS }, "Timeout ao gerar PDF de dieta via Claude");
+      res.status(504).json({ error: "Timeout ao gerar plano nutricional — tente novamente." });
+    } else {
+      req.log?.error?.({ err }, "Falha ao gerar PDF de dieta");
+      res.status(500).json({
+        error: "Falha ao gerar o plano nutricional",
+        detail: (err as Error)?.message ?? String(err),
+      });
+    }
     return;
+  } finally {
+    clearTimeout(timer);
   }
 
   // Persistir a prescrição no Órgão Dieta (dieta_prescricao + dieta_prescricao_item)
