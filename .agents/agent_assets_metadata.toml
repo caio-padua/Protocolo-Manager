@@ -291,3 +291,10 @@ uri = "file://docs/briefing-manus-protocolo-pdf.md"
 type = "text"
 title = "Carta ao Dr. Manus — Arquitetura do Protocolo PDF"
 description = "Briefing completo: onde estão os arquivos, como funciona a fiação de dados, estrutura de páginas, radar chart, cadernos jurídicos separados, oportunidades de melhoria e o rebrand PADAXOR."
+
+[[outputs]]
+id = "4TfTd7G-gI3EIN5fQCD2H"
+uri = "file://PlanoNutricional_exemplo.pdf"
+type = "pdf"
+title = "Plano Nutricional — Exemplo (validação do motor PDF)"
+description = "PDF gerado pelo motor real (Claude + pdf-lib) para validação do fluxo de emissão. Dado real removido por política de privacidade."

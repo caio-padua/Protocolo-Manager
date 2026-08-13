@@ -7,12 +7,12 @@
 import { useRef, useEffect, useState } from "react";
 import {
   FlaskConical, Syringe, Gem, ClipboardList, TrendingUp,
-  FileText, ClipboardCheck, Activity, DollarSign, User,
+  FileText, ClipboardCheck, Activity, DollarSign, User, Utensils,
 } from "lucide-react";
 
 export type AbaId =
   | "prescricao" | "injetaveis" | "implantes" | "exames" | "evolucao"
-  | "documentos" | "anamnese" | "protocolos" | "financeiro" | "cadastro";
+  | "documentos" | "anamnese" | "protocolos" | "dieta-treino" | "financeiro" | "cadastro";
 
 interface TabDef {
   id: AbaId;
@@ -21,16 +21,17 @@ interface TabDef {
 }
 
 const ABAS: TabDef[] = [
-  { id: "prescricao",  rotulo: "Prescrição",      Icon: FlaskConical   },
-  { id: "injetaveis",  rotulo: "Injetáveis",       Icon: Syringe        },
-  { id: "implantes",   rotulo: "Implantes",        Icon: Gem            },
-  { id: "exames",      rotulo: "Exames",           Icon: ClipboardList  },
-  { id: "evolucao",    rotulo: "Evolução",         Icon: TrendingUp     },
-  { id: "anamnese",    rotulo: "Anamnese Prévia",  Icon: ClipboardCheck },
-  { id: "documentos",  rotulo: "Documentos",       Icon: FileText       },
-  { id: "protocolos",  rotulo: "Protocolos",       Icon: Activity       },
-  { id: "financeiro",  rotulo: "Financeiro",       Icon: DollarSign     },
-  { id: "cadastro",    rotulo: "Cadastro",         Icon: User           },
+  { id: "prescricao",   rotulo: "Prescrição",      Icon: FlaskConical   },
+  { id: "injetaveis",   rotulo: "Injetáveis",       Icon: Syringe        },
+  { id: "implantes",    rotulo: "Implantes",        Icon: Gem            },
+  { id: "exames",       rotulo: "Exames",           Icon: ClipboardList  },
+  { id: "evolucao",     rotulo: "Evolução",         Icon: TrendingUp     },
+  { id: "anamnese",     rotulo: "Anamnese Prévia",  Icon: ClipboardCheck },
+  { id: "documentos",   rotulo: "Documentos",       Icon: FileText       },
+  { id: "protocolos",   rotulo: "Protocolos",       Icon: Activity       },
+  { id: "dieta-treino", rotulo: "Dieta e Treino",   Icon: Utensils       },
+  { id: "financeiro",   rotulo: "Financeiro",       Icon: DollarSign     },
+  { id: "cadastro",     rotulo: "Cadastro",         Icon: User           },
 ];
 
 const NAVY = "#16294a";

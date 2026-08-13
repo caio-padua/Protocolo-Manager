@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { db, clientsTable, protocolsTable, examRequestPdfsTable, examDocumentsTable, examResultsTable } from "@workspace/db";
+import { db, clientsTable, protocolsTable, examRequestPdfsTable, examDocumentsTable, examResultsTable, treinoPrescricaoTable, dietaPrescricaoTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { listPlanosByCliente } from "../lib/dieta-planos-storage";
 
 // ============================================================================
 // GET /api/prontuario/:clientId
@@ -117,6 +118,44 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
       .orderBy(examResultsTable.collectionDate, examResultsTable.analyteNameRaw)
       .limit(2000);
 
+    // 7a. Prescrições de dieta (motor manual/determinístico — Órgão Dieta)
+    const dietaPrescricoes = await db
+      .select({
+        id: dietaPrescricaoTable.id,
+        objetivo: dietaPrescricaoTable.objetivo,
+        estiloAlimentar: dietaPrescricaoTable.estiloAlimentar,
+        caloriasAlvo: dietaPrescricaoTable.caloriasAlvo,
+        status: dietaPrescricaoTable.status,
+        createdAt: dietaPrescricaoTable.createdAt,
+      })
+      .from(dietaPrescricaoTable)
+      .where(eq(dietaPrescricaoTable.clientId, clientId))
+      .orderBy(desc(dietaPrescricaoTable.createdAt))
+      .limit(50);
+
+    // 7b. Planos nutricionais emitidos em PDF (motor IA/Claude — Órgão Dieta)
+    let dietaPlanos: Awaited<ReturnType<typeof listPlanosByCliente>> = [];
+    try {
+      dietaPlanos = await listPlanosByCliente(clientId, client.empresaId ?? 5);
+    } catch (err) {
+      req.log.error({ err: err instanceof Error ? err.message : String(err) }, "prontuario: erro ao buscar planos de dieta");
+    }
+
+    // 8. Fichas de treino prescritas (Órgão Treino)
+    const treinoPrescricoes = await db
+      .select({
+        id: treinoPrescricaoTable.id,
+        objetivo: treinoPrescricaoTable.objetivo,
+        divisao: treinoPrescricaoTable.divisao,
+        frequenciaSemanal: treinoPrescricaoTable.frequenciaSemanal,
+        status: treinoPrescricaoTable.status,
+        createdAt: treinoPrescricaoTable.createdAt,
+      })
+      .from(treinoPrescricaoTable)
+      .where(eq(treinoPrescricaoTable.clientId, clientId))
+      .orderBy(desc(treinoPrescricaoTable.createdAt))
+      .limit(50);
+
     res.json({
       client: {
         id: client.id,
@@ -133,6 +172,19 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
       examesIndicados,
       examesRecebidos,
       analitos,
+      dietaPrescricoes,
+      dietaPlanos: dietaPlanos.map((p) => ({
+        id: p.id,
+        nomePaciente: p.nomePaciente,
+        objetivo: p.objetivo,
+        estrategia: p.estrategia,
+        caloriasAlvo: p.caloriasAlvo,
+        emailDestino: p.emailDestino,
+        emailEnviado: p.emailEnviado,
+        temPdf: !!p.pdfStorageKey,
+        emitidoEm: p.emitidoEm,
+      })),
+      treinoPrescricoes,
     });
   } catch (err) {
     req.log.error({ err: err instanceof Error ? err.message : String(err) }, "prontuario: erro");

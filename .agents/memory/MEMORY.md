@@ -134,3 +134,7 @@
 - [Carga Railway via tunel SSH](railway-carga-tunel.md) — BEGIN/COMMIT embutidos no dump ANULAM --single-transaction; tunel+psql na MESMA chamada bash; RAILWAY_API_TOKEN (conta), nunca project token p/ SSH.
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
+- [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
+- [Carta de Tratamento Premium PDF (Item #88)](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
+- [Git push/fetch — fallback de autenticação HTTPS](git-http-auth-fallback.md) — "Invalid username or token" no painel/terminal; checar divergência+working tree antes de credencial; GITHUB_PAT via http.extraHeader destrava só o terminal, não o painel.
+- [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.

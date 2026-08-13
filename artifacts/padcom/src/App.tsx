@@ -54,6 +54,7 @@ import ConfigCertificados from "@/pages/configuracoes/certificados";
 import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import ConfigReceituario from "@/pages/configuracoes/receituario";
+import ConfigMedico from "@/pages/configuracoes/medico";
 import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
 import FinanceiroMetas from "@/pages/financeiro/metas";
@@ -278,6 +279,7 @@ function Router() {
                   <Route path="/configuracoes/assinatura" component={ConfigAssinatura} />
                   <Route path="/configuracoes/pagamentos" component={ConfigPagamentos} />
                   <Route path="/configuracoes/receituario" component={ConfigReceituario} />
+                  <Route path="/configuracoes/medico" component={ConfigMedico} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCollabToken } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,14 +28,23 @@ import {
   Inbox,
   CheckCircle2,
   XCircle,
+  FileText,
+  Loader2,
+  Mail,
+  History,
+  Download,
+  Send,
+  AlertCircle,
+  SendHorizontal,
+  Eye,
 } from "lucide-react";
 
-// ============================================================================
+// -------------------------------------------------------------------------------
 // ORGAO DIETA — ONDA A do Master Loop Paxter.
 // Montador de cardapio TDAH-friendly: parametros -> conta TDEE ao vivo ->
 // tabela de refeicoes (carro-chefe) -> salva prescricao. Fila de Indicacao
 // mostra o que o Cerebro (motor) sugeriu e ainda aguarda validacao humana.
-// ============================================================================
+// -------------------------------------------------------------------------------
 
 const FATOR_ATIVIDADE: Record<string, number> = {
   sedentario: 1.2,
@@ -124,6 +134,7 @@ export default function DietaPage() {
         <TabsList className="bevel-3d">
           <TabsTrigger value="montar">Montar cardápio</TabsTrigger>
           <TabsTrigger value="fila">Fila de indicação</TabsTrigger>
+          <TabsTrigger value="historico">Histórico de Planos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="montar">
@@ -131,6 +142,9 @@ export default function DietaPage() {
         </TabsContent>
         <TabsContent value="fila">
           <FilaIndicacao />
+        </TabsContent>
+        <TabsContent value="historico">
+          <HistoricoPlanos />
         </TabsContent>
       </Tabs>
     </div>
@@ -176,6 +190,20 @@ function MontarCardapio() {
   const [janelaIni, setJanelaIni] = useState("12:00");
   const [janelaFim, setJanelaFim] = useState("20:00");
   const [itens, setItens] = useState<ItemLinha[]>([]);
+
+  // --- Emissão de PDF ---
+  const [caloriasAlvo, setCaloriasAlvo] = useState("");
+  const [estiloAlimentar, setEstiloAlimentar] = useState("");
+  const [enviarEmail, setEnviarEmail] = useState(false);
+
+  // --- Passo de confirmação de e-mail (preview → confirm) ---
+  const [pendingEmail, setPendingEmail] = useState<{
+    pdfBase64: string;
+    clientId: number;
+    nomePaciente: string;
+    caloriasAlvo: number;
+    estiloAlimentar?: string;
+  } | null>(null);
 
   // ---- Conta TDEE ao vivo (espelha o backend) ----
   const conta = useMemo(() => {
@@ -279,6 +307,161 @@ function MontarCardapio() {
   });
 
   const podeSalvar = clientId && itens.some((it) => it.alimentoId) && !algumForaJanela;
+
+  // --- Mutation: emitir PDF ---
+  // FLUXO COM E-MAIL: gera o PDF → abre em nova aba → exibe painel de confirmação.
+  // O e-mail SÓ é disparado quando o CEO clica "Confirmar envio" (ver confirmarEnvio abaixo).
+  // NOTE: pdfWin é aberto SINCRONO (antes do fetch) para não ser bloqueado por popup blocker.
+  const pdfWinRef = { current: null as Window | null };
+
+  const emitirPdf = useMutation({
+    mutationFn: async () => {
+      const p = parseFloat(peso.replace(",", "."));
+      const a = parseFloat(altura.replace(",", "."));
+      const i = parseInt(idade, 10);
+      if (!p || !a || !i) throw new Error("Preencha Peso, Altura e Idade antes de emitir.");
+      if (enviarEmail && !clientId) throw new Error("Selecione um cliente para poder enviar por e-mail.");
+
+      // Abre aba em branco AGORA (user activation), antes do await longo
+      pdfWinRef.current = window.open("about:blank", "_blank");
+
+      const kcalAlvo = caloriasAlvo ? parseFloat(caloriasAlvo.replace(",", ".")) : null;
+      const body: Record<string, unknown> = {
+        sexo,
+        objetivo,
+        pesoKg: p,
+        alturaCm: a,
+        idade: i,
+        nivelAtividade: atividade,
+        enviarEmail: false, // Nunca envia aqui — CEO revisa primeiro
+      };
+      if (clientId) body.clientId = clientId;
+      if (kcalAlvo) body.caloriasAlvo = kcalAlvo;
+      if (estiloAlimentar.trim()) body.estiloAlimentar = estiloAlimentar.trim();
+
+      let r: Response;
+      try {
+        r = await fetch("/api/dieta/emitir-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (fetchErr) {
+        pdfWinRef.current?.close();
+        throw fetchErr;
+      }
+
+      if (!r.ok) {
+        pdfWinRef.current?.close();
+        const err = await r.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Falha ao gerar o plano nutricional.");
+      }
+
+      // Resposta é sempre o PDF binário (enviarEmail: false)
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      let usedFallbackDownload = false;
+      if (pdfWinRef.current && !pdfWinRef.current.closed) {
+        pdfWinRef.current.location.href = url;
+      } else {
+        // Fallback: download programático (popup bloqueado ou aba fechada pelo usuário)
+        usedFallbackDownload = true;
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = "PlanoNutricional.pdf";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+
+      // Se o CEO marcou "Enviar por e-mail", converter o blob para base64 e aguardar confirmação
+      let pdfBase64: string | null = null;
+      if (enviarEmail && clientId) {
+        const buf = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (const b of bytes) bin += String.fromCharCode(b);
+        pdfBase64 = btoa(bin);
+      }
+
+      return {
+        pdfBase64,
+        clientId,
+        nomePaciente: clientes?.find((c) => c.id === clientId)?.name ?? "Paciente",
+        caloriasAlvo: kcalAlvo ?? p * 25,
+        estiloAlimentar: estiloAlimentar.trim() || undefined,
+        querEnviarEmail: enviarEmail && !!clientId,
+        usedFallbackDownload,
+      };
+    },
+    onSuccess: (result) => {
+      const desc = result.usedFallbackDownload
+        ? "O plano nutricional foi baixado para o seu computador."
+        : "O plano nutricional foi aberto em nova aba para revisão.";
+      toast({ title: "PDF gerado!", description: desc });
+      if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
+        // Exibir painel de confirmação de envio
+        setPendingEmail({
+          pdfBase64: result.pdfBase64,
+          clientId: result.clientId!,
+          nomePaciente: result.nomePaciente,
+          caloriasAlvo: result.caloriasAlvo,
+          estiloAlimentar: result.estiloAlimentar,
+        });
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Não foi possível emitir", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // --- Mutation: confirmar envio do e-mail após revisão ---
+  const confirmarEnvio = useMutation({
+    mutationFn: async () => {
+      if (!pendingEmail) throw new Error("Nenhum PDF pendente de envio.");
+      const r = await fetch("/api/dieta/enviar-pdf-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: pendingEmail.clientId,
+          pdfBase64: pendingEmail.pdfBase64,
+          nomePaciente: pendingEmail.nomePaciente,
+          caloriasAlvo: pendingEmail.caloriasAlvo,
+          estiloAlimentar: pendingEmail.estiloAlimentar,
+        }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((json as { error?: string }).error || "Falha ao enviar o e-mail.");
+      return json as { ok: boolean; emailDestino?: string; email?: { success: boolean; error?: string } };
+    },
+    onSuccess: (result) => {
+      setPendingEmail(null);
+      const entrega = result.email;
+      if (entrega && entrega.success === false) {
+        toast({
+          title: "E-mail falhou",
+          description: entrega.error ?? "Não foi possível entregar o e-mail ao paciente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Plano enviado!",
+          description: `E-mail enviado para ${result.emailDestino ?? pendingEmail?.nomePaciente}.`,
+        });
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const podeEmitir =
+    !emitirPdf.isPending &&
+    !!peso.trim() &&
+    !!altura.trim() &&
+    !!idade.trim() &&
+    (!enviarEmail || !!clientId);
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
@@ -556,6 +739,141 @@ function MontarCardapio() {
             {salvar.isPending ? "Salvando…" : "Salvar prescrição"}
           </Button>
         </div>
+
+        {/* ---- Painel: Emitir Plano Nutricional PDF ---- */}
+        <div className="panel-3d p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" />
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-primary">
+              Emitir Plano Nutricional PDF
+            </h2>
+          </div>
+
+          <p className="text-[12px] text-muted-foreground">
+            Gera um plano alimentar completo via IA (Claude) com cardápio semanal, suplementação e tabela de acompanhamento.
+            Usa os dados antropométricos já preenchidos — confirme antes de emitir.
+          </p>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Calorias alvo (opcional)">
+              <Input
+                value={caloriasAlvo}
+                onChange={(e) => setCaloriasAlvo(e.target.value)}
+                inputMode="decimal"
+                placeholder="Calculado automaticamente"
+                className="field-engraved"
+              />
+            </Field>
+            <Field label="Estilo alimentar (opcional)">
+              <Input
+                value={estiloAlimentar}
+                onChange={(e) => setEstiloAlimentar(e.target.value)}
+                placeholder="Ex.: mediterrânea, low-carb…"
+                className="field-engraved"
+              />
+            </Field>
+          </div>
+
+          {/* Revisão dos parâmetros usados */}
+          <div className="screen-3d px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-black text-foreground">Parâmetros:</span>{" "}
+            {peso ? `${peso} kg` : <span className="text-amber-600 font-bold">peso ausente</span>}
+            {" · "}
+            {altura ? `${altura} cm` : <span className="text-amber-600 font-bold">altura ausente</span>}
+            {" · "}
+            {idade ? `${idade} anos` : <span className="text-amber-600 font-bold">idade ausente</span>}
+            {" · "}{sexo === "M" ? "Masculino" : "Feminino"}
+            {" · "}{atividade}
+            {" · "}{objetivo}
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={enviarEmail}
+              onChange={(e) => setEnviarEmail(e.target.checked)}
+              className="h-4 w-4 rounded border-border accent-primary"
+            />
+            <span className="flex items-center gap-1.5 text-sm text-foreground">
+              <Mail className="h-4 w-4 text-primary" />
+              Enviar por e-mail para o paciente após gerar
+            </span>
+          </label>
+
+          {!emitirPdf.isPending && (!peso.trim() || !altura.trim() || !idade.trim()) && (
+            <p className="text-[11px] text-amber-600 font-bold">
+              Preencha Peso, Altura e Idade na coluna esquerda para habilitar.
+            </p>
+          )}
+          {!emitirPdf.isPending && enviarEmail && !clientId && peso.trim() && altura.trim() && idade.trim() && (
+            <p className="text-[11px] text-amber-600 font-bold">
+              Selecione um cliente para poder enviar o plano por e-mail.
+            </p>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button
+              className="btn-3d"
+              disabled={!podeEmitir || !!pendingEmail}
+              onClick={() => emitirPdf.mutate()}
+            >
+              {emitirPdf.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Gerando plano… (pode levar até 90 s)
+                </>
+              ) : (
+                <>
+                  <FileText className="mr-2 h-4 w-4" />
+                  {enviarEmail ? "Gerar PDF para Revisão" : "Gerar e Emitir Plano"}
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* ---- Painel de confirmação de e-mail (aparece após revisão do PDF) ---- */}
+          {pendingEmail && (
+            <div className="panel-3d-sub border-l-4 border-primary p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-primary" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                  Revisão concluída?
+                </span>
+              </div>
+              <p className="text-sm text-foreground">
+                O PDF foi aberto em nova aba para revisão.{" "}
+                <span className="font-bold">Enviar para {pendingEmail.nomePaciente}?</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  className="btn-3d"
+                  disabled={confirmarEnvio.isPending}
+                  onClick={() => confirmarEnvio.mutate()}
+                >
+                  {confirmarEnvio.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando…
+                    </>
+                  ) : (
+                    <>
+                      <SendHorizontal className="mr-2 h-4 w-4" />
+                      Confirmar envio
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={confirmarEnvio.isPending}
+                  onClick={() => setPendingEmail(null)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -644,6 +962,21 @@ function FilaIndicacao() {
   );
 }
 
+interface PlanoEmitido {
+  id: number;
+  clienteId: number;
+  nomePaciente: string;
+  objetivo: string | null;
+  estrategia: string | null;
+  caloriasAlvo: number | null;
+  pesoKg: number | null;
+  alturaCm: number | null;
+  emailDestino: string | null;
+  emailEnviado: boolean;
+  temPdf: boolean;
+  pdfBytes: number | null;
+  emitidoEm: string;
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
@@ -661,6 +994,251 @@ function Metric({ label, value, unit, gold }: { label: string; value: string; un
       <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className={`text-lg font-black leading-none ${gold ? "text-primary" : "text-foreground"}`}>{value}</div>
       <div className="text-[9px] uppercase tracking-widest text-muted-foreground/70">{unit}</div>
+    </div>
+  );
+}
+
+function HistoricoPlanos() {
+  const { toast } = useToast();
+  const [clienteId, setClienteId] = useState<number | null>(null);
+
+  const { data: clientes } = useQuery<Cliente[]>({
+    queryKey: ["dieta", "clientes"],
+    queryFn: async () => {
+      const r = await fetch("/api/clients");
+      if (!r.ok) throw new Error("Falha ao carregar clientes");
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d.data ?? []);
+    },
+  });
+
+  const {
+    data: planos,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<PlanoEmitido[]>({
+    queryKey: ["dieta", "planos-emitidos", clienteId],
+    queryFn: async () => {
+      if (!clienteId) return [];
+      const token = getCollabToken();
+      const r = await fetch(`/api/dieta/planos-emitidos?clienteId=${clienteId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error("Falha ao carregar histórico");
+      return r.json();
+    },
+    enabled: !!clienteId,
+  });
+
+  const [reenviando, setReenviando] = useState<number | null>(null);
+
+  async function handleDownload(plano: PlanoEmitido) {
+    const token = getCollabToken();
+    try {
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error((d as { error?: string }).error ?? "Falha ao baixar PDF");
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}_${plano.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      toast({ title: "Erro ao baixar PDF", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  async function handleReenviar(plano: PlanoEmitido) {
+    if (!plano.emailDestino) {
+      toast({ title: "Sem e-mail cadastrado", description: "Este plano não tem e-mail de destino.", variant: "destructive" });
+      return;
+    }
+    setReenviando(plano.id);
+    try {
+      const token = getCollabToken();
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/reenviar`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        throw new Error(d.error ?? "Falha ao reenviar");
+      }
+      toast({ title: "E-mail reenviado", description: `Plano enviado para ${plano.emailDestino}` });
+      refetch();
+    } catch (e: unknown) {
+      toast({ title: "Erro ao reenviar", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReenviando(null);
+    }
+  }
+
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatBytes(b: number | null) {
+    if (!b) return "—";
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Seletor de cliente */}
+      <div className="panel-3d p-4 max-w-sm">
+        <h2 className="mb-3 text-[11px] font-black uppercase tracking-widest text-primary">
+          Selecionar paciente
+        </h2>
+        <PaxterClientSelector
+          clientes={clientes ?? []}
+          value={clienteId}
+          onChange={setClienteId}
+          placeholder="Selecionar cliente…"
+        />
+      </div>
+
+      {!clienteId && (
+        <div className="panel-3d flex flex-col items-center justify-center gap-2 p-12 text-center">
+          <History className="h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            Selecione um paciente para ver os planos nutricionais já emitidos.
+          </p>
+        </div>
+      )}
+
+      {clienteId && isLoading && (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="panel-3d h-24 animate-pulse bg-primary/5" />
+          ))}
+        </div>
+      )}
+
+      {clienteId && isError && (
+        <div className="panel-3d border-l-4 border-red-500 p-4 flex items-center gap-3 text-sm font-bold text-red-600">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          Não foi possível carregar o histórico de planos.
+        </div>
+      )}
+
+      {clienteId && !isLoading && !isError && (planos ?? []).length === 0 && (
+        <div className="panel-3d flex flex-col items-center justify-center gap-2 p-12 text-center">
+          <FileText className="h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            Nenhum plano nutricional emitido para este paciente ainda.
+          </p>
+        </div>
+      )}
+
+      {(planos ?? []).length > 0 && (
+        <div className="panel-3d overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <History className="h-3.5 w-3.5" />
+              Planos emitidos — {(planos ?? []).length} {(planos ?? []).length === 1 ? "registro" : "registros"}
+            </h2>
+          </div>
+
+          <div className="divide-y divide-border/40">
+            {(planos ?? []).map((p) => (
+              <div key={p.id} className="flex items-start justify-between gap-4 px-4 py-4">
+                {/* Lado esquerdo: info */}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="concave-3d px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                      #{p.id}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDate(p.emitidoEm)}
+                    </span>
+                    {p.emailEnviado ? (
+                      <span className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" /> E-mail enviado
+                      </span>
+                    ) : (
+                      <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                        Sem e-mail
+                      </span>
+                    )}
+                    {!p.temPdf && (
+                      <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                        PDF indisponível
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                    {p.objetivo && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Objetivo:</b> {p.objetivo}
+                      </span>
+                    )}
+                    {p.caloriasAlvo && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Meta:</b> {p.caloriasAlvo} kcal/dia
+                      </span>
+                    )}
+                    {p.pesoKg && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Peso:</b> {p.pesoKg} kg
+                      </span>
+                    )}
+                    {p.estrategia && (
+                      <span className="text-muted-foreground">
+                        <b className="text-foreground">Estratégia:</b> {p.estrategia}
+                      </span>
+                    )}
+                  </div>
+
+                  {p.emailDestino && (
+                    <p className="text-[11px] text-muted-foreground truncate max-w-xs">
+                      {p.emailDestino}
+                      {p.pdfBytes ? <span className="ml-2 opacity-60">· {formatBytes(p.pdfBytes)}</span> : null}
+                    </p>
+                  )}
+                </div>
+
+                {/* Lado direito: ações */}
+                <div className="flex shrink-0 gap-2">
+                  {p.temPdf && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bevel-3d gap-1.5"
+                      onClick={() => handleDownload(p)}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar PDF
+                    </Button>
+                  )}
+                  {p.temPdf && p.emailDestino && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bevel-3d gap-1.5"
+                      disabled={reenviando === p.id}
+                      onClick={() => handleReenviar(p)}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {reenviando === p.id ? "Enviando…" : "Reenviar"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
