@@ -70,6 +70,54 @@ router.get("/professionals", async (_req, res): Promise<void> => {
   res.json(professionals.map((p) => formatProfessional(p, names.areas, names.specialties)));
 });
 
+// PATCH /api/professionals/primary-doctor — atualiza nome/CRM/especialidade do
+// médico principal (isPrimaryDoctor=true). Protegido por colaborador: o ator
+// autenticado precisa ser exatamente o médico principal; qualquer outro colaborador
+// recebe 403.
+router.patch(
+  "/professionals/primary-doctor",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const actorId = req.collaborator!.professionalId;
+
+    // Confirma que o ator é o médico principal — consulta o banco, nunca confia
+    // apenas na claim do token.
+    const [actor] = await db
+      .select({ id: professionalsTable.id, isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
+      .from(professionalsTable)
+      .where(eq(professionalsTable.id, actorId))
+      .limit(1);
+
+    if (!actor?.isPrimaryDoctor) {
+      res.status(403).json({ error: "Apenas o médico principal pode alterar estes dados" });
+      return;
+    }
+
+    const { name, crm, specialty } = req.body as {
+      name?: string;
+      crm?: string | null;
+      specialty?: string | null;
+    };
+
+    if (name !== undefined && !String(name).trim()) {
+      res.status(400).json({ error: "Nome não pode ficar vazio" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(professionalsTable)
+      .set({
+        ...(name !== undefined ? { name: String(name).trim() } : {}),
+        ...(crm !== undefined ? { crm: crm ?? null } : {}),
+        ...(specialty !== undefined ? { specialty: specialty ?? null } : {}),
+      })
+      .where(eq(professionalsTable.id, actor.id))
+      .returning();
+
+    res.json(formatProfessional(updated));
+  },
+);
+
 // GET /api/professionals/:id — busca um profissional por ID
 router.get("/professionals/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
