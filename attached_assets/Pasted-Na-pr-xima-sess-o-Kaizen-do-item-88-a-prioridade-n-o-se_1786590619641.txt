@@ -1,0 +1,14 @@
+Na próxima sessão Kaizen do item **#88**, a prioridade não será “adicionar recursos”; será eliminar incerteza para o paciente sem criar risco clínico ou dívida técnica.
+
+| Prioridade | Critério objetivo de entrada | Resultado esperado | Bloqueio |
+|---|---|---|---|
+| **1. Fidelidade e segurança do documento** | PDF A4 clonado, campos reais, fontes incorporadas, P&B legível e assinatura preservada. | Uma carta que não corta segurança, não inventa dados e mantém uma substância por folha principal. | Sem hash, PDF de evidência e bateria 88-A–88-K verde, nada avança. |
+| **2. Próxima ação do paciente** | Data, local, preparo confirmado e canal oficial existirem como dados estruturados. | Bloco curto “Próxima sessão” que reduz dúvida e faltas. | Não usar texto livre ambíguo nem informação ausente. |
+| **3. Transparência de versão** | Protocolo possuir versão, data/hora e emissor confiáveis. | Paciente identifica se o documento é atual e qual clínica o emitiu. | Não exibir versão simulada. |
+| **4. Perguntas úteis para consulta** | Perguntas forem aprovadas clinicamente e editáveis pelo profissional. | Três perguntas que ajudam o paciente a participar da consulta. | Não gerar orientação clínica automática por IA. |
+| **5. Continuidade digital segura** | Portal tiver autenticação, autorização e token opaco com expiração. | QR para a versão viva do plano sem expor CPF ou dados clínicos na URL. | Sem esse controle, QR clínico não entra. |
+| **6. Preparo, pós-sessão e acessibilidade** | Novos campos tiverem autoria, revisão clínica e versionamento. | Orientações específicas, alto contraste, leitura ampliada e linguagem simples. | Não inferir conduta a partir do nome da substância. |
+
+> **Regra de priorização:** cada melhoria só entra quando tiver **fonte de dado real, responsável clínico, comportamento para dado ausente, teste verificável e benefício perceptível ao paciente**.
+
+Assim, a primeira sessão deve começar pelo item 1; o primeiro Kaizen funcional após a clonagem é o bloco **“Próxima sessão”**, porque entrega utilidade imediata sem transformar a carta em um painel confuso.
