@@ -360,10 +360,12 @@ function MontarCardapio() {
       // Resposta é sempre o PDF binário (enviarEmail: false)
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
+      let usedFallbackDownload = false;
       if (pdfWinRef.current && !pdfWinRef.current.closed) {
         pdfWinRef.current.location.href = url;
       } else {
-        // Fallback: download programático
+        // Fallback: download programático (popup bloqueado ou aba fechada pelo usuário)
+        usedFallbackDownload = true;
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = "PlanoNutricional.pdf";
@@ -390,10 +392,14 @@ function MontarCardapio() {
         caloriasAlvo: kcalAlvo ?? p * 25,
         estiloAlimentar: estiloAlimentar.trim() || undefined,
         querEnviarEmail: enviarEmail && !!clientId,
+        usedFallbackDownload,
       };
     },
     onSuccess: (result) => {
-      toast({ title: "PDF gerado!", description: "O plano nutricional foi aberto em nova aba para revisão." });
+      const desc = result.usedFallbackDownload
+        ? "O plano nutricional foi baixado para o seu computador."
+        : "O plano nutricional foi aberto em nova aba para revisão.";
+      toast({ title: "PDF gerado!", description: desc });
       if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
         // Exibir painel de confirmação de envio
         setPendingEmail({
