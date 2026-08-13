@@ -1981,9 +1981,13 @@ function drawPremiumCover(
   // ── Canto inferior DIREITO: símbolo hex à esquerda + wordmark/frase à direita ─
   // Layout horizontal: [símbolo] | [PADCON + Platform® + Advanced Systems Architecture]
   // Ambos alinhados pela base, sobre o navy sem placa.
+  // Assinatura discreta de engenharia: o paciente não precisa notar; o médico que
+  // examinar de perto, sim. Por isso é pequena e encostada no canto, nunca compete
+  // com o lockup PADAXOR do centro da capa.
   {
-    const grpH = 48; // altura do grupo inteiro
-    const gap   = 6; // espaço entre símbolo e palavras
+    const grpH   = 28; // altura do grupo inteiro (discreto, ~18% da largura da página)
+    const gap    = 5;  // espaço entre símbolo e palavras
+    const INSET  = 34; // recuo das bordas direita/inferior — menor que MARGIN, encosta no canto
 
     const symH  = padconSymbol ? grpH : 0;
     const symW  = padconSymbol ? symH * (padconSymbol.width  / padconSymbol.height)  : 0;
@@ -1991,8 +1995,8 @@ function drawPremiumCover(
     const wrdW  = padconWords  ? wrdH * (padconWords.width   / padconWords.height)   : 0;
 
     const totalW = symW + (padconSymbol && padconWords ? gap : 0) + wrdW;
-    const grpX   = PAGE_W - MARGIN - totalW;
-    const grpY   = 34; // base do grupo; rodapé em y=22 fica abaixo
+    const grpX   = PAGE_W - INSET - totalW;
+    const grpY   = 28; // base do grupo; rodapé em y=22 fica abaixo
 
     try {
       if (padconSymbol && symW > 0)
