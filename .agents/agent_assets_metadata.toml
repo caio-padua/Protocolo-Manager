@@ -326,3 +326,10 @@ uri = "file://documentos/comparativo-numerais-fontes.png"
 type = "image"
 title = "Algarismo nativo x algarismo adaptado — 13 fontes no PDF real"
 description = "Cada linha foi desenhada dentro de um PDF de verdade, usando o arquivo cru da fonte, sem pedir nenhuma correção. A linha vermelha é o Cormorant Garamond sem adaptação. A cinza é a versão que adaptei hoje. As verdes não precisam de adaptação nenhuma."
+
+[[outputs]]
+id = "m6kcpDWQ64GMIvtZyHGyr"
+uri = "file://documentos/quatro-candidatas-fontes.png"
+type = "image"
+title = "As quatro candidatas em contexto de documento"
+description = "Título, nome do paciente, valores e o teste de coluna, desenhados dentro de um PDF real sem pedir nenhuma correção à fonte. Traço verde alinha números em coluna; traço vermelho não alinha. A primeira linha é o Cormorant adaptado de hoje, para comparação."
