@@ -35,15 +35,16 @@ import {
   Download,
   Send,
   AlertCircle,
+  SendHorizontal,
+  Eye,
 } from "lucide-react";
-import { getCollabToken } from "@/lib/collab-auth";
 
-// ============================================================================
+// -------------------------------------------------------------------------------
 // ORGAO DIETA — ONDA A do Master Loop Paxter.
 // Montador de cardapio TDAH-friendly: parametros -> conta TDEE ao vivo ->
 // tabela de refeicoes (carro-chefe) -> salva prescricao. Fila de Indicacao
 // mostra o que o Cerebro (motor) sugeriu e ainda aguarda validacao humana.
-// ============================================================================
+// -------------------------------------------------------------------------------
 
 const FATOR_ATIVIDADE: Record<string, number> = {
   sedentario: 1.2,
@@ -195,6 +196,15 @@ function MontarCardapio() {
   const [estiloAlimentar, setEstiloAlimentar] = useState("");
   const [enviarEmail, setEnviarEmail] = useState(false);
 
+  // --- Passo de confirmação de e-mail (preview → confirm) ---
+  const [pendingEmail, setPendingEmail] = useState<{
+    pdfBase64: string;
+    clientId: number;
+    nomePaciente: string;
+    caloriasAlvo: number;
+    estiloAlimentar?: string;
+  } | null>(null);
+
   // ---- Conta TDEE ao vivo (espelha o backend) ----
   const conta = useMemo(() => {
     const p = parseFloat(peso.replace(",", "."));
@@ -299,8 +309,9 @@ function MontarCardapio() {
   const podeSalvar = clientId && itens.some((it) => it.alimentoId) && !algumForaJanela;
 
   // --- Mutation: emitir PDF ---
+  // FLUXO COM E-MAIL: gera o PDF → abre em nova aba → exibe painel de confirmação.
+  // O e-mail SÓ é disparado quando o CEO clica "Confirmar envio" (ver confirmarEnvio abaixo).
   // NOTE: pdfWin é aberto SINCRONO (antes do fetch) para não ser bloqueado por popup blocker.
-  // O ref persiste entre closure e onSuccess.
   const pdfWinRef = { current: null as Window | null };
 
   const emitirPdf = useMutation({
@@ -311,11 +322,10 @@ function MontarCardapio() {
       if (!p || !a || !i) throw new Error("Preencha Peso, Altura e Idade antes de emitir.");
       if (enviarEmail && !clientId) throw new Error("Selecione um cliente para poder enviar por e-mail.");
 
-      // Abre aba em branco AGORA, enquanto ainda há user activation — antes do await longo
-      if (!enviarEmail) {
-        pdfWinRef.current = window.open("about:blank", "_blank");
-      }
+      // Abre aba em branco AGORA (user activation), antes do await longo
+      pdfWinRef.current = window.open("about:blank", "_blank");
 
+      const kcalAlvo = caloriasAlvo ? parseFloat(caloriasAlvo.replace(",", ".")) : null;
       const body: Record<string, unknown> = {
         sexo,
         objetivo,
@@ -323,10 +333,10 @@ function MontarCardapio() {
         alturaCm: a,
         idade: i,
         nivelAtividade: atividade,
-        enviarEmail,
+        enviarEmail: false, // Nunca envia aqui — CEO revisa primeiro
       };
       if (clientId) body.clientId = clientId;
-      if (caloriasAlvo) body.caloriasAlvo = parseFloat(caloriasAlvo.replace(",", "."));
+      if (kcalAlvo) body.caloriasAlvo = kcalAlvo;
       if (estiloAlimentar.trim()) body.estiloAlimentar = estiloAlimentar.trim();
 
       let r: Response;
@@ -347,60 +357,96 @@ function MontarCardapio() {
         throw new Error((err as { error?: string }).error || "Falha ao gerar o plano nutricional.");
       }
 
-      if (!enviarEmail) {
-        // Recebe PDF direto — navega a aba pré-aberta ou usa download anchor como fallback
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        if (pdfWinRef.current && !pdfWinRef.current.closed) {
-          pdfWinRef.current.location.href = url;
-        } else {
-          // Fallback: download programático (não depende de popup)
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = "PlanoNutricional.pdf";
-          document.body.appendChild(anchor);
-          anchor.click();
-          document.body.removeChild(anchor);
-        }
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
-        return { modo: "download" as const };
+      // Resposta é sempre o PDF binário (enviarEmail: false)
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      if (pdfWinRef.current && !pdfWinRef.current.closed) {
+        pdfWinRef.current.location.href = url;
+      } else {
+        // Fallback: download programático
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = "PlanoNutricional.pdf";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+
+      // Se o CEO marcou "Enviar por e-mail", converter o blob para base64 e aguardar confirmação
+      let pdfBase64: string | null = null;
+      if (enviarEmail && clientId) {
+        const buf = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (const b of bytes) bin += String.fromCharCode(b);
+        pdfBase64 = btoa(bin);
       }
 
-      const json = (await r.json()) as {
-        ok: boolean;
-        nomePaciente?: string;
-        emailDestino?: string;
-        email?: { success: boolean; messageId?: string; error?: string };
+      return {
+        pdfBase64,
+        clientId,
+        nomePaciente: clientes?.find((c) => c.id === clientId)?.name ?? "Paciente",
+        caloriasAlvo: kcalAlvo ?? p * 25,
+        estiloAlimentar: estiloAlimentar.trim() || undefined,
+        querEnviarEmail: enviarEmail && !!clientId,
       };
-      return { modo: "email" as const, ...json };
     },
     onSuccess: (result) => {
-      if (result.modo === "download") {
-        toast({ title: "PDF gerado!", description: "O plano nutricional foi aberto em nova aba." });
-      } else {
-        const entrega = result.email;
-        if (entrega && entrega.success === false) {
-          toast({
-            title: "PDF gerado, mas e-mail falhou",
-            description: entrega.error ?? "Não foi possível entregar o e-mail ao paciente.",
-            variant: "destructive",
-          });
-        } else if (!result.emailDestino) {
-          toast({
-            title: "PDF gerado",
-            description: "Cliente sem e-mail cadastrado — o plano não foi enviado.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Plano enviado por e-mail!",
-            description: `E-mail enviado para ${result.emailDestino}.`,
-          });
-        }
+      toast({ title: "PDF gerado!", description: "O plano nutricional foi aberto em nova aba para revisão." });
+      if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
+        // Exibir painel de confirmação de envio
+        setPendingEmail({
+          pdfBase64: result.pdfBase64,
+          clientId: result.clientId!,
+          nomePaciente: result.nomePaciente,
+          caloriasAlvo: result.caloriasAlvo,
+          estiloAlimentar: result.estiloAlimentar,
+        });
       }
     },
     onError: (e: Error) => {
       toast({ title: "Não foi possível emitir", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // --- Mutation: confirmar envio do e-mail após revisão ---
+  const confirmarEnvio = useMutation({
+    mutationFn: async () => {
+      if (!pendingEmail) throw new Error("Nenhum PDF pendente de envio.");
+      const r = await fetch("/api/dieta/enviar-pdf-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: pendingEmail.clientId,
+          pdfBase64: pendingEmail.pdfBase64,
+          nomePaciente: pendingEmail.nomePaciente,
+          caloriasAlvo: pendingEmail.caloriasAlvo,
+          estiloAlimentar: pendingEmail.estiloAlimentar,
+        }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((json as { error?: string }).error || "Falha ao enviar o e-mail.");
+      return json as { ok: boolean; emailDestino?: string; email?: { success: boolean; error?: string } };
+    },
+    onSuccess: (result) => {
+      setPendingEmail(null);
+      const entrega = result.email;
+      if (entrega && entrega.success === false) {
+        toast({
+          title: "E-mail falhou",
+          description: entrega.error ?? "Não foi possível entregar o e-mail ao paciente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Plano enviado!",
+          description: `E-mail enviado para ${result.emailDestino ?? pendingEmail?.nomePaciente}.`,
+        });
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" });
     },
   });
 
@@ -762,7 +808,7 @@ function MontarCardapio() {
           <div className="flex items-center gap-3">
             <Button
               className="btn-3d"
-              disabled={!podeEmitir}
+              disabled={!podeEmitir || !!pendingEmail}
               onClick={() => emitirPdf.mutate()}
             >
               {emitirPdf.isPending ? (
@@ -773,11 +819,54 @@ function MontarCardapio() {
               ) : (
                 <>
                   <FileText className="mr-2 h-4 w-4" />
-                  Gerar e Emitir Plano
+                  {enviarEmail ? "Gerar PDF para Revisão" : "Gerar e Emitir Plano"}
                 </>
               )}
             </Button>
           </div>
+
+          {/* ---- Painel de confirmação de e-mail (aparece após revisão do PDF) ---- */}
+          {pendingEmail && (
+            <div className="panel-3d-sub border-l-4 border-primary p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-primary" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                  Revisão concluída?
+                </span>
+              </div>
+              <p className="text-sm text-foreground">
+                O PDF foi aberto em nova aba para revisão.{" "}
+                <span className="font-bold">Enviar para {pendingEmail.nomePaciente}?</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  className="btn-3d"
+                  disabled={confirmarEnvio.isPending}
+                  onClick={() => confirmarEnvio.mutate()}
+                >
+                  {confirmarEnvio.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando…
+                    </>
+                  ) : (
+                    <>
+                      <SendHorizontal className="mr-2 h-4 w-4" />
+                      Confirmar envio
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={confirmarEnvio.isPending}
+                  onClick={() => setPendingEmail(null)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

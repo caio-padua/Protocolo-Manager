@@ -1,12 +1,15 @@
-// ============================================================================
+// -------------------------------------------------------------------------------
 // ROTA: Gerador de PDF de Plano Nutricional — PADAXOR
 //
 // POST /api/dieta/emitir-pdf
 //   Gera PDF via Claude + pdf-lib; busca médico responsável para assinar;
 //   persiste prescrição no Órgão Dieta; salva PDF no Object Storage e
 //   registra histórico em dieta_planos_emitidos.
-//   clientId é OPCIONAL para geração e download direto; obrigatório para
-//   persistir prescrição e histórico.
+//   NUNCA envia e-mail — o CEO revisa o PDF antes de confirmar.
+//
+// POST /api/dieta/enviar-pdf-email
+//   Recebe PDF já gerado (base64) + clientId e envia por e-mail.
+//   Chamado APENAS após o CEO clicar "Confirmar envio" na UI.
 //
 // GET  /api/dieta/planos-emitidos?clienteId=N      [requireCollaborator]
 //   Lista histórico de planos emitidos para um cliente.
@@ -16,7 +19,7 @@
 //
 // POST /api/dieta/planos-emitidos/:id/reenviar     [requireCollaborator]
 //   Reenvia o PDF ao destinatário ORIGINAL gravado no registro.
-// ============================================================================
+// -------------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
@@ -50,6 +53,9 @@ const EMPRESA_ID = 5;
 
 const router: IRouter = Router();
 
+// -------------------------------------------------------------------------------
+// Schema de validação — geração do PDF
+// -------------------------------------------------------------------------------
 const EmitirPdfSchema = z.object({
   clientId: z.number().int().positive().optional().nullable(),
   nomePaciente: z.string().min(1).optional(),
@@ -60,16 +66,23 @@ const EmitirPdfSchema = z.object({
   pesoKg: z.number().positive(),
   alturaCm: z.number().positive(),
   idade: z.number().int().positive(),
-  nivelAtividade: z.enum(["sedentario", "leve", "moderado", "intenso", "atleta"]).default("moderado"),
+  nivelAtividade: z
+    .enum(["sedentario", "leve", "moderado", "intenso", "atleta"])
+    .default("moderado"),
   caloriasAlvo: z.number().positive().optional().nullable(),
+  // Mantido para compatibilidade retroativa; ignorado — nunca envia e-mail aqui.
   enviarEmail: z.boolean().default(false),
 });
 
-// ─── POST /api/dieta/emitir-pdf ───────────────────────────────────────────────
+// -------------------------------------------------------------------------------
+// POST /api/dieta/emitir-pdf — gera PDF e devolve os bytes (nunca envia e-mail)
+// -------------------------------------------------------------------------------
 router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const parsed = EmitirPdfSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() });
+    res
+      .status(400)
+      .json({ error: "Dados inválidos", details: parsed.error.flatten() });
     return;
   }
 
@@ -87,6 +100,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
         eq(clientsTable.id, body.clientId),
         eq(clientsTable.empresaId, EMPRESA_ID),
       ));
+
     if (!cliente) {
       res.status(404).json({ error: "Cliente não encontrado", clientId: body.clientId });
       return;
@@ -150,7 +164,8 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     objetivo: body.objetivo,
   });
 
-  const caloriasAlvo = body.caloriasAlvo ?? conta.caloriasAlvo ?? Math.round(body.pesoKg * 25);
+  const caloriasAlvo =
+    body.caloriasAlvo ?? conta.caloriasAlvo ?? Math.round(body.pesoKg * 25);
   const tmb = conta.tmb ?? 0;
   const tdee = conta.tdee ?? 0;
 
@@ -203,10 +218,9 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     clearTimeout(timer);
   }
 
-  // Persistir a prescrição no Órgão Dieta (dieta_prescricao + dieta_prescricao_item)
-  let prescricaoId: number | null = null;
+  // Persistir a prescrição no Órgão Dieta
   if (body.clientId) {
-    prescricaoId = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       const [prescricao] = await tx
         .insert(dietaPrescricaoTable)
         .values({
@@ -222,7 +236,8 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
           tdee,
           caloriasAlvo,
           status: "ativa",
-          observacao: "Plano nutricional emitido em PDF (opção 1 de cada refeição registrada aqui; PDF completo tem 3 opções).",
+          observacao:
+            "Plano nutricional emitido em PDF (opção 1 de cada refeição registrada aqui; PDF completo tem 3 opções).",
         })
         .returning();
 
@@ -245,16 +260,10 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
       if (itemRows.length > 0) {
         await tx.insert(dietaPrescricaoItemTable).values(itemRows);
       }
-
-      return prescricao.id;
     });
   }
 
-  // ── Salvar histórico (Object Storage + dieta_planos_emitidos) — task #211
-  let planoId: number | null = null;
-  let pdfStorageKey: string | null = null;
-  let storageError: string | null = null;
-
+  // Salvar histórico (Object Storage + dieta_planos_emitidos) — task #211
   if (body.clientId) {
     try {
       await ensureDietaPlanosTable();
@@ -281,10 +290,9 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
         })
         .returning({ id: dietaPlanosEmitidosTable.id });
 
-      planoId = inserted?.id ?? null;
-
+      const planoId = inserted?.id ?? null;
       if (planoId) {
-        pdfStorageKey = await uploadDietaPdf(planoId, Buffer.from(pdfBytes));
+        const pdfStorageKey = await uploadDietaPdf(planoId, Buffer.from(pdfBytes));
         await db
           .update(dietaPlanosEmitidosTable)
           .set({ pdfStorageKey })
@@ -294,84 +302,128 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
           ));
       }
     } catch (err) {
-      storageError = (err as Error)?.message ?? String(err);
       req.log?.error?.({ err }, "Falha ao salvar histórico/PDF do plano nutricional");
+      // Não abortar — o PDF ainda será entregue ao CEO
     }
   }
 
-  // Enviar por e-mail se solicitado
-  let emailResult: { success: boolean; messageId?: string; error?: string } | null = null;
-  if (body.enviarEmail && emailDestino) {
-    const primeiroNome = nomePaciente.split(" ")[0];
-    const doc: PaxterDoc = {
-      titulo: "Seu Plano Nutricional Personalizado",
-      paragrafos: [
-        `Olá, ${primeiroNome}!`,
-        "Preparamos o seu Plano Alimentar Personalizado com base nos seus dados antropométricos e objetivos clínicos.",
-        `Meta energética: ${caloriasAlvo} kcal/dia · Estratégia: ${body.estiloAlimentar ?? "Hiperproteica para hipertrofia e definição muscular"}`,
-        "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
-        "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
-      ],
-      notaRodape: "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
-    };
-    const baseUrl = baseUrlFromEnv();
-    const html = renderPaxterEmail(doc, baseUrl);
+  // Devolver sempre os bytes do PDF — e-mail nunca é enviado aqui (task #215)
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf"`,
+  );
+  res.setHeader("Content-Length", pdfBytes.length.toString());
+  res.send(Buffer.from(pdfBytes));
+});
 
-    emailResult = await sendGmailMessage({
-      to: emailDestino,
-      subject: `Plano Nutricional Personalizado — ${nomePaciente}`,
-      html,
-      attachments: [
-        {
-          filename: `PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf`,
-          content: Buffer.from(pdfBytes),
-          contentType: "application/pdf",
-        },
-      ],
-    });
+// -------------------------------------------------------------------------------
+// Schema de validação — envio de e-mail pós-revisão (task #215)
+// -------------------------------------------------------------------------------
+const EnviarPdfEmailSchema = z.object({
+  clientId: z.number().int().positive(),
+  pdfBase64: z.string().min(1),
+  nomePaciente: z.string().min(1).optional(),
+  caloriasAlvo: z.number().optional().nullable(),
+  estiloAlimentar: z.string().optional().nullable(),
+});
 
-    // Atualizar emailEnviado no histórico
-    if (emailResult.success && planoId) {
-      await db
-        .update(dietaPlanosEmitidosTable)
-        .set({ emailEnviado: true })
-        .where(and(
-          eq(dietaPlanosEmitidosTable.id, planoId),
-          eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
-        )).catch(() => { /* não abortar */ });
-    }
-  }
-
-  // Download direto (sem e-mail)
-  if (!body.enviarEmail) {
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf"`,
-    );
-    res.setHeader("Content-Length", pdfBytes.length.toString());
-    res.send(Buffer.from(pdfBytes));
+// -------------------------------------------------------------------------------
+// POST /api/dieta/enviar-pdf-email — envia e-mail após revisão do CEO
+// -------------------------------------------------------------------------------
+router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
+  const parsed = EnviarPdfEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ error: "Dados inválidos", details: parsed.error.flatten() });
     return;
   }
 
-  res.json({
-    ok: true,
-    nomePaciente,
-    caloriasAlvo,
-    tmb,
-    tdee,
-    emailDestino,
-    email: emailResult,
-    prescricaoId,
-    planoId,
-    pdfStorageKey,
-    historicoSalvo: planoId !== null && pdfStorageKey !== null,
-    historicoErro: storageError ?? undefined,
-    pdfBytes: Buffer.from(pdfBytes).toString("base64"),
+  const body = parsed.data;
+
+  const [cliente] = await db
+    .select({ id: clientsTable.id, name: clientsTable.name, email: clientsTable.email })
+    .from(clientsTable)
+    .where(and(
+      eq(clientsTable.id, body.clientId),
+      eq(clientsTable.empresaId, EMPRESA_ID),
+    ));
+
+  if (!cliente) {
+    res.status(404).json({ error: "Cliente não encontrado", clientId: body.clientId });
+    return;
+  }
+
+  const emailDestino = cliente.email ?? null;
+  if (!emailDestino) {
+    res.status(422).json({ error: "Cliente sem e-mail cadastrado." });
+    return;
+  }
+
+  const nomePaciente = body.nomePaciente ?? cliente.name;
+  const caloriasAlvo = body.caloriasAlvo ?? 0;
+
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = Buffer.from(body.pdfBase64, "base64");
+    if (pdfBuffer.length === 0) throw new Error("PDF vazio");
+  } catch {
+    res.status(400).json({ error: "pdfBase64 inválido ou vazio." });
+    return;
+  }
+
+  const primeiroNome = nomePaciente.split(" ")[0];
+  const doc: PaxterDoc = {
+    titulo: "Seu Plano Nutricional Personalizado",
+    paragrafos: [
+      `Olá, ${primeiroNome}!`,
+      "Preparamos o seu Plano Alimentar Personalizado com base nos seus dados antropométricos e objetivos clínicos.",
+      `Meta energética: ${caloriasAlvo} kcal/dia · Estratégia: ${
+        body.estiloAlimentar ?? "Hiperproteica para hipertrofia e definição muscular"
+      }`,
+      "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
+      "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
+    ],
+    notaRodape:
+      "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
+  };
+
+  const baseUrl = baseUrlFromEnv();
+  const html = renderPaxterEmail(doc, baseUrl);
+
+  const emailResult = await sendGmailMessage({
+    to: emailDestino,
+    subject: `Plano Nutricional Personalizado — ${nomePaciente}`,
+    html,
+    attachments: [
+      {
+        filename: `PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
   });
+
+  // Atualizar emailEnviado no histórico mais recente deste cliente
+  if (emailResult.success) {
+    await db
+      .update(dietaPlanosEmitidosTable)
+      .set({ emailEnviado: true })
+      .where(and(
+        eq(dietaPlanosEmitidosTable.clienteId, body.clientId),
+        eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
+        eq(dietaPlanosEmitidosTable.emailEnviado, false),
+      ))
+      .catch(() => { /* não abortar */ });
+  }
+
+  res.json({ ok: true, nomePaciente, emailDestino, email: emailResult });
 });
 
-// ─── GET /api/dieta/planos-emitidos ───────────────────────────────────────────
+// -------------------------------------------------------------------------------
+// GET /api/dieta/planos-emitidos
+// -------------------------------------------------------------------------------
 router.get("/dieta/planos-emitidos", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.query.clienteId);
   if (!clienteId || isNaN(clienteId) || clienteId <= 0) {
@@ -380,11 +432,11 @@ router.get("/dieta/planos-emitidos", requireCollaborator, async (req, res): Prom
   }
 
   try {
-    const [cliente] = await db
+    const [clienteCheck] = await db
       .select({ id: clientsTable.id })
       .from(clientsTable)
       .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, EMPRESA_ID)));
-    if (!cliente) {
+    if (!clienteCheck) {
       res.status(404).json({ error: "Cliente não encontrado" });
       return;
     }
@@ -413,106 +465,119 @@ router.get("/dieta/planos-emitidos", requireCollaborator, async (req, res): Prom
   }
 });
 
-// ─── GET /api/dieta/planos-emitidos/:id/pdf ───────────────────────────────────
-router.get("/dieta/planos-emitidos/:id/pdf", requireCollaborator, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!id || isNaN(id) || id <= 0) {
-    res.status(400).json({ error: "ID inválido" });
-    return;
-  }
-
-  try {
-    const plano = await getPlanoById(id, EMPRESA_ID);
-    if (!plano) {
-      res.status(404).json({ error: "Plano não encontrado" });
-      return;
-    }
-    if (!plano.pdfStorageKey) {
-      res.status(404).json({ error: "PDF não disponível para este plano" });
+// -------------------------------------------------------------------------------
+// GET /api/dieta/planos-emitidos/:id/pdf
+// -------------------------------------------------------------------------------
+router.get(
+  "/dieta/planos-emitidos/:id/pdf",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id) || id <= 0) {
+      res.status(400).json({ error: "ID inválido" });
       return;
     }
 
-    const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
-    const filename = `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}_${id}.pdf`;
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader("Content-Length", pdfBuffer.length.toString());
-    res.send(pdfBuffer);
-  } catch (err) {
-    req.log?.error?.({ err }, "Falha ao baixar PDF do plano emitido");
-    res.status(500).json({ error: "Falha ao baixar o PDF" });
-  }
-});
+    try {
+      const plano = await getPlanoById(id, EMPRESA_ID);
+      if (!plano) {
+        res.status(404).json({ error: "Plano não encontrado" });
+        return;
+      }
+      if (!plano.pdfStorageKey) {
+        res.status(404).json({ error: "PDF não disponível para este plano" });
+        return;
+      }
 
-// ─── POST /api/dieta/planos-emitidos/:id/reenviar ─────────────────────────────
-router.post("/dieta/planos-emitidos/:id/reenviar", requireCollaborator, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!id || isNaN(id) || id <= 0) {
-    res.status(400).json({ error: "ID inválido" });
-    return;
-  }
+      const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
+      const filename = `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}_${id}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length.toString());
+      res.send(pdfBuffer);
+    } catch (err) {
+      req.log?.error?.({ err }, "Falha ao baixar PDF do plano emitido");
+      res.status(500).json({ error: "Falha ao baixar o PDF" });
+    }
+  },
+);
 
-  try {
-    const plano = await getPlanoById(id, EMPRESA_ID);
-    if (!plano) {
-      res.status(404).json({ error: "Plano não encontrado" });
+// -------------------------------------------------------------------------------
+// POST /api/dieta/planos-emitidos/:id/reenviar
+// -------------------------------------------------------------------------------
+router.post(
+  "/dieta/planos-emitidos/:id/reenviar",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id) || id <= 0) {
+      res.status(400).json({ error: "ID inválido" });
       return;
     }
-    if (!plano.pdfStorageKey) {
-      res.status(422).json({ error: "PDF não disponível para reenvio" });
-      return;
+
+    try {
+      const plano = await getPlanoById(id, EMPRESA_ID);
+      if (!plano) {
+        res.status(404).json({ error: "Plano não encontrado" });
+        return;
+      }
+      if (!plano.pdfStorageKey) {
+        res.status(422).json({ error: "PDF não disponível para reenvio" });
+        return;
+      }
+
+      const emailDestino = plano.emailDestino;
+      if (!emailDestino) {
+        res.status(422).json({ error: "Este plano não tem e-mail de destino" });
+        return;
+      }
+
+      const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
+      const primeiroNome = plano.nomePaciente.split(" ")[0];
+      const doc: PaxterDoc = {
+        titulo: "Seu Plano Nutricional Personalizado",
+        paragrafos: [
+          `Olá, ${primeiroNome}!`,
+          "Segue o reenvio do seu Plano Alimentar Personalizado com base nos seus dados clínicos.",
+          `Meta energética: ${plano.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${plano.estrategia ?? "Personalizada"}`,
+          "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
+          "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
+        ],
+        notaRodape:
+          "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
+      };
+      const baseUrl = baseUrlFromEnv();
+      const html = renderPaxterEmail(doc, baseUrl);
+
+      const emailResult = await sendGmailMessage({
+        to: emailDestino,
+        subject: `Plano Nutricional Personalizado — ${plano.nomePaciente}`,
+        html,
+        attachments: [
+          {
+            filename: `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          },
+        ],
+      });
+
+      if (emailResult.success) {
+        await db
+          .update(dietaPlanosEmitidosTable)
+          .set({ emailEnviado: true })
+          .where(and(
+            eq(dietaPlanosEmitidosTable.id, id),
+            eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
+          ));
+      }
+
+      res.json({ ok: emailResult.success, email: emailResult, emailDestino });
+    } catch (err) {
+      req.log?.error?.({ err }, "Falha ao reenviar plano emitido");
+      res.status(500).json({ error: "Falha ao reenviar o plano" });
     }
-
-    const emailDestino = plano.emailDestino;
-    if (!emailDestino) {
-      res.status(422).json({ error: "Este plano não tem e-mail de destino" });
-      return;
-    }
-
-    const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
-    const primeiroNome = plano.nomePaciente.split(" ")[0];
-    const doc: PaxterDoc = {
-      titulo: "Seu Plano Nutricional Personalizado",
-      paragrafos: [
-        `Olá, ${primeiroNome}!`,
-        "Segue o reenvio do seu Plano Alimentar Personalizado com base nos seus dados clínicos.",
-        `Meta energética: ${plano.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${plano.estrategia ?? "Personalizada"}`,
-        "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
-        "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
-      ],
-      notaRodape: "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
-    };
-    const baseUrl = baseUrlFromEnv();
-    const html = renderPaxterEmail(doc, baseUrl);
-
-    const emailResult = await sendGmailMessage({
-      to: emailDestino,
-      subject: `Plano Nutricional Personalizado — ${plano.nomePaciente}`,
-      html,
-      attachments: [
-        {
-          filename: `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}.pdf`,
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
-    });
-
-    if (emailResult.success) {
-      await db
-        .update(dietaPlanosEmitidosTable)
-        .set({ emailEnviado: true })
-        .where(and(
-          eq(dietaPlanosEmitidosTable.id, id),
-          eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),
-        ));
-    }
-
-    res.json({ ok: emailResult.success, email: emailResult, emailDestino });
-  } catch (err) {
-    req.log?.error?.({ err }, "Falha ao reenviar plano emitido");
-    res.status(500).json({ error: "Falha ao reenviar o plano" });
-  }
-});
+  },
+);
 
 export default router;
