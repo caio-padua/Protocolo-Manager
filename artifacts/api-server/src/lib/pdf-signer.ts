@@ -930,9 +930,9 @@ function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages:
 // em diante. PADCON + frase em ingles fica no RODAPE (drawDocFooter).
 function drawDocHeaderBrand(page: PDFPage, fonts: Fonts) {
   const tag = "Clinical Intelligence System";
-  const nameW = fonts.bold.widthOfTextAtSize("PADAXOR", 9);
+  const nameW = fonts.bold.widthOfTextAtSize("PAXMED", 9);
   const tagW = fonts.regular.widthOfTextAtSize(tag, 6);
-  page.drawText("PADAXOR", { x: PAGE_W - MARGIN - nameW, y: PAGE_H - 26, size: 9, font: fonts.bold, color: DARK_BLUE });
+  page.drawText("PAXMED", { x: PAGE_W - MARGIN - nameW, y: PAGE_H - 26, size: 9, font: fonts.bold, color: DARK_BLUE });
   page.drawText(tag, { x: PAGE_W - MARGIN - tagW, y: PAGE_H - 34, size: 6, font: fonts.regular, color: GOLD_ACCENT });
 }
 
@@ -1234,7 +1234,7 @@ function drawRadarChart(
 // ── fim radar ────────────────────────────────────────────────────────────────
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║  ITEM #88 — CARTA DE TRATAMENTO PREMIUM PADAXOR                            ║
+// ║  ITEM #88 — CARTA DE TRATAMENTO PREMIUM PAXMED                            ║
 // ║  Checkpoint A: Paleta, fontes e ativos de marca                            ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
@@ -1871,7 +1871,7 @@ function drawQuestionsPage(
   }
 }
 
-// ── Checkpoint B: Capa premium PADAXOR ────────────────────────────────────────
+// ── Checkpoint B: Capa premium PAXMED ────────────────────────────────────────
 function drawPremiumCover(
   pdfDoc: PDFDocument,
   allPages: PDFPage[],
@@ -1892,9 +1892,9 @@ function drawPremiumCover(
   pg.drawText(docLbl, { x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(docLbl, 7), y: PAGE_H - 32, size: 7, font: pf.manBold, color: GOLD_P });
   pg.drawLine({ start: { x: MARGIN, y: PAGE_H - 56 }, end: { x: PAGE_W - MARGIN, y: PAGE_H - 56 }, thickness: 0.5, color: GOLD_P, opacity: 0.3 });
 
-  // ── LOCKUP DA MARCA: símbolo 3D + wordmark PADAXOR ──────────────────────────
+  // ── LOCKUP DA MARCA: símbolo 3D + wordmark PAXMED ──────────────────────────
   // Decisão do CEO (13/08/2026): o símbolo ("R" com "X") TEM de aparecer, e vem
-  // sempre acompanhado da palavra PADAXOR. Ambos são a arte renderizada oficial,
+  // sempre acompanhado da palavra PAXMED. Ambos são a arte renderizada oficial,
   // desenhada na PROPORÇÃO NATIVA (nunca esticada) e sem qualquer placa atrás.
   let cursorY = PAGE_H - 118;
 
@@ -1908,7 +1908,7 @@ function drawPremiumCover(
     } catch { /* best-effort: capa nunca deixa de ser gerada */ }
   }
 
-  // Wordmark PADAXOR: arte oficial em ouro 3D. Só cai para texto se o arquivo faltar.
+  // Wordmark PAXMED: arte oficial em ouro 3D. Só cai para texto se o arquivo faltar.
   if (wordmarkImg) {
     try {
       const wmW = 216;
@@ -1917,8 +1917,8 @@ function drawPremiumCover(
       cursorY -= wmH + 16;
     } catch { /* best-effort */ }
   } else {
-    const padaxorW = pf.cgBold.widthOfTextAtSize("PADAXOR", 42);
-    pg.drawText("PADAXOR", { x: (PAGE_W - padaxorW) / 2, y: cursorY - 34, size: 42, font: pf.cgBold, color: WHITE });
+    const paxmedW = pf.cgBold.widthOfTextAtSize("PAXMED", 42);
+    pg.drawText("PAXMED", { x: (PAGE_W - paxmedW) / 2, y: cursorY - 34, size: 42, font: pf.cgBold, color: WHITE });
     cursorY -= 50;
   }
 
@@ -1983,7 +1983,7 @@ function drawPremiumCover(
   // Ambos alinhados pela base, sobre o navy sem placa.
   // Assinatura discreta de engenharia: o paciente não precisa notar; o médico que
   // examinar de perto, sim. Por isso é pequena e encostada no canto, nunca compete
-  // com o lockup PADAXOR do centro da capa.
+  // com o lockup PAXMED do centro da capa.
   //
   // Composição:  [hexágono] | [PADCON + Platform®]
   //                           "Advanced Systems Architecture"   ← texto branco
@@ -2027,21 +2027,21 @@ function drawPremiumCover(
     pg.drawText(tag, { x: rightX - tagW, y: tagY, size: tagSize, font: pf.manReg, color: WHITE });
   }
 
-  const footTxt = "Documento clinico individual — PADAXOR Clinical Intelligence System — tecnologia PADCON — Pagina 1";
+  const footTxt = "Documento clinico individual — PAXMED Clinical Intelligence System — tecnologia PADCON — Pagina 1";
   pg.drawText(footTxt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: MIST_P, opacity: 0.6 });
 }
 
 // ── Checkpoint B: Header e footer premium para páginas internas ───────────────
 function drawPremiumHeaderBrand(page: PDFPage, pf: PremiumFonts): void {
-  const nW = pf.manBold.widthOfTextAtSize("PADAXOR", 9);
-  page.drawText("PADAXOR", { x: PAGE_W - MARGIN - nW, y: PAGE_H - 26, size: 9, font: pf.manBold, color: DARK_BLUE });
+  const nW = pf.manBold.widthOfTextAtSize("PAXMED", 9);
+  page.drawText("PAXMED", { x: PAGE_W - MARGIN - nW, y: PAGE_H - 26, size: 9, font: pf.manBold, color: DARK_BLUE });
   const tag = "Clinical Intelligence System";
   const tW = pf.manReg.widthOfTextAtSize(tag, 6);
   page.drawText(tag, { x: PAGE_W - MARGIN - tW, y: PAGE_H - 34, size: 6, font: pf.manReg, color: GOLD_P });
 }
 
 function drawPremiumFooter(page: PDFPage, pf: PremiumFonts, pageNum: number, totalPages: number, qrImg: QrImage = null): void {
-  const txt = `PADAXOR Clinical Intelligence System · tecnologia PADCON · Advanced Systems Architecture · Pagina ${pageNum} de ${totalPages}`;
+  const txt = `PAXMED Clinical Intelligence System · tecnologia PADCON · Advanced Systems Architecture · Pagina ${pageNum} de ${totalPages}`;
   page.drawText(txt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: GRAY });
   if (qrImg) {
     try {
@@ -2076,8 +2076,8 @@ export async function buildProtocolDocumentLayout(
     manReg: fb.regular, manBold: fb.bold,
   }));
   const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg] = await Promise.all([
-    embedBrandPng(pdfDoc, "padaxor-symbol-medalhao.png"),
-    embedBrandPng(pdfDoc, "padaxor-wordmark-trim.png"),
+    embedBrandPng(pdfDoc, "paxmed-symbol.png"),
+    embedBrandPng(pdfDoc, "paxmed-wordmark.png"),
     embedBrandPng(pdfDoc, "padcon-symbol.png"),   // símbolo hexagonal isolado
     embedBrandPng(pdfDoc, "padcon-words.png"),     // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
@@ -2085,7 +2085,7 @@ export async function buildProtocolDocumentLayout(
 
   const allPages: PDFPage[] = [];
 
-  // ── Checkpoint B: Capa premium PADAXOR ──────────────────────────────────────
+  // ── Checkpoint B: Capa premium PAXMED ──────────────────────────────────────
   drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
@@ -2411,7 +2411,7 @@ export async function buildProtocolDocumentLayout(
     gy -= 60;
     sgPg.drawLine({ start: { x: MARGIN, y: gy }, end: { x: MARGIN + CONTENT_W, y: gy }, thickness: 0.4, color: LINE_P });
     gy -= 14;
-    sgPg.drawText("Este documento foi gerado e assinado digitalmente pelo sistema PADAXOR.", { x: MARGIN, y: gy, size: 7.5, font: pf.manReg, color: GRAY });
+    sgPg.drawText("Este documento foi gerado e assinado digitalmente pelo sistema PAXMED.", { x: MARGIN, y: gy, size: 7.5, font: pf.manReg, color: GRAY });
     gy -= 12;
     sgPg.drawText("A assinatura digital ICP-Brasil confere validade juridica ao documento (MP 2.200-2/2001).", { x: MARGIN, y: gy, size: 7.5, font: pf.manReg, color: GRAY });
   }
@@ -2431,9 +2431,9 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`Protocolo ${data.protocolTitle} — ${data.clientName}`);
-  pdfDoc.setAuthor("Instituto Padua — PADAXOR");
-  pdfDoc.setSubject("Carta de Tratamento Premium PADAXOR");
-  pdfDoc.setCreator("Sistema PADAXOR");
+  pdfDoc.setAuthor("Instituto Padua — PAXMED");
+  pdfDoc.setSubject("Carta de Tratamento Premium PAXMED");
+  pdfDoc.setCreator("Sistema PAXMED");
 
   await buildProtocolDocumentLayout(pdfDoc, data, { cert, certInfo });
 
