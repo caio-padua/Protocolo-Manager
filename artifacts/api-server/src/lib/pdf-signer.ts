@@ -2125,130 +2125,159 @@ function drawSubcapaPage(
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
 
-  // Faixa navy superior — identidade visual do médico
-  const HERO_H = 108;
+  // ── Faixa navy: identidade do médico ──────────────────────────────────────
+  // Ocupa ~28% do topo da folha: nome grande, credenciais e logo Pádua.
+  const HERO_H = 118;
   pg.drawRectangle({ x: 0, y: PAGE_H - HERO_H, width: PAGE_W, height: HERO_H, color: NAVY_P });
-  pg.drawRectangle({ x: 0, y: PAGE_H - HERO_H - 2, width: PAGE_W, height: 2, color: GOLD_P, opacity: 0.55 });
+  // Barra de ouro embaixo da faixa — separa navy do marfim
+  pg.drawRectangle({ x: 0, y: PAGE_H - HERO_H - 1.5, width: PAGE_W, height: 1.5, color: GOLD_P, opacity: 0.65 });
 
-  // Rótulo de seção
-  pg.drawText("SOBRE O MEDICO RESPONSAVEL", {
+  // Rótulo de seção (discreto, dourado)
+  pg.drawText("SOBRE O M\u00c9DICO RESPONS\u00c1VEL", {
     x: MARGIN, y: PAGE_H - 26, size: 5.5, font: pf.manBold, color: GOLD_P,
   });
 
-  // Nome do médico em destaque
-  pg.drawText(safeTxt(data.professionalName), {
-    x: MARGIN, y: PAGE_H - 50, size: 20, font: pf.cgBold, color: WHITE,
+  // Nome do médico — destaque máximo
+  const nomeMed = safeTxt(data.professionalName);
+  pg.drawText(nomeMed, { x: MARGIN, y: PAGE_H - 52, size: 22, font: pf.cgBold, color: WHITE });
+
+  // Linha de ouro fina sob o nome (âncora visual)
+  const nomeW = pf.cgBold.widthOfTextAtSize(nomeMed, 22);
+  pg.drawLine({
+    start: { x: MARGIN, y: PAGE_H - 60 }, end: { x: MARGIN + Math.min(nomeW, CONTENT_W * 0.7), y: PAGE_H - 60 },
+    thickness: 0.8, color: GOLD_P, opacity: 0.55,
   });
 
-  // Credenciais
-  const cred1 = data.professionalCrm ? `${data.professionalCrm}  \u00b7  Endocrinologia  \u00b7  Medicina Integrativa` : "Endocrinologia  \u00b7  Medicina Integrativa";
-  pg.drawText(cred1, { x: MARGIN, y: PAGE_H - 68, size: 7, font: pf.manReg, color: MIST_P });
-  pg.drawText("Nutricao Clinica  \u00b7  Fundador do Instituto Padua", {
-    x: MARGIN, y: PAGE_H - 79, size: 7, font: pf.manReg, color: MIST_P,
+  // Credenciais — duas linhas sob o nome
+  const crm = data.professionalCrm ?? "CRM SP 125.475";
+  pg.drawText(`${crm}  \u00b7  Endocrinologia  \u00b7  Medicina Integrativa  \u00b7  Nutri\u00e7\u00e3o Cl\u00ednica`, {
+    x: MARGIN, y: PAGE_H - 74, size: 7, font: pf.manReg, color: MIST_P,
+  });
+  pg.drawText("Fundador e Diretor do Instituto P\u00e1dua  \u00b7  Especialista em Longevidade e Medicina Preventiva", {
+    x: MARGIN, y: PAGE_H - 85, size: 7, font: pf.manReg, color: MIST_P,
   });
 
-  // Logo Pádua no canto superior direito da faixa navy (mesmo asset, reaproveitado)
+  // Logo Pádua: canto superior direito da faixa, alinhado pelo topo (y=HERO_TOP+16)
   if (paduaWordmark) {
     try {
-      const pwH = 20;
+      const pwH = 22;
       const pwW = pwH * (paduaWordmark.width / paduaWordmark.height);
-      pg.drawImage(paduaWordmark, { x: PAGE_W - MARGIN - pwW, y: PAGE_H - HERO_H + 16, width: pwW, height: pwH });
+      pg.drawImage(paduaWordmark, { x: PAGE_W - MARGIN - pwW, y: PAGE_H - HERO_H + 20, width: pwW, height: pwH });
     } catch { /* best-effort */ }
   }
 
   // ── Corpo em duas colunas ─────────────────────────────────────────────────
-  const COL_GAP = 18;
-  const COL_W   = (CONTENT_W - COL_GAP) / 2;
+  // Coluna esquerda: formação / trajetória / mentoria
+  // Coluna direita : instituto / filosofia / prioridade / frase-símbolo
+  const COL_GAP = 22;
+  const COL_W   = (CONTENT_W - COL_GAP) / 2;   // ~227 pt cada
   const lX      = MARGIN;
   const rX      = MARGIN + COL_W + COL_GAP;
-  let   ly      = PAGE_H - HERO_H - 20;
+  // Padding top do corpo: 26 pt abaixo da barra de ouro
+  let   ly      = PAGE_H - HERO_H - 26;
   let   ry      = ly;
-  const FLOOR   = 58; // não ultrapassa o rodapé
+  const FLOOR   = 58;   // margem inferior do conteúdo (rodapé fica abaixo)
+  const LINE_H  = 10.5; // espaçamento entre linhas de corpo (7.5 pt fonte + 3 pt leading)
+  const SEC_GAP = 14;   // espaçamento entre seções
+  const BUL_H   = 10;   // altura por linha de bullet
 
-  // Helpers inline: seção label e corpo de texto com wrap
-  const sec = (page: PDFPage, x: number, y: number, lbl: string): number => {
-    page.drawText(lbl, { x, y, size: 5.5, font: pf.manBold, color: GOLD_P });
-    return y - 9;
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Rótulo de seção: texto em maiúsculas douradas + traço lateral de 2 pt
+  const sec = (x: number, y: number, lbl: string): number => {
+    pg.drawLine({ start: { x, y: y + 4 }, end: { x, y: y - 2 }, thickness: 2, color: GOLD_P });
+    pg.drawText(lbl, { x: x + 6, y, size: 6, font: pf.manBold, color: GOLD_P });
+    return y - 12; // espaço entre rótulo e primeiro linha do parágrafo
   };
-  const para = (page: PDFPage, x: number, y: number, txt: string, w: number, sz = 7.5): number => {
+
+  // Parágrafo: texto justificado por wrapText, cor INK_P, retorna y final
+  const para = (x: number, y: number, txt: string, w: number, sz = 7.5): number => {
     const lines = wrapText(txt, pf.manReg, sz, w);
     for (const ln of lines) {
       if (y < FLOOR) break;
-      page.drawText(ln, { x, y, size: sz, font: pf.manReg, color: INK_P });
-      y -= sz + 2.5;
+      pg.drawText(ln, { x, y, size: sz, font: pf.manReg, color: INK_P });
+      y -= sz + 3;
     }
-    return y - 9;
+    return y - SEC_GAP;
   };
-  const bul = (page: PDFPage, x: number, y: number, items: string[], w: number): number => {
+
+  // Lista de bullets: ponto dourado + texto, recuado 12 pt
+  const bul = (x: number, y: number, items: string[], w: number): number => {
     for (const item of items) {
       if (y < FLOOR) break;
-      page.drawText("\u2022", { x, y, size: 7, font: pf.manBold, color: GOLD_P });
-      const lines = wrapText(item, pf.manReg, 7, w - 11);
+      pg.drawText("\u2022", { x, y, size: 7, font: pf.manBold, color: GOLD_P });
+      const lines = wrapText(item, pf.manReg, 7, w - 12);
       for (const ln of lines) {
         if (y < FLOOR) break;
-        page.drawText(ln, { x: x + 11, y, size: 7, font: pf.manReg, color: INK_P });
-        y -= 9.5;
+        pg.drawText(ln, { x: x + 12, y, size: 7, font: pf.manReg, color: INK_P });
+        y -= BUL_H;
       }
+      y -= 2; // espaço entre bullets
     }
-    return y - 9;
+    return y - SEC_GAP;
   };
 
-  // COLUNA ESQUERDA
-  ly = sec(pg, lX, ly, "QUEM SOU EU");
-  ly = para(pg, lX, ly,
-    "Formado pela Faculdade de Medicina de Mogi das Cruzes em 2006, venho de uma familia marcada pela vocacao medica. Inspirado pela minha irma medica e por familiares que carregam a mesma chama, compreendi que a medicina seria para mim nao apenas uma profissao, mas uma missao de vida.",
+  // ── COLUNA ESQUERDA: trajetória e formação ────────────────────────────────
+  ly = sec(lX, ly, "QUEM SOU EU");
+  ly = para(lX, ly,
+    "Formado pela Faculdade de Medicina de Mogi das Cruzes em 2006, venho de uma fam\u00edlia marcada pela voca\u00e7\u00e3o m\u00e9dica. Inspirado pela minha irm\u00e3 m\u00e9dica e por familiares que carregam a mesma chama, compreendi que a medicina seria para mim n\u00e3o apenas uma profiss\u00e3o, mas uma miss\u00e3o de vida.",
     COL_W);
 
-  ly = sec(pg, lX, ly, "FORMACAO ACADEMICA");
-  ly = bul(pg, lX, ly, [
-    "Graduacao em Medicina — Mogi das Cruzes (2006)",
-    "Pos-Graduacao em Endocrinologia",
-    "Pos-Graduacao em Adequacao Nutricional e Homeostase",
-    "Especializacao em prevencao de doencas relacionadas a idade",
+  ly = sec(lX, ly, "FORMA\u00c7\u00c3O ACAD\u00caMICA");
+  ly = bul(lX, ly, [
+    "Gradua\u00e7\u00e3o em Medicina \u2014 Mogi das Cruzes (2006)",
+    "P\u00f3s-Gradua\u00e7\u00e3o em Endocrinologia",
+    "P\u00f3s-Gradua\u00e7\u00e3o em Adequa\u00e7\u00e3o Nutricional e Homeostase",
+    "Especializa\u00e7\u00e3o em preven\u00e7\u00e3o de doen\u00e7as relacionadas \u00e0 idade",
   ], COL_W);
 
-  ly = sec(pg, lX, ly, "MENTORIA: DR. LAIR RIBEIRO");
-  para(pg, lX, ly,
-    "Aluno e mentorado por mais de 3 anos do Dr. Lair Ribeiro — Professor Emerito de Harvard, ex-Vice-Presidente da Ciba-Geigy (hoje Novartis) e referencia incontestavel na Medicina Integrativa. A pos-graduacao por ele ministrada e uma das mais prestigiadas do Brasil, atraindo medicos de todo o mundo.",
+  ly = sec(lX, ly, "MENTORIA: DR. LAIR RIBEIRO");
+  para(lX, ly,
+    "Aluno e mentorado por mais de 3 anos do Dr. Lair Ribeiro \u2014 Professor Em\u00e9rito de Harvard, ex-Vice-Presidente da Ciba-Geigy (hoje Novartis) e refer\u00eancia incontestável na Medicina Integrativa. A p\u00f3s-gradua\u00e7\u00e3o por ele ministrada \u00e9 uma das mais prestigiadas do Brasil, atraindo m\u00e9dicos de todo o mundo.",
     COL_W);
 
-  // COLUNA DIREITA
-  ry = sec(pg, rX, ry, "INSTITUTO PADUA");
-  ry = para(pg, rX, ry,
-    "Fundador e diretor do Instituto Padua — clinica com foco em medicina integrativa e preventiva. Protocolos proprios desenvolvidos com rigor cientifico. Missao: levar saude, longevidade e qualidade de vida a cada paciente.",
+  // ── COLUNA DIREITA: filosofia, prioridade e frase-símbolo ────────────────
+  ry = sec(rX, ry, "INSTITUTO P\u00c1DUA");
+  ry = para(rX, ry,
+    "Fundador e Diretor do Instituto P\u00e1dua — cl\u00ednica com foco em medicina integrativa e preventiva. Protocolos pr\u00f3prios desenvolvidos com rigor cient\u00edfico. Miss\u00e3o: levar sa\u00fade, longevidade e qualidade de vida a cada paciente.",
     COL_W);
 
-  ry = sec(pg, rX, ry, "MINHA FILOSOFIA");
-  ry = para(pg, rX, ry,
-    "Buscar a raiz dos problemas, promover o equilibrio e estimular o potencial de cura natural do organismo. Nao viso o retorno financeiro como fim — ele e apenas consequencia de transformar vidas.",
+  ry = sec(rX, ry, "MINHA FILOSOFIA");
+  ry = para(rX, ry,
+    "Buscar a raiz dos problemas, promover o equil\u00edbrio e estimular o potencial de cura natural do organismo \u2014 algo que a medicina convencional frequentemente ignora. N\u00e3o viso o retorno financeiro como fim, pois ele \u00e9 apenas consequ\u00eancia de transformar vidas.",
     COL_W);
 
-  ry = sec(pg, rX, ry, "MINHA PRIORIDADE");
-  ry = para(pg, rX, ry,
-    "Transformar vidas. Ajudar meus pacientes a viverem mais, melhor e com dignidade. Cada consulta, cada protocolo e cada material educativo e preparado com o maximo rigor cientifico — fruto de anos de dedicacao e superacao.",
+  ry = sec(rX, ry, "MINHA PRIORIDADE");
+  ry = para(rX, ry,
+    "Transformar vidas. Ajudar meus pacientes a viverem mais, melhor e com dignidade. Cada consulta, cada protocolo e cada material educativo \u00e9 preparado com o m\u00e1ximo rigor cient\u00edfico \u2014 fruto de anos de dedica\u00e7\u00e3o, aprendizado e supera\u00e7\u00e3o.",
     COL_W);
 
-  // Frase-símbolo em ouro
-  if (ry > FLOOR + 40) {
+  // Frase-símbolo do CEO: em ouro, maior, como assinatura da página
+  if (ry > FLOOR + 44) {
     ry -= 4;
-    pg.drawLine({ start: { x: rX, y: ry }, end: { x: rX + COL_W, y: ry }, thickness: 0.5, color: GOLD_P, opacity: 0.45 });
-    ry -= 14;
-    for (const ln of wrapText("Vem comigo que voce passa de ano!", pf.cgSemiBold, 10, COL_W)) {
+    // Linha de ouro antes da frase
+    pg.drawLine({
+      start: { x: rX, y: ry }, end: { x: rX + COL_W, y: ry },
+      thickness: 0.6, color: GOLD_P, opacity: 0.5,
+    });
+    ry -= 16;
+    const frase = "Vem comigo que voc\u00ea passa de ano!";
+    for (const ln of wrapText(frase, pf.cgSemiBold, 11, COL_W)) {
       if (ry < FLOOR) break;
-      pg.drawText(ln, { x: rX, y: ry, size: 10, font: pf.cgSemiBold, color: GOLD_P });
-      ry -= 14;
+      pg.drawText(ln, { x: rX, y: ry, size: 11, font: pf.cgSemiBold, color: GOLD_P });
+      ry -= 15;
     }
-    if (ry > FLOOR)
-      pg.drawText("— Dr. Caio Henrique Fernandes Padua, CRM 125.475", {
-        x: rX, y: ry, size: 6, font: pf.manReg, color: NAVY_P,
+    if (ry > FLOOR) {
+      pg.drawText(`\u2014 ${safeTxt(data.professionalName)}, ${data.professionalCrm ?? "CRM SP 125.475"}`, {
+        x: rX, y: ry, size: 6.5, font: pf.manReg, color: NAVY_P,
       });
+    }
   }
 
-  // Divisória vertical entre colunas
+  // Divisória vertical entre colunas (traço suave, dourado 25%)
   pg.drawLine({
-    start: { x: MARGIN + COL_W + COL_GAP / 2, y: PAGE_H - HERO_H - 14 },
-    end:   { x: MARGIN + COL_W + COL_GAP / 2, y: FLOOR + 10 },
-    thickness: 0.4, color: GOLD_P, opacity: 0.25,
+    start: { x: MARGIN + COL_W + COL_GAP / 2, y: PAGE_H - HERO_H - 18 },
+    end:   { x: MARGIN + COL_W + COL_GAP / 2, y: FLOOR + 12 },
+    thickness: 0.5, color: GOLD_P, opacity: 0.25,
   });
 }
 
@@ -2699,5 +2728,7 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   };
 }
 
-export { getCertInfo, loadCertificate, embedPadesSignature, drawPadconMark, PADCON_INNER_SCALE };
+// Nota: drawPadconMark já tem `export` na declaração; PADCON_INNER_SCALE é const local,
+// por isso precisa aparecer aqui para que pdf-carta-tratamento.ts possa importá-lo.
+export { getCertInfo, loadCertificate, embedPadesSignature, PADCON_INNER_SCALE };
 export type { EmbeddedPng };

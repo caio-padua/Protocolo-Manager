@@ -431,3 +431,10 @@ uri = "file://docs/preview/protocolo-capa-v2-subcapa.png"
 type = "image"
 title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica"
 description = "Acima à esquerda: capa nova com logo Instituto Pádua no cabeçalho e no canto inferior esquerdo. À direita: subcapa biográfica (página 2) com suas credenciais e história em duas colunas. Abaixo: zoom do cabeçalho e do rodapé da capa."
+
+[[outputs]]
+id = "ChA8ZJC3pmgd8dSllEpFG"
+uri = "file://docs/preview/protocolo-capa-v2-final.png"
+type = "image"
+title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica (com acentos)"
+description = "Fileira 1: capa nova (esq.) e subcapa biográfica (dir.). Fileira 2: zoom do cabeçalho e rodapé da capa. Fileira 3: zoom da faixa navy e do corpo em duas colunas da subcapa."
