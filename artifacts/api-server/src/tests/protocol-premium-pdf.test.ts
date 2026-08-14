@@ -11,9 +11,15 @@
  *   - Card label compõe o PDF sem erro
  */
 
-import { describe, it, expect } from "vitest";
-import { PDFDocument } from "pdf-lib";
-import { buildProtocolDocumentLayout } from "../lib/pdf-signer.js";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { PDFDocument, PDFPage, StandardFonts } from "pdf-lib";
+import QRCode from "qrcode";
+import {
+  buildProtocolDocumentLayout,
+  drawPadconMark,
+  drawPremiumFooter,
+  drawPremiumCover,
+} from "../lib/pdf-signer.js";
 
 // Texto longo: ~700 chars — força overflow da coluna direita
 const TEXTO_LONGO =
@@ -261,3 +267,177 @@ describe("buildProtocolDocumentLayout — overflow e estrutura", () => {
   });
 
 });
+
+// ─── Bloco PADCON: geometria travada por teste (Task 282) ──────────────────────
+// Constantes de referência (espelham pdf-signer.ts — mudou lá, este teste acusa):
+const PAGE_W = 595.28;
+const MARGIN = 50;
+const COVER_SYM_H = 34;   // altura do hexágono NA CAPA
+const COVER_WRD_H = 21;   // altura de PADCON+Platform® NA CAPA
+const COVER_GAP = 5;      // respiro símbolo↔palavras NA CAPA
+const INNER_SCALE = 0.5;  // páginas internas = metade da capa
+
+type Png = Awaited<ReturnType<PDFDocument["embedPng"]>>;
+
+// PNG quadrado real (QR 120×120) — dimensões conhecidas p/ prever a geometria.
+async function embedSquarePng(pdfDoc: PDFDocument): Promise<Png> {
+  const buf = await QRCode.toBuffer("padcon-test", { width: 120, margin: 0 });
+  return pdfDoc.embedPng(buf);
+}
+
+function makePremiumFonts(reg: any, bold: any) {
+  return { cgReg: reg, cgBold: bold, cgSemiBold: bold, manReg: reg, manBold: bold };
+}
+
+type ImgCall = { img: unknown; x: number; y: number; width: number; height: number };
+
+function spyDrawImage(): { calls: ImgCall[]; spy: ReturnType<typeof vi.spyOn> } {
+  const calls: ImgCall[] = [];
+  const original = PDFPage.prototype.drawImage;
+  const spy = vi.spyOn(PDFPage.prototype, "drawImage").mockImplementation(function (this: PDFPage, img: any, opts: any) {
+    calls.push({ img, x: opts?.x, y: opts?.y, width: opts?.width, height: opts?.height });
+    return original.call(this, img, opts);
+  });
+  return { calls, spy };
+}
+
+describe("bloco PADCON — capa e páginas internas (regressão de geometria)", () => {
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("com as duas artes: largura interna = metade da largura da capa, e QR não encosta no bloco", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const sym = await embedSquarePng(pdfDoc);
+    const words = await embedSquarePng(pdfDoc);
+    const qr = await embedSquarePng(pdfDoc);
+    const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const pf = makePremiumFonts(reg, bold);
+
+    const coverPage = pdfDoc.addPage([595.28, 841.89]);
+    const coverW = drawPadconMark(coverPage, sym, words, PAGE_W - 34, 40.5, 1);
+    // artes quadradas: symW=34, wrdW=21, gap=5 → 60
+    expect(coverW).toBeCloseTo(COVER_SYM_H + COVER_GAP + COVER_WRD_H, 5);
+
+    const { calls } = spyDrawImage();
+    const innerPage = pdfDoc.addPage([595.28, 841.89]);
+    drawPremiumFooter(innerPage, pf as any, 2, 5, qr, sym, words);
+
+    // Geometria interna travada: markBaseY=18, escala 0.5 sobre a capa,
+    // artes quadradas → symH=symW=17, wrdH=wrdW=10.5, gap=2.5.
+    const markBaseY = 18;
+    const symH2 = COVER_SYM_H * INNER_SCALE;   // 17
+    const wrdH2 = COVER_WRD_H * INNER_SCALE;   // 10.5
+    const gap2 = COVER_GAP * INNER_SCALE;      // 2.5
+    const rowW2 = symH2 + gap2 + wrdH2;        // 30
+    const rowX2 = PAGE_W - MARGIN - rowW2;
+
+    const symCall = calls.find(c => c.img === sym);
+    const wrdCall = calls.find(c => c.img === words);
+    expect(symCall).toBeDefined();
+    expect(wrdCall).toBeDefined();
+
+    // símbolo: x/y/w/h exatos
+    expect(symCall!.x).toBeCloseTo(rowX2, 5);
+    expect(symCall!.y).toBeCloseTo(markBaseY, 5);
+    expect(symCall!.width).toBeCloseTo(symH2, 5);
+    expect(symCall!.height).toBeCloseTo(symH2, 5);
+
+    // palavras: x/y/w/h exatos (centradas verticalmente no símbolo)
+    expect(wrdCall!.x).toBeCloseTo(rowX2 + symH2 + gap2, 5);
+    expect(wrdCall!.y).toBeCloseTo(markBaseY + (symH2 - wrdH2) / 2, 5);
+    expect(wrdCall!.width).toBeCloseTo(wrdH2, 5);
+    expect(wrdCall!.height).toBeCloseTo(wrdH2, 5);
+
+    // largura do bloco interno = metade da largura na capa, encostado na margem
+    const markCalls = calls.filter(c => c.img === sym || c.img === words);
+    expect(markCalls.length).toBe(2);
+    const left = Math.min(...markCalls.map(c => c.x));
+    const right = Math.max(...markCalls.map(c => c.x + c.width));
+    expect(right - left).toBeCloseTo(coverW * INNER_SCALE, 5);
+    expect(right).toBeCloseTo(PAGE_W - MARGIN, 5);
+
+    // QR: recuo travado em EXATAMENTE 10pt à esquerda do bloco, mesma base, 20pt
+    const qrCall = calls.find(c => c.img === qr);
+    expect(qrCall).toBeDefined();
+    const gap = left - (qrCall!.x + qrCall!.width);
+    expect(gap).toBeCloseTo(10, 5);
+    expect(qrCall!.y).toBeCloseTo(markBaseY, 5);
+    expect(qrCall!.width).toBeCloseTo(20, 5);
+    expect(qrCall!.height).toBeCloseTo(20, 5);
+  });
+
+  it("faltando uma das artes (ou as duas): nada é desenhado e o QR volta ao canto direito", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const sym = await embedSquarePng(pdfDoc);
+    const words = await embedSquarePng(pdfDoc);
+    const qr = await embedSquarePng(pdfDoc);
+    const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pf = makePremiumFonts(reg, reg);
+
+    for (const [s, w] of [[null, words], [sym, null], [null, null]] as const) {
+      const { calls } = spyDrawImage();
+      const page = pdfDoc.addPage([595.28, 841.89]);
+
+      // drawPadconMark devolve largura 0 e não desenha nada
+      const markW = drawPadconMark(page, s, w, PAGE_W - MARGIN, 18, INNER_SCALE);
+      expect(markW).toBe(0);
+      expect(calls.filter(c => c.img === sym || c.img === words).length).toBe(0);
+
+      // footer: QR volta ao canto direito (borda direita = PAGE_W - MARGIN)
+      drawPremiumFooter(page, pf as any, 2, 5, qr, s, w);
+      expect(calls.filter(c => c.img === sym || c.img === words).length).toBe(0);
+      const qrCall = calls.find(c => c.img === qr);
+      expect(qrCall).toBeDefined();
+      expect(qrCall!.x + qrCall!.width).toBeCloseTo(PAGE_W - MARGIN, 5);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("capa mantém a geometria antiga do bloco PADCON (mesmo x/y/largura/altura)", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const sym = await embedSquarePng(pdfDoc);
+    const words = await embedSquarePng(pdfDoc);
+    const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const pf = makePremiumFonts(reg, bold);
+
+    const { calls } = spyDrawImage();
+    const allPages: PDFPage[] = [];
+    drawPremiumCover(
+      pdfDoc,
+      allPages,
+      baseData([makeSub()]) as LayoutData as any,
+      pf as any,
+      null,  // symbolImg PAXMED ausente — irrelevante p/ o bloco PADCON
+      null,  // wordmarkImg PAXMED ausente
+      sym,
+      words,
+    );
+
+    // Geometria de referência travada (valores da capa em 14/08/2026):
+    //   INSET=34, tagY=30, tagSize=6.5, tagGap=4 → base do bloco rowY=40.5
+    //   escala 1: symH=34, wrdH=21, gap=5; artes quadradas → symW=34, wrdW=21
+    const rightX = PAGE_W - 34;      // 561.28
+    const rowY = 30 + 6.5 + 4;       // 40.5
+    const rowW = 34 + 5 + 21;        // 60
+    const rowX = rightX - rowW;      // 501.28
+
+    const symCall = calls.find(c => c.img === sym);
+    const wrdCall = calls.find(c => c.img === words);
+    expect(symCall).toBeDefined();
+    expect(wrdCall).toBeDefined();
+
+    expect(symCall!.x).toBeCloseTo(rowX, 5);
+    expect(symCall!.y).toBeCloseTo(rowY, 5);
+    expect(symCall!.width).toBeCloseTo(34, 5);
+    expect(symCall!.height).toBeCloseTo(34, 5);
+
+    expect(wrdCall!.x).toBeCloseTo(rowX + 34 + 5, 5);
+    expect(wrdCall!.y).toBeCloseTo(rowY + (34 - 21) / 2, 5);
+    expect(wrdCall!.width).toBeCloseTo(21, 5);
+    expect(wrdCall!.height).toBeCloseTo(21, 5);
+  });
+
+});
+

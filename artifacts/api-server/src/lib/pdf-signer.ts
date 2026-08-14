@@ -1909,7 +1909,7 @@ const PADCON_INNER_SCALE = 0.5;  // páginas internas = metade da capa
  * Retorna a largura ocupada (0 quando as artes não estão disponíveis) para o
  * chamador saber onde o bloco termina e não desenhar nada por cima.
  */
-function drawPadconMark(
+export function drawPadconMark(
   page: PDFPage,
   padconSymbol: EmbeddedPng | null,
   padconWords: EmbeddedPng | null,
@@ -1948,7 +1948,7 @@ function drawPadconMark(
 }
 
 // ── Checkpoint B: Capa premium PAXMED ────────────────────────────────────────
-function drawPremiumCover(
+export function drawPremiumCover(
   pdfDoc: PDFDocument,
   allPages: PDFPage[],
   data: ProtocolDocumentData,
@@ -2261,7 +2261,7 @@ function drawPremiumHeaderBrand(page: PDFPage, pf: PremiumFonts): void {
   page.drawText(tag, { x: PAGE_W - MARGIN - tW, y: PAGE_H - 34, size: 6, font: pf.manReg, color: GOLD_P });
 }
 
-function drawPremiumFooter(
+export function drawPremiumFooter(
   page: PDFPage,
   pf: PremiumFonts,
   pageNum: number,
