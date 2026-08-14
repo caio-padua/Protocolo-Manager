@@ -5,7 +5,7 @@
 // abertas, igual à tela irmã (Carta → PATCH /mensagens-catalogo). Não é PII nem
 // credencial; o perímetro é o proxy (ver memória "admin-api-sem-auth").
 //
-// Opção A (riqueza): a prévia usa montarMensagemOpus com os periodos reais.
+// Opção A (riqueza): a prévia usa montarMensagemPaxmed com os periodos reais.
 // Opção B (override manual): PATCH grava ativoManual; ativo efetivo nunca dispara
 // lembrete vazio (ativo = temFormulas && ativoManual !== false).
 import { Router, type IRouter } from "express";
@@ -19,7 +19,7 @@ import {
   type LembreteFormulaJson,
 } from "@workspace/db";
 import { and, desc, eq } from "drizzle-orm";
-import { montarMensagemOpus } from "../lib/mensageria-opus";
+import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 import { templateLembretePrescricao, montarSaudacao } from "../lib/lembrete-templates";
 import { partsParaTimezone } from "../lib/lembrete-periodo";
 
@@ -149,7 +149,7 @@ router.get("/lembretes/:clienteId/preview", async (req, res) => {
   const primeiroNome = (detalhe.nome || "").trim().split(/\s+/)[0] || detalhe.nome;
   let mensagem: string | null = null;
   try {
-    mensagem = await montarMensagemOpus({ nome: primeiroNome, agora, periodos: detalhe.periodos });
+    mensagem = await montarMensagemPaxmed({ nome: primeiroNome, agora, periodos: detalhe.periodos });
   } catch {
     mensagem = null;
   }

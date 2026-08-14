@@ -5,7 +5,7 @@ import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
-import { runSeedMensageriaOpus } from "./lib/seed-mensageria-opus";
+import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
 import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
 import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
@@ -110,8 +110,8 @@ if (Number.isNaN(port) || port <= 0) {
     runSeedSiteContent((m) => logger.info({ seed: "site-content" }, m)).catch((e) =>
       logger.error({ err: e }, "Falha ao semear site-content"),
     );
-    runSeedMensageriaOpus((m) => logger.info({ seed: "mensageria-opus" }, m)).catch((e) =>
-      logger.error({ err: e }, "Falha ao semear mensageria-opus"),
+    runSeedMensageriaPaxmed((m) => logger.info({ seed: "mensageria-paxmed" }, m)).catch((e) =>
+      logger.error({ err: e }, "Falha ao semear mensageria-paxmed"),
     );
     runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
       logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),

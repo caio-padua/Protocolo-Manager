@@ -20,7 +20,7 @@ import { and, eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { sendWhatsapp } from "./whatsapp";
 import { montarSaudacao, templateLembretePrescricao, type Genero } from "./lembrete-templates";
-import { montarMensagemOpus } from "./mensageria-opus";
+import { montarMensagemPaxmed } from "./mensageria-paxmed";
 import { enviarVozAvatarWhatsapp, gerarScriptLembrete } from "./avatar-messenger";
 
 const TIMEZONE = "America/Sao_Paulo";
@@ -359,12 +359,12 @@ export async function executarLembretesPeriodo(
 
     // Gênero não existe hoje em `clients` → tratamento cai no primeiro nome.
     const genero: Genero = "nao_informado";
-    // Mensagem RICA (Mensageria Opus). Falha-segura: qualquer erro OU catálogo
+    // Mensagem RICA (Mensageria PAXMED). Falha-segura: qualquer erro OU catálogo
     // vazio cai no template simples — o envio NUNCA quebra por causa da riqueza.
     let mensagem: string;
     try {
       const primeiroNome = (ctx.clienteNome || "").trim().split(/\s+/)[0] || ctx.clienteNome;
-      const rica = await montarMensagemOpus({
+      const rica = await montarMensagemPaxmed({
         nome: primeiroNome,
         agora: now,
         periodos: ctx.periodos,
@@ -379,7 +379,7 @@ export async function executarLembretesPeriodo(
     } catch (err) {
       logger.warn(
         { lembreteId: ctx.id, clienteId: ctx.clienteId, erro: err instanceof Error ? err.message : String(err) },
-        "[lembrete-periodo] montagem Opus falhou; usando template simples",
+        "[lembrete-periodo] montagem PAXMED falhou; usando template simples",
       );
       mensagem = templateLembretePrescricao({
         clienteNome: ctx.clienteNome,

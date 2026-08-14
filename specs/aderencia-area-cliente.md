@@ -98,7 +98,7 @@ Autor: Dr. Replit Manager. Aprovador: Dr. Caio (cacique).
 | :-------------------------------------- | :------------ | :------------------------------------------- |
 | Motor de lembrete por período           | JÁ EXISTE     | `lib/cron.ts` + `lib/lembrete-periodo.ts`     |
 | Nove janelas canônicas do dia           | JÁ EXISTE     | `MAPA_PERIODO` e tabela `periodos_dia`        |
-| Mensagem rica editável                  | JÁ EXISTE     | `lib/mensageria-opus.ts`                      |
+| Mensagem rica editável                  | JÁ EXISTE     | `lib/mensageria-paxmed.ts`                      |
 | Entrega por WhatsApp com espelho Telegram | JÁ EXISTE   | `lib/whatsapp.ts`                             |
 | Exames longitudinais com unidade canônica | JÁ EXISTE   | `exam_results`                                |
 | Direção do marcador                     | JÁ EXISTE     | `exam_analyte_catalog.direction`              |

@@ -1,8 +1,8 @@
-# Onda — Mensageria Opus (Carta de Encantamento) no Manager
+# Onda — Mensageria PAXMED (Carta de Encantamento) no Manager
 
 ## 1. Objetivo (conclusão primeiro)
 
-Trazer a ferramenta rica "Mensageria Opus" do primo IHE para o Manager (Padcon
+Trazer a ferramenta rica "Mensageria PAXMED" do primo IHE para o Manager (Padcon
 Conect / PAXTER) como **Carta de Encantamento**, com DUAS entregas:
 
 - **(A) Compositor editável** — catálogo de blocos de mensagem por categoria
@@ -11,7 +11,7 @@ Conect / PAXTER) como **Carta de Encantamento**, com DUAS entregas:
   com **prévia do WhatsApp ao vivo** e **edição inline** de cada bloco. Marca
   PAXTER e design 3D Paxter (ConsoleShell/panel-3d/bevel-3d/concave-3d).
 - **(B) Casamento com o motor automático** — o lembrete por período
-  (`executarLembretesPeriodo`) passa a montar a mensagem RICA (envelope Opus +
+  (`executarLembretesPeriodo`) passa a montar a mensagem RICA (envelope PAXMED +
   bloco de prescrição REAL do cliente), personalizada por dia da semana, semana
   do mês, versículo (sábado) e fala do Dr. Caio, em vez do texto simples.
 
@@ -27,11 +27,11 @@ Sistemas PRIMOS: o conteúdo entra NATIVO no Manager (sem tag de origem).
 | Peça | IHE (fonte) | Manager (destino) |
 |---|---|---|
 | Tabela | `mensagens_catalogo` (id/categoria/chave/ordem/conteudo jsonb/ativo, UNIQUE(categoria,chave)) | idem, `lib/db/src/schema/mensagens-catalogo.ts` |
-| Seed | `scripts/seed-mensageria-opus.sql` (DELETE+INSERT) | `lib/seed-mensageria-opus.ts` função idempotente (onConflictDoNothing), chamada no boot |
+| Seed | `scripts/seed-mensageria-paxmed.sql` (DELETE+INSERT) | `lib/seed-mensageria-paxmed.ts` função idempotente (onConflictDoNothing), chamada no boot |
 | Rota | `routes/mensagens.ts` | `routes/mensagens-catalogo.ts` (GET agrupado, PUT/:id, POST upsert, DELETE soft) |
 | Tela | `mensagens.tsx` (montador `mensagemFinal`) | `pages/comunicacao/carta-encantamento.tsx` (design Paxter) |
-| Montador server | (não existia) | `lib/mensageria-opus.ts` (`montarMensagemOpus`) |
-| Motor | `templateLembretePrescricao` | idem + extrai `blocoPrescricaoPeriodos`; motor usa `montarMensagemOpus` |
+| Montador server | (não existia) | `lib/mensageria-paxmed.ts` (`montarMensagemPaxmed`) |
+| Motor | `templateLembretePrescricao` | idem + extrai `blocoPrescricaoPeriodos`; motor usa `montarMensagemPaxmed` |
 
 ---
 
@@ -85,7 +85,7 @@ Partes juntadas por `\n\n`, `filter(Boolean)`.
 
 - Extrair `blocoPrescricaoPeriodos(periodos)` de `templateLembretePrescricao`
   (só a listagem de períodos/fórmulas, SEM saudação nem rodapé).
-- `montarMensagemOpus({ nome, agora, periodos })`:
+- `montarMensagemPaxmed({ nome, agora, periodos })`:
   - Carrega catálogo (cache ~60s, invalidável nas escritas).
   - Mapa período→chave PERIODO: `IM→inicioManha`, `IT→inicioTarde`, `NO→inicioNoite`
     (fallback: label == periodo.nome; senão primeiro PERIODO).
@@ -94,7 +94,7 @@ Partes juntadas por `\n\n`, `filter(Boolean)`.
     (variedade estável no dia). Elogio/versículo por semana do mês.
   - Injeta `blocoPrescricaoPeriodos(periodos)` no lugar do bloco.
   - Se catálogo vazio → retorna `null`.
-- No `executarLembretesPeriodo`: `mensagem = montarMensagemOpus(...) ?? templateLembretePrescricao(...)`
+- No `executarLembretesPeriodo`: `mensagem = montarMensagemPaxmed(...) ?? templateLembretePrescricao(...)`
   dentro de try/catch — **nunca quebra o envio** (fallback à mensagem simples).
 
 ---
@@ -113,7 +113,7 @@ Partes juntadas por `\n\n`, `filter(Boolean)`.
 1. `GET /api/mensagens-catalogo` retorna 9+ categorias agrupadas após o seed.
 2. Tela `/comunicacao/carta-encantamento` compõe a prévia ao vivo, edita bloco
    (PUT persiste) e copia/abre no WhatsApp. Design 3D Paxter, marca PAXTER.
-3. `montarMensagemOpus` produz a mensagem rica; com catálogo vazio, o motor cai
+3. `montarMensagemPaxmed` produz a mensagem rica; com catálogo vazio, o motor cai
    no template simples (envio nunca quebra).
 4. Item no menu Comunicação + link no hub Mensageria + rota no App.
 5. Architect aprova sem pendência severa.

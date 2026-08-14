@@ -1,11 +1,11 @@
-// ROTA da MENSAGERIA OPUS (Carta de Encantamento) — catálogo editável.
+// ROTA da MENSAGERIA PAXMED (Carta de Encantamento) — catálogo editável.
 //
 // Conteúdo é JSONB livre por categoria; por isso NÃO usa OpenAPI/Orval (decisão
 // consciente, espelha o IHE). Toda escrita invalida o cache do montador.
 import { Router, type IRouter } from "express";
 import { db, mensagensCatalogoTable, type MensagemCatalogo } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
-import { invalidarCacheCatalogo } from "../lib/mensageria-opus";
+import { invalidarCacheCatalogo } from "../lib/mensageria-paxmed";
 
 const router: IRouter = Router();
 

@@ -20,7 +20,7 @@ com prévia real da mensagem por cliente.
 3. `lib/db/src/schema/lembretes-prescricao.ts` → `LembreteFormulaJson` já tem todos os campos ricos;
    a tabela tem `ativo`, `periodos` (jsonb), `horariosEnvio`, `observacao`, unique `cliente_id`.
    NÃO há coluna de override manual.
-4. `artifacts/api-server/src/lib/mensageria-opus.ts` → `montarMensagemOpus({nome, agora, periodos})`
+4. `artifacts/api-server/src/lib/mensageria-paxmed.ts` → `montarMensagemPaxmed({nome, agora, periodos})`
    devolve a mensagem rica (ou `null` → cai no template). Serve para a prévia real.
 5. Rotas são Express escritas à mão, registradas em `artifacts/api-server/src/routes/index.ts`;
    ESCRITAS ficam atrás do `collaboratorGuard` (leituras livres). Padrão de rota sem OpenAPI:
@@ -65,7 +65,7 @@ B2. `GET /api/lembretes/:clienteId` (leitura livre) — detalhe completo: a linh
     404 se o cliente não tem lembrete.
 
 B3. `GET /api/lembretes/:clienteId/preview` (leitura livre) — devolve `{ mensagem }` com a mensagem
-    REAL montada por `montarMensagemOpus` (fallback `templateLembretePrescricao` se retornar null),
+    REAL montada por `montarMensagemPaxmed` (fallback `templateLembretePrescricao` se retornar null),
     usando os `periodos` reais do cliente e `agora` = data/hora atual. 404 se não há lembrete.
 
 B4. `PATCH /api/lembretes/:clienteId` — corpo com campos OPCIONAIS:

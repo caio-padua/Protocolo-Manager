@@ -44,7 +44,7 @@ PERSISTIDO — para ver mudança de derivação, re-sincronizar (demo-galeria ou
 ## Posologia manual + sem acento (10/07/2026)
 
 - Parser de posologia e `semAcento` moram na lib `@workspace/posologia` (fonte única, com testes); não recriar parser no api-server.
-- A mensagem de lembrete sai TODA sem acento: o funil `semAcento` fica no RETORNO FINAL dos montadores (mensageria-opus e lembrete-templates), nunca campo a campo.
+- A mensagem de lembrete sai TODA sem acento: o funil `semAcento` fica no RETORNO FINAL dos montadores (mensageria-paxmed e lembrete-templates), nunca campo a campo.
 - Posologia ditada pelo CEO na tela grava `posologiaManual: true` (detecção por diff no PATCH) e o merge do re-sync respeita a flag; posologia apagada limpa a flag e volta à derivada do catálogo.
 - **Why:** re-sync do Cockpit reescreve as fórmulas; sem a flag, a edição manual do CEO evaporava.
 - Períodos canônicos: 9 siglas locais JE/IM/MM/AL/IT/MT/NO/FN/CE (tabela `periodos_dia` local vence a nomenclatura do IHE).

@@ -1,4 +1,4 @@
-// SEED da MENSAGERIA OPUS (Carta de Encantamento) — portado do IHE, NATIVO.
+// SEED da MENSAGERIA PAXMED (Carta de Encantamento) — portado do IHE, NATIVO.
 //
 // Idempotente e NÃO-destrutivo: usa onConflictDoNothing em (categoria, chave), de
 // modo que reexecutar no boot NÃO apaga as edições feitas pelo CEO na tela. É
@@ -391,7 +391,7 @@ const TODOS: BlocoSeed[] = [
 // Semeia o catálogo sem apagar edições existentes. onConflictDoNothing na chave
 // composta (categoria, chave): blocos novos entram; blocos já editados ficam
 // intactos. Retorna quantos blocos foram efetivamente inseridos.
-export async function runSeedMensageriaOpus(log: SeedLog = noopLog): Promise<number> {
+export async function runSeedMensageriaPaxmed(log: SeedLog = noopLog): Promise<number> {
   let inseridos = 0;
   for (const bloco of TODOS) {
     const linhas = await db
@@ -408,6 +408,6 @@ export async function runSeedMensageriaOpus(log: SeedLog = noopLog): Promise<num
       .returning({ id: mensagensCatalogoTable.id });
     if (linhas.length > 0) inseridos += 1;
   }
-  log(`Mensageria Opus: ${inseridos} bloco(s) semeado(s) (${TODOS.length} no catálogo).`);
+  log(`Mensageria PAXMED: ${inseridos} bloco(s) semeado(s) (${TODOS.length} no catálogo).`);
   return inseridos;
 }

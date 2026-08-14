@@ -1,9 +1,9 @@
-// MONTADOR DA MENSAGERIA OPUS (server) — casa o catálogo editável com o motor
+// MONTADOR DA MENSAGERIA PAXMED (server) — casa o catálogo editável com o motor
 // automático de lembrete. Espelha o `mensagemFinal` da tela (IHE), injetando o
 // BLOCO DE PRESCRIÇÃO REAL do cliente no lugar do placeholder.
 //
 // Falha-segura: se o catálogo estiver vazio (ainda não semeado) ou faltar bloco
-// essencial, `montarMensagemOpus` retorna null e o motor cai no template simples.
+// essencial, `montarMensagemPaxmed` retorna null e o motor cai no template simples.
 import { db, mensagensCatalogoTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { LembretePeriodoJson } from "@workspace/db";
@@ -132,7 +132,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-export interface MontarOpusDados {
+export interface MontarPaxmedDados {
   nome: string; // primeiro nome já resolvido, ou nome completo
   agora: Date;
   periodos: LembretePeriodoJson[];
@@ -140,7 +140,7 @@ export interface MontarOpusDados {
 
 // Monta a mensagem RICA a partir do catálogo + prescrição real. Retorna null se
 // o catálogo não tiver os blocos mínimos (motor então usa o template simples).
-export async function montarMensagemOpus(dados: MontarOpusDados): Promise<string | null> {
+export async function montarMensagemPaxmed(dados: MontarPaxmedDados): Promise<string | null> {
   const catalogo = await carregarCatalogo();
   const periodosCat = catalogo.get("PERIODO");
   const diasCat = catalogo.get("DIA_SEMANA");

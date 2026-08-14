@@ -1,12 +1,12 @@
 ---
-name: WhatsApp 1600 chars (Twilio 21617) x Mensageria Opus
-description: Mensagem rica do Opus estoura o limite do WhatsApp; precisa truncar antes de enviar
+name: WhatsApp 1600 chars (Twilio 21617) x Mensageria PAXMED
+description: Mensagem rica do PAXMED estoura o limite do WhatsApp; precisa truncar antes de enviar
 ---
 
 Twilio recusa corpo de WhatsApp acima de 1600 caracteres com erro **21617**
 ("concatenated message body exceeds the 1600 character limit"), HTTP 400.
 
-A mensagem RICA da Mensageria Opus (abertura + status Dr. Caio + prescricao de
+A mensagem RICA da Mensageria PAXMED (abertura + status Dr. Caio + prescricao de
 varios periodos + fala + elogio + observacao + assinatura longa) pode passar de
 1600 quando o periodo tem muitos itens. O motor real (lembrete-periodo) manda 1
 periodo com as formulas reais do cliente — em geral cabe, mas nao ha garantia.

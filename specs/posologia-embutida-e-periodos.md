@@ -11,7 +11,7 @@ esta amarrada aos 9 periodos canonicos do dia (jejum ate ceia), e toda a mensage
 sai sem acento.
 
 ## Requisitos exatos
-1. SEM ACENTO: toda mensagem de lembrete WhatsApp (Opus e template simples) passa por um
+1. SEM ACENTO: toda mensagem de lembrete WhatsApp (PAXMED e template simples) passa por um
    normalizador unico `semAcento` no ponto final de montagem (um so funil). Emojis e
    formatacao (*_) preservados; somente marcas diacriticas e "ç" removidas.
 2. GLOSSARIO: criar `specs/glossario-posologia.md` definindo, em linguagem simples e tabela:

@@ -122,7 +122,7 @@ const GRUPOS: Grupo[] = [
     cor: { red: 0.91, green: 0.835, blue: 0.961 },
     telas: [
       { num: 46, nome: "Gateway de Comunicação", funcao: "Config Twilio / WhatsApp / e-mail", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/comunicacao/gateways` },
-      { num: 47, nome: "Mensageria", funcao: "Mensagens programadas Opus (WhatsApp/e-mail)", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/comunicacao/mensageria` },
+      { num: 47, nome: "Mensageria", funcao: "Mensagens programadas PAXMED (WhatsApp/e-mail)", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/comunicacao/mensageria` },
       { num: 48, nome: "Carta de Encantamento", funcao: "Comunicação personalizada de boas-vindas", menu: "✅", necessidade: "★★★★☆", fusao: "★★★★☆", candidata: "Mensageria", link: `${BASE}/comunicacao/carta-encantamento` },
       { num: 49, nome: "Central de Lembretes", funcao: "Lembretes automáticos de sessão", menu: "✅", necessidade: "★★★★★", fusao: "★★★★☆", candidata: "Mensageria (aba)", link: `${BASE}/comunicacao/central-lembretes` },
       { num: 50, nome: "Comunicação Digital", funcao: "Canais digitais ativos", menu: "✅", necessidade: "★★★☆☆", fusao: "★★★★☆", candidata: "Plataformas Digitais", link: `${BASE}/comunicacao/digital` },

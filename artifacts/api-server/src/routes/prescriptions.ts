@@ -34,10 +34,10 @@ import {
   type PeriodoAntigo,
 } from "../lib/lembrete-periodo";
 import { templateLembretePrescricao } from "../lib/lembrete-templates";
-import { montarMensagemOpus } from "../lib/mensageria-opus";
+import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 
 /**
- * Monta a mensagem do lembrete pelo motor RICO (Mensageria Opus) — períodos ×
+ * Monta a mensagem do lembrete pelo motor RICO (Mensageria PAXMED) — períodos ×
  * dia-da-semana × semana-do-mês + versículo de sábado + fala do Dr. Caio +
  * elogio + assinatura. Falha-segura: catálogo vazio ou erro cai no template
  * simples, exatamente como o motor oficial em lembrete-periodo.ts.
@@ -52,7 +52,7 @@ async function montarMensagemLembrete(
 ): Promise<string> {
   try {
     const primeiroNome = (clienteNome || "").trim().split(/\s+/)[0] || clienteNome;
-    const rica = await montarMensagemOpus({ nome: primeiroNome, agora, periodos });
+    const rica = await montarMensagemPaxmed({ nome: primeiroNome, agora, periodos });
     if (rica) return rica;
   } catch {
     // catálogo indisponível — cai no template simples abaixo

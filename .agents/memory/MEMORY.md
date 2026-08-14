@@ -73,10 +73,10 @@
 - Card de profissional — padrão correto — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase; upload foto=cópia fiel do ClientPhotoCard.
 - Auditoria walking-dead: rotas x menu — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.
 - [Cockpit lembrete deriva da anamnese, não do protocolo](cockpit-lembrete-deriva-anamnese.md) — /cockpit/:id/emitir monta períodos do motor de anamnese (item_doenca), não dos protocol_items.
-- [WhatsApp 1600 chars (Twilio 21617) x Opus](whatsapp-limite-1600-opus.md) — mensagem rica do Opus estoura 1600; truncar <1500 em quebra de paragrafo antes de enviar.
+- [WhatsApp 1600 chars (Twilio 21617) x PAXMED](whatsapp-limite-1600-paxmed.md) — mensagem rica do PAXMED estoura 1600; truncar <1500 em quebra de paragrafo antes de enviar.
 - [Lembrete de fórmula manipulada](lembrete-formula-manipulada.md) — nome canônico=TITL; parser+semAcento na lib @workspace/posologia; posologiaManual sobrevive a re-sync; 9 períodos JE..CE.
 - [Grade de horarios fabricados (slice de pool)](grade-horarios-fabricados.md) — pool que alimenta slice(0,2) e slice(0,3) precisa ter >=3 itens; fluxo Dr.Caio = horarios fabricados intencionais.
-- [Mensageria Opus (compositor editavel)](mensageria-opus-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemOpus server + previa da tela): mexeu no blueprint, mexa nos dois.
+- [Mensageria PAXMED (compositor editavel)](mensageria-paxmed-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemPaxmed server + previa da tela): mexeu no blueprint, mexa nos dois.
 - [paxter-alert é só glow ring (sem fill)](paxter-alert-sem-fill.md) — paxter-alert dá bevel+halo na cor, NAO pinta fundo; verde usa bevel-3d-ok que já preenche.
 - Padrão lista de clientes (A-Z + scroll) — barra A-Z+busca no panel-3d-sub; scroll infinito PAGE_SIZE=100; card = foto portrait 64×88 + 4 linhas alinhadas.
 - [Cockpit telas-fonte-única embutidas](cockpit-tela-unica-embedded.md) — embutir a tela ORIGINAL via props opcionais {embedded?,clientId?}; ação de sucesso NÃO navega em embedded.

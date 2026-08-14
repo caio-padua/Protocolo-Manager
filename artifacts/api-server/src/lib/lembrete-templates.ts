@@ -52,7 +52,7 @@ export function montarSaudacao(
 }
 
 // Só a listagem de PERÍODOS/FÓRMULAS (sem saudação nem rodapé). Reutilizado pelo
-// template simples E pelo montador rico (Mensageria Opus), que injeta este bloco
+// template simples E pelo montador rico (Mensageria PAXMED), que injeta este bloco
 // no lugar do placeholder {BLOCO_PRESCRICAO}.
 export function blocoPrescricaoPeriodos(periodos: LembretePeriodoJson[]): string {
   const linhas: string[] = [];

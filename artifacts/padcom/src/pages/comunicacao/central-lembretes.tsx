@@ -22,7 +22,7 @@ import { BASE, ConsoleShell, BlockTitle } from "./_shared";
 
 // ===========================================================================
 // CENTRAL DE LEMBRETES — painel único de gestão do lembrete de prescrição por
-// cliente (motor por período, Mensageria Opus). Aqui o CEO vê TODOS os clientes
+// cliente (motor por período, Mensageria PAXMED). Aqui o CEO vê TODOS os clientes
 // com lembrete, o próximo disparo do dia, o último envio, liga/desliga à mão
 // (Opção B), EDITA horários e campos ricos por fórmula (Opção A) e pré-visualiza
 // a mensagem REAL. Design 3D Paxter, marca PAXTER, sem envio real (só prévia +

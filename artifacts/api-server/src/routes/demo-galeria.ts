@@ -1,6 +1,6 @@
 // GALERIA DE MENSAGENS (dev-only) — dispara UMA mensagem de WhatsApp REAL por
 // possibilidade para o telefone do cliente, usando dados reais do protocolo ativo
-// e os renderizadores reais (Mensageria Opus + templates de lembrete). Serve para
+// e os renderizadores reais (Mensageria PAXMED + templates de lembrete). Serve para
 // o CEO ver, no proprio WhatsApp, todas as vozes que o sistema sabe falar.
 //
 // NUNCA disponivel em producao (retorna 404). Idempotencia nao se aplica: cada
@@ -19,7 +19,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { sendWhatsapp } from "../lib/whatsapp";
-import { montarMensagemOpus } from "../lib/mensageria-opus";
+import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 import { templateLembretePrescricao, montarSaudacao, type Genero } from "../lib/lembrete-templates";
 import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
 import { derivarFormulasLembrete } from "../lib/formula-manipulada";
@@ -179,10 +179,10 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
       `Qualquer dúvida, é só responder por aqui.`,
   });
 
-  // 2-4) LEMBRETE POR PERÍODO (Mensageria Opus, uma voz por período)
+  // 2-4) LEMBRETE POR PERÍODO (Mensageria PAXMED, uma voz por período)
   for (const p of periodos) {
     let texto: string;
-    const rica = await montarMensagemOpus({ nome: pnome, agora: new Date(), periodos: [p] });
+    const rica = await montarMensagemPaxmed({ nome: pnome, agora: new Date(), periodos: [p] });
     texto =
       rica ??
       templateLembretePrescricao({

@@ -9,7 +9,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
-// Catálogo editável da "Carta de Encantamento" (Mensageria Opus, portado do IHE,
+// Catálogo editável da "Carta de Encantamento" (Mensageria PAXMED, portado do IHE,
 // nativo — sem tag de origem). Cada linha é um BLOCO de mensagem identificado por
 // (categoria, chave). O `conteudo` é JSONB livre porque a forma varia por
 // categoria (PERIODO tem abertura/desejo/saudacao; DIA_SEMANA tem frase; etc.).

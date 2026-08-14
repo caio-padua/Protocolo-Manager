@@ -20,9 +20,9 @@ import {
 import { BASE, ConsoleShell, BlockTitle } from "./_shared";
 
 // ===========================================================================
-// CARTA DE ENCANTAMENTO (Mensageria Opus) — compositor editável da mensagem
+// CARTA DE ENCANTAMENTO (Mensageria PAXMED) — compositor editável da mensagem
 // rica do WhatsApp, portado do primo IHE, nativo, com marca PAXTER e design 3D
-// Paxter. A mesma composição roda no servidor (montarMensagemOpus) para o motor
+// Paxter. A mesma composição roda no servidor (montarMensagemPaxmed) para o motor
 // automático de lembrete por período. Aqui o CEO pré-visualiza, edita cada bloco
 // (persiste no catálogo) e copia/abre no WhatsApp.
 // ===========================================================================
@@ -267,7 +267,7 @@ export default function CartaEncantamento() {
 
   const isSabado = diaChave === "sabado";
 
-  // Composição — espelha montarMensagemOpus (server) e o mensagemFinal (IHE).
+  // Composição — espelha montarMensagemPaxmed (server) e o mensagemFinal (IHE).
   const mensagem = useMemo(() => {
     if (!periodo || !dia || !semana) return "";
     const saudacao = periodo.conteudo.saudacao || "Olá";
@@ -358,7 +358,7 @@ export default function CartaEncantamento() {
 
   if (loading) {
     return (
-      <ConsoleShell icon={Sparkles} title="Carta de Encantamento" subtitle="Mensageria Opus — compositor da mensagem rica do WhatsApp">
+      <ConsoleShell icon={Sparkles} title="Carta de Encantamento" subtitle="Mensageria PAXMED — compositor da mensagem rica do WhatsApp">
         <div className="panel-3d flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -368,7 +368,7 @@ export default function CartaEncantamento() {
 
   if (erro || !data) {
     return (
-      <ConsoleShell icon={Sparkles} title="Carta de Encantamento" subtitle="Mensageria Opus — compositor da mensagem rica do WhatsApp">
+      <ConsoleShell icon={Sparkles} title="Carta de Encantamento" subtitle="Mensageria PAXMED — compositor da mensagem rica do WhatsApp">
         <div className="panel-3d p-6 text-sm text-rose-700 dark:text-rose-400">
           Não foi possível carregar o catálogo de mensagens. Tente recarregar a página.
         </div>
@@ -380,7 +380,7 @@ export default function CartaEncantamento() {
     <ConsoleShell
       icon={Sparkles}
       title="Carta de Encantamento"
-      subtitle="Mensageria Opus — a mesma composição do lembrete automático por período"
+      subtitle="Mensageria PAXMED — a mesma composição do lembrete automático por período"
     >
       <div className="grid gap-5 lg:grid-cols-[1fr_400px]">
         {/* ── COLUNA ESQUERDA: controles + editor ── */}

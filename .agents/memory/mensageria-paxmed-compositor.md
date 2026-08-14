@@ -1,38 +1,38 @@
 ---
-name: Mensageria Opus (compositor editável clonado do IHE)
+name: Mensageria PAXMED (compositor editável clonado do IHE)
 description: Como o compositor de mensagem rica do WhatsApp casa tela + motor automático sem drift; onde mora a fonte única de composição.
 ---
 
-# Mensageria Opus — Carta de Encantamento
+# Mensageria PAXMED — Carta de Encantamento
 
 Compositor de mensagem rica do WhatsApp (períodos × dia-da-semana × semana-do-mês
 + versículo de sábado + fala/status do Dr. Caio + elogio + assinatura), clonado do
 primo IHE para o Manager como catálogo editável em banco.
 
 ## Regra durável: uma composição, dois consumidores
-- A MESMA lógica de composição roda no servidor (`montarMensagemOpus`) para o motor
+- A MESMA lógica de composição roda no servidor (`montarMensagemPaxmed`) para o motor
   automático de lembrete por período E é replicada na tela para a prévia. São DUAS
   implementações da mesma estrutura — risco de DRIFT. Se mexer no blueprint (ordem
   dos blocos, sábado→versículo, filter(Boolean).join("\n\n")), mexer nos DOIS.
 - **Por quê:** o CEO edita na tela e espera que o lembrete automático saia idêntico.
 
 ## Casamento com o motor (nunca quebrar envio)
-- O motor tenta `montarMensagemOpus` e cai por `try/catch` no template legado quando
+- O motor tenta `montarMensagemPaxmed` e cai por `try/catch` no template legado quando
   o catálogo está vazio/erro. Fallback é obrigatório: composição rica nunca pode
   derrubar o disparo do lembrete.
 
 ## LEI: o template simples é FALLBACK, nunca a mensagem principal
 - Nenhuma rota pode chamar `templateLembretePrescricao` direto. Toda origem de
   lembrete (rota manual, disparo na emissão, cron) passa pelo caminho
-  "tenta Opus → cai no template". Chamar o template direto entrega ao paciente a
+  "tenta PAXMED → cai no template". Chamar o template direto entrega ao paciente a
   versão pobre e seca, indistinguível de spam.
-- **Por quê:** o CEO construiu o Opus justamente para a mensagem variar por
-  período × dia-da-semana × semana-do-mês. Uma rota que pula o Opus faz o sistema
+- **Por quê:** o CEO construiu o PAXMED justamente para a mensagem variar por
+  período × dia-da-semana × semana-do-mês. Uma rota que pula o PAXMED faz o sistema
   repetir o mesmo texto todo dia — o CEO chamou isso de "papagaio de pirata"
   (14/08/2026) e é regressão grave de produto, não detalhe técnico.
 - **Como aplicar:** ao cabear um canal novo (Telegram, e-mail, push), NÃO montar
-  texto no call site. Reusar o helper que já tenta Opus. Se o canal novo precisa de
-  formato próprio, estender o Opus — não contorná-lo.
+  texto no call site. Reusar o helper que já tenta PAXMED. Se o canal novo precisa de
+  formato próprio, estender o PAXMED — não contorná-lo.
 
 ## Canal de entrega é escolha explícita, não efeito colateral
 - Rota que entrega em mais de um canal precisa de parâmetro `canal` validado com
