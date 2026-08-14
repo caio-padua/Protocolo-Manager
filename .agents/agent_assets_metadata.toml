@@ -452,3 +452,10 @@ uri = "file://docs/preview/capa-gamma-foto-titulo.png"
 type = "image"
 title = "Capa v3 — Foto do Dr. Caio + Título grande (estilo Gamma)"
 description = "Fileira 1: tela do Gamma (referência) vs nossa nova capa. Fileira 2: zoom da zona central com título grande e foto. Fileira 3: zoom do bloco título + ID compacto."
+
+[[outputs]]
+id = "3HXsYQ0df6Z-iEfBxhQcX"
+uri = "file://docs/preview/protocolo32-3paginas.png"
+type = "image"
+title = "Protocolo 32 — Capa + Subcapa + 1ª Substância (motor real, dados reais)"
+description = "Fileira 1: Capa com foto do Dr. Caio e título grande | Subcapa biográfica. Fileira 2: Primeira página de substância. PDF completo gerado via GET /api/protocols/32/document-pdf — 13 páginas, 3,3 MB, sem mock."
