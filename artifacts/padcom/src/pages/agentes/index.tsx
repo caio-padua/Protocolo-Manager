@@ -15,7 +15,7 @@ import {
   DollarSign, Trash2, Plus, Settings, Globe, Lock, Crown,
   Award, Target, BarChart2, MessageCircle, Sliders, Download,
   ChevronLeft, Search, PlusCircle, LayoutGrid, Layers, Loader2,
-  Webhook, Smartphone, ExternalLink, ToggleLeft, ToggleRight,
+  Webhook, Smartphone, ExternalLink, ToggleLeft, ToggleRight, Key,
 } from "lucide-react";
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -2656,6 +2656,11 @@ interface TrelloStatus {
   instrucoes: string[];
 }
 interface WppStatus { configurado: boolean; instrucoes: string[] | null; }
+interface GitHubPatInfo {
+  status: "conectado" | "expirado_em_breve" | "erro" | "nao_configurado";
+  expira_em: string | null;
+  login: string | null;
+}
 interface TrelloLista { id: string; name: string; }
 interface TrelloConfig {
   agente_id: number;
@@ -2666,14 +2671,15 @@ interface TrelloConfig {
 }
 
 function AbaIntegracoes() {
-  const [trello,    setTrello]    = useState<TrelloStatus | null>(null);
-  const [wpp,       setWpp]       = useState<WppStatus    | null>(null);
-  const [listas,    setListas]    = useState<TrelloLista[]>([]);
-  const [agentes,   setAgentes]   = useState<Agente[]>([]);
-  const [configs,   setConfigs]   = useState<Record<number, TrelloConfig>>({});
-  const [salvando,  setSalvando]  = useState<Record<number, boolean>>({});
-  const [copied,    setCopied]    = useState<string | null>(null);
-  const [loading,   setLoading]   = useState(true);
+  const [trello,     setTrello]     = useState<TrelloStatus  | null>(null);
+  const [wpp,        setWpp]        = useState<WppStatus     | null>(null);
+  const [githubPat,  setGithubPat]  = useState<GitHubPatInfo | null>(null);
+  const [listas,     setListas]     = useState<TrelloLista[]>([]);
+  const [agentes,    setAgentes]    = useState<Agente[]>([]);
+  const [configs,    setConfigs]    = useState<Record<number, TrelloConfig>>({});
+  const [salvando,   setSalvando]   = useState<Record<number, boolean>>({});
+  const [copied,     setCopied]     = useState<string | null>(null);
+  const [loading,    setLoading]    = useState(true);
 
   // Kaizen B — toggle boas-vindas WPP
   const [boasVindasAtivo, setBoasVindasAtivo] = useState(true);
@@ -2696,9 +2702,11 @@ function AbaIntegracoes() {
       apiFetch("/agentes-trello/listas"),
       apiFetch("/agentes"),
       apiFetch("/settings/boas_vindas_wpp"),
-    ]).then(([t, w, l, a, bv]) => {
+      fetch(`${BASE}api/health`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([t, w, l, a, bv, h]) => {
       setTrello(t);
       setWpp(w);
+      setGithubPat(h?.github_pat_detalhe ?? null);
       setListas(l?.listas ?? []);
       const lista: Agente[] = a?.items ?? [];
       setAgentes(lista);
@@ -3004,6 +3012,57 @@ function AbaIntegracoes() {
               <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal list-inside">
                 {(wpp?.instrucoes ?? ["Configure TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN nos Secrets."]).map((s, i) => <li key={i}>{s}</li>)}
               </ol>
+            )}
+          </div>
+
+          {/* GitHub PAT — card full-width */}
+          <div className="col-span-2 panel-3d-sub rounded-[6px] p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4" style={{
+                color: loading ? undefined
+                  : githubPat?.status === "conectado"        ? COR_OK
+                  : githubPat?.status === "expirado_em_breve"? COR_AVS
+                  : githubPat?.status === "nao_configurado"  ? "#6b7280"
+                  : COR_ERR,
+              }} />
+              <span className="font-bold text-sm">GitHub PAT</span>
+              <span className="ml-auto text-[10px] font-black uppercase tracking-wider" style={{
+                color: loading ? undefined
+                  : githubPat?.status === "conectado"        ? COR_OK
+                  : githubPat?.status === "expirado_em_breve"? COR_AVS
+                  : githubPat?.status === "nao_configurado"  ? "#6b7280"
+                  : COR_ERR,
+              }}>
+                {loading ? "…"
+                  : githubPat?.status === "conectado"         ? "CONECTADO"
+                  : githubPat?.status === "expirado_em_breve" ? "EXPIRA EM BREVE"
+                  : githubPat?.status === "nao_configurado"   ? "NÃO CONFIGURADO"
+                  : "ERRO"}
+              </span>
+            </div>
+            {!loading && githubPat && githubPat.status !== "nao_configurado" && (
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-muted-foreground">
+                {githubPat.login && (
+                  <span>Login: <span className="font-semibold text-foreground">{githubPat.login}</span></span>
+                )}
+                {githubPat.expira_em && (
+                  <span>
+                    Expira em:{" "}
+                    <span className={`font-semibold ${githubPat.status === "expirado_em_breve" ? "text-amber-500" : "text-foreground"}`}>
+                      {new Date(githubPat.expira_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    </span>
+                  </span>
+                )}
+                {githubPat.status === "expirado_em_breve" && (
+                  <span className="text-amber-500 font-semibold">⚠ Renove o token antes de expirar para não perder acesso ao repositório.</span>
+                )}
+                {githubPat.status === "erro" && (
+                  <span className="text-red-500 font-semibold">Token inválido ou revogado. Configure GITHUB_PAT nos Secrets.</span>
+                )}
+              </div>
+            )}
+            {!loading && (!githubPat || githubPat.status === "nao_configurado") && (
+              <p className="text-[11px] text-muted-foreground">Configure a variável GITHUB_PAT nos Secrets para habilitar integrações com o repositório.</p>
             )}
           </div>
         </div>
