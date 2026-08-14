@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable } from "@workspace/db";
+import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
@@ -31,6 +31,25 @@ import {
   ValidateProtocolParams,
   GenerateProtocolICSParams,
 } from "@workspace/api-zod";
+
+// ── Boot: garantir tabela de auditoria de emissões ───────────────────────────
+export async function ensureProtocolEmissoesTable(): Promise<void> {
+  const { pool } = await import("@workspace/db");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS protocol_emissoes (
+      id            SERIAL PRIMARY KEY,
+      protocol_id   INTEGER      NOT NULL,
+      emitido_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      autorizado_por TEXT        NOT NULL DEFAULT 'CEO',
+      email_sent    BOOLEAN      NOT NULL DEFAULT FALSE,
+      email_error   TEXT,
+      drive_uploaded BOOLEAN     NOT NULL DEFAULT FALSE,
+      cadernos_count INTEGER     NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_protocol_emissoes_protocol_id
+      ON protocol_emissoes (protocol_id, emitido_at DESC);
+  `);
+}
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
@@ -114,6 +133,13 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     };
   }));
 
+  // Histórico de emissões oficiais (mais recente primeiro)
+  const emissoes = await db
+    .select()
+    .from(protocolEmissoesTable)
+    .where(eq(protocolEmissoesTable.protocolId, protocol.id))
+    .orderBy(desc(protocolEmissoesTable.emitidoAt));
+
   return {
     id: protocol.id,
     clientId: protocol.clientId,
@@ -135,6 +161,15 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     totalValue: protocol.totalValue,
     notes: protocol.notes ?? null,
     linhaVenda: (protocol as any).linhaVenda ?? null,
+    emissoes: emissoes.map(e => ({
+      id: e.id,
+      emitidoAt: e.emitidoAt.toISOString(),
+      autorizadoPor: e.autorizadoPor,
+      emailSent: e.emailSent,
+      emailError: e.emailError ?? null,
+      driveUploaded: e.driveUploaded,
+      cadernosCount: e.cadernosCount,
+    })),
     items: items.map(item => {
       const unitPrice = item.unitPrice || substances[item.substanceId]?.pricePerUnit || 0;
       const lineTotal = unitPrice * item.totalSessions;
@@ -552,12 +587,14 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
 
     // 2. Upload Drive (protocolo)
+    // driveActuallyUploaded = true somente quando pelo menos um upload CONCLUIU.
+    let driveActuallyUploaded = false;
     if (await isDriveConnected()) {
       const uploadPromises: Promise<any>[] = [];
 
       uploadPromises.push(
         uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
-          .then(() => console.log(`[emit] Protocol uploaded to shared folder: ${driveFileName}`))
+          .then(() => { driveActuallyUploaded = true; console.log(`[emit] Protocol uploaded to shared folder: ${driveFileName}`); })
           .catch(err => console.error("[emit] Shared folder upload error:", err.message))
       );
 
@@ -570,6 +607,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
               if (client.email) {
                 await shareWithClient(result.fileId, client.email);
               }
+              driveActuallyUploaded = true;
               console.log(`[emit] Protocol uploaded to client PROTOCOLOS: ${driveFileName}`);
             }
           })
@@ -664,6 +702,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     // 4. E-mail ao paciente
     let emailSent = false;
     let emailError: string | undefined;
+    let cadernosDispatched = 0;
     if (client.email && await isGmailConnected()) {
       try {
         const emailResult = await sendProtocolEmail({
@@ -815,6 +854,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
                       dados: hidratacao,
                       incluirMedico: true,
                     });
+                    cadernosDispatched++;
                     console.log(`[emit] Caderno ${tpl.codigo} despachado para paciente ${client.id}`);
                   } catch (cErr: any) {
                     console.error(`[emit] Caderno ${tpl.codigo} falhou para paciente ${client.id}: ${cErr.message}`);
@@ -850,11 +890,59 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       }
     }
 
+    // ── Auditoria de emissão ──────────────────────────────────────────────────
+    // Identifica quem autorizou (collaborator token → nome do profissional ou "CEO").
+    let autorizadoPor = "CEO";
+    if (req.collaborator?.professionalId) {
+      try {
+        const [prof] = await db
+          .select({ name: professionalsTable.name })
+          .from(professionalsTable)
+          .where(eq(professionalsTable.id, req.collaborator.professionalId));
+        if (prof?.name) autorizadoPor = prof.name;
+      } catch { /* mantém "CEO" */ }
+    }
+
+    // ── Gravar auditoria (falha-ruidosa: alerta no Slack + HTTP 500) ─────────
+    // A entrega já ocorreu; o INSERT de auditoria NÃO pode ser silenciado.
+    // Retornar 200 sem registro persistido seria enganoso — reportamos 500 com
+    // o resultado real da entrega para que o CEO saiba exatamente o que ocorreu
+    // e possa acionar suporte sem risco de re-emissão acidental.
+    try {
+      await db.insert(protocolEmissoesTable).values({
+        protocolId,
+        autorizadoPor,
+        emailSent,
+        emailError: emailError ?? null,
+        driveUploaded: driveActuallyUploaded,
+        cadernosCount: cadernosDispatched,
+      });
+    } catch (auditErr: any) {
+      const msg = `🚨 *Falha ao gravar auditoria de emissão* do Protocolo #${protocolId} (${client.name}).\n` +
+        `A entrega JÁ OCORREU (email=${emailSent}, drive=${driveActuallyUploaded}, cadernos=${cadernosDispatched}), ` +
+        `mas o registro em protocol_emissoes falhou — o histórico ficará incompleto.\nErro: ${auditErr.message}`;
+      console.error("[emit] " + msg);
+      const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+      if (slackChannel) await postSlackAlert(slackChannel, msg).catch(() => {});
+      // Retornar 500 para que o CEO saiba que o registro de auditoria falhou.
+      // A entrega em si JÁ aconteceu — não re-emitir; acionar suporte.
+      res.status(500).json({
+        ok: false,
+        auditFailed: true,
+        emailSent,
+        driveUploaded: driveActuallyUploaded,
+        cadernosCount: cadernosDispatched,
+        error: "Entrega concluída, mas o registro de auditoria falhou. Não re-emitir — acionar suporte.",
+        details: auditErr.message,
+      });
+      return;
+    }
+
     res.json({
       ok: true,
       emailSent,
       emailError: emailError ?? null,
-      driveUploaded: await isDriveConnected(),
+      driveUploaded: driveActuallyUploaded,
       message: emailSent
         ? `Protocolo emitido e e-mail enviado a ${client.email}.`
         : `Protocolo gerado e subido no Drive. E-mail não enviado${emailError ? ": " + emailError : " (Gmail não conectado ou paciente sem e-mail)"}.`,

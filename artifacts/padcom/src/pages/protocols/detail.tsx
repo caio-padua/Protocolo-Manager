@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send } from "lucide-react";
+import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send, History, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -229,8 +229,15 @@ export default function ProtocolDetail() {
               </Button>
               {/* Emitir ao Paciente — ação distinta com efeitos colaterais (Drive + e-mail + cadernos) */}
               {emitirConfirm ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground font-medium">Enviar e-mail real ao paciente?</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(protocol as any).emissoes?.length > 0 ? (
+                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Já emitido em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date((protocol as any).emissoes[0].emitidoAt))}. Enviar novamente?
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground font-medium">Enviar e-mail real ao paciente?</span>
+                  )}
                   <Button
                     size="sm"
                     className="btn-3d h-8 px-3 text-xs"
@@ -241,6 +248,16 @@ export default function ProtocolDetail() {
                       try {
                         const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, { method: "POST" });
                         const body = await resp.json().catch(() => null);
+                        if (body?.auditFailed) {
+                          // Entrega ocorreu mas registro de auditoria falhou — mostrar aviso específico
+                          toast({
+                            title: "Entrega concluída — auditoria falhou",
+                            description: body?.error ?? "Protocolo entregue, mas o histórico não foi gravado. Acionar suporte.",
+                            variant: "destructive",
+                          });
+                          refetch();
+                          return;
+                        }
                         if (!resp.ok) {
                           throw new Error(body?.details || body?.error || "Erro ao emitir protocolo");
                         }
@@ -248,6 +265,7 @@ export default function ProtocolDetail() {
                           title: body?.emailSent ? "Protocolo emitido!" : "Protocolo enviado ao Drive",
                           description: body?.message ?? "Concluído.",
                         });
+                        refetch();
                       } catch (err: any) {
                         toast({ title: "Erro ao emitir", description: err.message, variant: "destructive" });
                       } finally {
@@ -360,6 +378,52 @@ export default function ProtocolDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Histórico de emissões oficiais */}
+      {(protocol as any).emissoes?.length > 0 && (
+        <Card className="panel-3d-sub border-l-4" style={{ borderLeftColor: "#16294a" }}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="h-4 w-4 text-primary flex-shrink-0" />
+              <span className="text-[11px] font-black uppercase tracking-widest text-primary">Histórico de Entregas Oficiais</span>
+              <span className="ml-auto concave-3d px-2 py-0.5 text-[10px] font-black tabular-nums">{(protocol as any).emissoes.length}</span>
+            </div>
+            <div className="space-y-2">
+              {(protocol as any).emissoes.map((e: any, i: number) => (
+                <div key={e.id} className={`flex items-start gap-3 p-2.5 rounded-[6px] ${i === 0 ? "bevel-3d" : "concave-3d opacity-75"}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    {e.emailSent
+                      ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      : <Mail className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold tabular-nums">
+                        {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(e.emitidoAt))}
+                      </span>
+                      {i === 0 && (
+                        <span className="bevel-3d px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">Mais recente</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] font-bold uppercase tracking-widest">
+                      <span className="flex items-center gap-1 text-muted-foreground"><User className="h-3 w-3" /> {e.autorizadoPor}</span>
+                      <span className={e.emailSent ? "text-green-600 dark:text-green-400" : "text-rose-500 dark:text-rose-400"}>
+                        {e.emailSent ? "E-mail ✓" : e.emailError ? `E-mail ✗ ${e.emailError}` : "E-mail não enviado"}
+                      </span>
+                      <span className={e.driveUploaded ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                        {e.driveUploaded ? "Drive ✓" : "Drive —"}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {e.cadernosCount > 0 ? `${e.cadernosCount} caderno${e.cadernosCount !== 1 ? "s" : ""}` : "Sem cadernos"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

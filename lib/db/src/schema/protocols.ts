@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -42,6 +42,21 @@ export const protocolItemsTable = pgTable("protocol_items", {
   startDate: text("start_date").notNull(),
   frequency: text("frequency").notNull().default("weekly"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Auditoria de emissão oficial do protocolo ────────────────────────────────
+// Gravado toda vez que o CEO clica em "Emitir ao Paciente" (POST /emit-document).
+// Preserva quem autorizou, quando ocorreu e qual foi o resultado de cada canal.
+export const protocolEmissoesTable = pgTable("protocol_emissoes", {
+  id: serial("id").primaryKey(),
+  protocolId: integer("protocol_id").notNull(),
+  emitidoAt: timestamp("emitido_at", { withTimezone: true }).notNull().defaultNow(),
+  autorizadoPor: text("autorizado_por").notNull().default("CEO"),
+  // Resultado de cada canal
+  emailSent: boolean("email_sent").notNull().default(false),
+  emailError: text("email_error"),
+  driveUploaded: boolean("drive_uploaded").notNull().default(false),
+  cadernosCount: integer("cadernos_count").notNull().default(0),
 });
 
 export const insertProtocolSchema = createInsertSchema(protocolsTable).omit({ id: true, createdAt: true, updatedAt: true });
