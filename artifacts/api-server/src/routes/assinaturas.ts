@@ -440,6 +440,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
                 slackChannel,
                 `💬 *${primeiroNome}* respondeu no Telegram:\n"${trecho}"\n_Cockpit → ${primeiroNome}_`,
               );
+              logger.info({ clienteId: cliente.id }, "[telegram] notificação Slack enviada ao CEO");
             }
           } catch (slackErr) {
             logger.warn({ err: (slackErr as Error).message }, "[telegram] falha ao notificar Slack (best-effort)");

@@ -535,7 +535,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     data.patientCpf
   ) {
     const pen = await getPenalidade(data.patientCpf);
-    if (pen.bloqueado_permanente) {
+    if (pen.bloqueado) {
       res.status(403).json({
         error:
           "Este CPF está suspenso do canal Concierge. Utilize a via comum para agendar.",
