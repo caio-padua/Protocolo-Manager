@@ -26,6 +26,7 @@ import { db }      from "@workspace/db";
 import { sql }     from "drizzle-orm";
 import { enviarMensagemPaxter } from "./messaging/engine";
 import { logger }  from "./logger";
+import { postSlackAlert } from "./slack-reporter";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -291,7 +292,7 @@ async function marcarFalha(id: number, tentativasAtuais: number, erro: string): 
 }
 
 async function recalcularCampanha(campanhaId: string): Promise<void> {
-  await db.execute(sql.raw(`
+  const result = await db.execute(sql.raw(`
     UPDATE avatar_campanhas c
     SET
       enviados = sub.enviados,
@@ -316,7 +317,81 @@ async function recalcularCampanha(campanhaId: string): Promise<void> {
       GROUP BY campanha_id
     ) sub
     WHERE c.id = sub.campanha_id
+    RETURNING c.id, c.canal, c.total, c.enviados, c.erros, c.status, c.concluido_at
   `));
+
+  // Disparar alerta Slack quando a campanha ACABOU DE SER concluída com erros.
+  // Detectamos "acabou de ser" verificando que concluido_at foi atribuído agora
+  // (dentro dos últimos 10 segundos) — garante que o alerta dispara apenas uma vez.
+  const row = result.rows[0] as any;
+  if (
+    row &&
+    row.status === "concluida" &&
+    Number(row.erros) > 0 &&
+    row.concluido_at
+  ) {
+    const concluidoAt = new Date(row.concluido_at);
+    const agoraDiff   = Date.now() - concluidoAt.getTime();
+    if (agoraDiff < 10_000) {
+      // Campanha acabou de concluir — buscar os primeiros 5 clientes que falharam
+      void notificarCampanhaComErros(
+        campanhaId,
+        String(row.canal ?? ""),
+        Number(row.total   ?? 0),
+        Number(row.enviados ?? 0),
+        Number(row.erros    ?? 0),
+      ).catch((e: any) =>
+        logger.warn({ err: e?.message }, "[campanha-worker] falha ao enviar alerta Slack"),
+      );
+    }
+  }
+}
+
+/**
+ * Envia alerta Slack ao CEO quando uma campanha termina com erros de entrega.
+ * Inclui: nome/canal da campanha, totais e os primeiros 5 clientes que falharam.
+ */
+async function notificarCampanhaComErros(
+  campanhaId: string,
+  canal: string,
+  total: number,
+  enviados: number,
+  erros: number,
+): Promise<void> {
+  const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+
+  // Buscar os primeiros 5 itens com status='erro'
+  const falhasRows = await db.execute(sql.raw(`
+    SELECT nome, telefone, erro
+    FROM avatar_campanha_itens
+    WHERE campanha_id = ${escapeStr(campanhaId)}
+      AND status = 'erro'
+    ORDER BY id ASC
+    LIMIT 5
+  `));
+
+  const falhas = (falhasRows.rows as any[]).map(r => {
+    const telMask = r.telefone
+      ? String(r.telefone).replace(/\d(?=\d{4})/g, "*")
+      : "sem telefone";
+    const motivo = r.erro ? String(r.erro).slice(0, 120) : "motivo desconhecido";
+    return `• ${r.nome ?? "Cliente"} (${telMask}) — ${motivo}`;
+  });
+
+  const taxaSucesso = total > 0 ? Math.round((enviados / total) * 100) : 0;
+  const linhasFalhas = falhas.length > 0
+    ? `\n\n*Primeiros clientes com falha:*\n${falhas.join("\n")}`
+    : "";
+
+  const texto =
+    `:warning: *Campanha Avatar concluída com erros*\n` +
+    `*ID:* \`${campanhaId}\`  |  *Canal:* ${canal}\n` +
+    `*Total:* ${total}  ·  *Enviados:* ${enviados}  ·  *Erros:* ${erros}  ·  *Taxa de sucesso:* ${taxaSucesso}%` +
+    linhasFalhas +
+    `\n\nAcesse o PADCOM › Avatares para reenviar os clientes que falharam.`;
+
+  await postSlackAlert(channelId, texto);
+  logger.info({ campanhaId, erros }, "[campanha-worker] alerta Slack de campanha com erros enviado");
 }
 
 export async function processarFilaCampanha(): Promise<{
