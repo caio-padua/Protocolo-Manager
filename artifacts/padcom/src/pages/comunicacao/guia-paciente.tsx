@@ -7,11 +7,11 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
+import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle, Key, RefreshCw } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-
+import { getCollabToken } from "@/lib/collab-auth";
 const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // VITE_SITE_URL é OBRIGATÓRIA em produção (ex: "https://app.padcon.com.br").
@@ -41,26 +41,111 @@ function useMinhaConfig(): MinhaConfig {
 // ── Badge de status Telegram ──────────────────────────────────────────────────
 type TgStatus = { vinculado: boolean; desde: string | null };
 
+type ActivationResult = {
+  codigo: string;
+  emailEnviado: boolean;
+  mensagem: string;
+};
 function TelegramStatusBadge({ clientId }: { clientId: number }) {
-  const [status,  setStatus]  = useState<TgStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro,    setErro]    = useState(false);
-  const [tick,    setTick]    = useState(0);
+  const { toast } = useToast();
+  const [status,    setStatus]    = useState<TgStatus | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [erro,      setErro]      = useState(false);
+  const [tick,      setTick]      = useState(0);
 
-  const recheck = useCallback(() => {
-    setTick((t) => t + 1);
+  // Activation flow
+  const [activating,       setActivating]       = useState(false);
+  const [activationResult, setActivationResult] = useState<ActivationResult | null>(null);
+  const [noEmailWarning,   setNoEmailWarning]   = useState(false);
+  const [countdown,        setCountdown]        = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const authHeaders = useCallback((): Record<string, string> => {
+    const token = getCollabToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
-  useEffect(() => {
-    setStatus(null);
+  const recheck = useCallback(() => setTick((t) => t + 1), []);
+
+  const fetchStatus = useCallback(() => {
     setLoading(true);
     setErro(false);
-    fetch(`${API_BASE}/api/clientes/${clientId}/telegram-status`)
+    fetch(`${API_BASE}/api/clientes/${clientId}/telegram-status`, {
+      headers: authHeaders(),
+    })
       .then((r) => r.ok ? r.json() as Promise<TgStatus> : Promise.reject(r.status))
       .then((d) => setStatus(d))
       .catch(() => setErro(true))
       .finally(() => setLoading(false));
-  }, [clientId, tick]);
+  }, [clientId, authHeaders]);
+
+  useEffect(() => {
+    setStatus(null);
+    setActivationResult(null);
+    setNoEmailWarning(false);
+    setCountdown(0);
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    fetchStatus();
+  }, [clientId, tick, fetchStatus]);
+
+  useEffect(() => () => { if (countdownRef.current) clearInterval(countdownRef.current); }, []);
+
+  const iniciarCountdown30 = useCallback(() => {
+    setCountdown(30);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          setActivationResult(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const gerarSenha = useCallback(async () => {
+    if (activating) return;
+    setActivating(true);
+    setNoEmailWarning(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/clients/${clientId}/activate-telegram`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+
+      if (res.status === 409) {
+        // Já vinculado — atualiza o badge para verde
+        recheck();
+        return;
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        toast({
+          title: "Erro ao gerar senha",
+          description: body.error ?? `Erro ${res.status} — tente novamente`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const data = await res.json() as ActivationResult;
+      setActivationResult(data);
+      if (!data.emailEnviado) setNoEmailWarning(true);
+      iniciarCountdown30();
+    } catch {
+      toast({
+        title: "Falha de conexão",
+        description: "Não foi possível gerar a senha. Verifique sua conexão e tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setActivating(false);
+    }
+  }, [clientId, activating, authHeaders, recheck, iniciarCountdown30, toast]);
 
   const RefreshBtn = () => (
     <button
@@ -102,19 +187,77 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
     return (
       <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
         <span className="paxter-led paxter-led-green flex-shrink-0" />
-        <span>
-          Telegram vinculado{desde ? ` desde ${desde}` : ""}
-        </span>
+        <span>Telegram vinculado{desde ? ` desde ${desde}` : ""}</span>
         <RefreshBtn />
       </div>
     );
   }
 
+  // ── Estado âmbar: não vinculado ──
   return (
-    <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
-      <span className="paxter-led paxter-led-amber paxter-led-breathe flex-shrink-0" />
-      <span>Ainda não vinculou ao Telegram</span>
-      <RefreshBtn />
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
+        <span className="paxter-led paxter-led-amber paxter-led-breathe flex-shrink-0" />
+        <span>Ainda não vinculou ao Telegram</span>
+        <RefreshBtn />
+      </div>
+
+      {/* Botão de ativação */}
+      {!activationResult && (
+        <button
+          onClick={gerarSenha}
+          disabled={activating}
+          className="btn-3d-soft flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest"
+        >
+          {activating
+            ? <Loader2 className="w-3 h-3 animate-spin" />
+            : <Key className="w-3 h-3" />}
+          {activating ? "Gerando…" : "Gerar Senha de Ativação"}
+        </button>
+      )}
+
+      {/* Resultado da ativação */}
+      {activationResult && (
+        <div className="concave-3d rounded-lg p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+              Senha de Ativação
+            </span>
+            {countdown > 0 && (
+              <span className="text-[9px] text-muted-foreground/50">{countdown}s</span>
+            )}
+          </div>
+          <p className="font-mono text-sm font-black text-primary tracking-widest">
+            {activationResult.codigo}
+          </p>
+
+          {activationResult.emailEnviado ? (
+            <div className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-semibold">
+              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+              <span>E-mail enviado para o paciente</span>
+            </div>
+          ) : noEmailWarning ? (
+            <div className="flex items-start gap-1.5 text-[10px] text-amber-600 font-semibold">
+              <AlertCircle className="w-3 h-3 flex-shrink-0 mt-px" />
+              <span>Paciente sem e-mail cadastrado — repasse o código acima diretamente ao paciente</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[10px] text-amber-600 font-semibold">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              <span>E-mail não enviado — repasse o código ao paciente</span>
+            </div>
+          )}
+
+          <button
+            onClick={gerarSenha}
+            disabled={activating}
+            className="btn-3d-soft flex items-center gap-1.5 px-2 py-1 text-[9px] font-black uppercase tracking-widest"
+          >
+            <Key className="w-2.5 h-2.5" />
+            Regerar senha
+          </button>
+        </div>
+      )}
     </div>
   );
 }
