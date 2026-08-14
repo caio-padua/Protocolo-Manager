@@ -120,7 +120,7 @@ export async function getPenalidade(rawCpf: string | null | undefined): Promise<
 
 export interface PenalidadeRow {
   cpf_mascarado: string;
-  nome_cliente: string | null;
+  nome_paciente: string | null;
   tentativas_falha: number;
   bloqueado_permanente: boolean;
   ultima_falha_at: string | null;
@@ -130,7 +130,8 @@ export interface PenalidadeRow {
 
 /**
  * Lista todas as penalidades registradas (CEO). CPF retorna mascarado.
- * Faz LEFT JOIN com a tabela de clientes para exibir o nome do paciente.
+ * LEFT JOIN LATERAL com clientes (empresa_id=5, CPF normalizado) para exibir
+ * o nome do paciente. LIMIT 1 evita duplicação em múltiplos tenants.
  * Filtro opcional por CPF parcial (raw, dígitos).
  */
 export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]> {
@@ -138,19 +139,30 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
 
   const digitosFiltro = (filtro ?? "").replace(/\D/g, "");
 
+  // LEFT JOIN LATERAL: normaliza o CPF do cliente (remove não-dígitos) para
+  // casar com o CPF puro da tabela de penalidades. empresa_id=5 escopa ao
+  // tenant principal e evita leakage cross-tenant. LIMIT 1 evita duplicação.
   const result = await db.execute(
     digitosFiltro.length >= 3
       ? sql`
           SELECT
             CONCAT(SUBSTRING(p.cpf,1,3), '.***.***-', SUBSTRING(p.cpf,10,2)) AS cpf_mascarado,
-            c.name AS nome_cliente,
+            c.nome_paciente,
             p.tentativas_falha,
             p.bloqueado_permanente,
             p.ultima_falha_at,
             p.criado_at,
             p.atualizado_at
           FROM concierge_penalidades p
-          LEFT JOIN clients c ON REGEXP_REPLACE(c.cpf, '[^0-9]', '', 'g') = p.cpf
+          LEFT JOIN LATERAL (
+            SELECT name AS nome_paciente
+            FROM clients
+            WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = p.cpf
+              AND deleted_at IS NULL
+              AND empresa_id = 5
+            ORDER BY id
+            LIMIT 1
+          ) c ON TRUE
           WHERE p.cpf ILIKE ${'%' + digitosFiltro + '%'}
             AND (p.tentativas_falha > 0 OR p.bloqueado_permanente = TRUE)
           ORDER BY p.atualizado_at DESC
@@ -159,14 +171,22 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
       : sql`
           SELECT
             CONCAT(SUBSTRING(p.cpf,1,3), '.***.***-', SUBSTRING(p.cpf,10,2)) AS cpf_mascarado,
-            c.name AS nome_cliente,
+            c.nome_paciente,
             p.tentativas_falha,
             p.bloqueado_permanente,
             p.ultima_falha_at,
             p.criado_at,
             p.atualizado_at
           FROM concierge_penalidades p
-          LEFT JOIN clients c ON REGEXP_REPLACE(c.cpf, '[^0-9]', '', 'g') = p.cpf
+          LEFT JOIN LATERAL (
+            SELECT name AS nome_paciente
+            FROM clients
+            WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = p.cpf
+              AND deleted_at IS NULL
+              AND empresa_id = 5
+            ORDER BY id
+            LIMIT 1
+          ) c ON TRUE
           WHERE p.tentativas_falha > 0 OR p.bloqueado_permanente = TRUE
           ORDER BY p.atualizado_at DESC
           LIMIT 200
@@ -175,7 +195,7 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
 
   return (result.rows as Array<Record<string, unknown>>).map((r) => ({
     cpf_mascarado: String(r.cpf_mascarado ?? ""),
-    nome_cliente: r.nome_cliente ? String(r.nome_cliente) : null,
+    nome_paciente: r.nome_paciente ? String(r.nome_paciente) : null,
     tentativas_falha: Number(r.tentativas_falha ?? 0),
     bloqueado_permanente: Boolean(r.bloqueado_permanente),
     ultima_falha_at: r.ultima_falha_at ? String(r.ultima_falha_at) : null,

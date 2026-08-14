@@ -61,7 +61,7 @@ assinaturaWebhookRouter.post("/webhooks/assinatura/:provedor", async (req, res):
     // O app tem JSON parser global; ZapSign não usa HMAC do corpo (apenas header
     // secreto), então reserializar o JSON é seguro para a validação.
     const rawBody = Buffer.from(JSON.stringify(req.body ?? {}));
-    const resultado = await receberWebhook(provedor, rawBody, req.headers);
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     if (resultado.unauthorized) {
       res.status(401).json({ error: "assinatura_invalida" });
       return;
@@ -85,15 +85,15 @@ const assinaturasRouter: IRouter = Router();
 
 assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as EnviarAssinaturaInput;
+    const body = (req.body || {}) as UpsertTemplateInput;
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
     }
-    const resultado = await enviarAssinatura(body);
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json(resultado);
   } catch (err) {
-    const msg = (err as Error).message;
+    const msg = update.message || update.edited_message || {};
     const code =
       msg.startsWith("paciente_nao_encontrado") ? 404 :
       msg.startsWith("template_nao_encontrado") ? 404 :
@@ -107,15 +107,15 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
 // Atalho de conveniência para TCLE (Termo de Consentimento Livre e Esclarecido).
 assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as EnviarAssinaturaInput;
+    const body = (req.body || {}) as UpsertTemplateInput;
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
     }
-    const resultado = await enviarAssinatura({ ...body, tipoDoc: "TCLE" });
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json(resultado);
   } catch (err) {
-    const msg = (err as Error).message;
+    const msg = update.message || update.edited_message || {};
     const code =
       msg.startsWith("paciente_nao_encontrado") ? 404 :
       msg.startsWith("template_nao_encontrado") ? 404 :
@@ -128,7 +128,7 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
 
 assinaturasRouter.get("/assinaturas/timeline", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const pid = Number(req.query.pacienteId);
+    const pid = Number(req.params.pacienteId);
     const pacienteId = Number.isInteger(pid) && pid > 0 ? pid : undefined;
     const itens = await listarTimeline({ pacienteId });
     res.status(200).json({ itens });
@@ -141,12 +141,12 @@ assinaturasRouter.get("/assinaturas/timeline", requireCollaborator, async (req, 
 // --- Onda 4: CONSENTIMENTO (selo + trava aditiva) -------------------------
 assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const pid = Number(req.query.pacienteId);
+    const pid = Number(req.params.pacienteId);
     if (!Number.isInteger(pid) || pid <= 0) {
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
     }
-    const escopo = typeof req.query.escopo === "string" ? req.query.escopo : undefined;
+    const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
     const status = await consentimentoAtivo(pid, escopo);
     res.status(200).json(status);
   } catch (err) {
@@ -160,7 +160,7 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
 // há consentimento assinado. Desligado: sempre 200 (nada quebra).
 assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const pid = Number(req.body?.pacienteId);
+    const pid = Number(req.params.pacienteId);
     if (!Number.isInteger(pid) || pid <= 0) {
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
@@ -180,8 +180,10 @@ assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator,
 
 // Toggle da trava (singleton id=1). GET status / PUT liga-desliga (aditivo).
 assinaturasRouter.get("/assinaturas/toggles", requireCollaborator, async (_req, res): Promise<void> => {
-  const rows = await db.select().from(assinaturaTogglesAdminTable).where(eq(assinaturaTogglesAdminTable.id, 1)).limit(1);
-  const trava = Boolean(rows[0]?.travaConsentimentoAtiva);
+      const rows = await db
+        .select({ id: clientsTable.id, name: clientsTable.name, vp: clientsTable.validationPassword })
+        .from(clientsTable);
+  const trava = Boolean(req.body?.travaConsentimentoAtiva);
   res.status(200).json({ travaConsentimentoAtiva: trava });
 });
 
@@ -231,15 +233,15 @@ assinaturasRouter.get("/assinaturas/clausulas", requireCollaborator, async (req,
 
 assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as UpsertClausulaInput;
+    const body = (req.body || {}) as UpsertTemplateInput;
     if (!body.codigo || typeof body.codigo !== "string") {
       res.status(400).json({ error: "codigo_obrigatorio" });
       return;
     }
-    const clausula = await upsertClausula(body);
+    const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.startsWith("codigo_ausente") || msg.startsWith("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -254,7 +256,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.startsWith("clausula_nao_encontrada")) {
       res.status(404).json({ error: msg });
       return;
@@ -284,7 +286,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
     const template = await upsertTemplate(body);
     res.status(200).json({ template });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.startsWith("codigo_ausente") || msg.startsWith("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -363,8 +365,8 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       return;
     }
 
-    const texto: string = typeof msg.text === "string" ? msg.text : "";
-    const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
+      const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
 
     // ── PASSO 1: verifica se este chatId já está vinculado a algum cliente ───
     const [clienteJaVinculado] = await db
@@ -393,23 +395,22 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
           {
             findClienteByChatId: async () => cliente,
             insertMensagem: async (params) => {
-              const rows = await db
-                .insert(telegramInboxTable)
-                .values(params)
-                .returning({ id: telegramInboxTable.id });
+      const rows = await db
+        .select({ id: clientsTable.id, name: clientsTable.name, vp: clientsTable.validationPassword })
+        .from(clientsTable);
               return { id: rows[0]?.id ?? 0 };
             },
             notificarCEO: chatIdCEO
               ? async (ceoId, cli, txt) => {
-                  const cpfDisplay = (cli.cpf || "00000000000")
-                    .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-                  const repasse =
-                    `💬 <b>Mensagem via Telegram</b>\n\n` +
-                    `<b>De:</b> ${cli.name}\n` +
-                    `<b>CPF:</b> ${cpfDisplay}\n\n` +
-                    `"${txt}"\n\n` +
-                    `──────────────────\n` +
-                    `Responda em: Cockpit → ${cli.name.split(" ")[0]}`;
+      const cpfDisplay = (cliente.cpf || "00000000000")
+        .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+      const repasse =
+        `💬 <b>Mensagem via Telegram</b>\n\n` +
+        `<b>De:</b> ${cliente.name}\n` +
+        `<b>CPF:</b> ${cpfDisplay}\n\n` +
+        `"${texto}"\n\n` +
+        `──────────────────\n` +
+        `Responda em: Cockpit → ${cliente.name.split(" ")[0]}`;
                   void sendTelegram(ceoId, repasse);
                   logger.info({ clienteId: cli.id }, "[telegram] mensagem encaminhada ao CEO");
                 }
@@ -428,17 +429,17 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         // (últimas 48h), indicando que é uma resposta e não mensagem espontânea.
         void (async () => {
           try {
-            const { rows: saidaRows } = await db.execute(sql`
-              SELECT id FROM telegram_inbox_messages
-              WHERE cliente_id = ${cliente.id}
-                AND direcao = 'saida'
-                AND criado_at >= NOW() - INTERVAL '48 hours'
-              LIMIT 1
-            `);
-            if (saidaRows.length > 0) {
-              const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
-              const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
-              const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
+          const { rows: saidaRows } = await db.execute(sql`
+            SELECT id FROM telegram_inbox_messages
+            WHERE cliente_id = ${cliente.id}
+              AND direcao = 'saida'
+              AND criado_at >= NOW() - INTERVAL '48 hours'
+            LIMIT 1
+          `);
+          if (saidaRows.length > 0) {
+            const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
+            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+            const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
               await postSlackAlert(
                 slackChannel,
                 `💬 *${primeiroNome}* respondeu no Telegram:\n"${trecho}"\n_Cockpit → ${primeiroNome}_`,
@@ -486,7 +487,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
       // Boas-vindas ao cliente
-      const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
+            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
       void sendTelegram(
         chatId,
         `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +

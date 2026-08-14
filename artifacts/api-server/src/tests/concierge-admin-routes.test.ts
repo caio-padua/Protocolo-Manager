@@ -71,6 +71,7 @@ const CPF_VALIDO = "12345678901";
 
 const ROW_BLOQUEADO: import("../lib/concierge-penalidade").PenalidadeRow = {
   cpf_mascarado:        "123.***.***-01",
+  nome_paciente:        "João da Silva",
   tentativas_falha:     3,
   bloqueado_permanente: true,
   ultima_falha_at:      "2026-08-12T10:00:00.000Z",
@@ -301,6 +302,7 @@ describe("Ciclo completo STATEFUL — registrarFalha×3 → listar → reset →
       const tentativas = (existing?.tentativas_falha ?? 0) + 1;
       store.set(cpf, {
         cpf_mascarado:        cpf.slice(0, 3) + ".***.***-" + cpf.slice(-2),
+        nome_paciente:        existing?.nome_paciente ?? null,
         tentativas_falha:     tentativas,
         bloqueado_permanente: tentativas >= LIMITE,
         ultima_falha_at:      new Date().toISOString(),
@@ -335,9 +337,9 @@ describe("Ciclo completo STATEFUL — registrarFalha×3 → listar → reset →
     const app = buildApp();
 
     // ── Passo 1: simular 3 falhas de pagamento para o CPF_VALIDO ─────────────
-    await penLib.registrarFalha(CPF_VALIDO);
-    await penLib.registrarFalha(CPF_VALIDO);
-    await penLib.registrarFalha(CPF_VALIDO);
+    await penLib.registrarFalha(CPF_VALIDO, "shared:1:charge1:expirado");
+    await penLib.registrarFalha(CPF_VALIDO, "shared:2:charge2:expirado");
+    await penLib.registrarFalha(CPF_VALIDO, "shared:3:charge3:expirado");
 
     // ── Passo 2: CEO lista penalidades — deve ver o cliente bloqueado ─────────
     const lista1 = await request(app).get("/api/admin/concierge-penalidade");
