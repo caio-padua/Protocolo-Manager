@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
-import { Field, Metric } from "./shared";
+import { Field, Metric, type Receita } from "./shared";
 import TiposDeDieta from "./TiposDeDieta";
 import Receitas from "./Receitas";
 import ListaDeCompras from "./ListaDeCompras";
@@ -215,6 +215,43 @@ function MontarCardapio() {
   const [janelaIni, setJanelaIni] = useState("12:00");
   const [janelaFim, setJanelaFim] = useState("20:00");
   const [itens, setItens] = useState<ItemLinha[]>([]);
+
+  // --- Inserir receita ---
+  const [showReceitaPicker, setShowReceitaPicker] = useState(false);
+  const [receitaPickerId, setReceitaPickerId] = useState<number | null>(null);
+  const [receitaPickerRefeicao, setReceitaPickerRefeicao] = useState("almoco");
+  const [receitaPickerPorcoes, setReceitaPickerPorcoes] = useState(1);
+
+  const { data: receitas } = useQuery<Receita[]>({
+    queryKey: ["dieta", "receitas", "todos"],
+    queryFn: async () => {
+      const r = await fetch("/api/dieta/receitas");
+      if (!r.ok) throw new Error("Falha ao carregar receitas");
+      return r.json();
+    },
+  });
+
+  function inserirReceita() {
+    const receita = (receitas ?? []).find((r) => r.id === receitaPickerId);
+    if (!receita) return;
+    const ref = REFEICOES.find((r) => r.key === receitaPickerRefeicao);
+    const escala = receitaPickerPorcoes / (receita.porcoes || 1);
+    const novas: ItemLinha[] = receita.ingredientes.map((ing) => ({
+      uid: crypto.randomUUID(),
+      refeicao: receitaPickerRefeicao,
+      horario: ref?.hora ?? "13:00",
+      alimentoId: ing.alimentoId,
+      quantidadeG: Math.round(ing.quantidadeG * escala),
+    }));
+    setItens((prev) => [...prev, ...novas]);
+    setShowReceitaPicker(false);
+    setReceitaPickerId(null);
+    setReceitaPickerPorcoes(1);
+    toast({
+      title: "Receita inserida",
+      description: `${receita.nome} — ${novas.length} ingrediente(s) adicionado(s) ao cardápio.`,
+    });
+  }
 
   // --- Emissão de PDF ---
   const [caloriasAlvo, setCaloriasAlvo] = useState("");
@@ -751,10 +788,107 @@ function MontarCardapio() {
             <Button variant="outline" size="sm" className="bevel-3d" onClick={() => addLinha()}>
               <Plus className="mr-1 h-4 w-4" /> Adicionar alimento
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bevel-3d gap-1.5"
+              onClick={() => setShowReceitaPicker((v) => !v)}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              {showReceitaPicker ? "Cancelar receita" : "Inserir receita"}
+            </Button>
             <span className="text-[11px] text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" /> A refeição já vem com o horário sugerido; ajuste se precisar.
             </span>
           </div>
+
+          {/* ----- Painel de inserção de receita ----- */}
+          {showReceitaPicker && (
+            <div className="concave-3d mx-4 mb-4 p-3 space-y-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Inserir receita no cardápio
+              </span>
+              <div className="flex flex-wrap items-end gap-3">
+                {/* Receita */}
+                <div className="flex-1 min-w-[200px] space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Receita</span>
+                  <Select
+                    value={receitaPickerId ? String(receitaPickerId) : ""}
+                    onValueChange={(v) => setReceitaPickerId(Number(v))}
+                  >
+                    <SelectTrigger className="field-engraved h-8 text-xs">
+                      <SelectValue placeholder="Selecionar receita…" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {(receitas ?? []).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.nome}
+                          {r.tipos.length > 0 && (
+                            <span className="text-muted-foreground ml-1">· {r.tipos.map((t) => t.nome).join(", ")}</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Refeição */}
+                <div className="min-w-[150px] space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Refeição</span>
+                  <Select value={receitaPickerRefeicao} onValueChange={setReceitaPickerRefeicao}>
+                    <SelectTrigger className="field-engraved h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REFEICOES.map((r) => (
+                        <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Porções */}
+                <div className="w-24 space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Porções</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    value={receitaPickerPorcoes}
+                    onChange={(e) => setReceitaPickerPorcoes(Math.max(0.5, Number(e.target.value) || 1))}
+                    className="field-engraved h-8 w-full rounded px-2 text-xs text-right"
+                  />
+                </div>
+
+                {/* Botão inserir */}
+                <Button
+                  size="sm"
+                  className="btn-3d gap-1.5 shrink-0"
+                  disabled={!receitaPickerId}
+                  onClick={inserirReceita}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Inserir
+                </Button>
+              </div>
+
+              {/* Preview dos ingredientes da receita selecionada */}
+              {receitaPickerId && (() => {
+                const rec = (receitas ?? []).find((r) => r.id === receitaPickerId);
+                if (!rec) return null;
+                const escala = receitaPickerPorcoes / (rec.porcoes || 1);
+                return (
+                  <div className="text-[11px] text-muted-foreground">
+                    <span className="font-bold text-foreground">{rec.ingredientes.length} ingrediente(s)</span>
+                    {" · "}{rec.porcoes} porção(ões) base
+                    {escala !== 1 && <span className="text-primary font-bold"> → ×{escala.toFixed(2)} (escala)</span>}
+                    <span className="ml-2 text-muted-foreground/70">
+                      {rec.ingredientes.map((i) => `${i.alimentoNome ?? `#${i.alimentoId}`} ${Math.round(i.quantidadeG * escala)} g`).join(" · ")}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end">
