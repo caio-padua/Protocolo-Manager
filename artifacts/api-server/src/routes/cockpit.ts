@@ -86,8 +86,15 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
     res.status(400).json({ error: "clientId invalido" });
     return;
   }
+  const empresaId = resolveEmpresaId(req);
   const [cliente] = await db
-    .select({ id: clientsTable.id, telegramChatId: (clientsTable as any).telegramChatId })
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      phone: clientsTable.phone,
+      email: clientsTable.email,
+      telegramChatId: clientsTable.telegramChatId,
+    })
     .from(clientsTable)
     .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
     .limit(1);
@@ -188,8 +195,9 @@ router.get("/cockpit/:clientId/pdf", async (req, res): Promise<void> => {
     res.status(400).json({ error: "clientId invalido" });
     return;
   }
+  const empresaId = resolveEmpresaId(req);
   const [cliente] = await db
-    .select({ id: clientsTable.id, telegramChatId: (clientsTable as any).telegramChatId })
+    .select({ id: clientsTable.id, name: clientsTable.name })
     .from(clientsTable)
     .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
     .limit(1);
@@ -248,8 +256,9 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
     res.status(400).json({ error: "clientId invalido" });
     return;
   }
+  const empresaId = resolveEmpresaId(req);
   const [cliente] = await db
-    .select({ id: clientsTable.id, telegramChatId: (clientsTable as any).telegramChatId })
+    .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone })
     .from(clientsTable)
     .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
     .limit(1);
@@ -336,10 +345,9 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
 
 // 4) POST /mensageria/processar — worker/cron dispara os lembretes por período.
 // Mantido por compatibilidade; o disparo real agora é o motor rico (o cron
-// interno já roda a cada minuto). Devolve {examinados,enviados,falhas,pulados}.
+// interno já roda a cada minuto). Devolve {ok:true} como ack.
 router.post("/mensageria/processar", async (_req, res): Promise<void> => {
-  const resultado = await sendTelegram(chatId, texto);
-  res.json(resultado);
+  res.json({ ok: true, info: "motor rico ativo — cron interno gerencia os disparos" });
 });
 
 // ============================================================================
@@ -375,7 +383,7 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
 
   // Busca cliente e verifica pertencimento ao tenant
   const [cliente] = await db
-    .select({ id: clientsTable.id, telegramChatId: (clientsTable as any).telegramChatId })
+    .select({ id: clientsTable.id, telegramChatId: clientsTable.telegramChatId })
     .from(clientsTable)
     .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
     .limit(1);
@@ -385,12 +393,7 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
     return;
   }
 
-  // Busca chatId via raw SQL (coluna adicionada via ALTER TABLE)
-  const [chatRow] = (await db.execute(
-    sql`SELECT telegram_chat_id FROM clients WHERE id = ${clienteId} LIMIT 1`
-  )).rows as { telegram_chat_id: string | null }[];
-
-  const chatId = chatRow?.telegram_chat_id;
+  const chatId = cliente.telegramChatId;
   if (!chatId) {
     res.status(422).json({ error: "paciente nao tem Telegram vinculado" });
     return;
