@@ -26,7 +26,7 @@ import {
   type ItemLembretePrescricao,
 } from "../lib/lembrete-periodo";
 import { enriquecerItemFormula } from "../lib/formula-manipulada";
-import { sendWhatsapp } from "../lib/whatsapp";
+import { sendWhatsapp, registrarLogMensagem } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { inboxRouter } from "./telegram-inbox";
 const router = Router();
@@ -118,11 +118,29 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
     .from(budgetsTable)
     .where(eq(budgetsTable.clientId, clienteId));
 
-  // Ultima mensagem enviada ao paciente (qualquer canal — log unico da plataforma).
-  const [ultimoLog] = await db
+  // Ultima mensagem por canal — WhatsApp e Telegram são consultados separadamente
+  // para que o cockpit possa exibir o último contato de cada canal.
+  const [ultimoLogWa] = await db
     .select({ criadoEm: whatsappMensagensLogTable.criadoEm })
     .from(whatsappMensagensLogTable)
-    .where(eq(whatsappMensagensLogTable.clienteId, clienteId))
+    .where(
+      and(
+        eq(whatsappMensagensLogTable.clienteId, clienteId),
+        eq(whatsappMensagensLogTable.via, "whatsapp"),
+      ),
+    )
+    .orderBy(desc(whatsappMensagensLogTable.criadoEm))
+    .limit(1);
+
+  const [ultimoLogTg] = await db
+    .select({ criadoEm: whatsappMensagensLogTable.criadoEm })
+    .from(whatsappMensagensLogTable)
+    .where(
+      and(
+        eq(whatsappMensagensLogTable.clienteId, clienteId),
+        eq(whatsappMensagensLogTable.via, "telegram"),
+      ),
+    )
     .orderBy(desc(whatsappMensagensLogTable.criadoEm))
     .limit(1);
 
@@ -133,7 +151,10 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
       telefone: cliente.phone ?? null,
       email: cliente.email ?? null,
       telegramLinked: cliente.telegramChatId != null,
-      ultimoContatoAt: ultimoLog?.criadoEm?.toISOString() ?? null,
+      ultimoContatoWhatsappAt: ultimoLogWa?.criadoEm?.toISOString() ?? null,
+      ultimoContatoTelegramAt: ultimoLogTg?.criadoEm?.toISOString() ?? null,
+      /** @deprecated use ultimoContatoWhatsappAt / ultimoContatoTelegramAt */
+      ultimoContatoAt: (ultimoLogWa?.criadoEm ?? ultimoLogTg?.criadoEm)?.toISOString() ?? null,
     },
     passado: {
       protocolos,
@@ -387,6 +408,19 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
     INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao)
     VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida')
   `);
+
+  // Registra no log unificado de mensagens (via='telegram') para o cockpit
+  // poder exibir "último contato Telegram". Só loga quando enviado com sucesso.
+  if (resultado.sent) {
+    void registrarLogMensagem({
+      telefone: chatId, // chatId como identificador de canal Telegram
+      corpo: texto,
+      status: "sent",
+      contexto: "cockpit_telegram",
+      clienteId,
+      via: "telegram",
+    });
+  }
 
   res.json({ ok: true, sent: resultado.sent, mock: resultado.mock });
 });

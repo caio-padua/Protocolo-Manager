@@ -19,7 +19,7 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { sendWhatsapp } from "../lib/whatsapp";
+import { sendWhatsapp, registrarLogMensagem } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { enviarMensagemRadar, type RadarMensagemDeps } from "../lib/radar-mensagem";
@@ -283,6 +283,21 @@ router.post("/radar-clinico/mensagem", async (req, res): Promise<void> => {
             "avulso", null, agora, "enviado", via, phone, agora, eId,
           ],
         );
+        // Também registra no log unificado de mensagens para o cockpit poder
+        // exibir "último contato Telegram" quando o canal Telegram foi usado.
+        // Para WhatsApp via Radar o log já é gravado dentro de sendWhatsapp.
+        if (via === "telegram") {
+          void registrarLogMensagem({
+            // Telefone é o identificador de contato; para Telegram usamos
+            // o phone do paciente quando disponível, senão marcamos 'telegram'.
+            telefone: phone ?? "telegram",
+            corpo: msg,
+            status: "sent",
+            contexto: "radar",
+            clienteId: Number(cId),
+            via: "telegram",
+          });
+        }
         return true;
       },
     };

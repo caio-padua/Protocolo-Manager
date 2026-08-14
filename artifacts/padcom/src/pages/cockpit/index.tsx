@@ -78,6 +78,8 @@ interface CockpitDTO {
     email: string | null;
     telegramLinked: boolean;
     ultimoContatoAt: string | null;
+    ultimoContatoWhatsappAt: string | null;
+    ultimoContatoTelegramAt: string | null;
   };
   passado: {
     protocolos: { id: number; status: string; createdAt: string }[];
@@ -266,8 +268,8 @@ export default function Cockpit() {
             <div className="mb-1 text-xs text-slate-400">
               {dto.cliente.telefone ?? "sem telefone"} &middot; {dto.cliente.email ?? "sem e-mail"}
             </div>
-            {/* Badge Telegram */}
-            <div className="mb-3 flex items-center gap-2">
+            {/* Badge Telegram + último contato por canal */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               {dto.cliente.telegramLinked ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-900/60 px-2.5 py-0.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/40">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -279,9 +281,9 @@ export default function Cockpit() {
                   Telegram inativo
                 </span>
               )}
-              {dto.cliente.ultimoContatoAt && (
-                <span className="text-xs text-slate-500">
-                  último contato{" "}
+              {dto.cliente.ultimoContatoWhatsappAt && (
+                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                  <span className="font-medium text-slate-300">WhatsApp</span>
                   {new Intl.DateTimeFormat("pt-BR", {
                     day: "2-digit",
                     month: "2-digit",
@@ -289,8 +291,24 @@ export default function Cockpit() {
                     hour: "2-digit",
                     minute: "2-digit",
                     timeZone: "America/Sao_Paulo",
-                  }).format(new Date(dto.cliente.ultimoContatoAt))}
+                  }).format(new Date(dto.cliente.ultimoContatoWhatsappAt))}
                 </span>
+              )}
+              {dto.cliente.ultimoContatoTelegramAt && (
+                <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                  <span className="font-medium text-sky-400">Telegram</span>
+                  {new Intl.DateTimeFormat("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Sao_Paulo",
+                  }).format(new Date(dto.cliente.ultimoContatoTelegramAt))}
+                </span>
+              )}
+              {!dto.cliente.ultimoContatoWhatsappAt && !dto.cliente.ultimoContatoTelegramAt && (
+                <span className="text-xs text-slate-600">sem contato registrado</span>
               )}
             </div>
             <div className="space-y-3">

@@ -25,6 +25,7 @@ export const whatsappMensagensLogTable = pgTable(
     status: text("status").notNull().default("queued"), // queued|sent|delivered|read|failed|undelivered|link
     errorCode: text("error_code"),
     contexto: text("contexto"), // lembrete_prescricao | cockpit | manual | ...
+    via: text("via").notNull().default("whatsapp"), // whatsapp | telegram
     criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
     atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

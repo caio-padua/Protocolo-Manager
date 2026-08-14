@@ -18,8 +18,14 @@ import { sendTelegram } from "./telegram";
 /**
  * Espelha uma mensagem para o Telegram do cliente (fire-and-forget).
  * Não bloqueia o envio via WhatsApp. Fail-safe: ignora erros silenciosamente.
+ * Grava uma linha no log com via='telegram' quando a entrega é confirmada.
  */
-async function espelharParaTelegram(clienteId: number, message: string): Promise<void> {
+async function espelharParaTelegram(
+  clienteId: number,
+  telefone: string,
+  message: string,
+  contexto?: string,
+): Promise<void> {
   try {
     const [c] = await db
       .select({ telegramChatId: clientsTable.telegramChatId })
@@ -27,8 +33,21 @@ async function espelharParaTelegram(clienteId: number, message: string): Promise
       .where(eq(clientsTable.id, clienteId))
       .limit(1);
     if (c?.telegramChatId) {
-      await sendTelegram(c.telegramChatId, message);
-      logger.info({ clienteId }, "[whatsapp→telegram] espelho enviado");
+      const result = await sendTelegram(c.telegramChatId, message);
+      if (result.sent) {
+        logger.info({ clienteId }, "[whatsapp→telegram] espelho enviado");
+        // Registra no log de mensagens como via='telegram' (só em entrega confirmada).
+        await registrarLog({
+          telefone,
+          corpo: message,
+          status: "sent",
+          contexto,
+          clienteId,
+          via: "telegram",
+        });
+      } else {
+        logger.warn({ clienteId, mock: result.mock, error: result.error }, "[whatsapp→telegram] espelho falhou — WhatsApp não afetado");
+      }
     }
   } catch (err) {
     logger.warn({ err, clienteId }, "[whatsapp→telegram] falha no espelho — WhatsApp não afetado");
@@ -142,7 +161,25 @@ export async function sendWhatsappStickerOnly(
   }
 }
 
-// Grava uma linha no log de WhatsApp; nunca lança (best-effort). Devolve o id.
+/**
+ * Grava uma linha no log de mensagens (qualquer canal); nunca lança (best-effort).
+ * Exportada para que rotas de Telegram direto (cockpit inbox, Radar) também
+ * possam registrar envios sem duplicar a lógica.
+ */
+export async function registrarLogMensagem(args: {
+  telefone: string;
+  corpo: string;
+  sid?: string | null;
+  status: string;
+  errorCode?: string | null;
+  contexto?: string;
+  clienteId?: number;
+  via?: "whatsapp" | "telegram";
+}): Promise<number | undefined> {
+  return registrarLog(args);
+}
+
+// Grava uma linha no log de mensagens; nunca lança (best-effort). Devolve o id.
 async function registrarLog(args: {
   telefone: string;
   corpo: string;
@@ -151,6 +188,8 @@ async function registrarLog(args: {
   errorCode?: string | null;
   contexto?: string;
   clienteId?: number;
+  /** Canal de entrega: 'whatsapp' (padrão) ou 'telegram'. */
+  via?: "whatsapp" | "telegram";
 }): Promise<number | undefined> {
   try {
     const [row] = await db
@@ -163,11 +202,12 @@ async function registrarLog(args: {
         status: args.status,
         errorCode: args.errorCode ?? null,
         contexto: args.contexto ?? null,
+        via: args.via ?? "whatsapp",
       })
       .returning({ id: whatsappMensagensLogTable.id });
     return row?.id;
   } catch (err: any) {
-    logger.warn({ err: err?.message }, "falha ao registrar log de WhatsApp");
+    logger.warn({ err: err?.message }, "falha ao registrar log de mensagem");
     return undefined;
   }
 }
@@ -329,7 +369,7 @@ export async function sendWhatsapp(
     // Espelho Telegram: só dispara APÓS o Twilio confirmar aceitação da mensagem
     // (2xx sem error_code e sem falha assíncrona). Falhas do WhatsApp não chegam
     // ao paciente via Telegram de forma silenciosa.
-    if (opts.clienteId) void espelharParaTelegram(opts.clienteId, message);
+    if (opts.clienteId) void espelharParaTelegram(opts.clienteId, phone, message, opts.contexto);
 
     return { sent: true, via: "twilio", link, logId };
   } catch (err: any) {
