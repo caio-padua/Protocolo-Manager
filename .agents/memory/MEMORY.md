@@ -125,4 +125,5 @@
 - [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
+- [Post-merge — migração falha em silêncio](post-merge-migracao-pg.md) — require('pg') na raiz do monorepo sempre falha (usar psql + scripts/migrations.sql); corrigir o script NÃO aplica a coluna, conferir no banco.
 - [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
