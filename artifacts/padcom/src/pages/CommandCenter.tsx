@@ -659,7 +659,9 @@ function PainelOnboarding() {
   const [loading, setLoading]   = useState(true);
   const [erro, setErro]         = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchStats = () => {
+    setLoading(true);
+    setErro(null);
     const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
     fetch(`${base}/api/onboarding/stats`)
       .then((r) => r.json())
@@ -669,6 +671,12 @@ function PainelOnboarding() {
       })
       .catch(() => setErro("Erro de conexão."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchStats();
+    const timer = setInterval(fetchStats, 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const maxDevice = stats?.porDevice.reduce((m, r) => Math.max(m, r.total), 1) ?? 1;
@@ -685,6 +693,15 @@ function PainelOnboarding() {
         <span className="bevel-3d px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
           Últimos 30 dias
         </span>
+        <button
+          onClick={fetchStats}
+          disabled={loading}
+          className="ml-auto btn-3d-soft px-2.5 py-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Atualizar dados de onboarding"
+        >
+          <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
+          Atualizar
+        </button>
       </div>
 
       {/* Carregando */}
