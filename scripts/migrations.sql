@@ -29,3 +29,14 @@
 -- WhatsApp, em vez de registrar tudo como se fosse WhatsApp.
 ALTER TABLE whatsapp_mensagens_log
   ADD COLUMN IF NOT EXISTS via TEXT NOT NULL DEFAULT 'whatsapp';
+
+-- Data de vinculação do Telegram do paciente.
+-- Serve para exibir no cockpit quando o paciente ativou o canal.
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS telegram_vinculado_em TIMESTAMPTZ;
+
+-- Resultado do último envio real ao chatId do paciente.
+-- true = entregue, false = falhou (chatId suspeito), null = nunca testado.
+-- Alimentado pelo endpoint POST /cockpit/:id/telegram-inbox/enviar.
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS telegram_last_test_ok BOOLEAN;

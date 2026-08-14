@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, clientsTable, assinaturaTogglesAdminTable, telegramInboxTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import {

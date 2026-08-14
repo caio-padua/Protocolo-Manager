@@ -65,6 +65,7 @@ import {
   CheckCircle2,
   MessageCircle,
   CheckCheck,
+  AlertTriangle,
 } from "lucide-react";
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 import Injetaveis from "@/pages/cockpit/panels/Injetaveis";
@@ -284,9 +285,13 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
     onSuccess: () => {
       setReplyText("");
       refetchInbox();
+      // Reinvalida o cliente para que telegramLastTestOk (badge âmbar) reflita o resultado imediatamente.
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(clienteId ?? 0) });
       toast({ title: "Mensagem enviada", description: "Resposta entregue ao paciente via Telegram." });
     },
     onError: (err: Error) => {
+      // Reinvalida o cliente mesmo em caso de erro para que o badge âmbar apareça imediatamente.
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(clienteId ?? 0) });
       toast({ title: "Erro ao enviar", description: err.message, variant: "destructive" });
     },
   });
@@ -1085,11 +1090,24 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                             <Send className="w-3 h-3 text-primary" /> Telegram
                           </span>
                           {(client as any).telegramChatId ? (
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                              <span className="bevel-3d text-[10px] font-extrabold px-2 py-0.5 text-emerald-700">
-                                ATIVO · …{String((client as any).telegramChatId).slice(-4)}
-                              </span>
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                <span className="bevel-3d text-[10px] font-extrabold px-2 py-0.5 text-emerald-700">
+                                  ATIVO · …{String((client as any).telegramChatId).slice(-4)}
+                                </span>
+                              </div>
+                              {(client as any).telegramLastTestOk === false && (
+                                <div
+                                  className="flex items-center gap-1 bevel-3d px-2 py-0.5 text-amber-700 bg-amber-50 border border-amber-200 rounded"
+                                  title="O último teste de entrega falhou. O paciente pode ter bloqueado o bot ou a conta foi encerrada. Execute um novo teste para confirmar."
+                                >
+                                  <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                                  <span className="text-[9px] font-extrabold uppercase tracking-wider">
+                                    ChatId suspeito — último teste falhou
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 flex-wrap justify-end">

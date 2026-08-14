@@ -401,6 +401,18 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
 
   const resultado = await sendTelegram(chatId, texto);
 
+  // Persiste saúde do chatId do paciente: true = entregue, false = falhou.
+  // Só registra quando a chamada foi real (não mock) — mock não prova nada sobre o chatId.
+  // Await garante que o GET /clients/:id seguinte já vê o valor atualizado.
+  if (!resultado.mock) {
+    const testOk = resultado.sent;
+    try {
+      await db.execute(sql`UPDATE clients SET telegram_last_test_ok = ${testOk} WHERE id = ${clienteId}`);
+    } catch (e: unknown) {
+      console.warn("[cockpit/enviar] falha ao persistir telegram_last_test_ok:", e);
+    }
+  }
+
   if (!resultado.sent && !resultado.mock) {
     res.status(502).json({ error: resultado.error ?? "falha ao enviar pelo Telegram" });
     return;

@@ -82,7 +82,7 @@ vi.mock("../lib/lembrete-periodo", () => ({
   executarLembretesPeriodo:      vi.fn(),
 }));
 vi.mock("../lib/formula-manipulada",  () => ({ enriquecerItemFormula: vi.fn().mockResolvedValue([]) }));
-vi.mock("../lib/whatsapp",            () => ({ sendWhatsapp: vi.fn().mockResolvedValue({ sent: false, via: "link", link: "" }) }));
+vi.mock("../lib/whatsapp",            () => ({ sendWhatsapp: vi.fn().mockResolvedValue({ sent: false, via: "link", link: "" }), registrarLogMensagem: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../lib/telegram",            () => ({ sendTelegram: vi.fn() }));
 vi.mock("../lib/telegram-inbox-flow", () => ({
   obterBadge:            vi.fn().mockResolvedValue({ naoLidas: 0 }),
@@ -104,6 +104,7 @@ import express from "express";
 import request from "supertest";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import * as dbModule from "@workspace/db";
+import * as telegramModule from "../lib/telegram";
 
 // Importado dinâmico para garantir que os vi.mock acima já estão ativos
 const { default: cockpitRouter } = await import("../routes/cockpit");
@@ -183,5 +184,78 @@ describe("GET /cockpit/:clientId — badge Telegram + DTO básico", () => {
   it("HTTP 400 para clientId não inteiro", async () => {
     const res = await request(buildApp()).get("/cockpit/abc");
     expect(res.status).toBe(400);
+  });
+});
+
+// ── Testes: POST /cockpit/:clientId/telegram-inbox/enviar ─────────────────────
+//
+// Verifica que telegram_last_test_ok é persistido corretamente após cada envio
+// real ao chatId do paciente (não ao CEO) e que o cliente é refletido pelo
+// número de chamadas a db.execute:
+//
+//   sent=false, mock=false → 1 execute (UPDATE false)  + 502 (sem INSERT)
+//   sent=true,  mock=false → 2 executes (UPDATE true + INSERT inbox)
+//   sent=true,  mock=true  → 1 execute (INSERT inbox, sem UPDATE)
+
+describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_ok", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** Fila para o POST: apenas 1 select (busca do cliente). */
+  function queueForEnviar(telegramChatId: string | null) {
+    (dbModule.db as unknown as DbHelper)._queueResults(
+      telegramChatId !== null ? [{ id: 42, telegramChatId }] : [],
+    );
+  }
+
+  it("persiste telegram_last_test_ok=false e retorna 502 quando o chatId está bloqueado", async () => {
+    queueForEnviar("123456789");
+    vi.mocked(telegramModule.sendTelegram).mockResolvedValueOnce({ sent: false, mock: false, error: "403 Forbidden" });
+
+    const res = await request(buildApp())
+      .post("/cockpit/42/telegram-inbox/enviar")
+      .send({ texto: "Teste de entrega" });
+
+    // 502 porque o envio real falhou
+    expect(res.status).toBe(502);
+
+    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
+    // o UPDATE SET telegram_last_test_ok = false.
+    // O INSERT do inbox NÃO ocorre pois a rota retorna antes.
+    const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
+    expect(executeCalls).toHaveLength(1);
+  });
+
+  it("persiste telegram_last_test_ok=true e retorna 200 após envio bem-sucedido", async () => {
+    queueForEnviar("123456789");
+    vi.mocked(telegramModule.sendTelegram).mockResolvedValueOnce({ sent: true, mock: false });
+
+    const res = await request(buildApp())
+      .post("/cockpit/42/telegram-inbox/enviar")
+      .send({ texto: "Teste de entrega" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    // db.execute deve ter sido chamado EXATAMENTE 2 vezes:
+    // 1) UPDATE SET telegram_last_test_ok = true
+    // 2) INSERT INTO telegram_inbox_messages (registro no inbox)
+    const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
+    expect(executeCalls).toHaveLength(2);
+  });
+
+  it("não persiste telegram_last_test_ok quando o envio é mock (token ausente)", async () => {
+    queueForEnviar("123456789");
+    vi.mocked(telegramModule.sendTelegram).mockResolvedValueOnce({ sent: true, mock: true });
+
+    const res = await request(buildApp())
+      .post("/cockpit/42/telegram-inbox/enviar")
+      .send({ texto: "Teste de entrega" });
+
+    expect(res.status).toBe(200);
+
+    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
+    // somente o INSERT do inbox. O UPDATE NÃO ocorre porque mock=true.
+    const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
+    expect(executeCalls).toHaveLength(1);
   });
 });

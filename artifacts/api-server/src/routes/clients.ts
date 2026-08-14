@@ -17,21 +17,20 @@ import {
 
 const router: IRouter = Router();
 
-// Boot migrations — colunas de data do Telegram.
+// Boot migrations — colunas extras de Telegram e ativação.
+// telegram_vinculado_em:    data de vinculação do bot pelo paciente.
+// telegram_last_test_ok:    resultado do último envio real ao chatId do paciente
+//                           (null=nunca testado, true=OK, false=falhou/suspeito).
+// validation_password_sent_at: data em que a senha de ativação foi enviada ao paciente.
 (async () => {
-  try {
-    await db.execute(
-      sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_vinculado_em TIMESTAMPTZ`
-    );
-  } catch (e) {
-    console.warn("[clients] migration telegram_vinculado_em:", e);
-  }
-  try {
-    await db.execute(
-      sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS validation_password_sent_at TIMESTAMPTZ`
-    );
-  } catch (e) {
-    console.warn("[clients] migration validation_password_sent_at:", e);
+  const migrations = [
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_vinculado_em TIMESTAMPTZ`,         label: "telegram_vinculado_em" },
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_last_test_ok BOOLEAN`,             label: "telegram_last_test_ok" },
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS validation_password_sent_at TIMESTAMPTZ`,   label: "validation_password_sent_at" },
+  ];
+  for (const { ddl, label } of migrations) {
+    try { await db.execute(ddl); }
+    catch (e) { console.warn(`[clients] migration ${label}:`, e); }
   }
 })();
 
@@ -102,8 +101,8 @@ router.get("/clients", async (req, res): Promise<void> => {
     return;
   }
 
-  const empresaId = resolveEmpresaId(req);
-  const tenantFilter = eq(clientsTable.empresaId, empresaId);
+  const empresaId = req.tenantContext.empresaId;
+  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   // tab = "ativos" | "desativados" | "apagados" | undefined (padrão = ativos)
   const tab = (req.query.tab as string) ?? "ativos";
@@ -224,15 +223,29 @@ router.post("/clients/bulk", async (req, res): Promise<void> => {
 });
 
 router.post("/clients", async (req, res): Promise<void> => {
-  const parsed = CreateClientBody.safeParse(req.body);
+  const parsed = UpdateClientBody.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  const empresaId = resolveEmpresaId(req);
-  const [client] = await db.insert(clientsTable).values({ ...clientData, empresaId }).returning();
+  const empresaId = req.tenantContext.empresaId;
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
+      telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
+
+  const extraResult = await db.execute(
+    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
+  );
   await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
   // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
@@ -240,29 +253,41 @@ router.post("/clients", async (req, res): Promise<void> => {
 });
 
 router.get("/clients/:id", async (req, res): Promise<void> => {
-  const params = GetClientParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
-});
-
-router.put("/clients/:id", async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const parsed = UpdateClientBody.safeParse(req.body);
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
+      telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
+
+  const extraResult = await db.execute(
+    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
+  );
+  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
+  res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
+  // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
+  dispararBoasVindas(client.id, client.name, client.phone ?? null).catch(() => {});
+});
+
+router.get("/clients/:id", async (req, res): Promise<void> => {
+  const params = UpdateClientParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateClientBody.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -370,23 +395,24 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     res.status(400).json({ error: "clientId inválido" });
     return;
   }
-
-  // Filtra por tenant: usa o empresaId da identidade autenticada, SEM aceitar
-  // override por ?empresaId= — rotas de escrita nunca permitem cross-tenant via query.
   const empresaId = req.tenantContext.empresaId;
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   const [client] = await db
     .select({
-      id:             clientsTable.id,
-      name:           clientsTable.name,
-      email:          clientsTable.email,
-      cpf:            clientsTable.cpf,
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
       telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
     })
     .from(clientsTable)
     .where(tenantFilter)
     .limit(1);
+
+  const extraResult = await db.execute(
+    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
+  );
 
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
   // Sem e-mail: não bloqueia — CEO repassa o código diretamente ao paciente.
@@ -418,11 +444,12 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   let emailEnviado = false;
   if (client.email) {
     try {
-      const result = await sendTelegramOnboardingEmail({
-        clientName:        client.name,
-        clientEmail:       client.email,
-        validationPassword: senha,
-      });
+    const result = await db.execute(
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          LIMIT 1`
+    );
       emailEnviado = result.success;
     } catch {
       // E-mail falhou; código já salvo no banco — CEO repassa diretamente
@@ -449,7 +476,6 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
     res.status(400).json({ error: "clientId inválido" });
     return;
   }
-
   const empresaId = req.tenantContext.empresaId;
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
@@ -465,6 +491,10 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
     .where(tenantFilter)
     .limit(1);
 
+  const extraResult = await db.execute(
+    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
+  );
+
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
   if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
   if (client.telegramChatId) {
@@ -477,11 +507,12 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   }
 
   try {
-    const result = await sendTelegramOnboardingEmail({
-      clientName: client.name,
-      clientEmail: client.email,
-      validationPassword: client.validationPassword,
-    });
+    const result = await db.execute(
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          LIMIT 1`
+    );
     if (result.success) {
       res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
     } else {
@@ -590,3 +621,5 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
 });
 
 export default router;
+
+  const extraRow = extraResult.rows[0] as { telegram_last_test_ok: boolean | null } | undefined;
