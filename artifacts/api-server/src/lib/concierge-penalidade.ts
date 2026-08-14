@@ -287,6 +287,9 @@ async function ensureEventosTable(): Promise<void> {
     _eventosTableReady = (async () => {
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS concierge_webhook_eventos (
+          -- TTL: 90 dias — eventos mais antigos são purgados mensalmente pelo job
+          -- purgeEventosAntigos(). A janela de reenvio do Asaas é de horas, não meses,
+          -- portanto registros com mais de 90 dias não servem mais para deduplicação.
           event_id               TEXT        PRIMARY KEY,
           cpf                    TEXT        NOT NULL,
           scheduling_request_id  INTEGER,
@@ -337,6 +340,25 @@ async function ensureEventosTable(): Promise<void> {
  *   O asaasChargeId muda na reativação, gerando novo eventId — penalidade real
  *   de uma segunda expiração não é engolida.
  */
+/**
+ * Purga eventos de idempotência com mais de 90 dias.
+ *
+ * A janela de reenvio do Asaas é de horas, não meses; registros antigos
+ * não servem mais para deduplicação e apenas inflariam a tabela. TTL de
+ * 90 dias fornece margem confortável acima de qualquer reenvio real.
+ *
+ * Chamada mensalmente pelo cron job em lib/cron.ts.
+ * Retorna o número de linhas removidas para fins de log.
+ */
+export async function purgeEventosAntigos(): Promise<number> {
+  await ensureEventosTable();
+  const result = await db.execute(sql`
+    DELETE FROM concierge_webhook_eventos
+    WHERE registrado_at < NOW() - INTERVAL '90 days'
+  `);
+  return (result.rowCount ?? 0) as number;
+}
+
 export async function registrarFalha(
   rawCpf: string | null | undefined,
   eventId: string,                    // OBRIGATÓRIO — sem sobrecarga opcional

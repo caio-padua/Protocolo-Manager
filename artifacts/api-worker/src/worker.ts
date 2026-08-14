@@ -215,7 +215,35 @@ export function startWorkerJobs(logger: pino.Logger): void {
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 8: Purga mensal de concierge_webhook_eventos ─────────────────────
+  // Apaga linhas com registrado_at < NOW() - 90 dias para evitar crescimento
+  // indefinido da tabela de idempotência de webhooks do Asaas. A janela de
+  // reenvio do Asaas é de horas; registros com >90 dias não servem mais para
+  // deduplicação. Roda no dia 1 de cada mês às 03:30 BRT.
+  cron.schedule(
+    "30 3 1 * *",
+    async () => {
+      logger.info("Worker: purga mensal de concierge_webhook_eventos iniciada (TTL 90 dias)");
+      try {
+        const { purgeEventosAntigos } = await import(
+          "../../api-server/src/lib/concierge-penalidade.js" as string
+        );
+        const removidas = await purgeEventosAntigos();
+        logger.info(
+          { removidas },
+          "Worker: purga de concierge_webhook_eventos concluída"
+        );
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha na purga de concierge_webhook_eventos"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal"
   );
 }
