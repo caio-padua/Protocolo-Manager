@@ -39,7 +39,6 @@ import type { ProvedorCodigo } from "../lib/assinatura/types";
 import { logger } from "../lib/logger";
 import { getSecret } from "../lib/secure-settings";
 import { sendTelegram } from "../lib/telegram.js";
-import { postSlackAlert } from "../lib/slack-reporter";
 import {
   processarWebhookInbox,
   type ClienteVinculado,
@@ -260,7 +259,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
       res.status(404).json({ error: msg });
       return;
     }
-    req.log.error({ err: String(msg) }, "[assinatura] erro ao desativar clausula");
+    req.log.error({ err: msg }, "[assinatura] erro ao desativar clausula");
     res.status(500).json({ error: "erro_desativar_clausula" });
   }
 });
@@ -419,6 +418,10 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         ).catch((err: unknown) =>
           logger.error({ err }, "[telegram] falha ao processar mensagem no inbox"),
         );
+      }
+      res.status(200).json({ ok: true });
+      return;
+    }
 
         // Notificação Slack — best-effort, independente do Telegram CEO.
         // Só dispara quando o CEO já enviou ao menos uma mensagem ao paciente
@@ -450,6 +453,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       res.status(200).json({ ok: true });
       return;
     }
+
 
     // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
@@ -687,14 +691,6 @@ assinaturasRouter.get(
     try {
       const { checkWebhookHealth } = await import("../lib/telegram-webhook-guard.js");
       const result = await checkWebhookHealth();
-      if (result.mock) {
-        res.status(400).json({ ok: false, error: "token_ausente", descricao: "Token do bot não configurado no cofre." });
-        return;
-      }
-      if (result.fetchError) {
-        res.status(500).json({ ok: false, error: result.fetchError, descricao: result.lastErrorMessage ?? "Falha ao consultar Telegram." });
-        return;
-      }
       res.json({ ok: true, ...result });
     } catch (err) {
       res.status(500).json({ ok: false, error: String(err) });

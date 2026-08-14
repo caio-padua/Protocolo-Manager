@@ -285,7 +285,20 @@ export default function GuiaPaciente() {
   const [loading,  setLoading]  = useState(false);
   const [resultados, setResultados] = useState<EnvioResult[]>([]);
   const [countdown, setCountdown]   = useState(0); // segundos restantes do cooldown
+  const [limiteDiario, setLimiteDiario] = useState<string | null>(null); // canal com limite diário atingido
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Limpar avisos ao trocar de paciente
+  const handleClientChange = useCallback((id: number | null) => {
+    setClientId(id);
+    setResultados([]);
+    setLimiteDiario(null);
+    setCountdown(0);
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+  }, []);
 
   // Inicia o timer de 60s de cooldown
   const iniciarCountdown = useCallback(() => {
@@ -330,6 +343,7 @@ export default function GuiaPaciente() {
     if (!clientId || !selected || loading || countdown > 0) return;
     setLoading(true);
     setResultados([]);
+    setLimiteDiario(null);
     try {
       const res = await fetch(`${API_BASE}/api/onboarding/enviar-guia`, {
         method: "POST",
@@ -337,11 +351,19 @@ export default function GuiaPaciente() {
         body: JSON.stringify({ clientId, canais, guiaUrl }),
       });
 
-      // ── 429: disparo duplo bloqueado pelo servidor ──
+      // ── 429: cooldown de 60s ──
       if (res.status === 429) {
-        iniciarCountdown();
-        toast({ title: "Guia já enviado", description: "Aguarde um momento antes de reenviar.", variant: "destructive" });
-        setResultados([{ canal: canais[0], ok: false, mensagem: "Guia já enviado. Aguarde um momento." }]);
+        const data = await res.json() as { ok: boolean; error: string; motivo?: string; canal?: string };
+        if (data.motivo === "limite_diario") {
+          const canalNome = data.canal ?? canais[0];
+          setLimiteDiario(canalNome);
+          toast({ title: "Limite diário atingido", description: `O guia já foi enviado 3 vezes hoje via ${canalNome}.`, variant: "destructive" });
+          setResultados([{ canal: canais[0] as Canal, ok: false, mensagem: "Limite diário atingido para este canal." }]);
+        } else {
+          iniciarCountdown();
+          toast({ title: "Guia já enviado", description: "Aguarde um momento antes de reenviar.", variant: "destructive" });
+          setResultados([{ canal: canais[0] as Canal, ok: false, mensagem: "Guia já enviado. Aguarde um momento." }]);
+        }
         return;
       }
 
@@ -387,7 +409,7 @@ export default function GuiaPaciente() {
           <PaxterClientSelector
             clientes={clientesSelecionados}
             value={clientId}
-            onChange={setClientId}
+            onChange={handleClientChange}
             placeholder="Selecionar cliente…"
           />
         </div>
@@ -487,11 +509,19 @@ export default function GuiaPaciente() {
             </button>
           </div>
 
-          {/* Banner de cooldown */}
-          {countdown > 0 && (
+          {/* Banner de cooldown (60s) */}
+          {countdown > 0 && !limiteDiario && (
             <div className="flex items-center gap-2 text-amber-700 text-xs concave-3d rounded-lg px-3 py-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               Guia já enviado. Aguarde {countdown} segundo{countdown !== 1 ? "s" : ""} antes de reenviar.
+            </div>
+          )}
+
+          {/* Banner de limite diário */}
+          {limiteDiario && (
+            <div className="flex items-center gap-2 text-red-700 text-xs concave-3d rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              Limite diário atingido para este canal ({limiteDiario}). O guia já foi enviado 3 vezes hoje. Tente amanhã ou use outro canal.
             </div>
           )}
 
