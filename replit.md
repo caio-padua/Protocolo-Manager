@@ -51,6 +51,14 @@ vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anu
 - `pnpm --filter @workspace/api-spec run codegen` — regenerar hooks e schemas Zod do OpenAPI
 - Schema de banco: tabelas novas via SQL direto (nunca `db push` em tabela populada — ver memórias)
 
+
+## Anexos (attached_assets/) — fora do Git desde 14/08/2026
+
+- `attached_assets/` está no `.gitignore` e foi retirado do índice do Git (`git rm --cached`, arquivos INTACTOS no disco). Motivo: 1 GB de prints/PDFs versionados deixaram o histórico com ~980 MB e o editor/painel Git travando.
+- Daqui para frente: anexos enviados no chat continuam caindo em `attached_assets/` no DISCO, mas NÃO entram em commits novos. Nunca fazer `git add -f attached_assets/...`.
+- Anexo que precise ser permanente para o produto (logo oficial, fonte, arte de marca) deve ser COPIADO para o lugar certo do código (ex.: `artifacts/*/src/assets/`) e commitado lá.
+- O histórico antigo ainda carrega os anexos; encolher exige reescrita de histórico — proposta em `docs/PROPOSTA-ENCOLHER-HISTORICO-GIT.md`, só executar com ordem escrita do CEO (Regra de Ouro).
+
 ## GITHUB_PAT — Renovação obrigatória antes do vencimento
 
 O secret `GITHUB_PAT` (Personal Access Token — chave pessoal do GitHub) permite o git push automático.

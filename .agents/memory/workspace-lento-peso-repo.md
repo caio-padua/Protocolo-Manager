@@ -28,6 +28,11 @@ servidores de desenvolvimento ligados ao mesmo tempo**.
 **Why:** o CEO cobra causa verificada, não palpite; e a Regra de Ouro proíbe
 apagar qualquer coisa para "aliviar" sem ordem escrita dele.
 
+**Status 14/08/2026:** `attached_assets/` entrou no `.gitignore` e saiu do índice
+(`git rm --cached`, disco intacto). Crescimento estancado; o histórico continua
+com ~980 MB — encolher exige `git filter-repo` + push --force, proposta escrita em
+`docs/PROPOSTA-ENCOLHER-HISTORICO-GIT.md`, só com ordem escrita do CEO.
+
 **How to apply:** apresentar os números medidos e as opções (parar servidor que
 não está em uso, parar de versionar anexos daqui para frente, reescrever
 histórico só com ordem expressa). Nunca apagar anexo nem histórico por conta
