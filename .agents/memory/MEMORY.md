@@ -109,7 +109,8 @@
 - [Motor de luz Paxter unico (glint)](paxter-glint-motor-unico.md) — simbolo e palavra usam UM PaxterGlintPremium; estender via props opcionais, nunca forkar; sweep ausente=.tf-sweep.
 - [Lockup PAXTER fonte unica + frase 3D](paxter-lockup-fonte-unica.md) — conjunto montado SO por PaxterLockup; frase vem da headline raster 3D; mascara=alpha threshold da headline.
 - [Wordmark PAXTER: arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) — "P" carcomido vinha do SVG potrace + sombra preta embutida do PNG no claro; usar arte oficial.
-- [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado.
+- [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as internas repetem a 50%, marca e peca unica.
+- [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
 - [Área do Cliente: desejo IMPLÍCITO + faixas](area-cliente-desejo-implicito.md) — planos viram ícone-coroa a descobrir (sem upsell/preço na home); cabeçalho em 3 faixas, nome nunca sob PAXTER.
 - [Anamnese cliente pele escura (Lora+ouro)](anamnese-v2-pele-escura.md) — selecao OURO (foco continua ciano); mockup divergiu da spec (spec vence).
 - [Tema escuro anamnese-v2: .dark no mesmo elemento](anamnese-tema-seletor-mesmo-elemento.md) — raiz poe themeClass+classe-feature no MESMO no; regra `.dark .x` (descendente) falha silenciosa; usar `.dark .x, .dark.x`.

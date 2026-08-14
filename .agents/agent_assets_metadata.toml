@@ -417,3 +417,10 @@ uri = "file://docs/provas/cifrao-tres-opcoes.png"
 type = "image"
 title = "O cifrao — as tres opcoes lado a lado, no card real do Painel"
 description = "Opcao A (maior, elevacao pequena), B (na linha de base) e C (atual, sobe menos). Recorte ampliado da tela Lei do Numeral."
+
+[[outputs]]
+id = "Hyk1Uy2UpKiASrg7iQMm9"
+uri = "file://docs/preview/protocolo-padcon-50-porcento.png"
+type = "image"
+title = "Protocolo — bloco PADCON nas páginas internas a 50%"
+description = "Em cima: página interna inteira com o bloco no canto inferior direito. Embaixo, à esquerda: como está na capa (tamanho de referência). À direita: como ficou na página interna, exatamente metade."

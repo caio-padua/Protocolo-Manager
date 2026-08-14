@@ -1892,6 +1892,61 @@ function drawQuestionsPage(
   }
 }
 
+// ── Bloco de marca PADCON: [hexágono] | [PADCON + Platform®] ─────────────────
+// A CAPA é o tamanho de referência. As páginas internas repetem EXATAMENTE o
+// mesmo bloco, a 50% (decisão do CEO em 14/08/2026): a assinatura de engenharia
+// acompanha o documento inteiro sem competir com o conteúdo clínico.
+// Mexeu aqui, mexeu na capa e nas internas ao mesmo tempo — de propósito.
+const PADCON_SYM_H = 34;         // altura do hexágono NA CAPA
+const PADCON_WRD_H = 21;         // altura de PADCON + Platform® NA CAPA
+const PADCON_GAP = 5;            // respiro horizontal entre símbolo e palavras NA CAPA
+const PADCON_INNER_SCALE = 0.5;  // páginas internas = metade da capa
+
+/**
+ * Desenha o bloco PADCON alinhado pela DIREITA, sem placa atrás (arte oficial
+ * recortada, proporção nativa preservada — escala pela altura, largura sai do
+ * arquivo). rightX = borda direita do bloco; baseY = base do hexágono.
+ * Retorna a largura ocupada (0 quando as artes não estão disponíveis) para o
+ * chamador saber onde o bloco termina e não desenhar nada por cima.
+ */
+function drawPadconMark(
+  page: PDFPage,
+  padconSymbol: EmbeddedPng | null,
+  padconWords: EmbeddedPng | null,
+  rightX: number,
+  baseY: number,
+  scale = 1,
+): number {
+  const symH = PADCON_SYM_H * scale;
+  const wrdH = PADCON_WRD_H * scale;
+  const gap = PADCON_GAP * scale;
+
+  // A marca é PEÇA ÚNICA: hexágono sozinho ou palavra sozinha não é a marca.
+  // Faltando qualquer uma das artes, nada é desenhado e devolvemos largura 0 —
+  // assim o QR não recua por causa de um bloco que não existe.
+  if (!padconSymbol || !padconWords) return 0;
+
+  const symW = symH * (padconSymbol.width / padconSymbol.height);
+  const wrdW = wrdH * (padconWords.width / padconWords.height);
+  if (symW <= 0 || wrdW <= 0) return 0;
+
+  const rowW = symW + gap + wrdW;
+  const rowX = rightX - rowW;
+
+  try {
+    page.drawImage(padconSymbol, { x: rowX, y: baseY, width: symW, height: symH });
+    // palavras centradas verticalmente contra o hexágono
+    page.drawImage(padconWords, {
+      x: rowX + symW + gap,
+      y: baseY + (symH - wrdH) / 2,
+      width: wrdW,
+      height: wrdH,
+    });
+  } catch { /* best-effort — o documento nunca falha por ausência de logo */ }
+
+  return rowW;
+}
+
 // ── Checkpoint B: Capa premium PAXMED ────────────────────────────────────────
 function drawPremiumCover(
   pdfDoc: PDFDocument,
@@ -2014,36 +2069,18 @@ function drawPremiumCover(
   // verdade, em branco, que contrasta com o fundo e sobrevive ao zoom.
   {
     const INSET   = 34;  // recuo das bordas direita/inferior — encosta no canto
-    const symH    = 34;  // altura do hexágono
-    const wrdH    = 21;  // altura de PADCON + Platform®
-    const gap     = 5;   // respiro horizontal entre símbolo e palavras
     const tagSize = 6.5; // frase em inglês — dimensionada para ler, não para enfeitar
     const tagGap  = 4;   // respiro entre a frase e a linha acima
 
-    const symW = padconSymbol ? symH * (padconSymbol.width / padconSymbol.height) : 0;
-    const wrdW = padconWords  ? wrdH * (padconWords.width  / padconWords.height)  : 0;
-
-    const rowW = symW + (padconSymbol && padconWords ? gap : 0) + wrdW;
     const tag  = "Advanced Systems Architecture";
     const tagW = pf.manReg.widthOfTextAtSize(tag, tagSize);
 
-    const rightX = PAGE_W - INSET;         // borda direita comum a todos os elementos
-    const tagY   = 30;                     // base da frase; rodapé em y=22 fica abaixo
+    const rightX = PAGE_W - INSET;          // borda direita comum a todos os elementos
+    const tagY   = 30;                      // base da frase; rodapé em y=22 fica abaixo
     const rowY   = tagY + tagSize + tagGap; // base da linha símbolo+palavras
-    const rowX   = rightX - rowW;
 
-    try {
-      if (padconSymbol && symW > 0)
-        pg.drawImage(padconSymbol, { x: rowX, y: rowY, width: symW, height: symH });
-      if (padconWords && wrdW > 0)
-        // palavras centradas verticalmente contra o hexágono
-        pg.drawImage(padconWords, {
-          x: rowX + symW + gap,
-          y: rowY + (symH - wrdH) / 2,
-          width: wrdW,
-          height: wrdH,
-        });
-    } catch { /* best-effort — capa nunca falha por ausência de logo */ }
+    // Tamanho de referência (escala 1) — as páginas internas repetem a 50%.
+    drawPadconMark(pg, padconSymbol, padconWords, rightX, rowY, 1);
 
     pg.drawText(tag, { x: rightX - tagW, y: tagY, size: tagSize, font: pf.manReg, color: WHITE });
   }
@@ -2061,13 +2098,30 @@ function drawPremiumHeaderBrand(page: PDFPage, pf: PremiumFonts): void {
   page.drawText(tag, { x: PAGE_W - MARGIN - tW, y: PAGE_H - 34, size: 6, font: pf.manReg, color: GOLD_P });
 }
 
-function drawPremiumFooter(page: PDFPage, pf: PremiumFonts, pageNum: number, totalPages: number, qrImg: QrImage = null): void {
+function drawPremiumFooter(
+  page: PDFPage,
+  pf: PremiumFonts,
+  pageNum: number,
+  totalPages: number,
+  qrImg: QrImage = null,
+  padconSymbol: EmbeddedPng | null = null,
+  padconWords: EmbeddedPng | null = null,
+): void {
   const txt = `PAXMED Clinical Intelligence System · tecnologia PADCON · Advanced Systems Architecture · Pagina ${pageNum} de ${totalPages}`;
   page.drawText(txt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: GRAY });
+
+  // Mesmo bloco PADCON da capa, a 50%, encostado no canto inferior direito.
+  // A frase "Advanced Systems Architecture" NÃO se repete aqui: a 50% viraria
+  // um borrão de 3,25 pt e ela já está escrita, legível, na linha do rodapé.
+  const markBaseY = 18;
+  const markW = drawPadconMark(page, padconSymbol, padconWords, PAGE_W - MARGIN, markBaseY, PADCON_INNER_SCALE);
+
   if (qrImg) {
     try {
       const qs = 20;
-      page.drawImage(qrImg, { x: PAGE_W - MARGIN - qs, y: 18, width: qs, height: qs });
+      // O QR recua para a esquerda do bloco de marca quando ele existe.
+      const qrRight = PAGE_W - MARGIN - (markW > 0 ? markW + 10 : 0);
+      page.drawImage(qrImg, { x: qrRight - qs, y: markBaseY, width: qs, height: qs });
     } catch { /* best-effort */ }
   }
 }
@@ -2441,7 +2495,7 @@ export async function buildProtocolDocumentLayout(
   for (let i = 0; i < allPages.length; i++) {
     if (i === 0) continue;
     drawPremiumHeaderBrand(allPages[i], pf);
-    drawPremiumFooter(allPages[i], pf, i + 1, allPages.length, qrImg);
+    drawPremiumFooter(allPages[i], pf, i + 1, allPages.length, qrImg, padconSymbol, padconWords);
   }
 }
 

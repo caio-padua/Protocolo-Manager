@@ -71,6 +71,30 @@ PADCON — não com a palavra "PÁDUA" digitada em fonte serifada.
 creme (`magick -size WxH xc:COR logo.png -gravity center -composite`) e olhar — o ouro
 tem que ler bem nos dois temas (claro/escuro). Canto alpha=0 confirma fundo removido.
 
+## PDF do protocolo: a CAPA é a régua, as internas repetem a 50%
+
+Decisão do CEO (14/08/2026): o bloco PADCON `[hexágono] | [PADCON + Platform®]`
+que existia só na capa passa a acompanhar TODAS as páginas do documento clínico,
+sempre com **metade** do tamanho da capa.
+
+- A capa continua sendo o tamanho de referência (escala 1); as internas usam a
+  MESMA função com escala 0,5 — o "50%" tem que ser derivado por constante, não
+  redigitado como número mágico em dois lugares.
+- **A marca é peça única:** hexágono sem a palavra (ou o contrário) NÃO é a marca.
+  Faltando qualquer uma das duas artes, não desenha nada. Meia-marca é pior que
+  marca nenhuma, e um bloco "fantasma" ainda empurraria os vizinhos de layout.
+- Quem desenha devolve a largura ocupada, para o QR (ou qualquer vizinho do
+  rodapé) recuar sozinho em vez de sobrepor.
+- A frase "Advanced Systems Architecture" só existe na capa como texto real; a
+  50% ela viraria borrão de 3,25 pt — nas internas ela já está escrita na linha
+  do rodapé.
+- `padcon-words.png` é OURO (os pixels quase brancos são só o brilho do relevo),
+  então lê bem tanto no navy da capa quanto no creme das páginas internas — não
+  precisa de variante clara.
+
+**How to apply:** vale para qualquer documento PDF novo da casa; conferir sempre
+renderizando a página em PNG (`pdftoppm`) e olhando o canto, nunca só pelo código.
+
 ## Aparar margem: prop `height`/`size` SÓ vira tamanho real se o PNG estiver trimado
 
 Cada PNG recortado pode ter uma margem transparente DIFERENTE (ex.: wordmark Pádua tinha
