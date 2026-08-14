@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle } from "lucide-react";
+import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useListClients } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +45,11 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
   const [status,  setStatus]  = useState<TgStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro,    setErro]    = useState(false);
+  const [tick,    setTick]    = useState(0);
+
+  const recheck = useCallback(() => {
+    setTick((t) => t + 1);
+  }, []);
 
   useEffect(() => {
     setStatus(null);
@@ -55,7 +60,19 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
       .then((d) => setStatus(d))
       .catch(() => setErro(true))
       .finally(() => setLoading(false));
-  }, [clientId]);
+  }, [clientId, tick]);
+
+  const RefreshBtn = () => (
+    <button
+      type="button"
+      onClick={recheck}
+      disabled={loading}
+      title="Verificar novamente"
+      className="ml-1 opacity-50 hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+    >
+      <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
+    </button>
+  );
 
   if (loading) {
     return (
@@ -71,6 +88,7 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
       <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
         <span className="paxter-led" />
         <span>Não foi possível verificar</span>
+        <RefreshBtn />
       </div>
     );
   }
@@ -87,6 +105,7 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
         <span>
           Telegram vinculado{desde ? ` desde ${desde}` : ""}
         </span>
+        <RefreshBtn />
       </div>
     );
   }
@@ -95,6 +114,7 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
     <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
       <span className="paxter-led paxter-led-amber paxter-led-breathe flex-shrink-0" />
       <span>Ainda não vinculou ao Telegram</span>
+      <RefreshBtn />
     </div>
   );
 }
