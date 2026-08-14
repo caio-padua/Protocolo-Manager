@@ -46,10 +46,10 @@ router.get("/api/avatares", async (req, res) => {
       .from(clinicAvatarsTable)
       .where(eq(clinicAvatarsTable.empresaId, empresaId))
       .orderBy(clinicAvatarsTable.tipo);
-    res.json({ avatares });
+    return res.json({ avatares });
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro ao listar");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -61,14 +61,14 @@ router.get("/api/avatares/status", async (_req, res) => {
       checkElevenLabsStatus(),
       checkHeyGenStatus(),
     ]);
-    res.json({
+    return res.json({
       elevenlabs: el,
       heygen:     hg,
       todasOk:    el.ok && hg.ok,
     });
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro no check de status");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -77,10 +77,10 @@ router.get("/api/avatares/status", async (_req, res) => {
 router.get("/api/avatares/vozes", async (_req, res) => {
   try {
     const vozes = await listarVozes();
-    res.json({ vozes });
+    return res.json({ vozes });
   } catch (e: any) {
     logger.warn({ err: e?.message }, "avatares: erro ao listar vozes ElevenLabs");
-    res.status(502).json({ error: e?.message ?? "Erro ao consultar ElevenLabs" });
+    return res.status(502).json({ error: e?.message ?? "Erro ao consultar ElevenLabs" });
   }
 });
 
@@ -89,10 +89,10 @@ router.get("/api/avatares/vozes", async (_req, res) => {
 router.get("/api/avatares/hg-avatars", async (_req, res) => {
   try {
     const avatares = await listarAvatares();
-    res.json({ avatares });
+    return res.json({ avatares });
   } catch (e: any) {
     logger.warn({ err: e?.message }, "avatares: erro ao listar avatares HeyGen");
-    res.status(502).json({ error: e?.message ?? "Erro ao consultar HeyGen" });
+    return res.status(502).json({ error: e?.message ?? "Erro ao consultar HeyGen" });
   }
 });
 
@@ -138,11 +138,11 @@ router.put("/api/avatares/:id", async (req, res) => {
       .where(eq(clinicAvatarsTable.id, id))
       .limit(1);
 
-    res.json({ avatar: updated });
+    return res.json({ avatar: updated });
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao atualizar");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -163,11 +163,11 @@ router.post("/api/avatares/voz/gerar", async (req, res) => {
       "Content-Disposition": "inline; filename=\"avatar-voz.mp3\"",
       "Content-Length":      String(mp3Buffer.length),
     });
-    res.send(mp3Buffer);
+    return res.send(mp3Buffer);
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao gerar áudio ElevenLabs");
-    res.status(502).json({ error: e?.message ?? "Erro ao gerar áudio" });
+    return res.status(502).json({ error: e?.message ?? "Erro ao gerar áudio" });
   }
 });
 
@@ -183,11 +183,11 @@ router.post("/api/avatares/video/gerar", async (req, res) => {
   try {
     const { avatarId, texto, voiceId } = gerarVideoSchema.parse(req.body);
     const result = await gerarVideo(avatarId, texto, voiceId);
-    res.json({ videoId: result.videoId, status: "pending" });
+    return res.json({ videoId: result.videoId, status: "pending" });
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao gerar vídeo HeyGen");
-    res.status(502).json({ error: e?.message ?? "Erro ao gerar vídeo" });
+    return res.status(502).json({ error: e?.message ?? "Erro ao gerar vídeo" });
   }
 });
 
@@ -199,10 +199,10 @@ router.get("/api/avatares/video/:videoId/status", async (req, res) => {
     if (!videoId) return res.status(400).json({ error: "videoId obrigatório" });
 
     const result = await buscarStatusVideo(videoId);
-    res.json(result);
+    return res.json(result);
   } catch (e: any) {
     logger.warn({ err: e?.message }, "avatares: erro ao buscar status de vídeo HeyGen");
-    res.status(502).json({ error: e?.message ?? "Erro ao consultar HeyGen" });
+    return res.status(502).json({ error: e?.message ?? "Erro ao consultar HeyGen" });
   }
 });
 
@@ -213,10 +213,10 @@ router.get("/api/avatares/uso", async (req, res) => {
   try {
     const empresaId = empresaIdFromReq(req);
     const uso = await resumoUsoMes(empresaId);
-    res.json(uso);
+    return res.json(uso);
   } catch (e: any) {
     logger.warn({ err: e?.message }, "avatares: erro ao buscar uso");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -236,7 +236,7 @@ router.get("/api/avatares/audio-temp/:key", (req, res) => {
     "Cache-Control":       "no-store",
     "Content-Disposition": "inline; filename=\"avatar-voz.mp3\"",
   });
-  res.send(buffer);
+  return res.send(buffer);
 });
 
 // ─── POST /api/avatares/enviar-voz ────────────────────────────────────────────
@@ -276,7 +276,7 @@ router.post("/api/avatares/enviar-voz", async (req, res) => {
       const [cliente] = await db
         .select({ phone: clientsTable.phone, empresaId: clientsTable.empresaId, name: clientsTable.name })
         .from(clientsTable)
-        .where(eq(clientsTable.id, parsed.clienteId))
+        .where(eq(clientsTable.id, parsed.clienteId!))
         .limit(1);
       if (!cliente)       return res.status(404).json({ error: "Cliente não encontrado" });
       if (!cliente.phone) return res.status(400).json({ error: "Cliente sem telefone cadastrado" });
@@ -295,14 +295,14 @@ router.post("/api/avatares/enviar-voz", async (req, res) => {
       clienteId,
     });
 
-    res.json({
+    return res.json({
       ...result,
       telefone: telefone.replace(/\d(?=\d{4})/g, "*"),
     });
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao enviar voz manual");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -357,7 +357,7 @@ router.post("/api/avatares/:id/disparar", async (req, res) => {
       },
     );
 
-    res.json({
+    return res.json({
       ok:       resultado.algumEnviado,
       canal:    parsed.canal,
       cliente:  { id: parsed.clienteId, nome: cliente.name },
@@ -366,7 +366,7 @@ router.post("/api/avatares/:id/disparar", async (req, res) => {
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro ao disparar");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -439,7 +439,7 @@ router.post("/api/avatares/campanha", async (req, res) => {
       "[avatar] campanha criada — itens salvos no banco",
     );
 
-    res.json({
+    return res.json({
       ok:            true,
       campaignId,
       totalClientes: clientes.length,
@@ -450,7 +450,7 @@ router.post("/api/avatares/campanha", async (req, res) => {
   } catch (e: any) {
     if (e?.name === "ZodError") return res.status(400).json({ error: "Dados inválidos", details: e.issues });
     logger.error({ err: e?.message }, "avatares: erro na campanha");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -469,10 +469,10 @@ router.get("/api/avatares/campanha/:campaignId", async (req, res) => {
     const progresso = await buscarProgressoCampanha(campaignId, empresaId);
     if (!progresso) return res.status(404).json({ error: "Campanha não encontrada" });
 
-    res.json(progresso);
+    return res.json(progresso);
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro ao buscar progresso de campanha");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -486,10 +486,10 @@ router.get("/api/avatares/:id/historico", async (req, res) => {
 
     const limite = Math.min(Number(req.query.limite ?? 50), 200);
     const historico = await buscarHistoricoAvatar(avatarId, limite);
-    res.json({ historico });
+    return res.json({ historico });
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro ao buscar histórico");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -554,7 +554,7 @@ router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res
       "[avatar] campanha de reenvio criada a partir dos erros",
     );
 
-    res.json({
+    return res.json({
       ok:            true,
       campaignId:    novaCampaignId,
       campanhaPaiId: campaignId,
@@ -563,7 +563,7 @@ router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res
     });
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro ao reenviar erros de campanha");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 
@@ -581,10 +581,10 @@ router.get("/api/avatares/fila-video", async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 50
     `);
-    res.json({ fila: rows.rows });
+    return res.json({ fila: rows.rows });
   } catch (e: any) {
     logger.error({ err: e?.message }, "avatares: erro ao buscar fila de vídeo");
-    res.status(500).json({ error: e?.message ?? "Erro interno" });
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
   }
 });
 

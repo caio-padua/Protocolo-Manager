@@ -159,6 +159,11 @@ const ALIMENTO = {
 function buildApp() {
   const app = express();
   app.use(express.json());
+  // Injetar tenantContext (necessário para resolveEmpresaId no handler)
+  app.use((req: any, _res: any, next: any) => {
+    req.tenantContext = { empresaId: 5, isPlatformOwner: false, perfilPlataforma: "admin" };
+    next();
+  });
   app.use("/api", dietaRouter);
   return app;
 }
@@ -451,5 +456,90 @@ describe("POST /api/dieta/prescricoes/:id/enviar-lista-compras — Email", () =>
     );
     // sendWhatsapp NÃO deve ter sido chamado
     expect(waLib.sendWhatsapp).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloco — Isolamento multi-tenant (GET e POST)
+//
+// O buildApp() injeta empresaId=5 em req.tenantContext.
+// Cenário cross-tenant: prescrição existe (clientId=10), mas o cliente
+// pertence a outro tenant → lookup por (clientId AND empresa_id=5) devolve []
+// → 404 nos dois endpoints.
+// Cenário same-tenant: lookup retorna o CLIENTE → continua normalmente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/dieta/prescricoes/:id/lista-compras — isolamento multi-tenant", () => {
+  beforeEach(() => {
+    _mockAuthPasses = true;
+    vi.clearAllMocks();
+  });
+
+  it("retorna 401 sem Bearer token (novo requireCollaborator no GET)", async () => {
+    _mockAuthPasses = false;
+    const app = buildApp();
+    const res = await request(app).get("/api/dieta/prescricoes/1/lista-compras");
+    expect(res.status).toBe(401);
+  });
+
+  it("cross-tenant: prescrição existe mas cliente é de outro tenant → 404", async () => {
+    // row 0: prescrição encontrada; row 1: cliente NOT IN tenant (vazio)
+    setupDbSelect([
+      [PRESCRICAO], // SELECT prescrição
+      [],           // SELECT cliente — tenant mismatch → vazio
+    ]);
+    const app = buildApp();
+    const res = await request(app).get("/api/dieta/prescricoes/1/lista-compras");
+    expect(res.status).toBe(404);
+  });
+
+  it("same-tenant: cliente pertence ao tenant → retorna lista normalmente", async () => {
+    setupDbSelect([
+      [PRESCRICAO],      // SELECT prescrição
+      [{ id: 10, name: "Maria Testes" }], // SELECT cliente — mesmo tenant
+      [],                // SELECT itens (vazio — lista vazia não é erro para o GET)
+    ]);
+    const app = buildApp();
+    const res = await request(app).get("/api/dieta/prescricoes/1/lista-compras?dias=7");
+    expect(res.status).toBe(200);
+    expect(res.body.clientName).toBe("Maria Testes");
+  });
+});
+
+describe("POST /api/dieta/prescricoes/:id/enviar-lista-compras — isolamento multi-tenant", () => {
+  beforeEach(() => {
+    _mockAuthPasses = true;
+    vi.clearAllMocks();
+  });
+
+  it("cross-tenant: prescrição existe mas cliente é de outro tenant → 404", async () => {
+    // row 0: prescrição encontrada; row 1: cliente NOT IN tenant (vazio)
+    setupDbSelect([
+      [PRESCRICAO], // SELECT prescrição
+      [],           // SELECT cliente — tenant mismatch → vazio
+    ]);
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/dieta/prescricoes/1/enviar-lista-compras")
+      .send({ canais: ["WHATSAPP"], dias: 7 });
+    expect(res.status).toBe(404);
+    // Nenhum canal deve ter sido acionado
+    expect(waLib.sendWhatsapp).not.toHaveBeenCalled();
+    expect(msgLib.enviarMensagemPaxter).not.toHaveBeenCalled();
+  });
+
+  it("same-tenant: cliente pertence ao tenant → segue normalmente (não 404)", async () => {
+    setupDbSelect([
+      [PRESCRICAO],
+      [CLIENTE],
+      [],   // itens — vazio → 422 "nenhum item"
+    ]);
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/dieta/prescricoes/1/enviar-lista-compras")
+      .send({ canais: ["WHATSAPP"], dias: 7 });
+    // 422 significa que passou pela barreira de tenant (não é 404)
+    expect(res.status).not.toBe(404);
+    expect(res.status).toBe(422);
   });
 });

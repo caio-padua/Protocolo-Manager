@@ -25,6 +25,7 @@ import { computeMotor, type RespostaMotor } from "../lib/motor-anamnese";
 import { enviarMensagemPaxter, absoluteBaseUrl } from "../lib/messaging";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { requireCollaborator } from "./collaborator";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 
 // ============================================================================
 // ORGAO DIETA (nativo) — ONDA A do Master Loop Paxter.
@@ -1015,7 +1016,7 @@ router.put("/dieta/receitas/:id", async (req, res): Promise<void> => {
 //    periodo (7 ou 30 dias) e estima o custo usando o catalogo. So LE dados
 //    (prescricao + catalogo); nunca escreve. Nao mexe na emissao de PDF.
 // ---------------------------------------------------------------------------
-router.get("/dieta/prescricoes/:id/lista-compras", async (req, res): Promise<void> => {
+router.get("/dieta/prescricoes/:id/lista-compras", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "id invalido" });
@@ -1028,6 +1029,11 @@ router.get("/dieta/prescricoes/:id/lista-compras", async (req, res): Promise<voi
   }
   const dias = Number(diasRaw);
 
+  // Isolamento multi-tenant: o cliente DEVE pertencer ao tenant do chamador.
+  // Se a prescrição existir mas seu cliente for de outro tenant, o lookup
+  // retorna null e a rota responde 404 — prevenindo IDOR cross-tenant.
+  const empresaId = resolveEmpresaId(req as any);
+
   const [prescricao] = await db.select().from(dietaPrescricaoTable).where(eq(dietaPrescricaoTable.id, id));
   if (!prescricao) {
     res.status(404).json({ error: "Prescricao nao encontrada" });
@@ -1036,7 +1042,12 @@ router.get("/dieta/prescricoes/:id/lista-compras", async (req, res): Promise<voi
   const [client] = await db
     .select({ id: clientsTable.id, name: clientsTable.name })
     .from(clientsTable)
-    .where(eq(clientsTable.id, prescricao.clientId));
+    .where(and(eq(clientsTable.id, prescricao.clientId), eq(clientsTable.empresaId, empresaId)));
+  // Client not found in this tenant → cross-tenant attempt or stale data
+  if (!client) {
+    res.status(404).json({ error: "Prescricao nao encontrada" });
+    return;
+  }
 
   const itensCardapio = await db
     .select()
@@ -1155,6 +1166,11 @@ router.post("/dieta/prescricoes/:id/enviar-lista-compras", requireCollaborator, 
   }
   const { dias, canais } = parsed.data;
 
+  // Isolamento multi-tenant: o cliente DEVE pertencer ao tenant do chamador.
+  // Se a prescrição existir mas seu cliente for de outro tenant, o lookup
+  // retorna null e a rota responde 404 — prevenindo IDOR cross-tenant.
+  const empresaId = resolveEmpresaId(req as any);
+
   // — Carregar prescricao e cliente —
   const [prescricao] = await db.select().from(dietaPrescricaoTable).where(eq(dietaPrescricaoTable.id, id));
   if (!prescricao) {
@@ -1164,7 +1180,7 @@ router.post("/dieta/prescricoes/:id/enviar-lista-compras", requireCollaborator, 
   const [client] = await db
     .select({ id: clientsTable.id, name: clientsTable.name, email: clientsTable.email, phone: clientsTable.phone })
     .from(clientsTable)
-    .where(eq(clientsTable.id, prescricao.clientId));
+    .where(and(eq(clientsTable.id, prescricao.clientId), eq(clientsTable.empresaId, empresaId)));
   if (!client) {
     res.status(404).json({ error: "Cliente nao encontrado" });
     return;

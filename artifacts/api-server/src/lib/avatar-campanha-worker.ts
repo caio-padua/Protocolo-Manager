@@ -446,7 +446,7 @@ export async function processarFilaCampanha(): Promise<{
         enviadas++;
       } else {
         const primeiroErro = resultado.resultados
-          ?.find((r: any) => r.erro)?.erro ?? "Nenhum canal enviou";
+          ?.find((r: any) => r.error)?.error ?? "Nenhum canal enviou";
         await marcarFalha(item.id, item.tentativas, primeiroErro);
         erros++;
       }

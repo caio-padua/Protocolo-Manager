@@ -109,22 +109,22 @@ describe("GLOSSARIO ↔ DICIONARIO.md — sincronia posição por posição", ()
     const md = await fetchDicionarioMd(token);
     tabela = parseTabelaMd(md);
 
-    expect(tabela.length).toBeGreaterThan(
-      0,
+    expect(
+      tabela.length,
       `Nenhuma linha de dados encontrada em ${FILE}. ` +
       `Verifique se o arquivo contém uma tabela Markdown com colunas Nº e Termo.`,
-    );
+    ).toBeGreaterThan(0);
   }, 15_000);
 
   it("número de termos bate entre GLOSSARIO e DICIONARIO.md", async () => {
     // Se o fetch anterior falhou, tabela estará vazia — já coberto pelo teste acima
     if (tabela.length === 0) return;
 
-    expect(tabela.length).toBe(
-      GLOSSARIO.length,
+    expect(
+      tabela.length,
       `Tamanho diverge: GLOSSARIO=${GLOSSARIO.length} termos, ${FILE}=${tabela.length} linhas.\n` +
       `Dica: novos termos entram SEMPRE no final do array GLOSSARIO e no final do ${FILE}.`,
-    );
+    ).toBe(GLOSSARIO.length);
   });
 
   it("cada posição tem numero e termo iguais nos dois lados", async () => {
@@ -150,11 +150,11 @@ describe("GLOSSARIO ↔ DICIONARIO.md — sincronia posição por posição", ()
       }
     }
 
-    expect(divergencias).toEqual(
-      [],
+    expect(
+      divergencias,
       `${divergencias.length} divergência(s) encontrada(s):\n` +
       divergencias.map((d) => `  • ${d}`).join("\n") +
       `\n\nRegra: campo "numero" é PERMANENTE. Não reordene o array; atualize ${FILE} após adicionar termos.`,
-    );
+    ).toEqual([]);
   });
 });

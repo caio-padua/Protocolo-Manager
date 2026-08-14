@@ -29,6 +29,7 @@ import {
   formatBRL,
   parseApiError,
 } from "./shared";
+import { getCollabToken } from "@/lib/collab-auth";
 
 // -------------------------------------------------------------------------------
 // ABA "LISTA DE COMPRAS" (Task 234) — a partir de um cardapio ja emitido
@@ -124,7 +125,10 @@ export default function ListaDeCompras() {
   } = useQuery<ListaCompras>({
     queryKey: ["dieta", "lista-compras", prescricaoId, dias],
     queryFn: async () => {
-      const r = await fetch(`/api/dieta/prescricoes/${prescricaoId}/lista-compras?dias=${dias}`);
+      const token = getCollabToken();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const r = await fetch(`/api/dieta/prescricoes/${prescricaoId}/lista-compras?dias=${dias}`, { headers });
       if (!r.ok) throw new Error(await parseApiError(r, "Falha ao gerar lista de compras"));
       return r.json();
     },
@@ -133,9 +137,12 @@ export default function ListaDeCompras() {
 
   const enviarLista = useMutation({
     mutationFn: async (canais: string[]) => {
+      const token = getCollabToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const r = await fetch(`/api/dieta/prescricoes/${prescricaoId}/enviar-lista-compras`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ dias, canais }),
       });
       if (!r.ok) throw new Error(await parseApiError(r, "Falha ao enviar lista"));

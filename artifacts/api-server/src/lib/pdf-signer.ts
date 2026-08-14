@@ -81,11 +81,12 @@ function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Cer
 
   if (!p12) throw new Error("Could not open PFX certificate with any known password");
 
-  const keyBags = p12.getBags({ bagType: forge.oids.pkcs8ShroudedKeyBag });
-  const certBags = p12.getBags({ bagType: forge.oids.certBag });
+  const forgeAny = forge as any;
+  const keyBags = p12.getBags({ bagType: forgeAny.oids.pkcs8ShroudedKeyBag });
+  const certBags = p12.getBags({ bagType: forgeAny.oids.certBag });
 
-  const keyBag = keyBags[forge.oids.pkcs8ShroudedKeyBag];
-  const certBag = certBags[forge.oids.certBag];
+  const keyBag = keyBags[forgeAny.oids.pkcs8ShroudedKeyBag];
+  const certBag = certBags[forgeAny.oids.certBag];
 
   if (!keyBag || !keyBag.length || !keyBag[0].key) throw new Error("No private key found in PFX");
   if (!certBag || !certBag.length || !certBag[0].cert) throw new Error("No certificate found in PFX");
@@ -1114,7 +1115,7 @@ function deriveRadarDimensions(substances: ProtocolDocSubstance[]): RadarDim[] {
         }
       }
       for (const bk of dim.benefitKeys) {
-        const bv = (sub as Record<string, unknown>)[bk];
+        const bv = (sub as unknown as Record<string, unknown>)[bk];
         if (bv && String(bv).trim().length > 0 && maxRaw < 3) maxRaw = 3;
       }
     }

@@ -82,10 +82,12 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
       fetch(`${apiBase}/api/avatares/campanha/${campaignId}`, { credentials: "include" })
         .then(r => r.json()),
     enabled:        !!campaignId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Para de fazer polling quando a campanha termina
-      if (!data) return 5_000;
-      return data.status === "concluida" ? false : 5_000;
+      // react-query v5: refetchInterval recebe o Query object (não os dados diretamente)
+      const progresso = (query as any)?.state?.data as { status?: string } | undefined;
+      if (!progresso) return 5_000;
+      return progresso.status === "concluida" ? false : 5_000;
     },
     staleTime: 0,
   });
