@@ -1,27 +1,20 @@
 /**
  * protocol-drive-email-isolation.test.ts
  *
- * Confirma que uma falha no bloco de upload ao Google Drive NÃO impede
- * o envio do e-mail ao paciente na rota GET /api/protocols/:id/document-pdf.
+ * Confirma a separação entre pré-visualização e entrega real do protocolo:
  *
- * O fluxo pós-resposta funciona assim (resumido):
+ *  GET  /api/protocols/:id/document-pdf
+ *    → Pré-visualização pura: retorna o PDF e NÃO produz nenhum efeito
+ *      colateral (nenhum e-mail, nenhum upload no Drive).
  *
- *   res.send(pdfBuffer);  // resposta HTTP já entregue
- *   (async () => {
- *     try { ... Drive protocol PDF ... } catch (e) { ... }
- *     try { ... RAS FAP Drive ...      } catch (e) { ... }
- *     try { ... sendProtocolEmail ...  } catch (e) { ... }
- *   })();
+ *  POST /api/protocols/:id/emit-document
+ *    → Entrega real: exige requireCollaborator, aciona Drive + e-mail.
+ *      Sem token válido a rota retorna 401 — garantindo que o CEO
+ *      não pode disparar e-mail acidentalmente.
  *
- * Este teste prova que, quando isDriveConnected/uploadToFolderById lançam,
- * o terceiro bloco (email) ainda é executado.
- *
- * Estratégia de teste:
- *   - Todos os módulos externos são mockados via vi.mock (hoisted).
- *   - @workspace/db é simulado por um "thenable chain" que devolve
- *     fixtures por nome de tabela — sem banco de dados real.
- *   - A IIFE roda em background após res.send; usamos vi.waitFor para
- *     aguardar que sendProtocolEmail seja chamado antes de fazer asserções.
+ * Esse contrato é CRÍTICO: a reintrodução acidental de efeitos colaterais
+ * no GET provocaria envios de e-mail toda vez que o CEO abrisse o PDF
+ * para revisar antes de decidir emitir.
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -37,8 +30,14 @@ vi.mock("../middleware/tenantContext", () => ({
   tenantContextMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
-// Tabelas com identificador de nome para que o mock de db.select possa
-// despachar o resultado correto por tabela.
+// requireCollaborator: por padrão barra tudo (401).
+// O path deve bater com o import na rota: import { requireCollaborator } from "./collaborator"
+// Resolvido pelo Vitest como o módulo em src/routes/collaborator.ts
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (_req: any, res: any, _next: any) =>
+    res.status(401).json({ error: "Unauthorized" }),
+}));
+
 const makeTable = (name: string) => ({ __mockName: name });
 
 vi.mock("@workspace/db", () => {
@@ -48,30 +47,30 @@ vi.mock("@workspace/db", () => {
       select: vi.fn(),
       insert: vi.fn(),
     },
-    eq:  vi.fn((col: any, val: any) => ({ col, val })),
-    and: vi.fn((...args: any[]) => args),
+    eq:      vi.fn((col: any, val: any) => ({ col, val })),
+    and:     vi.fn((...args: any[]) => args),
     inArray: vi.fn((col: any, vals: any[]) => ({ col, vals })),
-    protocolsTable:             makeT("protocols"),
-    clientsTable:               makeT("clients"),
-    professionalsTable:         makeT("professionals"),
-    sessionsTable:              makeT("sessions"),
-    protocolItemsTable:         makeT("protocol_items"),
-    substancesTable:            makeT("substances"),
-    substanceApplicationsTable: makeT("substance_applications"),
-    paymentsTable:              makeT("payments"),
+    protocolsTable:              makeT("protocols"),
+    clientsTable:                makeT("clients"),
+    professionalsTable:          makeT("professionals"),
+    sessionsTable:               makeT("sessions"),
+    protocolItemsTable:          makeT("protocol_items"),
+    substancesTable:             makeT("substances"),
+    substanceApplicationsTable:  makeT("substance_applications"),
+    paymentsTable:               makeT("payments"),
     assinaturaSolicitacoesTable: makeT("assinatura_solicitacoes"),
-    assinaturaTemplatesTable:   makeT("assinatura_templates"),
+    assinaturaTemplatesTable:    makeT("assinatura_templates"),
   };
 });
 
 vi.mock("@workspace/api-zod", () => ({
-  ListProtocolsQueryParams:    { safeParse: (x: any) => ({ success: true, data: x }) },
-  CreateProtocolBody:          { safeParse: (x: any) => ({ success: true, data: x }) },
-  GetProtocolParams:           { safeParse: (x: any) => ({ success: true, data: x }) },
-  UpdateProtocolParams:        { safeParse: (x: any) => ({ success: true, data: x }) },
-  UpdateProtocolBody:          { safeParse: (x: any) => ({ success: true, data: x }) },
-  ValidateProtocolParams:      { safeParse: (x: any) => ({ success: true, data: x }) },
-  GenerateProtocolICSParams:   { safeParse: (x: any) => ({ success: true, data: x }) },
+  ListProtocolsQueryParams:  { safeParse: (x: any) => ({ success: true, data: x }) },
+  CreateProtocolBody:        { safeParse: (x: any) => ({ success: true, data: x }) },
+  GetProtocolParams:         { safeParse: (x: any) => ({ success: true, data: x }) },
+  UpdateProtocolParams:      { safeParse: (x: any) => ({ success: true, data: x }) },
+  UpdateProtocolBody:        { safeParse: (x: any) => ({ success: true, data: x }) },
+  ValidateProtocolParams:    { safeParse: (x: any) => ({ success: true, data: x }) },
+  GenerateProtocolICSParams: { safeParse: (x: any) => ({ success: true, data: x }) },
 }));
 
 vi.mock("../lib/google-drive", () => ({
@@ -86,6 +85,7 @@ vi.mock("../lib/google-drive", () => ({
 vi.mock("../lib/email-service", () => ({
   sendProtocolEmail:           vi.fn(),
   sendProtocolOnboardingEmail: vi.fn(),
+  sendCartaTratamentoEmail:    vi.fn(),
 }));
 
 vi.mock("../lib/google-gmail", () => ({
@@ -95,6 +95,12 @@ vi.mock("../lib/google-gmail", () => ({
 vi.mock("../lib/pdf-signer", () => ({
   generateProtocolDocumentPdf: vi.fn(),
   generatePhysicalRASPdf:      vi.fn(),
+  getCertInfo:                 vi.fn(),
+}));
+
+vi.mock("../lib/pdf-carta-tratamento", () => ({
+  generateProtocolLetterPdf:  vi.fn(),
+  buildCartaTratamentoDto:    vi.fn(),
 }));
 
 vi.mock("../lib/slack-reporter", () => ({
@@ -126,10 +132,10 @@ vi.mock("../lib/ics", () => ({
 import express from "express";
 import request from "supertest";
 import { db } from "@workspace/db";
-import * as driveLib   from "../lib/google-drive";
-import * as emailSvc   from "../lib/email-service";
-import * as gmailLib   from "../lib/google-gmail";
-import * as pdfSigner  from "../lib/pdf-signer";
+import * as driveLib  from "../lib/google-drive";
+import * as emailSvc  from "../lib/email-service";
+import * as gmailLib  from "../lib/google-gmail";
+import * as pdfSigner from "../lib/pdf-signer";
 import protocolsRouter from "../routes/protocols";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -168,52 +174,37 @@ const FAKE_CLIENT = {
 
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 
-// ── Thenable-chain mock para drizzle db.select() ─────────────────────────────
-//
-// O drizzle usa API fluente: db.select().from(t).where(...).
-// Cada intermediário devolve `this`; a cadeia inteira é um thenable
-// (tem `.then`) que resolve para `rows` quando aguardada.
-//
-// Implementação: DbChain é um thenable que armazena as linhas a retornar.
-// `from(table)` consulta a tabela por nome e retorna nova chain com as linhas
-// corretas. `where/innerJoin/orderBy` passam adiante sem mudar as linhas.
+// ── Thenable-chain mock para drizzle ─────────────────────────────────────────
 
 class DbChain {
   constructor(private rows: any[]) {}
 
-  // Thenable: quando a chain é `await`ed, resolve com `this.rows`.
-  then(
-    onFulfilled: (value: any[]) => any,
-    onRejected?: (reason: any) => any,
-  ) {
+  then(onFulfilled: (v: any[]) => any, onRejected?: (r: any) => any) {
     return Promise.resolve(this.rows).then(onFulfilled, onRejected);
   }
 
   from(table: any): DbChain {
     const name: string = table?.__mockName ?? "";
     switch (name) {
-      case "protocols":    return new DbChain([FAKE_PROTOCOL]);
-      case "clients":      return new DbChain([FAKE_CLIENT]);
-      // professionals: null professionalId → a rota busca "allProfs" sem where
-      case "professionals": return new DbChain([]);
-      case "protocol_items": return new DbChain([]);
-      case "substances":   return new DbChain([]);
-      case "sessions":     return new DbChain([]);
-      case "substance_applications": return new DbChain([]);
-      case "payments":     return new DbChain([]);
+      case "protocols":             return new DbChain([FAKE_PROTOCOL]);
+      case "clients":               return new DbChain([FAKE_CLIENT]);
+      case "professionals":         return new DbChain([]);
+      case "protocol_items":        return new DbChain([]);
+      case "substances":            return new DbChain([]);
+      case "sessions":              return new DbChain([]);
+      case "substance_applications":return new DbChain([]);
+      case "payments":              return new DbChain([]);
       case "assinatura_solicitacoes": return new DbChain([]);
-      case "assinatura_templates":    return new DbChain([]);
-      default:             return new DbChain([]);
+      case "assinatura_templates":  return new DbChain([]);
+      default:                      return new DbChain([]);
     }
   }
 
-  // Todos os modificadores encadeáveis preservam as linhas.
-  where(..._args: any[]): DbChain  { return this; }
-  innerJoin(..._args: any[]): DbChain { return this; }
-  orderBy(..._args: any[]): DbChain { return this; }
-  limit(..._args: any[]): DbChain  { return this; }
-  // Quando from() recebe campo projetado ({campo: tabela.campo}) devolvemos a chain.
-  select(..._args: any[]): DbChain { return this; }
+  where(..._a: any[]): DbChain   { return this; }
+  innerJoin(..._a: any[]): DbChain { return this; }
+  orderBy(..._a: any[]): DbChain { return this; }
+  limit(..._a: any[]): DbChain   { return this; }
+  select(..._a: any[]): DbChain  { return this; }
 }
 
 // ── App Express de teste ──────────────────────────────────────────────────────
@@ -225,194 +216,84 @@ function buildApp() {
   return app;
 }
 
-// ── Configuração comum de mocks para o caminho feliz do Drive + falha ────────
+// ── Configuração base dos mocks ───────────────────────────────────────────────
 
-function setupMocks({
-  driveConnected      = true,
-  driveUploadThrows   = false,
-  gmailConnected      = true,
-  emailSuccess        = true,
-}: {
-  driveConnected?:    boolean;
-  driveUploadThrows?: boolean;
-  gmailConnected?:    boolean;
-  emailSuccess?:      boolean;
-} = {}) {
-  // db.select() devolve o thenable-chain raiz (sem tabela ainda).
+function setupMocks() {
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
-
-  // PDF gerado corretamente.
   vi.mocked(pdfSigner.generateProtocolDocumentPdf).mockResolvedValue({
     pdfBytes: FAKE_PDF_BYTES,
   } as any);
-
-  // RAS FAP também OK (o Drive é que falha, não o RAS em si).
-  vi.mocked(pdfSigner.generatePhysicalRASPdf).mockResolvedValue(
-    FAKE_PDF_BYTES as any,
-  );
-
-  // Drive: conectado, mas uploads jogam erro.
-  vi.mocked(driveLib.isDriveConnected).mockResolvedValue(driveConnected);
-
-  if (driveUploadThrows) {
-    vi.mocked(driveLib.uploadToFolderById).mockRejectedValue(
-      new Error("Drive quota exceeded"),
-    );
-    vi.mocked(driveLib.ensureClientFolderStructure).mockRejectedValue(
-      new Error("Drive quota exceeded"),
-    );
-    vi.mocked(driveLib.uploadFileToDrive).mockRejectedValue(
-      new Error("Drive quota exceeded"),
-    );
-  } else {
-    vi.mocked(driveLib.uploadToFolderById).mockResolvedValue({ fileId: "abc" } as any);
-    vi.mocked(driveLib.ensureClientFolderStructure).mockResolvedValue({
-      clientFolderId: "f1",
-      subfolders: { PROTOCOLOS: "pf1", EXAMES: "ef1", "FOTO PERFIL": "ff1" },
-    } as any);
-    vi.mocked(driveLib.uploadFileToDrive).mockResolvedValue({ fileId: "def" } as any);
-  }
-
-  // Gmail: conectado.
-  vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(gmailConnected);
-
-  // Email: enviado com sucesso.
+  vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
+  vi.mocked(driveLib.isDriveConnected).mockResolvedValue(true);
+  vi.mocked(driveLib.uploadToFolderById).mockResolvedValue({ fileId: "x1" } as any);
+  vi.mocked(driveLib.ensureClientFolderStructure).mockResolvedValue({
+    clientFolderId: "f1",
+    subfolders: { PROTOCOLOS: "pf1", EXAMES: "ef1", "FOTO PERFIL": "ff1" },
+  } as any);
+  vi.mocked(driveLib.uploadFileToDrive).mockResolvedValue({ fileId: "x2" } as any);
   vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValue({
-    success: emailSuccess,
-    messageId: "msg-1",
+    success: true, messageId: "msg-1",
   } as any);
 }
 
-// ── Testes ───────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// Bloco 1 — GET é pré-visualização pura: zero efeitos colaterais
+// ════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/protocols/:id/document-pdf — isolamento Drive × e-mail", () => {
+describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem efeitos colaterais)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setupMocks();
   });
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Cenário 1: Drive lança → e-mail ainda é enviado
-  // ──────────────────────────────────────────────────────────────────────────
-
-  it("chama sendProtocolEmail mesmo quando isDriveConnected/uploadToFolderById lançam", async () => {
-    setupMocks({ driveConnected: true, driveUploadThrows: true });
-
-    const app = buildApp();
-    // A rota envia o PDF e depois roda a IIFE em background.
-    await request(app).get("/api/protocols/99/document-pdf");
-
-    // A IIFE é assíncrona e não bloqueante. Aguardamos sua conclusão.
-    await vi.waitFor(
-      () => {
-        expect(vi.mocked(emailSvc.sendProtocolEmail)).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-  });
-
-  it("o e-mail é enviado com os dados corretos do protocolo e do cliente", async () => {
-    setupMocks({ driveConnected: true, driveUploadThrows: true });
-
-    const app = buildApp();
-    await request(app).get("/api/protocols/99/document-pdf");
-
-    await vi.waitFor(
-      () => {
-        expect(vi.mocked(emailSvc.sendProtocolEmail)).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-
-    const [emailArgs] = vi.mocked(emailSvc.sendProtocolEmail).mock.calls;
-    expect(emailArgs[0]).toMatchObject({
-      clientName:  "Ana Silva",
-      clientEmail: "ana@example.com",
-    });
-  });
-
-  it("o HTTP 200 (PDF) é entregue independentemente da falha no Drive", async () => {
-    setupMocks({ driveConnected: true, driveUploadThrows: true });
-
-    const app = buildApp();
-    const res = await request(app).get("/api/protocols/99/document-pdf");
-
+  it("retorna HTTP 200 com content-type application/pdf", async () => {
+    const res = await request(buildApp()).get("/api/protocols/99/document-pdf");
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toMatch(/pdf/);
   });
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Cenário 2: Drive desligado (isDriveConnected = false) → e-mail ainda corre
-  // ──────────────────────────────────────────────────────────────────────────
+  it("NÃO chama sendProtocolEmail — abrindo o PDF não dispara e-mail ao paciente", async () => {
+    await request(buildApp()).get("/api/protocols/99/document-pdf");
 
-  it("chama sendProtocolEmail quando isDriveConnected retorna false", async () => {
-    setupMocks({ driveConnected: false });
-
-    const app = buildApp();
-    await request(app).get("/api/protocols/99/document-pdf");
-
-    await vi.waitFor(
-      () => {
-        expect(vi.mocked(emailSvc.sendProtocolEmail)).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Cenário 3: caminho feliz (Drive OK + e-mail OK)
-  // ──────────────────────────────────────────────────────────────────────────
-
-  it("no caminho feliz, Drive e e-mail são ambos executados", async () => {
-    setupMocks({ driveConnected: true, driveUploadThrows: false });
-
-    const app = buildApp();
-    await request(app).get("/api/protocols/99/document-pdf");
-
-    await vi.waitFor(
-      () => {
-        expect(vi.mocked(emailSvc.sendProtocolEmail)).toHaveBeenCalled();
-      },
-      { timeout: 5000 },
-    );
-
-    // Upload também deve ter sido tentado
-    expect(vi.mocked(driveLib.uploadToFolderById)).toHaveBeenCalled();
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Cenário 4: Gmail desligado → sendProtocolEmail NÃO é chamado
-  // (prova que o caminho condicional funciona corretamente)
-  // ──────────────────────────────────────────────────────────────────────────
-
-  it("NÃO chama sendProtocolEmail quando isGmailConnected retorna false", async () => {
-    setupMocks({ driveConnected: true, driveUploadThrows: false, gmailConnected: false });
-
-    const app = buildApp();
-    await request(app).get("/api/protocols/99/document-pdf");
-
-    // Aguarda o tempo que a IIFE levaria para terminar normalmente.
-    await new Promise(r => setTimeout(r, 200));
+    // Aguarda qualquer IIFE residual que pudesse rodar em background
+    await new Promise(r => setTimeout(r, 300));
 
     expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
+    expect(vi.mocked(emailSvc.sendProtocolOnboardingEmail)).not.toHaveBeenCalled();
   });
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Cenário 5: FAKE_CLIENT sem email → sendProtocolEmail NÃO é chamado
-  // ──────────────────────────────────────────────────────────────────────────
+  it("NÃO chama isDriveConnected — abrindo o PDF não acessa o Drive", async () => {
+    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await new Promise(r => setTimeout(r, 300));
 
-  it("NÃO chama sendProtocolEmail quando o cliente não tem e-mail cadastrado", async () => {
-    setupMocks({ driveConnected: false, gmailConnected: true });
+    expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
+  });
 
-    // Sobrepõe o db.select para devolver cliente sem e-mail.
-    const clientSemEmail = { ...FAKE_CLIENT, email: null };
+  it("NÃO chama uploadToFolderById nem uploadFileToDrive", async () => {
+    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await new Promise(r => setTimeout(r, 300));
 
+    expect(vi.mocked(driveLib.uploadToFolderById)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.uploadFileToDrive)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.ensureClientFolderStructure)).not.toHaveBeenCalled();
+  });
+
+  it("NÃO chama isGmailConnected — Gmail não é consultado na pré-visualização", async () => {
+    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await new Promise(r => setTimeout(r, 300));
+
+    expect(vi.mocked(gmailLib.isGmailConnected)).not.toHaveBeenCalled();
+  });
+
+  it("retorna 404 quando o protocolo não existe — sem side effects", async () => {
+    // Protocolo não encontrado → chain retorna []
     vi.mocked(db.select).mockReturnValue(
       new Proxy(new DbChain([]) as any, {
         get(target: any, prop: string) {
           if (prop === "from") {
             return (table: any) => {
               const name: string = table?.__mockName ?? "";
-              if (name === "clients") return new DbChain([clientSemEmail]);
+              if (name === "protocols") return new DbChain([]);
               return (target.from as Function).call(target, table);
             };
           }
@@ -421,12 +302,113 @@ describe("GET /api/protocols/:id/document-pdf — isolamento Drive × e-mail", (
       }),
     );
 
-    const app = buildApp();
-    await request(app).get("/api/protocols/99/document-pdf");
+    const res = await request(buildApp()).get("/api/protocols/99/document-pdf");
+    expect(res.status).toBe(404);
 
-    // Aguarda a IIFE.
-    await new Promise(r => setTimeout(r, 200));
-
+    await new Promise(r => setTimeout(r, 300));
     expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Bloco 2 — POST emit-document exige autenticação explícita (requireCollaborator)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/protocols/:id/emit-document — entrega real exige requireCollaborator", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupMocks();
+  });
+
+  it("retorna 401 sem token — o CEO não aciona e-mail sem confirmação explícita", async () => {
+    // requireCollaborator está mockado para retornar 401 por padrão
+    const res = await request(buildApp())
+      .post("/api/protocols/99/emit-document")
+      .send({});
+
+    expect(res.status).toBe(401);
+  });
+
+  it("NÃO chama sendProtocolEmail sem token — e-mail nunca vai por acidente", async () => {
+    await request(buildApp())
+      .post("/api/protocols/99/emit-document")
+      .send({});
+
+    await new Promise(r => setTimeout(r, 300));
+    expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
+  });
+
+  it("NÃO chama Drive sem token — nenhum arquivo sobe sem confirmação", async () => {
+    await request(buildApp())
+      .post("/api/protocols/99/emit-document")
+      .send({});
+
+    await new Promise(r => setTimeout(r, 300));
+    expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.uploadToFolderById)).not.toHaveBeenCalled();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Bloco 3 — Fluxo de confirmação da UI (detail.tsx): Emitir ao Paciente
+//
+// Verifica estaticamente que o componente React implementa o gate de
+// confirmação (emitirConfirm) antes de chamar o POST com efeitos colaterais.
+// Essa verificação garante que uma refatoração futura não remova o diálogo
+// sem que este teste sinalize o problema.
+// ════════════════════════════════════════════════════════════════════════════
+
+import fs from "fs";
+import path from "path";
+
+describe("Botão 'Emitir ao Paciente' — fluxo de confirmação (detail.tsx)", () => {
+  const detailSrc = fs.readFileSync(
+    path.resolve(__dirname, "../../../../artifacts/padcom/src/pages/protocols/detail.tsx"),
+    "utf8",
+  );
+
+  it("o estado emitirConfirm existe na tela (gate de confirmação declarado)", () => {
+    expect(detailSrc).toContain("emitirConfirm");
+  });
+
+  it("o botão primário lança setEmitirConfirm(true) — não dispara POST imediatamente", () => {
+    expect(detailSrc).toContain("setEmitirConfirm(true)");
+  });
+
+  it("o diálogo de confirmação mostra o texto de aviso ao CEO", () => {
+    // Texto que aparece no diálogo antes de confirmar
+    expect(detailSrc).toContain("Enviar e-mail real ao paciente?");
+  });
+
+  it("o botão 'Confirmar' existe no diálogo de confirmação", () => {
+    expect(detailSrc).toContain("Confirmar");
+  });
+
+  it("o botão 'Cancelar' existe — CEO pode abortar sem efeito colateral", () => {
+    expect(detailSrc).toContain("Cancelar");
+    // Cancelar chama setEmitirConfirm(false), não navega nem envia
+    expect(detailSrc).toContain("setEmitirConfirm(false)");
+  });
+
+  it("o POST emit-document só é chamado após confirmação (dentro do bloco emitirConfirm)", () => {
+    // O fetch para emit-document deve estar aninhado dentro do bloco condicional emitirConfirm
+    const confirmBlock = detailSrc.slice(
+      detailSrc.indexOf("emitirConfirm ?"),
+      detailSrc.indexOf("emitirConfirm ?") + 2000,
+    );
+    expect(confirmBlock).toContain("emit-document");
+    expect(confirmBlock).toContain("method: \"POST\"");
+  });
+
+  it("o botão de pré-visualização (Protocolo Completo PDF) usa GET — sem efeito colateral", () => {
+    // O fetch para document-pdf não especifica method → usa GET por padrão
+    const pdfPreviewFetch = detailSrc.match(
+      /fetch\([^)]*document-pdf[^)]*\)/,
+    );
+    expect(pdfPreviewFetch).not.toBeNull();
+    // Não deve ter method: "POST" no fetch de pré-visualização
+    const fetchCall = pdfPreviewFetch![0];
+    expect(fetchCall).not.toContain("POST");
   });
 });
