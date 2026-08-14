@@ -11,6 +11,8 @@
  *  13.  ≥ 50 ofertas/dia → throttled=true, requiresVerification=false
  *  14.  Exatamente 50 ofertas/dia → throttled=true (teto inclusivo)
  *  15.  Falha de DB → fail-open (livre, sem lançar exceção)
+ *  16.  Virada de meia-noite BRT — dois requests simultâneos no novo dia não são
+ *       bloqueados pelo contador do dia anterior.
  *
  * Estratégia:
  *   - @workspace/db é mockado globalmente (vi.mock hoistado antes dos imports).
@@ -35,6 +37,7 @@ vi.mock("../lib/brt.js", () => ({
 
 // ── Imports após os mocks ─────────────────────────────────────────────────────
 import { db } from "@workspace/db";
+import { brtISODate } from "../lib/brt.js";
 import { checkDeviceThrottle, deriveFingerprint, purgeOldDeviceOfferLimits } from "../lib/concierge-device-throttle.js";
 
 // Helper: monta retorno compatível com QueryResult<{ offer_count: number }>.
@@ -368,5 +371,165 @@ describe("purgeOldDeviceOfferLimits — limpeza e fronteira BRT/UTC", () => {
     expect(fullSql).toMatch(/- 2/);
     // Não deve haver referência a CURRENT_DATE sem o fuso explícito como cutoff
     expect(fullSql).not.toMatch(/WHERE\s+dia_brt\s*<\s*CURRENT_DATE/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cenário 16 — Virada de meia-noite BRT
+//
+// O contador é keyed por (device_fingerprint, dia_brt). Quando brtISODate()
+// avança para o dia seguinte às 00h BRT, um novo INSERT deve começar do zero.
+//
+// Estratégia de asserção forte:
+//   Os testes inspecionam os ARGUMENTOS passados a db.execute (o objeto sql``
+//   do drizzle) para confirmar que:
+//     1. O valor retornado por brtISODate() é passado como parâmetro SQL.
+//     2. A data muda entre chamadas feitas em dias BRT distintos.
+//     3. O SQL contém ON CONFLICT (device_fingerprint, dia_brt).
+//   Assim, uma regressão que ignore brtISODate() ou use data hardcoded falha,
+//   mesmo que o mock devolva count=1.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Extrai a string literal (partes SQL) de um objeto sql`` do drizzle.
+ *
+ * No drizzle-orm os queryChunks têm dois formatos:
+ *   Literal SQL: objeto { value: string[] }  (ex.: { value: ["INSERT INTO ..."] })
+ *   Parâmetro:   valor primitivo direto       (ex.: "fp-midnight-a" ou "2026-08-13")
+ */
+function extractSqlStr(sqlArg: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chunks: unknown[] = (sqlArg as any)?.queryChunks ?? [];
+  return chunks
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((c: any) => (c && typeof c === "object" && Array.isArray(c?.value) ? c.value.join("") : ""))
+    .join("");
+}
+
+/**
+ * Extrai os valores de parâmetro interpolados (${...}) de um objeto sql`` do drizzle.
+ *
+ * Parâmetros são armazenados como primitivos diretos nos queryChunks;
+ * os literais SQL são objetos { value: string[] }.
+ */
+function extractParams(sqlArg: unknown): unknown[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chunks: unknown[] = (sqlArg as any)?.queryChunks ?? [];
+  // Parâmetros são os chunks que NÃO são objetos (são o valor primitivo em si)
+  return chunks.filter((c) => typeof c !== "object" || c === null);
+}
+
+/** Retorna o sql`` passado à última (ou i-ésima) chamada a db.execute. */
+function lastInsertArg(offset = 0): unknown {
+  const calls = mockExec().mock.calls;
+  return calls[calls.length - 1 - offset]?.[0];
+}
+
+describe("checkDeviceThrottle — virada de meia-noite BRT", () => {
+  it("Cenário 16a — INSERT inclui a data BRT de brtISODate() como parâmetro SQL", async () => {
+    // Se o código não usar brtISODate() como param do INSERT, este teste falha mesmo
+    // que o mock devolva count=1, pois a data não estará nos params inspecionados.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec().mockResolvedValueOnce(qr(1));
+
+    await checkDeviceThrottle("fp-midnight-a", false);
+
+    const params = extractParams(lastInsertArg());
+    // O fingerprint e a data BRT devem ambos aparecer como params do INSERT
+    expect(params).toContain("fp-midnight-a");
+    expect(params).toContain("2026-08-13");
+  });
+
+  it("Cenário 16b — quando brtISODate() avança, o param dia_brt no INSERT muda", async () => {
+    // Dia anterior (ontem): dispositivo quase no limite
+    vi.mocked(brtISODate).mockReturnValue("2026-08-12");
+    mockExec().mockResolvedValueOnce(qr(49));
+    await checkDeviceThrottle("fp-rollover-device", false);
+    const paramsDay1 = extractParams(lastInsertArg());
+
+    // Novo dia (hoje): brtISODate() avança — o INSERT deve usar a nova data
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec().mockResolvedValueOnce(qr(1));
+    await checkDeviceThrottle("fp-rollover-device", false);
+    const paramsDay2 = extractParams(lastInsertArg());
+
+    // A data passada ao banco muda entre as duas chamadas
+    expect(paramsDay1).toContain("2026-08-12");
+    expect(paramsDay2).toContain("2026-08-13");
+    // O INSERT do novo dia não reaproveita a chave do dia anterior
+    expect(paramsDay2).not.toContain("2026-08-12");
+  });
+
+  it("Cenário 16c — INSERT usa ON CONFLICT (device_fingerprint, dia_brt) como cláusula de conflito", async () => {
+    // Confirma que a atomicidade depende do par (fingerprint, dia_brt), não só do fingerprint.
+    // Um código que omitisse dia_brt da cláusula UNIQUE violaria a fronteira de dia.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec().mockResolvedValueOnce(qr(1));
+
+    await checkDeviceThrottle("fp-conflict-clause", false);
+
+    const sqlStr = extractSqlStr(lastInsertArg());
+    expect(sqlStr).toMatch(/ON CONFLICT\s*\(\s*device_fingerprint\s*,\s*dia_brt\s*\)/);
+  });
+
+  it("Cenário 16d — dois requests simultâneos no novo dia: ambos livres e ambos usam a nova data", async () => {
+    // 1º: INSERT → count=1; 2º: ON CONFLICT DO UPDATE → count=2
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec()
+      .mockResolvedValueOnce(qr(1))
+      .mockResolvedValueOnce(qr(2));
+
+    const [r1, r2] = await Promise.all([
+      checkDeviceThrottle("fp-concurrent-mid", false),
+      checkDeviceThrottle("fp-concurrent-mid", false),
+    ]);
+
+    // Nenhum deve ser bloqueado — o novo dia começa do zero
+    expect(r1.allowed).toBe(true);
+    expect(r1.throttled).toBe(false);
+    expect(r1.requiresVerification).toBe(false);
+
+    expect(r2.allowed).toBe(true);
+    expect(r2.throttled).toBe(false);
+    expect(r2.requiresVerification).toBe(false);
+
+    // Ambas as chamadas ao banco devem ter usado a data do novo dia
+    const calls = mockExec().mock.calls;
+    for (const call of calls) {
+      const params = extractParams(call[0]);
+      expect(params).toContain("2026-08-13");
+    }
+  });
+
+  it("Cenário 16e — ON CONFLICT DO UPDATE é exercitado: count=2 lido corretamente (remaining=48)", async () => {
+    // Confirma que o resultado do ON CONFLICT (count=2) é lido sem truncar para 1.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec().mockResolvedValueOnce(qr(2)); // ON CONFLICT DO UPDATE → offer_count=2
+
+    const r = await checkDeviceThrottle("fp-on-conflict", false);
+
+    // remaining deve refletir count=2, não count=1 (caso o código ignorasse o RETURNING)
+    expect(r.remaining).toBe(48); // 50 - 2
+    expect(r.throttled).toBe(false);
+    expect(r.requiresVerification).toBe(false);
+  });
+
+  it("Cenário 16f — resultado do banco indica count=1: confirmed livre mesmo que ontem fosse count=49", async () => {
+    // Prova que o sistema não carrega estado do dia anterior: o INSERT retorna 1
+    // porque (fingerprint, new_date) é uma chave nova no banco.
+    vi.mocked(brtISODate).mockReturnValue("2026-08-13");
+    mockExec().mockResolvedValueOnce(qr(1));
+
+    const r = await checkDeviceThrottle("fp-high-yesterday", false);
+
+    expect(r.allowed).toBe(true);
+    expect(r.throttled).toBe(false);
+    expect(r.requiresVerification).toBe(false);
+    expect(r.remaining).toBe(49);
+
+    // E o param da data no INSERT é o novo dia, não o anterior
+    const params = extractParams(lastInsertArg());
+    expect(params).toContain("2026-08-13");
+    expect(params).not.toContain("2026-08-12");
   });
 });
