@@ -184,7 +184,9 @@ function HistoricoResets({
           </span>
         </div>
         {rows.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">Nenhum reset registrado ainda.</p>
+          <p className="text-xs text-muted-foreground font-medium">
+            Nenhum reset registrado para este CPF.
+          </p>
         ) : (
           <table className="w-full text-xs">
             <thead>
