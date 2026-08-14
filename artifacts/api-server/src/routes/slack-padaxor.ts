@@ -108,6 +108,26 @@ router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Pro
       logger.warn("slack-relatorio: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
     }
 
+    // ── Registro "ambos" — resumo dual-canal do disparo manual ─────────────
+    // Gravado ANTES do retorno de erro: mesmo quando ambos os canais falham,
+    // o CEO precisa ver o registro no histórico com enviado_ok=false.
+    // Mesma lógica do worker (runLlmMonitorJob): telegramSkipped não é falha.
+    const ambosOk = slackOk && (telegramOk || telegramSkipped);
+    const descSlack = slackOk
+      ? "Slack: OK"
+      : `Slack: falhou — ${slackErro ?? "erro desconhecido"}`;
+    const descTelegram = telegramSkipped
+      ? "Telegram: não configurado"
+      : telegramOk
+        ? "Telegram: OK"
+        : `Telegram: falhou — ${telegramErro ?? "erro desconhecido"}`;
+    const erroStr = ambosOk ? undefined : `${descSlack} | ${descTelegram}`;
+    try {
+      await salvarHistorico(report, "ambos", ambosOk, erroStr);
+    } catch (saveErr: any) {
+      logger.warn({ err: saveErr }, "slack-relatorio: falha ao gravar registro 'ambos'");
+    }
+
     if (!slackOk && !telegramOk && !telegramSkipped) {
       res.status(500).json({
         error: "Falha nos dois canais",
