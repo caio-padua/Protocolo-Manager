@@ -419,10 +419,6 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         ).catch((err: unknown) =>
           logger.error({ err }, "[telegram] falha ao processar mensagem no inbox"),
         );
-      }
-      res.status(200).json({ ok: true });
-      return;
-    }
 
     // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
@@ -455,7 +451,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
       // Boas-vindas ao cliente
-            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+      const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
       void sendTelegram(
         chatId,
         `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
