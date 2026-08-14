@@ -12,6 +12,7 @@
  *  4. PAYMENT_OVERDUE de sreq com path≠concierge → registrarFalha() NÃO é chamado
  *  5. PAYMENT_OVERDUE onde só paymentsTable tem linha (sem sreq) → registrarFalha() NÃO chamado
  *  6. PAYMENT_REFUNDED de um sreq concierge → registrarFalha() chamado
+ * 12. PAYMENT_REFUNDED sem nenhum sreq vinculado → registrarFalha() NÃO chamado
  *  7. Token inválido no header             → 401, registrarFalha() NÃO chamado
  *  8. PAYMENT_OVERDUE com ambas as tabelas tendo linha → registrarFalha() chamado uma vez
  *  9. Payload sem payment.id               → 200 ignorado, registrarFalha() NÃO chamado
@@ -274,6 +275,16 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
     expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
+  });
+
+  // ── Cenário 12: PAYMENT_REFUNDED sem nenhum sreq vinculado ───────────────
+  it("Cenário 12 — PAYMENT_REFUNDED sem sreq vinculado → registrarFalha NÃO é chamado", async () => {
+    setupSelectMocks({ id: 1, status: "pending", asaasChargeId: CHARGE_ID }, null);
+
+    const res = await postWebhook(app, "PAYMENT_REFUNDED");
+
+    expect(res.status).toBe(200);
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
   });
 
   // ── Cenário 7: Token inválido ────────────────────────────────────────────
