@@ -26,7 +26,7 @@ import {
   rgb, degrees,
   type Color, type PDFImage,
 } from "pdf-lib";
-import { embedPadesSignature, getCertInfo } from "./pdf-signer";
+import { embedPadesSignature, getCertInfo, drawPadconMark, PADCON_INNER_SCALE } from "./pdf-signer";
 
 // ─── A4 EM PONTOS ─────────────────────────────────────────────────────────────
 const PT      = 72 / 25.4;       // pontos por milímetro
@@ -90,6 +90,8 @@ export interface CartaAssets {
   symbolGlass?: PDFImage;
   wordmarkImg?: PDFImage;
   clinicImg?:   PDFImage;
+  padconSymbol?: PDFImage;
+  padconWords?:  PDFImage;
 }
 
 export interface LetterSubstance {
@@ -288,12 +290,15 @@ function drawInternalHeader(page: PDFPage, f: CartaFonts) {
 }
 
 /** Rodapé das páginas internas. */
-function drawInternalFooter(page: PDFPage, f: CartaFonts, pageNum: number, total: number, clientName: string) {
+function drawInternalFooter(page: PDFPage, f: CartaFonts, pageNum: number, total: number, clientName: string, assets?: CartaAssets) {
   const h = 14;
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: h, color: MARBLE });
   page.drawLine({ start: { x: 0, y: h }, end: { x: PAGE_W, y: h }, thickness: 0.5, color: LINE_CLR });
   const txt = `Documento clinico individual · tecnologia PADCON | ${st(clientName)} | Pag. ${pageNum} de ${total}`;
   try { page.drawText(txt, { x: MG, y: 4, font: f.mrReg, size: T.footer, color: WARM_CLR }); } catch { /**/ }
+  // Mesmo bloco PADCON do documento de protocolo, a 50% do tamanho da capa,
+  // encostado no canto inferior direito (arte oficial, sem placa atrás).
+  drawPadconMark(page, assets?.padconSymbol ?? null, assets?.padconWords ?? null, MG_R, 4, PADCON_INNER_SCALE);
 }
 
 // ─── CAPA (Seção 5) ──────────────────────────────────────────────────────────
@@ -830,12 +835,12 @@ function drawSubstanceDossierPage(
   });
 
   // ── FAIXA 6: Rodapé ──────────────────────────────────────────────────────
-  drawInternalFooter(page, f, pageNum, totalPages, clientName);
+  drawInternalFooter(page, f, pageNum, totalPages, clientName, assets);
 }
 
 // ─── ROTEIRO FINAL (Seção referência) ─────────────────────────────────────────
 
-function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, pageNum: number, totalPages: number) {
+function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, pageNum: number, totalPages: number, assets?: CartaAssets) {
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: PAPER });
 
   const hdrY = topToY(13);
@@ -875,7 +880,7 @@ function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: Carta
     });
   } catch { /**/ }
 
-  drawInternalFooter(page, f, pageNum, totalPages, dto.clientName);
+  drawInternalFooter(page, f, pageNum, totalPages, dto.clientName, assets);
 }
 
 // ─── CARREGAMENTO DE FONTES E ASSETS ──────────────────────────────────────────
@@ -906,9 +911,13 @@ async function loadAssets(pdfDoc: PDFDocument): Promise<CartaAssets> {
   const symbolBuf  = readAsset("paxmed-symbol.png");
   const wordmarkBuf = readAsset("paxmed-wordmark.png");
   const clinicBuf  = readAsset("padua-wordmark.png");
+  const padconSymBuf = readAsset("padcon-symbol.png");
+  const padconWrdBuf = readAsset("padcon-words.png");
   if (symbolBuf)  try { assets.symbolGlass = await pdfDoc.embedPng(symbolBuf); } catch { /**/ }
   if (wordmarkBuf) try { assets.wordmarkImg = await pdfDoc.embedPng(wordmarkBuf); } catch { /**/ }
   if (clinicBuf)  try { assets.clinicImg   = await pdfDoc.embedPng(clinicBuf);  } catch { /**/ }
+  if (padconSymBuf) try { assets.padconSymbol = await pdfDoc.embedPng(padconSymBuf); } catch { /**/ }
+  if (padconWrdBuf) try { assets.padconWords  = await pdfDoc.embedPng(padconWrdBuf); } catch { /**/ }
   return assets;
 }
 
@@ -1069,7 +1078,7 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
   // Rodapé usa totalPages correto
   drawOverviewMapPage(mapPage, dto, fonts);
   // Corrige o rodapé do mapa (que já foi desenhado com total=-1 como placeholder)
-  drawInternalFooter(mapPage, fonts, 2, totalPages, dto.clientName);
+  drawInternalFooter(mapPage, fonts, 2, totalPages, dto.clientName, assets);
 
   // ── Páginas 3…N+2: Fichas de substância ────────────────────────────────────
   dto.substances.forEach((sub, i) => {
@@ -1079,7 +1088,7 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
 
   // ── Página final: Roteiro ───────────────────────────────────────────────────
   const routePage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages);
+  drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages, assets);
 
   // ── Assinatura PAdES (operação terminal, Seção 2 — Dr. Manus Item #88) ──────
   const certInfo = getCertInfo();

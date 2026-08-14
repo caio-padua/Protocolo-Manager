@@ -2699,4 +2699,5 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   };
 }
 
-export { getCertInfo, loadCertificate, embedPadesSignature };
+export { getCertInfo, loadCertificate, embedPadesSignature, drawPadconMark, PADCON_INNER_SCALE };
+export type { EmbeddedPng };
