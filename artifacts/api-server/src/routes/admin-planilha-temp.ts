@@ -19,6 +19,37 @@ import { sincronizarDicionarioSheets } from "../lib/sheets-dicionario";
 const router = Router();
 router.use(requireCeoInstance);
 
+// ---------------------------------------------------------------------------
+// Valores de estado aceitos pela planilha de produção.
+// O conferidor de consistência (conferir_coerencia.py) reprova qualquer outro valor.
+// ---------------------------------------------------------------------------
+const ESTADOS_VALIDOS = new Set(["A FAZER", "AGUARDANDO", "CONCLUIDO"]);
+
+/**
+ * Valida e normaliza um valor de estado.
+ * Retorna { ok: true, valor: string } com o valor canônico (trimado) quando aceito,
+ * ou { ok: false, erro: string } para valores inválidos, vazios ou não-string.
+ */
+function validarEstado(
+  raw: unknown,
+  campo = "estado",
+): { ok: true; valor: string } | { ok: false; erro: string } {
+  if (typeof raw !== "string") {
+    return {
+      ok: false,
+      erro: `Campo "${campo}" deve ser uma string. Recebido: ${JSON.stringify(raw)}`,
+    };
+  }
+  const normalizado = raw.trim();
+  if (!ESTADOS_VALIDOS.has(normalizado)) {
+    return {
+      ok: false,
+      erro: `Campo "${campo}" inválido: "${normalizado || "(vazio)"}". Valores aceitos: ${[...ESTADOS_VALIDOS].join(" | ")}`,
+    };
+  }
+  return { ok: true, valor: normalizado };
+}
+
 const PASTA_ID         = "1_oq50UEJo45YwdDZKvuI5awNuUf9Rqke";
 const PLANILHA_OFICIAL = "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
 
@@ -176,11 +207,18 @@ router.post("/admin/planilha/atualizar-estados", async (_req: Request, res: Resp
       // #43 permanece A FAZER — não alterar para PARCIAL (valor inválido)
     ];
 
+    // ── Validação + normalização server-side (loop único) ───────────────────
+    // resultado.valor é o valor canônico (trimado) que vai para a planilha.
     for (const [nro, novoEstado] of correcoes) {
+      const resultado = validarEstado(novoEstado, `estado do item #${nro}`);
+      if (!resultado.ok) {
+        res.status(400).json({ error: resultado.erro });
+        return;
+      }
       const rowIdx = idxMap[nro];
       if (rowIdx !== undefined) {
         const sheetRow = rowIdx + 1; // Google Sheets é 1-based
-        updates.push({ range: `D${sheetRow}`, values: [[novoEstado]] });
+        updates.push({ range: `D${sheetRow}`, values: [[resultado.valor]] });
       }
     }
 
@@ -226,6 +264,14 @@ router.post("/admin/planilha/adicionar-item", async (req: Request, res: Response
     const { nro, item, resp, estado, prio, hash, descricao, notas, solicitacao } =
       req.body as Record<string, string>;
 
+    // ── Validação server-side: estado é obrigatório e deve ser valor canônico ──
+    const estadoResult = validarEstado(estado);
+    if (!estadoResult.ok) {
+      res.status(400).json({ error: estadoResult.erro });
+      return;
+    }
+    const estadoCanônico = estadoResult.valor; // trimado, exatamente como a lista aceita
+
     const sheets = await getGoogleSheetsClient();
     await sheets.spreadsheets.values.append({
       spreadsheetId: PLANILHA_OFICIAL,
@@ -237,7 +283,7 @@ router.post("/admin/planilha/adicionar-item", async (req: Request, res: Response
           String(nro         ?? ""),
           String(item        ?? ""),
           String(resp        ?? ""),
-          String(estado      ?? ""),
+          estadoCanônico,
           String(prio        ?? ""),
           String(hash        ?? "—"),
           String(descricao   ?? ""),
