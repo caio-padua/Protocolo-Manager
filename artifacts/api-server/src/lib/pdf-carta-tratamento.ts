@@ -1,6 +1,6 @@
 /**
  * pdf-carta-tratamento.ts
- * Carta de Tratamento Premium PADAXOR — Onda 0 (Fidelidade)
+ * Carta de Tratamento Premium PAXMED — Onda 0 (Fidelidade)
  *
  * Arquitetura: Dr. Manus, Manual Executável Item #88 (12/08/2026)
  * Executor:    Dr. Replit Paxter
@@ -13,7 +13,7 @@
  *   topToY(mm): converte mm a partir do TOPO da página para Y em pontos pdf-lib.
  *
  * Tipografia:
- *   Títulos/nomes  → EB Garamond (cgReg / cgSemi / cgBold / cgSemiItal)
+ *   Títulos/nomes  → EB Garamond (ebReg / ebSemi / ebBold / ebSemiItal)
  *   Dados/rótulos  → Manrope (mrReg / mrBold)
  *   Fontes woff lidas de assets/fonts/ em runtime.
  */
@@ -51,7 +51,7 @@ const WHITE      = rgb(1, 1, 1);
 
 // ─── ESCALA TIPOGRÁFICA (pt) — Dr. Manus Seção 4 ─────────────────────────────
 const T = {
-  coverBrand:  53,   // PADAXOR na capa
+  coverBrand:  53,   // PAXMED na capa
   coverTitle:  31,   // Título capa / páginas internas / substância
   opData:      12,   // Dado operacional (dose, via, sessões)
   numDest:     20,   // Número de destaque (selos)
@@ -78,10 +78,10 @@ type BsKey = (typeof BODY_SYSTEMS)[number]["key"];
 
 // ─── INTERFACES ───────────────────────────────────────────────────────────────
 export interface CartaFonts {
-  cgReg:      PDFFont;
-  cgSemi:     PDFFont;
-  cgBold:     PDFFont;
-  cgSemiItal: PDFFont;
+  ebReg:      PDFFont;
+  ebSemi:     PDFFont;
+  ebBold:     PDFFont;
+  ebSemiItal: PDFFont;
   mrReg:      PDFFont;
   mrBold:     PDFFont;
 }
@@ -130,10 +130,62 @@ export interface CartaTratamentoData {
 
 // ─── HELPERS DE BAIXO NÍVEL ───────────────────────────────────────────────────
 
-/** Remove caracteres fora de Latin-1 (U+0000–00FF) para compatibilidade com fontes woff latin subset. */
+/**
+ * Traduz a tipografia fina (travessao, aspas curvas, marcador, reticencias) para
+ * o equivalente Latin-1 e SO ENTAO descarta o que sobrar fora da faixa.
+ *
+ * Antes esta funcao trocava por "?" tudo acima de U+00FF. O travessao longo do
+ * titulo ("LONGEVIDADE — CARLUCIA") e o marcador de lista ("•") caem nessa faixa,
+ * entao o documento do paciente imprimia interrogacao no lugar. Descartar em
+ * silencio tambem seria errado: o texto perderia o separador. Por isso traduz-se
+ * primeiro. A faixa Latin-1 continua sendo o limite final porque um glifo ausente
+ * faz o pdf-lib lancar excecao e o bloco inteiro de texto sumiria sem aviso.
+ */
+/**
+ * Caracteres acima de Latin-1 que ficam INTACTOS porque as duas fontes do
+ * documento (EB Garamond e Manrope) desenham os dois: travessao e meia-risca.
+ * Isso esta provado no proprio PDF — o mapa de enfases imprime "A — COENZIMA".
+ * Rebaixar para hifen deixaria a capa com um traco curto e o miolo com um
+ * traco longo, no mesmo documento.
+ */
+const PRESERVAR_ACIMA_DE_LATIN1 = new Set(["\u2013", "\u2014"]);
+
+const TRANSLITERACAO: Record<string, string> = {
+  "\u2010": "-", "\u2011": "-", "\u2012": "-",
+  "\u2015": "-", "\u2212": "-", "\u00AD": "",
+  "\u2018": "'", "\u2019": "'", "\u201A": "'", "\u201B": "'", "\u2032": "'",
+  "\u201C": '"', "\u201D": '"', "\u201E": '"', "\u201F": '"', "\u2033": '"',
+  "\u2022": "\u00B7", "\u2023": "\u00B7", "\u2043": "\u00B7",
+  "\u25AA": "\u00B7", "\u25CF": "\u00B7", "\u25E6": "\u00B7",
+  "\u2026": "...", "\u2044": "/", "\u2039": "<", "\u203A": ">",
+  "\u2192": "->", "\u2190": "<-", "\u2264": "<=", "\u2265": ">=",
+  "\u2260": "!=", "\u2248": "~", "\u00A0": " ", "\u202F": " ",
+  "\u2002": " ", "\u2003": " ", "\u2009": " ", "\u200A": " ", "\u200B": "",
+  "\u2713": "OK", "\u2714": "OK", "\u2717": "x", "\u2718": "x",
+  "\u2122": "(TM)", "\u2117": "(P)", "\u03BC": "\u00B5", "\u2103": "\u00B0C",
+  // Letras gregas que aparecem em nome de substancia (alfa-lipoico, beta-alanina,
+  // omega-3). Escritas por extenso porque a Manrope, usada no corpo do texto,
+  // nao desenha grego — e nome de medicamento nao pode sair truncado.
+  "\u03B1": "alfa", "\u0391": "ALFA", "\u03B2": "beta", "\u0392": "BETA",
+  "\u03B3": "gama", "\u0393": "GAMA", "\u03B4": "delta", "\u0394": "DELTA",
+  "\u03C9": "omega", "\u03A9": "OMEGA", "\u03BB": "lambda", "\u03C3": "sigma",
+};
+
 function st(s: string | undefined | null): string {
   if (!s) return "";
-  return s.replace(/[^\u0000-\u00FF]/g, "?").trim();
+  return s
+    .replace(/[\u00A0-\uFFFF]/g, ch => {
+      if (ch in TRANSLITERACAO)              return TRANSLITERACAO[ch];
+      if (PRESERVAR_ACIMA_DE_LATIN1.has(ch)) return ch;
+      // O que nao esta mapeado SOBREVIVE. Apagar em silencio seria pior que o
+      // "?" antigo: sumiria com parte de um nome clinico sem ninguem perceber.
+      // Aqui isso e seguro porque TODAS as fontes do documento sao embutidas
+      // (embedFont), e fonte embutida nao lanca excecao por glifo ausente —
+      // ao contrario das fontes padrao do PDF, que nao sao usadas neste gerador.
+      return ch;
+    })
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 /** Quebra texto em linhas respeitando maxWidth (pontos). */
@@ -225,13 +277,13 @@ function drawProgressRing(page: PDFPage, cx: number, cy: number, r: number, prog
   }
 }
 
-/** Cabeçalho de marca (PADAXOR) no canto superior direito — páginas internas. */
+/** Cabeçalho de marca (PAXMED) no canto superior direito — páginas internas. */
 function drawInternalHeader(page: PDFPage, f: CartaFonts) {
-  const mark = "PADAXOR";
+  const mark = "PAXMED";
   const sub  = "Clinical Intelligence System";
-  const mW   = f.cgSemi.widthOfTextAtSize(mark, T.headerBrand);
+  const mW   = f.ebSemi.widthOfTextAtSize(mark, T.headerBrand);
   const sW   = (() => { try { return f.mrReg.widthOfTextAtSize(sub, T.caption); } catch { return 120; } })();
-  try { page.drawText(mark, { x: MG_R - mW, y: topToY(13), font: f.cgSemi, size: T.headerBrand, color: NAVY }); } catch { /**/ }
+  try { page.drawText(mark, { x: MG_R - mW, y: topToY(13), font: f.ebSemi, size: T.headerBrand, color: NAVY }); } catch { /**/ }
   try { page.drawText(sub,  { x: MG_R - sW, y: topToY(17), font: f.mrReg,  size: T.caption,     color: GOLD }); } catch { /**/ }
 }
 
@@ -304,19 +356,39 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
   const kW      = (() => { try { return f.mrBold.widthOfTextAtSize(kicker, T.label); } catch { return 100; } })();
   try { page.drawText(kicker, { x: (PAGE_W - kW) / 2, y: kickerY, font: f.mrBold, size: T.label, color: GOLD, opacity: 0.9 }); } catch { /**/ }
 
-  // PADAXOR — grande, centralizado
-  const brandTxt = "PADAXOR";
-  const brandSz  = T.coverBrand;
-  const brandW   = (() => { try { return f.cgSemi.widthOfTextAtSize(brandTxt, brandSz); } catch { return 280; } })();
-  const brandY   = topToY(84);
-  try { page.drawText(brandTxt, { x: (PAGE_W - brandW) / 2, y: brandY, font: f.cgSemi, size: brandSz, color: WHITE }); } catch { /**/ }
+  // PAXMED — arte oficial da marca, nunca letras digitadas. A palavra e desenho:
+  // remonta-la com fonte inventa um wordmark que nao existe.
+  //
+  // A colisao da capa nascia exatamente aqui. A palavra tinha linha de base em
+  // 84 mm com corpo de 53 pt, entao subia ate cerca de 65 mm e entrava por cima
+  // do simbolo (38 a 74 mm) e do kicker (78 mm). Agora a arte ocupa uma faixa
+  // fechada, de 84 a 97 mm, e nada mais escreve nesse intervalo.
+  const wmTopMm = 84, wmBotMm = 97;
+  const wmMaxH  = (wmBotMm - wmTopMm) * PT;
+  const wmMaxW  = CW * 0.62;
+  if (assets.wordmarkImg) {
+    const wi = assets.wordmarkImg;
+    const sc = Math.min(wmMaxH / wi.height, wmMaxW / wi.width);
+    const wmW = wi.width * sc, wmH = wi.height * sc;
+    try {
+      page.drawImage(wi, { x: (PAGE_W - wmW) / 2, y: topToY(wmTopMm) - wmH, width: wmW, height: wmH });
+    } catch { /**/ }
+  } else {
+    // Sem a arte no disco, o texto de emergencia tem de caber DENTRO da mesma
+    // faixa de 84 a 97 mm. Com os 53 pt de antes ele voltaria a subir ate o
+    // kicker e a colisao renasceria justamente no caminho de falha.
+    const brandTxt = "PAXMED";
+    const brandSz  = Math.min(T.coverBrand, wmMaxH * 0.78);
+    const brandW   = (() => { try { return f.ebSemi.widthOfTextAtSize(brandTxt, brandSz); } catch { return 280; } })();
+    try { page.drawText(brandTxt, { x: (PAGE_W - brandW) / 2, y: topToY(wmBotMm - 1), font: f.ebSemi, size: brandSz, color: WHITE }); } catch { /**/ }
+  }
 
   // Subtítulo
-  const subTxt = "Clinical Intelligent System";
+  const subTxt = "Clinical Intelligence System";
   const subSz  = T.sectionHdr;
-  const subW   = (() => { try { return f.cgSemiItal.widthOfTextAtSize(subTxt, subSz); } catch { return 120; } })();
-  const subY   = topToY(108);
-  try { page.drawText(subTxt, { x: (PAGE_W - subW) / 2, y: subY, font: f.cgSemiItal, size: subSz, color: LINE_CLR }); } catch { /**/ }
+  const subW   = (() => { try { return f.ebSemiItal.widthOfTextAtSize(subTxt, subSz); } catch { return 120; } })();
+  const subY   = topToY(105);
+  try { page.drawText(subTxt, { x: (PAGE_W - subW) / 2, y: subY, font: f.ebSemiItal, size: subSz, color: LINE_CLR }); } catch { /**/ }
 
   // ── ZONA D: Carta ao paciente (112–130 mm) ─────────────────────────────────
   const cartaY = topToY(115);
@@ -324,7 +396,7 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
   const cartaX = (PAGE_W - cartaW) / 2;
   try {
     page.drawText("Carta do seu protocolo de cuidado.", {
-      x: cartaX, y: cartaY, font: f.cgSemiItal, size: T.sectionHdr, color: LINE_CLR,
+      x: cartaX, y: cartaY, font: f.ebSemiItal, size: T.sectionHdr, color: LINE_CLR,
     });
   } catch { /**/ }
   drawWrapped(page, "Este documento resume o protocolo prescrito pelo seu medico e serve de guia para acompanhar cada etapa do tratamento.", {
@@ -350,7 +422,7 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
     try { page.drawText(label, { x: x + (i > 0 ? 8 : 0), y: idTop, font: f.mrBold, size: T.label, color: GOLD }); } catch { /**/ }
     drawWrapped(page, value, {
       x: x + (i > 0 ? 8 : 0), y: idTop - 8, width: colW - 10,
-      font: f.cgSemi, size: T.body, color: WHITE, maxLines: 2,
+      font: f.ebSemi, size: T.body, color: WHITE, maxLines: 2,
     });
   });
 
@@ -362,8 +434,12 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
 
   // Coluna 1: Anel radial de sessões
   const ringX  = MG + statColW[0] / 2;
-  const ringY  = statTop - 10 * PT;
-  const ringR  = 9 * PT; // ~9mm raio
+  // O anel tinha raio de 9 mm e centro a 10 mm do topo da faixa, entao a borda
+  // de baixo chegava a 19 mm — e a legenda e escrita a 18 mm. O circulo passava
+  // por dentro da frase "de N sessoes previstas". Encolhido e subido, o anel
+  // agora termina a 15 mm e a legenda fica limpa, abaixo dele.
+  const ringY  = statTop - 9 * PT;
+  const ringR  = 6 * PT;
   const total  = Math.max(dto.totalSessions, 1);
   const done   = dto.completedSessions;
   const prog   = done / total;
@@ -371,8 +447,8 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
   drawProgressRing(page, ringX, ringY, ringR, isZero ? 0 : prog);
   // Número central
   const ringLabel = isZero ? "—" : `${done}`;
-  const rlW = (() => { try { return f.cgSemi.widthOfTextAtSize(ringLabel, T.numSmall); } catch { return 20; } })();
-  try { page.drawText(ringLabel, { x: ringX - rlW / 2, y: ringY - T.numSmall / 3, font: f.cgSemi, size: T.numSmall, color: WHITE }); } catch { /**/ }
+  const rlW = (() => { try { return f.ebSemi.widthOfTextAtSize(ringLabel, T.numSmall); } catch { return 20; } })();
+  try { page.drawText(ringLabel, { x: ringX - rlW / 2, y: ringY - T.numSmall / 3, font: f.ebSemi, size: T.numSmall, color: WHITE }); } catch { /**/ }
   // Legenda abaixo
   const sessLegend = isZero ? "cronograma a definir" : `de ${total} sessoes previstas`;
   const slW = (() => { try { return f.mrReg.widthOfTextAtSize(sessLegend, T.label); } catch { return 60; } })();
@@ -381,8 +457,8 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
   // Coluna 2: Contagem de dossiês
   const col2X = MG + statColW[0] + 8;
   const dossNum = String(dto.substances.length).padStart(2, "0");
-  const dossW   = (() => { try { return f.cgSemi.widthOfTextAtSize(dossNum, T.numDest); } catch { return 24; } })();
-  try { page.drawText(dossNum, { x: col2X, y: ringY - 2, font: f.cgSemi, size: T.numDest, color: WHITE }); } catch { /**/ }
+  const dossW   = (() => { try { return f.ebSemi.widthOfTextAtSize(dossNum, T.numDest); } catch { return 24; } })();
+  try { page.drawText(dossNum, { x: col2X, y: ringY - 2, font: f.ebSemi, size: T.numDest, color: WHITE }); } catch { /**/ }
   try { page.drawText("dossies neste protocolo", { x: col2X, y: statTop - 18 * PT, font: f.mrReg, size: T.label, color: LINE_CLR }); } catch { /**/ }
 
   // Coluna 3: Orientação de leitura
@@ -407,7 +483,7 @@ function drawOverviewMapPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFo
   // Cabeçalho interno
   const hdrY = topToY(13);
   page.drawLine({ start: { x: MG, y: hdrY }, end: { x: MG_R, y: hdrY }, thickness: 0.5, color: LINE_CLR });
-  try { page.drawText("MAPA DE ENFASES", { x: MG, y: hdrY - 10, font: f.cgSemi, size: T.coverTitle, color: NAVY }); } catch { /**/ }
+  try { page.drawText("MAPA DE ENFASES", { x: MG, y: hdrY - 10, font: f.ebSemi, size: T.coverTitle, color: NAVY }); } catch { /**/ }
   drawInternalHeader(page, f);
 
   // Descobre quais sistemas têm dado em pelo menos uma substância
@@ -577,19 +653,19 @@ function drawSubstanceDossierPage(
   page.drawRectangle({ x: 0, y: topToY(21), width: PAGE_W, height: idH, color: NAVY });
   // Número da ficha
   const numStr = String(sub.idx).padStart(2, "0");
-  try { page.drawText(numStr, { x: MG, y: topToY(19), font: f.cgSemi, size: T.numDest, color: GOLD }); } catch { /**/ }
+  try { page.drawText(numStr, { x: MG, y: topToY(19), font: f.ebSemi, size: T.numDest, color: GOLD }); } catch { /**/ }
   // Nome da substância (pode quebrar em 2 linhas)
-  const nameLines = wrapText(st(sub.name), f.cgSemi, T.coverTitle, CW - 80);
+  const nameLines = wrapText(st(sub.name), f.ebSemi, T.coverTitle, CW - 80);
   const nLH = T.coverTitle * 0.9;
   nameLines.slice(0, 2).forEach((ln, i) => {
-    try { page.drawText(ln, { x: MG + 40, y: topToY(11) - i * nLH, font: f.cgSemi, size: T.coverTitle, color: WHITE }); } catch { /**/ }
+    try { page.drawText(ln, { x: MG + 40, y: topToY(11) - i * nLH, font: f.ebSemi, size: T.coverTitle, color: WHITE }); } catch { /**/ }
   });
   // Tipo de procedimento (direita)
   try {
     const procW = f.mrBold.widthOfTextAtSize(sub.via, T.label);
     page.drawText(sub.via, { x: MG_R - procW, y: topToY(19), font: f.mrBold, size: T.label, color: GOLD });
   } catch { /**/ }
-  // PADAXOR marca (canto superior direito)
+  // PAXMED marca (canto superior direito)
   drawInternalHeader(page, f);
 
   // ── FAIXA 2: Operacional (21–49 mm) — Grade 3 × 2 ──────────────────────────
@@ -612,8 +688,8 @@ function drawSubstanceDossierPage(
     // Borda de célula
     page.drawRectangle({ x: cx, y: cy - cellH, width: cellW, height: cellH, borderColor: LINE_CLR, borderWidth: 0.5, opacity: 0 });
     try { page.drawText(label, { x: cx + 4, y: cy - 7, font: f.mrBold, size: T.label, color: WARM_CLR }); } catch { /**/ }
-    const valLines = wrapText(st(value), f.cgBold, T.opData, cellW - 8);
-    try { page.drawText(valLines[0] ?? value, { x: cx + 4, y: cy - 18, font: f.cgBold, size: T.opData, color: NAVY }); } catch { /**/ }
+    const valLines = wrapText(st(value), f.ebBold, T.opData, cellW - 8);
+    try { page.drawText(valLines[0] ?? value, { x: cx + 4, y: cy - 18, font: f.ebBold, size: T.opData, color: NAVY }); } catch { /**/ }
   });
 
   // ── FAIXA 3: Narrativa + Radar (49–105 mm) ────────────────────────────────
@@ -645,16 +721,13 @@ function drawSubstanceDossierPage(
     value: sub.bodySystemEffects[s.key] ?? 0,
   })), f);
 
-  // Star rating (escala do catálogo)
-  const srY = narTop - 56 * PT;
-  if (sub.starRating != null) {
-    const srStr = `${sub.starRating} / 5`;
-    const srW   = (() => { try { return f.cgSemi.widthOfTextAtSize(srStr, T.numDest); } catch { return 40; } })();
-    try { page.drawText(srStr, { x: radX + (radW - srW) / 2, y: srY, font: f.cgSemi, size: T.numDest, color: NAVY }); } catch { /**/ }
-    try { page.drawText("registro disponivel no catalogo clinico", { x: radX + 4, y: srY - 12, font: f.mrReg, size: T.label, color: WARM_CLR }); } catch { /**/ }
-  } else {
-    try { page.drawText("escala nao cadastrada", { x: radX + 4, y: srY, font: f.mrReg, size: T.label, color: WARM_CLR }); } catch { /**/ }
-  }
+  // A escala do catalogo ("5 / 5") NAO e desenhada aqui de proposito.
+  //
+  // Ela ficava com linha de base em 107 mm, que e exatamente onde a FAIXA 4
+  // comeca, entao o numero grande caia por cima da lista de medidores e a legenda
+  // caia por cima do texto "Nao cadastrado". Como a FAIXA 3 nao tem folga (o radar
+  // ja termina perto de 105 mm), o selo mudou de casa: ele agora abre a coluna
+  // direita da FAIXA 4, junto dos medidores, que e o lugar logico dele.
 
   // ── FAIXA 4: Leitura visual (105–147 mm) ─────────────────────────────────
   const visTop = topToY(107);
@@ -697,8 +770,21 @@ function drawSubstanceDossierPage(
     ["Recuperacao muscular", sub.benefits.find(b => b.label.toLowerCase().includes("recup"))?.value ?? ""],
     ["Neurocognicao",        sub.benefits.find(b => b.label.toLowerCase().includes("neuro") || b.label.toLowerCase().includes("mental"))?.value ?? ""],
   ];
+  // Selo da escala do catalogo — abre a coluna direita (mudou de casa; ver FAIXA 3).
+  let metersTop = visTop - 12;
+  if (sub.starRating != null) {
+    const srStr = `${sub.starRating} / 5`;
+    try { page.drawText(srStr, { x: visRX, y: visTop - 19, font: f.ebSemi, size: T.numSmall, color: NAVY }); } catch { /**/ }
+    const srW = (() => { try { return f.ebSemi.widthOfTextAtSize(srStr, T.numSmall); } catch { return 30; } })();
+    try { page.drawText("escala do catalogo clinico", { x: visRX + srW + 6, y: visTop - 15, font: f.mrReg, size: T.label, color: WARM_CLR }); } catch { /**/ }
+    metersTop = visTop - 33;
+  } else {
+    try { page.drawText("Escala nao cadastrada no catalogo.", { x: visRX, y: visTop - 15, font: f.mrReg, size: T.body, color: WARM_CLR }); } catch { /**/ }
+    metersTop = visTop - 27;
+  }
+
   meters.forEach(([label, val], i) => {
-    const my = visTop - 10 - i * 10;
+    const my = metersTop - i * 10;
     try { page.drawText(st(label) + ":", { x: visRX, y: my, font: f.mrBold, size: T.label, color: WARM_CLR }); } catch { /**/ }
     if (val) {
       try { page.drawText(st(val), { x: visRX + 90, y: my, font: f.mrReg, size: T.body, color: NAVY }); } catch { /**/ }
@@ -754,7 +840,7 @@ function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: Carta
 
   const hdrY = topToY(13);
   page.drawLine({ start: { x: MG, y: hdrY }, end: { x: MG_R, y: hdrY }, thickness: 0.5, color: LINE_CLR });
-  try { page.drawText("ROTEIRO DO PROTOCOLO", { x: MG, y: hdrY - 10, font: f.cgSemi, size: 22, color: NAVY }); } catch { /**/ }
+  try { page.drawText("ROTEIRO DO PROTOCOLO", { x: MG, y: hdrY - 10, font: f.ebSemi, size: 22, color: NAVY }); } catch { /**/ }
   drawInternalHeader(page, f);
 
   // Linha do tempo de substâncias
@@ -769,7 +855,7 @@ function drawProtocolRoutePage(page: PDFPage, dto: CartaTratamentoData, f: Carta
     const barW = CW * 0.35;
     const barH = 7;
     // Número e nome
-    try { page.drawText(`${String(sub.idx).padStart(2, "0")} ${st(sub.name)}`, { x: MG, y: ry, font: f.cgSemi, size: T.body + 0.5, color: NAVY }); } catch { /**/ }
+    try { page.drawText(`${String(sub.idx).padStart(2, "0")} ${st(sub.name)}`, { x: MG, y: ry, font: f.ebSemi, size: T.body + 0.5, color: NAVY }); } catch { /**/ }
     // Dose/sessões
     try { page.drawText(`${st(sub.dose)} · ${sub.totalSessions} sessoes`, { x: MG + CW * 0.42, y: ry, font: f.mrReg, size: T.body, color: WARM_CLR }); } catch { /**/ }
     // Barra de progresso
@@ -806,10 +892,10 @@ async function loadFonts(pdfDoc: PDFDocument): Promise<CartaFonts> {
   const embedWoff = (name: string) => pdfDoc.embedFont(readFont(name), { subset: true });
   const embedTtf = (name: string) => pdfDoc.embedFont(readFont(name), { subset: false });
   return {
-    cgReg:      await embedTtf("EBGaramond-Regular.ttf"),
-    cgSemi:     await embedTtf("EBGaramond-SemiBold.ttf"),
-    cgBold:     await embedTtf("EBGaramond-Bold.ttf"),
-    cgSemiItal: await embedTtf("EBGaramond-SemiBoldItalic.ttf"),
+    ebReg:      await embedTtf("EBGaramond-Regular.ttf"),
+    ebSemi:     await embedTtf("EBGaramond-SemiBold.ttf"),
+    ebBold:     await embedTtf("EBGaramond-Bold.ttf"),
+    ebSemiItal: await embedTtf("EBGaramond-SemiBoldItalic.ttf"),
     mrReg:      await embedWoff("Manrope-Regular.woff"),
     mrBold:     await embedWoff("Manrope-Bold.woff"),
   };
@@ -817,8 +903,8 @@ async function loadFonts(pdfDoc: PDFDocument): Promise<CartaFonts> {
 
 async function loadAssets(pdfDoc: PDFDocument): Promise<CartaAssets> {
   const assets: CartaAssets = {};
-  const symbolBuf  = readAsset("padaxor-symbol-glass.png");
-  const wordmarkBuf = readAsset("padaxor-wordmark.png");
+  const symbolBuf  = readAsset("paxmed-symbol.png");
+  const wordmarkBuf = readAsset("paxmed-wordmark.png");
   const clinicBuf  = readAsset("padua-wordmark.png");
   if (symbolBuf)  try { assets.symbolGlass = await pdfDoc.embedPng(symbolBuf); } catch { /**/ }
   if (wordmarkBuf) try { assets.wordmarkImg = await pdfDoc.embedPng(wordmarkBuf); } catch { /**/ }
@@ -863,6 +949,8 @@ export function buildCartaTratamentoDto(raw: {
     mentalClarity?: string | null;
     skinHairNails?: string | null;
     immuneSupport?: string | null;
+    /** Sessoes ja concluidas DESTA substancia. Ausente = 0. */
+    completedSessions?: number | null;
   }>;
   sessions?: Array<{ status: string }>;
 }): CartaTratamentoData {
@@ -919,7 +1007,9 @@ export function buildCartaTratamentoDto(raw: {
       dose:              sub.dose,
       via:               viaMap[sub.procedureType] ?? sub.procedureType.toUpperCase(),
       totalSessions:     sub.totalSessions,
-      completedSessions: 0, // por substância não há distinção individual no schema atual
+      // Contagem real por substancia. Quando o chamador nao informa, cai em 0.
+      // Deixar 0 fixo fazia a ficha dizer "0 / 8" enquanto a capa dizia "3 de 8".
+      completedSessions: Math.max(0, Math.min(sub.completedSessions ?? 0, sub.totalSessions)),
       intervalDays:      sub.intervalDays,
       startDate:         sub.startDate ?? raw.startDate,
       timeToEffect:      sub.timeToEffect ?? undefined,
@@ -955,13 +1045,13 @@ export function buildCartaTratamentoDto(raw: {
 /**
  * generateProtocolLetterPdf
  *
- * Gera a Carta de Tratamento Premium PADAXOR seguindo a arquitetura Dr. Manus Item #88.
+ * Gera a Carta de Tratamento Premium PAXMED seguindo a arquitetura Dr. Manus Item #88.
  * Retorna bytes do PDF assinado via PAdES (mesmo contrato de generateProtocolDocumentPdf).
  */
 export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promise<{ pdfBytes: Uint8Array; certInfo: unknown }> {
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`Carta de Tratamento PADAXOR — ${dto.protocolTitle}`);
-  pdfDoc.setAuthor("PADAXOR — Clinical Intelligence System");
+  pdfDoc.setTitle(`Carta de Tratamento PAXMED — ${dto.protocolTitle}`);
+  pdfDoc.setAuthor("PAXMED — Clinical Intelligence System");
   pdfDoc.setCreator("PADCON");
 
   // Carrega fontes e assets
@@ -996,7 +1086,7 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
   const sName    = dto.professionalName;
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name:        sName,
-    reason:      "Assinatura digital da Carta de Tratamento PADAXOR (ICP-Brasil)",
+    reason:      "Assinatura digital da Carta de Tratamento PAXMED (ICP-Brasil)",
     location:    dto.unit || "Brasil",
     contactInfo: dto.clientCpf || "",
   });

@@ -53,3 +53,7 @@ Thumbs.db
 *.p12
 certs/
 docs/PROTOCOLO_CARLUCIA_V2_LAYOUT.pdf
+
+# Provas de conferencia do CEO — documento clinico REAL de paciente (CPF, dados
+# clinicos, assinatura). Fica so na maquina. Nunca versionar.
+docs/provas/

@@ -282,16 +282,34 @@ export default function ProtocolDetail() {
                       const err = await resp.json().catch(() => null);
                       throw new Error(err?.details || err?.error || "Erro ao gerar Carta de Tratamento");
                     }
-                    const blob = await resp.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
                     const cd = resp.headers.get("Content-Disposition");
                     const m = cd?.match(/filename="(.+)"/);
-                    a.download = m?.[1] ?? `CARTA_TRATAMENTO_${id}.pdf`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    toast({ title: "Carta de Tratamento gerada!", description: "PDF premium com capa, mapa de ênfases e assinatura digital." });
+                    const nomeArquivo = m?.[1] ?? `CARTA_TRATAMENTO_${id}.pdf`;
+
+                    // ABRE EM ABA NOVA, nao baixa. Baixar obriga a procurar o
+                    // arquivo na pasta e depender do leitor instalado — e leitor
+                    // que nao entende assinatura digital mostra tela em branco.
+                    // Em aba nova quem desenha e o proprio Chrome, que le PDF
+                    // assinado sem reclamar.
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+                    const aba = window.open(url, "_blank");
+
+                    if (!aba) {
+                      // Bloqueador de pop-up ligado: cai para o download, para
+                      // o clique nunca terminar em nada.
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = nomeArquivo;
+                      a.click();
+                      toast({ title: "Carta baixada", description: "O navegador bloqueou a aba nova, entao o arquivo foi baixado." });
+                    } else {
+                      toast({ title: "Carta de Tratamento aberta em nova aba", description: "PDF premium com capa, mapa de ênfases e assinatura digital." });
+                    }
+
+                    // Revogar na hora mataria a aba recem-aberta: ela ainda esta
+                    // lendo desta URL. Solta a memoria um minuto depois.
+                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
                   } catch (err: any) {
                     toast({ title: "Erro", description: err.message, variant: "destructive" });
                   } finally {

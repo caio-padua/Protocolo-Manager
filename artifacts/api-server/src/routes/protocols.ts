@@ -15,7 +15,7 @@ import {
   isDriveConnected,
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
-import { sendProtocolEmail, sendProtocolOnboardingEmail } from "../lib/email-service";
+import { sendProtocolEmail, sendProtocolOnboardingEmail, sendCartaTratamentoEmail } from "../lib/email-service";
 import { postSlackAlert } from "../lib/slack-reporter";
 import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
@@ -1072,8 +1072,19 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
   // SUB-04 item 5: onboarding ao fechar/validar o protocolo — e-mail de boas-vindas
   // com o .ics consolidado das sessões recém-geradas. Best-effort: cliente sem
   // e-mail ou falha no envio NÃO quebra a validação (caso extremo 1).
+  // O e-mail de boas-vindas e o comportamento PADRAO e continua ligado.
+  // O CEO pode suprimi-lo de forma EXPLICITA com ?skipOnboardingEmail=true
+  // quando valida um protocolo apenas para conferencia interna e o paciente
+  // ainda nao deve receber nada. Nunca e silencioso: fica registrado no log.
+  const skipOnboarding = String(req.query.skipOnboardingEmail ?? "") === "true";
+
   try {
-    if (await isGmailConnected()) {
+    if (skipOnboarding) {
+      req.log.warn(
+        { protocolId: protocol.id },
+        "Onboarding NAO enviado: supressao explicita via skipOnboardingEmail=true",
+      );
+    } else if (await isGmailConnected()) {
       const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
       if (client?.email) {
         const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
@@ -1129,17 +1140,42 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
   res.json({ icsContent, filename });
 });
 
-// ── Carta de Tratamento Premium PADAXOR (layout Dr. Manus Item #88) ──────────
+// ── Carta de Tratamento Premium PAXMED (layout Dr. Manus Item #88) ───────────
 // Rota nova — não interfere com document-pdf (Regra de Ouro).
-router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.id);
-  if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
+//
+// A montagem vive numa função única, usada por DUAS rotas: a que só desenha
+// (GET carta-pdf) e a que envia ao paciente (POST carta-email). Duplicar esta
+// consulta faria as duas divergirem com o tempo — e o paciente receberia um
+// documento diferente do que o CEO conferiu na tela.
+type CartaMontada = {
+  pdfBytes: Uint8Array;
+  certInfo: Record<string, unknown> | null;
+  filename: string;
+  protocol: typeof protocolsTable.$inferSelect;
+  client: typeof clientsTable.$inferSelect;
+  professionalName: string;
+  professionalCrm: string | null;
+  substances: Array<{
+    name: string;
+    dose: string;
+    color: string;
+    totalSessions: number;
+    completedSessions: number;
+    intervalDays: number | null;
+    [extra: string]: unknown;
+  }>;
+  totalSessions: number;
+  completedSessions: number;
+};
 
+async function montarCartaDeTratamento(
+  protocolId: number,
+): Promise<{ ok: true; carta: CartaMontada } | { ok: false; status: number; error: string }> {
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-  if (!protocol) { res.status(404).json({ error: "Protocolo não encontrado" }); return; }
+  if (!protocol) return { ok: false, status: 404, error: "Protocolo não encontrado" };
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
-  if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (!client) return { ok: false, status: 404, error: "Cliente não encontrado" };
 
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
@@ -1153,6 +1189,30 @@ router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
   const subMap     = new Map(allSubs.map(s => [s.id, s]));
   const sessions   = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
 
+  // Quantas sessoes JA foram feitas de cada substancia.
+  // Conta as aplicacoes marcadas como "disp" (aplicada naquela semana) que
+  // pertencem a uma sessao concluida. Sem esta conta, a ficha de cada substancia
+  // imprimia sempre "0 / 8" enquanto a capa dizia "3 de 8", e o documento que
+  // chega ao paciente se contradizia.
+  // Conta SESSOES DISTINTAS, nunca linhas de aplicacao. Nao existe restricao de
+  // unicidade em (session_id, substance_id): uma linha duplicada faria a mesma
+  // sessao contar duas vezes e a substancia apareceria concluida antes da hora.
+  const doneSessionIds = sessions.filter(s => s.status === "completed").map(s => s.id);
+  const sessoesFeitasPorSubstancia = new Map<number, Set<number>>();
+  if (doneSessionIds.length > 0) {
+    const apps = await db.select().from(substanceApplicationsTable)
+      .where(inArray(substanceApplicationsTable.sessionId, doneSessionIds));
+    for (const a of apps) {
+      if (a.availability !== "disp") continue;
+      let set = sessoesFeitasPorSubstancia.get(a.substanceId);
+      if (!set) { set = new Set<number>(); sessoesFeitasPorSubstancia.set(a.substanceId, set); }
+      set.add(a.sessionId);
+    }
+  }
+  const doneBySubstance = new Map<number, number>(
+    [...sessoesFeitasPorSubstancia].map(([subId, set]) => [subId, set.size]),
+  );
+
   const substances = items.map(item => {
     const sub = subMap.get(item.substanceId);
     return {
@@ -1160,6 +1220,7 @@ router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
       dose:               item.dose,
       color:              sub?.color             ?? "navy",
       totalSessions:      item.totalSessions,
+      completedSessions:  doneBySubstance.get(item.substanceId) ?? 0,
       intervalDays:       item.intervalDays,
       startDate:          item.startDate,
       procedureType:      sub?.procedureType     ?? "iv",
@@ -1184,24 +1245,48 @@ router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
     };
   });
 
-  try {
-    const dto = buildCartaTratamentoDto({
-      protocolId:       protocol.id,
-      protocolTitle:    protocol.title,
-      clientName:       client.name,
-      clientCpf:        client.cpf,
+  const dto = buildCartaTratamentoDto({
+    protocolId:       protocol.id,
+    protocolTitle:    protocol.title,
+    clientName:       client.name,
+    clientCpf:        client.cpf,
+    professionalName,
+    professionalCrm,
+    unit:             protocol.unit ?? "Instituto Padua",
+    startDate:        protocol.startDate,
+    substances,
+    sessions: sessions.map(s => ({ status: s.status })),
+  });
+
+  const { pdfBytes, certInfo } = await generateProtocolLetterPdf(dto);
+  const slug = client.name.replace(/\s+/g, "_");
+
+  return {
+    ok: true,
+    carta: {
+      pdfBytes,
+      certInfo: (certInfo ?? null) as Record<string, unknown> | null,
+      filename: `CARTA_TRATAMENTO_${slug}_${protocolId}.pdf`,
+      protocol,
+      client,
       professionalName,
       professionalCrm,
-      unit:             protocol.unit ?? "Instituto Padua",
-      startDate:        protocol.startDate,
       substances,
-      sessions: sessions.map(s => ({ status: s.status })),
-    });
+      totalSessions: dto.totalSessions,
+      completedSessions: dto.completedSessions,
+    },
+  };
+}
 
-    const { pdfBytes, certInfo } = await generateProtocolLetterPdf(dto);
+router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.id);
+  if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
-    const slug     = client.name.replace(/\s+/g, "_");
-    const filename = `CARTA_TRATAMENTO_${slug}_${protocolId}.pdf`;
+  try {
+    const r = await montarCartaDeTratamento(protocolId);
+    if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+    const { pdfBytes, certInfo, filename, client } = r.carta;
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBytes.length);
@@ -1225,6 +1310,98 @@ router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
   } catch (err: any) {
     console.error("[carta-pdf] erro:", err.message);
     res.status(500).json({ error: "Erro ao gerar carta", details: err.message });
+  }
+});
+
+// ── Envio da Carta de Tratamento ao paciente ─────────────────────────────────
+// Esta rota ESCREVE PARA UMA PESSOA DE VERDADE. É a única do módulo da Carta
+// com efeito colateral externo — a irmã (GET carta-pdf) apenas desenha.
+// Exige colaborador autenticado: ninguém dispara e-mail a paciente sem crachá.
+router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res): Promise<void> => {
+  const protocolId = parseInt(String(req.params.id));
+  if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
+
+  try {
+    // Checagens BARATAS primeiro. Assinar um PDF de 2,4 MB para só depois
+    // descobrir que o paciente não é desta clínica, que não tem e-mail ou que
+    // o Gmail está fora seria trabalho jogado fora — e, no caso do tenant,
+    // porta aberta para colaborador de outra clínica escrever a paciente alheio.
+    const [protocoloPrevio] = await db
+      .select({ id: protocolsTable.id, clientId: protocolsTable.clientId, empresaId: protocolsTable.empresaId })
+      .from(protocolsTable)
+      .where(eq(protocolsTable.id, protocolId));
+    if (!protocoloPrevio) { res.status(404).json({ sent: false, error: "Protocolo não encontrado" }); return; }
+
+    const empresaDoColaborador = resolveEmpresaId(req);
+    if (protocoloPrevio.empresaId !== empresaDoColaborador) {
+      console.warn(
+        `[carta-email] BLOQUEADO por tenant: protocolo=${protocolId} empresa_do_protocolo=${protocoloPrevio.empresaId} empresa_do_colaborador=${empresaDoColaborador}`,
+      );
+      // 404 de propósito: confirmar que o protocolo existe já entregaria
+      // informação de outra clínica a quem não tem direito a ela.
+      res.status(404).json({ sent: false, error: "Protocolo não encontrado" });
+      return;
+    }
+
+    const [clientePrevio] = await db
+      .select({ email: clientsTable.email })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, protocoloPrevio.clientId));
+    const email = (clientePrevio?.email ?? "").trim();
+    if (!email) {
+      res.status(422).json({ sent: false, error: "Cliente sem e-mail cadastrado" });
+      return;
+    }
+    if (!(await isGmailConnected())) {
+      res.status(503).json({ sent: false, error: "Gmail não está conectado" });
+      return;
+    }
+
+    const r = await montarCartaDeTratamento(protocolId);
+    if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+    const c = r.carta;
+
+    const envio = await sendCartaTratamentoEmail({
+      clientName:        c.client.name,
+      clientEmail:       email,
+      protocolTitle:     c.protocol.title,
+      professionalName:  c.professionalName,
+      professionalCrm:   c.professionalCrm,
+      startDate:         c.protocol.startDate,
+      totalSessions:     c.totalSessions,
+      completedSessions: c.completedSessions,
+      substances: c.substances.map(s => ({
+        name:              s.name,
+        color:             s.color,
+        dose:              s.dose,
+        totalSessions:     s.totalSessions,
+        completedSessions: s.completedSessions,
+        intervalDays:      s.intervalDays,
+      })),
+      pdfBuffer:   Buffer.from(c.pdfBytes),
+      pdfFileName: c.filename,
+    });
+
+    if (!envio.success) {
+      console.error(`[carta-email] FALHOU protocolo=${protocolId} destino=${email} motivo="${envio.error}"`);
+      res.status(502).json({ sent: false, error: envio.error ?? "Falha no envio" });
+      return;
+    }
+
+    console.info(
+      `[carta-email] ENVIADO protocolo=${protocolId} cliente="${c.client.name}" destino=${email} arquivo=${c.filename} bytes=${c.pdfBytes.length}`,
+    );
+    res.json({
+      sent: true,
+      email,
+      filename: c.filename,
+      bytes: c.pdfBytes.length,
+      completedSessions: c.completedSessions,
+      totalSessions: c.totalSessions,
+    });
+  } catch (err: any) {
+    console.error("[carta-email] erro:", err.message);
+    res.status(500).json({ sent: false, error: "Erro ao enviar carta", details: err.message });
   }
 });
 

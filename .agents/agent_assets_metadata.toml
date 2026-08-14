@@ -333,3 +333,80 @@ uri = "file://documentos/quatro-candidatas-fontes.png"
 type = "image"
 title = "As quatro candidatas em contexto de documento"
 description = "Título, nome do paciente, valores e o teste de coluna, desenhados dentro de um PDF real sem pedir nenhuma correção à fonte. Traço verde alinha números em coluna; traço vermelho não alinha. A primeira linha é o Cormorant adaptado de hoje, para comparação."
+
+[[outputs]]
+id = "rKrpeWQTpVVFJO8FYIUT3"
+uri = "file://docs/provas/CARTA_TRATAMENTO_CARLUCIA_protocolo_32.pdf"
+type = "pdf"
+title = "Carta de Tratamento Premium — CARLUCIA (protocolo 32)"
+description = "Nove paginas. Marca PAXMED, travessao correto, 3 de 8 sessoes feitas. Nada foi enviado a paciente."
+
+[[outputs]]
+id = "PH7-itBDqSNWWcz18xMAA"
+uri = "file://docs/provas/carta-carlucia-protocolo-32.html"
+type = "text"
+title = "Carta de Tratamento — CARLUCIA — as nove paginas para conferir"
+description = "As nove folhas em imagem, uma embaixo da outra. Abre direto, sem baixar nada. Nada foi enviado a paciente."
+
+[[outputs]]
+id = "bF9nRreD-87JZg_Sm-RAr"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-1.png"
+type = "image"
+title = "Pagina 01 de 09 — Capa — PAXMED, 3 de 8 sessoes"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "-YbpdT3qoAQ96lZfNnIl9"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-2.png"
+type = "image"
+title = "Pagina 02 de 09 — Mapa de enfases — as seis substancias"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "PK9r0ktVytBkEoBmmrHtz"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-3.png"
+type = "image"
+title = "Pagina 03 de 09 — Folha 01 — Coenzima Q10"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "u6gKCnfy25YrlorKGtLT5"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-4.png"
+type = "image"
+title = "Pagina 04 de 09 — Folha 02 — PQQ"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "Icbkq9VCYe2MQ0eZrGQtu"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-5.png"
+type = "image"
+title = "Pagina 05 de 09 — Folha 03 — Tirzepatida"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "OaoH-di4jbUKtkP95r4bF"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-6.png"
+type = "image"
+title = "Pagina 06 de 09 — Folha 04 — Progesterona pellet"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "DUc2-iLaYH03eN-kPavRi"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-7.png"
+type = "image"
+title = "Pagina 07 de 09 — Folha 05 — Testosterona bioidentica"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "nKZMMlYcZKXFqucuw5WxI"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-8.png"
+type = "image"
+title = "Pagina 08 de 09 — Folha 06 — Gestrinona pellet"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+
+[[outputs]]
+id = "RXlYfDMNQga6YmTpFuekT"
+uri = "file://docs/provas/paginas/carta-carlucia-pagina-9.png"
+type = "image"
+title = "Pagina 09 de 09 — Roteiro do protocolo — barras de progresso"
+description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."

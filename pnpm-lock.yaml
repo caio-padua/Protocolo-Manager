@@ -185,9 +185,6 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1095.0
         version: 3.1095.0
-      '@fontsource/cormorant-garamond':
-        specifier: ^5.3.0
-        version: 5.3.0
       '@fontsource/manrope':
         specifier: ^5.3.0
         version: 5.3.0
@@ -1474,9 +1471,6 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
-
-  '@fontsource/cormorant-garamond@5.3.0':
-    resolution: {integrity: sha512-weuGsCirGVWBWqpt6YUp0yLThTe4G8YO45noq8wxeJCRvEpq5lFrxNMFSTxcyOyV5k5otzJ8guDzYegdYlcLMQ==}
 
   '@fontsource/manrope@5.3.0':
     resolution: {integrity: sha512-obJ1Dv3+uCA6HlHgW8u4BGYxJR9In2HW7gjJhlflEvkrj1X1iSEwu0fToL+JYGC/FEKFfIz1sBuPduvcL2gIAA==}
@@ -6306,8 +6300,6 @@ snapshots:
       react-dom: 19.1.0(react@19.1.0)
 
   '@floating-ui/utils@0.2.11': {}
-
-  '@fontsource/cormorant-garamond@5.3.0': {}
 
   '@fontsource/manrope@5.3.0': {}
 

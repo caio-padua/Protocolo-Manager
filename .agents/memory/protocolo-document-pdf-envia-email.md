@@ -25,3 +25,22 @@ verdadeira, uma única vez, quando o documento já estiver aprovado visualmente.
 
 Regra geral: antes de usar uma rota em laço de teste, ler o corpo dela até o fim
 procurando envio de mensagem, upload e gravação — o verbo HTTP não é garantia.
+
+# `POST /protocols/:id/validate` também escreve para o paciente
+
+Validar um protocolo é o único caminho que **gera as sessões** (apaga as antigas
+e recria uma por semana). No fim dele há um segundo efeito escondido: manda
+e-mail de boas-vindas ao paciente com o `.ics` da agenda completa, sob o mesmo
+portão `client.email && isGmailConnected()`.
+
+**Why:** faz sentido no fluxo real, mas destrói qualquer tentativa de montar um
+protocolo espelho para conferência interna — o paciente recebe "Bem-vindo ao seu
+protocolo" de um protocolo que ainda não foi aprovado.
+
+**How to apply:** para protocolo de conferência, validar com
+`?skipOnboardingEmail=true`. A supressão é explícita, o padrão continua enviando
+e o log registra `Onboarding NAO enviado: supressao explicita`. Conferir essa
+linha no log depois, como prova de que nada saiu.
+
+Rota realmente segura para só desenhar a Carta Premium, sem nenhum efeito
+colateral: `GET /protocols/:id/carta-pdf`.

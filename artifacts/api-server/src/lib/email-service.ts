@@ -1,7 +1,7 @@
 import { isGmailConnected } from "./google-gmail";
 import { buildVCalendar, durationFromProcedureTypes, nextSequence, type IcsEventInput } from "./ics";
 import { enviarMensagemPaxter, baseUrlFromEnv, type PaxterDoc } from "./messaging/index.js";
-import { blocoTabelaSubstancias } from "./messaging/substance-table.js";
+import { blocoTabelaSubstancias, soMiligramas } from "./messaging/substance-table.js";
 
 export interface PreSessionEmailData {
   clientName: string;
@@ -483,6 +483,82 @@ export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ succ
     assunto: "PAXTER | Protocolo medico personalizado",
   };
   const envio = await enviarMensagemPaxter(doc, { email: data.clientEmail, nome: data.clientName }, ["EMAIL"], { baseUrl: baseUrlFromEnv() });
+  const r0 = envio.resultados[0];
+  return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
+}
+
+// ── Carta de Tratamento Premium ──────────────────────────────────────────────
+// E-mail que leva a Carta assinada digitalmente ao paciente. Usa o MESMO motor
+// branded (enviarMensagemPaxter) e o MESMO motor de cartoes de substancia dos
+// demais e-mails ricos — nao monta tabela propria (licao de 30/06/2026).
+export interface CartaTratamentoEmailData {
+  clientName: string;
+  clientEmail: string;
+  protocolTitle: string;
+  professionalName: string;
+  professionalCrm?: string | null;
+  startDate: string;
+  totalSessions: number;
+  completedSessions: number;
+  substances: Array<{
+    name: string;
+    color: string;
+    dose?: string | null;
+    totalSessions: number;
+    completedSessions: number;
+    intervalDays?: number | null;
+  }>;
+  pdfBuffer: Buffer;
+  pdfFileName: string;
+}
+
+function cartaTratamentoBlocks(data: CartaTratamentoEmailData): string[] {
+  const substList = blocoTabelaSubstancias(
+    data.substances.map(s => ({
+      nome:       s.name,
+      cor:        s.color,
+      dose:       soMiligramas(s.dose ?? undefined),
+      sessao:     `${s.completedSessions}/${s.totalSessions}`,
+      sessaoLabel: "Sessões",
+      frequencia: s.intervalDays && s.intervalDays > 0 ? `a cada ${s.intervalDays} dias` : undefined,
+    })),
+  );
+
+  const assinatura = data.professionalCrm
+    ? `${data.professionalName} — CRM ${data.professionalCrm}`
+    : data.professionalName;
+
+  return [`
+    <p style="color: #c2cee0; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">Segue em anexo a sua <strong style="color: #c9a24f;">Carta de Tratamento</strong>, referente ao protocolo <strong style="color: #c9a24f;">${data.protocolTitle}</strong>, iniciado em <strong style="color: #f3ead6;">${formatDateBR(data.startDate)}</strong> sob responsabilidade do Dr(a). <strong style="color: #f3ead6;">${assinatura}</strong>.</p>
+    <p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">O documento tem uma folha por substancia, explicando para que ela serve, o que voce pode perceber e em que ponto do cronograma ela esta. Ate aqui foram concluidas <strong style="color: #c9a24f;">${data.completedSessions} de ${data.totalSessions} sessoes</strong> previstas.</p>
+    <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+      <h3 style="margin: 0 0 12px; color: #c9a24f; font-size: 15px;">Substancias do seu protocolo:</h3>
+      ${substList}
+    </div>
+    <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px;">
+      <p style="margin: 0; color: #c2cee0; font-size: 13px; line-height: 1.6;"><strong style="color: #c9a24f;">Importante:</strong> guarde este documento e leve-o na proxima consulta. Ele e assinado digitalmente com certificado ICP-Brasil e nao substitui a orientacao presencial. Em caso de duvida, procure a clinica antes de alterar qualquer coisa por conta propria.</p>
+    </div>`];
+}
+
+export async function sendCartaTratamentoEmail(
+  data: CartaTratamentoEmailData,
+): Promise<{ success: boolean; error?: string }> {
+  const doc: PaxterDoc = {
+    eyebrow: `Prezado(a) Sr(a). ${data.clientName}`,
+    titulo: "Carta de Tratamento",
+    paragrafos: ["Sua Carta de Tratamento esta pronta. Veja os detalhes abaixo."],
+    blocosHtml: cartaTratamentoBlocks(data),
+    anexos: [
+      { filename: data.pdfFileName, content: data.pdfBuffer, contentType: "application/pdf" },
+    ],
+    assunto: "PAXTER | Carta de Tratamento",
+  };
+  const envio = await enviarMensagemPaxter(
+    doc,
+    { email: data.clientEmail, nome: data.clientName },
+    ["EMAIL"],
+    { baseUrl: baseUrlFromEnv() },
+  );
   const r0 = envio.resultados[0];
   return { success: r0?.sent ?? false, error: r0?.sent ? undefined : (r0?.error ?? "Falha no envio") };
 }
