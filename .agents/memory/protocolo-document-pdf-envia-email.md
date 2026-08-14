@@ -23,6 +23,8 @@ rota. Chamar o gerador direto (`generateProtocolDocumentPdf`) num script Node
 avulso que só escreve o arquivo em `/tmp`, e reservar a rota para a emissão
 verdadeira, uma única vez, quando o documento já estiver aprovado visualmente.
 
+**Contraste seguro:** `GET /protocols/:id/carta-pdf` (Carta Premium) é read-only de verdade — só gera e devolve o PDF (headers X-Cert-*), sem Drive/e-mail. Pode ser usada em laço de validação (verificado 13/08/2026).
+
 Regra geral: antes de usar uma rota em laço de teste, ler o corpo dela até o fim
 procurando envio de mensagem, upload e gravação — o verbo HTTP não é garantia.
 
