@@ -1341,6 +1341,18 @@ async function embedBrandPng(pdfDoc: PDFDocument, fileName: string): Promise<Emb
   return null; // todos os candidatos eram ENOENT → arquivo fisicamente ausente
 }
 
+async function embedJpegAsset(pdfDoc: PDFDocument, fileName: string): Promise<EmbeddedPng | null> {
+  for (const p of assetCandidates(fileName)) {
+    try {
+      const buf = await fs.promises.readFile(p);
+      return await pdfDoc.embedJpg(buf);
+    } catch (e: unknown) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+  }
+  return null;
+}
+
 function maskCpf(cpf: string | undefined): string {
   if (!cpf) return "—";
   const d = cpf.replace(/\D/g, "");
@@ -1958,6 +1970,7 @@ export function drawPremiumCover(
   padconSymbol: EmbeddedPng | null,
   padconWords: EmbeddedPng | null,
   paduaWordmark: EmbeddedPng | null,
+  drCaioPhoto: EmbeddedPng | null = null,
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
@@ -2015,43 +2028,88 @@ export function drawPremiumCover(
   const cisW = pf.cgSemiBold.widthOfTextAtSize(cisTxt, 10);
   pg.drawText(cisTxt, { x: (PAGE_W - cisW) / 2, y: cursorY, size: 10, font: pf.cgSemiBold, color: GOLD_P });
 
-  const sepLen = 180;
-  pg.drawLine({ start: { x: (PAGE_W - sepLen) / 2, y: PAGE_H - 322 }, end: { x: (PAGE_W + sepLen) / 2, y: PAGE_H - 322 }, thickness: 0.8, color: GOLD_P, opacity: 0.5 });
+  // ── ZONA CENTRAL: título grande + ID compacto + foto (Gamma-inspired) ────────
+  // Separador dourado — marca a fronteira entre a área de marca e a de conteúdo.
+  pg.drawLine({
+    start: { x: MARGIN, y: PAGE_H - 322 },
+    end:   { x: PAGE_W - MARGIN, y: PAGE_H - 322 },
+    thickness: 0.8, color: GOLD_P, opacity: 0.45,
+  });
 
-  const cartaTxt = "Carta do seu protocolo de cuidado";
-  const cartaW = pf.cgSemiBold.widthOfTextAtSize(cartaTxt, 13);
-  pg.drawText(cartaTxt, { x: (PAGE_W - cartaW) / 2, y: PAGE_H - 346, size: 13, font: pf.cgSemiBold, color: IVORY_P });
+  // Foto do médico: portrait à direita, topo alinhado com o separador.
+  // Se o asset dr-caio-photo.jpg não existir, volta ao modo 1-coluna sem erro.
+  const hasPhoto  = drCaioPhoto !== null;
+  const LEFT_W    = hasPhoto ? 265 : CONTENT_W;  // largura da coluna de texto
+  const PHOTO_X   = MARGIN + LEFT_W + 12;         // x de início da foto
+  const PHOTO_COL = CONTENT_W - LEFT_W - 12;      // = 238 pt quando foto presente
 
-  const expLines = wrapText("Este documento organiza as substancias, posologias e referencias do seu plano clinico personalizado.", pf.manReg, 7, 300);
-  for (let i = 0; i < expLines.length; i++) {
-    const lw = pf.manReg.widthOfTextAtSize(expLines[i], 7);
-    pg.drawText(expLines[i], { x: (PAGE_W - lw) / 2, y: PAGE_H - 366 - i * 10, size: 7, font: pf.manReg, color: MIST_P });
+  if (hasPhoto && drCaioPhoto) {
+    try {
+      const ratio  = drCaioPhoto.height / drCaioPhoto.width;   // ≈ 1.333 (800/600)
+      const pH     = Math.min(PHOTO_COL * ratio, 235);          // máx 235 pt
+      const pW     = pH / ratio;
+      const photoY = PAGE_H - 322 - pH;                         // topo = separador
+      pg.drawImage(drCaioPhoto, { x: PHOTO_X, y: photoY, width: pW, height: pH });
+      // Moldura ouro fina
+      pg.drawRectangle({
+        x: PHOTO_X - 1.5, y: photoY - 1.5, width: pW + 3, height: pH + 3,
+        borderColor: GOLD_P, borderWidth: 0.8, opacity: 0, borderOpacity: 0.45,
+      });
+    } catch { /* best-effort — capa nunca deixa de ser gerada */ }
   }
 
-  // Identification grid (3 columns)
-  const gridY = PAGE_H - 432;
-  const colW3 = CONTENT_W / 3;
-  const idCols = [
-    { lbl: "PACIENTE",    val: safeTxt(data.clientName), sub: maskCpf(data.clientCpf) },
-    { lbl: "PROTOCOLO",   val: safeTxt(data.protocolTitle).slice(0, 30), sub: toDateBR(data.startDate) },
-    { lbl: "RESPONSAVEL", val: safeTxt(data.professionalName), sub: data.professionalCrm ? safeTxt(data.professionalCrm) : "CRM nao informado" },
-  ];
-  pg.drawRectangle({ x: MARGIN, y: gridY - 48, width: CONTENT_W, height: 58, color: WHITE, opacity: 0.05 });
-  for (let c = 0; c < idCols.length; c++) {
-    const cx = MARGIN + c * colW3;
-    if (c > 0) pg.drawLine({ start: { x: cx, y: gridY + 6 }, end: { x: cx, y: gridY - 44 }, thickness: 0.4, color: GOLD_P, opacity: 0.4 });
-    pg.drawText(idCols[c].lbl, { x: cx + 8, y: gridY + 4, size: 5, font: pf.manBold, color: GOLD_P });
-    const v = idCols[c].val.length > 22 ? idCols[c].val.slice(0, 20) + "…" : idCols[c].val;
-    pg.drawText(v, { x: cx + 8, y: gridY - 12, size: 8, font: pf.cgBold, color: IVORY_P });
-    pg.drawText(safeTxt(idCols[c].sub), { x: cx + 8, y: gridY - 26, size: 6, font: pf.manReg, color: MIST_P });
-  }
+  // ── Título grande do protocolo (coluna esquerda) ──────────────────────────
+  // Substitui "Carta do seu protocolo de cuidado" (13 pt centrado).
+  // Agora: rótulo 5.5 pt dourado + protocolTitle em 20 pt ivory, até 3 linhas.
+  let ty = PAGE_H - 338;  // 16 pt abaixo do separador
+  pg.drawText("PROTOCOLO CL\u00cdNICO PERSONALIZADO", {
+    x: MARGIN, y: ty, size: 5.5, font: pf.manBold, color: GOLD_P,
+  });
+  ty -= 13;
 
-  // Status row
-  const statY = PAGE_H - 520;
+  const titleLines = wrapText(safeTxt(data.protocolTitle).toUpperCase(), pf.cgBold, 20, LEFT_W);
+  for (const ln of titleLines.slice(0, 3)) {
+    if (ty < 360) break;
+    pg.drawText(ln, { x: MARGIN, y: ty, size: 20, font: pf.cgBold, color: IVORY_P });
+    ty -= 25;
+  }
+  ty -= 8;
+
+  // Traço âncora ouro fino após o título
+  pg.drawLine({
+    start: { x: MARGIN, y: ty }, end: { x: MARGIN + LEFT_W * 0.8, y: ty },
+    thickness: 0.5, color: GOLD_P, opacity: 0.35,
+  });
+  ty -= 16;
+
+  // ── ID compacto: PACIENTE / MÉDICO / INÍCIO ──────────────────────────────
+  const ID_FLOOR = hasPhoto ? 285 : 270;
+  const idDraw = (lbl: string, val: string, sub?: string) => {
+    if (ty < ID_FLOOR + 28) return;
+    pg.drawText(lbl, { x: MARGIN, y: ty, size: 5, font: pf.manBold, color: GOLD_P });
+    ty -= 12;
+    const v = val.length > 36 ? val.slice(0, 34) + "\u2026" : val;
+    pg.drawText(v, { x: MARGIN, y: ty, size: 8.5, font: pf.cgBold, color: IVORY_P });
+    ty -= 11;
+    if (sub) {
+      pg.drawText(sub, { x: MARGIN, y: ty, size: 5.5, font: pf.manReg, color: MIST_P });
+      ty -= 10;
+    }
+    ty -= 5;
+  };
+
+  idDraw("PACIENTE", safeTxt(data.clientName), maskCpf(data.clientCpf));
+  idDraw("M\u00c9DICO RESPONS\u00c1VEL", safeTxt(data.professionalName),
+    data.professionalCrm ? safeTxt(data.professionalCrm) : undefined);
+  idDraw("IN\u00cdCIO DO PROTOCOLO", toDateBR(data.startDate));
+
+  // ── Stats row: 3 números em largura completa ──────────────────────────────
+  const statY  = PAGE_H - 572;                   // = 270 pt
+  const colW3  = CONTENT_W / 3;
   const statCols = [
-    { lbl: "SUBSTANCIAS", val: String(data.substances.length) },
-    { lbl: "SESSOES PREVISTAS", val: String(data.sessions.length) },
-    { lbl: "VALOR DO TRATAMENTO", val: `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
+    { lbl: "SUBST\u00c2NCIAS",        val: String(data.substances.length) },
+    { lbl: "SESS\u00d5ES PREVISTAS",  val: String(data.sessions.length) },
+    { lbl: "VALOR DO TRATAMENTO",     val: `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
   ];
   pg.drawRectangle({ x: MARGIN, y: statY - 44, width: CONTENT_W, height: 52, color: WHITE, opacity: 0.07 });
   for (let c = 0; c < statCols.length; c++) {
@@ -2063,7 +2121,7 @@ export function drawPremiumCover(
 
   if (data.clientEmail) {
     const em = maskEmail(data.clientEmail);
-    pg.drawText(`E-mail: ${em}`, { x: MARGIN, y: PAGE_H - 582, size: 6, font: pf.manReg, color: MIST_P, opacity: 0.7 });
+    pg.drawText(`E-mail: ${em}`, { x: MARGIN, y: statY - 56, size: 6, font: pf.manReg, color: MIST_P, opacity: 0.7 });
   }
 
   // ── Canto inferior DIREITO: símbolo hex à esquerda + wordmark/frase à direita ─
@@ -2346,19 +2404,20 @@ export async function buildProtocolDocumentLayout(
     cgReg: fb.regular, cgBold: fb.bold, cgSemiBold: fb.bold,
     manReg: fb.regular, manBold: fb.bold,
   }));
-  const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg, paduaWordmark] = await Promise.all([
+  const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg, paduaWordmark, drCaioPhoto] = await Promise.all([
     embedBrandPng(pdfDoc, "paxmed-symbol.png"),
     embedBrandPng(pdfDoc, "paxmed-wordmark.png"),
-    embedBrandPng(pdfDoc, "padcon-symbol.png"),    // símbolo hexagonal isolado
-    embedBrandPng(pdfDoc, "padcon-words.png"),      // PADCON + Platform® + Advanced Systems Architecture
+    embedBrandPng(pdfDoc, "padcon-symbol.png"),     // símbolo hexagonal isolado
+    embedBrandPng(pdfDoc, "padcon-words.png"),       // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
-    embedBrandPng(pdfDoc, "padua-wordmark.png"),   // logo Instituto Pádua (capa + subcapa)
+    embedBrandPng(pdfDoc, "padua-wordmark.png"),    // logo Instituto Pádua (capa + subcapa)
+    embedJpegAsset(pdfDoc, "dr-caio-photo.jpg"),    // foto do Dr. Caio (opcional — layout Gamma-inspired)
   ]);
 
   const allPages: PDFPage[] = [];
 
   // ── Checkpoint B: Capa premium PAXMED ──────────────────────────────────────
-  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords, paduaWordmark);
+  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords, paduaWordmark, drCaioPhoto);
 
   // ── Checkpoint B2: Subcapa biográfica do médico (página 2) ─────────────────
   drawSubcapaPage(pdfDoc, allPages, data, pf, paduaWordmark);

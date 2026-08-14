@@ -445,3 +445,10 @@ uri = "file://docs/preview/subcapa-v3-curriculo-real.png"
 type = "image"
 title = "Subcapa biográfica v3 — dados reais do seu currículo"
 description = "Topo: página completa. Meio: zoom da faixa navy com seu nome e credenciais. Base: zoom das duas colunas — esquerda (Vocação, Formação, Mentoria Lair Ribeiro) e direita (GPS, Filosofia, frase símbolo)."
+
+[[outputs]]
+id = "mG5Z_OjQoJmjM_NLs3CaT"
+uri = "file://docs/preview/capa-gamma-foto-titulo.png"
+type = "image"
+title = "Capa v3 — Foto do Dr. Caio + Título grande (estilo Gamma)"
+description = "Fileira 1: tela do Gamma (referência) vs nossa nova capa. Fileira 2: zoom da zona central com título grande e foto. Fileira 3: zoom do bloco título + ID compacto."
