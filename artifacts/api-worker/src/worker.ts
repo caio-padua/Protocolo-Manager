@@ -215,6 +215,41 @@ export function startWorkerJobs(logger: pino.Logger): void {
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 9: Limpeza de device_contact_verifications e device_verified_sessions ─
+  // Apaga linhas com expires_at < NOW() das duas tabelas de verificação OTP.
+  // device_contact_verifications expira em 10 min; device_verified_sessions em 90 dias.
+  // Roda no boot (captura acúmulo antes desta versão) e diariamente às 03:15 BRT.
+  async function runDeviceVerificationPurge() {
+    try {
+      const { purgeExpiredVerificationCodes, purgeExpiredVerifiedSessions } = await import(
+        "../../api-server/src/lib/device-throttle.js" as string
+      );
+      const [codes, sessions] = await Promise.all([
+        purgeExpiredVerificationCodes(),
+        purgeExpiredVerifiedSessions(),
+      ]);
+      if (codes > 0 || sessions > 0) {
+        logger.info({ codes, sessions }, "Worker: limpeza de verificações OTP concluída");
+      }
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Worker: falha na limpeza de verificações OTP"
+      );
+    }
+  }
+
+  void runDeviceVerificationPurge();
+
+  cron.schedule(
+    "15 3 * * *",
+    async () => {
+      logger.info("Worker: limpeza diária 03:15 BRT — device_contact_verifications e device_verified_sessions");
+      await runDeviceVerificationPurge();
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   // ─── Job 8: Purga mensal de concierge_webhook_eventos ─────────────────────
   // Apaga linhas com registrado_at < NOW() - 90 dias para evitar crescimento
   // indefinido da tabela de idempotência de webhooks do Asaas. A janela de
@@ -244,6 +279,6 @@ export function startWorkerJobs(logger: pino.Logger): void {
   );
 
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h"
   );
 }

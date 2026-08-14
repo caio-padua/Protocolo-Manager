@@ -469,6 +469,40 @@ export async function verifyDeviceCode(
   }
 }
 
+// ─── Limpeza de linhas expiradas ──────────────────────────────────────────────
+
+/**
+ * Apaga linhas de device_contact_verifications com expires_at < NOW().
+ *
+ * Lança em caso de falha de banco para que boot e cron registrem o erro
+ * corretamente em vez de reportar "0 linhas removidas" silenciosamente.
+ */
+export async function purgeExpiredVerificationCodes(): Promise<number> {
+  await ensureVerificationsTable();
+  const result = await db.execute<{ dummy: number }>(sql`
+    DELETE FROM device_contact_verifications
+     WHERE expires_at < NOW()
+    RETURNING 1 AS dummy
+  `);
+  return (result.rows ?? (result as unknown as unknown[])).length;
+}
+
+/**
+ * Apaga linhas de device_verified_sessions com expires_at < NOW().
+ *
+ * Lança em caso de falha de banco para que boot e cron registrem o erro
+ * corretamente em vez de reportar "0 linhas removidas" silenciosamente.
+ */
+export async function purgeExpiredVerifiedSessions(): Promise<number> {
+  await ensureVerifiedSessionsTable();
+  const result = await db.execute<{ dummy: number }>(sql`
+    DELETE FROM device_verified_sessions
+     WHERE expires_at < NOW()
+    RETURNING 1 AS dummy
+  `);
+  return (result.rows ?? (result as unknown as unknown[])).length;
+}
+
 /**
  * Retorna true se o dispositivo tem verified_at preenchido em qualquer dia.
  * Consultado por checkDeviceOffer para dispensar fricção em dispositivos
