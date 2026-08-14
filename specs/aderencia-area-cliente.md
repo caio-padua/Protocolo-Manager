@@ -1,325 +1,288 @@
-# Especificação — Aderência às Fórmulas Manipuladas na Área do Cliente
+# O ELO — Motor de Causalidade Clínica
 
-| Campo | Valor |
-|---|---|
-| Data | 14/08/2026 |
-| Autor | Dr. Replit Paxter |
-| Fase do Paxter Loop | 1 — ESPECIFICAR (esta spec **não** autoriza build) |
-| Ordem do CEO | Correção de direção de 14/08/2026 (rejeitou pergunta autônoma por WhatsApp/Telegram) |
-| Módulo da planilha | Área do Paciente |
-| Status | AGUARDANDO MARTELO DO CEO (uma pergunta em aberto — seção 12) |
+Documento normativo da aba MEU TRATAMENTO na Área do Cliente.
+Versão 2, escrita em 14 de agosto de 2026, substitui a versão 1 do mesmo dia.
+Autor: Dr. Replit Manager. Aprovador: Dr. Caio (cacique).
 
 ---
 
-## 1. Objetivo (uma frase)
+## 1. CONCLUSÃO PRIMEIRO
 
-Dar ao paciente, dentro da Área do Cliente que já existe, uma aba onde ele vê as fórmulas
-manipuladas que toma hoje e as que já tomou, marca fórmula por fórmula dentro de cada período do
-dia se tomou ou não, e acompanha num mini painel todas as dúvidas que mandou e todas as respostas
-que a equipe deu.
+1.1. O sistema hoje guarda **o que foi prescrito** e guarda **o que o corpo do paciente fez**.
 
----
+1.2. Falta uma única peça no meio: **o que o paciente realmente cumpriu**.
 
-## 2. O que foi REJEITADO pelo CEO (não construir)
+1.3. Ao acrescentar essa peça, o sistema passa a produzir uma frase que nenhum concorrente brasileiro produz hoje: *"o senhor manteve noventa e dois por cento de constância e o seu ácido úrico caiu de quatro vírgula três para quatro vírgula zero"*.
 
-| Ideia anterior | Veredito |
-|---|---|
-| Bot perguntando "tomou?" pelo WhatsApp com botão de resposta | REJEITADA em 14/08/2026 |
-| Bot perguntando pelo Telegram com `inline_keyboard` | REJEITADA em 14/08/2026 |
-| Criar uma área/portal novo para aderência | PROIBIDO — a Área do Cliente já existe |
+1.4. Isso não é um painel. É uma **máquina de provar causalidade**, paciente por paciente, que se recalcula sozinha a cada laudo novo importado pelo robô do Google Drive.
 
-O canal de mensagem continua sendo **lembrete**, nunca **interrogatório**. O ato de responder
-mora na tela.
+1.5. O nome do motor é **O ELO** — porque ele liga duas pontas que hoje vivem separadas no banco de dados.
+
+1.6. Custo de construção: **duas tabelas novas**. Todo o resto reaproveita motor que já roda em produção.
 
 ---
 
-## 3. Estado verificado do sistema hoje (fonte conferida, 14/08/2026)
+## 2. GLOSSÁRIO DESTE DOCUMENTO
 
-| Item | Situação real | Arquivo / prova |
-|---|---|---|
-| Área do Cliente | Existe, rota `/area` | `artifacts/padcom/src/pages/area.tsx:115` |
-| Abas declaradas | 8: INÍCIO, PROTOCOLOS, AGENDA, DOCUMENTOS, ENVIAR, DÚVIDAS, SUPORTE, EVOLUÇÃO | `area.tsx:98-110` |
-| Abas com conteúdo | 6 — **DÚVIDAS e SUPORTE são botões mortos** (aparecem na barra e não renderizam nada) | `area.tsx:225-235` |
-| Login do paciente | CPF + nascimento, ou CPF + senha; devolve token de portal | `area.tsx:550-593` |
-| Autenticação das rotas | `verifyPortalToken` + cabeçalho `Authorization: Bearer` | `area-paciente.ts:18,44` |
-| Fórmulas manipuladas | Moram em JSON dentro de `lembretes_prescricao.periodos` | `lib/db/src/schema/lembretes-prescricao.ts:18-50` |
-| Períodos canônicos | 9 (JE, IM, MM, AL, IT, MT, NO, FN, CE) | `lib/lembrete-periodo.ts:189-200` |
-| Fórmula "atual x passada" | **NÃO EXISTE** — só o booleano `ativo`; o JSON é sobrescrito e o passado se perde | mesmo schema |
-| Tabela de aderência | **NÃO EXISTE** — zero ocorrências de aderencia/adesao no banco e na API | busca em `lib/db` e `artifacts/api-server/src` |
-| CAT | **NÃO EXISTE** — zero ocorrências no código | busca em `artifacts/`, `specs/`, `docs/` |
+2.1. **Aderência**: percentual das doses prescritas que o paciente reportou ter tomado.
 
-Conclusão de arquitetura: o sistema hoje sabe **o que mandar hoje**; não sabe **o que mandou ontem**
-nem **se a pessoa tomou**. Esta spec constrói exatamente essas duas memórias.
+2.2. **Marcador**: um exame de sangue com valor numérico, por exemplo o ácido úrico.
 
----
+2.3. **Janela**: o intervalo de tempo entre duas coletas de exame consecutivas do mesmo marcador.
 
-## 4. Glossário desta spec (toda sigla explicada)
+2.4. **Veredito**: o julgamento automático do motor sobre se o marcador caminhou a favor ou contra o tratamento naquela janela.
 
-| Termo | Significado em português claro |
-|---|---|
-| CAT | Carta de Apresentação de Tratamento — documento em PDF que apresenta ao paciente o tratamento que ele acabou de aderir |
-| Vigência | Período em que uma fórmula esteve valendo para o paciente: data de início e data de fim |
-| Fórmula vigente | A que está valendo hoje (sem data de fim) — é a única que aceita reporte |
-| Fórmula encerrada | A que já teve data de fim — aparece só para leitura, nunca aceita reporte |
-| Período (janela) | Um dos 9 momentos canônicos do dia (Jejum, Início da Manhã, ..., Ceia) |
-| Reporte | O ato do paciente marcar, numa fórmula de um período, se tomou ou não |
-| Chave da fórmula | Texto estável derivado do nome canônico da fórmula, usado para amarrar reportes à mesma fórmula ao longo do tempo |
-| IDOR | Falha em que a pessoa troca um número na chamada e enxerga o dado de outra pessoa |
-| ADD COLUMN | Comando que **acrescenta** coluna à tabela sem apagar nada |
+2.5. **Frente terapêutica**: cada uma das quatro linhas de tratamento que o paciente segue ao mesmo tempo.
+
+2.6. **Multi-tenant**: arquitetura em que várias clínicas usam o mesmo sistema, cada uma vendo somente os próprios dados.
+
+2.7. **JSONB**: formato de coluna do banco de dados PostgreSQL que guarda uma estrutura de dados livre, usada aqui para listar quais módulos a clínica contratou.
+
+2.8. **Índice parcial**: regra de unicidade do banco que só vale para as linhas que atendem a uma condição, por exemplo somente as vigências ainda abertas.
 
 ---
 
-## 5. Requisitos exatos
+## 3. A BASE REAL QUE JÁ EXISTE (verificada em 14/08/2026)
 
-### 5.1 Onde a coisa mora
+**Tabela 3.1 — Volume de dado clínico longitudinal já armazenado**
 
-| Nº | Requisito |
-|---|---|
-| R1.1 | A funcionalidade mora dentro de `artifacts/padcom/src/pages/area.tsx`, na Área do Cliente que já existe. É **proibido** criar rota, portal ou área nova. |
-| R1.2 | Nasce **uma** aba nova, de chave `tratamento` e rótulo **MEU TRATAMENTO**. |
-| R1.3 | A aba nova contém, nesta ordem vertical: (a) bloco FÓRMULAS DE HOJE, (b) bloco HISTÓRICO DE FÓRMULAS, (c) bloco MINHAS DÚVIDAS. |
-| R1.4 | A aba morta **DÚVIDAS** deixa de existir na barra; seu conteúdo passa a ser o bloco (c) da aba nova. Ver pergunta em aberto na seção 12. |
-| R1.5 | A aba morta **SUPORTE** permanece como está nesta onda (fora de escopo). Não é corrigida nem removida aqui. |
-| R1.6 | O visual segue a skill `skill-layout-paxter` e o Art. 54 (Grade Imaginária): 5 zonas canônicas por card, posição fixa, campo vazio mostra "—". Nenhum estilo novo é inventado. |
+| Grandeza                                  |    Quantidade |
+| :---------------------------------------- | ------------: |
+| Resultados de exame com valor numérico    |        23.245 |
+| Datas de coleta distintas                 |           593 |
+| Pacientes com pelo menos um resultado     |           176 |
 
-### 5.2 Bloco (a) — FÓRMULAS DE HOJE
+3.2. A tabela `exam_analyte_catalog` tem a coluna `direction`, que já sabe, para cada marcador, se subir é bom (`higher_better`), se subir é ruim (`lower_better`) ou se o certo é ficar no meio da faixa (`target`).
 
-| Nº | Requisito |
-|---|---|
-| R2.1 | Lista os períodos do dia que têm fórmula, na ordem canônica (JE → CE), lendo do mesmo motor de períodos que já alimenta o lembrete. |
-| R2.2 | Dentro de cada período, lista **cada fórmula separadamente**, uma linha por fórmula. Um período com três fórmulas mostra três linhas com três reportes independentes. |
-| R2.3 | Cada linha mostra: nome canônico da fórmula, dose, posologia e o horário do período. Campo sem dado mostra "—". |
-| R2.4 | Cada linha tem três botões de reporte, mutuamente exclusivos: **TOMEI**, **NÃO TOMEI**, **ATRASEI**. |
-| R2.5 | O reporte é gravado com a chave completa: cliente + data (BRT) + sigla do período + chave da fórmula. |
-| R2.6 | Reportar de novo a mesma chave **atualiza** o registro existente; nunca cria linha duplicada. |
-| R2.7 | Ao escolher **NÃO TOMEI**, abre a lista de motivos da seção 5.3. O motivo é obrigatório. |
-| R2.8 | O paciente pode reportar o **dia de hoje** e os **2 dias anteriores** (janela de 3 dias). Fora disso, a linha é só leitura. |
-| R2.9 | Período do tipo `nao_tomar` (janela de jejum ou intervalo) **não** exibe botão de reporte; é informativo. |
-| R2.10 | Só fórmula **vigente** aceita reporte. |
+3.3. Essa coluna é a peça mais valiosa e a menos usada do sistema: sem ela seria impossível emitir um veredito automático.
 
-### 5.3 Motivos de "NÃO TOMEI" (lista fechada)
+**Tabela 3.4 — Exemplo real: série do cliente 44 (Caio Henrique Fernandes Padua)**
 
-| Código | Texto na tela | Consequência interna |
-|---|---|---|
-| `esqueci` | Esqueci | Só estatística |
-| `acabou` | Acabou o remédio | Sinaliza recompra no painel do CEO |
-| `passei_mal` | Passei mal / senti algo ruim | **Alerta clínico** (ver R5.4) |
-| `fora_de_casa` | Estava fora de casa | Só estatística |
-| `nao_comprei` | Ainda não comprei / não manipulei | Sinaliza recompra no painel do CEO |
-| `orientacao` | Fui orientado a parar | Marca para o CEO conferir a prescrição |
-| `outro` | Outro motivo | Abre campo de texto livre, máximo 280 caracteres |
+| Marcador                            | Direção        | 26/03/2026 | 11/06/2026 | Variação | Veredito     |
+| :---------------------------------- | :------------- | ---------: | ---------: | -------: | :----------- |
+| Ácido Úrico (mg/dL)                 | lower_better   |        4,3 |        4,0 |    −7,0% | FAVORÁVEL    |
+| Proteína C Reativa Ultra (mg/dL)    | lower_better   |       0,84 |       0,29 |   −65,5% | FAVORÁVEL    |
+| Hemoglobina Glicada (%)             | lower_better   |        5,3 |        5,5 |    +3,8% | DESFAVORÁVEL |
+| TSH (µUI/mL)                        | target         |       2,95 |       2,01 |   −31,9% | FAVORÁVEL    |
 
-### 5.4 Bloco (b) — HISTÓRICO DE FÓRMULAS
+3.5. Esses quatro vereditos foram calculados a partir do banco de produção, sem nenhum valor inventado.
 
-| Nº | Requisito |
-|---|---|
-| R3.1 | Lista as fórmulas **encerradas** do paciente, da mais recente para a mais antiga. |
-| R3.2 | Cada item mostra: nome da fórmula, dose, período em que era tomada, data de início e data de fim, no formato brasileiro (dd/mm/aaaa). |
-| R3.3 | Item encerrado é **somente leitura**: nenhum botão de reporte, em nenhuma circunstância. |
-| R3.4 | Fórmula encerrada exibe o selo textual "ENCERRADA EM dd/mm/aaaa". |
-| R3.5 | Sem histórico, o bloco mostra o estado vazio: "Você ainda não tem fórmulas encerradas." |
-
-### 5.5 Bloco (c) — MINHAS DÚVIDAS (mini painel do paciente)
-
-| Nº | Requisito |
-|---|---|
-| R4.1 | Botão **ENVIAR DÚVIDA** abre campo de texto de até 1.000 caracteres. |
-| R4.2 | A dúvida pode ser enviada solta ou amarrada a uma fórmula (o botão de dúvida existe também dentro da linha de cada fórmula vigente). |
-| R4.3 | O histórico lista **todas** as dúvidas do paciente, da mais recente para a mais antiga, com data e hora BRT. |
-| R4.4 | Cada dúvida mostra **todas** as respostas que a equipe deu, em ordem cronológica, com data e hora. |
-| R4.5 | Dúvida sem resposta exibe o selo "AGUARDANDO RESPOSTA". |
-| R4.6 | A resposta mostra o **nome do profissional** que respondeu. Nunca mostra identificador interno. |
-| R4.7 | O paciente **não** pode editar nem apagar dúvida já enviada (Regra de Ouro — nunca destruir). |
-| R4.8 | Enviar dúvida notifica o CEO pelo motor de envio que já existe. Nenhum canal novo é criado. |
-
-### 5.6 Memória de vigência (a peça que hoje não existe)
-
-| Nº | Requisito |
-|---|---|
-| R5.1 | Nasce a tabela `formula_vigencia`: uma linha por fórmula que o paciente teve, com `inicio_em` e `fim_em` (`fim_em` nulo = vigente). |
-| R5.2 | A tabela é alimentada **por observação** da sincronização que já grava `lembretes_prescricao.periodos`: fórmula que aparece e não tem vigência aberta → abre; fórmula que sumiu do JSON e tem vigência aberta → fecha com a data de hoje. |
-| R5.3 | A sincronização existente **não é reescrita**. É acrescentado um passo ao final dela, que só lê o JSON e escreve na tabela nova. |
-| R5.4 | A chave da fórmula é derivada do nome canônico com a função `semAcento` da biblioteca `@workspace/posologia`, em minúsculas, sem pontuação. Mesma fórmula com grafia diferente cai na mesma chave. |
-| R5.5 | Toda alteração de banco é `ADD COLUMN` / `CREATE TABLE`. Nenhum `DROP`, nenhum `TRUNCATE`, nenhum `db push` em tabela populada. |
-
-### 5.7 Alerta clínico
-
-| Nº | Requisito |
-|---|---|
-| R6.1 | Três reportes com motivo `passei_mal` para a **mesma** fórmula em janela de 7 dias acendem alerta no painel do CEO. |
-| R6.2 | O alerta reusa o padrão de LINHA VERMELHA que já existe na Anamnese V2. Nenhum padrão visual novo. |
-| R6.3 | O alerta **não** é enviado ao paciente. É informação interna da clínica. |
-
-### 5.8 CAT — Carta de Apresentação de Tratamento
-
-| Nº | Requisito |
-|---|---|
-| R7.1 | CAT é um documento PDF que apresenta ao paciente o tratamento que ele acabou de aderir, no mesmo padrão visual do protocolo premium já aprovado (capa com foto do médico, subcapa biográfica, assinatura PAdES). |
-| R7.2 | O CAT é emitido **automaticamente** no evento de adesão a tratamento. A definição exata do evento é a pergunta em aberto da seção 12. |
-| R7.3 | A emissão é **idempotente**: a chave é (cliente, tratamento, versão do tratamento). O mesmo tratamento nunca gera dois CAT nem dois e-mails. |
-| R7.4 | Existe **botão autônomo de reenvio** na ficha do cliente, dentro do sistema, para o CEO reenviar o CAT a pedido. O reenvio **reusa** o PDF já emitido; não gera documento novo. |
-| R7.5 | O CAT leva o QR de verificação, conforme o Art. 63 do Código Paxter. |
-| R7.6 | O CAT sai pelo motor único de envio branded ("Hermes Paxter", Art. 66). Nenhuma rota monta a mensagem à mão. |
-| R7.7 | O CAT aparece na aba DOCUMENTOS da Área do Cliente, junto com os demais documentos. |
-
-### 5.9 Segurança
-
-| Nº | Requisito |
-|---|---|
-| R8.1 | Toda rota nova do paciente exige `verifyPortalToken` e **deriva o `client_id` do token**, nunca do corpo nem da URL (anti-IDOR). |
-| R8.2 | Toda rota nova de leitura ou resposta pela equipe exige `requireCollaborator`. |
-| R8.3 | Nenhum dado clínico trafega em canal de terceiro; a mensagem de aviso leva só o convite para abrir a Área do Cliente. |
-| R8.4 | Data e hora sempre de `lib/brt.ts`. Nunca `new Date()` cru. |
+3.6. O sistema tinha esse dado guardado desde 2020 e nunca o mostrou a ninguém.
 
 ---
 
-## 6. Modelo de dados proposto
+## 4. AS QUATRO FRENTES (V1 aprovado pelo CEO)
 
-| Tabela | Colunas principais | Por que existe |
-|---|---|---|
-| `formula_vigencia` | `id`, `cliente_id`, `chave_formula`, `nome_canonico`, `dose`, `periodo_sigla`, `inicio_em`, `fim_em`, `created_at` | Separa fórmula atual de fórmula passada — hoje o passado se perde |
-| `formula_adesao_evento` | `id`, `cliente_id`, `chave_formula`, `periodo_sigla`, `data_ref` (DATE BRT), `status` (`tomou`/`nao_tomou`/`atrasou`), `motivo`, `observacao`, `origem`, `created_at`, `updated_at` — único em (`cliente_id`,`chave_formula`,`periodo_sigla`,`data_ref`) | Guarda o reporte, um por fórmula por período por dia |
-| `paciente_duvida` | `id`, `cliente_id`, `texto`, `chave_formula` (opcional), `criada_em` | A pergunta do paciente |
-| `paciente_duvida_resposta` | `id`, `duvida_id`, `profissional_id`, `texto`, `respondida_em` | Cada resposta da equipe, em thread |
-| `cat_emissao` | `id`, `cliente_id`, `tratamento_ref`, `versao`, `arquivo_drive_id`, `emitido_em`, `reenvios` — único em (`cliente_id`,`tratamento_ref`,`versao`) | Trava de idempotência do CAT |
+**Tabela 4.1 — Frentes terapêuticas e a fonte de verdade de cada uma**
 
-Armadilha registrada na memória e que **vale aqui**: no PostgreSQL o valor nulo **não** colide em
-índice único. O índice único de `formula_adesao_evento` só funciona porque as quatro colunas da
-chave são obrigatórias. Nenhuma delas pode ser nula.
+| Frente                  | Fonte de verdade no banco        | O que o paciente reporta                      | Natureza do ritmo          |
+| :---------------------- | :------------------------------- | :-------------------------------------------- | :------------------------- |
+| Fórmulas Magistrais     | `lembretes_prescricao.periodos`  | Tomei / Não tomei, fórmula a fórmula           | Diário, 9 janelas fixas    |
+| Protocolo Injetável     | `protocols` + `sessions`         | Compareci / Não compareci à sessão             | Por sessão, intervalo próprio |
+| Plano Nutricional       | motor de dieta (manual e IA)     | Segui / Não segui o plano do dia               | Diário, por refeição       |
+| Próxima Consulta        | agenda                           | Somente visualiza e confirma presença          | Pontual                    |
 
----
+4.2. **Regra de ouro do ritmo**: fórmula magistral é diária e tem janela de horário; protocolo injetável é por sessão e tem intervalo próprio em dias.
 
-## 7. Blueprint do fluxo
+4.3. Nunca tratar sessão injetável como se fosse dose diária — via intramuscular, endovenosa, subcutânea e implante têm frequências individuais definidas em `protocol_items.interval_days`.
 
-```
-LEMBRETE (motor atual, sem mudanca)
-  Twilio/WhatsApp + espelho Telegram, 1 mensagem POR JANELA
-        |
-        v
-  Mensagem leva convite: "abra Meu Tratamento"
-        |
-        v
-PACIENTE ABRE /area  ->  aba MEU TRATAMENTO
-        |
-        +--> (a) FORMULAS DE HOJE  -> reporte por formula/periodo -> formula_adesao_evento
-        |                                   |
-        |                                   +-- motivo passei_mal x3/7d --> ALERTA no Cockpit
-        |                                   +-- motivo acabou/nao_comprei --> sinal de recompra
-        |
-        +--> (b) HISTORICO DE FORMULAS (somente leitura)  <- formula_vigencia (fim_em preenchido)
-        |
-        +--> (c) MINHAS DUVIDAS -> paciente_duvida -> avisa CEO (motor Hermes)
-                                        ^
-                                        +-- equipe responde no Cockpit -> paciente_duvida_resposta
-
-
-ADESAO A TRATAMENTO (evento — ver secao 12)
-        |
-        v
-  cat_emissao (idempotente)  ->  PDF CAT  ->  Hermes Paxter  ->  paciente
-        |
-        +--> aparece na aba DOCUMENTOS
-        +--> botao REENVIAR CAT na ficha do cliente (reusa o mesmo PDF)
-```
+4.4. A frente de Próxima Consulta é a única sem reporte de aderência, porque comparecer à consulta já é registrado pela agenda.
 
 ---
 
-## 8. Casos extremos a tratar
+## 5. O QUE JÁ EXISTE CONTRA O QUE FALTA
 
-| Nº | Situação | Comportamento obrigatório |
-|---|---|---|
-| C1 | Paciente sem nenhuma fórmula | Bloco (a) mostra estado vazio, não erro |
-| C2 | Período com duas fórmulas e o paciente reporta só uma | A outra fica pendente, sem inventar valor |
-| C3 | Paciente clica duas vezes em TOMEI | Atualiza a mesma linha; nunca duplica |
-| C4 | Paciente troca TOMEI por NÃO TOMEI | Sobrescreve o status e exige o motivo |
-| C5 | Fórmula encerrada e depois retomada | Abre vigência **nova**; a antiga continua fechada e visível no histórico |
-| C6 | Duas fórmulas com nomes quase iguais | A chave derivada de `semAcento` deve separá-las; se colidirem, a colisão é resolvida no nome canônico, nunca com "chute" |
-| C7 | Reporte na virada da meia-noite | A data de referência é a data BRT do período, não a hora do clique |
-| C8 | Paciente tenta reportar dia 10 dias atrás | Bloqueado pela janela de 3 dias (R2.8) |
-| C9 | Token do portal expirado no meio do reporte | Devolve 401 e a tela pede login de novo, sem perder o texto digitado |
-| C10 | Paciente inativo (`status != active`) | Área abre em leitura; reporte bloqueado |
-| C11 | CAT disparado duas vezes pelo mesmo evento | A trava de idempotência impede o segundo e-mail |
-| C12 | CAT com o arquivo já apagado do Drive | O reenvio falha com mensagem honesta; **não** gera PDF novo silenciosamente |
-| C13 | Equipe responde duas vezes a mesma dúvida | As duas respostas aparecem, em ordem; nenhuma é sobrescrita |
-| C14 | Dúvida enviada e o cliente sem canal cadastrado | A dúvida é gravada; o aviso ao CEO informa o canal indisponível, sem fingir envio |
-| C15 | Sincronização do lembrete roda duas vezes no mesmo dia | A abertura/fechamento de vigência é idempotente por (cliente, chave, vigência aberta) |
+**Tabela 5.1 — Inventário de peças: nada será recriado**
 
----
+| Peça                                    | Situação      | Onde vive                                    |
+| :-------------------------------------- | :------------ | :------------------------------------------- |
+| Motor de lembrete por período           | JÁ EXISTE     | `lib/cron.ts` + `lib/lembrete-periodo.ts`     |
+| Nove janelas canônicas do dia           | JÁ EXISTE     | `MAPA_PERIODO` e tabela `periodos_dia`        |
+| Mensagem rica editável                  | JÁ EXISTE     | `lib/mensageria-opus.ts`                      |
+| Entrega por WhatsApp com espelho Telegram | JÁ EXISTE   | `lib/whatsapp.ts`                             |
+| Exames longitudinais com unidade canônica | JÁ EXISTE   | `exam_results`                                |
+| Direção do marcador                     | JÁ EXISTE     | `exam_analyte_catalog.direction`              |
+| Importação automática de laudos         | JÁ EXISTE     | robô do Google Drive, a cada quatro horas     |
+| Avatar de voz e de vídeo do médico       | JÁ EXISTE     | `clinic_avatars` + `avatar_uso_log`           |
+| Emissão de documento em PDF assinado    | JÁ EXISTE     | Fábrica de Documentos + `embedPadesSignature` |
+| Controle de módulo por clínica          | JÁ EXISTE     | `empresas.modulos_ativos` + `moduleGuard`     |
+| **Aderência dose a dose**               | **A CONSTRUIR** | **duas tabelas novas**                      |
+| **Histórico do que estava prescrito**   | **A CONSTRUIR** | **`lembretes_prescricao.periodos` é sobrescrito hoje** |
 
-## 9. Definição de PRONTO
-
-Conforme o Art. 69 do Código Paxter, cada nível abaixo é obrigatório e vai para a resposta ao CEO
-em tabela Nível / Esperado / Obtido / Passou.
-
-| Nível | Prova exigida |
-|---|---|
-| SMOKE | Chamada real devolve 200 em: listar fórmulas de hoje, gravar reporte, listar histórico, enviar dúvida, listar dúvidas |
-| DADO | O banco mostra a linha em `formula_adesao_evento`, em `formula_vigencia` e em `paciente_duvida` |
-| VISUAL | Captura de tela da aba MEU TRATAMENTO no **celular e no desktop** (Art. 52), com os três blocos |
-| LOG | Log do servidor sem erro inesperado durante o fluxo completo |
-| IDEMPOTÊNCIA | Reportar duas vezes a mesma chave produz **uma** linha; emitir CAT duas vezes produz **um** e-mail |
-| SEGURANÇA | Chamada com o token de um paciente tentando ler dado de outro devolve 401/403 |
-| REVISÃO | O `architect` confere requisito por requisito desta spec e aprova sem pendência |
+5.2. O ponto 5.1 é a tese inteira: onze peças prontas, duas a construir.
 
 ---
 
-## 10. Linhas vermelhas (violar reprova a entrega)
+## 6. AS DUAS TABELAS NOVAS
 
-| Nº | Linha vermelha |
-|---|---|
-| L1 | Nunca criar área, portal ou rota de paciente nova — ordem direta do CEO em 14/08/2026 |
-| L2 | Nunca perguntar aderência por WhatsApp ou Telegram — direção rejeitada pelo CEO |
-| L3 | Nunca tocar `/api/budgets/calculate` nem o motor de desmembramento |
-| L4 | Nunca reescrever o motor de lembretes; apenas acrescentar um passo de leitura ao final |
-| L5 | Nunca `DROP`, `TRUNCATE` ou `db push` em tabela populada — só `ADD COLUMN` / `CREATE TABLE` |
-| L6 | Nunca permitir reporte em fórmula encerrada |
-| L7 | Nunca derivar `client_id` do corpo ou da URL — só do token verificado |
-| L8 | Nunca montar mensagem de marca à mão; sempre pelo motor Hermes (Art. 66) |
-| L9 | Nunca usar `new Date()` cru para data exibida ou gravada — sempre `lib/brt.ts` |
-| L10 | Nunca apagar dúvida, resposta ou vigência — Regra de Ouro |
+### 6.1. `formula_vigencia` — o passado que hoje se perde
 
----
+6.1.1. Problema atual: a coluna `lembretes_prescricao.periodos` é sobrescrita a cada alteração da prescrição.
 
-## 11. Kaizen — sugestões próprias do Dr. Replit Paxter
+6.1.2. Consequência: hoje é impossível saber o que estava prescrito em uma data passada, e sem isso não existe denominador para calcular aderência.
 
-Cada uma é proposta, **não** está autorizada, e cada uma vira item próprio na planilha.
+6.1.3. Solução: uma linha por fórmula por período, com data de início e data de fim.
 
-| Nº | Sugestão | Por que vale |
-|---|---|---|
-| K1 | Semáforo de aderência por paciente no Cockpit do CEO (verde ≥ 80%, âmbar 50–79%, vermelho < 50%, cinza sem dado nos últimos 7 dias) | Sem um lugar onde o CEO bate o olho, o dado entra e ninguém usa |
-| K2 | Motivo estruturado no "não tomei" (já embutido em R5.3) | Transforma "não tomou" em ação: `acabou` é venda, `passei_mal` é clínica |
-| K3 | Alerta de 3× `passei_mal` em 7 dias (já embutido em R6.1) | Segurança do paciente; hoje esse sinal se perde |
-| K4 | Aviso de recompra: cruzar dias de vigência com a quantidade dispensada e avisar "seu frasco acaba em X dias" | Evita a interrupção silenciosa, que é a principal causa de abandono |
-| K5 | Link curto assinado no lembrete que já sai, abrindo a Área do Cliente **já na fórmula daquele período** | Respeita a ordem do CEO (o canal continua lembrete) e tira o atrito de achar a linha |
-| K6 | Dúvida repetida 3× vira sugestão de resposta padrão para o CEO aprovar | É a aba DUVIDAS_BASE que o CEO já tinha desenhado na planilha ATENAS |
-| K7 | Registro de quem respondeu e em quanto tempo (tempo de resposta médio) | Mede a qualidade do atendimento sem ninguém preencher relatório |
-| K8 | Exportar a aderência do período para dentro do PDF de acompanhamento clínico | O dado vira prova na consulta, não só número na tela |
+6.1.4. Vigência aberta é a linha com `fim_em` nulo.
 
----
+6.1.5. **Armadilha do PostgreSQL**: valor nulo não colide em índice único, portanto a unicidade de "só uma vigência aberta por fórmula" exige **índice parcial** com a condição `WHERE fim_em IS NULL`.
 
-## 12. Pergunta em aberto (um martelo só)
+### 6.2. `aderencia_reporte` — o que o paciente respondeu
 
-**O que exatamente é "o paciente aderir a um tratamento", o evento que dispara o CAT automático?**
+6.2.1. Uma linha por reporte: cliente, frente, referência do item, data, janela, resposta.
 
-| Opção | Definição do gatilho | Consequência |
-|---|---|---|
-| A (recomendada) | Quando um tratamento **entra em vigência** para o paciente: um protocolo é validado ou um conjunto novo de fórmulas passa a valer | O CAT chega junto com o começo real do tratamento; encaixa direto na tabela de vigência desta spec |
-| B | Quando o paciente **confirma na Área do Cliente** que vai seguir o tratamento (botão "aceito iniciar") | Adesão vira ato explícito do paciente, mas exige uma tela de aceite que hoje não existe |
-| C | Quando o **primeiro reporte** de qualquer fórmula do tratamento é registrado | O CAT chega depois do início; documento de apresentação atrasado |
+6.2.2. Resposta admite três estados: tomou, não tomou, esqueceu.
 
-Default recomendado: **A**.
+6.2.3. Idempotência por trio: cliente, item, janela do dia. O mesmo reporte enviado duas vezes não gera duas linhas.
+
+6.2.4. Toda data e hora vem de `lib/brt.ts`, nunca de `new Date()` cru.
+
+### 6.3. Regra de Ouro obedecida
+
+6.3.1. Somente `CREATE TABLE` e `ADD COLUMN`.
+
+6.3.2. Nenhum `DROP`, nenhum `TRUNCATE`, nenhuma exclusão de dado existente.
+
+6.3.3. Nenhuma tabela existente muda de forma.
 
 ---
 
-## 13. Rastreio na planilha de produção
+## 7. O MOTOR DE VEREDITO
 
-Os itens desta spec entram na planilha `PLANILHA PRODUCAO` com módulo **Área do Paciente**, coluna I
-("Para que serve") preenchida em linguagem do CEO e coluna J preenchida, conforme
-`docs/PROTOCOLO-PLANILHA.md`.
+7.1. Para cada par de coletas consecutivas do mesmo marcador, o motor calcula a janela, a aderência dentro dela e a variação do valor.
+
+7.2. **A ordem de julgamento importa e não pode ser invertida.**
+
+**Tabela 7.3 — Ordem obrigatória das regras do veredito**
+
+| Ordem | Regra                                                                 | Por que vem nesta posição                                                     |
+| ----: | :--------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
+|     1 | Marcador `target` sem faixa completa devolve **SEM VEREDITO**           | Devolver "estável" seria mentir por omissão; o motor prefere calar             |
+|     2 | **Cruzar a faixa de referência** decide sozinho, a favor ou contra      | Atravessar o limite é sinal clínico mesmo com variação percentual mínima       |
+|     3 | Só então aplica o corte de ruído de laboratório                          | O corte existe para descartar oscilação de aparelho, não mudança de estado     |
+|     4 | Por fim, aplica a direção do marcador                                    | `lower_better`, `higher_better` ou aproximação ao centro para `target`         |
+
+7.4. Exemplo que prova por que a ordem importa: uma hemoglobina glicada que vai de cinco vírgula seis para cinco vírgula sete sobe apenas um vírgula oito por cento, mas atravessa o teto de referência e entra em faixa de pré-diabetes.
+
+7.5. Se o corte de ruído viesse antes, esse caso seria rotulado como estável e o médico não seria avisado. Por isso o cruzamento de faixa vem primeiro.
+
+7.6. **PENDÊNCIA ANTES DE IR PARA O BACKEND**: o corte de ruído hoje é um percentual global de três por cento. Isso é provisório. Precisa virar **tolerância por analito**, porque o ruído de laboratório do TSH não é o mesmo da hemoglobina glicada. Definir essa tabela de tolerâncias é decisão clínica do Dr. Caio, não decisão de programador.
+
+7.7. **O veredito nunca afirma causa. Ele afirma coincidência medida no tempo.**
+
+7.8. Duas coletas consecutivas não estabelecem relação causal, e nenhuma tela pode dizer que o tratamento funcionou.
+
+7.9. A tela do paciente diz que os dois caminharam juntos. A tela do médico diz que houve associação temporal. A interpretação é sempre clínica e sempre humana.
+
+7.10. Quando a aderência é alta e o marcador caminha contra, o motor levanta a bandeira mais valiosa de todas: *o tratamento pode não estar funcionando para este paciente*.
+
+7.11. Essa bandeira ordena a fila de triagem do médico.
 
 ---
 
-RESUMO EM 1 LINHA: alvo escrito da aba MEU TRATAMENTO na Área do Cliente — fórmulas de hoje com
-reporte por fórmula dentro de cada período, histórico de fórmulas encerradas só para leitura, mini
-painel de dúvidas e respostas, memória de vigência que hoje não existe e CAT automático idempotente
-com botão de reenvio.
+## 8. A EXPERIÊNCIA DO PACIENTE
+
+8.1. Exigência do CEO: *"o paciente deve se sentir francamente amparado, como um príncipe, nunca como cliente de balcão de drogaria"*.
+
+8.2. O paciente nunca vê a palavra aderência, nem percentual de falha, nem cobrança.
+
+8.3. Ele vê **O SEU PULSO** — a constância dele, apresentada como conquista, não como dívida.
+
+8.4. Ele reporta fórmula por fórmula dentro do período, com dois toques, sem digitar nada.
+
+8.5. Quando o corpo responde, ele recebe a frase causal e pode **ouvir o resultado na voz do próprio médico**.
+
+8.6. Quando o corpo não responde, o paciente não é culpado na tela — a bandeira vai para o médico, em silêncio.
+
+---
+
+## 9. A ABA DÚVIDAS PERMANECE SEPARADA
+
+9.1. Ordem do CEO: *"cada um com seu cada qual"*.
+
+9.2. MEU TRATAMENTO é onde o paciente **reporta**. DÚVIDAS é onde o paciente **pergunta**.
+
+9.3. As duas abas não se misturam e não se absorvem.
+
+9.4. Única ponte permitida: ao abrir uma dúvida, o paciente **pode opcionalmente** marcar a qual das quatro frentes ela se refere.
+
+9.5. Com isso a dúvida chega ao médico já com contexto, sem que a aba perca a independência.
+
+---
+
+## 10. FORA DO ESCOPO
+
+10.1. A Carta de Apresentação de Tratamento **não faz parte deste escopo** — ela é emitida somente no fechamento de protocolo e não tem relação com aderência de fórmulas.
+
+10.2. Nenhum robô autônomo perguntará ao paciente pelo WhatsApp ou pelo Telegram. O reporte vive na Área do Cliente.
+
+10.3. O motor de mensageria **não será recriado**, em nenhuma hipótese.
+
+---
+
+## 11. MONETIZAÇÃO MULTI-TENANT
+
+11.1. Cada módulo abaixo é uma chave dentro de `empresas.modulos_ativos` e passa pelo `moduleGuard` que já está no ar.
+
+11.2. A clínica que não contratar simplesmente não vê a tela. Nenhuma linha nova de cobrança precisa ser inventada.
+
+**Tabela 11.3 — Os quatro módulos licenciáveis do ELO**
+
+| Módulo         | O que entrega                                              | Modelo de cobrança              | Peça reaproveitada                 |
+| :------------- | :--------------------------------------------------------- | :------------------------------ | :--------------------------------- |
+| ELO ESSENCIAL  | Aba MEU TRATAMENTO e painel de constância                   | Mensalidade fixa por clínica    | Motor de lembrete por período      |
+| ELO CAUSAL     | Esforço do paciente e resposta do corpo lado a lado          | Por paciente ativo, por mês     | `exam_results` + `direction`       |
+| ELO VOZ        | Narrativa causal falada pelo avatar do médico                | Consumo, por caractere e segundo | `avatar_uso_log` (medição pronta)  |
+| ELO DOSSIÊ     | PDF trimestral de causalidade, assinado digitalmente         | Por documento emitido           | Fábrica de Documentos + PAdES      |
+
+11.4. O ELO CAUSAL é o coração comercial: é o único que cobra por paciente e o único que fica mais valioso a cada mês.
+
+**Tabela 11.5 — Por que este produto se sustenta comercialmente**
+
+| Nº | Tese                                            | Mecanismo                                                                            |
+| -: | :---------------------------------------------- | :----------------------------------------------------------------------------------- |
+| 01 | O paciente vê a própria biologia responder      | Quem enxerga o marcador melhorar por causa da própria constância não abandona o tratamento |
+| 02 | O médico tem prova, não promessa                | Na consulta de retorno o médico abre um número; a conversa sai de preço e vai para resultado |
+| 03 | O dado fica mais valioso a cada mês             | Cada janela nova refina o motor; sair do sistema significa perder o histórico causal   |
+
+11.6. A tese 03 é a barreira de saída mais honesta que existe: não prende por contrato, prende por valor acumulado.
+
+---
+
+## 12. ORDEM DE CONSTRUÇÃO SUGERIDA
+
+**Tabela 12.1 — Sequência de obra, da fundação ao acabamento**
+
+| Etapa | O que fazer                                              | Depende de |
+| ----: | :-------------------------------------------------------- | :--------- |
+|     1 | Criar `formula_vigencia` e passar a versionar a prescrição | —          |
+|     2 | Criar `aderencia_reporte` e a rota de reporte              | Etapa 1    |
+|     3 | Construir a aba MEU TRATAMENTO com as quatro frentes       | Etapa 2    |
+|     4 | Implementar o motor de veredito e o painel do médico       | Etapa 2    |
+|     5 | Ligar a narrativa causal ao avatar de voz                  | Etapa 4    |
+|     6 | Emitir o dossiê trimestral em PDF assinado                 | Etapa 4    |
+|     7 | Registrar os quatro módulos em `empresas.modulos_ativos`   | Etapas 3 a 6 |
+
+12.2. As etapas 1 e 2 são fundação: sem elas nada mais se sustenta.
+
+12.3. As etapas 3 e 4 podem ser construídas em paralelo por agentes diferentes, porque não tocam nos mesmos arquivos.
+
+---
+
+## 13. PROVA VISUAL
+
+13.1. Três telas foram construídas e colocadas no quadro do workspace como ENTREGA 53.
+
+13.2. MEU TRATAMENTO, visão do paciente no celular, com O SEU PULSO e as quatro frentes.
+
+13.3. O ELO, visão do médico, com os quatro elos calculados a partir dos exames reais do cliente 44.
+
+13.4. O ELO como produto, com os quatro módulos licenciáveis e a tese comercial.
+
+13.5. O código-fonte das três telas vive em `artifacts/mockup-sandbox/src/components/mockups/elo-causal/`.
+
+---
+
+## RESUMO EM 1 LINHA
+
+O sistema já sabe o que foi prescrito e o que o corpo respondeu, e ao acrescentar duas tabelas que registram o que o paciente cumpriu, ele passa a provar causalidade clínica automaticamente, virando quatro módulos vendáveis às clínicas futuras sem recriar um único motor.
