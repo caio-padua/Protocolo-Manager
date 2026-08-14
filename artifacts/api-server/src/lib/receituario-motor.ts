@@ -356,7 +356,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       driveUrl,
       modeloUsado: modelo.nome,
       formulas:    params.formulas,   // cartões alinhados blocoTabelaSubstancias
-      baseUrl:     assetsBase,        // para o banner GIF e URLs absolutas
+      baseUrl:     baseUrl,           // para o banner GIF e URLs absolutas
     });
     const mailResult = await sendGmailMessage({
       to: emailRecipients.join(", "),

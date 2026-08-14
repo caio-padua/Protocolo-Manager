@@ -335,9 +335,29 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
   }
 });
 
+// ── Código semântico Telegram ────────────────────────────────────────────────
+// Determinístico: 3 últimas letras do sobrenome + 4 últimos dígitos do CPF.
+// Exemplos: "CARLUCIA SANTOS FERNANDES" + CPF "···678-90" → "DES7890"
+//           "JOAO SILVA"               + CPF "···432-10" → "VAS4321" ← usa 3 letras de SILVA
+// Elimina dependência de e-mail: o CEO pode repassar o código verbalmente.
+function codigoTelegramSemantico(nome: string, cpf: string | null | undefined): string {
+  const sobrenome = nome.trim().split(/\s+/).pop() ?? nome;
+  // Normaliza acentos (FERNANDES → FERNANDES, ÁVILA → AVILA)
+  const limpo = sobrenome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase();
+  const sufixoNome = limpo.slice(-3).padStart(3, "X");    // ex: "DES"
+  const digCpf    = (cpf ?? "").replace(/\D/g, "");
+  const sufixoCpf = digCpf.slice(-4).padStart(4, "0");    // ex: "7890"
+  return `${sufixoNome}${sufixoCpf}`;
+}
+
 // ── POST /api/clients/:id/activate-telegram ───────────────────────────────────
-// Gera senha de ativação de 6 dígitos, salva no banco e dispara o e-mail de
-// onboarding do Telegram. Requer colaborador autenticado.
+// Gera código semântico (sobrenome + CPF), salva no banco e envia e-mail se
+// disponível. Sem e-mail, retorna o código para o CEO repassar diretamente.
+// Requer colaborador autenticado.
 router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -352,9 +372,10 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
 
   const [client] = await db
     .select({
-      id: clientsTable.id,
-      name: clientsTable.name,
-      email: clientsTable.email,
+      id:             clientsTable.id,
+      name:           clientsTable.name,
+      email:          clientsTable.email,
+      cpf:            clientsTable.cpf,
       telegramChatId: clientsTable.telegramChatId,
     })
     .from(clientsTable)
@@ -362,17 +383,15 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     .limit(1);
 
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
-  if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
+  // Sem e-mail: não bloqueia — CEO repassa o código diretamente ao paciente.
   if (client.telegramChatId) {
     res.status(409).json({ error: "Telegram já vinculado", chatId: client.telegramChatId });
     return;
   }
 
-  // Gera senha alfanumérica de 6 caracteres (letras maiúsculas + números)
-  // Usa crypto seguro para evitar previsibilidade do PRNG padrão.
-  const { randomInt } = await import("node:crypto");
-  const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // remove O/0/I/1 p/ evitar confusão visual
-  const senha = Array.from({ length: 6 }, () => CHARS[randomInt(CHARS.length)]).join("");
+  // Código semântico determinístico — sobrenome + CPF.
+  // O paciente pode receber verbalmente, sem esperar e-mail.
+  const senha = codigoTelegramSemantico(client.name, client.cpf);
 
   // Persiste a senha no banco — filtra por tenant também no UPDATE para garantia dupla.
   const updated = await db
@@ -386,22 +405,30 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     return;
   }
 
-  // Dispara e-mail de onboarding
-  try {
-    const result = await sendTelegramOnboardingEmail({
-      clientName: client.name,
-      clientEmail: client.email,
-      validationPassword: senha,
-    });
-    if (result.success) {
-      res.json({ ok: true, message: `Senha gerada e e-mail enviado para ${client.email}` });
-    } else {
-      // Senha foi salva, mas e-mail falhou — informar sem reverter
-      res.status(500).json({ error: result.error ?? "Senha gerada, mas falha no envio do e-mail" });
+  // Dispara e-mail de onboarding somente se o paciente tiver e-mail.
+  // Falha no e-mail NÃO bloqueia — código retorna na resposta para o CEO repassar.
+  let emailEnviado = false;
+  if (client.email) {
+    try {
+      const result = await sendTelegramOnboardingEmail({
+        clientName:        client.name,
+        clientEmail:       client.email,
+        validationPassword: senha,
+      });
+      emailEnviado = result.success;
+    } catch {
+      // E-mail falhou; código já salvo no banco — CEO repassa diretamente
     }
-  } catch (err) {
-    res.status(500).json({ error: "erro_activate_telegram", detalhe: String(err) });
   }
+
+  res.json({
+    ok: true,
+    codigo: senha,
+    emailEnviado,
+    mensagem: emailEnviado
+      ? `Código ${senha} gerado e e-mail enviado para ${client.email}`
+      : `Código ${senha} gerado. ${client.email ? "Falha no e-mail — r" : "Paciente sem e-mail — R"}epasse o código diretamente.`,
+  });
 });
 
 // ── POST /api/clients/:id/resend-telegram-onboarding ─────────────────────────

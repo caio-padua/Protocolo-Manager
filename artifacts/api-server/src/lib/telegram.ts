@@ -250,3 +250,62 @@ export async function sendTelegramAnimation(
     return { sent: false, mock: false, error: (e as Error).message };
   }
 }
+
+// ── getMe / bot info ──────────────────────────────────────────────────────────
+export interface TelegramBotInfo {
+  username: string;
+  firstName: string;
+  /** true quando o token não está configurado — resposta segura sem API call */
+  mock?: boolean;
+}
+
+/**
+ * Consulta `getMe` no Telegram para saber o nome e @username atual do bot.
+ * Nunca lança exceção: retorna mock quando token ausente ou falha de rede.
+ */
+export async function getTelegramBotInfo(): Promise<TelegramBotInfo> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    return { username: "Paduaclinica_bot", firstName: "Paxter Bot", mock: true };
+  }
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const json = await resp.json() as { ok: boolean; result?: { username?: string; first_name?: string } };
+    if (json.ok && json.result) {
+      return {
+        username: json.result.username ?? "",
+        firstName: json.result.first_name ?? "",
+        mock: false,
+      };
+    }
+    logger.warn({ json }, "[telegram] getMe retornou ok:false");
+    return { username: "", firstName: "Erro na resposta", mock: true };
+  } catch (e) {
+    logger.warn({ err: (e as Error).message }, "[telegram] getTelegramBotInfo falhou");
+    return { username: "", firstName: "Erro de rede", mock: true };
+  }
+}
+
+// ── setMyName — bidirecional com Telegram ────────────────────────────────────
+/**
+ * Muda o nome visível do bot via Telegram API `setMyName`.
+ * O que o CEO altera na tela reflete imediatamente no Telegram.
+ */
+export async function setTelegramBotName(name: string): Promise<{ ok: boolean; error?: string }> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) return { ok: false, error: "Token do bot não configurado no cofre" };
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/setMyName`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const json = await resp.json() as { ok: boolean; description?: string };
+    return { ok: json.ok === true, error: json.description };
+  } catch (e) {
+    logger.warn({ err: (e as Error).message }, "[telegram] setTelegramBotName falhou");
+    return { ok: false, error: String(e) };
+  }
+}

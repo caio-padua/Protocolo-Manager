@@ -26,6 +26,7 @@ import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
 import { handleSncrAlert } from "../lib/sncr-alerts";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
 import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
+import { baseUrlFromEnv } from "../lib/messaging/base-url.js";
 // ── Motor de lembretes por período (portado do IHE) ──
 import {
   sincronizarLembretePrescricao,
@@ -842,6 +843,24 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
     telegram: telegramResults,
     mensagemPreview: mensagem.slice(0, 300) + (mensagem.length > 300 ? "…" : ""),
   });
+});
+
+// ── Teste de template de e-mail (CEO only — remove após confirmar visual) ──────
+router.post("/prescriptions/test-email-receituario", async (req, res): Promise<void> => {
+  const emailTo = (req.body?.emailTo as string) ?? "drcaiohenriquepadua@gmail.com";
+  const baseUrl = baseUrlFromEnv();
+  const result = await emitirReceituarioPdf({
+    patient: { nome: "CARLUCIA SANTOS FERNANDES", cpf: "012.345.678-90", telefone: "(62) 98269-6656" },
+    formulas: [
+      { nome: "Sibutramina 5mg",        dose: "5mg",        via: "VO", posologia: "1 cap a tarde (14h)" },
+      { nome: "Vitamina D3 50.000UI",   dose: "50.000UI",   via: "VO", posologia: "1 cap por semana" },
+      { nome: "Metformina 500mg",       dose: "500mg",      via: "VO", posologia: "1 cap nas refeicoes" },
+      { nome: "Oxacarbazepina 600mg",   dose: "600mg",      via: "VO", posologia: "1 cap ao deitar" },
+    ],
+    emailTo:         [emailTo],
+    assetsBaseUrl:   baseUrl,
+  });
+  res.json({ ok: true, emailSent: result.emailSent, modeloUsado: result.modeloUsado });
 });
 
 export default router;

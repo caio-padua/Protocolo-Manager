@@ -16,6 +16,7 @@ import {
   type Matriz,
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
+import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
 import {
   getJsonSetting,
   setJsonSetting,
@@ -202,6 +203,23 @@ router.put("/settings/telegram", requireCollaborator, async (req, res): Promise<
   if (typeof webhookSecret === "string" && webhookSecret.trim())
     await setSecret("telegram.webhookSecret", webhookSecret.trim(), actor(req));
   res.json(await telegramPayload());
+});
+
+// GET /settings/telegram/bot-info — público (retorna nome/username do bot via getMe)
+// Usado pela tela de Comunicação Digital sem exigir login de colaborador.
+router.get("/settings/telegram/bot-info", async (_req, res): Promise<void> => {
+  res.json(await getTelegramBotInfo());
+});
+
+// POST /settings/telegram/set-name — bidirecional: o que o CEO muda na tela
+// reflete no Telegram via setMyName. Exige colaborador para proteger a operação.
+router.post("/settings/telegram/set-name", requireCollaborator, async (req, res): Promise<void> => {
+  const { name } = (req.body ?? {}) as { name?: string };
+  if (!name || typeof name !== "string" || !name.trim()) {
+    res.status(400).json({ error: "name obrigatório" });
+    return;
+  }
+  res.json(await setTelegramBotName(name.trim()));
 });
 
 // ------------------------------------------------------------------ STRIPE ---
