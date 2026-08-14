@@ -67,6 +67,30 @@ const MODAL_INICIAL: ModalState = {
   confirmado: false,
 };
 
+/**
+ * Verifica se o CPF completo (11 dígitos limpos) é compatível com o CPF mascarado.
+ * Percorre cada caractere do mascarado: se for dígito, deve coincidir com o dígito
+ * na mesma posição do CPF completo. Asteriscos são ignorados (posição oculta).
+ * Ex.: "***.***.123-45" bate apenas com CPFs cujos dígitos 7-8-9 sejam 1-2-3 e 10-11 sejam 4-5.
+ */
+function cpfMatchesMask(cpfCompleto: string, cpfMascarado: string): boolean {
+  const digits = cpfCompleto.replace(/\D/g, "");
+  if (digits.length !== 11) return false;
+  let pos = 0;
+  for (let i = 0; i < cpfMascarado.length; i++) {
+    const ch = cpfMascarado[i];
+    if (ch === "." || ch === "-" || ch === " ") continue;
+    if (ch === "*") {
+      pos++;
+      continue;
+    }
+    // dígito visível — deve bater
+    if (digits[pos] !== ch) return false;
+    pos++;
+  }
+  return true;
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   try {
@@ -390,8 +414,13 @@ export default function ConciergePenalidades() {
   }
 
   const clienteSelecionadoValido = cpfSelecionado.length === 11;
+  // O CPF do cliente selecionado deve bater com os dígitos visíveis do CPF mascarado da linha.
+  const cpfBateMascara =
+    clienteSelecionadoValido && cpfMatchesMask(cpfSelecionado, modal.cpfMascarado);
   const podeConfirmar =
-    clienteSelecionadoValido && (modal.mode === "historico" || modal.confirmado);
+    clienteSelecionadoValido &&
+    cpfBateMascara &&
+    (modal.mode === "historico" || modal.confirmado);
 
   return (
     <div className="space-y-6">
@@ -438,6 +467,14 @@ export default function ConciergePenalidades() {
               {modal.clienteId !== null && !clienteSelecionadoValido && (
                 <p className="text-[11px] text-amber-600">
                   O cliente selecionado não possui CPF cadastrado.
+                </p>
+              )}
+              {clienteSelecionadoValido && !cpfBateMascara && (
+                <p className="text-[11px] text-red-600 font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  O CPF deste cliente não corresponde ao CPF mascarado da linha (
+                  <span className="font-mono">{modal.cpfMascarado}</span>).
+                  Selecione o cliente correto.
                 </p>
               )}
             </div>
