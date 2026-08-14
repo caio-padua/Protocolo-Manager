@@ -2,7 +2,7 @@
  * Radar Clínico — visão de piloto de avião para o Dr. Caio.
  * Todos os pacientes com protocolo, sessões e mensageria numa tela só.
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Camera,
@@ -489,8 +489,19 @@ export default function RadarClinico() {
     setOrdenacao(valor);
   };
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pacienteMsg, setPacienteMsg] = useState<Paciente | null>(null);
   const queryClient = useQueryClient();
+
+  // Debounce: só dispara a query 350ms após o usuário parar de digitar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      // Volta para página 1 apenas quando o valor debounced muda
+      setPagina(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const buildUrl = useCallback(() => {
     const params = new URLSearchParams();
@@ -501,12 +512,12 @@ export default function RadarClinico() {
     if (faltaDias) params.set("falta_dias", faltaDias);
     if (substancia) params.set("substancia", substancia);
     if (silencioDias) params.set("silencio_dias", silencioDias);
-    if (search.trim()) params.set("search", search.trim());
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
     return `${API_BASE}/api/radar-clinico?${params.toString()}`;
-  }, [pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, search]);
+  }, [pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, debouncedSearch]);
 
   const { data, isLoading, isError, refetch } = useQuery<RadarResponse>({
-    queryKey: ["radar-clinico", pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, search],
+    queryKey: ["radar-clinico", pagina, ordenacao, protocoloStatus, tempoAtivo, faltaDias, substancia, silencioDias, debouncedSearch],
     queryFn: async () => {
       const r = await fetch(buildUrl());
       if (!r.ok) throw new Error(`Erro ${r.status} ao carregar o Radar Clínico`);
@@ -570,7 +581,7 @@ export default function RadarClinico() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setPagina(1); }}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nome…"
                 className="bg-transparent text-xs outline-none placeholder:text-muted-foreground/50 w-full"
               />
