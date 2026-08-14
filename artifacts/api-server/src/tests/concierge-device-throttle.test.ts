@@ -533,3 +533,79 @@ describe("checkDeviceThrottle — virada de meia-noite BRT", () => {
     expect(params).not.toContain("2026-08-12");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fronteira exata do predicado: hoje e ontem NÃO são apagados; 3+ dias SÃO
+//
+// Estes testes chamam purgeOldDeviceOfferLimits() e inspecionam o SQL real
+// emitido para garantir que:
+//   1. O operador é strict < (não <=) — 2 dias atrás é PRESERVADO
+//   2. O limiar é exatamente 2 (não 1, não 3)
+//   3. O predicado usa "- 2" combinado com o fuso BRT — hoje e ontem são
+//      matematicamente excluídos do DELETE
+//
+// Se a implementação alterar o operador para <= ou mudar "- 2" para "- 1",
+// estes testes falharão, revelando o bug antes de chegar em produção.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("purgeOldDeviceOfferLimits — fronteira exata: hoje/ontem preservados, 3+ dias apagados", () => {
+  /**
+   * Chama purgeOldDeviceOfferLimits() e retorna os chunks literais do sql``
+   * gerado pelo drizzle para o DELETE — sem tocar em lógica de fora da lib.
+   */
+  async function capturePurgeSql(): Promise<string> {
+    mockExec().mockResolvedValueOnce(qrDeleted(0));
+    await purgeOldDeviceOfferLimits();
+    const calls = mockExec().mock.calls;
+    const sqlArg = calls[calls.length - 1]?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chunks: unknown[] = (sqlArg as any)?.queryChunks ?? [];
+    return chunks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => (Array.isArray(c?.value) ? c.value.join("") : (typeof c?.value === "string" ? c.value : "")))
+      .join("");
+  }
+
+  it("hoje NÃO é apagado — o predicado exclui matematicamente brtToday - 0 (operador strict <)", async () => {
+    const sql = await capturePurgeSql();
+    expect(sql).toMatch(/dia_brt\s*</);
+    expect(sql).not.toMatch(/dia_brt\s*<=/);
+  });
+
+  it("ontem NÃO é apagado — brtToday - 1 não satisfaz dia_brt < brtToday - 2", async () => {
+    const sql = await capturePurgeSql();
+    expect(sql).toMatch(/- 2/);
+    expect(sql).not.toMatch(/- 1\b/);
+  });
+
+  it("2 dias atrás NÃO é apagado — limiar é exclusivo (strict <, não <=)", async () => {
+    const sql = await capturePurgeSql();
+    expect(sql).not.toMatch(/dia_brt\s*<=/);
+    expect(sql).toMatch(/- 2/);
+  });
+
+  it("3+ dias atrás SÃO apagados — (brtToday - 3) < (brtToday - 2) é verdadeiro", async () => {
+    mockExec().mockResolvedValueOnce(qrDeleted(5));
+    const removed = await purgeOldDeviceOfferLimits();
+    expect(removed).toBe(5);
+    const calls = mockExec().mock.calls;
+    const sqlArg = calls[calls.length - 1]?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chunks: unknown[] = (sqlArg as any)?.queryChunks ?? [];
+    const fullSql = chunks
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => (Array.isArray(c?.value) ? c.value.join("") : (typeof c?.value === "string" ? c.value : "")))
+      .join("");
+    expect(fullSql).toContain("DELETE");
+    expect(fullSql).toContain("America/Sao_Paulo");
+    expect(fullSql).toMatch(/- 2/);
+  });
+
+  it("fronteira completa — predicado preserva exatamente 2 dias e apaga o restante (strict <, limiar=2, fuso BRT)", async () => {
+    const sql = await capturePurgeSql();
+    expect(sql).toMatch(/dia_brt\s*</);
+    expect(sql).not.toMatch(/dia_brt\s*<=/);
+    expect(sql).toMatch(/- 2/);
+    expect(sql).toContain("America/Sao_Paulo");
+  });
+});

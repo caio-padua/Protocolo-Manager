@@ -452,7 +452,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
       // Boas-vindas ao cliente
-      const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
+            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
       void sendTelegram(
         chatId,
         `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
