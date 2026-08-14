@@ -62,6 +62,11 @@ const ENV_FALLBACK: Record<string, string> = {
   "twilio.accountSid": "TWILIO_ACCOUNT_SID",
   "twilio.authToken": "TWILIO_AUTH_TOKEN",
   "twilio.whatsappFrom": "TWILIO_WHATSAPP_FROM",
+  // Destino de alerta ao CEO e token do bot — ganharam campo proprio na tela
+  // Comunicacao Digital (Art. 65: nenhuma chave mora so no ambiente).
+  "twilio.ceoWhatsapp": "CEO_WHATSAPP",
+  "telegram.botToken": "TELEGRAM_BOT_TOKEN",
+  "telegram.ceoChatId": "PADAXOR_TELEGRAM_CHAT_ID",
   "gupshup.apiKey": "GUPSHUP_API_KEY",
   "gupshup.appName": "GUPSHUP_APP_NAME",
   "gupshup.sourceNumber": "GUPSHUP_SOURCE_NUMBER",
@@ -153,6 +158,45 @@ export async function getSecretStatus(key: string): Promise<SecretStatus> {
     return { isSet: true, masked: mask(process.env[envName] as string), source: "env", updatedAt: null };
   }
   return { isSet: false, masked: null, source: null, updatedAt: null };
+}
+
+// ---------------------------------------------------------------------------
+// HIDRATACAO COFRE -> AMBIENTE
+//
+// Muitos motores antigos leem `process.env.X` direto (ex.: CEO_WHATSAPP em
+// assinatura/service, PADAXOR_TELEGRAM_CHAT_ID no guarda do webhook). Se o CEO
+// gravar o valor pela TELA, ele cai no cofre e aqueles motores continuariam
+// cegos — a tela mostraria "configurado" e o envio nao aconteceria. Isso e uma
+// tela que MENTE. Esta funcao fecha o buraco: no boot (e logo apos cada
+// gravacao) o valor do cofre e copiado para o ambiente do processo.
+//
+// O COFRE VENCE o ambiente — exatamente a mesma precedencia que `getSecret` ja
+// aplica. Se fosse o contrario, o sistema teria DUAS verdades: quem lesse pelo
+// cofre veria o valor novo e quem lesse `process.env` veria o antigo. O valor
+// que o CEO digitou na tela e o mais recente e manda em todo mundo.
+// ---------------------------------------------------------------------------
+export async function hydrateEnvFromVault(
+  keys?: string[],
+): Promise<{ hidratadas: string[] }> {
+  const alvos = keys ?? Object.keys(ENV_FALLBACK);
+  const hidratadas: string[] = [];
+  for (const key of alvos) {
+    const envName = ENV_FALLBACK[key];
+    if (!envName) continue;
+    try {
+      const value = await getSecret(key);
+      if (value && value.trim()) {
+        process.env[envName] = value.trim();
+        hidratadas.push(envName);
+      }
+    } catch (e) {
+      logger.warn(
+        { err: e instanceof Error ? e.message : String(e), key },
+        "secure-settings: falha ao hidratar env a partir do cofre",
+      );
+    }
+  }
+  return { hidratadas };
 }
 
 export async function deleteSecret(key: string): Promise<void> {

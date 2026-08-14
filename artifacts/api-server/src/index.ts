@@ -95,6 +95,22 @@ if (Number.isNaN(port) || port <= 0) {
     process.exit(1);
   }
 
+  // Copia para o ambiente do processo os segredos que o CEO gravou pela TELA
+  // (cofre cifrado). Sem isto, motores antigos que leem `process.env` direto
+  // — alerta ao CEO por WhatsApp, chatId do Telegram — ficariam cegos e a tela
+  // mostraria "configurado" sem nada funcionar. Nao e critico: se falhar, o
+  // servidor sobe do mesmo jeito e o fallback de env continua valendo.
+  try {
+    const { hydrateEnvFromVault } = await import("./lib/secure-settings.js");
+    const { hidratadas } = await hydrateEnvFromVault();
+    logger.info(
+      { hidratadas, total: hidratadas.length },
+      "Segredos do cofre hidratados no ambiente do processo",
+    );
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao hidratar segredos do cofre (boot segue)");
+  }
+
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");

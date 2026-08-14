@@ -1,312 +1,302 @@
-import { useEffect, useState } from "react";
-import { Smartphone, MessageCircle, Send, ShieldCheck, ShieldAlert, Loader2, AlertTriangle } from "lucide-react";
-import { ConsoleShell, ToolCard, StatusVela, ExplainRow, useComunicacaoStatus, BASE } from "./_shared";
-import { getCollabToken } from "@/lib/collab-auth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { Smartphone, MessageCircle, Send, Save, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { getCollabToken } from "@/lib/collab-auth";
+import {
+  ConsoleShell,
+  IntegrationCard,
+  SlotCampo,
+  VaultStatusStrip,
+  BASE,
+  type SlotEstado,
+} from "./_shared";
 
-function authHeaders(): Record<string, string> {
+// ---------------------------------------------------------------------------
+// COMUNICACAO DIGITAL — dois canais SIMETRICOS (ordem do CEO, 14/08/2026).
+//
+// "Se um servico tem um campo, o outro tem que ter o mesmo campo, mesmo que
+// nao use — o nao usado aparece em formato visual diferente."
+//
+// Por isso esta tela NAO sabe quais campos existem: ela varre os slots que o
+// servidor devolve em /api/comunicacao/canais. A simetria e garantida la (uma
+// tabela unica descreve os dois canais), entao os dois cartoes nao tem como
+// divergir — e nao ha nome de bot, rotulo nem chave escrita neste arquivo.
+// ---------------------------------------------------------------------------
+
+type Slot = {
+  slot: string;
+  ordem: number;
+  rotulo: string;
+  tipo: "texto" | "segredo" | "url";
+  aplicavel: boolean;
+  editavel: boolean;
+  isSet: boolean;
+  masked: string | null;
+  source: string | null;
+  valorPublico: string | null;
+  nota: string | null;
+  placeholder?: string;
+};
+
+type Canal = {
+  canal: string;
+  label: string;
+  provedor: string;
+  ativo: boolean;
+  statusLabelOn: string;
+  statusLabelOff: string;
+  avisos: string[];
+  slots: Slot[];
+};
+
+// Icone e decoracao, nao conteudo: o servidor manda os DADOS, a tela escolhe o
+// desenho. Canal sem entrada no mapa cai no icone generico — nunca quebra.
+const ICONE_CANAL: Record<string, LucideIcon> = {
+  whatsapp: MessageCircle,
+  telegram: Send,
+};
+const ACENTO_CANAL: Record<string, string> = {
+  whatsapp: "text-emerald-600",
+  telegram: "text-sky-600",
+};
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = getCollabToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { ...(extra ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
-// ---------------------------------------------------------------------------
-// Hook: estado do webhook do Telegram (consulta /api/telegram/webhook-status)
-// ---------------------------------------------------------------------------
-
-interface WebhookStatus {
-  healthy: boolean;
-  url: string;
-  pendingUpdateCount: number;
-  lastErrorMessage?: string;
-  mock?: boolean;
-  fetchError?: string;
-  checkedAt: string;
-}
-
-function useTelegramWebhookStatus() {
-  const [data, setData] = useState<WebhookStatus | null>(null);
+function useCanais() {
+  const [canais, setCanais] = useState<Canal[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     setLoading(true);
-    fetch(`${BASE}/api/telegram/webhook-status`, { headers: authHeaders() })
+    return fetch(`${BASE}/api/comunicacao/canais`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
-        if (!alive) return;
-        setData(d as WebhookStatus);
+        setCanais(d.canais as Canal[]);
         setError(false);
       })
-      .catch(() => {
-        if (alive) setError(true);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => { alive = false; };
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
-
-  return { data, loading, error };
-}
-
-// ---------------------------------------------------------------------------
-// Badge de saúde do webhook
-// ---------------------------------------------------------------------------
-
-function WebhookBadge({ loading, error, data }: {
-  loading: boolean;
-  error: boolean;
-  data: WebhookStatus | null;
-}) {
-  if (loading) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Verificando webhook…
-      </span>
-    );
-  }
-  if (error) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-        <ShieldAlert className="h-3.5 w-3.5" />
-        Indisponível
-      </span>
-    );
-  }
-  if (!data) return null;
-
-  if (data.mock) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-        <ShieldAlert className="h-3.5 w-3.5" />
-        Token ausente (MOCK)
-      </span>
-    );
-  }
-  if (data.healthy) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-        <ShieldCheck className="h-3.5 w-3.5" />
-        Webhook Ativo
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-      <ShieldAlert className="h-3.5 w-3.5" />
-      Webhook Inativo
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hook: info do bot (GET /settings/telegram/bot-info — sem auth)
-// ---------------------------------------------------------------------------
-interface BotInfo { username: string; firstName: string; mock?: boolean; }
-
-function useTelegramBotInfo() {
-  const [data, setData] = useState<BotInfo | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    fetch(`${BASE}/api/settings/telegram/bot-info`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: BotInfo) => { if (alive) setData(d); })
-      .catch(() => {})
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, []);
+    void load();
+  }, [load]);
 
-  return { data, loading };
+  return { canais, loading, error, reload: load, setCanais };
 }
 
 // ---------------------------------------------------------------------------
-// Editor de nome bidirecional — o que o CEO muda aqui muda no Telegram
+// Cartao de um canal — desenha TODOS os slots que o servidor mandou, na ordem
+// que ele mandou. Nenhum slot e pulado: o que nao se aplica vira formato
+// distinto dentro do proprio SlotCampo.
 // ---------------------------------------------------------------------------
-function BotNameEditor({ currentName }: { currentName: string }) {
-  const [name, setName] = useState(currentName);
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+function CartaoCanal({
+  canal,
+  carregando,
+  erro,
+  aoSalvar,
+}: {
+  canal: Canal;
+  carregando: boolean;
+  erro: boolean;
+  aoSalvar: (canalId: string, valores: Record<string, string>) => Promise<void>;
+}) {
+  const Icone = ICONE_CANAL[canal.canal] ?? Smartphone;
+  const acento = ACENTO_CANAL[canal.canal] ?? "text-primary";
 
-  async function save() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      const token = getCollabToken();
-      const r = await fetch(`${BASE}/api/settings/telegram/set-name`, {
+  // Valor digitado por slot + o valor com que o campo nasceu (para nao
+  // reenviar ao servidor o que ninguem tocou).
+  const [rascunho, setRascunho] = useState<Record<string, string>>({});
+  const inicialRef = useRef<Record<string, string>>({});
+  const [salvando, setSalvando] = useState(false);
+  const revelados = useRef<Record<string, string | null> | null>(null);
+
+  useEffect(() => {
+    const base: Record<string, string> = {};
+    for (const s of canal.slots) {
+      if (s.aplicavel && s.editavel) base[s.slot] = s.valorPublico ?? "";
+    }
+    inicialRef.current = { ...base };
+    setRascunho(base);
+    revelados.current = null;
+  }, [canal]);
+
+  const revelar = useCallback(
+    async (slot: string): Promise<string | null> => {
+      if (revelados.current) return revelados.current[slot] ?? null;
+      const r = await fetch(`${BASE}/api/comunicacao/canais/${canal.canal}/revelar`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ name: name.trim() }),
+        headers: authHeaders({ "Content-Type": "application/json" }),
       });
-      const d = await r.json() as { ok: boolean; error?: string };
-      if (d.ok) {
-        toast({ title: "Nome do bot atualizado no Telegram" });
-      } else {
-        toast({ title: `Falha: ${d.error ?? "erro desconhecido"}`, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Erro de rede ao salvar", variant: "destructive" });
+      if (!r.ok) return null;
+      const d = (await r.json()) as { valores: Record<string, string | null> };
+      revelados.current = d.valores;
+      return d.valores[slot] ?? null;
+    },
+    [canal.canal],
+  );
+
+  const alterados = Object.entries(rascunho).filter(
+    ([slot, v]) => v.trim() && v !== (inicialRef.current[slot] ?? ""),
+  );
+
+  async function salvar() {
+    if (!alterados.length) return;
+    setSalvando(true);
+    try {
+      await aoSalvar(canal.canal, Object.fromEntries(alterados));
+      revelados.current = null;
     } finally {
-      setSaving(false);
+      setSalvando(false);
     }
   }
 
+  const editaveis = canal.slots.filter((s) => s.aplicavel && s.editavel);
+  const faltando = editaveis.filter((s) => !s.isSet).length;
+
   return (
-    <div className="mt-1 flex items-center gap-2">
-      <input
-        className="flex-1 rounded border border-border bg-background px-2 py-1 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Nome visível do bot no Telegram"
-        onKeyDown={(e) => { if (e.key === "Enter") save(); }}
-      />
-      <button
-        onClick={save}
-        disabled={saving || !name.trim()}
-        className="rounded bg-amber-600/20 px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-600/30 disabled:opacity-50 dark:text-amber-400"
+    <IntegrationCard
+      icon={Icone}
+      name={canal.label}
+      accent={acento}
+      on={canal.ativo}
+      pending={carregando}
+      error={erro}
+      labelOn={canal.statusLabelOn}
+      labelOff={canal.statusLabelOff}
+    >
+      <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        Provedor: <span className="font-semibold text-foreground/80">{canal.provedor}</span>
+      </p>
+
+      <VaultStatusStrip configured={faltando === 0} missingCount={faltando} />
+
+      <div className="space-y-3">
+        {canal.slots.map((s) => {
+          const estado: SlotEstado = !s.aplicavel
+            ? "naoAplicavel"
+            : s.editavel
+              ? "editavel"
+              : "leitura";
+          return (
+            <SlotCampo
+              key={s.slot}
+              rotulo={s.rotulo}
+              estado={estado}
+              isSet={s.isSet}
+              masked={s.masked}
+              source={s.source}
+              valorPublico={s.valorPublico}
+              nota={s.nota}
+              placeholder={s.placeholder}
+              comOlho={s.tipo === "segredo" || s.tipo === "url"}
+              value={rascunho[s.slot] ?? ""}
+              onChange={(v) => setRascunho((prev) => ({ ...prev, [s.slot]: v }))}
+              onReveal={() => revelar(s.slot)}
+            />
+          );
+        })}
+      </div>
+
+      {canal.avisos.length > 0 && (
+        <div className="concave-3d space-y-1 px-3 py-2">
+          {canal.avisos.map((a, i) => (
+            <p key={i} className="flex items-start gap-2 text-[11px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>{a}</span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      <Button
+        onClick={salvar}
+        disabled={salvando || alterados.length === 0}
+        className="btn-3d w-full gap-2"
       >
-        {saving ? "Salvando…" : "Salvar"}
-      </button>
-    </div>
+        {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {alterados.length === 0
+          ? "Nada alterado"
+          : `Salvar ${alterados.length} campo(s) de ${canal.label}`}
+      </Button>
+    </IntegrationCard>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tela principal
-// ---------------------------------------------------------------------------
-
-// Comunicacao Digital — WhatsApp (informativo; credencial mora no Gateway) e
-// Telegram (card de credencial Padrao 18 via motor unico). Status reflete o
-// estado verdadeiro do servidor.
 export default function ComunicacaoDigital() {
-  const { status, loading, error } = useComunicacaoStatus();
-  const { data: webhookData, loading: webhookLoading, error: webhookError } = useTelegramWebhookStatus();
-  const { data: botInfo, loading: botLoading } = useTelegramBotInfo();
+  const { canais, loading, error, reload } = useCanais();
+  const { toast } = useToast();
+
+  async function salvarCanal(canalId: string, valores: Record<string, string>) {
+    try {
+      const r = await fetch(`${BASE}/api/comunicacao/canais/${canalId}/credenciais`, {
+        method: "PUT",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(valores),
+      });
+      if (!r.ok) {
+        toast({ title: `Falha ao salvar (${r.status})`, variant: "destructive" });
+        return;
+      }
+      const d = (await r.json()) as { salvos: number; erros: string[] };
+      if (d.erros?.length) {
+        toast({ title: d.erros.join(" · "), variant: "destructive" });
+      }
+      if (d.salvos > 0) {
+        toast({ title: `${d.salvos} campo(s) salvo(s) e já valendo no servidor` });
+      }
+      await reload();
+    } catch {
+      toast({ title: "Erro de rede ao salvar", variant: "destructive" });
+    }
+  }
 
   return (
     <ConsoleShell
       icon={Smartphone}
       title="Comunicação Digital"
-      subtitle="Mensagens diretas ao cliente — WhatsApp e Telegram no mesmo lugar."
+      subtitle="Mensagens diretas ao cliente — WhatsApp e Telegram, campo a campo, na mesma ordem nos dois."
     >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Os dois cartões têm os <strong>mesmos campos, na mesma posição</strong>. Onde o canal não
+          usa o campo, ele aparece riscado em cinza — nunca some.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => reload()} className="gap-2 shrink-0">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
+      </div>
+
+      {error && (
+        <div className="concave-3d mb-3 flex items-start gap-2 px-3 py-2.5 text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="text-[12px]">
+            Não foi possível ler o estado dos canais. Faça login como colaborador e use
+            “Atualizar”.
+          </p>
+        </div>
+      )}
+
       <section className="grid gap-4 lg:grid-cols-2">
-        <ToolCard
-          icon={MessageCircle}
-          name="WhatsApp"
-          accent="text-emerald-600"
-          vela={
-            <StatusVela
-              on={!!status?.whatsapp}
-              pending={loading}
-              error={error}
-              labelOn="Conectado"
-              labelOff="Não configurado"
-            />
-          }
-        >
-          <ExplainRow noLed>
-            Envio automático via <strong>Twilio</strong> (servidor). Sem credenciais no cofre, o
-            sistema gera um link <strong>wa.me</strong> de apoio — nunca trava o fluxo.
-          </ExplainRow>
-          <ExplainRow noLed>
-            As credenciais do Twilio ficam na tela <strong>Plataforma Gateway de Comunicação</strong>.
-          </ExplainRow>
-          {!status?.whatsapp && !loading && (
-            <p className="text-[12px] text-amber-700 dark:text-amber-400">
-              Para ligar o envio direto, cole as credenciais Twilio no Gateway de Comunicação.
-            </p>
-          )}
-        </ToolCard>
-
-        <ToolCard
-          icon={Send}
-          name="TELEGRAM"
-          accent="text-sky-600"
-          vela={
-            <StatusVela
-              on={!!(webhookData && !webhookData.mock && webhookData.healthy)}
-              pending={webhookLoading && botLoading}
-              error={webhookError}
-              labelOn="Bot ativo"
-              labelOff="Indisponível"
-            />
-          }
-        >
-          {/* Identidade do bot — busca ao vivo via getMe */}
-          <ExplainRow noLed>
-            {botLoading
-              ? "Consultando Telegram…"
-              : botInfo?.mock
-                ? <>Bot <strong>@Paduaclinica_bot</strong> · token não configurado</>
-                : <>Bot <strong>@{botInfo?.username}</strong> · {botInfo?.firstName}</>}
-          </ExplainRow>
-
-          {/* Editor de nome bidirecional — o que o CEO muda aqui muda no Telegram */}
-          {!botLoading && !botInfo?.mock && botInfo?.firstName && (
-            <div className="px-1 pb-1">
-              <p className="mb-1 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                Alterar nome visível do bot
-              </p>
-              <BotNameEditor currentName={botInfo.firstName} />
-            </div>
-          )}
-
-          {/* Aviso: PADAXOR_TELEGRAM_CHAT_ID ausente — CEO não recebe alertas */}
-          {!loading && !error && status?.telegramChatIdConfigurado === false && (
-            <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-amber-700 dark:text-amber-400">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="space-y-0.5">
-                <p className="text-[12px] font-semibold uppercase tracking-wide">
-                  Chat ID não configurado
-                </p>
-                <p className="text-[11px] font-normal normal-case tracking-normal text-amber-700/80 dark:text-amber-400/80">
-                  <strong>PADAXOR_TELEGRAM_CHAT_ID</strong> ausente — CEO não recebe alertas pelo
-                  Telegram. Configure como Replit Secret.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Painel de saúde do webhook — detecta polling ativo vs webhook */}
-          <div className="concave-3d mt-2 flex items-start justify-between gap-2 px-3 py-2">
-            <div className="space-y-0.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Saúde do Webhook
-              </p>
-              <p className="text-[11px] text-muted-foreground/70">
-                {webhookLoading
-                  ? "Consultando Telegram…"
-                  : webhookError
-                    ? "Não foi possível verificar"
-                    : webhookData?.mock
-                      ? "Token ausente — verificação indisponível"
-                      : webhookData?.healthy
-                        ? `URL registrada · ${webhookData.pendingUpdateCount} updates pendentes`
-                        : webhookData?.fetchError
-                          ? `Erro de rede: ${webhookData.fetchError}`
-                          : "Webhook não registrado — polling pode estar ativo"}
-              </p>
-              {webhookData?.lastErrorMessage && (
-                <p className="text-[11px] text-rose-600 dark:text-rose-400">
-                  Último erro: {webhookData.lastErrorMessage}
-                </p>
-              )}
-              {!webhookData?.healthy && !webhookLoading && !webhookError && !webhookData?.mock && (
-                <p className="text-[11px] text-rose-700 dark:text-rose-400 font-medium">
-                  Mensagens dos pacientes podem não estar chegando ao CEO.
-                </p>
-              )}
-            </div>
-            <WebhookBadge loading={webhookLoading} error={webhookError} data={webhookData} />
-          </div>
-        </ToolCard>
+        {(canais ?? []).map((c) => (
+          <CartaoCanal
+            key={c.canal}
+            canal={c}
+            carregando={loading}
+            erro={error}
+            aoSalvar={salvarCanal}
+          />
+        ))}
+        {loading && !canais && (
+          <p className="text-[12px] text-muted-foreground">Consultando os canais…</p>
+        )}
       </section>
     </ConsoleShell>
   );

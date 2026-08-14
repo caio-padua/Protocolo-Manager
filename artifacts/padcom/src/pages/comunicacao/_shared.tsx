@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, KeyRound, Lock, Ban } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 // Base do artefato (prefixo de rota) — padrao usado nas demais paginas.
@@ -425,6 +425,241 @@ export function CredentialField({
           <span className="font-semibold text-amber-700 dark:text-amber-400">vazio</span>
         )}
       </p>
+    </div>
+  );
+}
+
+// ===========================================================================
+// SLOT SIMETRICO (Padrao 22) — o campo que NUNCA some
+//
+// Ordem do CEO (14/08/2026): "se um servico tem um campo, o outro tem que ter
+// o mesmo campo, mesmo que nao use — o nao usado aparece em formato visual
+// diferente". Dois canais lado a lado so sao comparaveis se a linha N de um
+// for a linha N do outro. Esconder um campo desloca todos os vizinhos e
+// destroi a leitura horizontal (Art. 53).
+//
+// UM esqueleto, TRES estados — mesma altura, mesma posicao, sempre:
+//
+//   1. EDITAVEL    selo Configurado/Vazio · input + OLHO         · legenda do cofre
+//   2. SO LEITURA  selo Lido do servico   · valor + OLHO/CADEADO · legenda da origem
+//   3. NAO SE APLICA selo cinza           · hachura + travessao  · legenda do motivo
+//
+// O estado 3 e reconhecivel a um metro de distancia: hachura diagonal no
+// sulco, texto em italico e travessao no lugar do valor. Ninguem confunde com
+// "campo vazio que eu preciso preencher".
+// ===========================================================================
+
+export type SlotEstado = "editavel" | "leitura" | "naoAplicavel";
+
+function SeloSlot({ estado, isSet }: { estado: SlotEstado; isSet: boolean }) {
+  const { texto, cor } =
+    estado === "naoAplicavel"
+      ? { texto: "Não se aplica", cor: "text-muted-foreground/70" }
+      : estado === "leitura"
+        ? isSet
+          ? { texto: "Lido do serviço", cor: "text-sky-700 dark:text-sky-400" }
+          : { texto: "Indisponível", cor: "text-amber-700 dark:text-amber-400" }
+        : isSet
+          ? { texto: "Configurado", cor: "text-emerald-700 dark:text-emerald-400" }
+          : { texto: "Vazio", cor: "text-amber-700 dark:text-amber-400" };
+  return (
+    <span className="bevel-3d inline-flex shrink-0 items-center px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+      <span className={cor}>{texto}</span>
+    </span>
+  );
+}
+
+export function SlotCampo({
+  rotulo,
+  estado,
+  isSet,
+  masked,
+  source,
+  valorPublico,
+  nota,
+  placeholder,
+  comOlho = false,
+  value = "",
+  onChange,
+  onReveal,
+}: {
+  rotulo: string;
+  estado: SlotEstado;
+  isSet: boolean;
+  masked?: string | null;
+  source?: string | null;
+  valorPublico?: string | null;
+  nota?: string | null;
+  placeholder?: string;
+  comOlho?: boolean;
+  value?: string;
+  onChange?: (v: string) => void;
+  onReveal?: () => Promise<string | null>;
+}) {
+  const [revelado, setRevelado] = useState(false);
+  const [revelando, setRevelando] = useState(false);
+  const [valorReal, setValorReal] = useState<string | null>(null);
+
+  async function alternarOlho() {
+    if (revelado) {
+      setRevelado(false);
+      return;
+    }
+    if (!onReveal) {
+      setRevelado(true);
+      return;
+    }
+    // So busca o valor de verdade quando o dono clica — nada trafega antes.
+    if (estado === "editavel" && !value && isSet) {
+      setRevelando(true);
+      try {
+        const real = await onReveal();
+        if (real != null) onChange?.(real);
+      } finally {
+        setRevelando(false);
+      }
+    } else if (estado === "leitura" && valorReal == null) {
+      setRevelando(true);
+      try {
+        setValorReal(await onReveal());
+      } finally {
+        setRevelando(false);
+      }
+    }
+    setRevelado(true);
+  }
+
+  const rotuloOrigem =
+    source === "env"
+      ? "ambiente"
+      : source === "vault"
+        ? "cofre"
+        : source === "telegram"
+          ? "lido do Telegram"
+          : source === "derivada"
+            ? "derivada do servidor"
+            : null;
+
+  return (
+    <div className="space-y-1">
+      {/* ZONA 1 — rotulo + selo de estado (posicao fixa nos tres estados) */}
+      <div className="flex items-center justify-between gap-2">
+        <label
+          className={`block text-[11px] font-semibold uppercase tracking-[0.08em] ${
+            estado === "naoAplicavel" ? "text-muted-foreground/60" : "text-muted-foreground"
+          }`}
+        >
+          {rotulo}
+        </label>
+        <SeloSlot estado={estado} isSet={isSet} />
+      </div>
+
+      {/* ZONA 2 — o sulco. Mesma altura (h-10) nos tres estados. */}
+      {estado === "naoAplicavel" ? (
+        <div
+          className="concave-3d flex h-10 items-center gap-2 px-3 opacity-60"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(135deg, transparent 0 6px, rgba(127,127,127,0.14) 6px 12px)",
+          }}
+        >
+          <span className="font-mono text-[15px] font-bold leading-none text-muted-foreground/70">—</span>
+          <span className="truncate text-[12px] italic text-muted-foreground/70">
+            Este canal não usa este campo
+          </span>
+          <Ban className="ml-auto h-4 w-4 shrink-0 text-muted-foreground/50" />
+        </div>
+      ) : estado === "leitura" ? (
+        <div className="concave-3d flex h-10 items-center gap-1 pl-3 pr-1">
+          <span
+            className={`flex-1 truncate text-[12px] ${
+              isSet ? "font-mono text-foreground" : "italic text-muted-foreground"
+            }`}
+            title={revelado ? (valorReal ?? valorPublico ?? "") : undefined}
+          >
+            {isSet
+              ? revelado
+                ? (valorReal ?? valorPublico ?? masked ?? "")
+                : (valorPublico ?? masked ?? "••••")
+              : "sem valor no momento"}
+          </span>
+          {comOlho ? (
+            <button
+              type="button"
+              onClick={alternarOlho}
+              disabled={revelando || !isSet}
+              aria-label={revelado ? `Ocultar ${rotulo}` : `Mostrar ${rotulo}`}
+              aria-pressed={revelado}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-[4px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            >
+              {revelado ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          ) : (
+            // Sem olho, mas o espaco e RESERVADO: a grade nao pode deslizar
+            // entre um cartao e outro. O cadeado diz por que nao ha botao.
+            <span
+              className="grid h-8 w-8 shrink-0 place-items-center text-muted-foreground/40"
+              title="Somente leitura — este valor vem do próprio serviço"
+            >
+              <Lock className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="concave-3d flex h-10 items-center gap-1 pl-1 pr-1">
+          <Input
+            className="field-engraved h-8 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+            type={comOlho && !revelado ? "password" : "text"}
+            autoComplete="new-password"
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder={placeholder ?? (isSet ? "Clique no olho para ver, ou cole um novo valor" : `Preencher: ${rotulo}`)}
+          />
+          <button
+            type="button"
+            onClick={alternarOlho}
+            disabled={revelando}
+            aria-label={revelado ? `Ocultar ${rotulo}` : `Mostrar ${rotulo}`}
+            aria-pressed={revelado}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[4px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            {revelado ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+      )}
+
+      {/* ZONA 3 — legenda. Slot constante: sempre existe uma linha aqui. */}
+      <p className="flex items-center gap-1.5 text-[11px] leading-none">
+        {estado === "naoAplicavel" ? (
+          <span className="uppercase tracking-wide text-muted-foreground/60">Não usado neste canal</span>
+        ) : estado === "leitura" ? (
+          <>
+            <span className="uppercase tracking-wide text-muted-foreground">Origem:</span>
+            <span className="font-semibold text-foreground/80">{rotuloOrigem ?? "—"}</span>
+          </>
+        ) : (
+          <>
+            <span className="uppercase tracking-wide text-muted-foreground">No cofre:</span>
+            {isSet ? (
+              <>
+                <span className="font-mono text-[12px] font-bold tracking-wide text-foreground">
+                  {masked ?? "••••"}
+                </span>
+                {rotuloOrigem ? (
+                  <span className="uppercase tracking-wide text-muted-foreground">· {rotuloOrigem}</span>
+                ) : null}
+              </>
+            ) : (
+              <span className="font-semibold text-amber-700 dark:text-amber-400">vazio</span>
+            )}
+          </>
+        )}
+      </p>
+
+      {/* ZONA 4 — a razao, sempre escrita ("nao quero nada oculto"). */}
+      {nota ? (
+        <p className="text-[10px] leading-snug text-muted-foreground/70">{nota}</p>
+      ) : null}
     </div>
   );
 }

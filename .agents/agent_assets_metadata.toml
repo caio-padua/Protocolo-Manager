@@ -459,3 +459,10 @@ uri = "file://docs/preview/protocolo32-3paginas.png"
 type = "image"
 title = "Protocolo 32 — Capa + Subcapa + 1ª Substância (motor real, dados reais)"
 description = "Fileira 1: Capa com foto do Dr. Caio e título grande | Subcapa biográfica. Fileira 2: Primeira página de substância. PDF completo gerado via GET /api/protocols/32/document-pdf — 13 páginas, 3,3 MB, sem mock."
+
+[[outputs]]
+id = "MAUqTqigN2T4-2GA9ll4E"
+uri = "file://screenshots/comunicacao-digital-simetria.png"
+type = "image"
+title = "Comunicação Digital — os dois cartões simétricos (tela real, logada)"
+description = "WhatsApp e Telegram com os mesmos 7 campos, na mesma ordem. O que o canal não usa aparece hachurado em cinza com o carimbo NÃO SE APLICA, e nunca some. A URL do webhook aparece na tela com olho de mostrar/ocultar."
