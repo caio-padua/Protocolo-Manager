@@ -34,6 +34,36 @@ import {
   type PeriodoAntigo,
 } from "../lib/lembrete-periodo";
 import { templateLembretePrescricao } from "../lib/lembrete-templates";
+import { montarMensagemOpus } from "../lib/mensageria-opus";
+
+/**
+ * Monta a mensagem do lembrete pelo motor RICO (Mensageria Opus) — períodos ×
+ * dia-da-semana × semana-do-mês + versículo de sábado + fala do Dr. Caio +
+ * elogio + assinatura. Falha-segura: catálogo vazio ou erro cai no template
+ * simples, exatamente como o motor oficial em lembrete-periodo.ts.
+ *
+ * REGRA: nenhuma rota deve chamar templateLembretePrescricao direto — esse é o
+ * FALLBACK, não a mensagem principal. Sempre passar por aqui.
+ */
+async function montarMensagemLembrete(
+  clienteNome: string,
+  periodos: LembretePeriodoJson[],
+  agora: Date,
+): Promise<string> {
+  try {
+    const primeiroNome = (clienteNome || "").trim().split(/\s+/)[0] || clienteNome;
+    const rica = await montarMensagemOpus({ nome: primeiroNome, agora, periodos });
+    if (rica) return rica;
+  } catch {
+    // catálogo indisponível — cai no template simples abaixo
+  }
+  return templateLembretePrescricao({
+    clienteNome,
+    clienteGenero: "nao_informado",
+    periodos,
+    agora,
+  });
+}
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
@@ -525,12 +555,9 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
   // Canal preferido: Telegram (quando telegramChatId vinculado) + WhatsApp em paralelo.
   // Cópia ao CEO via Telegram sempre que o PADAXOR_TELEGRAM_CHAT_ID estiver configurado.
   if (lembretePeriodos && lembretePeriodos.length > 0) {
-    const mensagemLembrete = truncarMensagemWhatsapp(templateLembretePrescricao({
-      clienteNome: body.clientName,
-      clienteGenero: "nao_informado",
-      periodos: lembretePeriodos,
-      agora: new Date(),
-    }));
+    const mensagemLembrete = truncarMensagemWhatsapp(
+      await montarMensagemLembrete(body.clientName, lembretePeriodos, new Date()),
+    );
 
     // WhatsApp (paralelo, fire-and-forget)
     if (body.clientPhone) {
@@ -782,15 +809,25 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
   }
 
   // Montar mensagem pelo motor oficial e enviar via sendWhatsapp
-  const mensagem = truncarMensagemWhatsapp(templateLembretePrescricao({
-    clienteNome: pres.clientName,
-    clienteGenero: "nao_informado",
-    periodos: lembretePeriodos,
-    agora: new Date(),
-  }));
+  const mensagem = truncarMensagemWhatsapp(
+    await montarMensagemLembrete(pres.clientName, lembretePeriodos, new Date()),
+  );
+
+  // Canal de entrega — decisão do CEO por chamada. "ambos" mantém o
+  // comportamento histórico; "telegram" não toca no WhatsApp do paciente.
+  // Valor inválido é REJEITADO: silenciar os dois canais seria pior que falhar.
+  const canal = (req.body?.canal as string | undefined) ?? "ambos";
+  if (canal !== "ambos" && canal !== "whatsapp" && canal !== "telegram") {
+    res.status(400).json({
+      error: `canal inválido: "${canal}" — use "ambos", "whatsapp" ou "telegram"`,
+    });
+    return;
+  }
+  const usarWhatsapp = canal === "ambos" || canal === "whatsapp";
+  const usarTelegram = canal === "ambos" || canal === "telegram";
 
   let whatsappResult = null;
-  if (clientPhone) {
+  if (clientPhone && usarWhatsapp) {
     whatsappResult = await sendWhatsapp(clientPhone, mensagem, {
       contexto: "lembrete_prescricao",
       clienteId: clientId,
@@ -801,13 +838,17 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
   // Canal preferido pelo CEO (14/08/2026). WhatsApp mantido como canal paralelo.
   const telegramResults: { destino: string; sent: boolean; error?: string | null }[] = [];
 
-  const [cliTelegram] = await db
-    .select({ telegramChatId: clientsTable.telegramChatId })
-    .from(clientsTable)
-    .where(eq(clientsTable.id, clientId))
-    .limit(1);
+  const [cliTelegram] = usarTelegram
+    ? await db
+        .select({ telegramChatId: clientsTable.telegramChatId })
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clientId))
+        .limit(1)
+    : [undefined];
 
-  if (cliTelegram?.telegramChatId) {
+  if (!usarTelegram) {
+    // canal=whatsapp — nada a fazer no Telegram
+  } else if (cliTelegram?.telegramChatId) {
     const rt = await sendTelegram(cliTelegram.telegramChatId, mensagem);
     telegramResults.push({ destino: `paciente (ID ${clientId})`, sent: rt.sent, error: rt.error ?? null });
   } else {
@@ -818,8 +859,9 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
     });
   }
 
+  // Cópia ao CEO é entrega por Telegram — segue o mesmo canal escolhido.
   const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
-  if (ceoChatId) {
+  if (usarTelegram && ceoChatId) {
     const msgCeo = `Copia CEO - Prescricao #${id} - ${pres.clientName}\n\n${mensagem}`;
     const rc = await sendTelegram(ceoChatId, truncarMensagemWhatsapp(msgCeo, 3800));
     telegramResults.push({ destino: "CEO", sent: rc.sent, error: rc.error ?? null });
@@ -837,7 +879,10 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
       formulas:    sync.formulas,
       ativo:       sync.ativo,
     },
-    whatsapp: whatsappResult
+    canal,
+    whatsapp: !usarWhatsapp
+      ? { sent: false, via: null, error: null, motivo: `não enviado — canal="${canal}"` }
+      : whatsappResult
       ? { sent: whatsappResult.sent, via: whatsappResult.via, error: whatsappResult.error ?? null }
       : { sent: false, via: null, error: "telefone não encontrado — mensagem não enviada" },
     telegram: telegramResults,
@@ -846,6 +891,71 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
 });
 
 // ── Teste de template de e-mail (CEO only — remove após confirmar visual) ──────
+/**
+ * Reenvia o e-mail do receituário de uma prescrição JÁ EMITIDA, com as fórmulas
+ * reais do banco (não dados de teste). Usa o mesmo motor da emissão — mesmo PDF,
+ * mesmo casco navy, mesmos cartões de substância.
+ * Destinatários: CEO sempre + e-mail do paciente quando cadastrado.
+ */
+router.post("/prescriptions/:id/reenviar-email", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "id inválido" });
+    return;
+  }
+
+  const [pres] = await db.select().from(prescriptionsTable).where(eq(prescriptionsTable.id, id));
+  if (!pres) {
+    res.status(404).json({ error: "Prescrição não encontrada" });
+    return;
+  }
+
+  const itens = await db
+    .select()
+    .from(prescriptionItemsTable)
+    .where(eq(prescriptionItemsTable.prescriptionId, id))
+    .orderBy(prescriptionItemsTable.orderIndex);
+
+  if (itens.length === 0) {
+    res.status(422).json({ error: "Prescrição sem itens — nada a enviar" });
+    return;
+  }
+
+  const destinatarios: string[] = ["drcaiohenriquepadua@gmail.com"];
+  if (pres.clientEmail) destinatarios.push(pres.clientEmail);
+
+  const result = await emitirReceituarioPdf({
+    patient: {
+      nome:     pres.clientName,
+      cpf:      pres.clientCpf ?? undefined,
+      telefone: pres.clientPhone ?? undefined,
+      email:    pres.clientEmail ?? undefined,
+    },
+    formulas: itens.map((it) => ({
+      nome:      it.name,
+      ativos:    it.ativos ?? undefined,
+      posologia: it.posologia ?? "",   // FormulaEmissao.posologia é obrigatória
+      via:       it.via ?? undefined,
+      forma:     it.observacao ?? undefined,
+      dose:      it.dose ?? undefined,
+    })),
+    tipoReceita:   "especial",
+    emailTo:       destinatarios,
+    assetsBaseUrl: baseUrlFromEnv(),
+  });
+
+  res.json({
+    ok: true,
+    prescriptionId: id,
+    paciente: pres.clientName,
+    destinatarios,
+    emailSent: result.emailSent,
+    fileName: result.fileName,
+    modeloUsado: result.modeloUsado,
+    formulasEnviadas: itens.length,
+  });
+});
+
 router.post("/prescriptions/test-email-receituario", async (req, res): Promise<void> => {
   const emailTo = (req.body?.emailTo as string) ?? "drcaiohenriquepadua@gmail.com";
   const baseUrl = baseUrlFromEnv();

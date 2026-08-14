@@ -21,6 +21,26 @@ primo IHE para o Manager como catálogo editável em banco.
   o catálogo está vazio/erro. Fallback é obrigatório: composição rica nunca pode
   derrubar o disparo do lembrete.
 
+## LEI: o template simples é FALLBACK, nunca a mensagem principal
+- Nenhuma rota pode chamar `templateLembretePrescricao` direto. Toda origem de
+  lembrete (rota manual, disparo na emissão, cron) passa pelo caminho
+  "tenta Opus → cai no template". Chamar o template direto entrega ao paciente a
+  versão pobre e seca, indistinguível de spam.
+- **Por quê:** o CEO construiu o Opus justamente para a mensagem variar por
+  período × dia-da-semana × semana-do-mês. Uma rota que pula o Opus faz o sistema
+  repetir o mesmo texto todo dia — o CEO chamou isso de "papagaio de pirata"
+  (14/08/2026) e é regressão grave de produto, não detalhe técnico.
+- **Como aplicar:** ao cabear um canal novo (Telegram, e-mail, push), NÃO montar
+  texto no call site. Reusar o helper que já tenta Opus. Se o canal novo precisa de
+  formato próprio, estender o Opus — não contorná-lo.
+
+## Canal de entrega é escolha explícita, não efeito colateral
+- Rota que entrega em mais de um canal precisa de parâmetro `canal` validado com
+  400 em valor inválido. Aceitar valor desconhecido e seguir em frente desliga os
+  dois canais em silêncio — o pior desfecho possível num lembrete de medicação.
+- A cópia ao CEO é entrega por Telegram: segue o mesmo canal escolhido, senão
+  `canal="whatsapp"` dispara Telegram sem ninguém ter pedido.
+
 ## Catálogo (conteudo = JSONB livre)
 - `conteudo` é objeto livre por categoria; por isso a rota CRUD NÃO usa OpenAPI/Orval
   (decisão consciente, espelha o IHE). DELETE é soft (`ativo=false`), upsert por
