@@ -254,29 +254,37 @@ export function startWorkerJobs(logger: pino.Logger): void {
   // Apaga linhas com registrado_at < NOW() - 90 dias para evitar crescimento
   // indefinido da tabela de idempotência de webhooks do Asaas. A janela de
   // reenvio do Asaas é de horas; registros com >90 dias não servem mais para
-  // deduplicação. Roda no dia 1 de cada mês às 03:30 BRT.
+  // deduplicação. Roda no dia 1 de cada mês às 03:30 BRT e uma vez no boot.
+  const runPurgaEventos = async (origem: "boot" | "cron") => {
+    logger.info(
+      `Worker: purga de concierge_webhook_eventos iniciada (origem=${origem}, TTL=90 dias)`
+    );
+    try {
+      const { purgeEventosAntigos } = await import(
+        "../../api-server/src/lib/concierge-penalidade.js" as string
+      );
+      const removidas = await purgeEventosAntigos();
+      logger.info(
+        { removidas, origem },
+        "Worker: purga de concierge_webhook_eventos concluída"
+      );
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err), origem },
+        "Worker: falha na purga de concierge_webhook_eventos"
+      );
+    }
+  };
+
   cron.schedule(
     "30 3 1 * *",
-    async () => {
-      logger.info("Worker: purga mensal de concierge_webhook_eventos iniciada (TTL 90 dias)");
-      try {
-        const { purgeEventosAntigos } = await import(
-          "../../api-server/src/lib/concierge-penalidade.js" as string
-        );
-        const removidas = await purgeEventosAntigos();
-        logger.info(
-          { removidas },
-          "Worker: purga de concierge_webhook_eventos concluída"
-        );
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha na purga de concierge_webhook_eventos"
-        );
-      }
-    },
+    () => runPurgaEventos("cron"),
     { timezone: "America/Sao_Paulo" }
   );
+
+  // Purga imediata no boot — garante o log de boot exigido pela spec e limpa
+  // registros acumulados antes do primeiro cron mensal.
+  void runPurgaEventos("boot");
 
   logger.info(
     "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h"

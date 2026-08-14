@@ -39,6 +39,7 @@ import type { ProvedorCodigo } from "../lib/assinatura/types";
 import { logger } from "../lib/logger";
 import { getSecret } from "../lib/secure-settings";
 import { sendTelegram } from "../lib/telegram.js";
+import { postSlackAlert } from "../lib/slack-reporter";
 import {
   processarWebhookInbox,
   type ClienteVinculado,
@@ -261,7 +262,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
       res.status(404).json({ error: msg });
       return;
     }
-    req.log.error({ err: msg }, "[assinatura] erro ao desativar clausula");
+    req.log.error({ err: String(msg) }, "[assinatura] erro ao desativar clausula");
     res.status(500).json({ error: "erro_desativar_clausula" });
   }
 });
@@ -606,56 +607,16 @@ assinaturasRouter.post(
             const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
             const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
             const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
-            await postSlackAlert(
-              slackChannel,
-              `💬 *${primeiroNome}* respondeu no Telegram:\n"${trecho}"\n_Cockpit → ${primeiroNome}_`,
-            );
-          }
-        } catch (slackErr) {
-          logger.warn({ err: (slackErr as Error).message }, "[telegram] falha ao notificar Slack (best-effort)");
-        }
-      })();
-
-      res.json({
-        ok: resultado.sent,
-        telegramEntregue,
-        mock: resultado.mock,
-        erro: resultado.error ?? null,
-        cliente: { id: cliente.id, nome: cliente.name, cpfDisplay, telegramChatId: cliente.telegramChatId },
-        ceoChatId: `${chatIdCEO.slice(0, 3)}***`,   // mascarado — nunca expõe o valor completo
-        descricao: telegramEntregue
-          ? "Repasse enviado ao CEO com sucesso. Confira o Telegram do Dr. Caio."
-          : resultado.mock
-            ? "MOCK: token do bot ausente no cofre — repasse registrado em log sem chamada real ao Telegram."
-            : `Falha na entrega (Telegram API): ${resultado.error}`,
-      });
-    } catch (err) {
-      req.log.error({ err: String(err) }, "[telegram] erro no test-inbox");
-      res.status(500).json({ ok: false, error: "erro_interno", detalhe: String(err) });
-    }
-  },
-);
-
-// ---------------------------------------------------------------------------
-// GET /api/telegram/webhook-status
-//
-// Consulta em tempo real o Telegram (getWebhookInfo) e devolve o estado do
-// webhook para o painel de status do CEO. Protegido por requireCollaborator.
-//
-// Resposta:
-//   { ok, healthy, url, pendingUpdateCount, lastErrorMessage?, mock?, fetchError?, checkedAt }
-//
-// healthy = true  → webhook ativo (URL registrada, bot recebe mensagens)
-// healthy = false → webhook inativo (URL vazia = polling ou nunca configurado)
-// mock = true     → token do bot ausente no cofre (não há como verificar)
-// ---------------------------------------------------------------------------
-assinaturasRouter.get(
-  "/telegram/webhook-status",
-  requireCollaborator,
-  async (_req, res): Promise<void> => {
-    try {
       const { checkWebhookHealth } = await import("../lib/telegram-webhook-guard.js");
       const result = await checkWebhookHealth();
+      if (result.mock) {
+        res.status(400).json({ ok: false, error: "token_ausente", descricao: "Token do bot não configurado no cofre." });
+        return;
+      }
+      if (result.fetchError) {
+        res.status(500).json({ ok: false, error: result.fetchError, descricao: result.lastErrorMessage ?? "Falha ao consultar Telegram." });
+        return;
+      }
       res.json({ ok: true, ...result });
     } catch (err) {
       res.status(500).json({ ok: false, error: String(err) });
