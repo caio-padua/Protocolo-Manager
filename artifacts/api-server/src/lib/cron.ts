@@ -30,24 +30,33 @@ export function startCronJobs(): void {
   // Tick do motor de lembrete por período: a cada minuto (fuso BRT). Cada
   // lembrete só dispara no horário marcado ou até 5 min depois (nunca antes);
   // idempotência por (lembrete_id, janela) garante uma mensagem por janela.
+  //
+  // ISOLAMENTO: este schedule é independente do worker de campanhas abaixo.
+  // O Node.js dispara os dois callbacks concorrentemente (não sequencialmente):
+  // como ambos são async e operam em tabelas diferentes, campanhas grandes
+  // (centenas de itens) nunca atrasam os lembretes do mesmo minuto.
   cron.schedule(
     "* * * * *",
     () => {
+      const t0 = Date.now();
       executarLembretesPeriodo()
         .then((r) => {
+          const ms = Date.now() - t0;
           if (r.enviados > 0 || r.falhas > 0) {
             logger.info(
-              { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados },
-              "Tick de lembrete por período",
+              { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados, ms },
+              "[lembrete-worker] tick concluído",
             );
+          } else {
+            logger.debug({ examinados: r.examinados, pulados: r.pulados, ms }, "[lembrete-worker] tick sem envios");
           }
         })
-        .catch((err) => logger.error({ err: err?.message }, "Falha no tick de lembrete por período"));
+        .catch((err) => logger.error({ err: err?.message }, "[lembrete-worker] falha no tick"));
     },
     { timezone: "America/Sao_Paulo" },
   );
 
-  logger.info("Cron de lembrete por período agendado (tick a cada minuto, BRT)");
+  logger.info("Cron de lembrete por período agendado (tick a cada minuto, BRT — isolado do worker de campanhas)");
 
   // 06:00 todos os dias — libera receituários magistrais do dia (Onda 2)
   cron.schedule(
@@ -90,13 +99,21 @@ export function startCronJobs(): void {
     logger.warn({ err: err?.message }, "Worker de campanhas: falha ao garantir schema no boot");
   });
 
+  // ISOLAMENTO: schedule separado do worker de lembretes acima.
+  // Mesmo que a campanha tenha centenas de itens, ela processa LOTE_POR_TICK (10)
+  // por tick via claim atômico (FOR UPDATE SKIP LOCKED). O worker de lembretes
+  // inicia seu próprio tick concorrentemente, sem aguardar este terminar.
   cron.schedule(
     "* * * * *",
     () => {
+      const t0 = Date.now();
       processarFilaCampanha()
         .then((r) => {
+          const ms = Date.now() - t0;
           if (r.processadas > 0 || r.leasesRecuperados > 0) {
-            logger.info(r, "[campanha-worker] tick da fila de campanhas");
+            logger.info({ ...r, ms }, "[campanha-worker] tick da fila de campanhas");
+          } else {
+            logger.debug({ ms }, "[campanha-worker] tick sem itens pendentes");
           }
         })
         .catch((err) => logger.error({ err: err?.message }, "[campanha-worker] falha no tick"));
@@ -104,7 +121,7 @@ export function startCronJobs(): void {
     { timezone: "America/Sao_Paulo" },
   );
 
-  logger.info("Worker de campanhas de avatar agendado (tick a cada 1 min, BRT)");
+  logger.info("Worker de campanhas de avatar agendado (tick a cada 1 min, BRT — isolado do worker de lembretes)");
 
 }
 // NOTA: o cron horário de relatório de LLMs (Slack + Telegram) roda APENAS
