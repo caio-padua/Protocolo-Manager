@@ -413,6 +413,7 @@ describe("bloco PADCON — capa e páginas internas (regressão de geometria)", 
       null,  // wordmarkImg PAXMED ausente
       sym,
       words,
+      null,  // paduaWordmark ausente
     );
 
     // Geometria de referência travada (valores da capa em 14/08/2026):

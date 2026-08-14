@@ -2732,7 +2732,5 @@ export async function generateProtocolDocumentPdf(data: ProtocolDocumentData): P
   };
 }
 
-// Nota: drawPadconMark já tem `export` na declaração; PADCON_INNER_SCALE é const local,
-// por isso precisa aparecer aqui para que pdf-carta-tratamento.ts possa importá-lo.
 export { getCertInfo, loadCertificate, embedPadesSignature, PADCON_INNER_SCALE };
 export type { EmbeddedPng };

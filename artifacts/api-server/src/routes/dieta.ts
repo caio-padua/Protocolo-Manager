@@ -22,6 +22,9 @@ import {
   dentroDaJanela,
 } from "../lib/dieta-calc";
 import { computeMotor, type RespostaMotor } from "../lib/motor-anamnese";
+import { enviarMensagemPaxter, absoluteBaseUrl } from "../lib/messaging";
+import { sendWhatsapp } from "../lib/whatsapp";
+import { requireCollaborator } from "./collaborator";
 
 // ============================================================================
 // ORGAO DIETA (nativo) — ONDA A do Master Loop Paxter.
@@ -1120,6 +1123,304 @@ router.get("/dieta/prescricoes/:id/lista-compras", async (req, res): Promise<voi
     itensSemCatalogo,
     custoTotalEstimado,
   });
+});
+
+// ---------------------------------------------------------------------------
+// 7) ENVIAR LISTA DE COMPRAS — despacha a lista gerada acima ao paciente via
+//    WhatsApp e/ou e-mail, reutilizando o motor Hermes Paxter. Nao persiste
+//    nenhum dado — apenas envia e devolve o resultado ao CEO.
+// ---------------------------------------------------------------------------
+const EnviarListaSchema = z.object({
+  dias: z.union([z.literal(7), z.literal(30)]).default(7),
+  canais: z
+    .array(z.enum(["WHATSAPP", "EMAIL"]))
+    .min(1, "Selecione ao menos um canal"),
+});
+
+function formatBRL(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+router.post("/dieta/prescricoes/:id/enviar-lista-compras", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "id invalido" });
+    return;
+  }
+
+  const parsed = EnviarListaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Dados invalidos", details: parsed.error.flatten() });
+    return;
+  }
+  const { dias, canais } = parsed.data;
+
+  // — Carregar prescricao e cliente —
+  const [prescricao] = await db.select().from(dietaPrescricaoTable).where(eq(dietaPrescricaoTable.id, id));
+  if (!prescricao) {
+    res.status(404).json({ error: "Prescricao nao encontrada" });
+    return;
+  }
+  const [client] = await db
+    .select({ id: clientsTable.id, name: clientsTable.name, email: clientsTable.email, phone: clientsTable.phone })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, prescricao.clientId));
+  if (!client) {
+    res.status(404).json({ error: "Cliente nao encontrado" });
+    return;
+  }
+
+  // — Validar canais x contatos disponíveis —
+  if (canais.includes("WHATSAPP") && !client.phone) {
+    res.status(422).json({ error: "Paciente sem telefone cadastrado para WhatsApp" });
+    return;
+  }
+  if (canais.includes("EMAIL") && !client.email) {
+    res.status(422).json({ error: "Paciente sem e-mail cadastrado" });
+    return;
+  }
+
+  // — Calcular lista (mesma logica do GET) —
+  const itensCardapio = await db
+    .select()
+    .from(dietaPrescricaoItemTable)
+    .where(eq(dietaPrescricaoItemTable.prescricaoId, id));
+
+  const totalGPorAlimento = new Map<number, number>();
+  const totalGSemCatalogo = new Map<string, number>();
+  for (const item of itensCardapio) {
+    const qtdDia = item.quantidadeG ?? 0;
+    if (qtdDia <= 0) continue;
+    if (item.alimentoId != null) {
+      totalGPorAlimento.set(item.alimentoId, (totalGPorAlimento.get(item.alimentoId) ?? 0) + qtdDia * dias);
+    } else if (item.alimentoNome) {
+      totalGSemCatalogo.set(item.alimentoNome, (totalGSemCatalogo.get(item.alimentoNome) ?? 0) + qtdDia * dias);
+    }
+  }
+
+  const alimentoIds = [...totalGPorAlimento.keys()];
+  const alimentos = alimentoIds.length
+    ? await db.select().from(dietaCatalogoAlimentosTable).where(inArray(dietaCatalogoAlimentosTable.id, alimentoIds))
+    : [];
+  const alimentoById = new Map(alimentos.map((a) => [a.id, a]));
+
+  // Helper para escapar HTML em conteudo dinamico
+  function escHtml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  interface ItemCalculado {
+    nome: string;
+    unidadesComprar: number;
+    unidadeCompra: string;
+    custoItem: number;
+    temPreco: true;
+  }
+  interface ItemSemPreco {
+    nome: string;
+    totalG: number;
+    temPreco: false;
+  }
+  const itensCalculados: ItemCalculado[] = [];
+  const itensSemPrecoEnvio: ItemSemPreco[] = [];
+  let custoTotal = 0;
+
+  for (const [alimentoId, totalG] of totalGPorAlimento) {
+    const alimento = alimentoById.get(alimentoId);
+    const nome = alimento?.nome ?? `Alimento #${alimentoId}`;
+    if (!alimento || alimento.precoMedio == null || !alimento.unidadeCompra || !alimento.unidadeCompraEquivalenteG || alimento.unidadeCompraEquivalenteG <= 0) {
+      // Incluir com quantidade mas sem preco, igual ao que o CEO ve na tela
+      itensSemPrecoEnvio.push({ nome, totalG: Math.round(totalG), temPreco: false });
+      continue;
+    }
+    const rawUnidades = totalG / alimento.unidadeCompraEquivalenteG;
+    const unidadesComprar = UNIDADES_DISCRETAS.has(alimento.unidadeCompra)
+      ? Math.ceil(rawUnidades)
+      : Math.round(rawUnidades * 100) / 100;
+    const custoItem = Math.round(unidadesComprar * alimento.precoMedio * 100) / 100;
+    custoTotal += custoItem;
+    itensCalculados.push({ nome, unidadesComprar, unidadeCompra: alimento.unidadeCompra, custoItem, temPreco: true });
+  }
+  itensCalculados.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  itensSemPrecoEnvio.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  custoTotal = Math.round(custoTotal * 100) / 100;
+
+  // Itens de texto livre (sem vinculo no catalogo) — mostrar com quantidade em gramas
+  const itensSemCatalogoEnvio = [...totalGSemCatalogo.entries()].map(([nome, totalG]) => ({
+    nome,
+    totalG: Math.round(totalG),
+  }));
+  itensSemCatalogoEnvio.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+  const totalItens = itensCalculados.length + itensSemPrecoEnvio.length + itensSemCatalogoEnvio.length;
+  if (totalItens === 0) {
+    res.status(422).json({ error: "Nenhum item na lista de compras para enviar" });
+    return;
+  }
+
+  // — Montar linhas de texto completas (sem truncamento) —
+  const linhasWa: string[] = [];
+  for (const it of itensCalculados) {
+    linhasWa.push(`• ${it.nome}: ${it.unidadesComprar} ${it.unidadeCompra} — ${formatBRL(it.custoItem)}`);
+  }
+  // Itens catalogados sem preco — mostrar quantidade em gramas
+  for (const it of itensSemPrecoEnvio) {
+    linhasWa.push(`• ${it.nome}: ${it.totalG.toLocaleString("pt-BR")} g (preço indisponível)`);
+  }
+  // Itens texto livre — mostrar quantidade em gramas
+  for (const it of itensSemCatalogoEnvio) {
+    linhasWa.push(`• ${it.nome}: ${it.totalG.toLocaleString("pt-BR")} g (preço indisponível)`);
+  }
+
+  // — Dividir linhas em chunks de ~1400 chars em limites de linha.
+  //   Linhas individuais mais longas que o limite sao partidas no limite exato
+  //   para nao perder conteudo. Cada chunk vai numa mensagem plain (sem banner).
+  const WA_CHUNK_SIZE = 1400;
+  function chunkLinhas(linhas: string[]): string[] {
+    const chunks: string[] = [];
+    let cur = "";
+    for (const linhaOriginal of linhas) {
+      // Partir linhas gigantes individualmente
+      const sublinha = linhaOriginal.length > WA_CHUNK_SIZE
+        ? linhaOriginal.match(new RegExp(`.{1,${WA_CHUNK_SIZE}}`, "g")) ?? [linhaOriginal]
+        : [linhaOriginal];
+      for (const linha of sublinha) {
+        const candidato = cur ? cur + "\n" + linha : linha;
+        if (candidato.length > WA_CHUNK_SIZE && cur) {
+          chunks.push(cur);
+          cur = linha;
+        } else {
+          cur = candidato;
+        }
+      }
+    }
+    if (cur) chunks.push(cur);
+    return chunks;
+  }
+
+  // — Montar tabela HTML para e-mail (com escaping de conteudo dinamico) —
+  const linhasHtml = itensCalculados
+    .map(
+      (it) =>
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #2a3655;">${escHtml(it.nome)}</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;text-align:right;">${it.unidadesComprar} ${escHtml(it.unidadeCompra)}</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;text-align:right;font-weight:bold;color:#C5A038;">${formatBRL(it.custoItem)}</td></tr>`,
+    )
+    .join("");
+
+  // Itens catalogados sem preco — exibir quantidade em gramas, custo como indisponivel
+  const linhasHtmlSemPreco = itensSemPrecoEnvio
+    .map(
+      (it) =>
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #2a3655;color:#8a9ab8;">${escHtml(it.nome)}</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;text-align:right;color:#8a9ab8;">${it.totalG.toLocaleString("pt-BR")} g</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;color:#8a9ab8;text-align:right;">preço indisponível</td></tr>`,
+    )
+    .join("");
+
+  // Itens texto livre — mesmo tratamento que sem preco
+  const linhasHtmlSemCatalogo = itensSemCatalogoEnvio
+    .map(
+      (it) =>
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #2a3655;color:#8a9ab8;">${escHtml(it.nome)}</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;text-align:right;color:#8a9ab8;">${it.totalG.toLocaleString("pt-BR")} g</td>` +
+        `<td style="padding:6px 12px;border-bottom:1px solid #2a3655;color:#8a9ab8;text-align:right;">preço indisponível</td></tr>`,
+    )
+    .join("");
+
+  const tabelaHtml = `
+<table style="width:100%;border-collapse:collapse;font-size:14px;color:#e8eaf6;">
+  <thead>
+    <tr style="background:#1a2540;">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8a9ab8;">Alimento</th>
+      <th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8a9ab8;">Qtd. a comprar</th>
+      <th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8a9ab8;">Custo est.</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${linhasHtml}${linhasHtmlSemPreco}${linhasHtmlSemCatalogo}
+    <tr style="background:#1a2540;">
+      <td colspan="2" style="padding:10px 12px;font-weight:bold;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#8a9ab8;">Total estimado${(itensSemPrecoEnvio.length + itensSemCatalogoEnvio.length) > 0 ? " (parcial)" : ""}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:900;font-size:16px;color:#C5A038;">${custoTotal > 0 ? formatBRL(custoTotal) : "—"}</td>
+    </tr>
+  </tbody>
+</table>`;
+
+  // — PaxterDoc para E-mail (tabela como blocosHtml) —
+  const nomePaciente = client.name ?? "Paciente";
+  const totalLabel = custoTotal > 0
+    ? `Custo estimado dos itens com preço: ${formatBRL(custoTotal)}${(itensSemPrecoEnvio.length + itensSemCatalogoEnvio.length) > 0 ? " (alguns itens sem preço cadastrado — confira na tabela)" : ""}`
+    : "Ainda não há preços cadastrados para estes itens — confira a tabela para as quantidades.";
+
+  const doc = {
+    eyebrow: `Lista de compras — ${dias} dias`,
+    titulo: `Sua lista de compras, ${nomePaciente.split(" ")[0]}`,
+    paragrafos: [
+      `Preparamos sua lista de compras com base no seu cardápio para os próximos ${dias} dias.`,
+      `Confira os itens e quantidades na tabela abaixo.`,
+      totalLabel,
+    ],
+    notaRodape: "Os preços são estimativas com base no catálogo. Valores reais podem variar.",
+    assunto: `Lista de compras — ${dias} dias — ${nomePaciente}`,
+    blocosHtml: [tabelaHtml],
+  };
+
+  const baseUrl = absoluteBaseUrl(req);
+  const destino = { email: client.email, telefone: client.phone, nome: client.name };
+  const ctx = { baseUrl, clienteId: client.id, contexto: "lista_compras_dieta" };
+
+  const resultados: { canal: string; sent: boolean; mock?: boolean; error?: string }[] = [];
+
+  // — WhatsApp: mensagem brandada (intro, sem itens) + chunks de itens como plain.
+  //   O Hermes adiciona ~200-400 chars de envelope (eyebrow/titulo/footer/assinatura),
+  //   por isso os itens NUNCA entram na mensagem Hermes para nao ultrapassar o limite
+  //   do Twilio. Qualquer falha em qualquer mensagem = canal marcado como erro.
+  if (canais.includes("WHATSAPP") && client.phone) {
+    const chunks = chunkLinhas(linhasWa);
+    const totalLabel = custoTotal > 0
+      ? `💰 Total estimado: ${formatBRL(custoTotal)}`
+      : "⚠️ Alguns itens ainda não têm preço cadastrado — confira com a clínica.";
+
+    // Mensagem 1: intro brandada via Hermes (SEM itens — garante tamanho seguro)
+    const docWaIntro = {
+      eyebrow: `Lista de compras — ${dias} dias`,
+      titulo: `Sua lista de compras, ${nomePaciente.split(" ")[0]}`,
+      paragrafos: [
+        `Preparei sua lista de compras para os próximos ${dias} dias.`,
+        `Os itens chegam nas próximas mensagens.`,
+        totalLabel,
+      ],
+      notaRodape: "Os preços são estimativas com base no catálogo.",
+      assunto: `Lista de compras — ${dias} dias — ${nomePaciente}`,
+    };
+    const r0 = await enviarMensagemPaxter(docWaIntro, destino, ["WHATSAPP"], ctx);
+    let waAllSent = r0.resultados.every((rr) => rr.sent);
+    let waError: string | undefined = r0.resultados.find((rr) => !rr.sent)?.error;
+
+    // Mensagens 2..N: chunks de itens, sem envelope Hermes (sem banner repetido)
+    for (let i = 0; i < chunks.length && waAllSent; i++) {
+      const prefix = chunks.length > 1 ? `_(parte ${i + 1}/${chunks.length})_\n\n` : "";
+      const chunkResult = await sendWhatsapp(client.phone, prefix + chunks[i], {
+        clienteId: client.id,
+        contexto: "lista_compras_dieta_itens",
+      });
+      if (!chunkResult.sent) {
+        waAllSent = false;
+        waError = chunkResult.error ?? `Falha ao enviar parte ${i + 1} de ${chunks.length}`;
+      }
+    }
+
+    resultados.push({ canal: "WHATSAPP", sent: waAllSent, error: waError });
+  }
+
+  // — E-mail: PaxterDoc com tabela HTML completa —
+  if (canais.includes("EMAIL")) {
+    const r = await enviarMensagemPaxter(doc, destino, ["EMAIL"], ctx);
+    resultados.push(...r.resultados.map((rr) => ({ canal: rr.canal, sent: rr.sent, mock: rr.mock, error: rr.error })));
+  }
+
+  const algumEnviado = resultados.some((r) => r.sent);
+  res.json({ ok: algumEnviado, resultados });
 });
 
 export default router;

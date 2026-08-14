@@ -12,6 +12,11 @@ import {
   AlertTriangle,
   PackageSearch,
   Wallet,
+  Send,
+  CheckCircle2,
+  XCircle,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
 import {
   Field,
@@ -76,10 +81,20 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+interface EnvioResultado {
+  canal: string;
+  sent: boolean;
+  mock?: boolean;
+  error?: string;
+}
+
 export default function ListaDeCompras() {
+  const { toast } = useToast();
   const [clienteId, setClienteId] = useState<number | null>(null);
   const [prescricaoId, setPrescricaoId] = useState<number | null>(null);
   const [dias, setDias] = useState<7 | 30>(7);
+  const [canaisEnvio, setCanaisEnvio] = useState<Set<"WHATSAPP" | "EMAIL">>(new Set(["WHATSAPP"]));
+  const [ultimoEnvio, setUltimoEnvio] = useState<EnvioResultado[] | null>(null);
 
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["dieta", "clientes"],
@@ -116,9 +131,46 @@ export default function ListaDeCompras() {
     enabled: !!prescricaoId,
   });
 
+  const enviarLista = useMutation({
+    mutationFn: async (canais: string[]) => {
+      const r = await fetch(`/api/dieta/prescricoes/${prescricaoId}/enviar-lista-compras`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dias, canais }),
+      });
+      if (!r.ok) throw new Error(await parseApiError(r, "Falha ao enviar lista"));
+      return r.json() as Promise<{ ok: boolean; resultados: EnvioResultado[] }>;
+    },
+    onSuccess: (data) => {
+      setUltimoEnvio(data.resultados);
+      if (data.ok) {
+        toast({ title: "Lista enviada!", description: "O paciente recebeu a lista de compras." });
+      } else {
+        toast({ title: "Envio falhou", description: "Nenhum canal entregou a mensagem.", variant: "destructive" });
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" });
+    },
+  });
+
+  function toggleCanal(canal: "WHATSAPP" | "EMAIL") {
+    setCanaisEnvio((prev) => {
+      const next = new Set(prev);
+      if (next.has(canal)) {
+        if (next.size > 1) next.delete(canal);
+      } else {
+        next.add(canal);
+      }
+      return next;
+    });
+    setUltimoEnvio(null);
+  }
+
   function handleClienteChange(id: number | null) {
     setClienteId(id);
     setPrescricaoId(null);
+    setUltimoEnvio(null);
   }
 
   return (
@@ -201,6 +253,67 @@ export default function ListaDeCompras() {
               {lista.itensSemPreco.length > 0 && <><br />{lista.itensSemPreco.length} sem preço cadastrado</>}
               {lista.itensSemCatalogo.length > 0 && <><br />{lista.itensSemCatalogo.length} sem vínculo no catálogo</>}
             </div>
+          </div>
+
+          {/* — Painel de envio — */}
+          <div className="panel-3d p-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5">
+              <Send className="h-3.5 w-3.5" /> Enviar ao paciente
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => toggleCanal("WHATSAPP")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  canaisEnvio.has("WHATSAPP") ? "btn-3d" : "btn-3d-soft"
+                }`}
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleCanal("EMAIL")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  canaisEnvio.has("EMAIL") ? "btn-3d" : "btn-3d-soft"
+                }`}
+              >
+                <Mail className="h-3.5 w-3.5" /> E-mail
+              </button>
+              <Button
+                size="sm"
+                className="btn-3d ml-auto"
+                disabled={enviarLista.isPending || canaisEnvio.size === 0}
+                onClick={() => {
+                  setUltimoEnvio(null);
+                  enviarLista.mutate([...canaisEnvio]);
+                }}
+              >
+                {enviarLista.isPending ? "Enviando…" : "Enviar lista"}
+              </Button>
+            </div>
+
+            {/* Resultado do último envio */}
+            {ultimoEnvio && (
+              <div className="space-y-1 pt-1">
+                {ultimoEnvio.map((r) => (
+                  <div key={r.canal} className="flex items-center gap-2 text-xs">
+                    {r.sent ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    )}
+                    <span className={r.sent ? "text-emerald-600" : "text-destructive"}>
+                      {r.canal === "WHATSAPP" ? "WhatsApp" : "E-mail"}:{" "}
+                      {r.sent
+                        ? r.mock
+                          ? "enviado (modo teste)"
+                          : "entregue com sucesso"
+                        : r.error ?? "falha na entrega"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {lista.itens.length > 0 && (
