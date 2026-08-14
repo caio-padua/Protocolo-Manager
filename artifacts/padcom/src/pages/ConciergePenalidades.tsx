@@ -36,6 +36,7 @@ import {
 
 interface PenalidadeRow {
   cpf_mascarado: string;
+  nome_cliente: string | null;
   tentativas_falha: number;
   bloqueado_permanente: boolean;
   ultima_falha_at: string | null;
@@ -658,8 +659,19 @@ export default function ConciergePenalidades() {
                       key={`${row.cpf_mascarado}-${i}`}
                       className="border-b border-border/30 hover:bg-muted/30 transition-colors"
                     >
-                      <td className="px-4 py-3 font-mono text-xs tracking-wider">
-                        {row.cpf_mascarado}
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs tracking-wider">
+                          {row.cpf_mascarado}
+                        </span>
+                        {row.nome_cliente ? (
+                          <span className="block text-[11px] text-muted-foreground font-medium mt-0.5 truncate max-w-[180px]">
+                            {row.nome_cliente}
+                          </span>
+                        ) : (
+                          <span className="block text-[11px] text-muted-foreground/50 mt-0.5">
+                            —
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span

@@ -120,6 +120,7 @@ export async function getPenalidade(rawCpf: string | null | undefined): Promise<
 
 export interface PenalidadeRow {
   cpf_mascarado: string;
+  nome_cliente: string | null;
   tentativas_falha: number;
   bloqueado_permanente: boolean;
   ultima_falha_at: string | null;
@@ -129,6 +130,7 @@ export interface PenalidadeRow {
 
 /**
  * Lista todas as penalidades registradas (CEO). CPF retorna mascarado.
+ * Faz LEFT JOIN com a tabela de clientes para exibir o nome do paciente.
  * Filtro opcional por CPF parcial (raw, dígitos).
  */
 export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]> {
@@ -140,35 +142,40 @@ export async function listPenalidades(filtro?: string): Promise<PenalidadeRow[]>
     digitosFiltro.length >= 3
       ? sql`
           SELECT
-            CONCAT(SUBSTRING(cpf,1,3), '.***.***-', SUBSTRING(cpf,10,2)) AS cpf_mascarado,
-            tentativas_falha,
-            bloqueado_permanente,
-            ultima_falha_at,
-            criado_at,
-            atualizado_at
-          FROM concierge_penalidades
-          WHERE cpf ILIKE ${'%' + digitosFiltro + '%'}
-            AND (tentativas_falha > 0 OR bloqueado_permanente = TRUE)
-          ORDER BY atualizado_at DESC
+            CONCAT(SUBSTRING(p.cpf,1,3), '.***.***-', SUBSTRING(p.cpf,10,2)) AS cpf_mascarado,
+            c.name AS nome_cliente,
+            p.tentativas_falha,
+            p.bloqueado_permanente,
+            p.ultima_falha_at,
+            p.criado_at,
+            p.atualizado_at
+          FROM concierge_penalidades p
+          LEFT JOIN clients c ON REGEXP_REPLACE(c.cpf, '[^0-9]', '', 'g') = p.cpf
+          WHERE p.cpf ILIKE ${'%' + digitosFiltro + '%'}
+            AND (p.tentativas_falha > 0 OR p.bloqueado_permanente = TRUE)
+          ORDER BY p.atualizado_at DESC
           LIMIT 200
         `
       : sql`
           SELECT
-            CONCAT(SUBSTRING(cpf,1,3), '.***.***-', SUBSTRING(cpf,10,2)) AS cpf_mascarado,
-            tentativas_falha,
-            bloqueado_permanente,
-            ultima_falha_at,
-            criado_at,
-            atualizado_at
-          FROM concierge_penalidades
-          WHERE tentativas_falha > 0 OR bloqueado_permanente = TRUE
-          ORDER BY atualizado_at DESC
+            CONCAT(SUBSTRING(p.cpf,1,3), '.***.***-', SUBSTRING(p.cpf,10,2)) AS cpf_mascarado,
+            c.name AS nome_cliente,
+            p.tentativas_falha,
+            p.bloqueado_permanente,
+            p.ultima_falha_at,
+            p.criado_at,
+            p.atualizado_at
+          FROM concierge_penalidades p
+          LEFT JOIN clients c ON REGEXP_REPLACE(c.cpf, '[^0-9]', '', 'g') = p.cpf
+          WHERE p.tentativas_falha > 0 OR p.bloqueado_permanente = TRUE
+          ORDER BY p.atualizado_at DESC
           LIMIT 200
         `,
   );
 
   return (result.rows as Array<Record<string, unknown>>).map((r) => ({
     cpf_mascarado: String(r.cpf_mascarado ?? ""),
+    nome_cliente: r.nome_cliente ? String(r.nome_cliente) : null,
     tentativas_falha: Number(r.tentativas_falha ?? 0),
     bloqueado_permanente: Boolean(r.bloqueado_permanente),
     ultima_falha_at: r.ultima_falha_at ? String(r.ultima_falha_at) : null,
