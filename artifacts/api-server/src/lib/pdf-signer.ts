@@ -1957,22 +1957,34 @@ function drawPremiumCover(
   wordmarkImg: EmbeddedPng | null,
   padconSymbol: EmbeddedPng | null,
   padconWords: EmbeddedPng | null,
+  paduaWordmark: EmbeddedPng | null,
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
 
-  // Header
-  pg.drawText(safeTxt(data.unit), { x: MARGIN, y: PAGE_H - 32, size: 8, font: pf.manBold, color: IVORY_P });
-  pg.drawText(safeTxt(data.professionalName), { x: MARGIN, y: PAGE_H - 44, size: 6.5, font: pf.manReg, color: MIST_P });
+  // ── Cabeçalho: logo Instituto Pádua + nome do profissional ─────────────────
+  // A logo substituiu o texto da unidade (decisão CEO 14/08/2026): imagem ouro
+  // sobre navy lê melhor e comunica credencial visual sem precisar de texto.
+  if (paduaWordmark) {
+    try {
+      const pwH = 18;
+      const pwW = pwH * (paduaWordmark.width / paduaWordmark.height);
+      pg.drawImage(paduaWordmark, { x: MARGIN, y: PAGE_H - 50, width: pwW, height: pwH });
+    } catch { /* best-effort */ }
+  } else {
+    pg.drawText(safeTxt(data.unit), { x: MARGIN, y: PAGE_H - 32, size: 8, font: pf.manBold, color: IVORY_P });
+  }
+  pg.drawText(safeTxt(data.professionalName), { x: MARGIN, y: PAGE_H - 60, size: 6.5, font: pf.manReg, color: MIST_P });
   const docLbl = "CARTA DE TRATAMENTO";
-  pg.drawText(docLbl, { x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(docLbl, 7), y: PAGE_H - 32, size: 7, font: pf.manBold, color: GOLD_P });
-  pg.drawLine({ start: { x: MARGIN, y: PAGE_H - 56 }, end: { x: PAGE_W - MARGIN, y: PAGE_H - 56 }, thickness: 0.5, color: GOLD_P, opacity: 0.3 });
+  pg.drawText(docLbl, { x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(docLbl, 7), y: PAGE_H - 36, size: 7, font: pf.manBold, color: GOLD_P });
+  pg.drawLine({ start: { x: MARGIN, y: PAGE_H - 72 }, end: { x: PAGE_W - MARGIN, y: PAGE_H - 72 }, thickness: 0.5, color: GOLD_P, opacity: 0.3 });
 
   // ── LOCKUP DA MARCA: símbolo 3D + wordmark PAXMED ──────────────────────────
   // Decisão do CEO (13/08/2026): o símbolo ("R" com "X") TEM de aparecer, e vem
   // sempre acompanhado da palavra PAXMED. Ambos são a arte renderizada oficial,
   // desenhada na PROPORÇÃO NATIVA (nunca esticada) e sem qualquer placa atrás.
-  let cursorY = PAGE_H - 118;
+  // cursorY recuou 12pt (era PAGE_H-118) para dar espaço ao cabeçalho com logo.
+  let cursorY = PAGE_H - 130;
 
   if (symbolImg) {
     try {
@@ -2083,10 +2095,161 @@ function drawPremiumCover(
     drawPadconMark(pg, padconSymbol, padconWords, rightX, rowY, 1);
 
     pg.drawText(tag, { x: rightX - tagW, y: tagY, size: tagSize, font: pf.manReg, color: WHITE });
+
+    // Canto inferior ESQUERDO: logo Instituto Pádua (espelho discreto do PADCON).
+    // Equilíbrio visual: PADCON (engenharia) à direita, Pádua (clínica) à esquerda.
+    if (paduaWordmark) {
+      try {
+        const pwH = 14;
+        const pwW = pwH * (paduaWordmark.width / paduaWordmark.height);
+        pg.drawImage(paduaWordmark, { x: MARGIN, y: rowY, width: pwW, height: pwH });
+      } catch { /* best-effort */ }
+    }
   }
 
   const footTxt = "Documento clinico individual — PAXMED Clinical Intelligence System — tecnologia PADCON — Pagina 1";
   pg.drawText(footTxt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: MIST_P, opacity: 0.6 });
+}
+
+// ── Subcapa biográfica (página 2) ─────────────────────────────────────────────
+// Apresenta o médico responsável pelo protocolo: bloco navy no topo com nome e
+// credenciais, corpo marfim com a história em duas colunas. Não recebe o
+// drawPremiumHeaderBrand (tem cabeçalho próprio); recebe apenas o footer padrão.
+function drawSubcapaPage(
+  pdfDoc: PDFDocument,
+  allPages: PDFPage[],
+  data: ProtocolDocumentData,
+  pf: PremiumFonts,
+  paduaWordmark: EmbeddedPng | null,
+): void {
+  const pg = newDocPage(pdfDoc, allPages);
+  pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
+
+  // Faixa navy superior — identidade visual do médico
+  const HERO_H = 108;
+  pg.drawRectangle({ x: 0, y: PAGE_H - HERO_H, width: PAGE_W, height: HERO_H, color: NAVY_P });
+  pg.drawRectangle({ x: 0, y: PAGE_H - HERO_H - 2, width: PAGE_W, height: 2, color: GOLD_P, opacity: 0.55 });
+
+  // Rótulo de seção
+  pg.drawText("SOBRE O MEDICO RESPONSAVEL", {
+    x: MARGIN, y: PAGE_H - 26, size: 5.5, font: pf.manBold, color: GOLD_P,
+  });
+
+  // Nome do médico em destaque
+  pg.drawText(safeTxt(data.professionalName), {
+    x: MARGIN, y: PAGE_H - 50, size: 20, font: pf.cgBold, color: WHITE,
+  });
+
+  // Credenciais
+  const cred1 = data.professionalCrm ? `${data.professionalCrm}  \u00b7  Endocrinologia  \u00b7  Medicina Integrativa` : "Endocrinologia  \u00b7  Medicina Integrativa";
+  pg.drawText(cred1, { x: MARGIN, y: PAGE_H - 68, size: 7, font: pf.manReg, color: MIST_P });
+  pg.drawText("Nutricao Clinica  \u00b7  Fundador do Instituto Padua", {
+    x: MARGIN, y: PAGE_H - 79, size: 7, font: pf.manReg, color: MIST_P,
+  });
+
+  // Logo Pádua no canto superior direito da faixa navy (mesmo asset, reaproveitado)
+  if (paduaWordmark) {
+    try {
+      const pwH = 20;
+      const pwW = pwH * (paduaWordmark.width / paduaWordmark.height);
+      pg.drawImage(paduaWordmark, { x: PAGE_W - MARGIN - pwW, y: PAGE_H - HERO_H + 16, width: pwW, height: pwH });
+    } catch { /* best-effort */ }
+  }
+
+  // ── Corpo em duas colunas ─────────────────────────────────────────────────
+  const COL_GAP = 18;
+  const COL_W   = (CONTENT_W - COL_GAP) / 2;
+  const lX      = MARGIN;
+  const rX      = MARGIN + COL_W + COL_GAP;
+  let   ly      = PAGE_H - HERO_H - 20;
+  let   ry      = ly;
+  const FLOOR   = 58; // não ultrapassa o rodapé
+
+  // Helpers inline: seção label e corpo de texto com wrap
+  const sec = (page: PDFPage, x: number, y: number, lbl: string): number => {
+    page.drawText(lbl, { x, y, size: 5.5, font: pf.manBold, color: GOLD_P });
+    return y - 9;
+  };
+  const para = (page: PDFPage, x: number, y: number, txt: string, w: number, sz = 7.5): number => {
+    const lines = wrapText(txt, pf.manReg, sz, w);
+    for (const ln of lines) {
+      if (y < FLOOR) break;
+      page.drawText(ln, { x, y, size: sz, font: pf.manReg, color: INK_P });
+      y -= sz + 2.5;
+    }
+    return y - 9;
+  };
+  const bul = (page: PDFPage, x: number, y: number, items: string[], w: number): number => {
+    for (const item of items) {
+      if (y < FLOOR) break;
+      page.drawText("\u2022", { x, y, size: 7, font: pf.manBold, color: GOLD_P });
+      const lines = wrapText(item, pf.manReg, 7, w - 11);
+      for (const ln of lines) {
+        if (y < FLOOR) break;
+        page.drawText(ln, { x: x + 11, y, size: 7, font: pf.manReg, color: INK_P });
+        y -= 9.5;
+      }
+    }
+    return y - 9;
+  };
+
+  // COLUNA ESQUERDA
+  ly = sec(pg, lX, ly, "QUEM SOU EU");
+  ly = para(pg, lX, ly,
+    "Formado pela Faculdade de Medicina de Mogi das Cruzes em 2006, venho de uma familia marcada pela vocacao medica. Inspirado pela minha irma medica e por familiares que carregam a mesma chama, compreendi que a medicina seria para mim nao apenas uma profissao, mas uma missao de vida.",
+    COL_W);
+
+  ly = sec(pg, lX, ly, "FORMACAO ACADEMICA");
+  ly = bul(pg, lX, ly, [
+    "Graduacao em Medicina — Mogi das Cruzes (2006)",
+    "Pos-Graduacao em Endocrinologia",
+    "Pos-Graduacao em Adequacao Nutricional e Homeostase",
+    "Especializacao em prevencao de doencas relacionadas a idade",
+  ], COL_W);
+
+  ly = sec(pg, lX, ly, "MENTORIA: DR. LAIR RIBEIRO");
+  para(pg, lX, ly,
+    "Aluno e mentorado por mais de 3 anos do Dr. Lair Ribeiro — Professor Emerito de Harvard, ex-Vice-Presidente da Ciba-Geigy (hoje Novartis) e referencia incontestavel na Medicina Integrativa. A pos-graduacao por ele ministrada e uma das mais prestigiadas do Brasil, atraindo medicos de todo o mundo.",
+    COL_W);
+
+  // COLUNA DIREITA
+  ry = sec(pg, rX, ry, "INSTITUTO PADUA");
+  ry = para(pg, rX, ry,
+    "Fundador e diretor do Instituto Padua — clinica com foco em medicina integrativa e preventiva. Protocolos proprios desenvolvidos com rigor cientifico. Missao: levar saude, longevidade e qualidade de vida a cada paciente.",
+    COL_W);
+
+  ry = sec(pg, rX, ry, "MINHA FILOSOFIA");
+  ry = para(pg, rX, ry,
+    "Buscar a raiz dos problemas, promover o equilibrio e estimular o potencial de cura natural do organismo. Nao viso o retorno financeiro como fim — ele e apenas consequencia de transformar vidas.",
+    COL_W);
+
+  ry = sec(pg, rX, ry, "MINHA PRIORIDADE");
+  ry = para(pg, rX, ry,
+    "Transformar vidas. Ajudar meus pacientes a viverem mais, melhor e com dignidade. Cada consulta, cada protocolo e cada material educativo e preparado com o maximo rigor cientifico — fruto de anos de dedicacao e superacao.",
+    COL_W);
+
+  // Frase-símbolo em ouro
+  if (ry > FLOOR + 40) {
+    ry -= 4;
+    pg.drawLine({ start: { x: rX, y: ry }, end: { x: rX + COL_W, y: ry }, thickness: 0.5, color: GOLD_P, opacity: 0.45 });
+    ry -= 14;
+    for (const ln of wrapText("Vem comigo que voce passa de ano!", pf.cgSemiBold, 10, COL_W)) {
+      if (ry < FLOOR) break;
+      pg.drawText(ln, { x: rX, y: ry, size: 10, font: pf.cgSemiBold, color: GOLD_P });
+      ry -= 14;
+    }
+    if (ry > FLOOR)
+      pg.drawText("— Dr. Caio Henrique Fernandes Padua, CRM 125.475", {
+        x: rX, y: ry, size: 6, font: pf.manReg, color: NAVY_P,
+      });
+  }
+
+  // Divisória vertical entre colunas
+  pg.drawLine({
+    start: { x: MARGIN + COL_W + COL_GAP / 2, y: PAGE_H - HERO_H - 14 },
+    end:   { x: MARGIN + COL_W + COL_GAP / 2, y: FLOOR + 10 },
+    thickness: 0.4, color: GOLD_P, opacity: 0.25,
+  });
 }
 
 // ── Checkpoint B: Header e footer premium para páginas internas ───────────────
@@ -2150,18 +2313,22 @@ export async function buildProtocolDocumentLayout(
     cgReg: fb.regular, cgBold: fb.bold, cgSemiBold: fb.bold,
     manReg: fb.regular, manBold: fb.bold,
   }));
-  const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg] = await Promise.all([
+  const [symbolImg, wordmarkImg, padconSymbol, padconWords, qrImg, paduaWordmark] = await Promise.all([
     embedBrandPng(pdfDoc, "paxmed-symbol.png"),
     embedBrandPng(pdfDoc, "paxmed-wordmark.png"),
-    embedBrandPng(pdfDoc, "padcon-symbol.png"),   // símbolo hexagonal isolado
-    embedBrandPng(pdfDoc, "padcon-words.png"),     // PADCON + Platform® + Advanced Systems Architecture
+    embedBrandPng(pdfDoc, "padcon-symbol.png"),    // símbolo hexagonal isolado
+    embedBrandPng(pdfDoc, "padcon-words.png"),      // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
+    embedBrandPng(pdfDoc, "padua-wordmark.png"),   // logo Instituto Pádua (capa + subcapa)
   ]);
 
   const allPages: PDFPage[] = [];
 
   // ── Checkpoint B: Capa premium PAXMED ──────────────────────────────────────
-  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords);
+  drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords, paduaWordmark);
+
+  // ── Checkpoint B2: Subcapa biográfica do médico (página 2) ─────────────────
+  drawSubcapaPage(pdfDoc, allPages, data, pf, paduaWordmark);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
   // (overflow é gerenciado dentro de drawSubstancePremiumPage)
@@ -2492,9 +2659,12 @@ export async function buildProtocolDocumentLayout(
   }
 
   // ── Header + footer premium em todas as páginas internas (pula capa) ──────────
+  // index 0 = capa (sem header/footer)
+  // index 1 = subcapa biográfica (tem cabeçalho próprio; só recebe footer)
+  // index 2+ = fichas, perguntas, cronograma, pagamentos, assinatura
   for (let i = 0; i < allPages.length; i++) {
     if (i === 0) continue;
-    drawPremiumHeaderBrand(allPages[i], pf);
+    if (i !== 1) drawPremiumHeaderBrand(allPages[i], pf);
     drawPremiumFooter(allPages[i], pf, i + 1, allPages.length, qrImg, padconSymbol, padconWords);
   }
 }

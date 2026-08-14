@@ -424,3 +424,10 @@ uri = "file://docs/preview/protocolo-padcon-50-porcento.png"
 type = "image"
 title = "Protocolo — bloco PADCON nas páginas internas a 50%"
 description = "Em cima: página interna inteira com o bloco no canto inferior direito. Embaixo, à esquerda: como está na capa (tamanho de referência). À direita: como ficou na página interna, exatamente metade."
+
+[[outputs]]
+id = "uUewQtMs_fV_W7mDlcywJ"
+uri = "file://docs/preview/protocolo-capa-v2-subcapa.png"
+type = "image"
+title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica"
+description = "Acima à esquerda: capa nova com logo Instituto Pádua no cabeçalho e no canto inferior esquerdo. À direita: subcapa biográfica (página 2) com suas credenciais e história em duas colunas. Abaixo: zoom do cabeçalho e do rodapé da capa."
