@@ -311,7 +311,7 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
         aviso: "Webhook ativo — getUpdates desabilitado (correto). Bot identificado por getMe acima.",
         instrucao: [
           "1. No Telegram, abra @userinfobot e envie qualquer mensagem",
-          "2. O bot responde com o seu ID numérico (ex: 8911159822)",
+          "2. O bot responde com o seu ID numérico (ex: 123456789)",
           "3. Configure PADAXOR_TELEGRAM_CHAT_ID=<esse-numero> como Replit Secret",
         ],
       });
